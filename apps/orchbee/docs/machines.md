@@ -627,10 +627,18 @@ count tokens do not admit text rules. Nonempty configured rows retain their slot
 an empty configuration retains one identity row for navigation.
 
 Workspace state aggregates complete physical Agent facts independently of seen, using the established attention/error/outcome/working/idle/unknown ordering: blocked, error, done, working, idle, unknown. No observed Agent leaves the state slot blank; it never manufactures idle. A known Agent with insufficient state evidence is unknown. Source filters and custom display labels do not change this authority.
-Git observations come from the canonical Workspace directory on the selected
-Worker. `git_status` is ahead/behind relative to the local upstream; neither a
+Git observations follow the Workspace's first terminal, the leading Panel primary
+of its first Tab, on the selected Worker. Its directory is the latest OSC 7/9;9
+report, otherwise the root process cwd, from the Server's existing periodic process
+sampler. Without a sample the canonical Workspace directory applies. A `cd` into or
+out of a checkout therefore appears on the next sidebar round without changing the
+canonical directory. Shells that change location without reporting it, such as
+PowerShell without a prompt that emits OSC 7 or 9;9, keep their launch directory.
+Each Workspace reads separately because equal canonical directories may diverge.
+`git_status` is ahead/behind relative to the local upstream; neither a
 dirty-file count nor a zero invented for an unavailable repository. Detached
-and unborn branches, absent upstream, and nonrepositories remain explicit.
+and unborn branches, absent upstream, and nonrepositories remain explicit; a
+nonrepository is an observation without branch facts, so earlier facts are not retained.
 Reads never fetch, change configuration, start a terminal or execute a plugin.
 
 The Git read reuses the owned Windows discovery slot: checked start, poll,

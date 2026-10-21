@@ -256,6 +256,49 @@ impl ProcessObservationTarget {
     }
 }
 impl SiteCoordinator {
+    /// The latest exact-physical directory of a Workspace's first terminal: the first Tab's
+    /// leading Panel primary, reported by OSC 7 or else its root process. Never attaches a viewer.
+    pub(crate) fn workspace_terminal_directory(
+        &self,
+        workspace_id: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    ) -> Option<(
+        orchbee_workbench_protocol::WorkerId,
+        orchbee_workbench_protocol::WorkbenchDirectoryPath,
+    )> {
+        use orchbee_workbench_protocol::PanelNode;
+        let snapshot = self.workbench.as_ref()?.snapshot();
+        let workspace = snapshot.navigation.workspace(workspace_id)?;
+        let context = snapshot
+            .terminal_contexts
+            .iter()
+            .find(|context| context.terminal_context_id == workspace.terminal_context_id)?;
+        let mut node = &context.tabs.first()?.root;
+        let binding = loop {
+            match node {
+                PanelNode::Panel {
+                    primary_presentation,
+                    ..
+                } => break primary_presentation.binding.as_ref()?,
+                PanelNode::Split { children, .. } => node = &children[0].node,
+            }
+        };
+        let fact = self
+            .agent_registration_for_bindings(std::slice::from_ref(binding))
+            .ok()?
+            .into_iter()
+            .next()?;
+        let sample = self.process_samples.get(&key(binding))?;
+        let physical = TerminalAgentBinding {
+            binding: binding.clone(),
+            worker_generation: fact.worker_generation(),
+            identity: fact.identity(),
+        };
+        if sample.target != physical {
+            return None;
+        }
+        Some((binding.worker_id.clone(), sample.directory.clone()?))
+    }
+
     /// Read existing exact-physical samples only; never attach a viewer or substitute a child cwd.
     pub(crate) fn cached_checkpoint_directories(
         &self,

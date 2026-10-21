@@ -234,8 +234,9 @@ padding and continuation rows retain their declared owner.
   existing context-menu and keyboard routes available, and retain a revealed trigger while its
   own control is hovered or pressed. Revealing it never shifts identity or cancels an armed row.
 - A row close icon action may follow the same reveal rule on row or child hover. It occupies the
-  first line's reserved trailing metadata extent and replaces that metadata only while revealed,
-  so identity truncates identically at rest and on hover. It uses `text-secondary` on the row
+  first line's trailing edge, covering that line's right-aligned metadata and trailing markers
+  only while revealed; identity keeps a fixed one-cell clearance, so it truncates identically at
+  rest and on hover. It uses `text-secondary` on the row
   surface and `accent-destructive` only on its own hover and press. It publishes no hidden target,
   keeps the existing menu and keyboard close routes, and enters the owner's ordinary close
   confirmation.

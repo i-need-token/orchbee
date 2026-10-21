@@ -217,7 +217,9 @@ impl NativeUi {
         &mut self,
         request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
     ) -> bool {
-        self.request_quick_workspace_with_review(request, true)
+        // Quick creation submits its prepared defaults; only the explicit
+        // at-directory request opens the directory review.
+        self.request_quick_workspace_with_review(request, false)
     }
 
     pub(super) fn request_quick_workspace_with_review(

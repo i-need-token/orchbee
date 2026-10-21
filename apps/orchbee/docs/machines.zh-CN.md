@@ -458,8 +458,15 @@ Windows 主侧栏按精确 Session/context 身份解析工作区行，不按显�
 图标和 Git 计数 token 不接纳文本规则。非空配置行在值缺失或隐藏时保留行位；空配置保留一行身份供导航。
 
 工作区状态独立于 seen 聚合完整物理 Agent 事实，沿用注意／错误／结果／运行／空闲／未知的顺序：blocked、error、done、working、idle、unknown。未观察到 Agent 时状态位留空，不虚构 idle。已知 Agent 的状态依据不足时显示 unknown。来源过滤与自定义显示标签不改变权威。
-Git 观测来自选定 Worker 上的规范 Workspace 目录。`git_status` 是相对本地 upstream 的 ahead/behind；
-不是脏文件计数，也不为不可用仓库编造零。游离或未出生分支、缺少 upstream、非仓库均明确区分。
+Git 观测跟随选定 Worker 上 Workspace 的首个终端，即首个 Tab 中首个 Panel 的主终端。
+其目录取 Server 既有周期进程采样器中最新的 OSC 7／9;9 上报，否则取根进程 cwd；
+尚无采样时使用规范 Workspace 目录。因此在终端中 `cd` 进入或离开检出目录后，
+下一轮侧栏观测即会体现，且不改变规范目录。切换位置但不上报的 shell
+（例如提示符未输出 OSC 7 或 9;9 的 PowerShell）保持其启动目录。
+规范目录相同的 Workspace 也可能分化，因此各自独立读取。
+`git_status` 是相对本地 upstream 的 ahead/behind；
+不是脏文件计数，也不为不可用仓库编造零。游离或未出生分支、缺少 upstream、非仓库均明确区分；
+非仓库是一次不含分支事实的观测，因此不保留先前事实。
 读取不 fetch、不修改配置、不启动终端或执行插件。
 
 Git 读取复用 Windows 自有发现槽：受检启动、轮询、取消、五秒截止时间、保留回执及子进程／管道结算。

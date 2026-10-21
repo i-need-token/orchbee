@@ -665,4 +665,88 @@ mod process_samples {
         assert_eq!(view.state, PanelAgentState::Working);
         assert_eq!(view.authority_source, None);
     }
+    #[test]
+    fn workspace_terminal_directory_follows_only_the_first_tab_exact_physical_owner() {
+        use super::super::tab_create::{
+            configure_workspace, context_tab_command, dispatch_tab, immediate_completion,
+        };
+        use orchbee_workbench_protocol::WorkbenchDirectoryPath;
+        let mut site = site();
+        let context = configure_workspace(&mut site, "C:/plain");
+        for request in [100, 110] {
+            let revision = snapshot(&mut site).revision.value();
+            let create = context_tab_command(&site, request, revision, context.clone(), "tab");
+            let pending = dispatch_tab(&mut site, create, request + 1);
+            let completion = immediate_completion(pending.command());
+            site.complete_terminal_tab_create(pending, completion, Some(worker(1)))
+                .unwrap();
+        }
+        let workspace_id = snapshot(&mut site).navigation.workspaces[0]
+            .workspace_id
+            .clone();
+        let targets = site.process_observation_targets().unwrap();
+        let first_binding = snapshot(&mut site)
+            .terminal_contexts
+            .iter()
+            .find(|candidate| candidate.terminal_context_id == context)
+            .and_then(|context| match &context.tabs[0].root {
+                orchbee_workbench_protocol::PanelNode::Panel {
+                    primary_presentation,
+                    ..
+                } => primary_presentation.binding.clone(),
+                orchbee_workbench_protocol::PanelNode::Split { .. } => None,
+            })
+            .unwrap();
+        let observe = |site: &mut SiteCoordinator, first: bool, path: &str, at: Instant| {
+            let target = targets
+                .iter()
+                .find(|target| (target.binding == first_binding) == first)
+                .unwrap()
+                .target;
+            let sample = TerminalProcessInfo {
+                attachment_id: AttachmentId::from_bytes([1; 16]).unwrap(),
+                terminal_id: TerminalId::from_bytes(target.identity.terminal_id().as_bytes())
+                    .unwrap(),
+                root_pid: 10,
+                processes: vec![],
+            };
+            let directory = WorkbenchDirectoryPath::parse(path).unwrap();
+            assert!(site.observe_host_screen_with_directory(
+                target,
+                &sample,
+                None,
+                Some(directory),
+                at,
+                at
+            ));
+        };
+        assert_eq!(targets.len(), 2);
+        assert_eq!(site.workspace_terminal_directory(&workspace_id), None);
+        let now = Instant::now();
+        // A later Tab never stands in for the Workspace's first terminal.
+        observe(&mut site, false, "C:/other", now);
+        assert_eq!(site.workspace_terminal_directory(&workspace_id), None);
+        observe(&mut site, true, "C:/repo", now);
+        let expected = |path: &str| {
+            Some((
+                first_binding.worker_id.clone(),
+                WorkbenchDirectoryPath::parse(path).unwrap(),
+            ))
+        };
+        assert_eq!(
+            site.workspace_terminal_directory(&workspace_id),
+            expected("C:/repo")
+        );
+        // A later `cd` replaces the observed directory without a canonical change.
+        observe(
+            &mut site,
+            true,
+            "C:/repo/nested",
+            now + Duration::from_millis(1),
+        );
+        assert_eq!(
+            site.workspace_terminal_directory(&workspace_id),
+            expected("C:/repo/nested")
+        );
+    }
 }

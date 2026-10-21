@@ -17,7 +17,7 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
 }
 
 #[test]
-fn every_creation_entry_reviews_then_projects_without_changing_canonical_selection() {
+fn every_creation_entry_projects_immediately_without_changing_canonical_selection() {
     for entry in ["create", "quick", "project"] {
         let (mut ui, mailbox, clock, snapshot) = ready(true);
         let source = ui.state.as_ref().unwrap().desired().cloned();
@@ -37,17 +37,14 @@ fn every_creation_entry_reviews_then_projects_without_changing_canonical_selecti
             ui.apply_client_action(action),
             SessionActionDisposition::LayoutChanged
         );
-        // Nothing is being created until the user accepts the directory review.
-        assert!(ui.view().workspace_creation_preview().is_none());
         finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-        assert!(ui.view().workspace_creation_preview().is_none());
+        assert!(ui.view().setup_draft().is_none(), "no review is presented");
         assert_eq!(ui.state.as_ref().unwrap().desired(), source.as_ref());
         assert_eq!(
             ui.state.as_ref().unwrap().cache().canonical_snapshot(),
             &snapshot
         );
 
-        accept_directory_review(&mut ui);
         let preview = ui.view().workspace_creation_preview().unwrap();
         assert_eq!(preview.phase, WorkspaceCreationPhase::Starting);
         assert_eq!(preview.label, Some("项目 space"));
@@ -72,7 +69,6 @@ fn focus_after_review_acceptance_is_not_rearmed_by_late_commit() {
     let source = ui.state.as_ref().unwrap().desired().cloned();
     ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
     finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-    accept_directory_review(&mut ui);
     assert!(ui.view().workspace_creation_preview().unwrap().current);
     ui.apply_client_action(ClientAction::SelectNextContext);
     let preview = ui.view().workspace_creation_preview().unwrap();
@@ -106,7 +102,6 @@ fn focus_after_review_acceptance_is_not_rearmed_by_late_commit() {
     // The previous real identity must never be reused for the next provisional row.
     assert!(ui.request_quick_workspace());
     finish_preparation(&mut ui, &mailbox, &clock, &committed, false);
-    accept_directory_review(&mut ui);
     assert!(
         ui.view()
             .workspace_creation_preview()
@@ -129,13 +124,6 @@ fn pending_creation_never_forwards_typing_to_the_hidden_source_terminal() {
         .clone();
     assert!(ui.request_quick_workspace());
     finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-    let token = ui.view().setup_draft().unwrap().token();
-    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    assert!(
-        ui.view().setup_capture_claim(),
-        "the drawn review owns typing"
-    );
-    ui.submit_setup_draft(token);
     assert!(
         ui.view()
             .workspace_creation_preview()
@@ -246,7 +234,6 @@ fn loading_projection_renders_both_locales_and_all_tiers_without_a_modal_or_old_
                 view.machines.available = true;
                 ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
                 finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-                accept_directory_review(&mut ui);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut hits = HitMapBuilder::new();
                 terminal

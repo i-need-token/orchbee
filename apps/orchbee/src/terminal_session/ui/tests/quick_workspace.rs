@@ -1,6 +1,4 @@
-use super::super::tests::workspace_setup::{
-    accept_directory_review, finish_preparation, finish_preparation_with_directory,
-};
+use super::super::tests::workspace_setup::{finish_preparation, finish_preparation_with_directory};
 use super::super::*;
 use orchbee_workbench_protocol::Snapshot;
 
@@ -49,22 +47,29 @@ pub(in crate::terminal_session::ui) fn empty_ui(
 }
 
 #[test]
-fn ordinary_workspace_entry_waits_for_a_drawn_directory_review() {
+fn ordinary_workspace_entry_launches_the_prepared_directory_without_a_review() {
+    use orchbee_workbench_protocol::WorkbenchAction;
     let (mut ui, mailbox, clock, snapshot) = no_workspace();
     ui.apply_client_action(ClientAction::RequestQuickWorkspace);
-    assert!(ui.view().workspace_creation_preview().is_none());
-    assert!(ui.view().setup_capture_claim());
     finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
     assert!(
-        mailbox.try_recv().unwrap().is_none(),
-        "opening never creates a Workspace"
+        ui.view().setup_draft().is_none(),
+        "quick creation never presents a review"
     );
-    let draft = ui.view().setup_draft().unwrap();
-    assert_eq!(draft.stage(), NativeSetupStage::QuickDirectory);
-    assert!(!draft.directory_choices().is_empty());
-    assert!(ui.view().workspace_creation_preview().is_none());
-    let token = draft.token();
-    ui.cancel_setup_draft(token);
+    assert!(ui.view().workspace_creation_preview().unwrap().current);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("single Workspace launch")
+    };
+    let expected = if cfg!(windows) {
+        "C:/项目 space"
+    } else {
+        "/tmp/项目 space"
+    };
+    assert!(
+        matches!(&marker.0.command.action, WorkbenchAction::WorkspaceLaunch { options, .. }
+        if options.cwd.as_ref().unwrap().as_str() == expected)
+    );
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
@@ -263,7 +268,6 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     &snapshot,
                     false,
                 );
-                accept_directory_review(session.backend.native_mut().unwrap());
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
                     panic!("one redirected WorkspaceLaunch, never TerminalOpen or Tab Create");
@@ -420,7 +424,6 @@ fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurre
             assert!(ui.view().no_current_workspace());
             assert!(mailbox.try_recv().unwrap().is_none());
         } else {
-            accept_directory_review(&mut ui);
             let lease = mailbox.try_recv().unwrap().unwrap();
             assert!(
                 matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
@@ -653,7 +656,6 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                 );
             } else {
                 finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-                accept_directory_review(&mut ui);
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 assert!(
                     matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
@@ -699,7 +701,6 @@ fn workspace_create_and_quick_launch_submit_one_ungrouped_shell_without_a_projec
                 super::super::tests::workspace_setup::ready(with_project);
             ui.apply_client_action(action);
             finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-            accept_directory_review(&mut ui);
             let lease = mailbox.try_recv().unwrap().unwrap();
             let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
                 panic!("WorkspaceLaunch")
@@ -737,7 +738,7 @@ fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leavin
 }
 
 #[test]
-fn quick_workspace_launches_only_from_a_drawn_review_in_either_locale() {
+fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
     use crate::{
         client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
         tui_pointer::HitMapBuilder,
@@ -748,7 +749,8 @@ fn quick_workspace_launches_only_from_a_drawn_review_in_either_locale() {
         for (width, height, drawn) in [(120, 40, true), (80, 24, true), (22, 8, false)] {
             let (mut ui, mailbox, clock, snapshot) =
                 super::super::tests::workspace_setup::ready(false);
-            prepare(&mut ui, &mailbox, &clock, &snapshot, false);
+            ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory(None));
+            finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
             assert!(
                 mailbox.try_recv().unwrap().is_none(),
                 "the review creates nothing before it is accepted"

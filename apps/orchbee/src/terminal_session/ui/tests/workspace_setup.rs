@@ -86,15 +86,6 @@ pub(in crate::terminal_session::ui) fn finish_preparation(
     );
 }
 
-/// Presents the prepared directory review and accepts its displayed defaults, as Enter does.
-pub(in crate::terminal_session::ui) fn accept_directory_review(ui: &mut NativeUi) {
-    let draft = ui.view().setup_draft().unwrap();
-    assert_eq!(draft.stage(), NativeSetupStage::QuickDirectory);
-    let token = draft.token();
-    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
-    ui.submit_setup_draft(token);
-}
-
 pub(in crate::terminal_session::ui) fn finish_preparation_with_directory(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
@@ -152,7 +143,6 @@ fn submit_launch(
 ) -> CommandLease {
     ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
     finish_preparation(ui, mailbox, clock, snapshot, false);
-    accept_directory_review(ui);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
         panic!("exact launch")
@@ -538,7 +528,6 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                     &snapshot,
                     false,
                 );
-                accept_directory_review(session.backend.native_mut().unwrap());
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
                     panic!("one launch")

@@ -1,11 +1,11 @@
-//! Read-only source-directory preparation under the ordinary bounded refresh lease.
+//! Quick Workspace directory defaults under the ordinary bounded refresh lease.
 use super::{NativeExecutor, Result, WorkbenchSnapshotOutcome};
 use crate::terminal_session::state::workspace_setup::quick::QuickPreparation;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
-use super::source_directory::RootDirectory;
-
 impl NativeExecutor {
+    /// The focused Workspace's own directory, otherwise the directory this Client was
+    /// launched from. A terminal's later working directory never moves the default.
     pub(super) fn prepare_quick_cwd(
         &mut self,
         preparation: &QuickPreparation,
@@ -23,34 +23,26 @@ impl NativeExecutor {
         {
             return Ok(None);
         }
-        if let Some(binding) = &preparation.primary {
-            match self.read_source_root(
-                &preparation.baseline,
-                preparation.primary_pane.as_ref(),
-                preparation.deadlines,
-                binding,
-            )? {
-                RootDirectory::Available(Some(path)) => return Ok(Some(path)),
-                RootDirectory::Available(None) => {}
-                RootDirectory::Unavailable => return Ok(None),
-            }
-        }
         if let Some(directory) = preparation.baseline.directory() {
             return Ok(Some(directory.path.clone()));
         }
-        #[cfg(windows)]
-        {
-            Ok(orchbee_local_site_runtime::normalize_windows_user_path(
-                "~",
-                |name| std::env::var_os(name),
-                std::env::current_dir,
-            )
-            .ok()
-            .and_then(|path| WorkbenchDirectoryPath::parse(&path).ok()))
-        }
-        #[cfg(not(windows))]
-        {
-            Ok(None)
-        }
+        Ok(launch_directory())
     }
+}
+
+#[cfg(windows)]
+fn launch_directory() -> Option<WorkbenchDirectoryPath> {
+    // The Client never changes its process directory, so it remains the launch directory.
+    orchbee_local_site_runtime::normalize_windows_user_path(
+        ".",
+        |name| std::env::var_os(name),
+        std::env::current_dir,
+    )
+    .ok()
+    .and_then(|path| WorkbenchDirectoryPath::parse(&path).ok())
+}
+
+#[cfg(not(windows))]
+fn launch_directory() -> Option<WorkbenchDirectoryPath> {
+    None
 }

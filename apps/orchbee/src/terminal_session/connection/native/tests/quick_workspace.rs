@@ -1,223 +1,92 @@
-//! The actual carrier borrows the live primary Viewer or releases its own temporary Viewer.
-use super::super::AttachedTerminal;
+//! Quick Workspace defaults come from canonical directories or the Client launch directory.
 use super::super::NativeExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
 use crate::local_client::tests::server::FakeServer;
-use crate::terminal_session::primary_directory::tests::process_record;
+use crate::terminal_session::mailbox::CommandMailbox;
+use crate::terminal_session::state::OperationDeadlines;
 use crate::terminal_session::state::workspace_setup::{NativeSetupToken, quick::QuickPreparation};
-use crate::terminal_session::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
-use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
-use crate::terminal_session::{
-    mailbox::CommandMailbox,
-    state::{CarrierFailure, OperationDeadlines},
+use crate::terminal_session::workbench_projection::{
+    NativeContextLocation, NativeContextTabs, project_native_context_tabs,
+    project_native_standalone_tabs,
 };
-use orchbee_client_server_protocol::{
-    ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerResult, ViewerId, read_client_message, write_server_message,
+use orchbee_workbench_protocol::{
+    Directory, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
+    WorkbenchSnapshotOutcome, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
+    Workspace,
 };
-use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchSnapshotOutcome};
 use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
 
-fn preparation() -> TestResult<(QuickPreparation, WorkbenchSnapshotOutcome)> {
-    let snapshot = snapshot(1, 1);
-    let baseline = project_native_standalone_tabs(&snapshot).unwrap();
-    let primary = baseline.tabs()[0]
-        .panel(0)
-        .unwrap()
-        .primary()
-        .binding()
-        .cloned();
-    Ok((
-        QuickPreparation {
-            review_directory: false,
-            target: None,
-            generation: 1,
-            token: NativeSetupToken::for_test(1),
-            baseline,
-            primary,
-            primary_pane: None,
-            deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
-        },
-        WorkbenchSnapshotOutcome::Available { snapshot },
-    ))
-}
-
-#[test]
-fn quick_workspace_carrier_samples_the_primary_root_and_detaches_before_accepting_or_refusing()
--> TestResult {
-    sample(true, |executor, preparation, outcome| {
-        executor.prepare_quick_cwd(preparation, outcome)
-    })
-}
-
-pub(in crate::terminal_session::connection::native) fn sample(
-    fallback: bool,
-    mut prepare: impl FnMut(
-        &mut NativeExecutor,
-        &QuickPreparation,
-        &WorkbenchSnapshotOutcome,
-    ) -> Result<Option<WorkbenchDirectoryPath>, CarrierFailure>,
-) -> TestResult {
-    for (cwd, wrong_identity) in [
-        (Some("C:/项目 space"), false),
-        (None, false),
-        (Some("relative"), false),
-        (Some("C:/valid"), true),
-    ] {
-        let record = process_record(cwd, wrong_identity)?;
-        let (preparation, outcome) = preparation()?;
-        let binding = preparation.primary.clone().unwrap();
-        let site = preparation.baseline.site_id().clone();
-        let server = FakeServer::start(move |mut stream| {
-            admit(&mut stream)?;
-            let expected = [
-                TerminalViewerAction::AttachBinding {
-                    site_id: orchbee_client_server_protocol::SiteId::parse(site.as_str())
-                        .map_err(io::Error::other)?,
-                    worker_id: orchbee_client_server_protocol::WorkerId::parse(
-                        binding.worker_id().as_str(),
-                    )
-                    .map_err(io::Error::other)?,
-                    terminal_id: orchbee_client_server_protocol::TerminalId::parse(
-                        binding.terminal_id().as_str(),
-                    )
-                    .map_err(io::Error::other)?,
-                },
-                TerminalViewerAction::ReadProcessInfo {
-                    attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
-                },
-                TerminalViewerAction::Detach {
-                    attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
-                },
-            ];
-            let outcomes = [
-                TerminalViewerOutcome::Attached {
-                    attachment_id: ViewerId::parse(&"01".repeat(16)).map_err(io::Error::other)?,
-                    host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))
-                        .map_err(io::Error::other)?,
-                    host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
-                        &"02".repeat(16),
-                    )
-                    .map_err(io::Error::other)?,
-                },
-                TerminalViewerOutcome::Record(record),
-                TerminalViewerOutcome::Detached {},
-            ];
-            let mut ids = Vec::new();
-            for (action, outcome) in expected.into_iter().zip(outcomes) {
-                let ClientMessage::TerminalViewer(request) =
-                    read_client_message(&mut stream).map_err(io::Error::other)?
-                else {
-                    return Err(io::Error::other("read-only viewer expected"));
-                };
-                if request.action() != &action || ids.contains(request.request_id()) {
-                    return Err(io::Error::other(
-                        "wrong source, viewer, request identity or release order",
-                    ));
-                }
-                ids.push(request.request_id().clone());
-                write_server_message(
-                    &mut stream,
-                    &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-                        request.request_id().clone(),
-                        outcome,
-                    )),
-                )
-                .map_err(io::Error::other)?;
-            }
-            let mut trailing = [0];
-            if stream.read(&mut trailing)? != 0 {
-                return Err(io::Error::other(
-                    "unscripted creation or repeated preparation",
-                ));
-            }
-            Ok(())
-        })?;
-        let client = LocalClient::connect(server.endpoint(), "native-quick-test")?;
-        let mailbox = Arc::new(CommandMailbox::new(10, fixture_geometry()?));
-        let mut executor = NativeExecutor::new(client, mailbox);
-        let result = prepare(&mut executor, &preparation, &outcome);
-        if wrong_identity {
-            assert_eq!(result, Err(CarrierFailure::Protocol));
-        } else if cwd == Some("relative") || cwd.is_none() && !fallback {
-            assert_eq!(result, Ok(None));
-        } else {
-            let expected = cwd.map(str::to_owned).unwrap_or_else(|| {
-                orchbee_local_site_runtime::normalize_windows_user_path(
-                    "~",
-                    |name| std::env::var_os(name),
-                    std::env::current_dir,
-                )
-                .unwrap()
-            });
-            assert_eq!(result, Ok(Some(WorkbenchDirectoryPath::parse(&expected)?)));
-        }
-        assert!(
-            executor.attachments.is_empty(),
-            "temporary Viewer cannot become a pane attachment"
-        );
-        drop(executor);
-        server.finish()?;
+fn quick(baseline: NativeContextTabs) -> QuickPreparation {
+    QuickPreparation {
+        review_directory: false,
+        target: None,
+        generation: 1,
+        token: NativeSetupToken::for_test(1),
+        baseline,
+        deadlines: OperationDeadlines::from_sample(Instant::now()).unwrap(),
     }
-    Ok(())
 }
 
 #[test]
-fn quick_workspace_carrier_borrows_the_live_primary_viewer_without_reattaching_or_detaching_it()
+fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_directory_without_sampling()
 -> TestResult {
-    borrow(|executor, preparation, outcome| executor.prepare_quick_cwd(preparation, outcome))
-}
-
-pub(in crate::terminal_session::connection::native) fn borrow(
-    mut prepare: impl FnMut(
-        &mut NativeExecutor,
-        &QuickPreparation,
-        &WorkbenchSnapshotOutcome,
-    ) -> Result<Option<WorkbenchDirectoryPath>, CarrierFailure>,
-) -> TestResult {
-    for wrong_identity in [false, true] {
-        let record = process_record(Some("C:/live-root"), wrong_identity)?;
-        let (mut preparation, outcome) = preparation()?;
-        let tab = &preparation.baseline.tabs()[0];
-        let pane = PaneRef::new(
-            PaneKey::new(
-                AttachmentKey::new(1, tab.tab_id().clone()),
-                tab.panel(0).unwrap().panel_id().clone(),
-            ),
-            1,
-        );
-        preparation.primary_pane = Some(pane.clone());
-        let attachment_id = ViewerId::parse(&"01".repeat(16))?;
-        let expected = attachment_id.clone();
-        let server = FakeServer::start(move |mut stream| {
+    let standalone = snapshot(1, 1);
+    // Move the live terminal into a Workspace whose recorded directory differs from any
+    // terminal working directory; the default must still be the recorded directory.
+    let mut workspace = snapshot(0, 1);
+    let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 300))?;
+    let context_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 301))?;
+    let directory_id = WorkbenchDirectoryId::parse(&format!("{:032x}", 302))?;
+    workspace.navigation.directories.push(Directory {
+        directory_id: directory_id.clone(),
+        worker_id: WorkerId::parse(&format!("{:032x}", 1_003))?,
+        path: WorkbenchDirectoryPath::parse("C:/项目 space")?,
+    });
+    workspace.navigation.workspaces.push(Workspace {
+        label: "Workspace".into(),
+        project_id: None,
+        primary_directory_id: Some(directory_id),
+        terminal_context_id: context_id.clone(),
+        workspace_id: workspace_id.clone(),
+    });
+    workspace
+        .navigation
+        .workspace_order
+        .push(workspace_id.clone());
+    workspace.terminal_contexts.push(TerminalContext {
+        groups: Vec::new(),
+        tabs: standalone.terminal_contexts[0].tabs.clone(),
+        terminal_context_id: context_id.clone(),
+    });
+    let location = NativeContextLocation::Workspace {
+        workspace_id,
+        terminal_context_id: context_id,
+    };
+    let launch = orchbee_local_site_runtime::normalize_windows_user_path(
+        ".",
+        |name| std::env::var_os(name),
+        std::env::current_dir,
+    )
+    .unwrap();
+    for (baseline, snapshot, expected) in [
+        (
+            project_native_context_tabs(&workspace, &location).unwrap(),
+            workspace.clone(),
+            "C:/项目 space".to_owned(),
+        ),
+        (
+            project_native_standalone_tabs(&standalone).unwrap(),
+            standalone.clone(),
+            launch.clone(),
+        ),
+    ] {
+        let server = FakeServer::start(|mut stream| {
             admit(&mut stream)?;
-            let ClientMessage::TerminalViewer(request) =
-                read_client_message(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("borrowed read expected"));
-            };
-            if request.action()
-                != &(TerminalViewerAction::ReadProcessInfo {
-                    attachment_id: expected,
-                })
-            {
-                return Err(io::Error::other("live Viewer must never be attached twice"));
-            }
-            write_server_message(
-                &mut stream,
-                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-                    request.request_id().clone(),
-                    TerminalViewerOutcome::Record(record),
-                )),
-            )
-            .map_err(io::Error::other)?;
             let mut trailing = [0];
             if stream.read(&mut trailing)? != 0 {
-                return Err(io::Error::other(
-                    "borrowed Viewer must not be detached, resized or replayed",
-                ));
+                return Err(io::Error::other("quick defaults never sample a terminal"));
             }
             Ok(())
         })?;
@@ -226,33 +95,13 @@ pub(in crate::terminal_session::connection::native) fn borrow(
             client,
             Arc::new(CommandMailbox::new(10, fixture_geometry()?)),
         );
-        executor.attachments.push(AttachedTerminal {
-            key: pane.clone(),
-            attachment_id,
-            host_epoch: orchbee_client_server_protocol::HostEpoch::parse(&"04".repeat(16))?,
-            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(
-                &"02".repeat(16),
-            )?,
-            setup: None,
-            announced: true,
-            mode: Some(ControllerMode::ReadOnly),
-            next_sequence: 47,
-            accepted_geometry: None,
-        });
-        let result = prepare(&mut executor, &preparation, &outcome);
         assert_eq!(
-            result,
-            if wrong_identity {
-                Err(CarrierFailure::Protocol)
-            } else {
-                Ok(Some(WorkbenchDirectoryPath::parse("C:/live-root")?))
-            }
+            executor.prepare_quick_cwd(
+                &quick(baseline),
+                &WorkbenchSnapshotOutcome::Available { snapshot }
+            ),
+            Ok(Some(WorkbenchDirectoryPath::parse(&expected)?))
         );
-        assert_eq!(executor.attachments.len(), 1);
-        assert_eq!(executor.attachments[0].key, pane);
-        assert_eq!(executor.attachments[0].next_sequence, 47);
-        assert_eq!(executor.attachments[0].mode, Some(ControllerMode::ReadOnly));
-        assert!(executor.attachments[0].announced && executor.attachments[0].setup.is_none());
         drop(executor);
         server.finish()?;
     }

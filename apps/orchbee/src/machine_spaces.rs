@@ -6,9 +6,9 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     GitDivergence, MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataTokens, ProtocolVersion, SiteId,
-    Snapshot, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId, WorkerId,
-    WorkspaceGitFailure, WorkspaceGitOutcome, WorkspaceGitRequest, WorkspaceMetadataAction,
-    WorkspaceMetadataOutcome, WorkspaceMetadataRequest, WorkspaceMetadataRow,
+    Snapshot, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId, WorkspaceGitFailure,
+    WorkspaceGitOutcome, WorkspaceGitRequest, WorkspaceMetadataAction, WorkspaceMetadataOutcome,
+    WorkspaceMetadataRequest, WorkspaceMetadataRow,
 };
 use std::{
     collections::BTreeMap,
@@ -214,30 +214,16 @@ impl Reader<'_> {
                 git_stale: false,
             });
         }
-        // Equal canonical directories share one Git job within this topology-fenced round.
-        let mut directories: BTreeMap<(WorkerId, String), Option<Git>> = BTreeMap::new();
         for workspace in ordered {
             let directory = self
                 .before
                 .navigation
                 .workspace_directory(&workspace.workspace_id)
                 .cloned();
+            // The Server observes each Workspace's first terminal directory before its canonical
+            // directory, so Workspaces sharing a canonical directory still read separately.
             let git = if git_requested {
-                if let Some(directory) = directory.as_ref() {
-                    let key = (
-                        directory.worker_id.clone(),
-                        directory.path.as_str().to_owned(),
-                    );
-                    if let Some(git) = directories.get(&key) {
-                        git.clone()
-                    } else {
-                        let git = self.git(&workspace.workspace_id)?;
-                        directories.insert(key, git.clone());
-                        git
-                    }
-                } else {
-                    None
-                }
+                self.git(&workspace.workspace_id)?
             } else {
                 None
             };

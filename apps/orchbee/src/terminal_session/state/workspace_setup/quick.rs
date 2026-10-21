@@ -304,9 +304,7 @@ impl QuickWorkspaceFields {
 }
 
 use super::{NativeSessionState, NativeSetupStage, NativeSetupToken, SetupDraft};
-use crate::terminal_session::{
-    state::OperationDeadlines, workbench_projection::NativeTerminalBinding,
-};
+use crate::terminal_session::state::OperationDeadlines;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct QuickPreparation {
@@ -315,8 +313,6 @@ pub(in crate::terminal_session) struct QuickPreparation {
     pub(in crate::terminal_session) generation: u64,
     pub(in crate::terminal_session) token: NativeSetupToken,
     pub(in crate::terminal_session) baseline: NativeContextTabs,
-    pub(in crate::terminal_session) primary: Option<NativeTerminalBinding>,
-    pub(in crate::terminal_session) primary_pane: Option<super::super::PaneRef>,
     pub(in crate::terminal_session) deadlines: OperationDeadlines,
 }
 
@@ -396,28 +392,12 @@ impl NativeSessionState {
             return None;
         }
         let token = NativeSetupToken(self.setup.last_token.checked_add(1)?);
-        let primary = self
-            .active()
-            .and_then(|selected| {
-                self.cache
-                    .tabs()
-                    .get(selected.index())
-                    .and_then(|tab| tab.panel(selected.panel_index()))
-            })
-            .and_then(|panel| panel.primary().binding())
-            .cloned();
-        let primary_pane = self
-            .focus_record()
-            .filter(|record| Some(&record.binding) == primary.as_ref())
-            .map(super::super::PaneRecord::pane_ref);
         let preparation = QuickPreparation {
             review_directory,
             target: request.map(|request| request.target),
             generation,
             token,
             baseline: self.cache.clone(),
-            primary,
-            primary_pane,
             deadlines,
         };
         if !self.start_pending_refresh(generation) {

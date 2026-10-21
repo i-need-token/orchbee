@@ -1,12 +1,11 @@
 use super::*;
-use crate::terminal_session::connection::native::tests::quick_workspace;
-use crate::terminal_session::state::workspace_setup::quick::QuickPreparation;
+use crate::terminal_session::connection::native::tests::source_root::{self, SourceFixture};
 use crate::terminal_session::state::worktree_launch::{Origin, WorktreeMode, WorktreeToken};
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 fn prepare(
     executor: &mut NativeExecutor,
-    sample: &QuickPreparation,
+    sample: &SourceFixture,
     outcome: &WorkbenchSnapshotOutcome,
 ) -> Result<Option<WorkbenchDirectoryPath>> {
     let preparation = Preparation {
@@ -34,9 +33,9 @@ fn prepare(
 }
 #[test]
 fn worktree_primary_sample_releases_temporary_viewer_and_never_falls_back_to_home_or_child() {
-    quick_workspace::sample(false, prepare).unwrap();
+    source_root::sample(prepare).unwrap();
 }
 #[test]
 fn worktree_source_borrows_live_primary_and_retains_it_even_on_identity_failure() {
-    quick_workspace::borrow(prepare).unwrap();
+    source_root::borrow(prepare).unwrap();
 }

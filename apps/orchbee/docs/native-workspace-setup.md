@@ -8,17 +8,14 @@ revisions; the Client owns selection and input. This reference extends
 [context selection](native-context-selection.md) and the Server's
 [directory contract](../../orchbee-server/docs/workspace-terminal-directory.md).
 
-On Windows, New Workspace, `Ctrl+B a` and `Ctrl+B Shift+N` prepare a lightweight directory and
-name picker. Enter creates with the displayed defaults; Escape creates nothing. Both fields remain
-editable. Up/Down or a drawn directory row selects the current directory, recent workspace directories,
-then other known workspace directories, deduplicated and limited to eight choices. Recency belongs
-to the Client's existing volatile navigation memory; no filesystem scan or new history file is created.
-An automatic name follows path edits until the user edits the name. The default result is ungrouped. New Workspace on an exact Project row uses that Project, including
-empty and noncurrent Projects. Creating a Workspace never starts an AI provider automatically.
+On Windows, New Workspace, the empty state's Create Workspace, `Ctrl+B a` and `Ctrl+B Shift+N`
+immediately prepare and submit a Workspace with its first default shell. They open no directory or
+name form and require no confirmation. The default result is ungrouped. New Workspace on an exact
+Project row uses that Project, including empty and noncurrent Projects. Creating a Workspace never
+starts an AI provider automatically.
 
-Directory preparation and review leave the sidebar and current Tab intact. The preparing form owns
-input without claiming that a Workspace exists. Only explicit submission displays a pending sidebar
-item using the already chosen name and a current top Tab. The top Tab uses the localized automatic Tab 1
+Quick preparation leaves the sidebar and current Tab intact and immediately displays a pending
+sidebar item using the generated name and a current top Tab. The top Tab uses the localized automatic Tab 1
 title from [Tab labels](native-tab-labels.md). Accepted creation progress appears in the content region without a modal.
 This feedback improvement is scoped to the Windows TUI. GUI creation retains its existing
 activation owner and the same canonical creation semantics.
@@ -29,15 +26,16 @@ under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creati
 
 ## Creation defaults and result ownership
 
-Read-only preparation captures the exact initiating context, selected Panel, primary Terminal
-binding, revision and token. It samples the primary terminal's root-process directory, even if an
-Agent presentation is foregrounded. An explicitly absent cwd falls back to the Workspace directory,
-then Windows user home. An unavailable sample, missing root or invalid path refuses preparation;
-the Client does not invent a successful sample. The directory basename supplies the initial name,
+Read-only preparation captures the exact initiating context, revision and token. The directory is
+the focused Workspace's recorded directory. Without one, as in an empty Session or a compatibility
+context, it is the directory the Client was launched from. A terminal's later working directory,
+including a `cd` inside that Workspace, never moves this default, and preparation samples no
+terminal. A missing or invalid directory refuses preparation; the Client does not invent one.
+The directory basename supplies the initial name,
 with a localized fallback for a root path. Generated names avoid every Workspace label in the
 captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room
 for the suffix within the 512-Unicode-scalar label bound. Explicit labels remain unchanged. Default
-and Project-targeted creation use this same editable preparation path.
+and Project-targeted creation use this same preparation path.
 
 One revision-fenced `WorkspaceLaunch` accepts the directory and commits Workspace, Directory,
 Context, Tab, Panel and primary Presentation together. Project membership is a nullable property;
@@ -151,11 +149,15 @@ surface is hidden; presentation never replays it.
 ## Explicit directory and label editing
 
 The Windows creation menu and global action menu also offer **New Workspace in directory…**.
-This uses the same read-only preparation, then displays the sampled path and generated name in
+This uses the same read-only preparation, then displays the prepared path and generated name in
 the existing two-field draft with directory focus. It submits nothing until an explicit, drawn
-Submit/Enter; Esc cancels without creating resources. A Project creation menu retains its exact
-Project target. The edited directory and name belong only to this launch. One-click creation and
-its existing shortcuts continue to submit immediately.
+Submit/Enter; Esc cancels without creating resources and displays no pending item before then.
+Up/Down or a drawn directory row selects the prepared directory, recent workspace directories, then
+other known workspace directories, deduplicated and limited to eight choices. Recency belongs to
+the Client's existing volatile navigation memory; no filesystem scan or new history file is
+created. An automatic name follows path edits until the user edits the name. A Project creation
+menu retains its exact Project target. The edited directory and name belong only to this launch.
+One-click creation and its existing shortcuts continue to submit immediately.
 
 The draft explains that the default is the terminal process directory. PowerShell's logical `$PWD`
 can differ after ordinary `cd`; this path is not claimed to be that logical location. Users can
@@ -198,11 +200,12 @@ implementation traces do not provide exhaustive TLC assurance.
 metadata identity. `machine_picker/tests/spaces/anchoring` covers mutation, resize and provisional-slot
 scroll anchors. These deterministic cases do not establish physical paint latency.
 Those sidebar traces include append-position and scroll-window stability with multiple Workspaces;
-`ui/tests/quick_workspace` covers directory review, cancellation and exact edited-path submission.
+`ui/tests/quick_workspace` covers formless quick submission plus the explicit directory review,
+cancellation and exact edited-path submission.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
 This workflow has no separate TLA model. Implementation traces and process tests do not replace
 real-terminal mouse/keyboard, viewport, first-frame and interaction review. Shared commit and
 ownership protocols retain their separately registered models.
 
-The directory review paints up to two candidate paths in content rows, followed by separate hint and action rows. Candidate hit regions never share the footer. A host unable to paint the complete review cannot submit it.
+The explicit directory review paints up to two candidate paths in content rows, followed by separate hint and action rows. Candidate hit regions never share the footer. A host unable to paint the complete review cannot submit it.

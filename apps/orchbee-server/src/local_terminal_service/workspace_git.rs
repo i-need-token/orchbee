@@ -165,6 +165,14 @@ impl Driver {
                     self.job = None;
                     return Err(Failure::Timeout);
                 }
+                // Git exits 128 outside a repository: the directory has no branch facts.
+                node::WorktreeJobOutcome::Poll(node::WorktreeJobPollOutcome::GitFailed {
+                    status: Some(128),
+                    ..
+                }) => {
+                    self.job = None;
+                    return Ok((None, None));
+                }
                 node::WorktreeJobOutcome::Poll(node::WorktreeJobPollOutcome::GitFailed {
                     ..
                 }) => {
@@ -229,15 +237,9 @@ impl LocalTerminalService {
         let source = WorktreeSource::Workspace {
             workspace_id: request.workspace_id.clone(),
         };
-        let (target, handle, base, revision) = {
+        let (path, canonical, owner, handle, base, revision) = {
             let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
             let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-            let authority = coordinator
-                .worktree_authority()
-                .ok_or(Failure::Unavailable)?;
-            if authority.site_id() != &request.site_id {
-                return Err(Failure::Denied);
-            }
             let handle = workers
                 .request_handle()
                 .filter(|h| h.is_active())
@@ -247,19 +249,45 @@ impl LocalTerminalService {
                 u128::from_be_bytes(handle.worker_id().as_bytes())
             ))
             .map_err(|_| Failure::Unavailable)?;
-            let target = authority
-                .worktree_query_target(&source, &worker)
-                .map_err(|reason| match reason {
-                    orchbee_workbench_protocol::WorktreeQueryFailure::NotFound {} => {
-                        Failure::NotFound
-                    }
-                    _ => Failure::Unavailable,
-                })?;
+            // The first terminal's live directory leads, so a later `cd` into a checkout is
+            // observed without changing the Workspace's canonical directory.
+            #[cfg(windows)]
+            let live = coordinator
+                .workspace_terminal_directory(&request.workspace_id)
+                .filter(|(owner, _)| owner == &worker)
+                .map(|(_, path)| path);
+            #[cfg(not(windows))]
+            let live: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath> = None;
+            let authority = coordinator
+                .worktree_authority()
+                .ok_or(Failure::Unavailable)?;
+            if authority.site_id() != &request.site_id {
+                return Err(Failure::Denied);
+            }
+            let canonical = match authority.worktree_query_target(&source, &worker) {
+                Ok(target) => Some(target),
+                Err(orchbee_workbench_protocol::WorktreeQueryFailure::NotFound {})
+                    if authority
+                        .snapshot()
+                        .navigation
+                        .workspace(&request.workspace_id)
+                        .is_some() =>
+                {
+                    None
+                }
+                Err(orchbee_workbench_protocol::WorktreeQueryFailure::NotFound {}) => {
+                    return Err(Failure::NotFound);
+                }
+                Err(_) => return Err(Failure::Unavailable),
+            };
+            let path = live
+                .or_else(|| canonical.as_ref().map(|target| target.path.clone()))
+                .ok_or(Failure::Unavailable)?;
             let revision = authority.snapshot().revision;
             let base = coordinator
                 .allocate_identity_block(128)
                 .ok_or(Failure::Unavailable)?;
-            (target, handle, base, revision)
+            (path, canonical, worker, handle, base, revision)
         };
         // Sidebar observations are opportunistic: no queued status readers can
         // replace another discovery receipt or overtake a waiting foreground read.
@@ -277,7 +305,7 @@ impl LocalTerminalService {
             base,
             job: None,
         };
-        let (branch, divergence) = driver.read(target.path.as_str(), deadline)?;
+        let (branch, divergence) = driver.read(path.as_str(), deadline)?;
         if Instant::now() >= deadline {
             return Err(Failure::Timeout);
         }
@@ -295,10 +323,7 @@ impl LocalTerminalService {
             .ok_or(Failure::Unavailable)?;
         if authority.site_id() != &request.site_id
             || authority.snapshot().revision != revision
-            || authority
-                .worktree_query_target(&source, &target.worker_id)
-                .as_ref()
-                != Ok(&target)
+            || authority.worktree_query_target(&source, &owner).ok() != canonical
         {
             return Err(Failure::SourceChanged);
         }

@@ -681,9 +681,10 @@ Workbench 插件执行在解析源文件前要求读取、终端创建和生命�
 
 ## Workspace Git 观测
 
-`workbench.workspace-git` 按读取授权查询规范 Workspace 已提交目录及 Worker 实例。
-Site、目录、规范修订和 Worker 代际在发现 job 前后检查；不修改拓扑或元数据报告。
-状态头提供分支及本地 upstream 计数，明确保留缺失语义。
+`workbench.workspace-git` 按读取授权查询当前 Worker 实例上的规范 Workspace。
+它读取 Workspace 首个终端最新的精确物理目录采样，否则读取已提交目录；此读取绝不附加 viewer。
+Site、已提交目录、规范修订和 Worker 代际在发现 job 前后检查；不修改拓扑或元数据报告。
+状态头提供分支及本地 upstream 计数，明确保留缺失语义；Git 退出码 128 视为不含分支事实的非仓库观测。
 [工作区侧栏模型](../orchbee/docs/machines.zh-CN.md#工作区侧栏模型) 拥有完整消费者和证据边界。
 
 发现交换采用非阻塞高优先级队列接纳及绝对截止时间等待。

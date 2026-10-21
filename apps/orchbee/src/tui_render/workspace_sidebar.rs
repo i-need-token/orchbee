@@ -21,8 +21,10 @@ use ratatui::style::Style;
 use sidebar_text::{fit, machine_label, state_role};
 mod layout;
 
-/// The fixed `[x]` icon-action extent revealed in a closeable row's trailing slot.
+/// The fixed `[x]` icon-action extent revealed flush with a closeable row's trailing edge.
 const CLOSE_WIDTH: u16 = 3;
+/// Cells a closeable identity leaves free so a revealed close never abuts it.
+const CLOSE_GAP: usize = 1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::tui_render) enum CurrentIdentityEmphasis {
@@ -163,8 +165,8 @@ fn git_spans(
     }
     spans
 }
-/// `first_reserve` keeps the first line's trailing slot wide enough for a revealed close control,
-/// so the identity truncates identically at rest and on hover.
+/// `first_reserve` is the trailing cell count the first line keeps free even without metadata, so
+/// the identity truncates identically at rest and while a close control is revealed.
 fn lines(
     view: &ClientView,
     row: &Row,
@@ -184,9 +186,9 @@ fn lines(
     } else {
         String::new()
     };
-    let slot = |metadata: usize, reserve: usize| match metadata.max(reserve) {
-        0 => 0,
-        cells => cells + 1,
+    let slot = |metadata: usize, reserve: usize| match metadata {
+        0 => reserve,
+        cells => (cells + 1).max(reserve),
     };
     let mut lines = Vec::new();
     let mut trailing = Vec::new();
@@ -1295,11 +1297,7 @@ pub(super) fn render(
                 theme,
                 text_width,
                 inline,
-                if closeable {
-                    usize::from(CLOSE_WIDTH)
-                } else {
-                    0
-                },
+                if closeable { CLOSE_GAP } else { 0 },
             ),
             SidebarRow::Agent { row, .. } => {
                 super::agent_sidebar::tokens::projection(view, row, locale, theme, text_width)
@@ -1393,13 +1391,14 @@ pub(super) fn render(
         } else {
             PointerPresentation::Rest
         };
-        // Close sits at the trailing edge of the first line, inside the slot `lines` reserved.
+        // Close sits flush with the row's trailing edge, over the first line's metadata gap and
+        // current/unread marker cells, which it hides while revealed.
         let close_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
         let close_target = source
             .drawn(target.clone(), SidebarPart::Close, window)
             .and_then(|drawn| {
                 let offered = Rect::new(
-                    tracks.primary.right().checked_sub(CLOSE_WIDTH)?,
+                    tracks.unread.right().checked_sub(CLOSE_WIDTH)?,
                     tracks.content_y,
                     CLOSE_WIDTH,
                     1,
@@ -1652,6 +1651,7 @@ pub(super) fn render(
         };
         let collapsed_fill_marker = theme.current_context_marker();
         if current
+            && close.is_none()
             && (current_ancestor
                 || current_identity == CurrentIdentityEmphasis::ExplicitPlain
                 || !collapsed_fill_marker.trim().is_empty())
@@ -1666,7 +1666,7 @@ pub(super) fn render(
                 tracks.first_line(tracks.current),
             );
         }
-        if unread {
+        if unread && close.is_none() {
             frame.render_widget(
                 Paragraph::new(theme.glyphs.status_bullet).style(theme.content_on_surface(
                     Role::SurfaceChrome,

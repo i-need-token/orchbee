@@ -352,13 +352,14 @@ visible through the automatic publication probe, and explicit refresh remains av
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
 switching location. Workspace identity is independent of its optional Project. The sidebar lists
 Agents directly under each Workspace and supports several expanded Workspace lists at once.
-[Workspace setup](docs/native-workspace-setup.md) opens a directory/name picker with current and recent directory choices.
-Enter creates an ungrouped Workspace and its first shell from the displayed values. A Project-menu creation explicitly targets
+[Workspace setup](docs/native-workspace-setup.md) immediately creates an ungrouped Workspace and its
+first shell in the focused Workspace's directory, or the launch directory when there is none; New
+Workspace in directory… opens the editable picker instead. A Project-menu creation explicitly targets
 that Project. Rename and organization are available afterwards; directory acceptance never starts
 a terminal. Known partial results remain inspectable with `orchbee workspace list`; unknown
 outcomes never replay, and late completion cannot override a newer selection.
-The Windows TUI retains the sidebar during directory review, then displays the chosen name in a
-stable pending row after submission while terminal startup continues asynchronously.
+The Windows TUI retains the sidebar and displays the chosen name in a stable pending row after
+submission while terminal startup continues asynchronously.
 `Ctrl+B W` creates a Git checkout with a generated branch and default base after source discovery;
 `Ctrl+B O` selects an existing checkout by exact path. [Worktree launch](docs/native-worktrees.md)
 adds a peer Workspace, reuses the source's current Project or atomically groups an ungrouped source

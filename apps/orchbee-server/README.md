@@ -768,11 +768,13 @@ Plugin Pane membership is prepared against the candidate canonical snapshot and 
 
 ## Workspace Git observations
 
-`workbench.workspace-git` is a read-granted query of a canonical Workspace's
-committed directory and Worker incarnation. Site, directory, canonical revision
-and Worker generation are checked before and after the discovery job; no topology
-or metadata report is mutated. Status headers supply branch and local upstream
-counts, with explicit absence. The [Workspace sidebar model](../orchbee/docs/machines.md#workspace-sidebar-model)
+`workbench.workspace-git` is a read-granted query of a canonical Workspace on the
+current Worker incarnation. It reads the latest exact-physical directory sample of
+the Workspace's first terminal, otherwise the committed directory; it never attaches
+a viewer for this read. Site, committed directory, canonical revision and Worker
+generation are checked before and after the discovery job; no topology or metadata
+report is mutated. Status headers supply branch and local upstream counts, with
+explicit absence; Git exit 128 is a nonrepository observation without branch facts. The [Workspace sidebar model](../orchbee/docs/machines.md#workspace-sidebar-model)
 owns the complete consumer and evidence limits.
 
 Discovery exchanges use nonblocking high-lane admission and absolute-deadline

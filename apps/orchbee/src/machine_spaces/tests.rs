@@ -4,8 +4,9 @@ use crate::{local_client::tests::server::FakeServer, machine_agents::tests::acce
 use orchbee_workbench_protocol::{
     Directory, MetadataTokenKey, MetadataTokenValue, Project, TerminalContext,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchRequest, WorkbenchResponse,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalContextId, Workspace,
-    WorkspaceGitResult, WorkspaceMetadataResult, read_workbench_request, write_workbench_response,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalContextId, WorkerId,
+    Workspace, WorkspaceGitResult, WorkspaceMetadataResult, read_workbench_request,
+    write_workbench_response,
 };
 use std::{
     io::{self, Read},
@@ -173,8 +174,7 @@ fn peer(bad: u8, git_count: Arc<AtomicUsize>) -> io::Result<FakeServer> {
     })
 }
 #[test]
-fn workspace_checkpoint_is_complete_and_coalesces_only_exact_canonical_directories()
--> io::Result<()> {
+fn workspace_checkpoint_is_complete_and_reads_git_for_each_workspace() -> io::Result<()> {
     for (git_requested, bad) in [(true, 0), (false, 0), (true, 7)] {
         let count = Arc::new(AtomicUsize::new(0));
         let peer = peer(bad, count.clone())?;
@@ -206,7 +206,11 @@ fn workspace_checkpoint_is_complete_and_coalesces_only_exact_canonical_directori
         );
         assert_eq!(checkpoint.rows[2].project_id, None);
         assert_eq!(checkpoint.rows[1].label, checkpoint.rows[2].label);
-        assert_eq!(count.load(Ordering::Acquire), usize::from(git_requested));
+        // Equal canonical directories never coalesce: each first terminal may have moved.
+        assert_eq!(
+            count.load(Ordering::Acquire),
+            2 * usize::from(git_requested)
+        );
         for row in &checkpoint.rows[1..] {
             assert_eq!(
                 row.tokens.as_map().values().next().unwrap().as_str(),

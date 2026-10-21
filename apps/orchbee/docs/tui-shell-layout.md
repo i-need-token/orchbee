@@ -163,9 +163,10 @@ and above they use a localized Create action; narrower sidebars use the fixed th
 action. Project and Workspace rows never paint or publish an ellipsis button, including during
 hover or keyboard navigation. Secondary click and the existing keyboard menu route open their exact
 context menu. Ineligible create controls reserve no space and publish no hit regions.
-Current-site Workspace rows reveal a three-cell `[x]` close icon action at the trailing edge of
-their identity line while the row or one of its controls is hovered or pressed. It replaces that
-line's Git counts inside a slot reserved at rest, so identity never re-truncates; it uses secondary
+Current-site Workspace rows reveal a three-cell `[x]` close icon action flush with the row's
+trailing edge on the identity line while the row or one of its controls is hovered or pressed. It
+covers that line's Git counts and current/unread markers; identity keeps a fixed one-cell clearance,
+so it never re-truncates. It uses secondary
 text on the row surface, turns `accent-destructive` on its own hover or press, and requests the
 existing Close Workspace confirmation. Standalone, remote-machine, other-site and Agent rows never
 reveal it, and the context menu and keyboard close routes remain available.
@@ -274,7 +275,7 @@ hidden controls. A restored presentable frame can resume the retained help page.
 On Windows the top strip reserves three cells for `+` after the last visible Tab,
 including an empty canonical Workspace. The current Tab and create control share the strip;
 Presentation selectors belong to pane headers. Controls disappear with the strip below Compact.
-The fixed New workspace row opens the existing directory/name picker;
+The fixed New workspace row immediately creates a Workspace through the existing quick action;
 an eligible current-site Project row has a create action beside its row menu whenever the painted
 width admits a separate control. Disclosure, content, create and menu cells are disjoint. Compact
 glyphs are locale-neutral; full action labels and unavailable reasons use
@@ -283,7 +284,7 @@ the existing English and Chinese catalogs.
 | Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                       |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tab-strip `+`     | `DrawnTabCreate` freezes the Session, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It opens the directory/name picker; Enter submits one independent Workspace and first shell. No effect occurs on press.                                  |
+| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It submits one independent Workspace and first shell without opening a form. No effect occurs on press.                                                  |
 | Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                              |
 
 Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
