@@ -20,19 +20,21 @@ fn fixed_tracks_keep_each_depth_stable_across_width_modes() {
         assert_eq!(root.auxiliary.width, auxiliary);
         assert_eq!(child.primary.x - root.primary.x, INDENT_WIDTH);
         assert_eq!(descendant.primary.x - child.primary.x, INDENT_WIDTH);
-        assert_eq!(root.primary.x, root.band.x + 2);
+        assert_eq!(root.primary.x, root.band.x + 4);
         assert!(root.ordinal.is_empty());
         assert_eq!(agent.primary.x - descendant.primary.x, ORDINAL_WIDTH);
         assert_eq!(agent.ordinal.width, ORDINAL_WIDTH);
+        assert_eq!(agent.state.x, agent.ordinal.right());
         assert_eq!(root.content_y, 5);
         assert_eq!(root.navigation, Rect::new(4, 4, 1, 3));
         assert!(root.disclosure.is_empty());
         assert!(child.disclosure.is_empty());
+        assert_eq!(root.state, Rect::new(root.band.x + 2, 4, 1, 3));
+        assert_eq!(root.state.right() + STATE_GAP, root.primary.x);
         assert_eq!(
-            root.state,
+            root.current,
             Rect::new(root.primary.right() + METADATA_GAP, 4, 1, 3)
         );
-        assert_eq!(root.current, Rect::new(root.state.right(), 4, 1, 3));
         assert_eq!(root.unread, Rect::new(root.current.right(), 4, 1, 3));
         assert_eq!(root.unread.right(), root.auxiliary.x);
     }
@@ -71,7 +73,7 @@ fn disclosure_follows_displayed_identity_and_only_owns_its_first_line_cell() {
 
 #[test]
 fn insufficient_identity_width_omits_disclosure_instead_of_publishing_a_phantom_cell() {
-    for width in [7, 8] {
+    for width in [8, 9] {
         let tracks = Tracks::resolve(
             Rect::new(0, 0, width, 1),
             0,
@@ -123,8 +125,8 @@ fn only_visible_create_controls_reserve_a_trailing_extent() {
         assert_eq!(create.auxiliary.right(), band.right());
         assert_eq!(create.auxiliary.width, if width >= 52 { 11 } else { 3 });
         for tracks in [none, create] {
-            assert_eq!(tracks.primary.right() + METADATA_GAP, tracks.state.x);
-            assert_eq!(tracks.state.right(), tracks.current.x);
+            assert_eq!(tracks.state.right() + STATE_GAP, tracks.primary.x);
+            assert_eq!(tracks.primary.right() + METADATA_GAP, tracks.current.x);
             assert_eq!(tracks.current.right(), tracks.unread.x);
             assert_eq!(tracks.unread.right(), tracks.auxiliary.x);
         }

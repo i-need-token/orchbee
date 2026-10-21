@@ -269,6 +269,8 @@ pub(crate) enum HitTarget {
     #[cfg(windows)]
     SidebarMenu(crate::machine_picker::SidebarTarget),
     #[cfg(windows)]
+    SidebarClose(crate::machine_picker::SidebarTarget),
+    #[cfg(windows)]
     MachineWorkspaceRow {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,
@@ -328,6 +330,7 @@ impl HitTarget {
             Self::MachineProjectRow { target, .. }
             | Self::SidebarDisclosure(target)
             | Self::SidebarMenu(target)
+            | Self::SidebarClose(target)
             | Self::CreateMenu(Some(target)) => Some(target.clone()),
             Self::MachineWorkspaceRow { selected, .. } => match &selected.context {
                 Some(crate::terminal_session::NativeStartupTarget::Context(target)) => {
@@ -1059,6 +1062,32 @@ impl HitMapBuilder {
             .map_or(ProjectedPointer::Rest, |fingerprint| {
                 self.projection.project(&fingerprint)
             })
+    }
+
+    /// Projects a parent as though one pointer-revealed frontmost child were
+    /// already recorded. A frame that reveals the child publishes the parent's
+    /// exposure with it, so the next frame must project against the same shape.
+    pub(crate) fn projected_pointer_beneath(
+        &mut self,
+        layer: HitLayer,
+        child: (Rect, &InteractionTarget, InteractionSpec),
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: &InteractionTarget,
+        spec: InteractionSpec,
+    ) -> ProjectedPointer {
+        let recorded = self.map.regions.len();
+        let (child_rect, child_target, child_spec) = child;
+        self.record_interaction(
+            layer,
+            child_rect,
+            child_rect,
+            child_target.clone(),
+            child_spec,
+        );
+        let pointer = self.projected_pointer(layer, hit_rect, paint_rect, target, spec);
+        self.map.regions.truncate(recorded);
+        pointer
     }
 
     /// Record the link source from the same terminal paint and pane geometry
@@ -3022,6 +3051,7 @@ impl PointerState {
             #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::SidebarMenu(_)
+                | HitTarget::SidebarClose(_)
                 | HitTarget::ActionMenuControl { .. }
                 | HitTarget::TabCloseRequest { .. },
             ) => PointerOutcome::Ignored,

@@ -21,6 +21,9 @@ use ratatui::style::Style;
 use sidebar_text::{fit, machine_label, state_role};
 mod layout;
 
+/// The fixed `[x]` icon-action extent revealed in a closeable row's trailing slot.
+const CLOSE_WIDTH: u16 = 3;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::tui_render) enum CurrentIdentityEmphasis {
     Theme,
@@ -29,6 +32,8 @@ pub(in crate::tui_render) enum CurrentIdentityEmphasis {
 
 pub(in crate::tui_render) struct ProjectedSidebarLines {
     lines: Vec<Line<'static>>,
+    /// Right-aligned metadata per line; an empty line has none.
+    trailing: Vec<Line<'static>>,
     current_identity: CurrentIdentityEmphasis,
 }
 
@@ -39,12 +44,19 @@ impl ProjectedSidebarLines {
     ) -> Self {
         Self {
             lines,
+            trailing: Vec::new(),
             current_identity,
         }
     }
 
-    pub(in crate::tui_render) fn into_parts(self) -> (Vec<Line<'static>>, CurrentIdentityEmphasis) {
-        (self.lines, self.current_identity)
+    pub(in crate::tui_render) fn into_parts(
+        self,
+    ) -> (
+        Vec<Line<'static>>,
+        Vec<Line<'static>>,
+        CurrentIdentityEmphasis,
+    ) {
+        (self.lines, self.trailing, self.current_identity)
     }
 }
 
@@ -52,7 +64,6 @@ struct Context<'a> {
     row: &'a Row,
     observed: Option<&'a crate::machine_spaces::Row>,
     state: Option<&'static str>,
-    glyph_state: Option<orchbee_workbench_protocol::MetadataState>,
     role: Role,
     standalone: &'static str,
     unnamed: &'static str,
@@ -68,7 +79,6 @@ impl<'a> Context<'a> {
             row,
             observed: view.machines.space_checkpoint_row(row),
             state: glyph_state.map(|_| locale.machine_picker_text(key)),
-            glyph_state,
             role,
             standalone: locale.shell().standalone,
             unnamed: locale.unnamed_workspace(),
@@ -122,23 +132,39 @@ impl<'a> Context<'a> {
         }
     }
 }
-fn git_text(context: &Context<'_>, theme: &Theme) -> String {
+/// Ahead/behind counts painted as right-aligned metadata on their configured line.
+fn git_spans(
+    context: &Context<'_>,
+    theme: &Theme,
+    style: WindowsSidebarTokenStyle,
+) -> Vec<Span<'static>> {
     let Some(git) = context
         .observed
         .and_then(|r| r.git.as_ref())
         .and_then(|g| g.divergence.as_ref())
     else {
-        return String::new();
+        return Vec::new();
     };
-    let mut parts = Vec::new();
+    let mut spans = Vec::new();
     if git.ahead > 0 {
-        parts.push(format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead));
+        spans.push(Span::styled(
+            format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
+            theme.workspace_token_style(Role::StatusSuccess, style, false, false),
+        ));
     }
     if git.behind > 0 {
-        parts.push(format!("{}{n}", theme.glyphs.git_behind, n = git.behind));
+        if !spans.is_empty() {
+            spans.push(Span::raw(" "));
+        }
+        spans.push(Span::styled(
+            format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
+            theme.workspace_token_style(Role::StatusError, style, false, false),
+        ));
     }
-    parts.join(" ")
+    spans
 }
+/// `first_reserve` keeps the first line's trailing slot wide enough for a revealed close control,
+/// so the identity truncates identically at rest and on hover.
 fn lines(
     view: &ClientView,
     row: &Row,
@@ -146,6 +172,7 @@ fn lines(
     theme: &Theme,
     width: usize,
     suffix: &str,
+    first_reserve: usize,
 ) -> ProjectedSidebarLines {
     let context = Context::new(view, row, locale);
     let text_style = |role| theme.workspace_token_style(role, Default::default(), false, false);
@@ -157,11 +184,18 @@ fn lines(
     } else {
         String::new()
     };
+    let slot = |metadata: usize, reserve: usize| match metadata.max(reserve) {
+        0 => 0,
+        cells => cells + 1,
+    };
     let mut lines = Vec::new();
+    let mut trailing = Vec::new();
+    let mut slots = Vec::new();
     let mut current_identity = CurrentIdentityEmphasis::Theme;
     let identity = machine.clone();
     for tokens in view.machines.space_settings().rows() {
-        let resolved: Vec<_> = tokens
+        // The state icon has its own leading track; Git counts move to the trailing slot.
+        let (git, resolved): (Vec<_>, Vec<_>) = tokens
             .iter()
             .filter_map(|token| {
                 let kind = token.kind();
@@ -173,11 +207,7 @@ fn lines(
                     return None;
                 }
                 let text = match kind {
-                    Kind::StateIcon => context
-                        .glyph_state
-                        .map_or(" ", |state| sidebar_text::state_glyph(state, theme))
-                        .to_owned(),
-                    Kind::GitStatus => git_text(&context, theme),
+                    Kind::StateIcon | Kind::GitStatus => String::new(),
                     Kind::Branch => format!(
                         "{}{}",
                         display_label(context.value(kind).expect("visible branch")),
@@ -187,36 +217,38 @@ fn lines(
                 };
                 Some((kind, style.expect("visible style"), text))
             })
-            .collect();
+            .partition(|(kind, _, _)| *kind == Kind::GitStatus);
+        let mut right = Vec::new();
+        for (_, style, _) in &git {
+            let spans = git_spans(&context, theme, *style);
+            if !spans.is_empty() && !right.is_empty() {
+                right.push(Span::raw(" "));
+            }
+            right.extend(spans);
+        }
+        let right = Line::from(right);
+        let line_slot = slot(
+            right.width(),
+            if lines.is_empty() { first_reserve } else { 0 },
+        );
         let desired: Vec<_> = resolved
             .iter()
             .map(|(_, _, text)| display_width(text))
             .collect();
-        let separators: usize = resolved
-            .windows(2)
-            .map(|pair| if pair[0].0 == Kind::StateIcon { 1 } else { 3 })
-            .sum();
-        let fixed: usize = resolved
-            .iter()
-            .filter(|(kind, _, _)| matches!(kind, Kind::StateIcon | Kind::GitStatus))
-            .map(|(_, _, text)| display_width(text))
-            .sum();
+        let separators = resolved.len().saturating_sub(1) * 3;
         let mut remaining = width
             .saturating_sub(if lines.is_empty() {
                 display_width(&identity) + display_width(suffix)
             } else {
                 0
             })
-            .saturating_sub(fixed + separators);
+            .saturating_sub(separators + line_slot);
         let mut budgets = vec![0; resolved.len()];
-        // Distribute bounded text cells fairly; fixed counts keep their intrinsic width.
+        // Distribute bounded text cells fairly after the trailing slot is reserved.
         loop {
             let mut assigned = false;
-            for (i, (kind, _, _)) in resolved.iter().enumerate() {
-                if remaining > 0
-                    && !matches!(kind, Kind::StateIcon | Kind::GitStatus)
-                    && budgets[i] < desired[i]
-                {
+            for i in 0..resolved.len() {
+                if remaining > 0 && budgets[i] < desired[i] {
                     budgets[i] += 1;
                     remaining -= 1;
                     assigned = true;
@@ -227,14 +259,12 @@ fn lines(
             }
         }
         let mut spans = Vec::new();
-        let mut previous_icon = false;
         for (i, (kind, style, text)) in resolved.into_iter().enumerate() {
             let identity_token =
                 kind == Kind::Workspace || lines.is_empty() && matches!(kind, Kind::Custom(_));
             if identity_token && style.bold == Some(false) {
                 current_identity = CurrentIdentityEmphasis::ExplicitPlain;
             }
-            let fixed = matches!(kind, Kind::StateIcon | Kind::GitStatus);
             let text = if kind == Kind::Branch {
                 let marker = if context.git_stale { " ?" } else { "  " };
                 format!(
@@ -246,8 +276,6 @@ fn lines(
                     ),
                     if budgets[i] >= 2 { marker } else { "" }
                 )
-            } else if fixed {
-                text
             } else {
                 truncate_display(&text, budgets[i], theme.glyphs.ellipsis)
             };
@@ -256,70 +284,57 @@ fn lines(
             }
             if !spans.is_empty() {
                 spans.push(Span::styled(
-                    if previous_icon {
-                        " ".into()
-                    } else {
-                        format!(" {} ", theme.glyphs.middle_dot)
-                    },
+                    format!(" {} ", theme.glyphs.middle_dot),
                     text_style(Role::TextSecondary),
                 ));
             }
-            previous_icon = kind == Kind::StateIcon;
-            if kind == Kind::GitStatus {
-                let git = context
-                    .observed
-                    .and_then(|r| r.git.as_ref())
-                    .and_then(|g| g.divergence.as_ref())
-                    .expect("visible counts");
-                if git.ahead > 0 {
-                    spans.push(Span::styled(
-                        format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-                        theme.workspace_token_style(Role::StatusSuccess, style, false, false),
-                    ));
-                }
-                if git.ahead > 0 && git.behind > 0 {
-                    spans.push(Span::raw(" "));
-                }
-                if git.behind > 0 {
-                    spans.push(Span::styled(
-                        format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-                        theme.workspace_token_style(Role::StatusError, style, false, false),
-                    ));
-                }
-            } else {
-                let role = match kind {
-                    Kind::StateIcon | Kind::StateText => context.role,
-                    Kind::Branch => Role::TextSecondary,
-                    _ if !lines.is_empty() => Role::TextSecondary,
-                    _ => Role::TextPrimary,
-                };
-                spans.push(Span::styled(
-                    text,
-                    theme.workspace_token_style(role, style, false, false),
-                ));
-            }
+            let role = match kind {
+                Kind::StateIcon | Kind::StateText => context.role,
+                Kind::Branch => Role::TextSecondary,
+                _ if !lines.is_empty() => Role::TextSecondary,
+                _ => Role::TextPrimary,
+            };
+            spans.push(Span::styled(
+                text,
+                theme.workspace_token_style(role, style, false, false),
+            ));
         }
         // Configured tracks keep their height while asynchronous metadata arrives.
         if !tokens.is_empty() {
             lines.push(Line::from(spans));
+            trailing.push(right);
+            slots.push(line_slot);
         }
     }
     if lines.is_empty() {
         lines.push(Line::default());
+        trailing.push(Line::default());
+        slots.push(slot(0, first_reserve));
     }
     lines[0]
         .spans
         .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
     lines[0] = fit(
         std::mem::take(&mut lines[0]),
-        width.saturating_sub(display_width(suffix)),
+        width.saturating_sub(display_width(suffix) + slots[0]),
         theme.glyphs.ellipsis,
     );
     lines[0].spans.push(Span::styled(
         suffix.to_owned(),
         text_style(Role::TextSecondary),
     ));
-    ProjectedSidebarLines::new(lines, current_identity)
+    for (line, slot) in lines.iter_mut().zip(&slots).skip(1) {
+        *line = fit(
+            std::mem::take(line),
+            width.saturating_sub(*slot),
+            theme.glyphs.ellipsis,
+        );
+    }
+    ProjectedSidebarLines {
+        lines,
+        trailing,
+        current_identity,
+    }
 }
 
 fn configured_height(view: &ClientView) -> u16 {
@@ -1230,6 +1245,7 @@ pub(super) fn render(
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
         let suffix = &annotations[row_index];
+        let closeable = source.has_part(&target, SidebarPart::Close);
         let has_disclosure = source.has_part(&target, SidebarPart::Disclosure);
         let text_width = usize::from(tracks.text_width(has_disclosure));
         let inline = if suffix_rows(suffix, text_width) == 0 {
@@ -1272,12 +1288,24 @@ pub(super) fn render(
                     CurrentIdentityEmphasis::Theme,
                 )
             }
-            SidebarRow::Context { row, .. } => lines(view, row, locale, theme, text_width, inline),
+            SidebarRow::Context { row, .. } => lines(
+                view,
+                row,
+                locale,
+                theme,
+                text_width,
+                inline,
+                if closeable {
+                    usize::from(CLOSE_WIDTH)
+                } else {
+                    0
+                },
+            ),
             SidebarRow::Agent { row, .. } => {
                 super::agent_sidebar::tokens::projection(view, row, locale, theme, text_width)
             }
         };
-        let (mut row_lines, current_identity) = projected_lines.into_parts();
+        let (mut row_lines, mut trailing, current_identity) = projected_lines.into_parts();
         if matches!(row, SidebarRow::Agent { .. }) && !inline.is_empty() {
             if row_lines.is_empty() {
                 row_lines.push(Line::default());
@@ -1365,24 +1393,69 @@ pub(super) fn render(
         } else {
             PointerPresentation::Rest
         };
+        // Close sits at the trailing edge of the first line, inside the slot `lines` reserved.
+        let close_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
+        let close_target = source
+            .drawn(target.clone(), SidebarPart::Close, window)
+            .and_then(|drawn| {
+                let offered = Rect::new(
+                    tracks.primary.right().checked_sub(CLOSE_WIDTH)?,
+                    tracks.content_y,
+                    CLOSE_WIDTH,
+                    1,
+                );
+                let rect = icon_action_rect(frame.area(), offered)?;
+                (rect.x >= tracks.primary.x).then_some((rect, InteractionTarget::Sidebar(drawn)))
+            });
+        let close_pointer = match (hits.as_deref(), close_target.as_ref()) {
+            (Some(hits), Some((rect, target))) => pointer_presentation(
+                hits.projected_pointer(layer, *rect, *rect, target, close_spec),
+            ),
+            _ => PointerPresentation::Rest,
+        };
         let row_target = source
             .drawn(target.clone(), SidebarPart::Primary, window)
             .map(InteractionTarget::Sidebar);
         let row_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
-        let row_pointer = if let (Some(hits), Some(target)) = (hits.as_deref(), row_target.as_ref())
-        {
-            pointer_presentation(hits.projected_pointer(layer, band, band, target, row_spec))
-        } else {
-            PointerPresentation::Rest
+        let row_pointer = match (hits.as_deref_mut(), row_target.as_ref()) {
+            (Some(hits), Some(target)) => {
+                // A revealed close was published as an exposed child of this row; projecting
+                // without it would orphan the row's hover or press after the reveal frame.
+                let beneath =
+                    close_target
+                        .as_ref()
+                        .map_or(PointerPresentation::Rest, |(rect, close)| {
+                            pointer_presentation(hits.projected_pointer_beneath(
+                                layer,
+                                (*rect, close, close_spec),
+                                band,
+                                band,
+                                target,
+                                row_spec,
+                            ))
+                        });
+                if beneath == PointerPresentation::Rest {
+                    pointer_presentation(
+                        hits.projected_pointer(layer, band, band, target, row_spec),
+                    )
+                } else {
+                    beneath
+                }
+            }
+            _ => PointerPresentation::Rest,
         };
         let row_paint_pointer = if row_pointer == PointerPresentation::Rest
             && (disclosure_pointer != PointerPresentation::Rest
-                || create_pointer != PointerPresentation::Rest)
+                || create_pointer != PointerPresentation::Rest
+                || close_pointer != PointerPresentation::Rest)
         {
             PointerPresentation::Hovered
         } else {
             row_pointer
         };
+        // Revealed only by pointer presence on the row or the control itself; at rest the
+        // trailing metadata owns the slot and no close target is published.
+        let close = close_target.filter(|_| row_paint_pointer != PointerPresentation::Rest);
         let expanded = match row {
             SidebarRow::Project { .. } => Some(view.machines.sidebar_project_expanded(&target)),
             SidebarRow::Context {
@@ -1445,7 +1518,13 @@ pub(super) fn render(
                 ));
             }
             hint.push(locale.sidebar_marker_label("help").to_owned());
-            hovered_hint = Some(hint.join(" · "));
+            hovered_hint = Some(if close_pointer == PointerPresentation::Rest {
+                hint.join(" · ")
+            } else {
+                locale
+                    .menu_action(&crate::action_menu::MenuAction::CloseWorkspace)
+                    .to_owned()
+            });
         }
         let mut bands = vec![
             RowContentBand::explicit(tracks.current),
@@ -1484,6 +1563,29 @@ pub(super) fn render(
                 content_height,
             ),
         );
+        sidebar_text::compose_lines(&mut trailing, interaction, false, theme);
+        for (index, metadata) in trailing.into_iter().enumerate() {
+            let Ok(offset) = u16::try_from(index) else {
+                break;
+            };
+            if offset >= content_height {
+                break;
+            }
+            let width = u16::try_from(metadata.width()).unwrap_or(u16::MAX);
+            // A revealed close control replaces first-line metadata in the same slot.
+            if width == 0 || index == 0 && close.is_some() {
+                continue;
+            }
+            let x = tracks
+                .primary
+                .right()
+                .saturating_sub(width)
+                .max(tracks.primary.x);
+            frame.render_widget(
+                Paragraph::new(metadata),
+                Rect::new(x, tracks.content_y + offset, tracks.primary.right() - x, 1),
+            );
+        }
 
         let disclosure = expanded.map(disclosure_glyph);
         if let Some(disclosure) = disclosure {
@@ -1581,6 +1683,30 @@ pub(super) fn render(
         {
             action.render(frame, create_pointer, interaction, theme);
         }
+        if let Some((rect, _)) = close.as_ref() {
+            // Rest content inherits the row surface; hover and press turn it destructive below.
+            let painted = render_icon_action(
+                frame,
+                *rect,
+                IconActionSpec::new(
+                    IconActionGlyph::Close,
+                    ControlSurface::Chrome,
+                    Availability::Enabled,
+                    PointerPresentation::Rest,
+                ),
+                theme,
+            );
+            debug_assert_eq!(painted, Some(*rect));
+            for x in rect.x..rect.right() {
+                let cell = &mut frame.buffer_mut()[(x, rect.y)];
+                cell.set_style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(Role::TextSecondary),
+                    cell.style(),
+                ));
+            }
+        }
         restore_interaction_background(frame, band, interaction, theme);
         if disclosure_target.is_some() {
             let _ = paint_pointer_target(
@@ -1605,6 +1731,21 @@ pub(super) fn render(
                 Availability::Enabled,
                 theme,
             );
+        }
+        if let Some((rect, target)) = close
+            && paint_pointer_target(
+                frame,
+                rect,
+                ControlSurface::Chrome,
+                close_pointer,
+                Role::AccentDestructive,
+                Availability::Enabled,
+                theme,
+            )
+            .is_some()
+            && let Some(hits) = hits.as_deref_mut()
+        {
+            hits.record_interaction(layer, rect, rect, target, close_spec);
         }
         if painted.is_some()
             && let (Some(hits), Some(target)) = (hits.as_deref_mut(), row_target)

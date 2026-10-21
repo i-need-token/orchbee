@@ -334,8 +334,8 @@
 			"zhCnSha256": "fd51c57193623ba611481899eee5558d82a29dac813057f643d8997c58773322"
 		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
-			"englishSha256": "9ffe1d7cba90664f1035d180e3acb0a9d7d330d9d0d6cfe9d7f9fab086235fe4",
-			"zhCnSha256": "a4b260bdc34ca82a621bc8dd9c6cac357081b5dc2ed2e9c30e8c1063929c8155"
+			"englishSha256": "d9c0fedff2f11a842385065734f7850f05f382932c798f879cf05ec3b92f4a4c",
+			"zhCnSha256": "cd7a90aea0c22ee1666e07a5c1c1b54b5ba5abf9721d749d2c5d496b73994594"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
 			"englishSha256": "7eda870ed69796c0e789f8ec54cf1dbb3d1939211b06bc7e79d760180cca9683",
@@ -346,8 +346,8 @@
 			"zhCnSha256": "10e4dbf19144ccfe11978b02b6de38e55970eb3133191e32a436722b1b2cb0fe"
 		},
 		"apps/orchbee/docs/windows-cli-configuration.md": {
-			"englishSha256": "2a94f0eb34b5e02da603da84d564a0a4f7c4e2976ddb5c09f87f22ac75020492",
-			"zhCnSha256": "c630c81a4795a09c070f979206721123eb12a8ccd6c0988045d84ce33e0e44f9"
+			"englishSha256": "ac58ab963b5553303ee854c93c99bd359e67fa9a339ed14fd50687ce538e22e9",
+			"zhCnSha256": "9de6fc00fbbde87059fab4b7ab323efa57549e1aedee94a4376cf3e4a832781d"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
 			"englishSha256": "d8b380fa28eb40a9181a8d776e3a3edb292b0a6a8ae7e803db0bcacb5ef0c031",
@@ -650,8 +650,8 @@
 			"zhCnSha256": "59effecd934640cf72cbbfba1f04f760b9d154571fbe7539b161684495ea874f"
 		},
 		"docs/tui/components.md": {
-			"englishSha256": "819bb21b38e8442313a5d2704d2a8eca87297d59d0323d1e372a044da6e77084",
-			"zhCnSha256": "06cc0df802c543d9a998e66a08336a1aad47cdf237508265aaf30750abcf0491"
+			"englishSha256": "43c59d65b2a46ac7bb2bf342007e04ce28488dd570bc2fe7efc5a13b673f8f5e",
+			"zhCnSha256": "3ca57838603ab7a4fe75327c0677d02330a108e4252da8cd6e1bd6eb9f2ef5fa"
 		},
 		"docs/tui/keyboard-input.md": {
 			"englishSha256": "29f194926a7d939285323502ce1caa7b1b41932480ce459ed2670e9b75ce0ed6",

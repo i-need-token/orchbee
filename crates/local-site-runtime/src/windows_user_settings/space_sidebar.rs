@@ -72,7 +72,7 @@ impl Default for WindowsSpaceSidebarSettings {
     fn default() -> Self {
         Self::parse(
             &toml::from_str::<toml::Value>(
-                "rows=[['state_icon','workspace'],['branch','git_status']]",
+                "rows=[['state_icon','workspace','git_status'],['branch']]",
             )
             .expect("default layout"),
         )

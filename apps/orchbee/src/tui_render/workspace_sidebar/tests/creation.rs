@@ -815,7 +815,15 @@ fn creation_and_canonical_workspace_share_configured_metadata_tracks() {
     let (view, _, _) = creation_member_view();
     assert_eq!(configured_height(&view), 2);
     for row in view.machines.space_rows() {
-        let projected = lines(&view, row, Locale::EnUs, &Theme::terminal_native(), 48, "");
+        let projected = lines(
+            &view,
+            row,
+            Locale::EnUs,
+            &Theme::terminal_native(),
+            48,
+            "",
+            0,
+        );
         assert_eq!(projected.lines.len(), usize::from(configured_height(&view)));
     }
 }

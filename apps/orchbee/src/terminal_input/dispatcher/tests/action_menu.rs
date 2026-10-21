@@ -83,9 +83,16 @@ fn rendered_sidebar_map(view: &ClientView) -> crate::tui_pointer::FrameHitMap {
 }
 
 fn rendered_sidebar_map_at(view: &ClientView, width: u16) -> crate::tui_pointer::FrameHitMap {
+    rendered_sidebar_map_with(view, width, HitMapBuilder::new())
+}
+
+fn rendered_sidebar_map_with(
+    view: &ClientView,
+    width: u16,
+    mut hits: HitMapBuilder,
+) -> crate::tui_pointer::FrameHitMap {
     let mut terminal =
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 40)).unwrap();
-    let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {
             crate::tui_render::render_terminal_shell(
@@ -464,6 +471,95 @@ fn sidebar_primary_click_keeps_row_activation_separate_from_context_menus() {
         assert!(port.target.is_none());
         assert!(forwarded_bytes(&port.calls).is_empty());
     }
+}
+
+#[test]
+fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() {
+    let mut view = sidebar_view();
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let target = crate::machine_picker::SidebarTarget::Context {
+        machine: crate::machine_picker::Choice::Local,
+        target: sidebar_context(),
+    };
+    let close = HitTarget::SidebarClose(target.clone());
+    let close_cell = |map: &crate::tui_pointer::FrameHitMap| {
+        (0..40).find_map(|y| {
+            (0..30)
+                .find(|x| map.hit_target_at(*x, y) == Some(&close))
+                .map(|x| (x, y))
+        })
+    };
+    let paint = |dispatcher: &InputDispatcher, view: &ClientView| {
+        rendered_sidebar_map_with(
+            view,
+            120,
+            HitMapBuilder::with_pointer(dispatcher.pointer_projection()),
+        )
+    };
+    let motion = |x: u16, y: u16| format!("\x1b[<35;{};{}M", x + 1, y + 1);
+
+    let map = paint(&dispatcher, &view);
+    assert_eq!(
+        close_cell(&map),
+        None,
+        "close publishes no hidden target at rest"
+    );
+    let (x, y) = sidebar_primary_cell(&map, &target);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        motion(x, y).as_bytes(),
+    );
+    let map = paint(&dispatcher, &view);
+    let (close_x, close_y) = close_cell(&map).expect("row hover reveals close");
+    assert_eq!(close_y, y, "close shares the identity line");
+    dispatcher.publish_hit_map(map);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        motion(close_x, close_y).as_bytes(),
+    );
+    let map = paint(&dispatcher, &view);
+    assert_eq!(
+        close_cell(&map),
+        Some((close_x, close_y)),
+        "close stays revealed under itself"
+    );
+    dispatcher.publish_hit_map(map);
+    let click = format!(
+        "\x1b[<0;{x};{y}M\x1b[<0;{x};{y}m",
+        x = close_x + 1,
+        y = close_y + 1
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, click.as_bytes());
+    let crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } =
+        sidebar_context().location
+    else {
+        unreachable!()
+    };
+    let actions = port
+        .calls
+        .borrow()
+        .iter()
+        .filter_map(|call| match call {
+            Call::Action(action) => Some(action.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        actions,
+        [ClientAction::RequestWorkspaceCloseAt(workspace_id)]
+    );
+    assert!(
+        view.machines.request.is_none(),
+        "close never activates the row"
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
 #[test]

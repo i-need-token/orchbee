@@ -271,6 +271,7 @@ impl InteractionTarget {
                     }
                     SidebarPart::Menu => HitTarget::SidebarMenu(target.target().clone()),
                     SidebarPart::Create => HitTarget::CreateMenu(Some(target.target().clone())),
+                    SidebarPart::Close => HitTarget::SidebarClose(target.target().clone()),
                 }
             }
             #[cfg(windows)]

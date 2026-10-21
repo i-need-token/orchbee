@@ -146,11 +146,14 @@ leave them blank.
 
 Navigation rows keep a one-cell navigation marker and two-cell-per-level indentation before the
 primary identity. Only Agent rows reserve a two-cell ordinal before identity; Project, Workspace
-and legacy Workspace rows do not reserve unused Agent columns. Root owner labels start two cells from
+and legacy Workspace rows do not reserve unused Agent columns. Every row then reserves a one-cell
+leading operational state track and a one-cell gap, so root owner labels start four cells from
 the list's left edge. Eligible disclosures follow the displayed first-line identity.
-After the primary identity, a one-cell gap precedes independent one-cell operational, current and
+After the primary identity, a one-cell gap precedes independent one-cell current and
 unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
-their markers are blank, so changing state never moves the label. Grouped Workspaces indent two cells,
+their markers are blank, so changing state never moves the label. Git ahead/behind counts are
+right-aligned at the end of their configured line's primary track; the default layout places them
+on the identity line and leaves the branch alone on the second line. Grouped Workspaces indent two cells,
 and Agents indent two cells from their own Workspace parent, including a legacy Workspace. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
@@ -160,7 +163,13 @@ and above they use a localized Create action; narrower sidebars use the fixed th
 action. Project and Workspace rows never paint or publish an ellipsis button, including during
 hover or keyboard navigation. Secondary click and the existing keyboard menu route open their exact
 context menu. Ineligible create controls reserve no space and publish no hit regions.
-Hover or press on a disclosure or Create control also keeps its complete parent row hovered; the
+Current-site Workspace rows reveal a three-cell `[x]` close icon action at the trailing edge of
+their identity line while the row or one of its controls is hovered or pressed. It replaces that
+line's Git counts inside a slot reserved at rest, so identity never re-truncates; it uses secondary
+text on the row surface, turns `accent-destructive` on its own hover or press, and requests the
+existing Close Workspace confirmation. Standalone, remote-machine, other-site and Agent rows never
+reveal it, and the context menu and keyboard close routes remain available.
+Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
 keep their existing owners. Agent ordinals use
 two cells, and default title and provider/state lines align on the fixed primary track. Default provider labels appear only when they
@@ -413,7 +422,7 @@ unread state and keyboard navigation remain in separate tracks.
 
 Project/Context disclosure glyphs, identity text and row menus have disjoint painted extents.
 The primary row target covers every continuation, internal configured leading space and all cells
-beneath frontmost disclosure/Create targets. External Project group gaps remain inert. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
+beneath frontmost disclosure, Create and revealed close targets. External Project group gaps remain inert. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
 dispatcher owns capture precedence, stale-paint rejection and packet-tail fencing;
 the menu owner retains capability checks and execution. Project menus never choose
 a child Workspace. Mouse and keyboard disclosure share Picker transitions; navigation

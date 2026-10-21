@@ -529,13 +529,14 @@ rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [
 row_gap = 1
 ```
 
-Defaults are `[["state_icon", "workspace"], ["branch", "git_status"]]`, gap 0.
+Defaults are `[["state_icon", "workspace", "git_status"], ["branch"]]`, gap 0.
 An explicit `rows = []` keeps an identity/navigation row. The other builtin is
 `state_text`; `$name` reads Workspace reports and never replaces a builtin.
 Styles and first-match rules share Agent admission, but icons/Git counts reject
 text rules and Workspace layouts have no `rows_by_agent`. Limit 16 rows, 16 tokens
 per row, 16 rules per text token and `row_gap` 0–65535. Missing/hidden values collapse.
-Long text shares the available cells after reserving icon/Git-count widths.
+Operational state paints in the row's leading state track, and Git counts right-align at the
+end of the line that configures them; other text shares the remaining cells.
 
 State uses the complete physical Agent checkpoint after Client seen projection,
 independent of list/source filters. Git reads the committed Workspace directory

@@ -68,6 +68,8 @@ pub(crate) enum SidebarPart {
     Disclosure,
     Menu,
     Create,
+    /// Pointer-revealed close request for one exact Workspace.
+    Close,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -77,6 +79,7 @@ struct SidebarCatalogRow {
     disclosure: bool,
     menu: bool,
     create: bool,
+    close: bool,
 }
 
 /// Value-semantic action projection for one successfully painted Sidebar frame.
@@ -100,6 +103,7 @@ impl SidebarCatalog {
                     SidebarPart::Disclosure => row.disclosure,
                     SidebarPart::Menu => row.menu,
                     SidebarPart::Create => row.create,
+                    SidebarPart::Close => row.close,
                 }
         })
     }
@@ -312,6 +316,7 @@ pub(crate) enum SidebarActivation {
     ToggleProject(SidebarTarget),
     ToggleContext(SidebarTarget),
     Activate(Selection),
+    CloseWorkspace(orchbee_workbench_protocol::WorkbenchWorkspaceId),
 }
 
 pub(crate) enum SidebarRow<'a> {
@@ -725,6 +730,18 @@ impl Picker {
                         SidebarRow::Agent { .. } => false,
                     },
                     create: menu && matches!(&target, SidebarTarget::Project { .. }),
+                    // Standalone has no Workspace to close; only the menu-eligible site can close.
+                    close: menu
+                        && matches!(
+                            &target,
+                            SidebarTarget::Context {
+                                target: NativeContextTarget {
+                                    location: NativeContextLocation::Workspace { .. },
+                                    ..
+                                },
+                                ..
+                            }
+                        ),
                     menu,
                     target,
                 }
@@ -783,7 +800,18 @@ impl Picker {
             (SidebarTarget::Context { .. } | SidebarTarget::Agent { .. }, SidebarPart::Primary) => {
                 drawn.target.selection().map(SidebarActivation::Activate)
             }
-            (_, SidebarPart::Menu | SidebarPart::Create) => None,
+            (
+                SidebarTarget::Context {
+                    target:
+                        NativeContextTarget {
+                            location: NativeContextLocation::Workspace { workspace_id, .. },
+                            ..
+                        },
+                    ..
+                },
+                SidebarPart::Close,
+            ) => Some(SidebarActivation::CloseWorkspace(workspace_id.clone())),
+            (_, SidebarPart::Menu | SidebarPart::Create | SidebarPart::Close) => None,
             (SidebarTarget::Agent { .. }, SidebarPart::Disclosure) => None,
         }
     }

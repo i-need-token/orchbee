@@ -289,7 +289,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         layout::RowKind::for_target(&project),
                     )
                     .unwrap();
-                    assert_eq!(project_tracks.primary.x, 2);
+                    assert_eq!(project_tracks.primary.x, 4);
                     assert_eq!(
                         buffer[(disclosure_x, project_y)].symbol(),
                         theme.glyphs.disclosure_open
@@ -372,7 +372,7 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 0,
             );
             for row in view.machines.space_rows() {
-                let (text_lines, _) = lines(&view, row, locale, &theme, 80, "").into_parts();
+                let (text_lines, _, _) = lines(&view, row, locale, &theme, 80, "", 0).into_parts();
                 let projected = text_lines
                     .into_iter()
                     .map(|line| {

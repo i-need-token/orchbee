@@ -1936,7 +1936,26 @@ impl InputDispatcher {
                                 InteractionTarget::Sidebar(drawn) => {
                                     use crate::machine_picker::SidebarActivation;
 
-                                    let changed = match view.machines.sidebar_activation(&drawn) {
+                                    let activation = view.machines.sidebar_activation(&drawn);
+                                    if let Some(SidebarActivation::CloseWorkspace(workspace)) =
+                                        activation
+                                    {
+                                        // The close owner opens its confirmation; this packet ends here.
+                                        self.menu_packet = true;
+                                        let transition = view.decide_action(
+                                            ClientAction::RequestWorkspaceCloseAt(workspace),
+                                        );
+                                        return self.apply_transition(
+                                            view,
+                                            port,
+                                            now,
+                                            transition,
+                                            None,
+                                            after_layout,
+                                            mode,
+                                        );
+                                    }
+                                    let changed = match activation {
                                         Some(SidebarActivation::ToggleProject(target)) => {
                                             view.machines.toggle_sidebar_project(&target)
                                         }
@@ -1954,7 +1973,7 @@ impl InputDispatcher {
                                             }
                                             changed
                                         }
-                                        None => false,
+                                        Some(SidebarActivation::CloseWorkspace(_)) | None => false,
                                     };
                                     if changed {
                                         self.reconcile(view, port, now);

@@ -429,12 +429,13 @@ rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [
 row_gap = 1
 ```
 
-默认值为 `[["state_icon", "workspace"], ["branch", "git_status"]]`，间隔 0。
+默认值为 `[["state_icon", "workspace", "git_status"], ["branch"]]`，间隔 0。
 显式 `rows = []` 保留身份／导航行。另一个内置值是 `state_text`；
 `$name` 读取 Workspace 报告，不替代内置值。样式与首条匹配规则共用 Agent 接纳机制，
 但图标／Git 计数拒绝文字规则，Workspace 布局没有 `rows_by_agent`。
 最多 16 行、每行 16 个 token、每个文字 token 16 条规则，`row_gap` 范围 0–65535。
-缺失／隐藏值折叠；图标／Git 计数预留宽度后，文字共享剩余单元格。
+缺失／隐藏值折叠。运行状态绘制在行首状态轨道，Git 计数右对齐在配置它的行末端；其他文字
+共享剩余单元格。
 
 状态使用 Client 已读投影后的完整物理 Agent 快照，不受列表／来源过滤影响。
 Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地 upstream 的非零 ahead／behind；

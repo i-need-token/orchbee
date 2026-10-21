@@ -11,6 +11,7 @@ const DISCLOSURE_GAP: u16 = 1;
 const ORDINAL_WIDTH: u16 = 2;
 const CURRENT_WIDTH: u16 = 1;
 const STATE_WIDTH: u16 = 1;
+const STATE_GAP: u16 = 1;
 const UNREAD_WIDTH: u16 = 1;
 const METADATA_GAP: u16 = 1;
 const COMFORTABLE_MINIMUM: u16 = 52;
@@ -158,14 +159,15 @@ impl Tracks {
             navigation.right().saturating_add(indent),
             kind.ordinal_width(),
         );
-        let metadata_width = METADATA_GAP + STATE_WIDTH + CURRENT_WIDTH + UNREAD_WIDTH;
+        // Every sibling reserves the leading state slot, so labels share one start column.
+        let state = clipped_track(band, ordinal.right(), STATE_WIDTH);
+        let metadata_width = METADATA_GAP + CURRENT_WIDTH + UNREAD_WIDTH;
         let primary_right = auxiliary.x.checked_sub(metadata_width)?;
-        let primary_x = ordinal.right();
+        let primary_x = state.right().saturating_add(STATE_GAP);
         if primary_x >= primary_right {
             return None;
         }
-        let state = clipped_track(band, primary_right + METADATA_GAP, STATE_WIDTH);
-        let current = clipped_track(band, state.right(), CURRENT_WIDTH);
+        let current = clipped_track(band, primary_right + METADATA_GAP, CURRENT_WIDTH);
         let unread = clipped_track(band, current.right(), UNREAD_WIDTH);
         let primary = Rect::new(primary_x, band.y, primary_right - primary_x, band.height);
         let disclosure = Rect::new(primary.right(), content_y, 0, 0);
