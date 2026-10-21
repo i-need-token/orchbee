@@ -51,6 +51,16 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-inferrable-types`: Omit annotations that repeat a literal initializer's inferred type.
 - `typescript/no-unnecessary-type-assertion`: Remove assertions that do not change the inferred type.
 
+## Testing
+
+Do not add TypeScript unit tests by default. Follow the shared
+[admission and removal rule](TESTING.md#unit-test-admission-and-removal) and
+[test layers and cost](TESTING.md#test-layers-and-cost). Reuse type checking and existing behavior
+tests for simple forwarding, object assembly, and internal interface properties. Type-level tests
+are justified for meaningful inference or public compatibility guarantees beyond ordinary consumer
+compilation. Retain runtime validation and failure evidence for untrusted inputs. React test
+boundaries follow [React](frontend/react.md#testing-boundaries).
+
 ## Verification
 
 `pnpm typecheck` is required because the current oxlint command does not run type-aware rules.

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { createElement, type ReactNode, type TransitionEvent as ReactTransitionEvent } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';

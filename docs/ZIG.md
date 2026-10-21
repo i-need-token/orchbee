@@ -37,6 +37,13 @@ Format every Zig source and build file with the workspace-pinned `zig fmt`. The 
 
 ## Testing
 
+Do not add Zig unit tests by default. Follow the shared
+[admission and removal rule](TESTING.md#unit-test-admission-and-removal) and
+[test layers and cost](TESTING.md#test-layers-and-cost). A namespace or source file does not require
+a companion test. Reuse compile-time checks and existing owner behavior tests for simple wrappers,
+constants, and dependency smoke checks. Retain evidence for allocation failures, cleanup, bounds,
+wire compatibility, and concurrency that compilation cannot establish.
+
 Zig permits `test` declarations in either the source under test or a separate Zig source file. This repository keeps production and test review surfaces separate:
 
 - Put every Zig `test` declaration, executable test helper, fixture, and test root under the owning source tree's `__tests__` directory. Production `.zig` files contain no test declarations, fixtures, or test scenarios; only the narrow conditional access seam described below may remain there.

@@ -96,7 +96,7 @@ Use support directories when they improve navigation for concrete owned contents
 | `constants/`  | JavaScript-emitting static values, `as const` enum-like objects, lookup data, and finite configuration owned by the component |
 | `types/`      | Erased TypeScript interfaces, aliases, structures, and unions shared by multiple files in the subtree                         |
 | `utils/`      | Framework-independent pure helpers owned only by the component                                                                |
-| `__tests__/`  | Unit tests required by [`docs/TESTING.md`](../TESTING.md)                                                                     |
+| `__tests__/`  | Tests admitted by [`docs/TESTING.md`](../TESTING.md#unit-test-admission-and-removal)                                          |
 
 - Keep resources shared by sibling trees at their nearest common owner; keep cross-feature workflows, external integrations, and contracts in the owning source module.
 - Do not add barrels inside private or support directories; promote the full tree when another module needs it.
@@ -164,6 +164,10 @@ Use support directories when they improve navigation for concrete owned contents
 - Store feature state and domain actions, not callbacks created by Hooks; provide stable external capabilities through composition.
 
 ## Testing boundaries
+
+Select tests under [`docs/TESTING.md`](../TESTING.md#unit-test-admission-and-removal) before applying
+these boundaries. Components, Hooks, and selectors do not each require a suite. Initial refs,
+ordinary state setters, and prepared static markup alone do not justify dedicated tests.
 
 - Test pure transitions and selectors without React.
 - Test lifecycle Hooks and platform adapters with injected fakes for acquisition, event forwarding, cancellation, failures, and idempotent cleanup.

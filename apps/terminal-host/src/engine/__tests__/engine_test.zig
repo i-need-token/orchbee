@@ -1,5 +1,4 @@
 comptime {
-    _ = @import("ghostty_dependency_test.zig");
     _ = @import("history_export_test.zig");
     _ = @import("history_rows_test.zig");
     _ = @import("history_selection_test.zig");

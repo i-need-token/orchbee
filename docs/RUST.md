@@ -323,9 +323,13 @@ Native product copy — diagnostics, help, labels, and confirmations shown to a 
 
 ## Testing
 
-Follow the shared [test obligations](TESTING.md#required-unit-tests) and
+Do not add Rust unit tests by default. Follow the shared
+[admission and removal rule](TESTING.md#unit-test-admission-and-removal) and
 [test layers and cost](TESTING.md#test-layers-and-cost). One behavior suite may cover several Rust
-modules; neither a new source file nor a new function requires a companion test file.
+modules; neither a new source file nor a new function requires a companion test file. Simple
+constructors, accessors, derived traits, and standard-library behavior need no dedicated tests
+without a meaningful owned risk. Retain evidence for validation, ownership, failure, and protocol
+contracts that compilation cannot establish.
 
 - Put unit-test bodies in an adjacent test module file or in the crate's `tests/` tree. A production
   module may contain the narrow `#[cfg(test)] mod tests;` declaration needed to attach that file,

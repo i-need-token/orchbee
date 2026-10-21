@@ -51,6 +51,14 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-inferrable-types`：省略重复字面量初始化器推断类型的注解。
 - `typescript/no-unnecessary-type-assertion`：移除不会改变推断类型的断言。
 
+## 测试
+
+非必要不新增 TypeScript 单元测试。遵循共享的[准入与删除规则](TESTING.md#单元测试准入与删除)和
+[测试层次与成本](TESTING.md#测试层次与成本)。简单透传、对象装配和内部接口属性优先复用类型
+检查与已有行为测试。只有超出普通使用方编译检查的实质类型推断或公共兼容性保证，才需要
+类型级测试。保留不可信输入的运行时校验和失败证据。React 测试边界遵循
+[React](frontend/react.md#测试边界)。
+
 ## 验证
 
 `pnpm typecheck` 是必需的，因为当前 oxlint 命令不运行类型感知规则。

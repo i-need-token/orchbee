@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { ActionRuntime } from '@orchbee/actions';
 import { StrictMode, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';

@@ -15,6 +15,7 @@
 - **Every tracked file must have durable repository value.** Before adding a file, identify its future consumer, authoritative responsibility, recurring use, and maintenance lifecycle; task history and one-off working artifacts do not belong in the repository.
 - **Complete authorized work autonomously.** Follow `docs/DEVELOPMENT.md`: classify risk before editing, treat a clear request as authorization for its complete scoped result, and continue through implementation, checks, and ordinary repairs. Escalate new reserved decisions; pause only their dependent work.
 - **Routine verification does not require full builds.** Use the affected host gate in `docs/VERIFICATION.md` for ordinary edits and merges. Full application builds and cross-compilation use explicit commands when the changed build, packaging, or platform contract needs them; do not repeat a gate merely to merge unchanged checked inputs.
+- **Do not add unit tests by default.** Rust, Zig, and TypeScript use the admission and removal rule in `docs/TESTING.md`: justify a meaningful evidence gap before adding tests, and remove low-value companions while retaining necessary behavior and regression evidence.
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
 - **`AGENTS.md` and `AGENTS.zh-CN.md` are symlinks to their `CLAUDE` counterparts.** Only edit `CLAUDE.md` and `CLAUDE.zh-CN.md`.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
@@ -39,7 +40,7 @@
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Rust**: `docs/RUST.md` — Cargo workspace placement, crate shape, dependency admission, platform gating, ownership, safety, concurrency, process boundaries, localization, contracts, and verification
 - **Zig**: `docs/ZIG.md` — native naming, resource ownership, safety, concurrency, and testing
-- **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
+- **Testing**: `docs/TESTING.md` — test admission, removal, layout, execution, and regression evidence
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
 - **Frontend React**: `docs/frontend/react.md` — component ownership, file boundaries, state, Effects, Hooks, Zustand, and testing
 - **Frontend Experience Components**: `docs/frontend/experience-components.md` — reviewed interaction vocabulary, package-local manifests, discovery, composition constraints, and lifecycle

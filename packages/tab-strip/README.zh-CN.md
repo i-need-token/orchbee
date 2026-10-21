@@ -82,6 +82,9 @@ src/
 
 ## 正确性
 
+单元测试默认使用 Node。渲染组件或 Hook 的测试通过 `// @vitest-environment jsdom` 选择 jsdom；
+纯模型、布局和策略套件不加载 DOM 环境。
+
 一般的 `TabModel` 状态机具有三个互补层：
 
 - 确定性回归保留每个已知的最小反例；

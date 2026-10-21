@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TabCloseButton } from '../TabCloseButton';

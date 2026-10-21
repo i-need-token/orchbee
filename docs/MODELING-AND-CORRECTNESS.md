@@ -141,9 +141,12 @@ decisions. Select only the applicable phases and order them according to the own
 
 ## Test and interaction design
 
-Identify the relevant decisions and cases before production UI integration. Express them in
-behavior-focused core tests; use a separate inventory or scenario matrix only when it explains a
-complexity the tests do not. Exercise the principal public operation rather than private helpers.
+Identify the relevant decisions and cases before production UI integration. Apply
+[test admission](TESTING.md#unit-test-admission-and-removal) to select meaningful behavior evidence;
+reuse existing checks and add core tests only for uncovered risks. The dimensions below select
+cases for admitted behavior, not a mandatory checklist for every helper. Use a separate inventory
+or scenario matrix only when it explains a complexity the tests do not. Exercise the principal
+public operation rather than private helpers.
 
 | Coverage dimension  | Required cases                                                                  |
 | ------------------- | ------------------------------------------------------------------------------- |
@@ -326,7 +329,7 @@ that cannot otherwise be recovered; do not create a second inventory for ordinar
 | ------------------ | ------------------------ | --------------------------------------------------------- | ---------------------- |
 | Domain-named claim | Owning reference or type | Stable check names and their connection to implementation | Bounds and assumptions |
 
-- Give every observable rule and invariant an executable witness at the lowest effective layer.
+- Give each claim requiring automated evidence under [test admission](TESTING.md#unit-test-admission-and-removal) an executable witness at the lowest effective layer; existing compiler, contract, and behavior checks can supply it.
 - Map each selected formal property and theorem to an owned claim; omit unused method columns.
 - Record relevant bounds and trust assumptions; remove stale mappings with removed behavior.
 - Treat coverage percentages as diagnostics, not traceability.
@@ -342,13 +345,13 @@ For every counterexample:
 
 Never weaken a property, exclude a reachable TLA+ state, add an axiom, retry a race, or replace a semantic regression with a screenshot to accept current behavior.
 
-| Change kind                                     | Required updates                                                                                                         |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| State, event, guard, command, or cancellation   | Owned contract and state model, relevant behavior tests, and affected selected formal or trace evidence                  |
-| Pure transformation or invariant                | Owned contract, regression cases, and applicable selected proof or property evidence                                     |
-| Platform, geometry, focus, timing, or animation | Environment contract, deterministic inputs and checkpoints, adapter tests, and parity projection when applicable         |
-| Reference revision or compatibility scope       | Provenance, dependency-closure audit, differential scenarios, reviewed goldens, and declared limits                      |
-| Defect                                          | Regression evidence under [`TESTING.md`](TESTING.md#regression-coverage), root-cause class, and corrected earliest owner |
+| Change kind                                     | Required updates                                                                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State, event, guard, command, or cancellation   | Owned contract and state model, relevant behavior tests, and affected selected formal or trace evidence                                                  |
+| Pure transformation or invariant                | Owned contract and evidence selected under [test admission](TESTING.md#unit-test-admission-and-removal), including applicable proof or property evidence |
+| Platform, geometry, focus, timing, or animation | Environment contract, deterministic inputs and checkpoints, adapter tests, and parity projection when applicable                                         |
+| Reference revision or compatibility scope       | Provenance, dependency-closure audit, differential scenarios, reviewed goldens, and declared limits                                                      |
+| Defect                                          | Regression evidence under [`TESTING.md`](TESTING.md#regression-coverage), root-cause class, and corrected earliest owner                                 |
 
 Update the abstract model or proof before relying on changed production behavior. Do not preserve competing semantic models unless an explicit compatibility boundary owns both and differential tests compare them.
 

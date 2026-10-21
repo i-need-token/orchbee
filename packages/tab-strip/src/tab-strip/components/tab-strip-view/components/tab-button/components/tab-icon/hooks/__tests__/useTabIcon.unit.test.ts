@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { TabData } from '../../../../../../../../model/tab-model';

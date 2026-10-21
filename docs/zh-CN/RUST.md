@@ -277,8 +277,10 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 
 ## 测试
 
-遵循共享的[测试义务](TESTING.md#必需的单元测试)和[测试层次与成本](TESTING.md#测试层次与成本)。
-一个行为套件可以覆盖多个 Rust 模块；新增源码文件或函数都不要求新增伴随测试文件。
+非必要不新增 Rust 单元测试。遵循共享的[准入与删除规则](TESTING.md#单元测试准入与删除)和
+[测试层次与成本](TESTING.md#测试层次与成本)。一个行为套件可以覆盖多个 Rust 模块；新增源码
+文件或函数都不要求新增伴随测试文件。简单构造器、访问器、派生 trait 和标准库行为，在没有
+实质自有风险时不需要单独测试。保留编译无法证明的校验、所有权、失败和协议契约证据。
 
 - Unit-test body 放在相邻 test module 文件或 crate 的 `tests/` 树中。Production module 可以保留
   挂载该文件所需的窄化 `#[cfg(test)] mod tests;` 声明，但不放 inline scenario 或 fixture。

@@ -82,6 +82,9 @@ src/
 
 ## Correctness
 
+Unit tests use Node by default. Tests that render components or Hooks opt into jsdom with
+`// @vitest-environment jsdom`; pure model, layout, and policy suites do not load a DOM environment.
+
 The general `TabModel` state machine has three complementary layers:
 
 - deterministic regressions preserve each known minimal counterexample;

@@ -18,17 +18,24 @@
 | Non-component TSX entry     | Use kebab-case.                                                                                                                                                                                                         |
 | Unit test                   | Use the owning module's `__tests__` directory and the `.unit.test.ts` or `.unit.test.tsx` suffix. A companion preserves its source stem; a suite covering several implementation files uses a kebab-case behavior name. |
 
-## Required unit tests
+## Unit-test admission and removal
 
-Test obligations follow behavior, invariants, and risk in every authored language. There is no
-one-to-one requirement between implementation files and test files. Splitting or moving an
-implementation without changing its behavior does not create a new test obligation.
+Do not add unit tests by default. This policy applies equally to Rust, Zig, and TypeScript.
+Add a test only for a meaningful behavior risk that compiler checks, static analysis, or existing
+evidence cannot adequately judge. Identify the realistic defect and the uncovered claim in the
+existing review; no separate test-admission document is required. Implementation files, functions,
+and test files have no one-to-one relationship. Splitting or moving unchanged behavior creates no
+new test obligation.
 
-Select evidence for the changed claim before adding a test. Existing behavior tests, compiler or
-contract checks, and appropriate integration or visual evidence may already cover it. Add or
-strengthen automated cases only for a meaningful gap; a verification obligation does not imply a
-new unit-test file. Algorithms, state transitions, persistence, protocol compatibility, and recovery
-retain automated evidence for their relevant decisions and failure modes.
+Simple constants, direct forwarding, field assembly, elementary arithmetic, static presentation,
+and framework or upstream-library behavior do not normally justify dedicated tests. An owned
+compatibility contract or demonstrated regression can justify an exception. Judge the failure
+consequence and evidence gap, not source length or ease of writing a test.
+
+Reuse existing behavior, contract, integration, or visual evidence before adding cases. Algorithms,
+state transitions, persistence, protocol compatibility, security boundaries, concurrency, and
+recovery retain automated evidence for their relevant decisions and failure modes. Choose the
+lowest-cost faithful layer; a verification obligation does not imply a new unit-test file.
 
 | Scope                      | Contract                                                                                                                                                                                                                   |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -38,19 +45,20 @@ retain automated evidence for their relevant decisions and failure modes.
 | `.tsx` source              | Add tests for meaningful regressions, interactions, accessibility contracts, or integration boundaries; prepared props and static markup alone do not require tests.                                                       |
 | Checked-in shadcn snapshot | Test Orchbee adaptations, public-package contracts, and relied-upon behavior instead of copying the upstream suite or requiring one test per generated file.                                                               |
 
-For each added or materially changed test, identify the realistic defect it would catch. File
-presence, assertion count, and coverage percentages do not establish that value. Review this
-obligation with the change's claims; the filename linter enforces naming and placement only.
+File presence, assertion count, and coverage percentages do not establish test value. The filename
+linter enforces naming and placement only; it does not require companion tests.
 Derive expected outcomes from requirements, invariants, or an independent reference. Do not copy
 the production algorithm into the assertion or update expected values solely to match new output.
 Keep existing visibility boundaries when sharing a suite; test convenience does not permit
 imports of another owner's private implementation.
 
-Consolidate duplicate cases and replace assertions tied only to private implementation with
-observable behavior checks. Remove obsolete cases when their governed behavior has been retired.
-Preserve distinct current behavior, failure, and boundary evidence and identify its surviving check;
-a slow or failing test is not obsolete for that reason. Do not retain placeholder companions or
-create a second per-file coverage manifest solely to satisfy discoverability.
+Apply the same admission rule to existing tests. Remove obsolete cases, redundant companions, and
+assertions that merely restate low-risk implementation details. Consolidate duplicate cases around
+their behavior owner. Identify the surviving check for a protected claim, or explain why the
+trivial behavior needs no dedicated test; deleting a low-value test does not require a replacement.
+Preserve distinct meaningful behavior, failure, boundary, and regression evidence. A slow or failing
+test is not obsolete for that reason. Do not create a per-file coverage manifest or retain empty
+test roots, unused fixtures, or imports after removing their last consumer.
 
 ## Test layers and cost
 

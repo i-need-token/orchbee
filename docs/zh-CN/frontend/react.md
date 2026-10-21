@@ -86,7 +86,7 @@ Provider 与外部生命周期集成保持窄化、显式。组件可以组合�
 | `constants/`  | 组件拥有的会生成 JavaScript 的静态值、`as const` 类枚举对象、查找数据和有限配置                        |
 | `types/`      | 子树多个文件共享且会被擦除的 TypeScript interface、alias、结构和 union                                 |
 | `utils/`      | 只由组件拥有的框架无关纯辅助函数                                                                       |
-| `__tests__/`  | [`docs/TESTING.md`](../TESTING.md) 要求的单元测试                                                      |
+| `__tests__/`  | 按 [`docs/TESTING.md`](../TESTING.md#单元测试准入与删除) 准入的测试                                    |
 
 - 兄弟树共享资源保留在最近共同所有者；跨功能工作流、外部集成和契约保留在所属源模块。
 - 私有或支撑目录不得增加 barrel；另一个模块需要它时提升整个树。
@@ -154,6 +154,10 @@ Provider 与外部生命周期集成保持窄化、显式。组件可以组合�
 - Store 保存功能状态和领域动作，不保存 Hook 创建的回调；通过组合提供稳定的外部能力。
 
 ## 测试边界
+
+应用以下边界前，先按 [`docs/TESTING.md`](../TESTING.md#单元测试准入与删除) 选择测试。
+组件、Hook 和 selector 不需要各自配套一份测试。初始 ref、普通状态 setter 和准备好的静态标记
+本身不足以支持新增专用测试。
 
 - 不使用 React 测试纯转换和 selector。
 - 使用注入的假实现测试生命周期 Hook 和平台适配器的获取、事件转发、取消、失败和幂等清理。
