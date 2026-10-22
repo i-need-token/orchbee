@@ -1647,11 +1647,13 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
             );
             assert_ne!(buffer[(11, 8)].symbol(), "X");
             assert_eq!(buffer[(9, 3)].symbol(), "X");
-            assert_eq!(buffer[(26, 2)].symbol(), "[");
-            assert_eq!(buffer[(27, 2)].symbol(), "x");
-            assert_eq!(buffer[(28, 2)].symbol(), "]");
+            // `─ [x] ─┐`: one blank and one rule cell separate the close from the corner.
+            assert_eq!(buffer[(24, 2)].symbol(), "[");
+            assert_eq!(buffer[(25, 2)].symbol(), "x");
+            assert_eq!(buffer[(26, 2)].symbol(), "]");
+            assert_eq!(buffer[(27, 2)].symbol(), " ");
             assert_eq!(
-                buffer[(27, 2)].fg,
+                buffer[(25, 2)].fg,
                 theme.color(if closing {
                     Role::TextDisabled
                 } else {
@@ -1669,11 +1671,11 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
                 3
             );
             assert!(!matches!(
-                hits.hit_target_at(25, 2),
+                hits.hit_target_at(23, 2),
                 Some(HitTarget::PopupClose(_))
             ));
             assert!(!matches!(
-                hits.hit_target_at(29, 2),
+                hits.hit_target_at(27, 2),
                 Some(HitTarget::PopupClose(_))
             ));
 
@@ -1697,7 +1699,7 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
                 assert_eq!(
                     pointer.popup_event(
                         &mut port,
-                        event(27, 2, MouseAction::Press, MouseButton::Left),
+                        event(25, 2, MouseAction::Press, MouseButton::Left),
                     ),
                     PointerOutcome::Handled
                 );
@@ -1707,14 +1709,19 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
             assert!(matches!(
                 pointer.popup_event(
                     &mut port,
-                    event(27, 2, MouseAction::Motion, MouseButton::None),
+                    event(25, 2, MouseAction::Motion, MouseButton::None),
                 ),
                 PointerOutcome::IdleMotion { changed: true }
             ));
             let (mut hovered, hits) = paint(&pointer);
-            assert_eq!(
-                hovered.backend().buffer()[(27, 2)].bg,
-                theme.color(Role::SurfaceHover)
+            // Hover strengthens the close glyph without filling its cells.
+            let hovered_close = &hovered.backend().buffer()[(25, 2)];
+            assert_eq!(hovered_close.bg, theme.color(Role::SurfaceOverlay));
+            assert_eq!(hovered_close.fg, theme.color(Role::TextPrimary));
+            assert!(
+                hovered_close
+                    .modifier
+                    .contains(ratatui::style::Modifier::BOLD)
             );
             if glyphs == GlyphSet::UTF8 {
                 crate::tui_render::test_capture::capture_screen(
@@ -1728,20 +1735,20 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
             assert_eq!(
                 pointer.popup_event(
                     &mut port,
-                    event(27, 2, MouseAction::Press, MouseButton::Left),
+                    event(25, 2, MouseAction::Press, MouseButton::Left),
                 ),
                 PointerOutcome::Handled
             );
             let (pressed, hits) = paint(&pointer);
             assert_eq!(
-                pressed.backend().buffer()[(27, 2)].bg,
+                pressed.backend().buffer()[(25, 2)].bg,
                 theme.color(Role::SurfacePressed)
             );
             pointer.publish(hits);
             assert!(matches!(
                 pointer.popup_event(
                     &mut port,
-                    event(27, 2, MouseAction::Release, MouseButton::Left),
+                    event(25, 2, MouseAction::Release, MouseButton::Left),
                 ),
                 PointerOutcome::Interaction {
                     target: InteractionTarget::PopupClose(target),
@@ -1856,12 +1863,13 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
                                 theme.color(Role::SurfaceOverlay)
                             );
                         }
-                        let title_cell = &buffer[(outer.x + 1, outer.y)];
+                        // The heading follows one rule cell and a blank on the neutral frame.
+                        let title_cell = &buffer[(outer.x + 3, outer.y)];
                         assert_eq!(title_cell.fg, theme.color(Role::TextPrimary));
                         assert!(title_cell.modifier.contains(Modifier::BOLD));
                         assert_eq!(
                             buffer[(outer.x, outer.y + 1)].fg,
-                            theme.color(Role::FrameFocused)
+                            theme.color(Role::FrameUnfocused)
                         );
                         let blank = &buffer[(inner.right() - 1, inner.bottom() - 1)];
                         if ready {
@@ -2144,7 +2152,7 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
         assert!(rendered.contains("Esc"));
         assert!(
             without_cell_padding(&rendered)
-                .contains(&without_cell_padding(locale.shortcut_scroll_hint())),
+                .contains(&without_cell_padding(locale.shortcut_scroll_action())),
             "the always-visible scroll footer should render for {locale:?}: {rendered}"
         );
     }

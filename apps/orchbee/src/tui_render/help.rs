@@ -22,12 +22,15 @@ use ratatui::{
 };
 
 use super::controls::{
-    Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
-    icon_action_rect, render_icon_action,
+    Availability, ControlSurface, IconActionGlyph, IconActionSpec, KeyHint, PointerPresentation,
+    QueryField, icon_action_rect, render_divider, render_frame_icon_action, render_icon_action,
+    render_overlay_hints, render_query_field,
 };
 
-/// Rows the footer always owns: filter, scroll/close guidance, and scope control.
-const FOOTER_ROWS: u16 = 3;
+/// Rows the query slot always owns: the filter editor and its divider.
+const QUERY_ROWS: u16 = 2;
+/// Rows the footer always owns: key hints and the scope control.
+const FOOTER_ROWS: u16 = 2;
 const PREFERRED_WIDTH: u16 = 76;
 const TITLE_CONTROL_GAP: u16 = 1;
 
@@ -98,12 +101,17 @@ pub(super) fn render(
     let [previous_rect, next_rect, close_rect] = title_control_rects(frame.area(), area)?;
     let block = help_block(area, previous_rect, text.shortcut_title, theme)?;
     let inner = block.inner(area);
-    if inner.height <= FOOTER_ROWS || inner.width == 0 {
+    if inner.height <= QUERY_ROWS + FOOTER_ROWS || inner.width == 0 {
         return None;
     }
     let width = usize::from(inner.width);
-    let [rows_area, footer_area] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(FOOTER_ROWS)]).areas(inner);
+    let [query_area, divider_area, rows_area, footer_area] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Min(1),
+        Constraint::Length(FOOTER_ROWS),
+    ])
+    .areas(inner);
     if rows_area.height == 0 || rows_area.width == 0 || footer_area.height != FOOTER_ROWS {
         return None;
     }
@@ -118,15 +126,8 @@ pub(super) fn render(
     let last = lines.len().saturating_sub(usize::from(rows_area.height));
     let page = candidate.page().min(last);
     let source = candidate.presented_rows(page, last, usize::from(rows_area.height))?;
-    let filter_query = sanitize_terminal_text(view.help_filter());
-    let filter_line = format!(
-        "{}: {} · {}",
-        locale.shortcut_search_label(),
-        filter_query,
-        locale.shortcut_filter_hint()
-    );
-    let filter_line = truncate_display(&filter_line, width, theme.glyphs.ellipsis);
-    let scroll_line = truncate_display(locale.shortcut_scroll_hint(), width, theme.glyphs.ellipsis);
+    let footer_keys = FooterKeys::new(theme);
+    let footer_hints = footer_keys.hints(locale);
 
     let close = control_plan(
         hits,
@@ -165,24 +166,29 @@ pub(super) fn render(
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     frame.render_widget(List::new(items), rows_area);
-    frame.render_widget(
-        Paragraph::new(filter_line).style(theme.style(Role::TextSecondary)),
-        Rect::new(footer_area.x, footer_area.y, footer_area.width, 1),
+    // Typing always reaches the filter, so the query slot stays in its editing presentation.
+    let _ = render_query_field(
+        frame,
+        query_area,
+        QueryField::Editing {
+            label: locale.shortcut_search_label(),
+            query: view.help_filter(),
+            cursor: view.help_filter().len(),
+        },
+        theme,
     );
-    frame.render_widget(
-        Paragraph::new(scroll_line).style(theme.style(Role::TextSecondary)),
-        Rect::new(
-            footer_area.x,
-            footer_area.y.saturating_add(1),
-            footer_area.width,
-            1,
-        ),
+    render_divider(frame, divider_area, theme);
+    let _ = render_overlay_hints(
+        frame,
+        Rect::new(footer_area.x, footer_area.y, footer_area.width, 1),
+        &footer_hints,
+        theme,
     );
 
     let toggle_label = locale.shortcut_scope_label(view.help_expanded());
     let toggle_width = display_width(toggle_label) as u16;
     if toggle_width <= footer_area.width {
-        let toggle_rect = Rect::new(footer_area.x, footer_area.y + 2, toggle_width, 1);
+        let toggle_rect = Rect::new(footer_area.x, footer_area.y + 1, toggle_width, 1);
         let target = InteractionTarget::Help(DrawnHelpControl::new(source, HelpControl::ToggleAll));
         let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
         let hovered =
@@ -208,7 +214,7 @@ pub(super) fn render(
     // Specific controls publish before the broad list/surface regions. Disabled
     // endpoints remain visible and frontmost but can never arm an activation.
     for control in [close, previous, next] {
-        let painted = render_icon_action(frame, control.rect, control.visual, theme)
+        let painted = render_frame_icon_action(frame, control.rect, control.visual, theme)
             .expect("the exact three-cell Help control was preflighted before paint");
         debug_assert_eq!(painted, control.rect);
         hits.record_interaction(
@@ -296,34 +302,71 @@ fn help_block(
     title: &str,
     theme: &Theme,
 ) -> Option<ratatui::widgets::Block<'static>> {
-    let title_budget = previous.x.checked_sub(area.x.checked_add(2)?)?;
-    if title_budget < 3 {
-        return None;
-    }
-    let title = truncate_display(
+    // The corner and `─ ` lead the heading; a trailing blank, one rule cell, and the blank
+    // before the first title control follow it.
+    let title_budget = usize::from(previous.x.checked_sub(area.x.checked_add(6)?)?);
+    if display_width(&truncate_display(
         title,
-        usize::from(title_budget.saturating_sub(2)),
+        title_budget,
         theme.glyphs.ellipsis,
-    );
-    if display_width(&title) == 0 {
-        return None;
-    }
-    let title = format!(" {title} ");
-    if display_width(&title) > usize::from(title_budget) {
+    )) == 0
+    {
         return None;
     }
     Some(
-        super::overlay_surface(theme, true, Padding::horizontal(2)).title(Span::styled(
+        super::overlay_surface(theme, Padding::new(2, 2, 1, 0)).title(super::overlay_heading(
             title,
-            theme
-                .style(Role::TextPrimary)
-                .add_modifier(ratatui::style::Modifier::BOLD),
+            title_budget,
+            theme,
         )),
     )
 }
 
+/// Effective key labels for the Help footer hints, exit first.
+struct FooterKeys {
+    close: String,
+    scroll: String,
+    page: String,
+    erase: String,
+    clear: String,
+}
+
+impl FooterKeys {
+    fn new(theme: &Theme) -> Self {
+        use crate::client_view::{Binding, KeyCode, Modifiers};
+        let label =
+            |code, modifiers| super::modal::modal_key_label(theme, &Binding::new(code, modifiers));
+        Self {
+            close: label(KeyCode::Esc, Modifiers::NONE),
+            scroll: format!(
+                "{}/{}",
+                label(KeyCode::Up, Modifiers::NONE),
+                label(KeyCode::Down, Modifiers::NONE)
+            ),
+            page: format!(
+                "{}/{}",
+                label(KeyCode::PageUp, Modifiers::NONE),
+                label(KeyCode::PageDown, Modifiers::NONE)
+            ),
+            erase: label(KeyCode::Backspace, Modifiers::NONE),
+            clear: label(KeyCode::Char('u'), Modifiers::CTRL),
+        }
+    }
+
+    fn hints(&self, locale: Locale) -> [KeyHint<'_>; 5] {
+        [
+            KeyHint::new(&self.close, locale.shortcut_close_action()),
+            KeyHint::new(&self.scroll, locale.shortcut_scroll_action()),
+            KeyHint::new(&self.page, locale.shortcut_page_action()),
+            KeyHint::new(&self.erase, locale.shortcut_erase_action()),
+            KeyHint::new(&self.clear, locale.shortcut_clear_action()),
+        ]
+    }
+}
+
 fn title_control_rects(bounds: Rect, area: Rect) -> Option<[Rect; 3]> {
-    let close_x = area.right().checked_sub(4)?;
+    // `─ [<] [>] [x] ─┐`: blanks separate the controls, and one rule cell precedes the corner.
+    let close_x = area.right().checked_sub(6)?;
     let next_x = close_x.checked_sub(3 + TITLE_CONTROL_GAP)?;
     let previous_x = next_x.checked_sub(3 + TITLE_CONTROL_GAP)?;
     let rects = [

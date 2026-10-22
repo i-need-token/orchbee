@@ -426,12 +426,15 @@ fn action_hierarchy_uses_the_declared_content_role_at_rest() {
 }
 
 #[test]
-fn pressed_emphasis_belongs_only_to_the_primary_label() {
+fn pointer_emphasis_bolds_the_enabled_label_and_never_its_frame() {
     let theme = Theme::rgb_test_dark();
-    for (kind, label_bold) in [
-        (ActionKind::Primary, true),
-        (ActionKind::Secondary, false),
-        (ActionKind::Auxiliary, false),
+    for (kind, pointer, label_bold) in [
+        (ActionKind::Primary, PointerPresentation::Rest, false),
+        (ActionKind::Primary, PointerPresentation::Hovered, true),
+        (ActionKind::Primary, PointerPresentation::Pressed, true),
+        (ActionKind::Secondary, PointerPresentation::Hovered, true),
+        (ActionKind::Secondary, PointerPresentation::Pressed, true),
+        (ActionKind::Auxiliary, PointerPresentation::Hovered, true),
     ] {
         let mut terminal = Terminal::new(TestBackend::new(7, 1)).unwrap();
         let mut painted = None;
@@ -440,12 +443,7 @@ fn pressed_emphasis_belongs_only_to_the_primary_label() {
                 painted = render_action(
                     frame,
                     frame.area(),
-                    ActionSpec::new(
-                        "Go",
-                        kind,
-                        ControlSurface::Overlay,
-                        idle(PointerPresentation::Pressed),
-                    ),
+                    ActionSpec::new("Go", kind, ControlSurface::Overlay, idle(pointer)),
                     &theme,
                 );
             })

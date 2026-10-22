@@ -1,8 +1,8 @@
 //! Bounded Project choices and text fields publish controls only after a complete draw.
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, pointer_presentation, set_modal_cursor, single_modal_layout, status_line,
-    title_line,
+    paint_modal_close, paint_modal_frame, pointer_presentation, set_modal_cursor,
+    single_modal_layout, status_line,
 };
 mod project_delete;
 use crate::{
@@ -25,7 +25,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span, Text},
-    widgets::{Block, Clear, Padding, Paragraph, Wrap},
+    widgets::{Block, Padding, Paragraph, Wrap},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -183,21 +183,26 @@ pub(super) fn render(
             true,
         )
         .with_shortcut(&escape);
+        let title = locale.setup_title(draft.stage());
         let text = Text::from(vec![
-            title_line(locale.setup_title(draft.stage()), theme),
             Line::from(""),
             description_line(locale.quick_workspace_preparing_fact(), theme),
             Line::from(""),
             Line::from(""),
         ]);
-        let Some(layout) =
-            single_modal_layout(frame.area(), content_area, &text, &hints, action, theme)
-        else {
+        let Some(layout) = single_modal_layout(
+            frame.area(),
+            content_area,
+            title,
+            &text,
+            &hints,
+            action,
+            theme,
+        ) else {
             return (Rect::default(), ModalPresentation::NotPresented);
         };
         hits.start_modal();
-        frame.render_widget(Clear, layout.area);
-        frame.render_widget(overlay_block(theme), layout.area);
+        paint_modal_frame(frame, layout.area, title, theme);
         frame.render_widget(
             Paragraph::new(text).wrap(Wrap { trim: false }),
             layout.inner,
@@ -241,10 +246,8 @@ pub(super) fn render(
         NativeSetupStage::WorkspaceRename => Some(false),
         _ => None,
     };
-    let mut lines = vec![
-        title_line(locale.setup_title(draft.stage()), theme),
-        Line::from(""),
-    ];
+    let title = locale.setup_title(draft.stage());
+    let mut lines = vec![Line::from("")];
     let context_budget = usize::from(content_area.width.saturating_sub(10)).min(72);
     // The editable line's index inside `lines`, when the stage owns a text
     // field; the picker stage has none.
@@ -377,6 +380,7 @@ pub(super) fn render(
     let Some(candidate) = modal_layout(
         frame.area(),
         content_area,
+        title,
         &placeholder,
         &hints,
         actions,
@@ -403,13 +407,19 @@ pub(super) fn render(
         Span::styled(" ]", theme.style(Role::AccentFocus)),
     ]);
     let text = Text::from(lines);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
-    else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        &hints,
+        actions,
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     hits.start_modal();
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(overlay_block(theme), layout.area);
+    paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
         Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
         layout.inner,
@@ -424,7 +434,7 @@ pub(super) fn render(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
+    let rendered_hints = super::controls::render_overlay_hints(frame, layout.hints, &hints, theme)
         .expect("admitted setup hints must paint");
     debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
     for ((rect, action), control) in layout
@@ -574,8 +584,7 @@ fn render_projects<'a>(
             .unwrap_or(u16::MAX)
             .min(content.height.saturating_sub(2)),
     );
-    let block = overlay_block(theme);
-    let inner = block.inner(area);
+    let inner = overlay_block(theme).inner(area);
     if area.is_empty()
         || frame.area().intersection(area) != area
         || inner.width < 20
@@ -605,14 +614,14 @@ fn render_projects<'a>(
         true,
     )
     .with_shortcut(&escape);
-    let close = match super::controls::close_rect(frame.area(), area) {
+    let close = match super::controls::frame_close_rect(frame.area(), area) {
         Some(close) => close,
         None => return (Rect::default(), ModalPresentation::NotPresented),
     };
     let hint_row = Rect::new(inner.x, inner.bottom() - 2, inner.width, 1);
     let action_row = Rect::new(inner.x, inner.bottom() - 1, inner.width, 1);
-    let hints_valid = super::controls::measure_key_hints(&hints, theme).is_some();
-    let first_hint_fits = super::controls::measure_key_hints(&hints[..1], theme)
+    let hints_valid = super::controls::measure_overlay_hints(&hints, theme).is_some();
+    let first_hint_fits = super::controls::measure_overlay_hints(&hints[..1], theme)
         .is_some_and(|width| width <= usize::from(hint_row.width));
     let Some(action) = super::controls::action_rect(
         frame.area(),
@@ -664,14 +673,7 @@ fn render_projects<'a>(
         })
         .collect::<Vec<_>>();
     let mut lines = vec![
-        title_line(
-            truncate_display(
-                locale.setup_title(picker.stage),
-                budget,
-                theme.glyphs.ellipsis,
-            ),
-            theme,
-        ),
+        Line::from(""),
         description_line(
             truncate_display(
                 &sanitize_terminal_text(picker.workspace),
@@ -699,8 +701,7 @@ fn render_projects<'a>(
     lines.extend([Line::from(""), Line::from("")]);
 
     hits.start_modal();
-    frame.render_widget(Clear, area);
-    frame.render_widget(block, area);
+    paint_modal_frame(frame, area, locale.setup_title(picker.stage), theme);
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
     paint_modal_close(
         frame,
@@ -712,7 +713,7 @@ fn render_projects<'a>(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, hint_row, &hints, theme)
+    let rendered_hints = super::controls::render_overlay_hints(frame, hint_row, &hints, theme)
         .expect("admitted setup picker hints must paint");
     debug_assert!(hint_row.intersection(rendered_hints) == rendered_hints);
     paint_modal_action(
@@ -783,6 +784,10 @@ fn render_projects<'a>(
     (area, ModalPresentation::Presented(picker.token))
 }
 
+/// Label rows of the quick setup fields; each editable row follows its label.
+const QUICK_NAME_LABEL: usize = 3;
+const QUICK_DIRECTORY_LABEL: usize = 6;
+
 fn render_quick(
     frame: &mut Frame<'_>,
     locale: Locale,
@@ -793,8 +798,8 @@ fn render_quick(
 ) -> (Rect, ModalPresentation<NativeSetupToken>) {
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
     let directory_active = draft.stage() == NativeSetupStage::QuickDirectory;
+    let title = locale.setup_title(draft.stage());
     let mut lines = vec![
-        title_line(locale.setup_title(draft.stage()), theme),
         Line::from(""),
         description_line(
             format!(
@@ -873,6 +878,7 @@ fn render_quick(
     let Some(candidate) = modal_layout(
         frame.area(),
         content_area,
+        title,
         &placeholder,
         &hints,
         actions,
@@ -880,12 +886,13 @@ fn render_quick(
     ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
-    let Some(name_geometry) = FieldRowGeometry::resolve(&placeholder, candidate.inner, 4, theme)
+    let Some(name_geometry) =
+        FieldRowGeometry::resolve(&placeholder, candidate.inner, QUICK_NAME_LABEL, theme)
     else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     let Some(directory_geometry) =
-        FieldRowGeometry::resolve(&placeholder, candidate.inner, 7, theme)
+        FieldRowGeometry::resolve(&placeholder, candidate.inner, QUICK_DIRECTORY_LABEL, theme)
     else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
@@ -902,14 +909,14 @@ fn render_quick(
     let mut lines = placeholder.lines;
     for (label_index, label, window, active, geometry) in [
         (
-            4,
+            QUICK_NAME_LABEL,
             locale.quick_workspace_name(),
             &name,
             !directory_active,
             name_geometry,
         ),
         (
-            7,
+            QUICK_DIRECTORY_LABEL,
             locale.quick_workspace_directory(),
             &directory,
             directory_active,
@@ -941,8 +948,15 @@ fn render_quick(
         ]);
     }
     let text = Text::from(lines);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
-    else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        &hints,
+        actions,
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     if layout.inner != candidate.inner {
@@ -950,8 +964,7 @@ fn render_quick(
     }
 
     hits.start_modal();
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(overlay_block(theme), layout.area);
+    paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
         Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
         layout.inner,
@@ -966,7 +979,7 @@ fn render_quick(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
+    let rendered_hints = super::controls::render_overlay_hints(frame, layout.hints, &hints, theme)
         .expect("admitted quick setup hints must paint");
     debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
     for ((rect, action), control) in layout
@@ -1068,9 +1081,9 @@ fn render_quick(
         HitTarget::OverlaySurface,
     );
     let (field_index, window, geometry) = if directory_active {
-        (8, &directory, directory_geometry)
+        (QUICK_DIRECTORY_LABEL + 1, &directory, directory_geometry)
     } else {
-        (5, &name, name_geometry)
+        (QUICK_NAME_LABEL + 1, &name, name_geometry)
     };
     set_modal_cursor(
         frame,
@@ -1083,7 +1096,7 @@ fn render_quick(
 }
 
 fn overlay_block(theme: &Theme) -> Block<'static> {
-    super::overlay_surface(theme, true, Padding::horizontal(2))
+    super::overlay_surface(theme, Padding::horizontal(2))
 }
 
 #[cfg(test)]

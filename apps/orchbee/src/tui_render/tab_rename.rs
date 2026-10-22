@@ -1,6 +1,6 @@
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, set_modal_cursor, status_line, title_line,
+    paint_modal_close, paint_modal_frame, set_modal_cursor, status_line,
 };
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
@@ -14,11 +14,11 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span, Text},
-    widgets::{Clear, Padding, Paragraph, Wrap},
+    widgets::{Clear, Paragraph, Wrap},
 };
 
 /// The draft's editable line inside the modal's line vector.
-const FIELD: usize = 5;
+const FIELD: usize = 4;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -29,8 +29,8 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
     let placeholder_visible = draft.automatic_label() && draft.text().is_empty();
+    let title = locale.rename_title();
     let mut lines = vec![
-        title_line(locale.rename_title(), theme),
         Line::from(""),
         description_line(
             sanitize_terminal_text(&draft.target_label(locale)).into_owned(),
@@ -80,8 +80,15 @@ pub(super) fn render(
         .with_shortcut(&enter),
     ];
     let text = Text::from(lines);
-    let Some(candidate) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
-    else {
+    let Some(candidate) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        &hints,
+        actions,
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     // The raw draft stays exact; what the modal draws is its safe projection
@@ -114,8 +121,15 @@ pub(super) fn render(
         Span::styled(" ]", theme.style(crate::tui_theme::Role::AccentFocus)),
     ]);
     let text = Text::from(lines);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
-    else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        &hints,
+        actions,
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
 
@@ -125,11 +139,7 @@ pub(super) fn render(
         layout.area,
         HitTarget::OverlaySurface,
     );
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(
-        super::overlay_surface(theme, true, Padding::horizontal(2)),
-        layout.area,
-    );
+    paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
         Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
         layout.inner,
@@ -144,7 +154,7 @@ pub(super) fn render(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
+    let rendered_hints = super::controls::render_overlay_hints(frame, layout.hints, &hints, theme)
         .expect("admitted modal hints must paint");
     debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
     for ((rect, action), submit) in layout.actions.into_iter().zip(actions).zip([false, true]) {

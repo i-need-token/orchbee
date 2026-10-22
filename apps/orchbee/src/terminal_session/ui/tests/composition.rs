@@ -180,11 +180,12 @@ fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() 
                     );
                     let buffer = frame.terminal.backend().buffer();
                     // The modal backdrop also blocks the whole host. Measure the painted
-                    // focused frame, not that intentionally larger input-capture surface.
+                    // neutral overlay frame, not that intentionally larger input-capture surface.
                     let surface = (0..height)
                         .flat_map(|y| (0..width).map(move |x| (x, y)))
                         .filter(|&(x, y)| {
-                            buffer[(x, y)].fg == theme.color(Role::FrameFocused)
+                            buffer[(x, y)].fg == theme.color(Role::FrameUnfocused)
+                                && buffer[(x, y)].bg == theme.color(Role::SurfaceOverlay)
                                 && buffer[(x, y)].symbol() != " "
                         })
                         .collect::<Vec<_>>();
@@ -204,7 +205,7 @@ fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() 
                         Some(top + expected_height - 1)
                     );
                     assert!(surface.iter().all(|cell| cell.1 < height - 1));
-                    for x in left + expected_width - 4..left + expected_width - 1 {
+                    for x in left + expected_width - 6..left + expected_width - 3 {
                         assert!(matches!(
                             frame.hits.hit_target_at(x, top),
                             Some(HitTarget::SettingsControl {

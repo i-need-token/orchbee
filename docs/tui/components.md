@@ -157,7 +157,8 @@ auxiliary-action slots required by any state that the component can enter.
   surface. Their own hover and press feedback remains local to the painted action extent.
 - A button group reserves a focus-marker cell for each button. The focused button uses
   `accent-focus` on that marker and its brackets. Pointer hover paints the full button extent with
-  `surface-hover`; press uses `surface-pressed` without erasing the focus marker.
+  `surface-hover`; press uses `surface-pressed` without erasing the focus marker. An enabled button
+  label takes `BOLD` while hovered or pressed.
 - A pending button reserves a status-glyph slot and sizes its label area for the larger of its idle
   and pending localized labels. Its outer extent does not change when the operation starts.
 - An inline action has an explicit group boundary and spacing from adjacent content. Its effective
@@ -166,6 +167,11 @@ auxiliary-action slots required by any state that the component can enter.
 - An icon action has a localized discoverable name and a keyboard path shown by the current help
   owner. If the layout can keep a label, use an inline action instead. A glyph without both a name
   and keyboard equivalent is decorative and cannot receive a hit region.
+- An enabled icon action rests in `text-secondary`. Hover strengthens its glyph and brackets to
+  `text-primary` with `BOLD` and adds no fill; press keeps that emphasis and adds `surface-pressed`.
+  A frame-borne icon action keeps one blank surface cell between each bracket and the frame rule;
+  those cells are outside its hit extent. An owner that documents a destructive hover, such as a row
+  close, may replace the hover content role.
 - The action owner supplies enabled, disabled-reason, pending, and concurrency state. The component
   does not optimistically report success or clear a pending state before the authoritative result.
 
@@ -273,10 +279,14 @@ padding and continuation rows retain their declared owner.
 
 - A search control has a visible localized scope label or search prefix at rest. Placeholder text is
   supplemental and never carries persistent instructions or serves as the only input affordance.
+- An overlay query slot follows [`overlays-and-status.md`](overlays-and-status.md#frame-chrome): the
+  activation key and prompt at rest, then `Label: draft` with the terminal cursor while editing. It
+  has no bracket boundary; form editors keep theirs.
 - The control separates query, focus, match count, loading, empty result, and error. Empty query and
   no matches are different states. Search errors do not erase the query.
-- A focused editor uses `frame-focused` or its unframed `accent-focus` marker and shows the terminal
-  cursor. An unfocused editor retains its boundary and draft but never paints a fake cursor.
+- A focused editor uses `frame-focused`, its unframed `accent-focus` marker, or its query-slot label,
+  and shows the terminal cursor. An unfocused editor retains its boundary and draft but never paints
+  a fake cursor.
 - Prefix, mode, validation, pending, and auxiliary-action slots remain stable as the draft changes.
   Contextual hints may change, but the editable origin and submit boundary do not move.
 - Editing behavior, atomic paste, composition, and maximum length follow
@@ -336,7 +346,9 @@ renders only inside the returned content slot.
   exit, or recovery targets. Resume it when geometry returns. Both paths clear stale modal and child
   hit regions.
 - The close control is an icon action with a localized name and the effective cancel binding. It
-  follows the same hover, pressed, disabled, and focus rules as other actions.
+  sits on the frame's top-right edge as defined in
+  [`overlays-and-status.md`](overlays-and-status.md#frame-chrome) and follows the same hover,
+  pressed, disabled, and focus rules as other actions.
 - One modal owner is active at a time. A nested task replaces content, title context, and footer
   actions inside that owner; it does not stack another modal or leave two active footers.
 - Modal chrome handles cancel, tab, close, and footer-action intents consistently. Feature content
@@ -353,6 +365,8 @@ renders only inside the returned content slot.
   not maintain handwritten key strings beside the binding owner.
 - The bar reflects the current input owner and mode. It keeps the exit action, primary action, and
   mode indicator before optional navigation hints, and drops only whole items through layout tiers.
+- Persistent chrome separates items with a middle dot; an overlay footer separates them with a
+  spaced vertical rule.
 - When a surface admits a scrollbar and overflow may appear as content changes, the component
   reserves one track for the lifetime of that view. The content width does not jump when the thumb
   appears.

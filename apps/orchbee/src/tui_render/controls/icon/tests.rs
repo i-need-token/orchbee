@@ -115,9 +115,10 @@ fn icon_hover_press_and_disabled_are_complete_across_color_capabilities() {
         Theme::one_dark().quantize(ColorLevel::Ansi16),
         Theme::one_dark().quantize(ColorLevel::Monochrome),
     ] {
+        // Hover strengthens the glyph alone; press adds the pressed fill under the same glyph.
         for (pointer, interaction) in [
-            (PointerPresentation::Hovered, Role::SurfaceHover),
-            (PointerPresentation::Pressed, Role::SurfacePressed),
+            (PointerPresentation::Hovered, None),
+            (PointerPresentation::Pressed, Some(Role::SurfacePressed)),
         ] {
             let mut terminal = Terminal::new(TestBackend::new(3, 1)).unwrap();
             terminal
@@ -147,9 +148,9 @@ fn icon_hover_press_and_disabled_are_complete_across_color_capabilities() {
                 .unwrap();
             let expected = theme.content_on_surface(
                 Role::SurfaceOverlay,
-                Some(interaction),
-                Some(Role::TextSecondary),
-                theme.style(Role::TextSecondary),
+                interaction,
+                Some(Role::TextPrimary),
+                theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
             );
             assert_eq!(symbols(&terminal, 3), "[>]");
             for x in 0..3 {

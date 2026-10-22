@@ -18,11 +18,18 @@ use ratatui::{
 mod action;
 mod hint;
 mod icon;
+mod query;
 mod row;
 
 pub(crate) use action::{ActionKind, ActionSpec, action_rect, close_rect, render_action};
-pub(crate) use hint::{KeyHint, measure_key_hints, render_key_hints};
-pub(crate) use icon::{IconActionGlyph, IconActionSpec, icon_action_rect, render_icon_action};
+pub(crate) use hint::{
+    KeyHint, measure_key_hints, measure_overlay_hints, render_key_hints, render_overlay_hints,
+};
+pub(crate) use icon::{
+    IconActionGlyph, IconActionSpec, frame_close_rect, icon_action_rect, render_frame_icon_action,
+    render_icon_action,
+};
+pub(crate) use query::{QueryField, render_divider, render_query_field};
 pub(crate) use row::{RowContentBand, RowFocusCue, RowTracks, paint_row_interaction};
 
 /// The base surface owned by a control's compositor.

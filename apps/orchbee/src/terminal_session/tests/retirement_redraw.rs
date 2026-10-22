@@ -104,7 +104,7 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
                 "{after}"
             );
             assert!(
-                after.contains("Esc / Ctrl+b w return · Enter open"),
+                after.contains("Esc / Ctrl+b w return  │  Enter open"),
                 "{after}"
             );
         } else {

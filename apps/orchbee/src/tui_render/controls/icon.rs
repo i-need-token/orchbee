@@ -1,7 +1,12 @@
 //! Fixed three-cell icon actions for space-constrained, discoverable chrome.
 
 use crate::tui_theme::{Role, Theme};
-use ratatui::{Frame, layout::Rect, style::Style, widgets::Paragraph};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::{Modifier, Style},
+    widgets::Paragraph,
+};
 
 use super::{Availability, ControlSurface, PointerPresentation, content_style};
 
@@ -72,6 +77,49 @@ pub(crate) fn icon_action_rect(bounds: Rect, area: Rect) -> Option<Rect> {
     (area.intersection(rect) == rect && bounds.intersection(rect) == rect).then_some(rect)
 }
 
+/// Resolves the close control a framed surface carries on its top edge as `─ [x] ─┐`.
+///
+/// One blank cell separates the glyph from the rule on each side, and one rule cell remains before
+/// the corner. A frame too narrow for that complete arrangement has no close geometry.
+pub(crate) fn frame_close_rect(bounds: Rect, area: Rect) -> Option<Rect> {
+    // Corner, rule and blank on each side of the three-cell glyph.
+    if area.height == 0 || area.width < ICON_ACTION_WIDTH + 6 {
+        return None;
+    }
+    let rect = Rect::new(
+        area.right().checked_sub(ICON_ACTION_WIDTH + 3)?,
+        area.y,
+        ICON_ACTION_WIDTH,
+        1,
+    );
+    icon_action_rect(bounds, rect).filter(|rect| area.intersection(*rect) == *rect)
+}
+
+/// Paints a frame-borne icon action with one blank surface cell on each side of its glyph.
+///
+/// The blanks separate the action from the frame rule; they are not part of its hit extent.
+pub(crate) fn render_frame_icon_action(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    spec: IconActionSpec,
+    theme: &Theme,
+) -> Option<Rect> {
+    let rect = icon_action_rect(frame.area(), area)?;
+    let gaps = [rect.x.checked_sub(1)?, rect.right()];
+    let bounds = frame.area();
+    if gaps.iter().any(|x| *x < bounds.x || *x >= bounds.right()) {
+        return None;
+    }
+    let style = theme.style(spec.surface.role());
+    for x in gaps {
+        frame.buffer_mut()[(x, rect.y)]
+            .set_symbol(" ")
+            .set_style(Style::reset())
+            .set_style(style);
+    }
+    render_icon_action(frame, rect, spec, theme)
+}
+
 /// Paints one fixed icon action and returns its complete visible and clickable extent.
 pub(crate) fn render_icon_action(
     frame: &mut Frame<'_>,
@@ -80,28 +128,26 @@ pub(crate) fn render_icon_action(
     theme: &Theme,
 ) -> Option<Rect> {
     let rect = icon_action_rect(frame.area(), area)?;
-    let enabled = spec.availability == Availability::Enabled;
-    let role = if enabled {
-        Role::TextSecondary
+    let pointer = if spec.availability == Availability::Enabled {
+        spec.pointer
     } else {
-        Role::TextDisabled
+        PointerPresentation::Rest
     };
-    let interaction = if enabled {
-        match spec.pointer {
-            PointerPresentation::Rest => None,
-            PointerPresentation::Hovered => Some(Role::SurfaceHover),
-            PointerPresentation::Pressed => Some(Role::SurfacePressed),
+    // A glyph this small reads its hover through strengthened content rather than a fill block;
+    // press adds the pressed surface so release feedback stays distinct from hover.
+    let (role, interaction) = match (spec.availability, pointer) {
+        (Availability::Disabled, _) => (Role::TextDisabled, None),
+        (Availability::Enabled, PointerPresentation::Rest) => (Role::TextSecondary, None),
+        (Availability::Enabled, PointerPresentation::Hovered) => (Role::TextPrimary, None),
+        (Availability::Enabled, PointerPresentation::Pressed) => {
+            (Role::TextPrimary, Some(Role::SurfacePressed))
         }
-    } else {
-        None
     };
-    let style = content_style(
-        theme,
-        spec.surface,
-        interaction,
-        Some(role),
-        theme.style(role),
-    );
+    let mut content = theme.style(role);
+    if pointer != PointerPresentation::Rest {
+        content = content.add_modifier(Modifier::BOLD);
+    }
+    let style = content_style(theme, spec.surface, interaction, Some(role), content);
     frame.render_widget(Paragraph::new(spec.glyph.label()), rect);
     for x in rect.x..rect.right() {
         frame.buffer_mut()[(x, rect.y)]

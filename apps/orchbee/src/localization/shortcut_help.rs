@@ -165,17 +165,38 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn shortcut_filter_hint(self) -> &'static str {
+    pub(crate) const fn shortcut_close_action(self) -> &'static str {
         match self {
-            Self::EnUs => "Type to filter · Backspace erase · Ctrl+U clear",
-            Self::ZhCn => "输入筛选 · Backspace 删除 · Ctrl+U 清空",
+            Self::EnUs => "close",
+            Self::ZhCn => "关闭",
         }
     }
 
-    pub(crate) const fn shortcut_scroll_hint(self) -> &'static str {
+    pub(crate) const fn shortcut_scroll_action(self) -> &'static str {
         match self {
-            Self::EnUs => "↑/↓ scroll · PgUp/PgDn page · Esc close",
-            Self::ZhCn => "↑/↓ 滚动 · PgUp/PgDn 翻屏 · Esc 关闭",
+            Self::EnUs => "scroll",
+            Self::ZhCn => "滚动",
+        }
+    }
+
+    pub(crate) const fn shortcut_page_action(self) -> &'static str {
+        match self {
+            Self::EnUs => "page",
+            Self::ZhCn => "翻屏",
+        }
+    }
+
+    pub(crate) const fn shortcut_erase_action(self) -> &'static str {
+        match self {
+            Self::EnUs => "erase",
+            Self::ZhCn => "删除",
+        }
+    }
+
+    pub(crate) const fn shortcut_clear_action(self) -> &'static str {
+        match self {
+            Self::EnUs => "clear",
+            Self::ZhCn => "清空",
         }
     }
 

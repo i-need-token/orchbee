@@ -235,6 +235,7 @@ fn assert_atomic_refusal(content: Rect, text: Text<'_>, confirm: &str) {
                 NativePanelCloseConfirmationToken::for_test(41),
                 content,
                 PreparedContent {
+                    title: Locale::EnUs.panel_close_title(),
                     text: text.clone(),
                     hints: &hints,
                     actions: modal_actions(Locale::EnUs, confirm),

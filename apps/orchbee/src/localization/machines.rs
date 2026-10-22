@@ -159,6 +159,8 @@ impl Locale {
             (Self::ZhCn, "agent-source") => "视图",
             (Self::EnUs, "agent-search") => "Search",
             (Self::ZhCn, "agent-search") => "搜索",
+            (Self::EnUs, "agent-search-prompt") => "to search agents",
+            (Self::ZhCn, "agent-search-prompt") => "搜索 Agent",
             (Self::EnUs, "workspace-search") => "Search Workspaces",
             (Self::ZhCn, "workspace-search") => "搜索工作区",
             (Self::EnUs, "workspaces-no-matches") => "No matching Workspaces.",

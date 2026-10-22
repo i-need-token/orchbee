@@ -413,9 +413,9 @@ fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
 fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
     let theme = Theme::one_dark();
     for (width, locale, expected) in [
-        (36, Locale::EnUs, "Enter activate/edit · / search"),
-        (40, Locale::EnUs, "Enter activate/edit · / search"),
-        (36, Locale::ZhCn, "Enter 操作／编辑 · / 搜索"),
+        (36, Locale::EnUs, "Enter activate/edit  │  / search"),
+        (40, Locale::EnUs, "Enter activate/edit  │  / search"),
+        (36, Locale::ZhCn, "Enter 操作／编辑  │  / 搜索"),
     ] {
         let editor = editor_with(UserPreferencesValues::default());
         let (terminal, _, receipt) = render_once(&editor, width, 10, locale, &theme);

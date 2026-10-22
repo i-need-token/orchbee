@@ -289,9 +289,19 @@ fn query_enter_escape_clear_and_bounds_never_activate_a_terminal() {
     }
     picker.key(KeyEvent::press(KeyCode::Char('\u{202e}'), Modifiers::NONE));
     assert_eq!(picker.agent_view.query.chars().count(), 128);
+    let painted = paint(&picker, Locale::ZhCn, 50, 30);
+    let cursor = painted
+        .cursor
+        .expect("the query editor owns the terminal cursor");
+    let row = &painted.rows[usize::from(cursor.y)];
+    let before: String = row
+        .chars()
+        .take(usize::from(cursor.x))
+        .filter(|c| !c.is_whitespace())
+        .collect();
     assert!(
-        paint(&picker, Locale::ZhCn, 50, 30).contains('|'),
-        "the editor keeps its end visible for wide characters"
+        before.ends_with('界'),
+        "the editor keeps its end visible for wide characters: {row:?}"
     );
     picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     assert!(picker.open);
@@ -306,7 +316,12 @@ fn drawn_controls_filter_without_reusing_old_mouse_authority() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let text = paint(&picker, locale, 100, 30);
         let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-        assert!(compact.contains(locale.machine_picker_text("agent-search")));
+        let prompt: String = locale
+            .machine_picker_text("agent-search-prompt")
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        assert!(compact.contains(&format!("/{prompt}")), "{compact}");
     }
     let painted = paint(&picker, Locale::EnUs, 100, 30);
     let old_row = painted.target(PickerAction::Row(1));

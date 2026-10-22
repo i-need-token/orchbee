@@ -1,5 +1,6 @@
 use super::modal::{
-    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close, title_line,
+    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+    paint_modal_frame,
 };
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
@@ -13,7 +14,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Clear, Padding, Paragraph, Wrap},
+    widgets::{Paragraph, Wrap},
 };
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -59,7 +60,6 @@ pub(super) fn render(
         }),
     ];
     let text = Text::from(vec![
-        title_line(title, theme),
         Line::from(""),
         Line::from(sanitize_terminal_text(confirmation.label()).into_owned()),
         Line::from(""),
@@ -67,7 +67,15 @@ pub(super) fn render(
         Line::from(""),
         Line::from(""),
     ]);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &[], actions, theme) else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        &[],
+        actions,
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
 
@@ -77,11 +85,7 @@ pub(super) fn render(
         layout.area,
         HitTarget::OverlaySurface,
     );
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(
-        super::overlay_surface(theme, true, Padding::horizontal(2)),
-        layout.area,
-    );
+    paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
         Paragraph::new(text).wrap(Wrap { trim: false }),
         layout.inner,

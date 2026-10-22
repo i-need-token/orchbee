@@ -9,11 +9,12 @@ use crate::machine_agents::{
     view::{Entry, Scope},
 };
 use crate::{
+    terminal_text::display_width,
     tui_pointer::{HitLayer, HitMapBuilder},
     tui_render::controls::{
         ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState,
-        NavigationState, OperationState, PointerPresentation, RowFocusCue, RowTracks, action_rect,
-        paint_row_interaction, render_action,
+        NavigationState, OperationState, PointerPresentation, QueryField, RowFocusCue, RowTracks,
+        action_rect, paint_row_interaction, render_action, render_query_field,
     },
 };
 use std::time::{Duration, Instant};
@@ -551,44 +552,45 @@ impl Picker {
                 rect.width = area.x.saturating_sub(rect.x).saturating_sub(1);
             }
         }
-        let heading = format!("{}: ", locale.machine_picker_text("agent-search"));
-        let mut query = self.agent_view.query.as_str();
-        if self.editing_query {
-            let width = usize::from(rect.width)
-                .saturating_sub(ratatui::text::Line::from(heading.as_str()).width() + 1);
-            while ratatui::text::Line::from(query).width() > width {
-                let Some(first) = query.chars().next() else {
-                    break;
-                };
-                query = &query[first.len_utf8()..];
+        let label = locale.machine_picker_text("agent-search");
+        let query = self.agent_view.query.as_str();
+        let key = super::search_key_label(theme);
+        let field = if self.editing_query {
+            QueryField::Editing {
+                label,
+                query,
+                cursor: query.len(),
+            }
+        } else if query.is_empty() {
+            QueryField::Rest {
+                key: &key,
+                prompt: locale.machine_picker_text("agent-search-prompt"),
+            }
+        } else {
+            QueryField::Retained { label, query }
+        };
+        let mut field_rect = rect;
+        if !self.editing_query
+            && let Some(spec) = self.source_spec()
+        {
+            let view = format!(
+                "{} {}: {}",
+                theme.glyphs.middle_dot,
+                locale.machine_picker_text("agent-source"),
+                crate::machine_discovery::display_label(
+                    spec.label.as_deref().unwrap_or(&spec.source)
+                )
+            );
+            let width = u16::try_from(display_width(&view)).unwrap_or(u16::MAX);
+            if rect.width > width.saturating_add(17) {
+                field_rect.width -= width + 1;
+                frame.render_widget(
+                    Paragraph::new(view).style(theme.style(Role::HintLabel)),
+                    Rect::new(field_rect.right() + 1, rect.y, width, 1),
+                );
             }
         }
-        frame.render_widget(
-            Paragraph::new(format!(
-                "{heading}{query}{}{}",
-                if self.editing_query { "|" } else { "" },
-                if self.editing_query {
-                    String::new()
-                } else {
-                    self.source_spec().map_or(String::new(), |s| {
-                        format!(
-                            " {} {}: {}",
-                            theme.glyphs.middle_dot,
-                            locale.machine_picker_text("agent-source"),
-                            crate::machine_discovery::display_label(
-                                s.label.as_deref().unwrap_or(&s.source)
-                            )
-                        )
-                    })
-                }
-            ))
-            .style(theme.style(if self.editing_query {
-                Role::AccentFocus
-            } else {
-                Role::HintLabel
-            })),
-            rect,
-        );
+        let _ = render_query_field(frame, field_rect, field, theme);
         let Some((target, interaction)) =
             picker_interaction(source, PickerAction::Control(Control::Search))
         else {
@@ -602,7 +604,7 @@ impl Picker {
             interaction,
         ));
         let primary_role = if self.editing_query {
-            Role::AccentFocus
+            Role::TextPrimary
         } else {
             Role::HintLabel
         };

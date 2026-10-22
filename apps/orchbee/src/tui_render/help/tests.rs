@@ -126,8 +126,8 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
                     "{locale:?} {width}x{height}: {rendered}"
                 );
             }
-            assert!(rendered.contains(locale.shortcut_filter_hint()));
-            assert!(rendered.contains(locale.shortcut_scroll_hint()));
+            assert!(rendered.contains(locale.shortcut_close_action()));
+            assert!(rendered.contains(locale.shortcut_scroll_action()));
         }
     }
 }
@@ -262,7 +262,8 @@ fn drawn_controls_and_scroll_region_share_the_presented_source() {
     let area = area.expect("Help should fit");
     let source = *map.help_draw_source().expect("Help publishes a source");
 
-    let close_x = area.right() - 4;
+    // `─ [<] [>] [x] ─┐`: one rule cell and one blank keep the close away from the corner.
+    let close_x = area.right() - 6;
     let next_x = close_x - 4;
     let previous_x = next_x - 4;
     for (x, control) in [
@@ -276,7 +277,8 @@ fn drawn_controls_and_scroll_region_share_the_presented_source() {
         ));
     }
     assert!(matches!(
-        map.hit_target_at(area.x + 3, area.y + 1),
+        // The top edge, its blank row, the filter, and its divider precede the scroll region.
+        map.hit_target_at(area.x + 3, area.y + 4),
         Some(HitTarget::ListScroll(ListScrollTarget::Help(actual))) if *actual == source
     ));
 }

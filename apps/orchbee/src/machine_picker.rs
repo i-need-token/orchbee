@@ -17,8 +17,8 @@ use crate::{
     tui_render::controls::{
         Availability, CheckedState, ControlSurface, CurrentState, FocusState, IconActionGlyph,
         IconActionSpec, InteractionState, KeyHint, NavigationState, OperationState,
-        PointerPresentation, RowContentBand, RowFocusCue, RowTracks, close_rect, measure_key_hints,
-        paint_row_interaction, render_icon_action, render_key_hints,
+        PointerPresentation, RowContentBand, RowFocusCue, RowTracks, frame_close_rect,
+        measure_key_hints, paint_row_interaction, render_frame_icon_action, render_key_hints,
     },
     tui_theme::{GlyphMode, Role, Theme},
 };
@@ -26,8 +26,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::Modifier,
-    text::Span,
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Clear, Paragraph},
 };
 use std::{num::NonZeroU64, sync::Arc};
 mod agents;
@@ -229,6 +228,15 @@ impl PickerSource {
     }
 }
 
+/// The effective key that opens the Agent search query, formatted for the host.
+fn search_key_label(theme: &Theme) -> String {
+    format_binding_with_glyphs(
+        &Binding::new(KeyCode::Char('/'), Modifiers::NONE),
+        LabelStyle::for_host(),
+        key_label_glyphs(theme),
+    )
+}
+
 fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
@@ -288,11 +296,11 @@ fn render_picker_close(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> Option<Rect> {
-    let rect = close_rect(frame.area(), area)?;
+    let rect = frame_close_rect(frame.area(), area)?;
     let (target, spec) = picker_interaction(source, PickerAction::Close)?;
     let pointer =
         pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
-    let painted = render_icon_action(
+    let painted = render_frame_icon_action(
         frame,
         rect,
         IconActionSpec::new(
@@ -1029,21 +1037,15 @@ impl Picker {
             height,
         );
         frame.render_widget(Clear, panel);
+        let title = format!(
+            "{} {}/{}",
+            self.mode.label(locale),
+            (self.selected + 1).min(self.visible_rows().len()),
+            self.visible_rows().len()
+        );
         frame.render_widget(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(theme.corners)
-                .border_style(theme.style(Role::FrameFocused))
-                .style(theme.style(Role::SurfaceOverlay))
-                .title(Span::styled(
-                    format!(
-                        " {} {}/{} ",
-                        self.mode.label(locale),
-                        (self.selected + 1).min(self.visible_rows().len()),
-                        self.visible_rows().len()
-                    ),
-                    theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-                )),
+            crate::tui_render::overlay_surface(theme, ratatui::widgets::Padding::ZERO)
+                .title(crate::tui_render::overlay_title(&title, panel.width, theme)),
             panel,
         );
         let _ = render_picker_close(frame, panel, &source, theme, hits);

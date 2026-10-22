@@ -526,9 +526,15 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                     }
 
                     let modal_inner = modal_inner_area(&drawn.buffer, &drawn.map, &harness.view);
+                    // The task heading is painted on the frame's top edge.
                     let title = text_position(
                         &drawn.buffer,
-                        modal_inner,
+                        Rect::new(
+                            modal_inner.x - 3,
+                            modal_inner.y - 1,
+                            modal_inner.width + 6,
+                            1,
+                        ),
                         locale.setup_title(draft.stage()),
                     );
                     let context = text_position(

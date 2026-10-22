@@ -1,6 +1,6 @@
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, title_line,
+    paint_modal_close, paint_modal_frame,
 };
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
@@ -15,7 +15,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Clear, Padding, Paragraph, Wrap},
+    widgets::{Paragraph, Wrap},
 };
 
 pub(super) struct PanelModalDraw {
@@ -24,6 +24,7 @@ pub(super) struct PanelModalDraw {
 }
 
 struct PreparedContent<'a> {
+    title: &'a str,
     text: Text<'a>,
     hints: &'a [super::controls::KeyHint<'a>],
     actions: [ModalAction<'a>; 2],
@@ -67,6 +68,7 @@ pub(super) fn render(
         confirmation.token(),
         content_area,
         PreparedContent {
+            title: locale.panel_close_title(),
             text,
             hints: &[],
             actions,
@@ -85,12 +87,20 @@ fn render_prepared(
     hits: &mut HitMapBuilder,
 ) -> PanelModalDraw {
     let PreparedContent {
+        title,
         text,
         hints,
         actions,
     } = content;
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, hints, actions, theme)
-    else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        hints,
+        actions,
+        theme,
+    ) else {
         return PanelModalDraw {
             area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
@@ -98,11 +108,7 @@ fn render_prepared(
     };
 
     hits.start_modal();
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(
-        super::overlay_surface(theme, true, Padding::horizontal(2)),
-        layout.area,
-    );
+    paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
         Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
         layout.inner,
@@ -118,8 +124,9 @@ fn render_prepared(
         hits,
     );
     if !hints.is_empty() {
-        let rendered_hints = super::controls::render_key_hints(frame, layout.hints, hints, theme)
-            .expect("admitted modal hints must paint");
+        let rendered_hints =
+            super::controls::render_overlay_hints(frame, layout.hints, hints, theme)
+                .expect("admitted modal hints must paint");
         debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
     }
     for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
@@ -156,7 +163,6 @@ fn confirmation_text(
     let [panel, tab] =
         locale.panel_close_targets(panel_position, tab_position, panel_label, tab_label);
     Text::from(vec![
-        title_line(locale.panel_close_title(), theme),
         Line::from(""),
         Line::from(panel),
         description_line(tab, theme),
@@ -184,6 +190,7 @@ fn render_content(
         NativePanelCloseConfirmationToken::for_test(0),
         content_area,
         PreparedContent {
+            title: Locale::EnUs.panel_close_title(),
             text,
             hints,
             actions,

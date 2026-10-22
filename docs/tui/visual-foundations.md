@@ -124,34 +124,36 @@ Hierarchy describes information priority, not interaction state.
 - Use at most the heading, primary, and secondary hierarchy levels in one region. Disabled is an
   availability treatment applied to affected content, not a fourth hierarchy level. Additional
   structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
-- `BOLD` marks a heading, the active item, or the primary label of a pressed action; it never marks
-  a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is available only to the theme
-  resolver as a terminal-native or reduced-color fallback for an interactive band; component
-  renderers never request it directly. `BLINK` is forbidden everywhere.
+- `BOLD` marks a heading, the active item, or the label or glyph of a hovered or pressed enabled
+  action; it never marks a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is available
+  only to the theme resolver as a terminal-native or reduced-color fallback for an interactive band;
+  component renderers never request it directly. `BLINK` is forbidden everywhere.
 - Status roles color the status glyph or the status word, not the whole line. A navigation row
   whose entity is blocked on the person may also color its identity text with `status-warning`;
   its surface, metadata and other tracks keep their own roles.
 
 ## Interaction states
 
-| State                 | Presentation                                                                                                                     |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                |
-| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                               |
-| Pointer hover         | `surface-hover` across the effective hit rectangle; action menus may move the provisional candidate and use its selection fill   |
-| Pointer pressed       | `surface-pressed` plus `BOLD` on the primary action label while the primary button remains held on the armed target              |
-| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one |
-| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn           |
-| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus        |
-| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent         |
-| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate      |
-| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                      |
-| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                         |
+| State                 | Presentation                                                                                                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                                                                                                                                             |
+| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                                                                                                                                                            |
+| Pointer hover         | `surface-hover` across the effective hit rectangle plus `BOLD` on an enabled action label; an icon action instead strengthens its glyph to `text-primary` + `BOLD` without a fill; action menus may move the provisional candidate and use its selection fill |
+| Pointer pressed       | `surface-pressed` plus `BOLD` on the enabled action label or glyph while the primary button remains held on the armed target                                                                                                                                  |
+| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one                                                                                                                              |
+| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn                                                                                                                                        |
+| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus                                                                                                                                     |
+| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent                                                                                                                                      |
+| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate                                                                                                                                   |
+| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                                                                                                                                                   |
+| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                                                                                                                                                      |
 
 Exactly one region shows focus at a time. Focus is visible in every layout tier. Project it once at
 the keyboard-owner boundary: a framed collection uses its `frame-focused` border, while an unframed
-focused row uses a dedicated `accent-focus` track. A row inside the framed collection does not
-repeat the owner's focus marker; its reversible navigation anchor remains independently visible.
+focused row uses a dedicated `accent-focus` track. A capturing overlay owns input through exclusive
+occlusion instead: it keeps a neutral `frame-unfocused` border, and its heading and terminal caret or
+provisional marker identify the owner. A row inside the framed collection does not repeat the
+owner's focus marker; its reversible navigation anchor remains independently visible.
 
 Current context and keyboard focus are separate facts. The current context remains identifiable
 while input belongs elsewhere; moving keyboard focus must not erase that indication. A surface

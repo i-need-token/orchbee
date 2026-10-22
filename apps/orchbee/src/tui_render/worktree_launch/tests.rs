@@ -73,9 +73,8 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                             matches!(presented, ModalPresentation::Presented(value) if value == token)
                         );
                         assert!(choices.contains(&selected));
-                        let inner =
-                            super::super::overlay_surface(&theme, true, Padding::horizontal(2))
-                                .inner(area);
+                        let inner = super::super::overlay_surface(&theme, Padding::horizontal(2))
+                            .inner(area);
                         assert_eq!(
                             terminal.backend().buffer()[(inner.x, selected_row.unwrap())].symbol(),
                             theme.glyphs.navigation_marker,
@@ -135,7 +134,7 @@ fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
         })
         .unwrap();
     let map = hits.finish();
-    let inner = super::super::overlay_surface(&theme, true, Padding::horizontal(2)).inner(area);
+    let inner = super::super::overlay_surface(&theme, Padding::horizontal(2)).inner(area);
     for (row, choice) in [(2, 0), (3, 0), (4, 1), (5, 1), (6, 2), (7, 2)] {
         assert!(matches!(
             map.hit_target_at(inner.x, inner.y + row),

@@ -1,12 +1,12 @@
 //! Draw the complete Worktree decision before arming its input token.
 use super::modal::{
     ModalAction, ModalLayout, SingleModalLayout, description_line, modal_key_label, modal_layout,
-    paint_modal_action, paint_modal_close, pointer_presentation, set_modal_cursor,
-    single_modal_layout, status_line, title_line,
+    paint_modal_action, paint_modal_close, paint_modal_frame, pointer_presentation,
+    set_modal_cursor, single_modal_layout, status_line,
 };
 use super::{
-    Clear, Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, Wrap,
-    display_width, truncate_display,
+    Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, Wrap, display_width,
+    truncate_display,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
 use crate::terminal_session::{
@@ -138,19 +138,20 @@ impl WorktreeFieldGeometry {
     }
 }
 
+/// Resolves the pair or single-action modal; `actions` holds Cancel and the optional Submit.
 fn resolve_worktree_layout(
     bounds: Rect,
     content: Rect,
+    title: &str,
     text: &Text<'_>,
     hints: &[super::controls::KeyHint<'_>],
-    cancel: ModalAction<'_>,
-    submit: Option<ModalAction<'_>>,
+    (cancel, submit): (ModalAction<'_>, Option<ModalAction<'_>>),
     theme: &Theme,
 ) -> Option<WorktreeLayout> {
     match submit {
-        Some(submit) => modal_layout(bounds, content, text, hints, [cancel, submit], theme)
+        Some(submit) => modal_layout(bounds, content, title, text, hints, [cancel, submit], theme)
             .map(WorktreeLayout::Pair),
-        None => single_modal_layout(bounds, content, text, hints, cancel, theme)
+        None => single_modal_layout(bounds, content, title, text, hints, cancel, theme)
             .map(WorktreeLayout::Single),
     }
 }
@@ -187,15 +188,12 @@ fn render_form(
     let removal = view.removal_target();
     let confirming = matches!(stage, WorktreeStage::Remove | WorktreeStage::ResumeRemove);
     let budget = usize::from(content.width.saturating_sub(10)).min(72);
-    let mut lines = vec![
-        title_line(locale.worktree_title(view.mode()), theme),
-        Line::from(""),
-    ];
-    if let Some((label, path, branch, terminals)) = removal {
-        lines[0] = title_line(
-            locale.worktree_remove_title(&sanitize_terminal_text(label)),
-            theme,
-        );
+    let title = removal.map_or_else(
+        || locale.worktree_title(view.mode()).to_owned(),
+        |(label, ..)| locale.worktree_remove_title(&sanitize_terminal_text(label)),
+    );
+    let mut lines = vec![Line::from("")];
+    if let Some((_, path, branch, terminals)) = removal {
         // The complete exact path must fit before a destructive decision can be armed.
         lines.push(Line::from(native_path(&sanitize_terminal_text(path))));
         lines.push(Line::from(locale.worktree_remove_scope(terminals)));
@@ -325,10 +323,10 @@ fn render_form(
     let Some(candidate) = resolve_worktree_layout(
         frame.area(),
         content,
+        &title,
         &placeholder,
         &hints,
-        cancel,
-        submit,
+        (cancel, submit),
         theme,
     ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
@@ -424,9 +422,15 @@ fn render_form(
         ));
     }
     let text = Text::from(lines);
-    let Some(layout) =
-        resolve_worktree_layout(frame.area(), content, &text, &hints, cancel, submit, theme)
-    else {
+    let Some(layout) = resolve_worktree_layout(
+        frame.area(),
+        content,
+        &title,
+        &text,
+        &hints,
+        (cancel, submit),
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     if layout.inner() != candidate.inner() {
@@ -434,11 +438,7 @@ fn render_form(
     }
 
     hits.start_modal();
-    frame.render_widget(Clear, layout.area());
-    frame.render_widget(
-        super::overlay_surface(theme, true, Padding::horizontal(2)),
-        layout.area(),
-    );
+    paint_modal_frame(frame, layout.area(), &title, theme);
     frame.render_widget(
         Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
         layout.inner(),
@@ -455,7 +455,7 @@ fn render_form(
     );
     if !hints.is_empty() {
         let rendered_hints =
-            super::controls::render_key_hints(frame, layout.hints(), &hints, theme)
+            super::controls::render_overlay_hints(frame, layout.hints(), &hints, theme)
                 .expect("admitted worktree hints must paint");
         debug_assert!(layout.hints().intersection(rendered_hints) == rendered_hints);
     }
@@ -664,8 +664,7 @@ fn render_checkouts<'a>(
             .unwrap_or(u16::MAX)
             .min(content.height.saturating_sub(2)),
     );
-    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
-    let inner = block.inner(area);
+    let inner = super::overlay_surface(theme, Padding::horizontal(2)).inner(area);
     if area.is_empty()
         || frame.area().intersection(area) != area
         || inner.width < 20
@@ -695,14 +694,14 @@ fn render_checkouts<'a>(
         true,
     )
     .with_shortcut(&escape);
-    let close = match super::controls::close_rect(frame.area(), area) {
+    let close = match super::controls::frame_close_rect(frame.area(), area) {
         Some(close) => close,
         None => return (Rect::default(), ModalPresentation::NotPresented),
     };
     let hint_row = Rect::new(inner.x, inner.bottom() - 2, inner.width, 1);
     let action_row = Rect::new(inner.x, inner.bottom() - 1, inner.width, 1);
-    let hints_valid = super::controls::measure_key_hints(&hints, theme).is_some();
-    let first_hint_fits = super::controls::measure_key_hints(&hints[..1], theme)
+    let hints_valid = super::controls::measure_overlay_hints(&hints, theme).is_some();
+    let first_hint_fits = super::controls::measure_overlay_hints(&hints[..1], theme)
         .is_some_and(|width| width <= usize::from(hint_row.width));
     let Some(action) = super::controls::action_rect(
         frame.area(),
@@ -774,14 +773,7 @@ fn render_checkouts<'a>(
         })
         .collect::<Vec<_>>();
     let mut lines = vec![
-        title_line(
-            truncate_display(
-                locale.worktree_title(picker.mode),
-                budget,
-                theme.glyphs.ellipsis,
-            ),
-            theme,
-        ),
+        Line::from(""),
         description_line(
             path_text(picker.source, budget, theme.glyphs.ellipsis),
             theme,
@@ -814,8 +806,7 @@ fn render_checkouts<'a>(
     lines.extend([Line::from(""), Line::from("")]);
 
     hits.start_modal();
-    frame.render_widget(Clear, area);
-    frame.render_widget(block, area);
+    paint_modal_frame(frame, area, locale.worktree_title(picker.mode), theme);
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
     paint_modal_close(
         frame,
@@ -827,7 +818,7 @@ fn render_checkouts<'a>(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, hint_row, &hints, theme)
+    let rendered_hints = super::controls::render_overlay_hints(frame, hint_row, &hints, theme)
         .expect("admitted worktree picker hints must paint");
     debug_assert!(hint_row.intersection(rendered_hints) == rendered_hints);
     paint_modal_action(

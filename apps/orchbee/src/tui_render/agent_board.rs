@@ -76,7 +76,7 @@ pub(super) fn render(
     if area.height < 8 {
         return AgentBoardDraw::NotPresented(board.episode());
     };
-    let block = crate::tui_render::overlay_block(text.board.title, theme, true);
+    let block = crate::tui_render::overlay_block(text.board.title, area.width, theme);
     let inner = block.inner(area);
     let [body, footer] =
         Layout::vertical([Constraint::Min(1), Constraint::Length(BOARD_CHROME_ROWS)]).areas(inner);
@@ -156,8 +156,8 @@ pub(super) fn render(
         super::controls::KeyHint::new(&refresh_key, text.board.refresh_hint),
         super::controls::KeyHint::new(&navigation_key, text.board.select_hint),
     ];
-    if super::controls::measure_key_hints(&hints, theme).is_none()
-        || super::controls::measure_key_hints(&hints[..1], theme)
+    if super::controls::measure_overlay_hints(&hints, theme).is_none()
+        || super::controls::measure_overlay_hints(&hints[..1], theme)
             .is_none_or(|width| width > usize::from(hint_row.width))
     {
         return AgentBoardDraw::NotPresented(board.episode());
@@ -282,7 +282,7 @@ pub(super) fn render(
         .style(theme.style(status_role)),
         read_row,
     );
-    let hint_rect = super::controls::render_key_hints(frame, hint_row, &hints, theme);
+    let hint_rect = super::controls::render_overlay_hints(frame, hint_row, &hints, theme);
     debug_assert!(
         hint_rect.is_some(),
         "preflighted exit hint remains paintable"
@@ -858,7 +858,7 @@ fn render_header_close(
     let target = draw.control_target(AgentBoardControl::Close);
     let interaction = InteractionTarget::AgentBoardControl(target);
     let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
-    let rect = super::controls::close_rect(frame.area(), area)?;
+    let rect = super::controls::frame_close_rect(frame.area(), area)?;
     let pointer = pointer_presentation(hits.projected_pointer(
         HitLayer::Overlay,
         rect,
@@ -866,7 +866,7 @@ fn render_header_close(
         &interaction,
         spec,
     ));
-    let painted = super::controls::render_icon_action(
+    let painted = super::controls::render_frame_icon_action(
         frame,
         rect,
         IconActionSpec::new(

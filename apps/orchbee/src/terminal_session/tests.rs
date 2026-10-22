@@ -2401,7 +2401,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             "{navigator}"
         );
         assert!(
-            navigator.contains("Esc / Ctrl+b w return · Enter open"),
+            navigator.contains("Esc / Ctrl+b w return  │  Enter open"),
             "{navigator}"
         );
         session.observe_geometry(changed_geometry);

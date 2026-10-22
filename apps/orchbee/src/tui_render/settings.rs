@@ -26,11 +26,19 @@ use ratatui::{
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
     IconActionGlyph, IconActionSpec, InteractionState, KeyHint, NavigationState, OperationState,
-    PointerPresentation, RowContentBand, RowFocusCue, RowTracks, measure_key_hints,
+    PointerPresentation, QueryField, RowContentBand, RowFocusCue, RowTracks, measure_overlay_hints,
+    render_divider, render_query_field,
 };
 
 #[cfg(test)]
 mod tests;
+
+/// One blank row separates the heading edge from the search slot; one column pads each side.
+const FRAME_PADDING: Padding = Padding::new(1, 1, 1, 0);
+/// Short frames give up the top blank row before any setting, detail, or footer row.
+const COMPACT_FRAME_PADDING: Padding = Padding::horizontal(1);
+/// The shortest frame that keeps its top blank row together with the detail row.
+const PADDED_FRAME_HEIGHT: u16 = 15;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -62,7 +70,11 @@ pub(super) fn render(
         }
         _ => locale.settings_title().into(),
     };
-    let block = super::overlay_surface(theme, true, Padding::horizontal(1)).title(title);
+    let block = super::overlay_surface(theme, layout.padding).title(super::overlay_title(
+        &title,
+        layout.area.width,
+        theme,
+    ));
     frame.render_widget(Clear, layout.area);
     frame.render_widget(block, layout.area);
     let painted_close = render_close(frame, layout.close, view, theme, hits);
@@ -132,6 +144,7 @@ pub(super) fn render(
 #[derive(Clone, Copy)]
 struct SettingsLayout {
     area: Rect,
+    padding: Padding,
     inner: Rect,
     close: Rect,
     hints: Rect,
@@ -169,13 +182,16 @@ impl SettingsLayout {
         if bounds.intersection(area) != area {
             return None;
         }
-        let block = super::overlay_surface(theme, true, Padding::horizontal(1))
-            .title(locale.settings_title());
-        let inner = block.inner(area);
+        let padding = if area.height >= PADDED_FRAME_HEIGHT {
+            FRAME_PADDING
+        } else {
+            COMPACT_FRAME_PADDING
+        };
+        let inner = super::overlay_surface(theme, padding).inner(area);
         if inner.width == 0 || inner.height < 6 || bounds.intersection(inner) != inner {
             return None;
         }
-        let close = super::controls::close_rect(bounds, area)?;
+        let close = super::controls::frame_close_rect(bounds, area)?;
         let mut action_height =
             if matches!(view, View::Draft(draft) if !is_child(draft)) && inner.width < 70 {
                 2
@@ -232,6 +248,7 @@ impl SettingsLayout {
         };
         Some(Self {
             area,
+            padding,
             inner,
             close,
             hints,
@@ -340,8 +357,8 @@ fn footer_hints_admitted(
     if hints.is_empty() {
         return Some(());
     }
-    let _ = measure_key_hints(&hints, theme)?;
-    let first = measure_key_hints(hints.get(..1)?, theme)?;
+    let _ = measure_overlay_hints(&hints, theme)?;
+    let first = measure_overlay_hints(hints.get(..1)?, theme)?;
     (first <= usize::from(area.width)).then_some(())
 }
 
@@ -357,7 +374,7 @@ fn render_footer_hints(
     if hints.is_empty() {
         return Some(Rect::new(area.x, area.y, 0, 1));
     }
-    super::controls::render_key_hints(frame, area, &hints, theme)
+    super::controls::render_overlay_hints(frame, area, &hints, theme)
 }
 
 fn rest_state(enabled: bool) -> InteractionState {
@@ -420,7 +437,7 @@ fn render_close(
     let spec = interaction_spec(true);
     let pointer =
         pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
-    let painted = super::controls::render_icon_action(
+    let painted = super::controls::render_frame_icon_action(
         frame,
         rect,
         IconActionSpec::new(
@@ -1010,19 +1027,6 @@ impl DraftRegions {
     }
 }
 
-fn render_divider(frame: &mut Frame<'_>, area: Rect, theme: &Theme) {
-    let glyph = match theme.glyphs.mode() {
-        GlyphMode::Unicode => "─",
-        #[cfg(test)]
-        GlyphMode::Simplified => "-",
-    };
-    frame.render_widget(
-        Paragraph::new(glyph.repeat(usize::from(area.width)))
-            .style(theme.style(Role::FrameDivider)),
-        area,
-    );
-}
-
 fn render_section(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
     render_divider(frame, area, theme);
     let label = format!(
@@ -1070,34 +1074,33 @@ fn render_search(
         area
     };
     if draft.searching {
-        render_text_field(
+        let _ = render_query_field(
             frame,
             field,
-            locale.settings_search_label(),
-            draft.query,
-            draft.search_cursor,
+            QueryField::Editing {
+                label: locale.settings_search_label(),
+                query: draft.query,
+                cursor: draft.search_cursor,
+            },
             theme,
         );
         return;
     }
-    let text = if draft.query.is_empty() {
-        locale.settings_search_idle().into()
-    } else {
-        format!(
-            "{}: {}",
-            locale.settings_search_label(),
-            sanitize_terminal_text(draft.query)
-        )
+    let key = footer_bindings(View::Draft(draft))
+        .iter()
+        .find(|hint| hint.label() == SettingsHintLabel::Search)
+        .map(|hint| format_settings_bindings(hint.bindings(), theme));
+    let query = match (draft.query.is_empty(), key.as_deref()) {
+        (true, Some(key)) => QueryField::Rest {
+            key,
+            prompt: locale.settings_search_prompt(),
+        },
+        _ => QueryField::Retained {
+            label: locale.settings_search_label(),
+            query: draft.query,
+        },
     };
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            &text,
-            usize::from(field.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextSecondary)),
-        field,
-    );
+    let _ = render_query_field(frame, field, query, theme);
     let target = InteractionTarget::SettingsControl {
         token: draft.token,
         control: Control::Search,

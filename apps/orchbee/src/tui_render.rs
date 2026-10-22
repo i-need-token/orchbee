@@ -1192,7 +1192,7 @@ fn render_popup(
     if frame.area().intersection(outer) != outer || frame.area().intersection(inner) != inner {
         return;
     }
-    let Some(close) = controls::close_rect(frame.area(), outer) else {
+    let Some(close) = controls::frame_close_rect(frame.area(), outer) else {
         return;
     };
     hits.mark_overlay_active();
@@ -1210,14 +1210,10 @@ fn render_popup(
         };
     frame.render_widget(Clear, outer);
     frame.render_widget(
-        overlay_surface(theme, true, Padding::ZERO).title(truncate_display(
-            popup.title,
-            usize::from(outer.width.saturating_sub(5)),
-            theme.glyphs.ellipsis,
-        )),
+        overlay_surface(theme, Padding::ZERO).title(overlay_title(popup.title, outer.width, theme)),
         outer,
     );
-    let painted_close = controls::render_icon_action(
+    let painted_close = controls::render_frame_icon_action(
         frame,
         close,
         controls::IconActionSpec::new(
@@ -2646,7 +2642,7 @@ fn render_unavailable_workbench_navigator(
         ])
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
-        .block(overlay_block(text.navigator_title, theme, false)),
+        .block(overlay_block(text.navigator_title, area.width, theme)),
         area,
     );
     Some(area)
@@ -2664,7 +2660,7 @@ fn render_native_workbench_navigator(
 ) -> Option<Rect> {
     let area = place_overlay(area, 88, 12)?;
     frame.render_widget(Clear, area);
-    let block = overlay_block(text.navigator_title, theme, false);
+    let block = overlay_block(text.navigator_title, area.width, theme);
     let content = block.inner(area);
     frame.render_widget(block, area);
 
@@ -2797,26 +2793,58 @@ fn emphasize_pane_boundary(frame: &mut Frame<'_>, leaf: Rect, panel: Rect, theme
     }
 }
 
-/// Every overlay shares one opaque theme surface and one frame treatment.
-fn overlay_surface(theme: &Theme, focused: bool, padding: Padding) -> Block<'static> {
+/// Every overlay shares one opaque theme surface and one neutral single-line frame.
+///
+/// An overlay already owns input exclusively and occludes what it covers; its heading, caret, or
+/// provisional marker identifies that ownership, so the border never repeats a focus accent.
+pub(crate) fn overlay_surface(theme: &Theme, padding: Padding) -> Block<'static> {
     Block::new()
         .borders(Borders::ALL)
         .border_type(theme.corners)
-        .border_style(theme.style(if focused {
-            Role::FrameFocused
-        } else {
-            Role::FrameUnfocused
-        }))
+        .border_style(theme.style(Role::FrameUnfocused))
         .style(theme.style(Role::SurfaceOverlay))
         .padding(padding)
-        .title_style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD))
 }
 
-fn overlay_block(title: &'static str, theme: &Theme, focused: bool) -> Block<'static> {
-    overlay_surface(theme, focused, Padding::horizontal(2)).title(Span::styled(
-        format!(" {title} "),
-        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-    ))
+/// Top-edge cells an overlay heading leaves to its frame: both corners, the leading `─ ` and
+/// trailing blank, at least one rule cell, and the spaced close control ` [x] ─`.
+const OVERLAY_TITLE_RESERVE: usize = 12;
+
+/// The task heading painted once on an overlay's top-left edge as `─ Title `.
+///
+/// The heading truncates from the end so the frame's close control always keeps its cells.
+pub(crate) fn overlay_title(title: &str, width: u16, theme: &Theme) -> Line<'static> {
+    overlay_heading(
+        title,
+        usize::from(width).saturating_sub(OVERLAY_TITLE_RESERVE),
+        theme,
+    )
+}
+
+/// The same top-left heading inside an owner-computed display budget, for frames whose top edge
+/// carries other controls.
+fn overlay_heading(title: &str, budget: usize, theme: &Theme) -> Line<'static> {
+    let title = truncate_display(
+        &crate::terminal_text::sanitize_terminal_text(title),
+        budget,
+        theme.glyphs.ellipsis,
+    );
+    Line::from(vec![
+        Span::styled(
+            theme.corners.to_border_set().horizontal_top,
+            theme.style(Role::FrameUnfocused),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            title,
+            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+    ])
+}
+
+fn overlay_block(title: &str, width: u16, theme: &Theme) -> Block<'static> {
+    overlay_surface(theme, Padding::horizontal(2)).title(overlay_title(title, width, theme))
 }
 
 #[cfg(test)]

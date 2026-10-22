@@ -1,6 +1,6 @@
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, title_line,
+    paint_modal_close, paint_modal_frame,
 };
 use crate::{
     action_projection::ActionTone,
@@ -18,7 +18,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Text},
-    widgets::{Clear, Padding, Paragraph, Wrap},
+    widgets::{Paragraph, Wrap},
 };
 
 pub(super) struct ModalDraw {
@@ -36,12 +36,15 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> ModalDraw {
     let status = confirmation.resume_status();
+    let title = confirmation.set_count().map_or_else(
+        || locale.close_title(confirmation.kind()).to_owned(),
+        |count| locale.close_set_title(count),
+    );
     let mut lines = if let Some(count) = confirmation.set_count() {
         // Names are previews, not target identities. Bound them to one line, reserving the
         // modal margin, border and padding; the full warning/count must still fit to arm it.
         let preview_width = usize::from(content_area.width.saturating_sub(10)).min(64);
         let mut lines = vec![
-            title_line(locale.close_set_title(count), theme),
             Line::from(""),
             description_line(
                 truncate_display(
@@ -74,7 +77,6 @@ pub(super) fn render(
         lines
     } else {
         vec![
-            title_line(locale.close_title(confirmation.kind()), theme),
             Line::from(""),
             Line::from(sanitize_terminal_text(confirmation.target_label()).into_owned()),
             Line::from(""),
@@ -109,7 +111,15 @@ pub(super) fn render(
     ];
     lines.push(Line::from(""));
     let text = Text::from(lines);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &[], actions, theme) else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        &title,
+        &text,
+        &[],
+        actions,
+        theme,
+    ) else {
         return ModalDraw {
             area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
@@ -123,11 +133,7 @@ pub(super) fn render(
         layout.area,
         HitTarget::OverlaySurface,
     );
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(
-        super::overlay_surface(theme, true, Padding::horizontal(2)),
-        layout.area,
-    );
+    paint_modal_frame(frame, layout.area, &title, theme);
     frame.render_widget(
         Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
         layout.inner,

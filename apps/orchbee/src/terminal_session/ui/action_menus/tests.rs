@@ -1358,7 +1358,7 @@ fn ux_status_short_menu_exposes_its_selection_position() {
                 );
                 assert!(text.contains("Esc"));
                 if width > 20 {
-                    assert!(text.contains("Enter"));
+                    assert!(text.contains("Enter"), "{locale:?} {width}: {text:?}");
                 } else {
                     assert!(!text.contains("Enter"));
                 }

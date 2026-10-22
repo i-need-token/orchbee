@@ -197,7 +197,7 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
         "All states",
         "Placement",
         "All machines",
-        "Search:",
+        "/ to search agents",
         "Clear",
         "Esc",
         "Close",
@@ -257,7 +257,7 @@ fn machine_picker_root_frame_captures_real_agents_and_activates_search_on_exact_
         &theme,
     );
 
-    let search = find_ascii(&terminal, "Search:");
+    let search = find_ascii(&terminal, "/ to search agents");
     dispatch_pointer(&mut dispatcher, &mut shell, &mut surface, search, false);
     assert_eq!(
         shell.machines.picker_source(),

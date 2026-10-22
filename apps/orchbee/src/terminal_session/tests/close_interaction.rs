@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Block, Paragraph, Widget, Wrap},
+    widgets::{Paragraph, Widget, Wrap},
 };
 use std::{convert::Infallible, sync::atomic::AtomicUsize};
 
@@ -213,10 +213,13 @@ fn assert_complete_close_frame(
     let right = outer.right();
     let top = outer.y;
     let bottom = outer.bottom();
+    let title = locale.close_title(NativeCloseConfirmationKind::Close);
+    let theme = crate::tui_theme::Theme::terminal_native();
     let mut border = Buffer::empty(outer);
-    Block::bordered()
-        .border_type(crate::tui_theme::Theme::terminal_native().corners)
+    crate::tui_render::overlay_surface(&theme, ratatui::widgets::Padding::ZERO)
+        .title(crate::tui_render::overlay_title(title, outer.width, &theme))
         .render(outer, &mut border);
+    let is_close = |x: u16| matches!(hits.hit_target_at(x, top), Some(HitTarget::TabClose { .. }));
     for y in buffer.area.y..buffer.area.bottom() {
         for x in buffer.area.x..buffer.area.right() {
             let point = (x, y).into();
@@ -244,7 +247,12 @@ fn assert_complete_close_frame(
                 );
             }
             let boundary = x == left || x + 1 == right || y == top || y + 1 == bottom;
-            if outer.contains((x, y).into())
+            // The frame close keeps one blank on each side between it and the top rule.
+            let beside_close =
+                y == top && !is_close(x) && (is_close(x + 1) || x > 0 && is_close(x - 1));
+            if beside_close {
+                assert_eq!(buffer[(x, y)].symbol(), " ", "close gap at {x},{y}");
+            } else if outer.contains((x, y).into())
                 && boundary
                 && !matches!(hits.hit_target_at(x, y), Some(HitTarget::TabClose { .. }))
             {
@@ -274,14 +282,7 @@ fn assert_complete_close_frame(
     );
     let mut expected_warning = Buffer::empty(warning_area);
     warning.render(warning_area, &mut expected_warning);
-    let mut expected = vec![
-        locale
-            .close_title(NativeCloseConfirmationKind::Close)
-            .to_owned(),
-        String::new(),
-        "standalone".to_owned(),
-        String::new(),
-    ];
+    let mut expected = vec![String::new(), "standalone".to_owned(), String::new()];
     expected.extend(displayed_content_rows(&expected_warning, warning_area));
     expected.extend([
         String::new(),

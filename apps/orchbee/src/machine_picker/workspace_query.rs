@@ -1,14 +1,13 @@
 //! Workspace-name filtering and its local editor; typing never becomes list shortcuts or effects.
 use super::{
-    Control, Frame, KeyCode, Locale, Mode, Modifiers, Paragraph, Picker, PickerAction,
-    PickerSource, Rect, Role, Selection, Theme, agents::AgentAction, picker_interaction,
+    Control, Frame, KeyCode, Locale, Mode, Modifiers, Picker, PickerAction, PickerSource, Rect,
+    Selection, Theme, agents::AgentAction, picker_interaction,
 };
 use crate::{
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{display_width, sanitize_terminal_text},
     tui_pointer::{HitLayer, HitMapBuilder},
-    tui_render::controls::ActionKind,
+    tui_render::controls::{ActionKind, QueryField, render_query_field},
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 impl Picker {
     pub(super) fn filter_workspaces(&mut self, selected: Option<Selection>) {
@@ -140,33 +139,17 @@ impl Picker {
                 field.width = painted.x.saturating_sub(field.x).saturating_sub(1);
             }
         }
-        let heading = format!("{}: ", locale.machine_picker_text("workspace-search"));
-        let prefix = truncate_display(
-            &heading,
-            usize::from(field.width.saturating_sub(2)),
-            theme.glyphs.ellipsis,
-        );
-        let budget = usize::from(field.width).saturating_sub(display_width(&prefix) + 1);
-        let text = self.workspace_query.text();
-        let cursor = self.workspace_query.cursor();
-        let mut start = 0;
-        while display_width(&text[start..cursor]) > budget {
-            let Some(grapheme) = text[start..cursor].graphemes(true).next() else {
-                break;
-            };
-            start += grapheme.len();
-        }
-        let visible = truncate_display(&text[start..], budget, theme.glyphs.ellipsis);
-        frame.render_widget(
-            Paragraph::new(format!("{prefix}{visible}")).style(theme.style(Role::AccentFocus)),
+        // Typing in Workspaces mode always reaches this query, so it keeps its editing form.
+        let _ = render_query_field(
+            frame,
             field,
+            QueryField::Editing {
+                label: locale.machine_picker_text("workspace-search"),
+                query: self.workspace_query.text(),
+                cursor: self.workspace_query.cursor(),
+            },
+            theme,
         );
-        let cursor_x = display_width(&prefix) + display_width(&text[start..cursor]);
-        if let Ok(offset) = u16::try_from(cursor_x)
-            && offset < field.width
-        {
-            frame.set_cursor_position((field.x + offset, field.y));
-        }
         if let Some((target, interaction)) =
             picker_interaction(source, PickerAction::Control(Control::Search))
         {

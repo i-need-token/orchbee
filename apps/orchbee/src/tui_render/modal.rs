@@ -11,16 +11,35 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Padding, Paragraph, Wrap},
+    widgets::{Clear, Padding, Paragraph, Wrap},
 };
 use std::borrow::Cow;
 
-/// Task headings share the same hierarchy inside a modal or on its frame.
+/// Section headings inside a modal share the frame heading's hierarchy.
 pub(super) fn title_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Line<'a> {
     Line::from(Span::styled(
         text,
         theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
     ))
+}
+
+/// Clears and paints the complete modal surface: the neutral frame, its opaque fill, and the task
+/// heading on the top-left edge. Feature content paints only inside the returned layout's slots.
+pub(super) fn paint_modal_frame(frame: &mut Frame<'_>, area: Rect, title: &str, theme: &Theme) {
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        super::overlay_surface(theme, Padding::horizontal(2))
+            .title(super::overlay_title(title, area.width, theme)),
+        area,
+    );
+}
+
+/// Inner width that keeps a modal heading complete beside its frame-borne close control.
+fn title_inner_width(title: &str) -> usize {
+    // The outer frame adds two border and four padding cells around the inner width.
+    crate::terminal_text::display_width(title)
+        .saturating_add(super::OVERLAY_TITLE_RESERVE)
+        .saturating_sub(6)
 }
 
 /// Supporting context and field help remain subordinate to task content.
@@ -190,7 +209,7 @@ pub(super) fn paint_modal_close(
     let availability = InteractionAvailability::Enabled;
     let pointer = hits.projected_modal_pointer(HitLayer::Overlay, rect, &target, availability);
     let pointer = pointer_presentation(pointer);
-    let painted = super::controls::render_icon_action(
+    let painted = super::controls::render_frame_icon_action(
         frame,
         rect,
         super::controls::IconActionSpec::new(
@@ -223,6 +242,7 @@ pub(super) fn modal_key_label(theme: &Theme, binding: &Binding) -> String {
 pub(super) fn modal_layout(
     bounds: Rect,
     content_area: Rect,
+    title: &str,
     text: &Text<'_>,
     hints: &[super::controls::KeyHint<'_>],
     actions: [ModalAction<'_>; 2],
@@ -231,8 +251,8 @@ pub(super) fn modal_layout(
     let first_hint_width = if hints.is_empty() {
         0
     } else {
-        super::controls::measure_key_hints(hints, theme)?;
-        super::controls::measure_key_hints(&hints[..1], theme)?
+        super::controls::measure_overlay_hints(hints, theme)?;
+        super::controls::measure_overlay_hints(&hints[..1], theme)?
     };
     let action_widths = actions.map(|action| {
         super::controls::action_rect(
@@ -251,12 +271,13 @@ pub(super) fn modal_layout(
             .checked_add(2)?
             .checked_add(second_action_width)?,
     )
-    .max(first_hint_width);
+    .max(first_hint_width)
+    .max(title_inner_width(title));
     let area = modal_area_with_minimum_width(content_area, text, controls_width);
     if area.is_empty() || bounds.intersection(area) != area {
         return None;
     }
-    let inner = super::overlay_surface(theme, true, Padding::horizontal(2)).inner(area);
+    let inner = super::overlay_surface(theme, Padding::horizontal(2)).inner(area);
     if !wrapped_text_fits(text, inner) {
         return None;
     }
@@ -290,7 +311,7 @@ pub(super) fn modal_layout(
     }) {
         return None;
     }
-    let close = super::controls::close_rect(bounds, area)?;
+    let close = super::controls::frame_close_rect(bounds, area)?;
     Some(ModalLayout {
         area,
         inner,
@@ -303,6 +324,7 @@ pub(super) fn modal_layout(
 pub(super) fn single_modal_layout(
     bounds: Rect,
     content_area: Rect,
+    title: &str,
     text: &Text<'_>,
     hints: &[super::controls::KeyHint<'_>],
     action: ModalAction<'_>,
@@ -311,8 +333,8 @@ pub(super) fn single_modal_layout(
     let first_hint_width = if hints.is_empty() {
         0
     } else {
-        super::controls::measure_key_hints(hints, theme)?;
-        super::controls::measure_key_hints(&hints[..1], theme)?
+        super::controls::measure_overlay_hints(hints, theme)?;
+        super::controls::measure_overlay_hints(&hints[..1], theme)?
     };
     let action_width = super::controls::action_rect(
         Rect::new(0, 0, u16::MAX, 1),
@@ -321,12 +343,14 @@ pub(super) fn single_modal_layout(
         theme,
     )?
     .width;
-    let controls_width = first_hint_width.max(usize::from(action_width));
+    let controls_width = first_hint_width
+        .max(usize::from(action_width))
+        .max(title_inner_width(title));
     let area = modal_area_with_minimum_width(content_area, text, controls_width);
     if area.is_empty() || bounds.intersection(area) != area {
         return None;
     }
-    let inner = super::overlay_surface(theme, true, Padding::horizontal(2)).inner(area);
+    let inner = super::overlay_surface(theme, Padding::horizontal(2)).inner(area);
     if !wrapped_text_fits(text, inner) {
         return None;
     }
@@ -344,7 +368,7 @@ pub(super) fn single_modal_layout(
     if bounds.intersection(action) != action || inner.intersection(action) != action {
         return None;
     }
-    let close = super::controls::close_rect(bounds, area)?;
+    let close = super::controls::frame_close_rect(bounds, area)?;
     Some(SingleModalLayout {
         area,
         inner,

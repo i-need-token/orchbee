@@ -13,6 +13,8 @@ struct Paint {
     text: String,
     rows: Vec<String>,
     hits: FrameHitMap,
+    /// The real terminal cursor, when a query editor owns it.
+    cursor: Option<ratatui::layout::Position>,
     width: u16,
     height: u16,
 }
@@ -77,10 +79,15 @@ fn paint(picker: &Picker, locale: Locale, width: u16, height: u16) -> Paint {
         })
         .collect::<Vec<_>>();
     let text = rows.concat();
+    let cursor = terminal
+        .backend()
+        .cursor_visible()
+        .then(|| ratatui::backend::Backend::get_cursor_position(terminal.backend_mut()).unwrap());
     Paint {
         text,
         rows,
         hits: hits.finish(),
+        cursor,
         width,
         height,
     }

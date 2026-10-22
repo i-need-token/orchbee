@@ -27,6 +27,15 @@ impl<'a> KeyHint<'a> {
     }
 }
 
+/// Visual boundary between adjacent hints, chosen by the surface that owns the hint line.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Separator {
+    /// A middle dot for persistent chrome such as the status line and sidebar footer.
+    Dot,
+    /// A spaced vertical rule for an overlay footer.
+    Rule,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 struct ResolvedHint {
     key: String,
@@ -46,7 +55,12 @@ struct ResolvedHints {
 ///
 /// Empty or unsafe-to-empty fields and arithmetic overflow reject the whole set.
 pub(crate) fn measure_key_hints(items: &[KeyHint<'_>], theme: &Theme) -> Option<usize> {
-    resolve_hints(items, theme).map(|resolved| resolved.width)
+    resolve_hints(items, Separator::Dot, theme).map(|resolved| resolved.width)
+}
+
+/// Measures an overlay footer, whose hints are separated by spaced vertical rules.
+pub(crate) fn measure_overlay_hints(items: &[KeyHint<'_>], theme: &Theme) -> Option<usize> {
+    resolve_hints(items, Separator::Rule, theme).map(|resolved| resolved.width)
 }
 
 /// Paints the longest ordered prefix of complete hints and returns its exact extent.
@@ -60,10 +74,30 @@ pub(crate) fn render_key_hints(
     items: &[KeyHint<'_>],
     theme: &Theme,
 ) -> Option<Rect> {
+    render_hints(frame, area, items, Separator::Dot, theme)
+}
+
+/// Paints an overlay footer with the same whole-item prefix contract as [`render_key_hints`].
+pub(crate) fn render_overlay_hints(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    items: &[KeyHint<'_>],
+    theme: &Theme,
+) -> Option<Rect> {
+    render_hints(frame, area, items, Separator::Rule, theme)
+}
+
+fn render_hints(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    items: &[KeyHint<'_>],
+    separator: Separator,
+    theme: &Theme,
+) -> Option<Rect> {
     if area.is_empty() || frame.area().intersection(area) != area {
         return None;
     }
-    let resolved = resolve_hints(items, theme)?;
+    let resolved = resolve_hints(items, separator, theme)?;
     let mut width: usize = 0;
     let mut visible: usize = 0;
     for item in &resolved.items {
@@ -108,17 +142,25 @@ pub(crate) fn render_key_hints(
     Some(rect)
 }
 
-fn resolve_hints(items: &[KeyHint<'_>], theme: &Theme) -> Option<ResolvedHints> {
+fn resolve_hints(
+    items: &[KeyHint<'_>],
+    separator: Separator,
+    theme: &Theme,
+) -> Option<ResolvedHints> {
     if items.is_empty() {
         return None;
     }
-    let separator_glyph = sanitize_terminal_text(theme.glyphs.middle_dot);
+    let (separator_glyph, padding) = match separator {
+        Separator::Dot => (theme.glyphs.middle_dot, " "),
+        Separator::Rule => (theme.glyphs.vertical_rule, "  "),
+    };
+    let separator_glyph = sanitize_terminal_text(separator_glyph);
     let separator_glyph_width = display_width(&separator_glyph);
     if separator_glyph_width == 0 {
         return None;
     }
-    let separator = format!(" {separator_glyph} ");
-    let separator_width = separator_glyph_width.checked_add(2)?;
+    let separator = format!("{padding}{separator_glyph}{padding}");
+    let separator_width = separator_glyph_width.checked_add(padding.len() * 2)?;
     let mut resolved = Vec::with_capacity(items.len());
     let mut width: usize = 0;
     for (index, item) in items.iter().enumerate() {

@@ -70,11 +70,33 @@ pickers, confirmations and global action discovery.
   fixed slots leave less than the content minimum in [`layout.md`](layout.md#overlays), refuse a
   newly requested overlay; suspend an existing one instead of hiding its return or primary control.
 
+### Frame chrome
+
+- An overlay uses one neutral single-line `frame-unfocused` border, with no outer ring, shadow, or
+  doubled frame. The overlay already owns input through exclusive occlusion; its heading and its
+  terminal caret or provisional marker identify that ownership, so the border never repeats a focus
+  accent.
+- The header title sits on the top-left edge as `─ Title ` in heading text. The close control sits
+  on the top-right edge as `─ [x] ─`, with one blank cell beside each bracket and one rule cell
+  before the corner. Other title controls, such as page controls, precede the close control with one
+  blank cell between controls. The title truncates before any title control loses a cell.
+- One blank row separates the top edge from the first slot when height permits. It is the first space
+  removed under height pressure, before any content, status, or footer row.
+- Footer hints separate whole items with a spaced vertical rule, as in `Key label  │  Key label`.
+  Keys use `hint-key` and labels use `hint-label`. Persistent chrome such as the status line keeps
+  its middle-dot separator.
+- A query slot is one row followed by a divider. At rest with an empty query, it shows the activation
+  key and a localized prompt in secondary text, such as `/ to search`. A query retained at rest shows
+  `Label: query` in secondary text. While editing, it shows the localized label, a colon, and the
+  draft, such as `Search: draft`, with the terminal caret following the draft and no bracket
+  boundary. A query that receives every typed character keeps its editing presentation. Form fields
+  keep their labeled bracket boundaries.
+
 ### Content hierarchy
 
-- Paint the task title once using heading text, either inside the header or on its frame. Supporting
-  target context and description use secondary text; the value, exact decision target, and consequence
-  needed to act use primary text. Do not make all prose bold or accent-colored.
+- Paint the task title once as the frame heading described in [Frame chrome](#frame-chrome).
+  Supporting target context and description use secondary text; the value, exact decision target,
+  and consequence needed to act use primary text. Do not make all prose bold or accent-colored.
 - Align body text and field groups to declared content tracks. Put form field labels directly above
   their boundaries; a compact editor may keep its label inline. Put field help directly below.
   Separate the header, field groups, and footer with a

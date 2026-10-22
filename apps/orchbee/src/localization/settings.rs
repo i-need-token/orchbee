@@ -122,8 +122,9 @@ impl Locale {
     pub(crate) fn settings_search_label(self) -> &'static str {
         self.setting("Search", "搜索")
     }
-    pub(crate) fn settings_search_idle(self) -> &'static str {
-        self.setting("Search settings  /", "搜索设置  /")
+    /// Follows the search key on an idle search row, as in `/ to search settings`.
+    pub(crate) fn settings_search_prompt(self) -> &'static str {
+        self.setting("to search settings", "搜索设置")
     }
     pub(crate) fn settings_no_results(self) -> &'static str {
         self.setting(

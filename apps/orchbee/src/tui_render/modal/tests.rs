@@ -51,7 +51,7 @@ fn modal_layout_requires_complete_frame_actions_and_close_geometry() {
         Line::from(""),
     ]);
     let bounds = Rect::new(0, 0, 80, 24);
-    let admitted = modal_layout(bounds, bounds, &text, &hints, actions, &theme).unwrap();
+    let admitted = modal_layout(bounds, bounds, "Close", &text, &hints, actions, &theme).unwrap();
     assert_eq!(bounds.intersection(admitted.area), admitted.area);
     assert_eq!(admitted.close.width, 3);
     assert_eq!(admitted.close.height, 1);
@@ -66,6 +66,7 @@ fn modal_layout_requires_complete_frame_actions_and_close_geometry() {
         modal_layout(
             bounds,
             Rect::new(0, 0, 10, 3),
+            "Close",
             &text,
             &hints,
             actions,
@@ -77,6 +78,7 @@ fn modal_layout_requires_complete_frame_actions_and_close_geometry() {
         modal_layout(
             bounds,
             Rect::new(76, 2, 20, 10),
+            "Close",
             &text,
             &hints,
             actions,
@@ -94,12 +96,23 @@ fn modal_layout_requires_complete_frame_actions_and_close_geometry() {
             true,
         ),
     ];
-    assert!(modal_layout(bounds, bounds, &text, &hints, clipped_actions, &theme).is_none());
+    assert!(
+        modal_layout(
+            bounds,
+            bounds,
+            "Close",
+            &text,
+            &hints,
+            clipped_actions,
+            &theme
+        )
+        .is_none()
+    );
 
     let oversized = Text::from("界".repeat(4096));
-    assert!(modal_layout(bounds, bounds, &oversized, &hints, actions, &theme).is_none());
+    assert!(modal_layout(bounds, bounds, "Close", &oversized, &hints, actions, &theme).is_none());
     let empty = Text::from(Vec::<Line<'static>>::new());
-    assert!(modal_layout(bounds, bounds, &empty, &hints, actions, &theme).is_none());
+    assert!(modal_layout(bounds, bounds, "Close", &empty, &hints, actions, &theme).is_none());
 }
 
 #[test]
@@ -130,9 +143,11 @@ fn optional_help_never_stretches_the_reading_width_or_displaces_complete_decisio
             ];
             for (width, expected_width) in [(120, 78), (80, 76), (60, 56), (48, 44)] {
                 let bounds = Rect::new(0, 0, width, 40);
-                let layout = modal_layout(bounds, bounds, &text, &hints, actions, &theme).unwrap();
+                let layout =
+                    modal_layout(bounds, bounds, "Close", &text, &hints, actions, &theme).unwrap();
                 let without_optional =
-                    modal_layout(bounds, bounds, &text, &hints[..1], actions, &theme).unwrap();
+                    modal_layout(bounds, bounds, "Close", &text, &hints[..1], actions, &theme)
+                        .unwrap();
                 assert_eq!(layout.area.width, expected_width);
                 assert_eq!(layout.area, without_optional.area);
                 assert!(layout.actions[0].right() + 2 <= layout.actions[1].x);
@@ -156,12 +171,14 @@ fn single_action_can_own_its_exit_binding_without_a_duplicate_hint_row() {
     ]);
     let bounds = Rect::new(0, 0, 60, 12);
     let action = ModalAction::new("Cancel", ActionKind::Secondary, true).with_shortcut("Esc");
-    let layout = super::single_modal_layout(bounds, bounds, &text, &[], action, &theme).unwrap();
+    let layout =
+        super::single_modal_layout(bounds, bounds, "Task", &text, &[], action, &theme).unwrap();
     assert_eq!(layout.inner.intersection(layout.action), layout.action);
     assert!(
         super::single_modal_layout(
             Rect::new(0, 0, 20, 5),
             Rect::new(0, 0, 20, 5),
+            "Task",
             &text,
             &[],
             action,

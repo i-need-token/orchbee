@@ -160,8 +160,9 @@ pub(crate) fn render_action(
         Some(action_role),
         theme.style(action_role),
     );
-    if state.pointer == PointerPresentation::Pressed && enabled && spec.kind == ActionKind::Primary
-    {
+    // Hover and press strengthen the label as well as the fill, so pointer feedback survives
+    // themes whose hover surface is close to the base surface.
+    if state.pointer != PointerPresentation::Rest && enabled {
         label_style = label_style.add_modifier(Modifier::BOLD);
     }
     let status = if state.operation == OperationState::Pending {

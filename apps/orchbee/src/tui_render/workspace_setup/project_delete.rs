@@ -1,9 +1,9 @@
 //! Complete organization-only Project deletion decision; existing setup owns every effect.
-use super::super::modal::title_line;
+use super::super::modal::paint_modal_frame;
 use super::{
-    Binding, Clear, Frame, HitLayer, HitMapBuilder, HitTarget, KeyCode, Line, Locale, ModalAction,
+    Binding, Frame, HitLayer, HitMapBuilder, HitTarget, KeyCode, Line, Locale, ModalAction,
     ModalControl, ModalPresentation, Modifiers, NativeSetupToken, Paragraph, Rect, Text, Theme,
-    Wrap, modal_key_label, modal_layout, overlay_block, paint_modal_action, paint_modal_close,
+    Wrap, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
     sanitize_terminal_text,
 };
 
@@ -37,8 +37,8 @@ pub(super) fn render(
         .with_tone(crate::action_projection::ActionTone::Destructive)
         .with_shortcut(&enter),
     ];
+    let title = locale.project_delete_title();
     let text = Text::from(vec![
-        title_line(locale.project_delete_title(), theme),
         Line::from(""),
         Line::from(sanitize_terminal_text(decision.project).into_owned()),
         Line::from(""),
@@ -46,12 +46,19 @@ pub(super) fn render(
         Line::from(""),
         Line::from(""),
     ]);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &[], actions, theme) else {
+    let Some(layout) = modal_layout(
+        frame.area(),
+        content_area,
+        title,
+        &text,
+        &[],
+        actions,
+        theme,
+    ) else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     hits.start_modal();
-    frame.render_widget(Clear, layout.area);
-    frame.render_widget(overlay_block(theme), layout.area);
+    paint_modal_frame(frame, layout.area, title, theme);
     frame.render_widget(
         Paragraph::new(text).wrap(Wrap { trim: false }),
         layout.inner,
@@ -177,8 +184,15 @@ mod tests {
                     if matches!(presentation, ModalPresentation::Presented(value) if value == token)
                     {
                         assert!(submit && cancel);
+                        // The task heading lives on the frame's top edge, not in the body.
+                        let top_edge: String = (area.x..area.right())
+                            .map(|column| buffer[(column, area.y)].symbol())
+                            .collect();
+                        assert!(
+                            compact(&top_edge).contains(&compact(locale.project_delete_title())),
+                            "{locale:?} {width}x{height}: missing heading in {top_edge:?}"
+                        );
                         for complete in [
-                            locale.project_delete_title(),
                             locale.project_delete_warning(),
                             locale.sidebar_delete_label(),
                             locale.setup_cancel_label(),

@@ -23,13 +23,12 @@ use ratatui::{
     text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
     IconActionGlyph, IconActionSpec, InteractionState, KeyHint, NavigationState, OperationState,
-    PointerPresentation, RowContentBand, RowFocusCue, RowTracks, measure_key_hints,
-    paint_row_interaction, render_key_hints,
+    PointerPresentation, QueryField, RowContentBand, RowFocusCue, RowTracks, measure_overlay_hints,
+    paint_row_interaction, render_overlay_hints, render_query_field,
 };
 
 /// Keeps the right-aligned effective chord visually independent from the action label.
@@ -124,6 +123,43 @@ pub(super) fn render(
         desired.max(display_width(locale.menu_search_no_results()).saturating_add(4))
     } else {
         desired
+    };
+    let exit_label = if menu.transferring {
+        locale.menu_cancel_hint()
+    } else if menu.has_parent {
+        locale.menu_back_button()
+    } else {
+        locale.menu_close_button()
+    };
+    let enter_key = format_binding_with_glyphs(
+        &Binding::new(KeyCode::Enter, Modifiers::NONE),
+        key_style,
+        key_glyphs,
+    );
+    // A footer-owning menu widens until its exit button, exit and run hints, and the widest
+    // position counter share one row inside the frame and its padding.
+    let desired = if menu.context_menu {
+        desired
+    } else {
+        let count = result_actions.len().max(1);
+        measure_overlay_hints(
+            &[
+                KeyHint::new(exit_key.as_str(), exit_label),
+                KeyHint::new(enter_key.as_str(), locale.menu_run_hint()),
+            ],
+            theme,
+        )
+        .map_or(desired, |hints| {
+            desired.max(
+                // The exit button paints ` [ label ]`, then a two-cell gap precedes the hints.
+                display_width(exit_label)
+                    .saturating_add(7)
+                    .saturating_add(hints)
+                    .saturating_add(1)
+                    .saturating_add(display_width(&format!("{count}/{count}")))
+                    .saturating_add(4),
+            )
+        })
     };
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
@@ -224,15 +260,16 @@ pub(super) fn render(
             sanitize_terminal_text(menu.title)
         )
     };
-    let block = super::overlay_surface(theme, true, Padding::horizontal(1));
+    let block = super::overlay_surface(theme, Padding::horizontal(1));
     let block = if menu.context_menu && menu.tabs.is_some() {
         block
     } else {
-        block.title(truncate_display(
-            &title,
-            usize::from(area.width.saturating_sub(6)),
-            theme.glyphs.ellipsis,
-        ))
+        // A compact context menu has no close control to reserve beside its heading.
+        block.title(if menu.context_menu {
+            super::overlay_heading(&title, usize::from(area.width).saturating_sub(6), theme)
+        } else {
+            super::overlay_title(&title, area.width, theme)
+        })
     };
     let inner = block.inner(area);
     let project_budget = usize::from(inner.width)
@@ -278,18 +315,6 @@ pub(super) fn render(
         return ModalPresentation::NotPresented;
     };
     let footer_area = Rect::new(inner.x, inner.bottom() - 1, hints_width, 1);
-    let exit_label = if menu.transferring {
-        locale.menu_cancel_hint()
-    } else if menu.has_parent {
-        locale.menu_back_button()
-    } else {
-        locale.menu_close_button()
-    };
-    let enter_key = format_binding_with_glyphs(
-        &Binding::new(KeyCode::Enter, Modifiers::NONE),
-        key_style,
-        key_glyphs,
-    );
     let navigation_key = join_key_labels(
         &[
             format_binding_with_glyphs(
@@ -319,13 +344,13 @@ pub(super) fn render(
             locale.menu_select_hint(),
         ));
     }
-    if !menu.context_menu && measure_key_hints(&hints, theme).is_none() {
+    if !menu.context_menu && measure_overlay_hints(&hints, theme).is_none() {
         return ModalPresentation::NotPresented;
     }
     let required_hint_width = if menu.context_menu {
         0
     } else {
-        let Some(width) = measure_key_hints(&hints[..1], theme) else {
+        let Some(width) = measure_overlay_hints(&hints[..1], theme) else {
             return ModalPresentation::NotPresented;
         };
         width
@@ -336,7 +361,7 @@ pub(super) fn render(
     let close_rect = if menu.context_menu {
         None
     } else {
-        match super::controls::close_rect(frame.area(), area) {
+        match super::controls::frame_close_rect(frame.area(), area) {
             Some(rect) => Some(rect),
             None => return ModalPresentation::NotPresented,
         }
@@ -503,7 +528,7 @@ pub(super) fn render(
         );
     }
     if !menu.context_menu {
-        let painted_hints = render_key_hints(frame, hint_area, &hints, theme)
+        let painted_hints = render_overlay_hints(frame, hint_area, &hints, theme)
             .expect("the required exit hint was measured in the same area");
         debug_assert!(hint_area.intersection(painted_hints) == painted_hints);
         frame.render_widget(
@@ -666,25 +691,16 @@ fn render_search_row(
         count_width,
         area.height,
     );
-    let prefix = format!("{}: ", locale.menu_search_label());
-    let query = sanitize_terminal_text(query).into_owned();
-    let budget = usize::from(left.width).saturating_sub(display_width(&prefix));
-    let (visible, cursor_column) = visible_query_tail(&query, budget, theme.glyphs.ellipsis);
-    let displayed = if query.is_empty() {
-        format!("{}{}", prefix, locale.menu_search_idle())
-    } else if visible.is_empty() {
-        prefix.clone()
-    } else {
-        format!("{prefix}{visible}")
-    };
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            &displayed,
-            usize::from(left.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::AccentFocus)),
+    // Typing always reaches the menu query, so the slot keeps its editing presentation.
+    let _ = render_query_field(
+        frame,
         left,
+        QueryField::Editing {
+            label: locale.menu_search_label(),
+            query,
+            cursor: query.len(),
+        },
+        theme,
     );
     if count_width > 0 {
         frame.render_widget(
@@ -692,32 +708,6 @@ fn render_search_row(
             right,
         );
     }
-    if let Ok(offset) = u16::try_from(display_width(&prefix).saturating_add(cursor_column))
-        && offset < left.width
-    {
-        frame.set_cursor_position((left.x + offset, left.y));
-    }
-}
-
-fn visible_query_tail(query: &str, budget: usize, ellipsis: &str) -> (String, usize) {
-    if display_width(query) <= budget {
-        return (query.to_owned(), display_width(query));
-    }
-    let ellipsis_width = display_width(ellipsis).min(budget);
-    let available = budget.saturating_sub(ellipsis_width);
-    let mut start = query.len();
-    let mut width = 0;
-    for (index, grapheme) in query.grapheme_indices(true).rev() {
-        let grapheme_width = display_width(grapheme);
-        if width + grapheme_width > available {
-            break;
-        }
-        width += grapheme_width;
-        start = index;
-    }
-    let visible = format!("{ellipsis}{}", &query[start..]);
-    let width = display_width(&visible);
-    (visible, width)
 }
 
 fn effective_binding(
@@ -1013,7 +1003,7 @@ fn render_close(
     let spec = interaction_spec(true);
     let pointer =
         pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
-    let painted = super::controls::render_icon_action(
+    let painted = super::controls::render_frame_icon_action(
         frame,
         rect,
         IconActionSpec::new(

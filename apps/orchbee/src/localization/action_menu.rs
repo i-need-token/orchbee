@@ -27,13 +27,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn menu_search_idle(self) -> &'static str {
-        match self {
-            Self::EnUs => "Type to search actions",
-            Self::ZhCn => "输入以搜索动作",
-        }
-    }
-
     pub(crate) const fn menu_search_alias(self, alias: ActionSearchAlias) -> &'static str {
         use ActionSearchAlias as A;
         match (self, alias) {

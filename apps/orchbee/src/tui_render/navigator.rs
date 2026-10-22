@@ -48,7 +48,7 @@ pub(super) fn render(
         return None;
     }
     let area = place_overlay(area, 88, 15)?;
-    let block = overlay_block(text.navigator_title, theme, true);
+    let block = overlay_block(text.navigator_title, area.width, theme);
     let content = block.inner(area);
     // Two row columns, their headings, refresh feedback and two instruction rows.
     // Refusal publishes no receipt and the dispatcher retires capture after paint.
@@ -74,7 +74,7 @@ pub(super) fn render(
     let exit_hint = [action_hints[0]];
     if content.height < 7
         || content.width < 40
-        || super::controls::measure_key_hints(&exit_hint, theme)
+        || super::controls::measure_overlay_hints(&exit_hint, theme)
             .is_none_or(|width| width > usize::from(content.width))
     {
         return None;
@@ -128,8 +128,8 @@ pub(super) fn render(
     ];
     let action_row = Rect::new(footer.x, footer.y, footer.width, 1);
     let movement_row = Rect::new(footer.x, footer.y.saturating_add(1), footer.width, 1);
-    let _ = super::controls::render_key_hints(frame, action_row, &action_hints, theme);
-    let _ = super::controls::render_key_hints(frame, movement_row, &movement_hints, theme);
+    let _ = super::controls::render_overlay_hints(frame, action_row, &action_hints, theme);
+    let _ = super::controls::render_overlay_hints(frame, movement_row, &movement_hints, theme);
     let page_rows = if matches!(view.navigator.focus, Some(Target::Location(_))) {
         usize::from(rows.height).min(contexts::MAX_VISIBLE_CONTEXTS)
     } else {
@@ -137,7 +137,7 @@ pub(super) fn render(
     };
     let source = view.navigator.draw_source();
     hits.start_navigator(source.clone(), view.navigator.focus.clone(), page_rows);
-    if let Some(rect) = super::controls::close_rect(frame.area(), area) {
+    if let Some(rect) = super::controls::frame_close_rect(frame.area(), area) {
         let (availability, pointer, target) = source.map_or(
             (
                 super::controls::Availability::Disabled,
@@ -154,7 +154,7 @@ pub(super) fn render(
                 )
             },
         );
-        let painted = super::controls::render_icon_action(
+        let painted = super::controls::render_frame_icon_action(
             frame,
             rect,
             super::controls::IconActionSpec::new(
