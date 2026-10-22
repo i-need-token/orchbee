@@ -15,6 +15,7 @@
 		"verify": "node scripts/run-checks.mjs verify",
 		"verify:full": "node scripts/run-checks.mjs verify:full",
 		"verify:changed": "node scripts/run-checks.mjs verify --changed-since",
+		"verify:rust-native": "node scripts/run-checks.mjs verify:rust-native",
 		"lint": "pnpm lint:code && pnpm lint:rust && pnpm lint:documentation && pnpm lint:styles && pnpm lint:storage && pnpm lint:dependencies && pnpm lint:projects && pnpm lint:experience",
 		"lint:code": "oxlint . --quiet --format=agent",
 		"lint:code:warnings": "oxlint . --format=agent",

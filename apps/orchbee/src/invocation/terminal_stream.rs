@@ -47,6 +47,7 @@ pub(super) fn attach(
             name: agent,
             session: agent,
             panel: agent,
+            terminal: agent,
             ..NO_OPTIONS
         },
         context,

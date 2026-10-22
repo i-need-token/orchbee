@@ -17,6 +17,7 @@ use super::{
     ATTENTION_ACTION_PATH, AgentCapability, AgentFreshness, AgentLifecycle, AgentObservationSource,
     AgentRuntimeSnapshot, AgentSessionSnapshot, AgentTurnState, RawAttentionRequest, RawPresence,
 };
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AgentTransitionRejection {
@@ -73,7 +74,7 @@ pub enum AgentTransition {
             )
         )]
         semantic_events: Vec<AgentSemanticEvent>,
-        snapshot: AgentRuntimeSnapshot,
+        snapshot: Arc<AgentRuntimeSnapshot>,
     },
     Unchanged {
         #[cfg_attr(
@@ -83,7 +84,7 @@ pub enum AgentTransition {
                 reason = "canonical transition payload; test accessors/future consumers only"
             )
         )]
-        snapshot: AgentRuntimeSnapshot,
+        snapshot: Arc<AgentRuntimeSnapshot>,
     },
     Rejected {
         #[cfg_attr(
@@ -101,7 +102,7 @@ pub enum AgentTransition {
                 reason = "canonical transition payload; test accessors/future consumers only"
             )
         )]
-        snapshot: AgentRuntimeSnapshot,
+        snapshot: Arc<AgentRuntimeSnapshot>,
     },
 }
 
@@ -135,7 +136,7 @@ impl AgentTransition {
 }
 
 pub fn transition_agent_runtime(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     event: &AgentObservationEvent,
 ) -> AgentTransition {
     if let AgentObservationEvent::SessionObserved { .. } = event {
@@ -246,7 +247,7 @@ pub fn transition_agent_runtime(
 }
 
 fn observe_session(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     event: &AgentObservationEvent,
 ) -> AgentTransition {
     let AgentObservationEvent::SessionObserved {
@@ -344,7 +345,7 @@ fn observe_session(
 }
 
 fn start_turn(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     activity: &RawPresence<String>,
@@ -381,7 +382,7 @@ fn start_turn(
 }
 
 fn observe_limited_activity(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     activity: &RawPresence<String>,
@@ -401,7 +402,7 @@ fn observe_limited_activity(
 }
 
 fn change_turn_activity(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     activity: &RawPresence<String>,
@@ -434,7 +435,7 @@ fn change_turn_activity(
 }
 
 fn request_attention(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     event_id: &str,
@@ -502,7 +503,7 @@ fn request_attention(
 }
 
 fn resolve_attention(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     event_id: &str,
@@ -537,7 +538,7 @@ fn resolve_attention(
 }
 
 fn finish_turn(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     event_id: &str,
@@ -589,7 +590,7 @@ fn finish_turn(
 }
 
 fn observe_idle(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     sequence: f64,
@@ -620,7 +621,7 @@ fn observe_idle(
 }
 
 fn become_stale(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     sequence: f64,
@@ -635,7 +636,7 @@ fn become_stale(
 }
 
 fn reconnect_observation(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     event: &AgentObservationEvent,
@@ -694,7 +695,7 @@ fn reconnect_observation(
 }
 
 fn attach_presentation(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     attachment: &RawAttachment,
@@ -738,7 +739,7 @@ fn attach_presentation(
 }
 
 fn change_presentation_visibility(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     presentation_id: &str,
@@ -767,7 +768,7 @@ fn change_presentation_visibility(
 }
 
 fn detach_presentation(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     presentation_id: &str,
@@ -803,7 +804,7 @@ fn detach_presentation(
 }
 
 fn end_session(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     session: &AgentSessionSnapshot,
     event_id: &str,
@@ -871,7 +872,7 @@ fn end_session(
 }
 
 fn require_live_capability(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     session: &AgentSessionSnapshot,
     capability: AgentCapability,
 ) -> Option<AgentTransition> {
@@ -888,7 +889,7 @@ fn require_live_capability(
 }
 
 fn replace_session(
-    snapshot: &AgentRuntimeSnapshot,
+    snapshot: &Arc<AgentRuntimeSnapshot>,
     index: usize,
     candidate: RawSessionSnapshot,
     semantic_events: Vec<AgentSemanticEvent>,
@@ -903,7 +904,7 @@ fn replace_session(
 }
 
 fn applied(
-    previous: &AgentRuntimeSnapshot,
+    previous: &Arc<AgentRuntimeSnapshot>,
     sessions: Vec<AgentSessionSnapshot>,
     semantic_events: Vec<AgentSemanticEvent>,
 ) -> AgentTransition {
@@ -923,20 +924,23 @@ fn applied(
         .unwrap_or_else(|error| panic!("Agent runtime invariant violation: {error}"));
     AgentTransition::Applied {
         semantic_events,
-        snapshot,
+        snapshot: Arc::new(snapshot),
     }
 }
 
-fn unchanged(snapshot: &AgentRuntimeSnapshot) -> AgentTransition {
+fn unchanged(snapshot: &Arc<AgentRuntimeSnapshot>) -> AgentTransition {
     AgentTransition::Unchanged {
-        snapshot: snapshot.clone(),
+        snapshot: Arc::clone(snapshot),
     }
 }
 
-fn rejected(snapshot: &AgentRuntimeSnapshot, reason: AgentTransitionRejection) -> AgentTransition {
+fn rejected(
+    snapshot: &Arc<AgentRuntimeSnapshot>,
+    reason: AgentTransitionRejection,
+) -> AgentTransition {
     AgentTransition::Rejected {
         reason,
-        snapshot: snapshot.clone(),
+        snapshot: Arc::clone(snapshot),
     }
 }
 

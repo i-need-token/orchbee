@@ -2,8 +2,8 @@
 //! bounded change journal.
 //!
 //! The production surface is deliberately read-mostly: empty-snapshot
-//! construction, `snapshot`, `dispose`, `is_disposed`, and `dispatch` —
-//! semantic events ride the returned `AgentTransition` exactly like the
+//! construction, `snapshot`, `dispose`, `is_disposed`, `dispatch`, and
+//! `rejected` — semantic events ride the returned `AgentTransition` like the
 //! TypeScript runtime's `transition.semanticEvents`. The seed constructor
 //! stays under `#[cfg(test)]`; bounded change reads serve native observers.
 
@@ -18,11 +18,13 @@ use super::changes::{
     AgentRuntimeChange, append_agent_runtime_change, create_agent_runtime_change,
 };
 use super::reducer::{AgentTransitionRejection, transition_agent_runtime};
+use std::sync::Arc;
 
 pub struct AgentRuntime {
     changes: Vec<AgentRuntimeChange>,
     disposed: bool,
-    snapshot: AgentRuntimeSnapshot,
+    /// Shared with the transitions that report it, so no dispatch copies the whole snapshot.
+    snapshot: Arc<AgentRuntimeSnapshot>,
 }
 
 impl AgentRuntime {
@@ -30,7 +32,7 @@ impl AgentRuntime {
         Self {
             changes: Vec::new(),
             disposed: false,
-            snapshot: AgentRuntimeSnapshot::create(),
+            snapshot: Arc::new(AgentRuntimeSnapshot::create()),
         }
     }
 
@@ -44,16 +46,13 @@ impl AgentRuntime {
         Ok(Self {
             changes: Vec::new(),
             disposed: false,
-            snapshot,
+            snapshot: Arc::new(snapshot),
         })
     }
 
     pub fn dispatch(&mut self, event: &AgentObservationEvent) -> AgentTransition {
         if self.disposed {
-            return AgentTransition::Rejected {
-                reason: AgentTransitionRejection::RuntimeDisposed,
-                snapshot: self.snapshot.clone(),
-            };
+            return self.rejected(AgentTransitionRejection::RuntimeDisposed);
         }
         let transition = transition_agent_runtime(&self.snapshot, event);
         let AgentTransition::Applied { snapshot, .. } = &transition else {
@@ -61,8 +60,16 @@ impl AgentRuntime {
         };
         let change = create_agent_runtime_change(snapshot, event);
         append_agent_runtime_change(&mut self.changes, change);
-        self.snapshot = snapshot.clone();
+        self.snapshot = Arc::clone(snapshot);
         transition
+    }
+
+    /// A rejection that reports the current snapshot without copying it.
+    pub fn rejected(&self, reason: AgentTransitionRejection) -> AgentTransition {
+        AgentTransition::Rejected {
+            reason,
+            snapshot: Arc::clone(&self.snapshot),
+        }
     }
 
     pub fn dispose(&mut self) {

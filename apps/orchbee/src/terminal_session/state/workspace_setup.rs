@@ -14,6 +14,7 @@ mod projection;
 #[cfg(windows)]
 pub(crate) use preview::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 pub(in crate::terminal_session) mod quick;
+use super::recovery_fence::RecoveryFence;
 use super::{
     NativeContextTabs, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
     PreparedRefresh, SelectedTab, SessionPhase, validate_canonical_refresh,
@@ -186,8 +187,7 @@ impl NativeSessionState {
             && !self.workspace_close_blocks_structure()
             && self.pending_mutation.is_none()
             && self.pending_membership.is_none()
-            && self.move_recovery.is_none()
-            && self.rename_recovery.is_none()
+            && !self.recovery_fences(RecoveryFence::Setup)
             && !self.rename_draft_blocks_structure()
             && self.close.permits_retired_membership()
             && self.panel_close.confirmation().is_none()

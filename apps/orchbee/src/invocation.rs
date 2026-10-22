@@ -5689,6 +5689,9 @@ struct Scope {
     /// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`:
     /// admits all three flags and the wait-window meaning of `--rows`.
     wait: bool,
+    /// `terminal wait-output --after <cursor>`: the fresh-output fence. Event
+    /// waits share `wait` but use `--after-cursor`, so they never admit it.
+    output_after: bool,
     /// `terminal wait-output --regex <pattern>`: admits the compiled-pattern
     /// alternative to `--match`.
     regex: bool,
@@ -5702,6 +5705,9 @@ struct Scope {
     file: bool,
     /// `terminal send --stdin`: the declared noninteractive input stream.
     stdin: bool,
+    /// `terminal send --paste`: the paste-record modifier of a file or stdin
+    /// source. Layout input also reads files and stdin but never pastes.
+    paste: bool,
     /// `tui --mouse off|on`: admits the TUI-only pointer-capture switch.
     mouse: bool,
     /// `tab create|panel split --exec <abs>`: the explicit launch executable.
@@ -5827,12 +5833,14 @@ const NO_OPTIONS: Scope = Scope {
     ansi: false,
     path: false,
     wait: false,
+    output_after: false,
     regex: false,
     text: false,
     enter: false,
     key: false,
     file: false,
     stdin: false,
+    paste: false,
     mouse: false,
     exec: false,
     cwd: false,
@@ -6068,6 +6076,7 @@ const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
     lines: true,
     forever: true,
     wait: true,
+    output_after: true,
     regex: true,
     ..NO_OPTIONS
 };
@@ -6079,6 +6088,7 @@ const TERMINAL_SEND_SCOPE: Scope = Scope {
     key: true,
     file: true,
     stdin: true,
+    paste: true,
     ..NO_OPTIONS
 };
 
@@ -6504,7 +6514,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.regex.is_some() && !scope.regex {
         return Some("--regex");
     }
-    if options.output_after.is_some() && !scope.wait {
+    if options.output_after.is_some() && !scope.output_after {
         return Some("--after");
     }
     // `--timeout` belongs to `terminal wait-output` through `wait` scope and
@@ -6528,7 +6538,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.stdin && !scope.stdin {
         return Some("--stdin");
     }
-    if options.paste && !scope.file && !scope.stdin {
+    if options.paste && !scope.paste {
         return Some("--paste");
     }
     if options.mouse.is_some() && !scope.mouse {

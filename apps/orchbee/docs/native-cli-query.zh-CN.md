@@ -4,6 +4,8 @@
 
 Panel 命令族使用位置 Panel 或 `--current`，拒绝旧 `--panel` 别名。Agent 目标额外接受 `--terminal` 与 `@terminal:`，精确定位子终端或主终端。启动、集成及 doctor 使用 `--provider antigravity`；`antigravity-cli` 保留为私有适配器身份。CLI 事件与过滤器输入及 v4 回执使用 `panel.*`；历史 v2/v3 Schema 保留 `pane.*`。Terminal 与 Agent 读取使用 `--source`／`--lines`；下方保留的旧 read/history 回执说明仅描述历史 Schema。来源等待默认 30000 毫秒，`--forever` 显式选择无限等待。
 
+`src/invocation.rs` 中的解析器是语法权威：它在任何运行时访问之前接纳命令路径、各命令的选项作用域与取值。`src/cli/completion.rs` 声明帮助和各 shell 补全脚本共同消费的投影，包括命令路径、`COMMAND_FLAGS` 选项作用域与取值域。`src/cli/text/examples.rs` 为每条命令提供一个经解析器检查的示例。测试保持三者一致：帮助与补全列出相同的命令路径，每个帮助示例都能解析，`--format` 的接纳与帮助一致；在 Windows 上，每个选项在帮助与补全声明的命令中被接纳，在其他命令中被拒绝。接纳依赖其他选项的选项会连同原因列在该测试中。
+
 ## 会话与后台服务
 
 一个 **Orchbee 会话（Session）** 是包含 Workspace、Tab、Panel、终端和 Agent 的独立工作环境。

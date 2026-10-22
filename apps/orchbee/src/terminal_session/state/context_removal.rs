@@ -1,3 +1,4 @@
+use super::recovery_fence::RecoveryFence;
 use super::{
     CreateTerminalProvenance, NativeContextTabs, NativeSessionState, PreparedRefresh, SessionPhase,
 };
@@ -100,10 +101,7 @@ impl NativeSessionState {
             && !self.setup_blocks_structure()
             && !self.workspace_close_blocks_membership()
             && self.pending_membership.is_none()
-            && self.move_recovery.is_none()
-            && self.panel_recovery.is_none()
-            && self.rename_recovery.is_none()
-            && self.rename_uncertain.is_none()
+            && !self.recovery_fences(RecoveryFence::Removal)
             && !self.rename_draft_blocks_structure()
             && self.close.permits_retired_membership()
             && self.panel_close.confirmation().is_none()

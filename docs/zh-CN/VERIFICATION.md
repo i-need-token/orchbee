@@ -127,6 +127,7 @@ compiler flags 和手动测试排除项。组内所有成员排空后按声明�
 | `typecheck`               | 每个具有 TypeScript 契约的工作区都满足该契约。                                                                                 |
 | `test`                    | 契约检查器测试、文档配对负向测试、自定义 lint 规则和依赖范围测试、pnpm 与 Cargo 本机测试套件和必需的受控本地系统见证全部通过。 |
 | `test:cross`              | 显式编译已声明的其他平台原生测试图。                                                                                           |
+| `verify:rust-native`      | 按当前主机平台配置运行 Rust workspace Clippy、原生测试前置准备和全部 Cargo 本机测试套件。                                      |
 | `test:exports`            | 每个库的打包导出、运行时格式和声明均可被使用。                                                                                 |
 
 - `build:packages` 先于 `lint` 和 `typecheck`，因为依赖分析和生产使用方解析库产物，不解析另一个包的源码。全新检出必须先生成这些导出，再让 Knip 判断依赖使用情况。
@@ -140,6 +141,9 @@ compiler flags 和手动测试排除项。组内所有成员排空后按声明�
   它验证固定工具链和 empty workspace metadata；之后同一批 task 使用 `--locked` 对每个 member
   运行 rustfmt、Clippy、build 与 test。
 - 原生交叉编译检查只证明源码和依赖可为已声明目标编译；平台行为仍然需要原生 runner。
+- `verify:rust-native` 复用 `lint` 与 `test` 中相同的 Rust runner 任务和原生测试准备，自身不新增步骤，
+  因此 Windows 本机门禁和 Windows CI Job 不会与 Linux 根门禁漂移。修改受平台条件编译约束的 Rust
+  代码时，在 Windows 上运行它。
 
 ## 变更触发的 TLA+ 验证
 
@@ -164,6 +168,13 @@ compiler flags 和手动测试排除项。组内所有成员排空后按声明�
 - `.github/workflows/verify.yml` 安装冻结的 lockfile，并在 Pull Request、向 `main` 推送和手动运行时执行 `pnpm verify`。
 - CI 传入 `--verbose`，让完整诊断在临时 runner 被回收后仍保留于现有 job 日志中；
   只有本地临时日志路径不能构成持久的 CI 证据。
+- `rust-windows` Job 在 `windows-latest` 上运行 `pnpm verify:rust-native`，让每个 Rust 成员都在
+  Linux `verify` Job 从不编译的 Windows 平台配置下执行 Clippy 和 Cargo 测试套件。格式、文档、
+  TypeScript 与 TLA 检查与平台无关，仍留在 `verify` 中。
+- 平台排除是显式的。macOS 没有 Rust Job，因为原生 Client 仅是未签名、按用户安装的 Apple Silicon
+  开发 cohort；其原生 Terminal Host 和 Desktop endpoint 适配器在 `terminal-host-native` 中运行。
+  任何 Job 都不运行 `test:cross` 或会抢占焦点的 `test:system:manual:native-window`；交叉编译保持显式，
+  原生窗口测试保持仅手动运行。
 - 必需的 `verify` Job 不运行 TLC。必需的 `tla` Job 从已跟踪清单中选择并运行变更触发检查；
   无关变更会在不配置 Java 或 TLC 的情况下完成该 Job。
 - 工作流通过固定的官方工具链机制安装每个已跟踪原生 workspace 要求的精确 compiler version。

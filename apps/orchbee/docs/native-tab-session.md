@@ -1141,6 +1141,15 @@ at its atomic admission; a later successful Acquire begins with a Resize carryin
 measured geometry and uses the setup catch-up rule below for subsequent observations. A precommit refusal resumes the old controller and, if measurements changed,
 admits one catch-up Resize before polling resumes. Read-only viewers never send Resize.
 
+Structural flows share one recovery fence table in `src/terminal_session/state/recovery_fence.rs`.
+A known Move, Panel or Rename commit whose canonical projection has not installed yet keeps a
+recovery record, and an uncertain Rename keeps its operation. Another mutation waits for every
+projection recovery. Context removal and Workspace Close also wait for an uncertain Rename. Context
+selection and retired-membership repair wait for Move and Rename recovery and an uncertain Rename,
+but not Panel recovery. Workspace setup authority waits only for Move and Rename recovery. An
+installed canonical refresh resolves every projection recovery at once. Flows name their fence
+instead of listing records, so a new recovery kind is decided in that table once.
+
 ## Local selection
 
 Selection resolves only against the latest applied strict cache. `n` and `p` use the local active

@@ -105,6 +105,15 @@ export function checkSteps(task, scope, platform = process.platform) {
 			],
 		],
 		[
+			// One OS-native Rust pass: platform-gated code gets Clippy and Cargo tests on its own host.
+			'verify:rust-native',
+			[
+				nodeStep('Rust workspace lint', ['scripts/run-rust-workspace.mjs', 'lint']),
+				...nativeTestPreparation(undefined, platform),
+				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
+			],
+		],
+		[
 			'test:cross',
 			[pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross'])],
 		],

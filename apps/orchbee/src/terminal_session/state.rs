@@ -42,6 +42,7 @@ mod panel_close;
 #[cfg(windows)]
 mod plugin_overlays;
 mod presentations;
+mod recovery_fence;
 pub(super) mod rename_draft;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) mod retired_membership;
@@ -3198,9 +3199,7 @@ impl NativeSessionState {
                         return RefreshDecision::Retire;
                     }
                     self.install_publication_debt();
-                    self.move_recovery = None;
-                    self.panel_recovery = None;
-                    self.rename_recovery = None;
+                    self.resolve_projection_recoveries();
                     self.refresh_status =
                         Some(NavigatorRefreshStatus::Success(self.cache.revision()));
                     RefreshDecision::Continue

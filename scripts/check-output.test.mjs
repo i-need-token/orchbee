@@ -311,6 +311,18 @@ test('the daily gate retains host tests while full builds and cross checks requi
 	assert.equal(steps[3].name, 'Rust workspace tests');
 	assert.deepEqual(steps[3].args, ['scripts/run-rust-workspace.mjs', 'test']);
 	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full|manual:native-window/u);
+	for (const [platform, preparation] of [
+		['win32', ['prepare native test host']],
+		['linux', ['prepare native test host', 'prepare native test peers']],
+	])
+		assert.deepEqual(
+			checkSteps('verify:rust-native', undefined, platform).map((step) => step.name),
+			['Rust workspace lint', ...preparation, 'Rust workspace tests'],
+		);
+	assert.doesNotMatch(
+		JSON.stringify(checkSteps('verify:rust-native', undefined, 'win32')),
+		/test:cross|build:full|manual:native-window/u,
+	);
 	const cross = checkSteps('test:cross');
 	assert.equal(cross.length, 1);
 	assert.deepEqual(cross[0].args.slice(-3), ['-r', '--if-present', 'test:cross']);
@@ -323,7 +335,7 @@ test('the daily gate retains host tests while full builds and cross checks requi
 		scripts['build:full'],
 		'pnpm build:packages && pnpm --filter "./apps/*" build && node scripts/run-rust-workspace.mjs build',
 	);
-	for (const name of ['verify:full', 'test:cross'])
+	for (const name of ['verify:full', 'verify:rust-native', 'test:cross'])
 		assert.equal(scripts[name], `node scripts/run-checks.mjs ${name}`);
 });
 

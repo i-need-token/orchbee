@@ -1,4 +1,5 @@
 //! Confirm and retain one Workspace Close or explicit Project close-all. Membership owns removal.
+use super::recovery_fence::RecoveryFence;
 use super::{
     NativeContextTabs, NativeSessionState, OperationDeadlines, PaneKey, PendingRefreshFlight,
     SessionNotice, SessionPhase, context_removal::ContextRemovalPermit,
@@ -401,10 +402,7 @@ impl NativeSessionState {
             && self.pending_membership.is_none()
             && !self.setup_blocks_structure()
             && !self.rename_draft_blocks_structure()
-            && self.move_recovery.is_none()
-            && self.rename_recovery.is_none()
-            && self.rename_uncertain.is_none()
-            && self.panel_recovery.is_none()
+            && !self.recovery_fences(RecoveryFence::Removal)
             && self.close.permits_retired_membership()
             && self.panel_close.confirmation().is_none()
             && matches!(

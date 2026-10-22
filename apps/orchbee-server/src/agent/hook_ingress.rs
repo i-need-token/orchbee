@@ -1099,10 +1099,7 @@ impl AgentHookObservationIngress {
             .find(|session| session.session_id.as_str() == session_id)
             .cloned()
         else {
-            return AgentTransition::Rejected {
-                reason: AgentTransitionRejection::SessionNotFound,
-                snapshot: runtime.snapshot().clone(),
-            };
+            return runtime.rejected(AgentTransitionRejection::SessionNotFound);
         };
         let generation = session.observation.generation as f64;
         let sequence = session.observation.sequence as f64 + 1.0;

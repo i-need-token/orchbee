@@ -69,11 +69,12 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 | `src/agent/events.rs`                        | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
 | `src/agent/reducer.rs`                       | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
 | `src/agent/changes.rs`                       | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
-| `src/agent/runtime.rs`                       | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`；`#[cfg(test)]`：seed；生产变更读取                                                                                     |
+| `src/agent/runtime.rs`                       | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`、`rejected`；`#[cfg(test)]`：seed；生产变更读取                                                                         |
 | `src/agent/projection.rs`                    | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
 | `src/agent/tests/corpus.rs`                  | `#[cfg(test)]` 一致性语料运行器与私有夹具解码器                                                                                                                                                            |
 | `src/agent/tests/targeted.rs`                | `#[cfg(test)]` 具名边界回归测试                                                                                                                                                                            |
 | `src/agent/tests/oracle.rs`                  | `#[cfg(test)]` 对已记录 TypeScript oracle 结果断言的具名回归测试                                                                                                                                           |
+| `src/agent/tests/snapshot_copy_probe.rs`     | `#[cfg(test)]` 按派发类型测量快照复制的忽略式 release 计时探针                                                                                                                                             |
 | `src/agent/join.rs`                          | Desktop `AgentObservationJoinStateMachine` 的纯移植：代际注册/退役、hint/事件 join、TTL 清理、settle 效果、准入边界；`#[cfg(test)]` `reset`                                                                |
 | `src/agent/hook_contract.rs`                 | 严格 envelope/关联 hint 边界解析与十二 adapter 事件门注册表（移植 `agent-hook-observation-contract.ts` 与 `resolveAgentHookAdapter.ts`）                                                                   |
 | `src/agent/hook_ingress.rs`                  | `AgentHookObservationIngress` 的纯移植，桥切分后不持有运行时：会话绑定、turn/请求/子会话映射、join 命令消费、经注入的 `&mut AgentRuntime` 按序规范派发；`#[cfg(test)]` 语料/trace/f64 settlement/JSON 辅助 |
@@ -81,6 +82,25 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 | `src/agent/tests/conformance_support.rs`     | 仅供测试使用的 fixture 形状 JSON 发射器、`DispatchTrace` 和 `FixtureIngress` 语料所有者对                                                                                                                  |
 | `src/agent/hook_ingress/tests.rs`            | 相邻单元测试，验证派发身份、settlement 时钟顺序和 provider 状态转换                                                                                                                                        |
 | `src/agent/tests/hook_conformance.rs`        | `#[cfg(test)]`——冻结 join 与 hook 语料的回防线束及原生联合容量检查                                                                                                                                         |
+
+## 快照复制成本
+
+`AgentRuntime` 把规范快照保存在 `Arc` 中，每个 `AgentTransition` 共享这份分配而不复制它。
+因此 unchanged 与 rejected 派发只需一次引用计数递增。applied 派发仍会构建一个新的会话向量，
+因为纯 reducer 要校验完整候选。使用
+`cargo test -p orchbee-server --release --bin orchbee-server snapshot_copy -- --ignored --nocapture`
+运行该忽略式探针。下表中位数来自同一台 Windows x86-64 开发主机，单位为每次派发纳秒，
+修改前后在相同条件下测得：
+
+| 会话数 | 整体复制 |   applied 前 → 后 | unchanged 前 → 后 | rejected 前 → 后 |
+| -----: | -------: | ----------------: | ----------------: | ---------------: |
+|      1 |      278 |     3,575 → 3,305 |          314 → 18 |         317 → 18 |
+|     32 |    7,684 |   19,944 → 11,754 |        7,647 → 18 |       7,733 → 18 |
+|    128 |   30,271 |   72,580 → 38,946 |       32,687 → 18 |      30,916 → 19 |
+|    512 |  121,285 | 275,773 → 146,138 |      120,226 → 18 |     120,291 → 18 |
+
+applied 剩余成本是一次会话向量复制，在 512 会话上限时低于 0.15 毫秒。按 hook 事件的频率，
+逐会话共享不值得其复杂度。读请求仍在锁内复制一份一致快照；该探针不测量这条路径。
 
 ## 读服务与传输集成
 

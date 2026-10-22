@@ -82,8 +82,8 @@
 			"zhCnSha256": "e20d9741862544119479d9a6f5cc9a962e4f18f734acc029a87f960d60c5c578"
 		},
 		"apps/orchbee-server/docs/agent-canonical-model.md": {
-			"englishSha256": "6906d7a17728ce4379c15efc41922677de2471baf5b6ca70958b017dd3fe4641",
-			"zhCnSha256": "61780502932657764c7b34f2dac6b4cf5f250bad12569742738b83ba51227757"
+			"englishSha256": "370c89f1332948a902f7816239e496cc5af55ccafa6de4c9015e9a27cb489dc5",
+			"zhCnSha256": "81aa51f827c3b93add8f0f2b527c643c81b3f42dda4c899314fc3650dc35af73"
 		},
 		"apps/orchbee-server/docs/agent-report-model.md": {
 			"englishSha256": "f255e94d1c7cc95bfef668ef21de5cd698e4b1d9f3e50941c0a90574aa7ec117",
@@ -182,8 +182,8 @@
 			"zhCnSha256": "cd5e23b8902d0a7d5f56e6f4a314afffc8229519c73e2ad34db1baf1d0512dbc"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "c62c7939814fd48809bea06c1a561135a0e55c9f6de2f9d199833fd6424e6571",
-			"zhCnSha256": "0d8a7a741e0b9bba307ecf14cb10d028a72ca63e9b75157d477b0e42cc13d0c5"
+			"englishSha256": "a3ef97afb65b46e42a450b95374c6625a7b0aeb8726852e599a4a7f11084b026",
+			"zhCnSha256": "c2bf0512839e81df806dbe5366533b6b0eb0de165e21fb3e1817120e09c8d307"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "028cf6e0e7caa56b7f38a11ddbadf5a542f0e901613086c338dbc847824bdfa9",
@@ -290,8 +290,8 @@
 			"zhCnSha256": "f49197d4cd26a1074189da3f2f1b924a4c4f297f5297382bf60a339ede56dea1"
 		},
 		"apps/orchbee/docs/native-tab-session.md": {
-			"englishSha256": "a9eafe8d4020c79295b37f9174d519763aa622f2e277b3b6358141ef5c50b466",
-			"zhCnSha256": "51a569e74da4bba19b4d211b2beb5719a79624090eb200ee08548a8978e9ebca"
+			"englishSha256": "32852f43743dc74c588b3b159dc3b198026091bc9204ae3168d65dd0181ea855",
+			"zhCnSha256": "9935e6f3f85a5514e4d87e76514229d2dfbd5e08e9338aa1dd0dbfa14e3ee0bb"
 		},
 		"apps/orchbee/docs/native-terminal-creation.md": {
 			"englishSha256": "01474938220f6ec16b9fade76c56cb1af4b87b679ba85ef5b4e183fe3a341004",
@@ -562,8 +562,8 @@
 			"zhCnSha256": "1c22489d5c76805766b27fb4b8fb15f19c17cac5e89eb8539a29ae56984f5f1e"
 		},
 		"docs/VERIFICATION.md": {
-			"englishSha256": "07a081bc62371cee8aecdb92ff9871f7c53b1c770e66f5e624a02bc7fd5fcebe",
-			"zhCnSha256": "25faabba394987fa515691b37e26ddc1c4040a172a3a04bfb3375674b37bf4f7"
+			"englishSha256": "27abc201ae267b6be711757c2dd9eb565ce24fdd932a43a870e1efb8421319e7",
+			"zhCnSha256": "2a091d93c4b5ccd198fd5b8bfee20b35786c4d8b1d5d499dad031ea043462e24"
 		},
 		"docs/ZIG.md": {
 			"englishSha256": "2e1db4d1c77689cc3528dea21e1e7e4fb89e5c7da76c386399ef6f0f586c49c4",

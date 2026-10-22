@@ -323,9 +323,7 @@ impl PreparedMembershipInstall<'_> {
             self.state.refresh_status = Some(super::NavigatorRefreshStatus::Success(
                 self.prepared.candidate.revision(),
             ));
-            self.state.move_recovery = None;
-            self.state.panel_recovery = None;
-            self.state.rename_recovery = None;
+            self.state.resolve_projection_recoveries();
         }
         if let Some(retained) = self.prepared.retained_contexts {
             self.state.retained_contexts = retained;

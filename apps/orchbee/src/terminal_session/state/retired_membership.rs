@@ -1,3 +1,4 @@
+use super::recovery_fence::RecoveryFence;
 use super::{
     AttachmentKey, CarrierFailure, NativeContextTabs, NativeSessionState, OperationDeadlines,
     PreparedMembershipCandidate, SessionPhase,
@@ -34,9 +35,7 @@ impl NativeSessionState {
             || self.pending_mutation.is_some()
             || self.setup_blocks_structure()
             || self.workspace_close_blocks_structure()
-            || self.move_recovery.is_some()
-            || self.rename_recovery.is_some()
-            || self.rename_uncertain.is_some()
+            || self.recovery_fences(RecoveryFence::Navigation)
             || self.pending_membership.is_some()
             || self.rename_draft_blocks_structure()
             || self.desired.as_ref() != Some(evidence.poll.pane())
@@ -70,9 +69,7 @@ impl NativeSessionState {
             && self.pending_mutation.is_none()
             && !self.setup_blocks_structure()
             && !self.workspace_close_blocks_membership()
-            && self.move_recovery.is_none()
-            && self.rename_recovery.is_none()
-            && self.rename_uncertain.is_none()
+            && !self.recovery_fences(RecoveryFence::Navigation)
             && self.pending_membership.is_none()
             && self.committed_target().is_none()
     }

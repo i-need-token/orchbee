@@ -862,7 +862,6 @@ impl super::NativeSessionState {
             && self.pending_membership.is_none()
             && !self.rename_draft_blocks_structure()
             && !self.mutation_blocks_structure()
-            && self.move_recovery.is_none()
             && self.panel_close.confirmation().is_none()
             && matches!(
                 self.phase,

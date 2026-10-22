@@ -77,11 +77,12 @@ failure is never confused with a rejected payload or an empty overlay.
 | `src/agent/events.rs`                        | The fourteen observation event kinds and the four semantic event kinds; `#[cfg(test)]` `event_id` provenance accessor                                                                                                                                                               |
 | `src/agent/reducer.rs`                       | `transition_agent_runtime` per-kind guards, unchanged/rejected/applied, semantic event order; `#[cfg(test)]` transition accessors                                                                                                                                                   |
 | `src/agent/changes.rs`                       | Change records, production append with retention 512 and contiguity; production `read_agent_runtime_changes` paging kinds                                                                                                                                                           |
-| `src/agent/runtime.rs`                       | `AgentRuntime` — production: empty-snapshot construction, `snapshot`, `dispose`, `is_disposed`, `dispatch`; `#[cfg(test)]`: seed; production change reads                                                                                                                           |
+| `src/agent/runtime.rs`                       | `AgentRuntime` — production: empty-snapshot construction, `snapshot`, `dispose`, `is_disposed`, `dispatch`, `rejected`; `#[cfg(test)]`: seed; production change reads                                                                                                               |
 | `src/agent/projection.rs`                    | Semantic status, summary, and explanation projections; `#[cfg(test)]` aggregate/location presentations and wait-condition matching                                                                                                                                                  |
 | `src/agent/tests/corpus.rs`                  | `#[cfg(test)]` conformance corpus runner and private fixture decoder                                                                                                                                                                                                                |
 | `src/agent/tests/targeted.rs`                | `#[cfg(test)]` named boundary regression tests                                                                                                                                                                                                                                      |
 | `src/agent/tests/oracle.rs`                  | `#[cfg(test)]` named regression tests against recorded TypeScript-oracle outcomes                                                                                                                                                                                                   |
+| `src/agent/tests/snapshot_copy_probe.rs`     | `#[cfg(test)]` ignored release timing probe for snapshot copies per dispatch kind                                                                                                                                                                                                   |
 | `src/agent/join.rs`                          | Pure port of the Desktop `AgentObservationJoinStateMachine`: generation registration/retirement, hint/event join, TTL cleanup, settlement effects, admission bounds; `#[cfg(test)]` `reset`                                                                                         |
 | `src/agent/hook_contract.rs`                 | Strict-envelope/correlation-hint boundary parse and the twelve-adapter event-gate registry (ports `agent-hook-observation-contract.ts` and `resolveAgentHookAdapter.ts`)                                                                                                            |
 | `src/agent/hook_ingress.rs`                  | Pure port of `AgentHookObservationIngress`, runtime-free after the bridge split: session bindings, turn/request/child maps, join-command consumption, canonical dispatch in order through the injected `&mut AgentRuntime`; `#[cfg(test)]` corpus/trace/f64-settlement/JSON helpers |
@@ -89,6 +90,27 @@ failure is never confused with a rejected payload or an empty overlay.
 | `src/agent/tests/conformance_support.rs`     | Test-only fixture-shape JSON emitters, `DispatchTrace`, and the `FixtureIngress` corpus owner pair                                                                                                                                                                                  |
 | `src/agent/hook_ingress/tests.rs`            | Adjacent unit tests for dispatch identity, settlement-clock ordering, and provider state translation                                                                                                                                                                                |
 | `src/agent/tests/hook_conformance.rs`        | `#[cfg(test)]` — replay harnesses for the frozen join and hook corpora plus the native joint-capacity checks                                                                                                                                                                        |
+
+## Snapshot copy cost
+
+`AgentRuntime` keeps its canonical snapshot behind `Arc`, and every `AgentTransition` shares that
+allocation instead of copying it. Unchanged and rejected dispatches therefore cost one
+reference-count increment. An applied dispatch still builds one new session vector, because the
+pure reducer validates a complete candidate. Run the ignored probe with
+`cargo test -p orchbee-server --release --bin orchbee-server snapshot_copy -- --ignored --nocapture`.
+The medians below come from one Windows x86-64 development host, in nanoseconds per dispatch,
+before and after the change under the same conditions:
+
+| Sessions | Whole clone | Applied before → after | Unchanged before → after | Rejected before → after |
+| -------: | ----------: | ---------------------: | -----------------------: | ----------------------: |
+|        1 |         278 |          3,575 → 3,305 |                 314 → 18 |                317 → 18 |
+|       32 |       7,684 |        19,944 → 11,754 |               7,647 → 18 |              7,733 → 18 |
+|      128 |      30,271 |        72,580 → 38,946 |              32,687 → 18 |             30,916 → 19 |
+|      512 |     121,285 |      275,773 → 146,138 |             120,226 → 18 |            120,291 → 18 |
+
+The remaining applied cost is one session-vector copy, below 0.15 ms at the 512-session ceiling.
+Per-session sharing is not worth its complexity at hook-event rates. Read requests still copy one
+consistent snapshot under the lock; the probe does not measure that path.
 
 ## Read service and transport integration
 

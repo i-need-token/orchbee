@@ -96,6 +96,51 @@ jobs:
         if: steps.select.outputs.count != '0'
         run: node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs
 
+  rust-windows:
+    name: Rust native (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install --profile minimal --component clippy,rustfmt
+          rustc --version
+          cargo --version
+
+      - name: Set up Zig
+        shell: pwsh
+        run: |
+          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
+          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
+          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
+          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
+          curl.exe --fail --location --silent --show-error $zigUrl --output $archive
+          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
+          Expand-Archive -Path $archive -DestinationPath $destination
+          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
+          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $zigDirectory 'zig.exe') version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify the Rust workspace natively
+        run: pnpm verify:rust-native --verbose
+
   terminal-host-native:
     name: Terminal Host native (${{ matrix.os }})
     strategy:

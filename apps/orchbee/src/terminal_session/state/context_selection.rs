@@ -1,3 +1,4 @@
+use super::recovery_fence::RecoveryFence;
 use super::{
     CarrierFailure, CreateTerminalProvenance, NativeContextTabs, NativeSessionState,
     NativeSessionView, OperationDeadlines, PreparedRefresh, SessionPhase,
@@ -64,9 +65,7 @@ impl NativeSessionState {
             && !self.setup_blocks_structure()
             && !self.workspace_close_blocks_structure()
             && self.pending_membership.is_none()
-            && self.move_recovery.is_none()
-            && self.rename_recovery.is_none()
-            && self.rename_uncertain.is_none()
+            && !self.recovery_fences(RecoveryFence::Navigation)
             && !self.rename_draft_blocks_structure()
             && self.close.permits_retired_membership()
             && matches!(

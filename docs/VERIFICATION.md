@@ -159,6 +159,7 @@ results remain unchanged.
 | `typecheck`               | Every workspace with a TypeScript contract satisfies it.                                                                                                                                         |
 | `test`                    | Contract-checker tests, documentation-pairing negative tests, custom lint-rule and dependency-scope tests, pnpm and Cargo host test suites, and required controlled local system witnesses pass. |
 | `test:cross`              | Explicitly compile the declared native foreign-target test graphs.                                                                                                                               |
+| `verify:rust-native`      | Run Rust workspace Clippy, the native test prerequisites and every Cargo host test suite under the current host's platform configuration.                                                        |
 | `test:exports`            | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                |
 
 - `build:packages` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
@@ -174,6 +175,9 @@ results remain unchanged.
   same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
+- `verify:rust-native` reuses the same Rust runner tasks and native test preparation as `lint` and
+  `test`. It adds no step of its own, so a Windows host gate and the Windows CI job cannot drift
+  from the Linux root gate. Run it on Windows when a change touches platform-gated Rust code.
 
 ## Change-triggered TLA+ verification
 
@@ -198,6 +202,15 @@ Local UI selection, menus, rendering configuration, fixed CLI workflows and dete
 - `.github/workflows/verify.yml` installs the frozen lockfile and runs `pnpm verify` for pull requests, pushes to `main`, and manual runs.
 - CI supplies `--verbose` so complete diagnostics remain in the existing job log after the
   temporary runner is removed; a local temporary-log path alone is not durable CI evidence.
+- The `rust-windows` job runs `pnpm verify:rust-native` on `windows-latest`, so every Rust
+  member gets Clippy and its Cargo test suites under the Windows platform configuration that the
+  Linux `verify` job never compiles. Formatting, documentation, TypeScript and TLA checks are
+  platform-independent and stay in `verify`.
+- Platform exclusions are explicit. macOS has no Rust job because the native Client is only an
+  unsigned per-user Apple Silicon development cohort; its native Terminal Host and Desktop endpoint
+  adapters run in `terminal-host-native`. No job runs `test:cross` or the focus-stealing
+  `test:system:manual:native-window`; cross-compilation stays explicit and the native-window
+  test stays manual-only.
 - The required `verify` job does not run TLC. The required `tla` job selects and runs
   change-triggered checks from the tracked inventory; an unrelated change completes that job
   without provisioning Java or TLC.

@@ -4,6 +4,8 @@
 
 Panel-family commands use a positional Panel or `--current`; the former `--panel` alias is rejected. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Startup, integration and doctor use `--provider antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v4 receipts; historical v2/v3 schemas retain `pane.*`. Terminal and Agent reads use `--source`/`--lines`; retained legacy read/history receipt descriptions below describe historical schemas only. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
 
+The parser in `src/invocation.rs` is the grammar authority: it admits command paths, per-command option scopes and values before any runtime access. `src/cli/completion.rs` declares the projection that help and every completion script consume, including command paths, `COMMAND_FLAGS` option scopes and value domains. `src/cli/text/examples.rs` supplies one parser-checked example per command. Tests keep them in agreement: help and completion list the same command paths, every help example parses, `--format` admission matches help, and on Windows each option is admitted where help and completion declare it and rejected elsewhere. Options whose admission depends on another option are listed with that reason in the test.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

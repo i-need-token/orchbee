@@ -1,3 +1,4 @@
+use super::recovery_fence::RecoveryFence;
 use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
 use super::{AttachmentKey, CarrierFailure, NativeContextTabs};
 use crate::local_client::workbench::label_rename::{
@@ -95,9 +96,7 @@ impl super::NativeSessionState {
         self.setup_operation_in_progress()
             || self.takeover_pending()
             || self.pending_mutation.is_some()
-            || self.move_recovery.is_some()
-            || self.panel_recovery.is_some()
-            || self.rename_recovery.is_some()
+            || self.recovery_fences(RecoveryFence::Mutation)
     }
 
     pub(in crate::terminal_session) fn plan_rename(

@@ -936,6 +936,13 @@ Switching 期间暂停了终端 Resize 准入。每个 pane 的报告还会在�
 规则。提交前拒绝会恢复旧控制器；如果测量值已变化，则在恢复轮询前准入一次追赶 Resize。
 只读查看器永远不发送 Resize。
 
+结构流程共享 `src/terminal_session/state/recovery_fence.rs` 中的同一张恢复围栏表。
+已知的 Move、Panel 或 Rename 提交在规范投影安装前保留恢复记录；不确定的 Rename 保留其操作。
+提交另一项变更须等待所有投影恢复。上下文移除和 Workspace Close 还须等待不确定的 Rename。
+上下文选择和退役成员修复等待 Move 与 Rename 恢复以及不确定的 Rename，但不等待 Panel 恢复。
+Workspace 建立权限只等待 Move 与 Rename 恢复。已安装的规范刷新一次性解除全部投影恢复。
+各流程按名称引用围栏，而不逐项列出记录，因此新增恢复类型只需在该表中决定一次。
+
 ## 本地选择
 
 选择只根据最近一次应用的严格缓存解析。`n` 和 `p` 使用本地活动目标的索引，并按 Tab 数量在
