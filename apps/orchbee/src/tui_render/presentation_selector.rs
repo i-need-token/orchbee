@@ -1,7 +1,8 @@
-//! Header geometry and exact member targets share one painter; selectors never overlap Pane hits.
+//! Title-line geometry and exact member targets share one painter; selectors never overlap Pane
+//! hits.
 use super::{
-    Frame, HitLayer, HitMapBuilder, HitTarget, NativeDisplayPhase, NativeSessionView, Paragraph,
-    Rect, Role, Theme,
+    Frame, HitLayer, HitMapBuilder, NativeDisplayPhase, NativeSessionView, Paragraph, Rect, Role,
+    Theme,
     controls::{
         Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
         icon_action_rect, render_icon_action,
@@ -78,15 +79,37 @@ impl PresentationSelector {
         })
     }
 
-    pub(super) fn title_area(&self, header: Rect) -> Rect {
-        Rect::new(
-            header.x,
-            header.y,
-            self.area.x.saturating_sub(header.x),
-            header.height,
-        )
+    /// While a bare pane's selector is unavailable, its member position stays visible as inert
+    /// text at the same strip end.
+    pub(super) fn pending_count(
+        strip: Rect,
+        panel: &NativePanel,
+        native: &NativeSessionView<'_>,
+    ) -> Option<(Rect, String)> {
+        let total = panel.presentation_count();
+        if total < 2 || native.retirement().is_some() {
+            return None;
+        }
+        let position =
+            panel.presentation_index(native.selected_presentation(panel).presentation_id())? + 1;
+        let count = format!(" [{position}/{total}] ");
+        let width = u16::try_from(display_width(&count)).ok()?;
+        if strip.height == 0 || strip.width.checked_sub(width)? < 12 {
+            return None;
+        }
+        Some((
+            Rect::new(strip.right().checked_sub(width)?, strip.y, width, 1),
+            count,
+        ))
     }
-    pub(super) fn paint(&self, frame: &mut Frame<'_>, theme: &Theme, hits: &mut HitMapBuilder) {
+
+    pub(super) fn paint(
+        &self,
+        frame: &mut Frame<'_>,
+        surface: ControlSurface,
+        theme: &Theme,
+        hits: &mut HitMapBuilder,
+    ) {
         if icon_action_rect(frame.area(), self.previous.0) != Some(self.previous.0)
             || icon_action_rect(frame.area(), self.next.0) != Some(self.next.0)
             || frame.area().intersection(self.count_area) != self.count_area
@@ -113,12 +136,7 @@ impl PresentationSelector {
             let painted = render_icon_action(
                 frame,
                 *area,
-                IconActionSpec::new(
-                    glyph,
-                    ControlSurface::Chrome,
-                    Availability::Enabled,
-                    pointer,
-                ),
+                IconActionSpec::new(glyph, surface, Availability::Enabled, pointer),
                 theme,
             )
             .expect("preflighted presentation action remains paintable");
@@ -133,43 +151,5 @@ fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
         ProjectedPointer::Rest => PointerPresentation::Rest,
         ProjectedPointer::Hovered => PointerPresentation::Hovered,
         ProjectedPointer::Pressed => PointerPresentation::Pressed,
-    }
-}
-
-/// The selector occupies the right end of the first header row; that whole strip is chrome.
-pub(super) fn record_leaf(
-    hits: &mut HitMapBuilder,
-    leaf: Rect,
-    target: HitTarget,
-    selector: Option<Rect>,
-) {
-    let body = match &target {
-        HitTarget::Pane { content, .. } => *content,
-        _ => Rect::new(
-            leaf.x,
-            leaf.y.saturating_add(1),
-            leaf.width,
-            leaf.height.saturating_sub(1),
-        ),
-    };
-    if let Some(selector) = selector {
-        hits.record(
-            HitLayer::Foreground,
-            Rect::new(
-                leaf.x,
-                leaf.y,
-                selector.x.saturating_sub(leaf.x),
-                1.min(leaf.height),
-            ),
-            target.clone(),
-        );
-        hits.record(HitLayer::Foreground, body, target);
-    } else {
-        hits.record(
-            HitLayer::Foreground,
-            Rect::new(leaf.x, leaf.y, leaf.width, 1.min(leaf.height)),
-            target.clone(),
-        );
-        hits.record(HitLayer::Foreground, body, target);
     }
 }

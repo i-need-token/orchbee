@@ -340,7 +340,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     let retained = Arc::new(std::sync::Mutex::new(Vec::with_capacity(1)));
     let handler_retained = Arc::clone(&retained);
     let (decoded_attention, attention_receipts) = std::sync::mpsc::sync_channel(2);
-    let server = FakeServer::start_optional_connections(4, move |index, mut stream| {
+    let server = FakeServer::start_optional_connections(5, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
             read_message(&mut stream)
@@ -411,6 +411,18 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 })
                 .map_err(io::Error::other)?
         };
+        if matches!(
+            request,
+            WorkbenchRequest::AgentView(AgentViewRequest {
+                action: AgentViewAction::Read {},
+                ..
+            })
+        ) {
+            // The Windows Tab strip observes the attached machine's Agents while the Sidebar is
+            // hidden; that read stays pending until teardown cancels it.
+            assert_eq!(stream.read(&mut [0])?, 0);
+            return Ok(());
+        }
         let WorkbenchRequest::SnapshotRead(read) = request else {
             panic!("context lane must begin with a snapshot");
         };

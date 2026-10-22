@@ -281,27 +281,32 @@ impl Picker {
             return None;
         }
         // These are complete, attention-projected physical rows, before every view/source filter.
-        let mut states = cp
-            .rows
+        most_urgent(
+            cp.rows
+                .iter()
+                .filter(|r| r.target.context == context.target)
+                .map(crate::machine_agents::Row::sidebar_state),
+        )
+    }
+    /// The attached machine's Agents in one Tab, summarized like a collapsed Workspace row.
+    #[cfg(windows)]
+    pub(crate) fn tab_agent(
+        &self,
+        tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) -> Option<TabAgent> {
+        let Some(crate::machine_agents::Observation::Ready(cp)) = self
+            .agent_observations
             .iter()
-            .filter(|r| r.target.context == context.target)
-            .map(crate::machine_agents::Row::sidebar_state);
-        let first = states.next()?;
-        let rank = |state| match state {
-            MetadataState::Blocked => 0,
-            MetadataState::Error => 1,
-            MetadataState::Done => 2,
-            MetadataState::Working => 3,
-            MetadataState::Idle => 4,
-            MetadataState::Unknown => 5,
+            .find(|(c, _)| c == &self.current)
+            .map(|(_, o)| o)
+        else {
+            return None;
         };
-        Some(states.fold(first, |best, state| {
-            if rank(state) < rank(best) {
-                state
-            } else {
-                best
-            }
-        }))
+        let rows = || cp.rows.iter().filter(|r| &r.target.tab == tab);
+        Some(TabAgent {
+            state: most_urgent(rows().map(crate::machine_agents::Row::sidebar_state))?,
+            unread: rows().any(|r| !r.seen),
+        })
     }
     pub(crate) fn workspace_unread(&self, row: &Row) -> bool {
         row.context.as_ref().is_some_and(|context| {
@@ -442,4 +447,25 @@ impl Row {
     pub(crate) fn workspace_label(&self) -> Option<&str> {
         self.context.as_ref()?.workspace.as_deref()
     }
+}
+
+/// One Tab's Agent cue: the most urgent sidebar state and whether any Agent is unread.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct TabAgent {
+    pub(crate) state: MetadataState,
+    pub(crate) unread: bool,
+}
+
+/// Blocked, error, done, working, then idle: the order a person needs to act on them.
+pub(crate) fn most_urgent(states: impl Iterator<Item = MetadataState>) -> Option<MetadataState> {
+    let rank = |state| match state {
+        MetadataState::Blocked => 0,
+        MetadataState::Error => 1,
+        MetadataState::Done => 2,
+        MetadataState::Working => 3,
+        MetadataState::Idle => 4,
+        MetadataState::Unknown => 5,
+    };
+    states.min_by_key(|state| rank(*state))
 }

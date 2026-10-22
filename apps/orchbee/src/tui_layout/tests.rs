@@ -7,9 +7,9 @@ use orchbee_workbench_protocol::{
 use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
 use super::{
-    LeafArea, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
-    divider_glyph, native_terminal_area, overlay_area, pane_content, place_overlay,
-    project_panel_tree, project_shell_areas, terminal_area,
+    LeafArea, PaneFrame, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
+    divider_glyph, native_terminal_area, overlay_area, place_overlay, project_panel_tree,
+    project_shell_areas, terminal_area,
 };
 
 #[test]
@@ -153,7 +153,7 @@ fn minimal_viewports_keep_the_terminal_at_the_first_row_without_a_top_strip() {
             "{width}x{height}"
         );
 
-        let terminal = native_terminal_area(areas.panel, false, false);
+        let terminal = native_terminal_area(areas.panel, PaneFrame::Bare);
         assert_eq!(terminal.y, viewport.y, "{width}x{height}");
         assert_eq!(terminal.bottom(), areas.status.y, "{width}x{height}");
         assert!(!terminal.intersects(areas.tabs), "{width}x{height}");
@@ -265,14 +265,7 @@ fn refuses_pane_division_below_the_leaf_minimum() {
 }
 
 #[test]
-fn reserves_a_title_row_and_scrollbar_column_inside_each_leaf() {
-    let leaf = Rect::new(3, 2, 12, 7);
-    assert_eq!(pane_content(leaf), Rect::new(3, 3, 11, 6));
-    assert_eq!(pane_content(Rect::new(0, 0, 1, 2)), Rect::new(0, 1, 1, 1));
-}
-
-#[test]
-fn single_and_zoomed_terminals_keep_every_panel_row_while_split_frames_keep_their_geometry() {
+fn only_more_than_one_framed_pane_gives_up_cells_to_its_frame() {
     for panel in [
         Rect::new(30, 1, 90, 38),
         Rect::new(0, 1, 80, 23),
@@ -281,21 +274,27 @@ fn single_and_zoomed_terminals_keep_every_panel_row_while_split_frames_keep_thei
         Rect::new(7, 9, 1, 2),
         Rect::new(7, 9, 0, 0),
     ] {
-        let content = Rect::new(
+        let bare = Rect::new(
             panel.x,
             panel.y,
             panel.width.saturating_sub(u16::from(panel.width > 1)),
             panel.height,
         );
+        for (framed, panels, zoomed) in [(false, 1, false), (false, 3, false), (true, 1, false)] {
+            assert_eq!(PaneFrame::of(framed, panels, zoomed), PaneFrame::Bare);
+        }
+        assert_eq!(native_terminal_area(panel, PaneFrame::Bare), bare);
+        let inner = terminal_area(panel, true);
+        assert_eq!(native_terminal_area(panel, PaneFrame::Split), inner);
+        // Titles sit on the frame line, so zoom keeps every inner row.
         assert_eq!(
-            native_terminal_area(panel, true, false),
-            pane_content(terminal_area(panel, true))
-        );
-        assert_eq!(native_terminal_area(panel, false, false), content);
-        assert_eq!(native_terminal_area(panel, false, true), content);
-        assert_eq!(
-            native_terminal_area(panel, true, true),
-            terminal_area(panel, true)
+            native_terminal_area(panel, PaneFrame::Zoomed),
+            Rect::new(
+                inner.x,
+                inner.y,
+                inner.width.saturating_sub(u16::from(inner.width > 1)),
+                inner.height,
+            )
         );
     }
 }
@@ -356,13 +355,13 @@ fn projects_a_single_panel_to_one_leaf() {
         vec![LeafArea {
             panel_index: 2,
             leaf: Rect::new(1, 1, 90, 38),
-            content: Rect::new(1, 2, 89, 37),
+            content: Rect::new(1, 1, 89, 38),
         }]
     );
     assert!(projection.dividers.is_empty());
     assert_eq!(
         projection.active_content(Some(2)),
-        Some(Rect::new(1, 2, 89, 37))
+        Some(Rect::new(1, 1, 89, 38))
     );
 }
 
@@ -380,29 +379,29 @@ fn projects_a_split_into_leaves_sharing_one_divider() {
             LeafArea {
                 panel_index: 0,
                 leaf: Rect::new(0, 0, 10, 9),
-                content: Rect::new(0, 1, 9, 8),
+                content: Rect::new(0, 0, 9, 9),
             },
             LeafArea {
                 panel_index: 1,
                 leaf: Rect::new(11, 0, 10, 9),
-                content: Rect::new(11, 1, 9, 8),
+                content: Rect::new(11, 0, 9, 9),
             },
         ]
     );
     // The selected leaf — not the first — is the Session resize target.
     assert_eq!(
         projection.active_content(Some(1)),
-        Some(Rect::new(11, 1, 9, 8))
+        Some(Rect::new(11, 0, 9, 9))
     );
     assert_eq!(
         projection.active_content(Some(0)),
-        Some(Rect::new(0, 1, 9, 8))
+        Some(Rect::new(0, 0, 9, 9))
     );
     // Falls back to the first projected leaf when nothing matches.
-    assert_eq!(projection.active_content(None), Some(Rect::new(0, 1, 9, 8)));
+    assert_eq!(projection.active_content(None), Some(Rect::new(0, 0, 9, 9)));
     assert_eq!(
         projection.active_content(Some(99)),
-        Some(Rect::new(0, 1, 9, 8))
+        Some(Rect::new(0, 0, 9, 9))
     );
 }
 
@@ -428,23 +427,23 @@ fn projects_nested_splits_with_one_divider_per_split() {
             LeafArea {
                 panel_index: 0,
                 leaf: Rect::new(0, 0, 20, 19),
-                content: Rect::new(0, 1, 19, 18),
+                content: Rect::new(0, 0, 19, 19),
             },
             LeafArea {
                 panel_index: 1,
                 leaf: Rect::new(21, 0, 20, 9),
-                content: Rect::new(21, 1, 19, 8),
+                content: Rect::new(21, 0, 19, 9),
             },
             LeafArea {
                 panel_index: 2,
                 leaf: Rect::new(21, 10, 20, 9),
-                content: Rect::new(21, 11, 19, 8),
+                content: Rect::new(21, 10, 19, 9),
             },
         ]
     );
     assert_eq!(
         projection.active_content(Some(2)),
-        Some(Rect::new(21, 11, 19, 8))
+        Some(Rect::new(21, 10, 19, 9))
     );
 }
 
@@ -462,7 +461,7 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
     assert!(projection.dividers.is_empty());
     assert_eq!(
         projection.active_content(Some(1)),
-        Some(Rect::new(0, 1, 7, 8))
+        Some(Rect::new(0, 0, 7, 9))
     );
 
     // With no matching selection the first leaf wins.
@@ -472,7 +471,7 @@ fn collapses_an_unfittable_split_to_the_selected_leaf() {
     assert_eq!(fallback.leaves[0].panel_index, 0);
     assert_eq!(
         fallback.active_content(Some(9)),
-        Some(Rect::new(0, 1, 7, 8))
+        Some(Rect::new(0, 0, 7, 9))
     );
 }
 

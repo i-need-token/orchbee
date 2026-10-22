@@ -13,6 +13,9 @@ Terminal Host follows explicit application Light/Dark through the shared shipped
 With application System, Host paints terminal defaults with `Color::Reset`. System canvas,
 persistent chrome and inactive surfaces also use the host-default background, including empty
 cells, so the Client meets the host's surrounding padding without an RGB query or quantization.
+The Tab strip is the exception: once the host background is observed, `surface-strip` keeps the
+matched named theme's chrome fill so a single unframed terminal stays distinct from navigation.
+Without that observation the strip is host-relative too.
 Captured foreground/background values remain available as descriptive RGB in Settings; they never
 replace host-relative painting. Retained child-frame launch defaults cannot replace this local choice. Explicit
 terminal Light/Dark and Custom retain precedence; Custom uses the validated RGB pair. Only
@@ -67,12 +70,14 @@ Independent terminal popups use this complete overlay surface for the title, bor
 body, even on a dark-default outer host. A received program frame replaces only the inner body
 with its independent terminal defaults and explicit program colors.
 
-Tab group headers keep the user's paired color chip at rest. A current, hover or pressed surface
-replaces both chip colors with `text-primary` on the corresponding semantic surface; it never keeps
-the chip's inverse foreground on a neutral fill. Disclosure, counts and current markers keep their
-own geometry, and leaving the header restores its resting chip or current surface. Reduced-color
-and monochrome hosts use the same role resolver and interaction fallbacks. A collapsed current
-group always retains its current marker when pointer feedback replaces the neutral current fill.
+Each theme owns one accent per Tab group color. One Light and One Dark use their palette's hues;
+terminal-native uses named ANSI colors. A group header writes its name in the bold accent on a
+resting tint that mixes 20% of the accent into the strip fill. Terminal-native has no concrete strip
+color to mix, and 16-color hosts cannot express a faint fill, so their headers rest on the strip with
+the accent text alone. A current, hover or pressed surface replaces only the tint; the accent name
+stays readable on it, and leaving the header restores the tint or current surface. Group color
+swatches in menus paint the same accent. Monochrome hosts use the ordinary role resolver and
+interaction fallbacks.
 
 The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. For the
 shared Light and Dark application appearances, these roles adapt the public product color intent in

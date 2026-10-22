@@ -334,14 +334,14 @@ fn unavailable_or_disabled_endpoint_never_activates_a_foreign_agent() {
 }
 
 #[test]
-fn hidden_sidebar_does_not_demand_agent_observations_for_top_chrome() {
+fn hidden_sidebar_demands_only_the_attention_the_tab_strip_shows() {
     let mut picker = Picker {
         available: true,
         ..Picker::default()
     };
     picker.observe_agent_sidebar(false);
     assert!(!picker.wants_agents());
-    assert!(!picker.wants_agent_attention());
+    assert_eq!(picker.wants_agent_attention(), cfg!(windows));
     picker.observe_agent_sidebar(true);
     assert!(picker.wants_agents());
 }

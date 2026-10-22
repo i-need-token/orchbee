@@ -195,20 +195,27 @@ impl Manager {
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         let mut agent_sources = Vec::new();
-        if view.machines.wants_agents() || view.machines.wants_spaces() {
-            if let Some(connection) = self.local_source(surface) {
+        let every_machine = view.machines.wants_agents() || view.machines.wants_spaces();
+        // The Windows Tab strip summarizes the attached machine's Agents without the Sidebar.
+        let current = self.current.as_ref().map(|profile| profile.id.clone());
+        let attached =
+            |profile: Option<&Profile>| cfg!(windows) && current.as_ref() == profile.map(|p| &p.id);
+        if (every_machine || attached(None))
+            && let Some(connection) = self.local_source(surface)
+        {
+            agent_sources.push(crate::machine_observation::Source {
+                choice: Choice::Local,
+                connection,
+            });
+        }
+        for profile in &self.profiles {
+            if (every_machine || attached(Some(profile)))
+                && let Some(connection) = self.discovery.connection(profile, now)
+            {
                 agent_sources.push(crate::machine_observation::Source {
-                    choice: Choice::Local,
+                    choice: Choice::Remote(profile.id.clone()),
                     connection,
                 });
-            }
-            for profile in &self.profiles {
-                if let Some(connection) = self.discovery.connection(profile, now) {
-                    agent_sources.push(crate::machine_observation::Source {
-                        choice: Choice::Remote(profile.id.clone()),
-                        connection,
-                    });
-                }
             }
         }
         change.redraw |= view.machines.observe_agents(self.agents.tick(

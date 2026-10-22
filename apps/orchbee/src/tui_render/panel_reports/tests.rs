@@ -19,177 +19,97 @@ fn provided_titles_and_creation_numbers_survive_layout_reordering() {
             "Shell",
             "Terminal",
             PanelReportView::Ready(&report),
+            "·",
         ),
-        " 1 "
+        "1 · branch=feature"
     );
 
     let mut metadata = row();
     metadata.metadata.title = Some(serde_json::from_value(json!("Build Shell")).unwrap());
+    metadata.tokens = serde_json::from_value(json!({})).unwrap();
     assert_eq!(
-        title(None, "Shell", "Terminal", PanelReportView::Ready(&metadata)),
-        " Build Shell "
+        title(
+            None,
+            "Shell",
+            "Terminal",
+            PanelReportView::Ready(&metadata),
+            "·"
+        ),
+        "Build Shell"
     );
 
     assert_eq!(
-        title(None, "Shell", "Terminal", PanelReportView::Pending),
-        " Shell "
+        title(None, "Shell", "Terminal", PanelReportView::Pending, "·"),
+        "Shell"
     );
 
     for inherited_number in ["1", "5"] {
         assert_eq!(
-            title(None, inherited_number, "Terminal", PanelReportView::Pending),
-            format!(" Terminal {inherited_number} "),
+            title(
+                None,
+                inherited_number,
+                "Terminal",
+                PanelReportView::Pending,
+                "·"
+            ),
+            format!("Terminal {inherited_number}"),
         );
     }
 }
 
 #[test]
-fn wide_metadata_status_and_tokens_fit_without_injecting_terminal_controls() {
-    let theme = Theme::rgb_test_dark();
-    for width in 0..=96 {
-        let line = header(
-            " 自定义标题\x1b[31m\n\u{202e} ".into(),
-            PanelReportView::Ready(&row()),
-            width,
-            Locale::ZhCn,
-            &theme,
-            theme.style(Role::TextPrimary),
-            false,
+fn custom_and_display_titles_never_inject_terminal_controls() {
+    // Metadata titles are rejected at the contract boundary; Presentation labels arrive raw.
+    let report = row();
+    for (custom, display) in [
+        (Some("自定义标题\u{1b}[31m\n\u{202e}"), "Shell"),
+        (None, "名称\u{1b}]0;x\u{7}"),
+    ] {
+        let text = title(
+            custom,
+            display,
+            "Terminal",
+            PanelReportView::Ready(&report),
+            "·",
         );
-        let text = line.to_string();
-        assert!(display_width(&text) <= width);
+        assert!(text.ends_with("branch=feature"), "{text:?}");
         assert!(
             !text
                 .chars()
-                .any(crate::terminal_text::is_forbidden_terminal_scalar)
+                .any(crate::terminal_text::is_forbidden_terminal_scalar),
+            "{text:?}"
         );
-        if width >= 32 {
-            assert!(text.contains("等待确认"), "{width}: {text}");
-        }
-        if width == 96 {
-            assert!(text.contains("branch=feature"));
-            assert!(text.contains("审核 Agent"));
-        }
-    }
-}
-#[test]
-fn missing_agent_loading_and_unavailable_never_invent_idle() {
-    let theme = Theme::rgb_test_dark();
-    let mut empty = row();
-    empty.report = None;
-    empty.metadata.display_agent = None;
-    for (view, expected) in [
-        (PanelReportView::Pending, "loading status"),
-        (PanelReportView::Unavailable, "status unavailable"),
-        (PanelReportView::Ready(&empty), "branch=feature"),
-    ] {
-        let line = header(
-            " Panel ".into(),
-            view,
-            80,
-            Locale::EnUs,
-            &theme,
-            theme.style(Role::TextPrimary),
-            false,
-        );
-        assert!(line.to_string().contains(expected));
-        assert!(!line.to_string().contains("idle"));
     }
 }
 
 #[test]
-fn each_state_keeps_its_left_symbol_when_the_right_unread_mark_clears() {
-    for theme in [
-        Theme::one_light(),
-        Theme::one_dark(),
-        Theme::terminal_native(),
+fn only_a_reported_agent_has_a_state() {
+    let mut agentless = row();
+    agentless.report = None;
+    agentless.metadata.display_agent = None;
+    for view in [
+        PanelReportView::Pending,
+        PanelReportView::Unavailable,
+        PanelReportView::Ready(&agentless),
     ] {
-        for glyphs in [
-            crate::tui_theme::GlyphSet::UTF8,
-            crate::tui_theme::GlyphSet::ASCII,
-        ] {
-            let theme = theme.with_glyphs(glyphs);
-            for (state, label) in [
-                (PanelAgentState::Working, MetadataState::Working),
-                (PanelAgentState::Blocked, MetadataState::Blocked),
-                (PanelAgentState::Done, MetadataState::Done),
-                (PanelAgentState::Error, MetadataState::Error),
-                (PanelAgentState::Idle, MetadataState::Idle),
-                (PanelAgentState::Unknown, MetadataState::Unknown),
-            ] {
-                let mut row = row();
-                row.report.as_mut().unwrap().state = state;
-                row.metadata.state_labels.clear();
-                for unread in [false, true] {
-                    for width in 0..=96 {
-                        let line = header(
-                            "Title".into(),
-                            PanelReportView::Ready(&row),
-                            width,
-                            Locale::EnUs,
-                            &theme,
-                            theme.style(Role::SurfaceSelection),
-                            unread,
-                        );
-                        assert!(display_width(&line.to_string()) <= width);
-                        if width >= 4 {
-                            assert!(line.to_string().starts_with(theme.agent_glyph(label)));
-                            assert_eq!(line.spans[0].style, theme.style(Theme::agent_role(label)));
-                            assert_eq!(line.to_string().ends_with(glyphs.status_bullet), unread);
-                            assert_eq!(
-                                line.spans.last().unwrap().style,
-                                theme.style(Role::StatusUnread)
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        assert_eq!(agent_state(view), None);
     }
-}
-
-#[test]
-fn status_uses_its_role_and_all_separators_follow_the_theme() {
-    for theme in [
-        Theme::terminal_native(),
-        Theme::rgb_test_dark(),
-        Theme::one_light(),
-        Theme::one_dark(),
+    let mut unreported = row();
+    unreported.report = None;
+    assert_eq!(
+        agent_state(PanelReportView::Ready(&unreported)),
+        Some(MetadataState::Unknown)
+    );
+    for (state, expected) in [
+        (PanelAgentState::Working, MetadataState::Working),
+        (PanelAgentState::Blocked, MetadataState::Blocked),
+        (PanelAgentState::Done, MetadataState::Done),
+        (PanelAgentState::Error, MetadataState::Error),
+        (PanelAgentState::Idle, MetadataState::Idle),
+        (PanelAgentState::Unknown, MetadataState::Unknown),
     ] {
-        for glyphs in [
-            crate::tui_theme::GlyphSet::UTF8,
-            crate::tui_theme::GlyphSet::ASCII,
-        ] {
-            let theme = theme.with_glyphs(glyphs);
-            let mut row = row();
-            row.metadata.display_agent = None;
-            row.metadata.state_labels.clear();
-            for locale in [Locale::EnUs, Locale::ZhCn] {
-                let line = header(
-                    "Title".into(),
-                    PanelReportView::Ready(&row),
-                    80,
-                    locale,
-                    &theme,
-                    theme.style(Role::TextPrimary),
-                    false,
-                );
-                assert_eq!(
-                    line.spans[3].content,
-                    locale.panel_report_state(PanelAgentState::Blocked)
-                );
-                assert_eq!(line.spans[3].style, theme.style(Role::StatusWarning));
-                assert_eq!(line.spans[4].style, theme.style(Role::TextSecondary));
-                assert_eq!(
-                    line.spans[4].content,
-                    format!(" {} grok", glyphs.middle_dot)
-                );
-                assert!(
-                    line.spans[1]
-                        .content
-                        .contains(&format!(" {} branch=feature", glyphs.middle_dot))
-                );
-            }
-        }
+        let mut report = row();
+        report.report.as_mut().unwrap().state = state;
+        assert_eq!(agent_state(PanelReportView::Ready(&report)), Some(expected));
     }
 }

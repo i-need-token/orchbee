@@ -200,10 +200,10 @@ fn replay(actions: &[Action]) -> Result<u16, String> {
                 || leaf.leaf.bottom() > area.bottom()
                 || leaf.content.x != leaf.leaf.x
                 || leaf.content.width + u16::from(leaf.leaf.width > 1) != leaf.leaf.width
-                || leaf.content.y != leaf.leaf.y + 1
+                || leaf.content.y != leaf.leaf.y
                 || leaf.content.bottom() != leaf.leaf.bottom()
             {
-                return Err("leaf membership, bounds or title/content geometry".into());
+                return Err("leaf membership, bounds or content geometry".into());
             }
             if projected
                 .leaves

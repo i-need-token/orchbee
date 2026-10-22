@@ -46,21 +46,21 @@ A theme maps every role below to one concrete style. A style may include a foreg
 or permitted modifier. A theme with a missing role is invalid. Roles are stable names; themes
 change values.
 
-| Role family | Roles                                                                                 | Use when                                                                                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`                                         | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                  |
-| `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                 | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references      |
-| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `unread`                 | Outcome and state meaning only; never decoration or hierarchy                                                                                                                        |
-| `frame`     | `focused`, `unfocused`, `divider`                                                     | Pane and overlay borders and split boundaries                                                                                                                                        |
-| `surface`   | `canvas`, `chrome`, `overlay`, `hover`, `pressed`, `selection`, `current`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, pointer feedback, pressed controls, provisional or range selection, persistent current context, and inactive panes |
-| `hint`      | `key`, `label`                                                                        | Key glyphs and their action labels in footers and help                                                                                                                               |
+| Role family | Roles                                                                                          | Use when                                                                                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`      | `primary`, `secondary`, `disabled`, `inverse`                                                  | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                                 |
+| `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                          | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                     |
+| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `unread`                          | Outcome and state meaning only; never decoration or hierarchy                                                                                                                                       |
+| `frame`     | `focused`, `unfocused`, `divider`                                                              | Pane and overlay borders and split boundaries                                                                                                                                                       |
+| `surface`   | `canvas`, `chrome`, `strip`, `overlay`, `hover`, `pressed`, `selection`, `current`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, the Tab strip, overlays, pointer feedback, pressed controls, provisional or range selection, persistent current context, and inactive panes |
+| `hint`      | `key`, `label`                                                                                 | Key glyphs and their action labels in footers and help                                                                                                                                              |
 
 Theme rules:
 
 - Every native Client ships a `terminal-native` theme and uses it whenever host appearance or color
   level is unknown. It is the default until an explicit user setting selects another theme.
-- The `terminal-native` theme maps text and base surfaces (`canvas`, `chrome`, and `overlay`) to the
-  terminal default foreground and background (`Color::Reset`). It resolves current and interaction
+- The `terminal-native` theme maps text and base surfaces (`canvas`, `chrome`, `strip`, and
+  `overlay`) to the terminal default foreground and background (`Color::Reset`). It resolves current and interaction
   surfaces through the paired colors and modifier fallbacks below, and maps accent, status, and
   frame roles to named ANSI-16 colors. It uses the `DIM` modifier, not a gray color, for
   `text-secondary`, so de-emphasis follows the host palette on both light and dark backgrounds.
@@ -102,6 +102,9 @@ Theme rules:
 - Paint a region's complete background, including padding and empty cells, through its surface
   role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
   region's surface. Terminal-native and lower color levels retain their admitted host behavior.
+- `surface-strip` keeps a named theme's chrome fill even when a host-relative appearance returns the
+  other base surfaces to the terminal background, so the Tab strip stays distinct from an unframed
+  terminal directly below it.
 
 Forbidden in any theme: `DarkGray` (bright black) for text, because many profiles map it close to
 the background; `White` or `Black` as text on an unpainted surface; `Yellow` or `Blue` as text on

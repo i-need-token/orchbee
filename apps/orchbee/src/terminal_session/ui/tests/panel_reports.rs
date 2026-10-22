@@ -144,30 +144,29 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 }
                 let hits = hits.finish();
                 let area = area.unwrap();
-                let framed = u16::from(areas.tier.shows_panel_frame());
-                assert_eq!(area.x, areas.panel.x + framed);
-                assert_eq!(area.y, areas.panel.y + 2 * framed);
-                assert_eq!(area.width + 1 + 2 * framed, areas.panel.width);
-                assert_eq!(area.height + 3 * framed, areas.panel.height);
-                assert_eq!(area.bottom(), height - 1 - framed);
+                // A single pane is bare in every tier: only its scrollbar column is chrome.
+                assert_eq!(area.x, areas.panel.x);
+                assert_eq!(area.y, areas.panel.y);
+                assert_eq!(area.width + 1, areas.panel.width);
+                assert_eq!(area.height, areas.panel.height);
+                assert_eq!(area.bottom(), height - 1);
                 if areas.tier.shows_panel_frame() {
-                    for y in [areas.tabs.y, area.y - 1] {
-                        let row: String = (areas.tabs.x..areas.tabs.right())
-                            .map(|x| buffer[(x, y)].symbol())
-                            .collect();
-                        assert!(row.contains("orchbee"), "tab and panel title: {row}");
-                    }
+                    let row: String = (areas.tabs.x..areas.tabs.right())
+                        .map(|x| buffer[(x, areas.tabs.y)].symbol())
+                        .collect();
+                    assert!(row.contains("orchbee"), "tab label: {row}");
                     assert!(
                         !text.contains(&format!("{} 1", locale.shell().panel_title)),
                         "{text}"
                     );
                     assert!(!text.contains("[Menu]"), "{text}");
+                    // The current Tab's first label cell, after its padding.
                     let tab_x = (areas.tabs.x..areas.tabs.right())
                         .find(|x| {
                             matches!(
                                 hits.hit_target_at(*x, areas.tabs.y),
                                 Some(crate::tui_pointer::HitTarget::Tab(_))
-                            )
+                            ) && buffer[(*x, areas.tabs.y)].symbol() != " "
                         })
                         .unwrap();
                     let current_tab = &buffer[(tab_x, areas.tabs.y)];
@@ -225,7 +224,7 @@ fn paint(
         .collect()
 }
 #[test]
-fn split_panel_headers_paint_reports_and_reject_stale_workbench_scope() {
+fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
     let mut source = super::super::tests::publication_hint::split_snapshot(1);
     let orchbee_workbench_protocol::PanelNode::Split { orientation, .. } =
         &mut source.terminal_contexts[0].tabs[0].root
@@ -261,11 +260,20 @@ fn split_panel_headers_paint_reports_and_reject_stale_workbench_scope() {
                 (19, 4, false),
             ] {
                 let text = paint(&ui, width, height, locale, &theme);
-                for label in ["Approval title", "Review needed", "Agent"] {
-                    assert_eq!(text.contains(label), framed, "{width}x{height}: {text}");
-                }
+                // The state glyph leads the title; state words stay in the sidebar.
+                assert_eq!(
+                    text.contains("Approval title"),
+                    framed,
+                    "{width}x{height}: {text}"
+                );
+                assert!(!text.contains("Review needed"), "{width}x{height}: {text}");
                 if width == 120 {
-                    assert!(text.contains("branch=test"));
+                    let glyph =
+                        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked);
+                    assert!(
+                        text.contains(&format!("{glyph} Approval title · branch=test")),
+                        "{text}"
+                    );
                 }
             }
         }
@@ -284,12 +292,11 @@ fn split_panel_headers_paint_reports_and_reject_stale_workbench_scope() {
         &crate::tui_theme::Theme::terminal_native(),
     );
     assert!(!text.contains("Approval title"));
-    assert!(!text.contains("Review needed"));
-    assert!(text.contains("loading status"));
+    assert!(!text.contains("branch=test"));
 }
 
 #[test]
-fn single_panel_reports_use_the_same_header_and_size_degradation_as_split_panels() {
+fn a_bare_single_panel_leaves_reports_to_split_and_zoomed_titles() {
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = PanelReport {
@@ -324,13 +331,7 @@ fn single_panel_reports_use_the_same_header_and_size_degradation_as_split_panels
                     "Review needed",
                     "branch=test",
                 ] {
-                    if !(60..80).contains(&width) || label == "Approval title" {
-                        assert_eq!(
-                            text.contains(label),
-                            width >= 60,
-                            "{width}x{height}: {text}"
-                        );
-                    }
+                    assert!(!text.contains(label), "{width}x{height}: {text}");
                 }
             }
         }
@@ -431,9 +432,7 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
             &crate::tui_theme::Theme::terminal_native(),
         );
         assert!(
-            text.contains("Child report")
-                && text.contains("Approval")
-                && text.contains("branch=child"),
+            text.contains("! Child report · branch=child [2/2]"),
             "{text}"
         );
         assert!(!text.contains("Primary report"));

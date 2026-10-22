@@ -1,12 +1,14 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::Paragraph,
 };
 #[cfg(windows)]
 pub(super) mod groups;
+#[cfg(any(not(windows), test))]
+use {crate::terminal_text::display_width, ratatui::style::Style};
 
 #[cfg(windows)]
 pub(crate) fn render_tab_drag_preview(
@@ -55,7 +57,7 @@ pub(crate) fn render_tab_drag_preview(
 }
 
 use crate::{
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{sanitize_terminal_text, truncate_display},
     tui_pointer::ProjectedPointer,
     tui_theme::{Role, Theme},
 };
@@ -280,6 +282,7 @@ pub(super) const fn pointer_presentation(pointer: ProjectedPointer) -> PointerPr
     }
 }
 
+#[cfg(any(not(windows), test))]
 /// Applies only the transient pointer surface to an already painted compact
 /// token. Its current, checked, group-color, and content styles remain the
 /// token owner's independent axes.
@@ -480,6 +483,7 @@ fn navigator_projection<'a>(
     NavigatorProjection { rows, position }
 }
 
+#[cfg(any(not(windows), test))]
 fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
     let safe_label = sanitize_terminal_text(&tab.label);
     let prefix = if tab.active {
@@ -509,6 +513,7 @@ fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Optio
     (clipped_width > 0).then_some((clipped, clipped_width))
 }
 
+#[cfg(any(not(windows), test))]
 fn compact_token_width(tab: &TabDisplay<'_>) -> usize {
     let safe_label = sanitize_terminal_text(&tab.label);
     display_width(safe_label.as_ref()).saturating_add(2).min(40)
@@ -533,6 +538,7 @@ fn navigator_row(tab: &TabDisplay<'_>, layout: NavigatorRowLayout, theme: &Theme
     ])
 }
 
+#[cfg(any(not(windows), test))]
 fn compact_style(active: bool, theme: &Theme) -> Style {
     if active {
         theme

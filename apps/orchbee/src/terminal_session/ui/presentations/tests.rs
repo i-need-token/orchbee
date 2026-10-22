@@ -214,8 +214,9 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         .iter()
         .map(|cell| cell.symbol())
         .collect();
+    // A bare pane has no title; the strip keeps the pending child's position.
     assert!(
-        text.contains("Connecting") && text.contains("[2/2]") && text.contains("child shell"),
+        text.contains("Connecting") && text.contains("[2/2]"),
         "{text}"
     );
 }
@@ -450,7 +451,8 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         let (x,y) = (0..40).flat_map(|y| (0..120).map(move |x| (x,y))).find(|&(x,y)| {
             matches!(hits.hit_target_at(x,y), Some(HitTarget::Presentation(target)) if target.presentation() == &destination)
         }).unwrap();
-        assert_eq!(y, 2);
+        // A bare pane's selector ends the Tab strip; framed panes end their border title line.
+        assert_eq!(y, u16::from(layout != 0));
         // The whole three-cell [>] glyph is clickable; surrounding cells cannot select.
         assert_eq!(buffer[(x, y)].symbol(), "[");
         assert_eq!(
@@ -581,7 +583,7 @@ fn selector_degrades_in_minimal_view_and_exact_targets_reject_selected_or_foreig
 }
 
 #[test]
-fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content() {
+fn narrow_split_titles_drop_controls_without_covering_terminal_content() {
     use crate::tui_pointer::HitTarget;
     use orchbee_workbench_protocol::{
         PanelOrientation, PanelSlot, WorkbenchPanelSlotId, WorkbenchSplitId,
@@ -629,7 +631,7 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
     let (_, hits, painted_panes) = painted_selector(&ui, 60, 12, None);
     assert_eq!(painted_panes, 3);
     let mut buttons = 0;
-    let mut small_header = false;
+    let mut small_content = false;
     for y in 0..12 {
         for x in 0..60 {
             match hits.hit_target_at(x, y) {
@@ -639,17 +641,15 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
                     assert_ne!(pane.pane().panel(), &small_panel);
                     buttons += 1;
                 }
-                Some(HitTarget::Pane { pane, content })
-                    if pane.pane().panel() == &small_panel && y < content.y =>
-                {
-                    small_header = true
+                Some(HitTarget::Pane { pane, .. }) if pane.pane().panel() == &small_panel => {
+                    small_content = true
                 }
                 _ => {}
             }
         }
     }
     assert_eq!(buttons, 6, "only the wider sibling retains controls");
-    assert!(small_header, "narrow pane header retains its focus region");
+    assert!(small_content, "the narrow pane keeps its terminal region");
 }
 
 #[cfg(windows)]

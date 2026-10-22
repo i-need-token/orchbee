@@ -352,8 +352,8 @@ impl<S> Sidebar<S> {
     }
 }
 
-/// Working-glyph phase for the Sidebar. Rendering only reads the phase; the event loop advances
-/// it, so every frame remains a pure function of Client state.
+/// Working-glyph phase shared by the Sidebar and the Tab strip. Rendering only reads the phase;
+/// the event loop advances it, so every frame remains a pure function of Client state.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct Motion {
     frame: usize,
@@ -364,33 +364,32 @@ pub(super) struct Motion {
 const WORKING_FRAME: std::time::Duration = std::time::Duration::from_millis(100);
 
 impl Picker {
-    pub(crate) const fn sidebar_working_frame(&self) -> usize {
-        self.sidebar_motion.frame
+    pub(crate) const fn working_frame(&self) -> usize {
+        self.working_motion.frame
     }
 
-    /// Advances the Working glyph only while the visible Sidebar can show a Working Agent, and
-    /// reports whether the frame changed.
-    pub(crate) fn advance_sidebar_motion(&mut self, now: std::time::Instant) -> bool {
-        let working = self.spaces.visible()
-            && self.agent_observations.iter().any(|(_, observation)| {
-                matches!(observation, crate::machine_agents::Observation::Ready(checkpoint)
-                if checkpoint.rows.iter().any(|row| {
-                    row.display_state() == orchbee_workbench_protocol::MetadataState::Working
-                }))
-            });
+    /// Advances the Working glyph only while an observed Agent is Working, and reports whether
+    /// the frame changed. Only the Sidebar and the Tab strip demand these observations.
+    pub(crate) fn advance_working_motion(&mut self, now: std::time::Instant) -> bool {
+        let working = self.agent_observations.iter().any(|(_, observation)| {
+            matches!(observation, crate::machine_agents::Observation::Ready(checkpoint)
+            if checkpoint.rows.iter().any(|row| {
+                row.display_state() == orchbee_workbench_protocol::MetadataState::Working
+            }))
+        });
         if !working {
-            self.sidebar_motion.advanced = None;
+            self.working_motion.advanced = None;
             return false;
         }
         if self
-            .sidebar_motion
+            .working_motion
             .advanced
             .is_some_and(|at| now.saturating_duration_since(at) < WORKING_FRAME)
         {
             return false;
         }
-        self.sidebar_motion.frame = self.sidebar_motion.frame.wrapping_add(1);
-        self.sidebar_motion.advanced = Some(now);
+        self.working_motion.frame = self.working_motion.frame.wrapping_add(1);
+        self.working_motion.advanced = Some(now);
         true
     }
 }

@@ -126,8 +126,7 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
                 let areas = crate::tui_layout::project_shell_areas(area, view.sidebar_surface());
                 let content = crate::tui_layout::native_terminal_area(
                     areas.panel,
-                    areas.tier.shows_panel_frame(),
-                    false,
+                    crate::tui_layout::PaneFrame::Bare,
                 );
                 fill_frame(&mut ui, &key, content);
                 let (buffer, map) = paint(&ui, &view, width, height, locale, &theme);
@@ -214,7 +213,8 @@ fn scrollbar_thumb_focus_follows_the_shell_input_owner() {
     let mut view = ClientView::new(80);
     let areas =
         crate::tui_layout::project_shell_areas(Rect::new(0, 0, 80, 24), view.sidebar_surface());
-    let content = crate::tui_layout::native_terminal_area(areas.panel, true, false);
+    let content =
+        crate::tui_layout::native_terminal_area(areas.panel, crate::tui_layout::PaneFrame::Bare);
     fill_frame(&mut ui, &key, content);
     view.machines.available = true;
     assert!(view.machines.enter_sidebar_navigation());
@@ -251,7 +251,14 @@ fn scrollbar_split_and_zoom_keep_each_thumb_on_its_exact_pane_and_outside_divide
                 let native = ui.view();
                 let tab = native.tab(0).unwrap();
                 let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
-                let root = crate::tui_layout::native_terminal_area(areas.panel, true, !zoom);
+                let root = crate::tui_layout::native_terminal_area(
+                    areas.panel,
+                    if zoom {
+                        crate::tui_layout::PaneFrame::Zoomed
+                    } else {
+                        crate::tui_layout::PaneFrame::Split
+                    },
+                );
                 let panes: Vec<_> = if zoom {
                     vec![(focus.clone(), root)]
                 } else {

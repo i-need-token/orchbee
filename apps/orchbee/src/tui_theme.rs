@@ -11,7 +11,9 @@ use ratatui::{
 };
 mod host_colors;
 mod shipped;
+mod tab_groups;
 pub(crate) use host_colors::resolve_color_level;
+pub(crate) use tab_groups::TabGroupPalette;
 
 /// One semantic color role. Rendering code references roles only;
 /// `Color::Rgb`, `Color::Indexed`, and named ANSI variants appear only here
@@ -40,6 +42,7 @@ pub(crate) enum Role {
     FrameDivider,
     SurfaceCanvas,
     SurfaceChrome,
+    SurfaceStrip,
     SurfaceOverlay,
     SurfaceHover,
     SurfacePressed,
@@ -54,7 +57,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 29] = [
+    pub(crate) const ALL: [Self; 30] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -76,6 +79,7 @@ impl Role {
         Self::FrameDivider,
         Self::SurfaceCanvas,
         Self::SurfaceChrome,
+        Self::SurfaceStrip,
         Self::SurfaceOverlay,
         Self::SurfaceHover,
         Self::SurfacePressed,
@@ -130,6 +134,8 @@ pub(crate) struct GlyphSet {
     pub active_marker: &'static str,
     /// Reversible keyboard-navigation anchor within a collection.
     pub navigation_marker: &'static str,
+    /// One-cell rule between strip regions, such as pinned and ordinary Tabs.
+    pub vertical_rule: &'static str,
     /// One-cell scrollbar chrome, including host-safe ASCII alternatives.
     pub scrollbar_track: &'static str,
     pub scrollbar_thumb: &'static str,
@@ -155,6 +161,7 @@ impl GlyphSet {
         git_behind: "↓",
         active_marker: "*",
         navigation_marker: "›",
+        vertical_rule: "│",
         scrollbar_track: "│",
         scrollbar_thumb: "┃",
         disclosure_open: "▾",
@@ -175,6 +182,7 @@ impl GlyphSet {
         git_behind: "-",
         active_marker: "*",
         navigation_marker: ">",
+        vertical_rule: "|",
         scrollbar_track: "|",
         scrollbar_thumb: "#",
         disclosure_open: "-",
@@ -222,6 +230,7 @@ pub(crate) struct RoleStyles {
     pub frame_divider: Style,
     pub surface_canvas: Style,
     pub surface_chrome: Style,
+    pub surface_strip: Style,
     pub surface_overlay: Style,
     pub surface_hover: Style,
     pub surface_pressed: Style,
@@ -257,6 +266,7 @@ impl RoleStyles {
             Role::FrameDivider => self.frame_divider,
             Role::SurfaceCanvas => self.surface_canvas,
             Role::SurfaceChrome => self.surface_chrome,
+            Role::SurfaceStrip => self.surface_strip,
             Role::SurfaceOverlay => self.surface_overlay,
             Role::SurfaceHover => self.surface_hover,
             Role::SurfacePressed => self.surface_pressed,
@@ -291,6 +301,7 @@ impl RoleStyles {
             frame_divider: apply(self.frame_divider),
             surface_canvas: apply(self.surface_canvas),
             surface_chrome: apply(self.surface_chrome),
+            surface_strip: apply(self.surface_strip),
             surface_overlay: apply(self.surface_overlay),
             surface_hover: apply(self.surface_hover),
             surface_pressed: apply(self.surface_pressed),
@@ -325,6 +336,7 @@ pub(crate) struct Theme {
     terminal_color_source: TerminalColorSource,
     terminal_defaults_known: bool,
     styles: RoleStyles,
+    pub(crate) tab_groups: TabGroupPalette,
 }
 
 impl Theme {
@@ -378,50 +390,20 @@ impl Theme {
         }
     }
 
-    /// User-selected group colors are paired chips, preserving contrast on an unknown host palette.
-    /// Monochrome and reduced-color hosts retain the disclosure/count and active marker.
-    #[cfg(windows)]
-    pub(crate) fn tab_group_style(
-        &self,
-        color: orchbee_workbench_protocol::TabGroupColor,
-    ) -> Style {
-        use orchbee_workbench_protocol::TabGroupColor::*;
-        let (foreground, background) = match color {
-            Blue => (Color::White, Color::Blue),
-            Cyan => (Color::Black, Color::Cyan),
-            Green => (Color::Black, Color::Green),
-            Grey => (Color::Black, Color::Gray),
-            Orange => (Color::Black, Color::Rgb(255, 165, 0)),
-            Pink => (Color::Black, Color::LightMagenta),
-            Purple => (Color::White, Color::Magenta),
-            Red => (Color::White, Color::Red),
-            Yellow => (Color::Black, Color::Yellow),
-        };
-        Style::new()
-            .fg(quantize_color(foreground, self.color_level))
-            .bg(quantize_color(background, self.color_level))
-    }
-
-    /// A neutral current or pointer surface replaces the entire group chip's contrast pair.
+    /// Group header content rests on a faint fill of the group's accent over the Tab strip. A
+    /// current, selected or pointer surface replaces only that fill.
     #[cfg(windows)]
     pub(crate) fn tab_group_header_style(
         &self,
         color: orchbee_workbench_protocol::TabGroupColor,
         surface: Option<Role>,
+        content: Style,
     ) -> Style {
-        surface
-            .map_or_else(
-                || self.tab_group_style(color),
-                |surface| {
-                    self.content_on_surface(
-                        Role::SurfaceChrome,
-                        Some(surface),
-                        Some(Role::TextPrimary),
-                        self.style(Role::TextPrimary),
-                    )
-                },
-            )
-            .add_modifier(Modifier::BOLD)
+        let style = self.content_on_surface(Role::SurfaceStrip, surface, None, content);
+        match (surface, self.tab_groups.tint(color)) {
+            (None, Some(tint)) => style.bg(tint),
+            _ => style,
+        }
     }
 
     /// The default theme for an unknown host appearance or color level.
@@ -467,6 +449,7 @@ impl Theme {
                 frame_divider: Style::new().fg(Color::DarkGray),
                 surface_canvas: Style::new().bg(Color::Reset),
                 surface_chrome: Style::new().bg(Color::Reset),
+                surface_strip: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
                 surface_hover: interaction_surface_fallback(),
                 surface_pressed: interaction_surface_fallback(),
@@ -476,6 +459,7 @@ impl Theme {
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
                 hint_label: dim,
             },
+            tab_groups: TabGroupPalette::TERMINAL,
         }
     }
 
@@ -523,6 +507,7 @@ impl Theme {
                 frame_divider: Style::new().fg(Color::Rgb(52, 61, 78)),
                 surface_canvas: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_chrome: Style::new().bg(Color::Rgb(11, 14, 20)),
+                surface_strip: Style::new().bg(Color::Rgb(24, 29, 38)),
                 surface_overlay: Style::new().bg(Color::Rgb(18, 23, 32)),
                 surface_hover: Style::new().bg(Color::Rgb(38, 38, 38)),
                 surface_pressed: Style::new().bg(Color::Rgb(64, 64, 64)),
@@ -534,6 +519,7 @@ impl Theme {
                     .add_modifier(Modifier::BOLD),
                 hint_label: Style::new().fg(Color::Rgb(133, 146, 171)),
             },
+            tab_groups: TabGroupPalette::TERMINAL,
         }
     }
 
@@ -596,6 +582,7 @@ impl Theme {
             base,
             Role::SurfaceCanvas
                 | Role::SurfaceChrome
+                | Role::SurfaceStrip
                 | Role::SurfaceOverlay
                 | Role::SurfaceInactive
         ));
@@ -781,6 +768,7 @@ impl Theme {
         match role {
             Role::SurfaceCanvas
             | Role::SurfaceChrome
+            | Role::SurfaceStrip
             | Role::SurfaceOverlay
             | Role::SurfaceHover
             | Role::SurfacePressed
@@ -889,6 +877,7 @@ impl Theme {
         if colors.background.is_none() {
             let native = Self::terminal_native().quantize(self.color_level);
             self.styles = native.styles;
+            self.tab_groups = native.tab_groups;
             self.polarity = native.polarity;
             #[cfg(test)]
             {
@@ -974,6 +963,7 @@ impl Theme {
                 (&mut styles.status_unread, self.styles.status_unread),
                 (&mut styles.surface_canvas, self.styles.surface_canvas),
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
+                (&mut styles.surface_strip, self.styles.surface_strip),
                 (&mut styles.surface_overlay, self.styles.surface_overlay),
                 (&mut styles.surface_hover, self.styles.surface_hover),
                 (&mut styles.surface_pressed, self.styles.surface_pressed),
@@ -1043,6 +1033,7 @@ impl Theme {
         }
         Self {
             styles,
+            tab_groups: self.tab_groups.quantize(level),
             color_level: level,
             terminal_colors: self.terminal_colors.map(|(foreground, background)| {
                 (

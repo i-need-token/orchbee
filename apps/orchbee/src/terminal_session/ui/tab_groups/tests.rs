@@ -519,10 +519,21 @@ fn tab_groups_composed_screen_keeps_headers_members_and_localized_menu_hits() {
                             header.is_some(),
                             "whole screen must expose the group header"
                         );
-                        let labels = rendered_text(terminal.backend().buffer());
-                        assert!(labels.contains("源组"));
-                        assert!(labels.contains("(2)"));
-                        assert!(labels.contains(locale.shell().pinned_tab));
+                        let buffer = terminal.backend().buffer();
+                        assert!(rendered_text(buffer).contains("源组"));
+                        // Pinned Tabs end at a vertical rule instead of a text annotation.
+                        let (header_x, header_y) = header.unwrap();
+                        let first_tab = (0..header_x)
+                            .find(|x| {
+                                matches!(hits.hit_target_at(*x, header_y), Some(HitTarget::Tab(_)))
+                            })
+                            .unwrap();
+                        assert!(
+                            (first_tab..header_x).any(|x| {
+                                buffer[(x, header_y)].symbol() == theme.glyphs.vertical_rule
+                            }),
+                            "a vertical rule separates pinned Tabs"
+                        );
                     }
                     if collapsed {
                         let member_hit = (0..height).any(|y| {
@@ -735,14 +746,27 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                 .unwrap();
             let text = rendered_text(terminal.backend().buffer());
             if width >= 80 && height >= 20 {
-                assert!(
-                    text.contains("(2/2)"),
-                    "collapsed header exposes complete selected membership: {text}"
-                );
-                assert!(
-                    text.contains('*'),
-                    "Tab selection has a monochrome text marker"
-                );
+                // Checked Tabs, and a collapsed group holding them, share the selection surface.
+                let buffer = terminal.backend().buffer();
+                let selection = theme.color(crate::tui_theme::Role::SurfaceSelection);
+                let strip: Vec<&str> = (0..width).map(|x| buffer[(x, 0)].symbol()).collect();
+                let labels: &[&str] = if width <= 80 {
+                    &["Tab 0", "源"]
+                } else {
+                    &["Tab 0", "Tab 1", "Tab 2"]
+                };
+                for label in labels {
+                    let cells: Vec<String> = label.chars().map(String::from).collect();
+                    let x = strip
+                        .windows(cells.len())
+                        .position(|window| window.iter().zip(&cells).all(|(a, b)| *a == b))
+                        .unwrap_or_else(|| panic!("{label}: {text}"));
+                    assert_eq!(
+                        buffer[(u16::try_from(x).unwrap(), 0)].bg,
+                        selection,
+                        "{label} uses the selection surface: {text}"
+                    );
+                }
                 assert!(text.contains(&locale.menu_tab_action(
                     &MenuAction::PinTab,
                     TabMenuScope::Selected(NonZeroUsize::new(3).unwrap()),

@@ -37,9 +37,13 @@ rename draft anchored at its painted Tab, expanding along the strip to at least 
 when fewer than eight cells fit it uses the complete
 modal. Enter submits and Esc cancels; the same exact shown token and input fences apply in both forms.
 
-Windows compact Tabs retain an active marker plus bold underline at every color level. Each wide
-enough token reserves a stable three-cell `[x]` control with hover/press feedback; narrow tokens keep
-their whole label selectable. Close validates the painted context/revision and exact Tab ID, then
+Windows compact Tabs show the active Tab as a bold label on the current surface, without a marker,
+and end labels longer than 24 cells in an ellipsis. A Tab with a reported Agent leads with its state
+glyph and follows with an unread dot. Each wide enough token reserves a stable three-cell close track
+that shows `[x]` on the active Tab and while the pointer is on the token, so revealing it never
+moves the strip; a hovered `[x]` uses the destructive accent. A hidden track still selects its Tab,
+and narrow tokens keep their whole label selectable. Pinned Tabs are separated from the rest by one
+vertical rule instead of a text annotation. Close validates the painted context/revision and exact Tab ID, then
 opens the existing confirmation for that single Tab. Two releases on the same unchanged Tab within
 500 ms and one horizontal cell request rename only if that Tab is now selected. Dragging, focus loss,
 other targets, changed Site/context identity, and capture release break the pair. A newer revision

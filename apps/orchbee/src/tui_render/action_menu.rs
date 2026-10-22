@@ -19,7 +19,7 @@ use crate::{
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Modifier,
+    style::{Modifier, Style},
     text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
@@ -913,10 +913,10 @@ fn render_row(
     .expect("action-menu row geometry was resolved before painting");
     debug_assert_eq!(painted, row);
     if let (MenuAction::GroupColor(color), Some(rect)) = (action, swatch) {
-        // A palette chip owns its contrast pair, independently of the row's candidate fill.
+        // The swatch shows the accent its group header uses, independently of the row's fill.
         let style = if enabled {
-            theme
-                .tab_group_style(*color)
+            Style::new()
+                .bg(theme.tab_groups.accent(*color))
                 .remove_modifier(Modifier::all())
         } else {
             theme.style(Role::TextDisabled)

@@ -190,7 +190,7 @@ pub(in crate::tui_render) fn projection(
                 text = super::super::sidebar_text::state_glyph(
                     context.agent.sidebar_state(),
                     theme,
-                    view.machines.sidebar_working_frame(),
+                    view.machines.working_frame(),
                 )
                 .into();
             }

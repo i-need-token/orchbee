@@ -31,7 +31,6 @@ pub(crate) const MINIMUM_OVERLAY_INNER_COLUMNS: u16 = 4;
 pub(crate) const MINIMUM_OVERLAY_INNER_ROWS: u16 = 3;
 pub(crate) const MINIMUM_PANE_COLUMNS: u16 = 4;
 pub(crate) const MINIMUM_PANE_ROWS: u16 = 3;
-pub(crate) const PANE_TITLE_ROWS: u16 = 1;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ViewportTier {
@@ -346,15 +345,6 @@ fn split_extent(share: u16, minimum: u16, ratio: ClientSplitRatio) -> Option<u16
     Some(((f64::from(share) * ratio.value()).round() as u16).clamp(minimum, share - minimum))
 }
 
-pub(crate) const fn pane_content(leaf: Rect) -> Rect {
-    scrollbar_content(Rect::new(
-        leaf.x,
-        leaf.y.saturating_add(PANE_TITLE_ROWS),
-        leaf.width,
-        leaf.height.saturating_sub(PANE_TITLE_ROWS),
-    ))
-}
-
 /// Reserve a stable chrome column without reducing a one-column terminal to zero.
 const fn scrollbar_content(area: Rect) -> Rect {
     Rect::new(
@@ -408,21 +398,43 @@ pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
     }
 }
 
-/// Framed single, split and zoomed panes share their outer frame and leaf title.
-/// A split returns the tree root; a single leaf returns its terminal cells.
-/// Paint, PTY geometry and layout queries all consume this projection.
-pub(crate) const fn native_terminal_area(panel: Rect, framed: bool, split: bool) -> Rect {
-    if !framed {
-        scrollbar_content(panel)
-    } else if split {
-        terminal_area(panel, true)
-    } else {
-        pane_content(terminal_area(panel, true))
+/// How a Tab's visible panes occupy the panel area. Titles sit on frame and divider lines, so a
+/// pane never gives up a terminal row for its title.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PaneFrame {
+    /// One pane fills the panel without a frame or title.
+    Bare,
+    /// The zoomed pane fills the outer frame and titles itself on the frame's top line.
+    Zoomed,
+    /// The split tree fills the outer frame; each leaf titles itself on the line above it.
+    Split,
+}
+
+impl PaneFrame {
+    /// Frames appear only where the tier draws them and more than one pane needs telling apart.
+    pub(crate) const fn of(framed: bool, panel_count: usize, zoomed: bool) -> Self {
+        if !framed || panel_count < 2 {
+            Self::Bare
+        } else if zoomed {
+            Self::Zoomed
+        } else {
+            Self::Split
+        }
     }
 }
 
-/// One visible leaf's geometry: the outer rect (including its one-row title)
-/// and the terminal content rect the session may resize to.
+/// A split returns the tree root; a bare or zoomed pane returns its terminal cells.
+/// Paint, PTY geometry and layout queries all consume this projection.
+pub(crate) const fn native_terminal_area(panel: Rect, frame: PaneFrame) -> Rect {
+    match frame {
+        PaneFrame::Bare => scrollbar_content(panel),
+        PaneFrame::Zoomed => scrollbar_content(terminal_area(panel, true)),
+        PaneFrame::Split => terminal_area(panel, true),
+    }
+}
+
+/// One visible leaf's geometry: the outer rect, whose title sits on the line above it, and the
+/// terminal content rect the session may resize to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct LeafArea {
     pub(crate) panel_index: usize,
@@ -488,7 +500,7 @@ fn collect_panel_tree<'a>(
         NativePanelTree::Panel { panel_index } => projection.leaves.push(LeafArea {
             panel_index: *panel_index,
             leaf: area,
-            content: pane_content(area),
+            content: scrollbar_content(area),
         }),
         NativePanelTree::Split {
             first,
@@ -525,7 +537,7 @@ fn collect_panel_tree<'a>(
                         projection.leaves.push(LeafArea {
                             panel_index: *panel_index,
                             leaf: area,
-                            content: pane_content(area),
+                            content: scrollbar_content(area),
                         });
                     }
                 }

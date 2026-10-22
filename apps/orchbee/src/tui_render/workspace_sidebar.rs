@@ -1064,7 +1064,7 @@ pub(super) fn render(
         return;
     }
     let theme = &theme.paired_pointer_surfaces();
-    let working_frame = view.machines.sidebar_working_frame();
+    let working_frame = view.machines.working_frame();
     let extra_creation = creation.filter(|preview| {
         !rows
             .iter()

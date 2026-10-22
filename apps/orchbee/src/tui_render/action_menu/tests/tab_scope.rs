@@ -4,6 +4,7 @@ use crate::terminal_input::{MouseAction, MouseButton, MouseEvent, UnavailableTer
 use crate::tui_pointer::{PointerOutcome, PointerState};
 use crate::tui_theme::ColorLevel;
 use orchbee_workbench_protocol::{TabGroupColor, WorkbenchTabId};
+use ratatui::style::Modifier;
 use std::num::NonZeroUsize;
 
 fn paint(
@@ -141,10 +142,7 @@ fn applied_color_check_and_paired_palette_chip_survive_a_different_provisional_c
                             + u16::try_from(display_width(theme.glyphs.active_marker)).unwrap()
                             + 1;
                         for x in swatch..swatch + 2 {
-                            assert_eq!(
-                                buffer[(x, rect.y)].bg,
-                                theme.tab_group_style(*color).bg.unwrap()
-                            );
+                            assert_eq!(buffer[(x, rect.y)].bg, theme.tab_groups.accent(*color));
                             assert!(
                                 !buffer[(x, rect.y)]
                                     .modifier

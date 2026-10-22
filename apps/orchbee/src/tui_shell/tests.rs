@@ -336,7 +336,7 @@ fn too_small_native_popup_surface_is_empty_until_the_shell_can_paint_it() {
     for tiny in [dimensions(100, 4), dimensions(19, 24)] {
         let view = ClientView::new(tiny.columns);
         assert_eq!(
-            super::popup_surface_area(tiny, &view, false),
+            super::popup_surface_area(tiny, &view, 1, false),
             ratatui::layout::Rect::default(),
             "{tiny:?} must suspend a popup that the shell cannot paint"
         );
@@ -344,7 +344,7 @@ fn too_small_native_popup_surface_is_empty_until_the_shell_can_paint_it() {
 
     let restored = dimensions(100, 24);
     let view = ClientView::new(restored.columns);
-    let area = super::popup_surface_area(restored, &view, false);
+    let area = super::popup_surface_area(restored, &view, 1, false);
     assert!(area.width > 0 && area.height > 0);
 }
 

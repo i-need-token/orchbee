@@ -1,7 +1,8 @@
 # Native Tab groups and capability coverage
 
 The Windows native TUI projects canonical group identities, names, colors, membership and pinned
-state. The compact strip renders a separate group header, disclosure marker and member count.
+state. The compact strip renders a separate group header whose reserved disclosure cell shows its
+arrow on hover or while collapsed.
 The Tab menu follows the GUI creation/grouping, duplication/pinning and close sections;
 selection and movement live in a submenu. Group headers and the new-Tab button own separate menus.
 Keyboard menu navigation and painted pointer targets invoke the same owners. Configuration of a
@@ -70,8 +71,8 @@ Tab navigation clears additional marks. A menu target inside the selected set co
 set; an unselected background target configures itself. Typed single/selected-set row copy exposes
 the affected count for pinning, group creation, removal and duplication. Rename, create to right and
 individual movement still address one Tab. Menu proof captures the selected canonical members, so a changed
-selection or a changed member invalidates the choice. Multi-selection renders `*` markers and
-selected/total counts on group headers, including collapsed headers. Marking deliberately preserves
+selection or a changed member invalidates the choice. Marked Tabs, and collapsed headers with marked
+members, rest on the selection surface without changing their width. Marking deliberately preserves
 the active terminal, unlike GUI selection that can also activate the marked Tab.
 
 Chinese menu, path and drag copy calls each Tab **标签页** and a group **分组**; English retains **Tab**.
@@ -80,11 +81,11 @@ The localized wording distinguishes selected members from a whole group without 
 Collapsed state remains Client-local, matching the authority in
 `packages/workbench/src/workbench/document/workbench-client-view.ts`. Header disclosure does not
 select a member, submit a command, advance a shared revision or hide members from the navigator.
-Group colors are user-selected paired foreground/background chips at rest; current and pointer
-surfaces replace the complete pair through the [theme owner](native-themes.md#selection-and-ownership).
-Monochrome preserves names,
-counts, disclosure and active markers. Names pass through the existing terminal-text sanitizer and
-cell-width clipping. Pointer regions come from the same paint as the header and member tokens.
+A group name uses its color as a bold accent over a faint tint; current and pointer surfaces replace
+only the tint through the [theme owner](native-themes.md#selection-and-ownership). Monochrome
+preserves names, disclosure and the current surface's fallback. Names pass through the existing
+terminal-text sanitizer and cell-width clipping. Pointer regions come from the same paint as the
+header and member tokens.
 
 ## Pointer arrangement and menu navigation
 
@@ -119,8 +120,9 @@ Escape, outside release, modified pointer input, focus loss, capture release, co
 source or changed painted rectangles cancels without a write. Cancelled gestures consume their
 remaining release. Ordinary clicks activate or disclose on release. As with native marking,
 dragging preserves the current terminal; the GUI may activate a dragged member on press.
-Expanded headers open a visible bracket and the final member closes it; collapsed headers retain
-name, color, disclosure, selected/member counts and the current-member marker.
+Headers carry no member count or brackets: the tint and adjacency mark membership. A collapsed header
+retains name, color and disclosure, takes the current surface while it hides the active Tab, and
+carries its members' most urgent Agent state and unread dot.
 
 The pure configuration corpus compares ten drag outcomes with GUI `TabModel.moveTabsByDrag`.
 The Rust selection/boundary matrix checks pinned prefix, contiguous groups and preserved terminal

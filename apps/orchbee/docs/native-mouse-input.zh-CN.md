@@ -255,7 +255,7 @@ Copy、Resize 与原生表单发布包含 availability 和精确几何的显式�
 | 捕获型 overlay 之外         | —                | backdrop                                                  | 普通按钮按下关闭，滚轮无效。底层任何区域，包括未遮盖的 tab 构件或 pane，都看不到该事件。 |
 | 紧凑 tab-strip 标记         | `Foreground`     | 带显式交互元数据的 `Tab(tab_id)`                          | Windows 按下为点击／拖拽建立手势，释放时激活或一次提交；其它平台在匹配释放时选择         |
 | Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源                            | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择      |
-| 视口之外的 pane 叶标题行    | `Foreground`     | `Pane{tab,panel}`                                         | Press 只聚焦；pane 内程序看不到任何内容                                                  |
+| 未绑定的 pane 叶            | `Foreground`     | `Pane{tab,panel}`                                         | Press 只聚焦；没有程序收到该事件                                                         |
 | Windows 可见 pane 分隔线    | `Foreground`     | `Divider(source)`                                         | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                  |
 | 其余一切（状态、空隙）      | —                | dead space                                                | 忽略                                                                                     |
 
@@ -342,7 +342,7 @@ pane 绝不接收选择字节；其普通主键手势遵循
 的 cell 回退一致；它不虚构 pixel 位置，也不在宿主捕获中启用 `?1016`。
 
 字节投递复用既有 `forward` 路径，包括其 `Controlling` 检查、只读拒绝与确认语义。
-有 attachment 的 pane 可以获得本地读取焦点而不拥有输入权限；title 行 press 只聚焦而不发送
+有 attachment 的 pane 可以获得本地读取焦点而不拥有输入权限；未绑定叶的 press 只聚焦而不发送
 pane 输入。mode 仍未知的 content press 在原始 pending 期限内等待。上报 pane 一旦明确为
 `ReadOnly`，其属于程序的 press 会被丢弃并报告输入说明，不隐式 acquire。读取焦点绝不
 代替应用输入权限，历史也绝不把已捕获的程序手势变成 Client 选择。
@@ -490,7 +490,7 @@ control/attach 字节实测覆盖。
 
 ## Presentation 选择器
 
-会话就绪或已选择但未附着时，包含多个 Presentation 的 Panel 在单面板／放大的既有顶栏或分屏叶标题栏展示 `[<] [position/count] [>]`。控件准入前为 Tab 或叶标题／状态保留十二个单元。窄顶栏省略选择器，分屏标题保留标签／数量回退，有效键盘路径在所有可呈现层级仍可用。每个箭头有三个单元的命中区域。数量和空格不响应。顶栏选择器与 Tab、创建和操作入口互不重叠；分屏 Pane 命中区域排除整个选择器条。单面板／放大终端内容紧接顶栏下方，不暴露已移除标题行的目标。不增加标题行或主机鼠标模式。
+会话就绪或已选择但未附着时，包含多个 Presentation 的 Panel 在无边框单面板的顶栏末端，或在分屏与放大视图中叶边线标题行末端展示 `[<] [position/count] [>]`。控件准入前为 Tab 或叶标题保留十二个单元。窄顶栏和窄标题省略选择器；标题保留标签／数量回退，无边框 Panel 的顶栏保留不可交互的位置计数，有效键盘路径在所有可呈现层级仍可用。每个箭头有三个单元的命中区域。数量和空格不增加自身的命中目标。顶栏选择器与 Tab、创建和操作入口互不重叠；标题行箭头在命中上优先于其下方的分隔线，且从不覆盖终端内容。无边框终端内容紧接顶栏下方。不增加标题行或主机鼠标模式。
 
 无修饰左键按下为绘制时的精确目标 Presentation 建立手势，只有匹配释放才选择它。按钮按规范成员顺序循环，与当前有效的 Previous/Next Presentation 绑定等价（默认 `Ctrl+B (`／`Ctrl+B )`）。已绑定目标包含当前 `PaneRef` 和目的 Presentation ID。空目标包含结构 Pane key 与精确选中的 Presentation ID；新鲜探针必须仍确认该成员未绑定。空 Panel 内容区的按下只聚焦，不开始终端手势。新鲜探针必须仍在当前 desired anchor 下保留同一实例或空选择；UI 随后在活动 Tab 内解析 Panel／成员，才提交既有 Switch 事务。已删除／替换成员、旧 anchor、模态输入、捕获 overlay 和已释放鼠标捕获均不能改投手势。终端只读模式不禁止 Client 本地导航；选择从不转发终端字节，也不绕过子项仅 binding 附着。成功点击后旧命中图失效，直到重绘。
 

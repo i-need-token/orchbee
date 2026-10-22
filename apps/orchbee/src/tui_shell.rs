@@ -774,7 +774,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             redraw |= view.expire_notice(now);
             #[cfg(windows)]
             {
-                redraw |= view.machines.advance_sidebar_motion(now);
+                redraw |= view.machines.advance_working_motion(now);
             }
             redraw |= dispatcher.query_graphics(
                 (dimensions.columns, dimensions.rows),
@@ -1251,12 +1251,20 @@ fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimen
 }
 
 #[cfg(windows)]
-fn popup_surface_area(dimensions: WindowDimensions, view: &ClientView, split: bool) -> Rect {
+fn popup_surface_area(
+    dimensions: WindowDimensions,
+    view: &ClientView,
+    panel_count: usize,
+    zoomed: bool,
+) -> Rect {
     let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
     if areas.tier == crate::tui_layout::ViewportTier::TooSmall {
         Rect::default()
     } else {
-        crate::tui_layout::native_terminal_area(areas.panel, areas.tier.shows_panel_frame(), split)
+        crate::tui_layout::native_terminal_area(
+            areas.panel,
+            crate::tui_layout::PaneFrame::of(areas.tier.shows_panel_frame(), panel_count, zoomed),
+        )
     }
 }
 
@@ -1340,18 +1348,21 @@ fn observe_surface_geometry(
             .tier
                 != crate::tui_layout::ViewportTier::TooSmall;
             #[cfg(windows)]
-            let split = native
-                .active_position()
-                .and_then(|p| p.checked_sub(1))
-                .and_then(|i| native.tab(i))
-                .is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
+            let (panel_count, zoomed) = (
+                native
+                    .active_position()
+                    .and_then(|p| p.checked_sub(1))
+                    .and_then(|i| native.tab(i))
+                    .map_or(0, |tab| tab.panel_count()),
+                native.zoom_active(),
+            );
             // TooSmall withholds geometry; it is not evidence that the canonical panes left.
             if presentable {
                 terminal_input.observe_panes(&panes);
             }
             #[cfg(windows)]
             {
-                let area = popup_surface_area(*dimensions, view, split);
+                let area = popup_surface_area(*dimensions, view, panel_count, zoomed);
                 let pixels = (
                     dimensions
                         .pixel_width
@@ -1451,8 +1462,7 @@ pub(crate) fn active_pane_area(
         .and_then(|index| native.tab(index))?;
     let content = crate::tui_layout::native_terminal_area(
         areas.panel,
-        framed,
-        tab.panel_count() > 1 && !native.zoom_active(),
+        crate::tui_layout::PaneFrame::of(framed, tab.panel_count(), native.zoom_active()),
     );
     let area = if framed && tab.panel_count() > 1 && !native.zoom_active() {
         crate::tui_layout::project_panel_tree(
@@ -1500,8 +1510,14 @@ pub(crate) fn pane_geometries(
     else {
         return Ok(Vec::new());
     };
-    let content = tui_layout::native_terminal_area(areas.panel, framed, tab.panel_count() > 1);
-    let zoomed_content = tui_layout::native_terminal_area(areas.panel, framed, false);
+    let content = tui_layout::native_terminal_area(
+        areas.panel,
+        tui_layout::PaneFrame::of(framed, tab.panel_count(), false),
+    );
+    let zoomed_content = tui_layout::native_terminal_area(
+        areas.panel,
+        tui_layout::PaneFrame::of(framed, tab.panel_count(), true),
+    );
     let (cell_width, cell_height) = match (
         dimensions
             .pixel_width

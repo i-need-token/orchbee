@@ -30,15 +30,21 @@ pub(crate) use row::{RowContentBand, RowFocusCue, RowTracks, paint_row_interacti
 pub(crate) enum ControlSurface {
     /// Persistent application chrome.
     Chrome,
+    /// The Tab strip, which stays distinct from the terminal canvas.
+    Strip,
     /// An opaque overlay surface.
     Overlay,
+    /// The terminal canvas, where pane frames carry their titles.
+    Canvas,
 }
 
 impl ControlSurface {
     fn role(self) -> Role {
         match self {
             Self::Chrome => Role::SurfaceChrome,
+            Self::Strip => Role::SurfaceStrip,
             Self::Overlay => Role::SurfaceOverlay,
+            Self::Canvas => Role::SurfaceCanvas,
         }
     }
 }

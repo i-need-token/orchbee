@@ -326,10 +326,9 @@ fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal
                     pane,
                     crate::tui_layout::native_terminal_area(
                         areas.panel,
-                        areas.tier.shows_panel_frame(),
-                        false
+                        crate::tui_layout::PaneFrame::Bare
                     ),
-                    "a single pane keeps the split frame inset"
+                    "a single pane fills the panel without a frame"
                 );
                 assert!(
                     pane.bottom() <= areas.status.y,

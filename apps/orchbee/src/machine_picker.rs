@@ -43,6 +43,9 @@ pub(crate) use navigation::{
     SidebarRow, SidebarSource, SidebarTarget, sidebar_binding_label,
 };
 pub(crate) use sidebar::SidebarWindow;
+#[cfg(windows)]
+pub(crate) use spaces::TabAgent;
+pub(crate) use spaces::most_urgent;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Choice {
@@ -365,7 +368,7 @@ pub(crate) struct Picker {
     spaces: sidebar::Sidebar<orchbee_local_site_runtime::WindowsSpaceSidebarSettings>,
     sidebar_width: crate::tui_layout::SidebarWidth,
     navigation: navigation::SidebarNavigation,
-    sidebar_motion: sidebar::Motion,
+    working_motion: sidebar::Motion,
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_updates: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_stale: Vec<Choice>,
@@ -419,7 +422,7 @@ impl Default for Picker {
             spaces: sidebar::Sidebar::default(),
             sidebar_width: crate::tui_layout::SidebarWidth::DEFAULT,
             navigation: navigation::SidebarNavigation::default(),
-            sidebar_motion: sidebar::Motion::default(),
+            working_motion: sidebar::Motion::default(),
             space_observations: Vec::new(),
             space_updates: Vec::new(),
             space_stale: Vec::new(),
@@ -653,8 +656,11 @@ impl Picker {
     pub(crate) fn wants_agents(&self) -> bool {
         self.spaces.visible() || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
+    /// The Windows Tab strip shows unread Agents even while the Sidebar is hidden.
     pub(crate) fn wants_agent_attention(&self) -> bool {
-        self.spaces.visible() || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
+        cfg!(windows)
+            || self.spaces.visible()
+            || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
     pub(crate) fn observe_agents(
         &mut self,

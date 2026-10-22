@@ -1,18 +1,6 @@
 use super::Locale;
 use orchbee_workbench_protocol::PanelAgentState;
 impl Locale {
-    pub(crate) const fn panel_report_loading(self) -> &'static str {
-        match self {
-            Self::EnUs => "loading status",
-            Self::ZhCn => "读取状态中",
-        }
-    }
-    pub(crate) const fn panel_report_unavailable(self) -> &'static str {
-        match self {
-            Self::EnUs => "status unavailable",
-            Self::ZhCn => "状态不可用",
-        }
-    }
     pub(crate) const fn panel_report_state(self, state: PanelAgentState) -> &'static str {
         match (self, state) {
             (Self::EnUs, PanelAgentState::Idle) => "idle",

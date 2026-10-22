@@ -1,6 +1,7 @@
 //! Shipped RGB palettes project every existing semantic role; no renderer owns colors.
 use super::{
-    Color, ColorLevel, GlyphSet, Modifier, Polarity, RoleStyles, Style, TerminalColorSource, Theme,
+    Color, ColorLevel, GlyphSet, Modifier, Polarity, RoleStyles, Style, TabGroupPalette,
+    TerminalColorSource, Theme,
 };
 use crate::terminal_host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
@@ -30,6 +31,8 @@ struct Palette {
     pressed_surface: [u8; 3],
     selection: [u8; 3],
     current: [u8; 3],
+    /// Tab group accents in `TabGroupColor` order.
+    groups: [[u8; 3]; 9],
 }
 fn rgb([r, g, b]: [u8; 3]) -> Color {
     Color::Rgb(r, g, b)
@@ -72,6 +75,8 @@ fn named(palette: Palette) -> Theme {
             frame_divider: Style::new().fg(rgb(palette.divider)),
             surface_canvas: primary.bg(rgb(palette.background)),
             surface_chrome: primary.bg(rgb(palette.chrome)),
+            // The Tab strip keeps the palette chrome even where System chrome follows the host.
+            surface_strip: primary.bg(rgb(palette.chrome)),
             surface_overlay: primary.bg(rgb(palette.overlay)),
             surface_hover: Style::new().bg(rgb(palette.hover_surface)),
             surface_pressed: Style::new().bg(rgb(palette.pressed_surface)),
@@ -81,6 +86,7 @@ fn named(palette: Palette) -> Theme {
             hint_key: primary.add_modifier(Modifier::BOLD),
             hint_label: secondary,
         },
+        tab_groups: TabGroupPalette::named(palette.groups, palette.chrome),
     }
 }
 
@@ -129,6 +135,17 @@ impl Theme {
             pressed_surface: [214, 215, 218],
             selection: [205, 219, 248],
             current: [224, 228, 235],
+            groups: [
+                [64, 120, 242],
+                [1, 132, 188],
+                [80, 161, 79],
+                [105, 108, 119],
+                [193, 132, 1],
+                [214, 64, 159],
+                [166, 38, 164],
+                [228, 86, 73],
+                [152, 104, 1],
+            ],
         })
     }
     pub(crate) fn one_dark() -> Self {
@@ -157,6 +174,17 @@ impl Theme {
             pressed_surface: [64, 64, 64],
             selection: [51, 70, 89],
             current: [42, 47, 56],
+            groups: [
+                [97, 175, 239],
+                [86, 182, 194],
+                [152, 195, 121],
+                [171, 178, 191],
+                [209, 154, 102],
+                [229, 145, 200],
+                [198, 120, 221],
+                [224, 108, 117],
+                [229, 192, 123],
+            ],
         })
     }
     #[cfg(windows)]

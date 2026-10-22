@@ -38,21 +38,21 @@ Client 中编写或审查渲染代码前先阅读本标准。
 主题把下面的每个角色映射为一种具体样式。样式可以包含前景、背景或允许的修饰符。缺少任何角色
 的主题都是无效的。角色是稳定的名称；主题改变的是值。
 
-| 角色族    | 角色                                                                                  | 使用场景                                                                                                 |
-| --------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `text`    | `primary`、`secondary`、`disabled`、`inverse`                                         | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                                       |
-| `accent`  | `action`、`destructive`、`focus`、`selection`、`link`                                 | 静止的主要动作、明确破坏性意图、获得焦点的框架或控件、临时或已勾选指示器、选区边界，以及可激活的引用     |
-| `status`  | `success`、`warning`、`error`、`info`、`pending`、`working`、`unread`                 | 只表达结果和状态含义；绝不用于装饰或层级                                                                 |
-| `frame`   | `focused`、`unfocused`、`divider`                                                     | pane 和覆盖层的边框以及分屏边界                                                                          |
-| `surface` | `canvas`、`chrome`、`overlay`、`hover`、`pressed`、`selection`、`current`、`inactive` | 终端画布、持久 chrome、覆盖层、指针反馈、按下控件、临时或范围选择、持久当前上下文的背景，以及非活跃 pane |
-| `hint`    | `key`、`label`                                                                        | 页脚和帮助中的按键字形及其动作标签                                                                       |
+| 角色族    | 角色                                                                                           | 使用场景                                                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `text`    | `primary`、`secondary`、`disabled`、`inverse`                                                  | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                                               |
+| `accent`  | `action`、`destructive`、`focus`、`selection`、`link`                                          | 静止的主要动作、明确破坏性意图、获得焦点的框架或控件、临时或已勾选指示器、选区边界，以及可激活的引用             |
+| `status`  | `success`、`warning`、`error`、`info`、`pending`、`working`、`unread`                          | 只表达结果和状态含义；绝不用于装饰或层级                                                                         |
+| `frame`   | `focused`、`unfocused`、`divider`                                                              | pane 和覆盖层的边框以及分屏边界                                                                                  |
+| `surface` | `canvas`、`chrome`、`strip`、`overlay`、`hover`、`pressed`、`selection`、`current`、`inactive` | 终端画布、持久 chrome、标签栏、覆盖层、指针反馈、按下控件、临时或范围选择、持久当前上下文的背景，以及非活跃 pane |
+| `hint`    | `key`、`label`                                                                                 | 页脚和帮助中的按键字形及其动作标签                                                                               |
 
 主题规则：
 
 - 每个原生 Client 都提供 `terminal-native` 主题，并在宿主明暗或色深未知时使用它。在显式用户
   设置选择其他主题之前，它是默认主题。
-- `terminal-native` 主题把文本和基础表面（`canvas`、`chrome` 与 `overlay`）映射到终端默认前景
-  和背景（`Color::Reset`）。它通过下文的配对颜色和修饰符回退解析当前及交互表面，并把强调、
+- `terminal-native` 主题把文本和基础表面（`canvas`、`chrome`、`strip` 与 `overlay`）映射到终端
+  默认前景和背景（`Color::Reset`）。它通过下文的配对颜色和修饰符回退解析当前及交互表面，并把强调、
   状态和框架角色映射到具名 ANSI-16 颜色。它用 `DIM` 修饰符而不是灰色表示 `text-secondary`，
   这样弱化效果在浅色和深色背景上都跟随宿主调色板。
 - `surface-current` 通过中性填充区分持久上下文与强调选区。在 `terminal-native` 中，它使用
@@ -82,6 +82,8 @@ Client 中编写或审查渲染代码前先阅读本标准。
   每个随附主题；运行时角色清单只填充一部分属于无效状态。
 - 通过表面角色绘制区域的完整背景，包括内边距和空白单元格。RGB 主题区分画布、持久 chrome
   和覆盖层；边框本身不构成区域表面。终端原生主题及较低色级保留既有宿主行为。
+- 即使跟随宿主的外观把其他基础表面还原为终端背景，`surface-strip` 仍保留具名主题的 chrome
+  填充，使标签栏与紧贴其下、不带边框的终端保持可区分。
 
 任何主题都禁止：用 `DarkGray`（亮黑）做文本，因为许多配置把它映射得接近背景；在未填充表面上
 用 `White` 或 `Black` 做文本；在 `terminal-native` 主题的 `Color::Reset` 上用 `Yellow` 或 `Blue`

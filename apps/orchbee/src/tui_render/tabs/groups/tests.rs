@@ -1,7 +1,68 @@
 use super::*;
 use crate::tui_theme::{ColorLevel, GlyphSet};
-use orchbee_workbench_protocol::WorkbenchTabGroupId;
-use ratatui::{Terminal, backend::TestBackend};
+use orchbee_workbench_protocol::{MetadataState, WorkbenchTabGroupId};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+
+type Hits = Vec<(usize, StripPart, Rect)>;
+
+fn draw(
+    tabs: &[GroupTabDisplay<'_>],
+    theme: &Theme,
+    width: u16,
+    pointer: impl Fn(usize, StripPart) -> ProjectedPointer,
+) -> (Buffer, Hits) {
+    let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
+    let mut hits = Vec::new();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                frame.area(),
+                tabs,
+                theme,
+                "Unnamed group",
+                0,
+                GroupInteractions::new(
+                    &mut (),
+                    &mut |_, index, part, _| pointer(index, part),
+                    &mut |_, index, part, rect| hits.push((index, part, rect)),
+                ),
+            );
+        })
+        .unwrap();
+    (terminal.backend().buffer().clone(), hits)
+}
+
+fn text(buffer: &Buffer) -> String {
+    buffer.content().iter().map(|cell| cell.symbol()).collect()
+}
+
+fn tab<'a>(label: &str, active: bool, group: Option<&'a TabGroup>) -> GroupTabDisplay<'a> {
+    GroupTabDisplay {
+        tab: TabDisplay {
+            position: 1,
+            active,
+            label: label.to_owned().into(),
+        },
+        group,
+        collapsed: false,
+        selected: false,
+        pinned: false,
+        agent: None,
+    }
+}
+
+fn group(label: &str, color: TabGroupColor) -> TabGroup {
+    TabGroup {
+        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
+        label: label.into(),
+        color,
+    }
+}
+
+fn rest(_: usize, _: StripPart) -> ProjectedPointer {
+    ProjectedPointer::Rest
+}
 
 #[test]
 fn overflow_markers_keep_the_active_tab_visible_and_do_not_acquire_hits() {
@@ -9,51 +70,19 @@ fn overflow_markers_keep_the_active_tab_visible_and_do_not_acquire_hits() {
         let theme = Theme::terminal_native().with_glyphs(glyphs);
         for active in [0, 4, 8] {
             let tabs: Vec<_> = (0..9)
-                .map(|index| GroupTabDisplay {
-                    tab: TabDisplay {
-                        position: index + 1,
-                        active: index == active,
-                        label: format!("task-{index}").into(),
-                    },
-                    group: None,
-                    collapsed: false,
-                    selected: false,
-                })
+                .map(|index| tab(&format!("task-{index}"), index == active, None))
                 .collect();
-            let mut terminal = Terminal::new(TestBackend::new(36, 1)).unwrap();
-            let mut hits = Vec::new();
-            terminal
-                .draw(|frame| {
-                    render(
-                        frame,
-                        frame.area(),
-                        &tabs,
-                        &theme,
-                        "Group",
-                        GroupInteractions::new(
-                            &mut (),
-                            &mut |_, _, _, _| ProjectedPointer::Rest,
-                            &mut |_, index, _, rect| hits.push((index, rect)),
-                        ),
-                    )
-                })
-                .unwrap();
-            let text: String = terminal
-                .backend()
-                .buffer()
-                .content()
-                .iter()
-                .map(|cell| cell.symbol())
-                .collect();
+            let (buffer, hits) = draw(&tabs, &theme, 36, rest);
+            let text = text(&buffer);
             assert!(text.contains(&format!("task-{active}")), "{text}");
-            assert!(hits.iter().any(|(index, _)| *index == active));
+            assert!(hits.iter().any(|(index, _, _)| *index == active));
             if active > 0 {
                 assert!(text.starts_with(theme.glyphs.ellipsis), "{text}");
-                assert!(hits.iter().all(|(_, rect)| rect.x > 0));
+                assert!(hits.iter().all(|(_, _, rect)| rect.x > 0));
             }
             if active < 8 {
-                assert!(text.ends_with(theme.glyphs.ellipsis), "{text}");
-                assert!(hits.iter().all(|(_, rect)| rect.right() < 36));
+                assert!(text.trim_end().ends_with(theme.glyphs.ellipsis), "{text}");
+                assert!(hits.iter().all(|(_, _, rect)| rect.right() < 36));
             }
         }
     }
@@ -61,328 +90,205 @@ fn overflow_markers_keep_the_active_tab_visible_and_do_not_acquire_hits() {
 
 #[test]
 fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
-    let group = TabGroup {
-        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
-        label: String::new(),
-        color: TabGroupColor::Grey,
-    };
+    let group = group("", TabGroupColor::Grey);
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
         let label = locale.shell().unnamed_tab_group;
+        let mut collapsed = tab("1", true, Some(&group));
+        collapsed.collapsed = true;
         let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
         let mut hits = Vec::new();
-        let tabs = [GroupTabDisplay {
-            tab: TabDisplay {
-                position: 1,
-                active: true,
-                label: "1".into(),
-            },
-            group: Some(&group),
-            collapsed: true,
-            selected: false,
-        }];
         terminal
             .draw(|frame| {
                 render(
                     frame,
                     frame.area(),
-                    &tabs,
+                    std::slice::from_ref(&collapsed),
                     &Theme::terminal_native(),
                     label,
+                    0,
                     GroupInteractions::new(
                         &mut (),
-                        &mut |_, _, _, _| crate::tui_pointer::ProjectedPointer::Rest,
-                        &mut |_, index, header, rect| {
-                            hits.push((index, header, usize::from(rect.x), usize::from(rect.width)))
-                        },
+                        &mut |_, _, _, _| ProjectedPointer::Rest,
+                        &mut |_, index, part, rect| hits.push((index, part, rect)),
                     ),
-                )
+                );
             })
             .unwrap();
-        let text: String = terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect();
         // TestBackend includes a padding cell after each full-width glyph.
+        let text = text(terminal.backend().buffer());
         assert!(text.replace(' ', "").contains(&label.replace(' ', "")));
         assert_eq!(hits.len(), 1);
-        assert!(hits[0].1 && hits[0].3 > 0);
+        assert!(hits[0].1 == StripPart::Header && hits[0].2.width > 0);
     }
 }
 
 #[test]
 fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
-    let group = TabGroup {
-        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
-        label: "组👩‍💻\x1b[2J\nwide".into(),
-        color: TabGroupColor::Orange,
-    };
+    let group = group("组👩‍💻\x1b[2J\nwide", TabGroupColor::Orange);
     for width in [1, 4, 8, 16, 40, 80, 120] {
         for collapsed in [false, true] {
             for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
                 let theme = Theme::terminal_native()
                     .with_glyphs(glyphs)
                     .quantize(ColorLevel::Monochrome);
-                let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
                 let tabs: Vec<_> = (0..5)
-                    .map(|index| GroupTabDisplay {
-                        tab: TabDisplay {
-                            position: index + 1,
-                            active: index == 3,
-                            label: "编译 very long terminal".into(),
-                        },
-                        group: Some(&group),
-                        collapsed,
-                        selected: false,
+                    .map(|index| {
+                        let mut member = tab("编译 very long terminal", index == 3, Some(&group));
+                        member.collapsed = collapsed;
+                        member
                     })
                     .collect();
-                let mut hits = Vec::new();
-                terminal
-                    .draw(|frame| {
-                        render(
-                            frame,
-                            frame.area(),
-                            &tabs,
-                            &theme,
-                            "Unnamed group",
-                            GroupInteractions::new(
-                                &mut (),
-                                &mut |_, _, _, _| crate::tui_pointer::ProjectedPointer::Rest,
-                                &mut |_, index, header, rect| {
-                                    hits.push((
-                                        index,
-                                        header,
-                                        usize::from(rect.x),
-                                        usize::from(rect.width),
-                                    ))
-                                },
-                            ),
-                        )
-                    })
-                    .unwrap();
+                let (buffer, hits) = draw(&tabs, &theme, width, rest);
+                let part = if collapsed {
+                    StripPart::Header
+                } else {
+                    StripPart::Tab
+                };
                 assert!(
                     hits.iter()
-                        .any(|(index, header, _, _)| *index == 3 && *header == collapsed),
+                        .any(|(index, hit, _)| *index == 3 && *hit == part),
                     "width={width}, collapsed={collapsed}, glyphs={glyphs:?}, hits={hits:?}"
                 );
                 assert!(
                     hits.iter()
-                        .all(|(_, _, x, cells)| *cells > 0 && x + cells <= usize::from(width))
+                        .all(|(_, _, rect)| rect.width > 0 && rect.right() <= width)
                 );
                 if collapsed {
                     assert_eq!(hits.len(), 1);
                 }
-                let text: String = terminal
-                    .backend()
-                    .buffer()
-                    .content()
-                    .iter()
-                    .map(|cell| cell.symbol())
-                    .collect();
+                let text = text(&buffer);
                 assert!(!text.contains('\x1b') && !text.contains('\n'));
-                assert!(
-                    terminal
-                        .backend()
-                        .buffer()
-                        .content()
-                        .iter()
-                        .all(|cell| cell.fg == ratatui::style::Color::Reset
-                            && cell.bg == ratatui::style::Color::Reset)
-                );
+                assert!(buffer.content().iter().all(|cell| {
+                    cell.fg == ratatui::style::Color::Reset
+                        && cell.bg == ratatui::style::Color::Reset
+                }));
             }
         }
     }
 }
 
-fn rendered_group_state(
-    active: bool,
-    selected: bool,
-    collapsed: bool,
-) -> (ratatui::buffer::Buffer, Vec<(usize, bool, usize, usize)>) {
-    let group = TabGroup {
-        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
-        label: "Group".into(),
-        color: TabGroupColor::Blue,
-    };
-    let tabs = [GroupTabDisplay {
-        tab: TabDisplay {
-            position: 1,
-            active,
-            label: "member".into(),
-        },
-        group: Some(&group),
-        collapsed,
-        selected,
-    }];
-    let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
-    let mut hits = Vec::new();
-    terminal
-        .draw(|frame| {
-            render(
-                frame,
-                frame.area(),
-                &tabs,
-                &Theme::rgb_test_dark(),
-                "Unnamed group",
-                GroupInteractions::new(
-                    &mut (),
-                    &mut |_, _, _, _| crate::tui_pointer::ProjectedPointer::Rest,
-                    &mut |_, index, header, rect| {
-                        hits.push((index, header, usize::from(rect.x), usize::from(rect.width)))
-                    },
-                ),
-            )
-        })
-        .unwrap();
-    (terminal.backend().buffer().clone(), hits)
-}
-
 #[test]
-fn checked_and_current_tracks_keep_fixed_member_geometry() {
-    let (unchecked, unchecked_hits) = rendered_group_state(true, false, false);
-    let (checked, checked_hits) = rendered_group_state(true, true, false);
+fn close_reveals_on_the_active_or_pointed_tab_without_moving_the_strip() {
     let theme = Theme::rgb_test_dark();
-
-    let (_, _, unchecked_x, unchecked_width) = unchecked_hits
-        .iter()
-        .copied()
-        .find(|(_, header, _, _)| !header)
-        .expect("expanded group paints its member");
-    let (_, _, checked_x, checked_width) = checked_hits
-        .iter()
-        .copied()
-        .find(|(_, header, _, _)| !header)
-        .expect("expanded group paints its member");
-    assert_eq!(unchecked_width, checked_width);
-    let unchecked_x = u16::try_from(unchecked_x).unwrap();
-    let checked_x = u16::try_from(checked_x).unwrap();
-    assert_eq!(unchecked[(unchecked_x, 0)].symbol(), " ");
-    assert_eq!(checked[(checked_x, 0)].symbol(), "*");
-    assert_eq!(
-        unchecked[(unchecked_x + 1, 0)].symbol(),
-        theme.glyphs.active_marker
-    );
-    assert_eq!(
-        checked[(checked_x + 1, 0)].symbol(),
-        theme.glyphs.active_marker
-    );
-    assert_eq!(
-        checked[(checked_x, 0)].fg,
-        theme.color(crate::tui_theme::Role::AccentSelection)
-    );
-}
-
-#[test]
-fn collapsed_group_reserves_the_current_marker_track() {
-    let (inactive, inactive_hits) = rendered_group_state(false, false, true);
-    let (active, active_hits) = rendered_group_state(true, false, true);
-    let theme = Theme::rgb_test_dark();
-
-    assert_eq!(inactive_hits, active_hits);
-    assert_eq!(inactive[(1, 0)].symbol(), " ");
-    assert_eq!(active[(1, 0)].symbol(), theme.glyphs.active_marker);
-    assert_eq!(inactive[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
-    assert_eq!(active[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
-}
-
-#[test]
-fn pointer_surfaces_pair_group_text_and_preserve_member_checked_current_tracks() {
-    use crate::{
-        tui_pointer::ProjectedPointer,
-        tui_theme::{Role, Theme},
-    };
-
-    let group = TabGroup {
-        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
-        label: "Group".into(),
-        color: TabGroupColor::Blue,
-    };
-    let tabs = [GroupTabDisplay {
-        tab: TabDisplay {
-            position: 1,
-            active: true,
-            label: "member".into(),
-        },
-        group: Some(&group),
-        collapsed: false,
-        selected: true,
-    }];
-    let theme = Theme::rgb_test_dark();
-
-    for (header_target, pointer, role) in [
-        (true, ProjectedPointer::Hovered, Role::SurfaceHover),
-        (false, ProjectedPointer::Pressed, Role::SurfacePressed),
-    ] {
-        let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
-        let mut tokens = Vec::new();
-        terminal
-            .draw(|frame| {
-                render(
-                    frame,
-                    frame.area(),
-                    &tabs,
-                    &theme,
-                    "Unnamed group",
-                    GroupInteractions::new(
-                        &mut (),
-                        &mut |_, _, header, _| {
-                            if header == header_target {
-                                pointer
-                            } else {
-                                ProjectedPointer::Rest
-                            }
-                        },
-                        &mut |_, index, header, rect| tokens.push((index, header, rect)),
-                    ),
-                )
-            })
-            .unwrap();
-
-        let target = tokens
-            .iter()
-            .find(|(_, header, _)| *header == header_target)
-            .expect("the targeted group token is painted")
-            .2;
-        let buffer = terminal.backend().buffer();
-        assert_eq!(buffer[(target.x, target.y)].bg, theme.color(role));
-        if header_target {
-            assert_eq!(
-                buffer[(target.x + 2, target.y)].symbol(),
-                theme.glyphs.disclosure_open
-            );
-            assert_eq!(
-                buffer[(target.x + 2, target.y)].style().fg,
-                theme.style(Role::TextPrimary).fg
-            );
+    let tabs = [tab("build", true, None), tab("logs", false, None)];
+    let (resting, resting_hits) = draw(&tabs, &theme, 60, rest);
+    let (hovered, hovered_hits) = draw(&tabs, &theme, 60, |index, part| {
+        if index == 1 && part == StripPart::Tab {
+            ProjectedPointer::Hovered
         } else {
-            assert_eq!(
-                buffer[(target.x, target.y)].symbol(),
-                theme.glyphs.active_marker
-            );
-            assert_eq!(
-                buffer[(target.x + 1, target.y)].symbol(),
-                theme.glyphs.active_marker
-            );
-            assert_eq!(
-                buffer[(target.x, target.y)].fg,
-                theme.color(Role::AccentSelection)
-            );
+            ProjectedPointer::Rest
         }
-    }
+    });
+    let rects = |hits: &Hits| hits.iter().map(|(_, _, rect)| *rect).collect::<Vec<_>>();
+    assert_eq!(rects(&resting_hits), rects(&hovered_hits));
+
+    let track = |hits: &Hits, index: usize| {
+        hits.iter()
+            .rfind(|(hit, _, _)| *hit == index)
+            .copied()
+            .expect("every Tab records its close track")
+    };
+    let symbols = |buffer: &Buffer, rect: Rect| {
+        (rect.x..rect.right())
+            .map(|x| buffer[(x, 0)].symbol())
+            .collect::<String>()
+    };
+    let (_, part, rect) = track(&resting_hits, 0);
+    assert_eq!(
+        (part, symbols(&resting, rect).as_str()),
+        (StripPart::Close, "[x]")
+    );
+    let (_, part, rect) = track(&resting_hits, 1);
+    assert_eq!(
+        (part, symbols(&resting, rect).as_str()),
+        (StripPart::Tab, "   ")
+    );
+    let (_, part, rect) = track(&hovered_hits, 1);
+    assert_eq!(
+        (part, symbols(&hovered, rect).as_str()),
+        (StripPart::Close, "[x]")
+    );
+    assert_eq!(hovered[(rect.x, 0)].bg, theme.color(Role::SurfaceHover));
+
+    let (pointed, _) = draw(&tabs, &theme, 60, |index, part| {
+        if index == 0 && part == StripPart::Close {
+            ProjectedPointer::Hovered
+        } else {
+            ProjectedPointer::Rest
+        }
+    });
+    let (_, _, close) = track(&resting_hits, 0);
+    assert_eq!(
+        pointed[(close.x + 1, 0)].fg,
+        theme.color(Role::AccentDestructive)
+    );
+}
+
+#[test]
+fn active_and_checked_tabs_keep_their_geometry_and_bands() {
+    let theme = Theme::rgb_test_dark();
+    let mut tabs = [tab("member", true, None), tab("other", false, None)];
+    let (_, plain_hits) = draw(&tabs, &theme, 60, rest);
+    tabs[1].selected = true;
+    let (buffer, checked_hits) = draw(&tabs, &theme, 60, rest);
+    assert_eq!(plain_hits, checked_hits);
+    let label = |index: usize| {
+        let (_, _, rect) = checked_hits
+            .iter()
+            .find(|(hit, _, _)| *hit == index)
+            .copied()
+            .unwrap();
+        &buffer[(rect.x + 1, 0)]
+    };
+    assert_eq!(label(0).bg, theme.color(Role::SurfaceCurrent));
+    assert!(label(0).modifier.contains(Modifier::BOLD));
+    assert_eq!(label(1).bg, theme.color(Role::SurfaceSelection));
+    assert!(!text(&buffer).contains(theme.glyphs.active_marker));
+}
+
+#[test]
+fn agent_cues_lead_tabs_and_a_collapsed_group_carries_its_most_urgent_member() {
+    let theme = Theme::rgb_test_dark();
+    let agent = |state, unread| Some(TabAgent { state, unread });
+    let mut working = tab("agent", true, None);
+    working.agent = agent(MetadataState::Working, true);
+    let (buffer, _) = draw(std::slice::from_ref(&working), &theme, 40, rest);
+    let glyph = state_glyph(MetadataState::Working, &theme, 0);
+    assert!(text(&buffer).starts_with(&format!(" {glyph} agent {}", theme.glyphs.status_bullet)));
+    assert_eq!(buffer[(1, 0)].fg, theme.color(Role::StatusWorking));
+    assert_eq!(buffer[(9, 0)].fg, theme.color(Role::StatusUnread));
+
+    let group = group("Agents", TabGroupColor::Blue);
+    let members: Vec<_> = [
+        agent(MetadataState::Done, false),
+        agent(MetadataState::Blocked, true),
+        None,
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, agent)| {
+        let mut member = tab("member", index == 0, Some(&group));
+        member.collapsed = true;
+        member.agent = agent;
+        member
+    })
+    .collect();
+    let (buffer, hits) = draw(&members, &theme, 40, rest);
+    assert_eq!(hits.len(), 1);
+    let blocked = state_glyph(MetadataState::Blocked, &theme, 0);
+    assert!(
+        text(&buffer).starts_with(&format!(" {blocked} Agents {}", theme.glyphs.status_bullet)),
+        "{}",
+        text(&buffer)
+    );
 }
 
 #[test]
 fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() {
-    let mut group = TabGroup {
-        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
-        label: "Runtime".into(),
-        color: TabGroupColor::Blue,
-    };
+    let mut group = group("Runtime", TabGroupColor::Blue);
     for base in [
         Theme::one_light(),
         Theme::one_dark(),
@@ -407,17 +313,9 @@ fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() 
             ] {
                 group.color = color;
                 for (collapsed, active) in [(false, false), (true, false), (true, true)] {
-                    let tabs = [GroupTabDisplay {
-                        tab: TabDisplay {
-                            position: 1,
-                            active,
-                            label: "Log".into(),
-                        },
-                        group: Some(&group),
-                        collapsed,
-                        selected: true,
-                    }];
-                    let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
+                    let mut member = tab("Log", active, Some(&group));
+                    member.collapsed = collapsed;
+                    let tabs = [member];
                     let mut resting = None;
                     for pointer in [
                         ProjectedPointer::Rest,
@@ -425,34 +323,18 @@ fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() 
                         ProjectedPointer::Pressed,
                         ProjectedPointer::Rest,
                     ] {
-                        let mut header = None;
-                        terminal
-                            .draw(|frame| {
-                                render(
-                                    frame,
-                                    frame.area(),
-                                    &tabs,
-                                    &theme,
-                                    "Unnamed group",
-                                    GroupInteractions::new(
-                                        &mut (),
-                                        &mut |_, _, is_header, _| {
-                                            if is_header {
-                                                pointer
-                                            } else {
-                                                ProjectedPointer::Rest
-                                            }
-                                        },
-                                        &mut |_, _, is_header, rect| {
-                                            if is_header {
-                                                header = Some(rect);
-                                            }
-                                        },
-                                    ),
-                                )
-                            })
-                            .unwrap();
-                        let header = header.expect("the group header remains visible");
+                        let (buffer, hits) = draw(&tabs, &theme, 80, |_, part| {
+                            if part == StripPart::Header {
+                                pointer
+                            } else {
+                                ProjectedPointer::Rest
+                            }
+                        });
+                        let (_, _, header) = hits
+                            .iter()
+                            .copied()
+                            .find(|(_, part, _)| *part == StripPart::Header)
+                            .expect("the group header remains visible");
                         let surface = match pointer {
                             ProjectedPointer::Rest => {
                                 (collapsed && active).then_some(Role::SurfaceCurrent)
@@ -460,42 +342,34 @@ fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() 
                             ProjectedPointer::Hovered => Some(Role::SurfaceHover),
                             ProjectedPointer::Pressed => Some(Role::SurfacePressed),
                         };
-                        let expected = if let Some(surface) = surface {
-                            theme.content_on_surface(
-                                Role::SurfaceChrome,
-                                Some(surface),
-                                Some(Role::TextPrimary),
-                                theme.style(Role::TextPrimary),
-                            )
-                        } else {
-                            theme.tab_group_style(color)
-                        };
-                        let buffer = terminal.backend().buffer();
-                        assert_eq!(
-                            buffer[(header.x + 1, header.y)].symbol(),
-                            if collapsed && active {
-                                theme.glyphs.active_marker
-                            } else {
-                                " "
-                            },
-                            "pointer feedback never hides the current member"
+                        let expected = theme.tab_group_header_style(
+                            color,
+                            surface,
+                            Style::new()
+                                .fg(theme.tab_groups.accent(color))
+                                .add_modifier(Modifier::BOLD),
                         );
-                        for x in header.x..header.right() {
-                            let cell = &buffer[(x, header.y)];
-                            assert_eq!(cell.fg, expected.fg.unwrap());
-                            assert_eq!(cell.bg, expected.bg.unwrap());
-                            assert!(cell.modifier.contains(ratatui::style::Modifier::BOLD));
-                            assert_eq!(
-                                cell.modifier.contains(ratatui::style::Modifier::REVERSED),
-                                expected
-                                    .add_modifier
-                                    .contains(ratatui::style::Modifier::REVERSED)
-                            );
-                        }
+                        let mut cell = ratatui::buffer::Cell::default();
+                        cell.set_style(expected);
+                        // The name follows the header's leading pad.
+                        let name = &buffer[(header.x + 1, header.y)];
+                        assert_eq!(name.symbol(), "R");
+                        assert_eq!((name.fg, name.bg), (cell.fg, cell.bg));
+                        assert_eq!(name.modifier, cell.modifier);
+                        let arrow = &buffer[(header.right() - 2, header.y)];
+                        assert_eq!(
+                            arrow.symbol(),
+                            match (collapsed, pointer) {
+                                (true, _) => theme.glyphs.disclosure_closed,
+                                (false, ProjectedPointer::Rest) => " ",
+                                (false, _) => theme.glyphs.disclosure_open,
+                            },
+                            "the arrow keeps its cell and appears on hover or collapse"
+                        );
                         if pointer == ProjectedPointer::Rest {
                             if let Some(resting) = &resting {
                                 assert_eq!(
-                                    buffer, resting,
+                                    &buffer, resting,
                                     "leaving the header restores the chip and context"
                                 );
                             } else {

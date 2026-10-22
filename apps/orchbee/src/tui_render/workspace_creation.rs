@@ -4,7 +4,7 @@ use super::{Frame, Locale, Paragraph, Role, Span, Theme, tabs};
 use crate::{
     machine_picker::SidebarCommand,
     terminal_session::WorkspaceCreationPreview,
-    tui_layout::{ShellAreas, native_terminal_area},
+    tui_layout::{PaneFrame, ShellAreas, native_terminal_area},
     tui_pointer::ProjectedPointer,
 };
 use ratatui::text::Line;
@@ -23,6 +23,9 @@ pub(super) fn render(
     theme: &Theme,
 ) {
     let progress = locale.workspace_creation_progress(preview.phase);
+    frame
+        .buffer_mut()
+        .set_style(areas.tabs, theme.style(Role::SurfaceStrip));
     tabs::groups::render(
         frame,
         areas.tabs,
@@ -35,9 +38,12 @@ pub(super) fn render(
             group: None,
             collapsed: false,
             selected: false,
+            pinned: false,
+            agent: None,
         }],
         theme,
         locale.shell().unnamed_tab_group,
+        0,
         tabs::groups::GroupInteractions::new(
             &mut (),
             &mut |_, _, _, _| ProjectedPointer::Rest,
@@ -52,6 +58,6 @@ pub(super) fn render(
             ),
             Span::styled(progress, theme.style(Role::TextSecondary)),
         ])),
-        native_terminal_area(areas.panel, areas.tier.shows_panel_frame(), false),
+        native_terminal_area(areas.panel, PaneFrame::Bare),
     );
 }

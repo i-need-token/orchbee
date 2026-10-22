@@ -1,16 +1,18 @@
-//! Group headers and collapsed-member projection for the compact strip, with paint-derived hits.
-use super::{TabDisplay, compact_style, compact_token, compact_token_width, paint_token_pointer};
+//! The Windows Tab strip: group headers, Agent cues, hover-revealed close and overflow, painted
+//! with the hit regions derived from the same pass.
+use super::TabDisplay;
 use crate::{
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    machine_picker::TabAgent,
+    terminal_text::{display_width, truncate_display},
     tui_pointer::ProjectedPointer,
+    tui_render::sidebar_text::state_glyph,
     tui_theme::{Role, Theme},
 };
 use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
 use ratatui::{
     Frame,
     layout::Rect,
-    text::{Line, Span},
-    widgets::Paragraph,
+    style::{Modifier, Style},
 };
 #[cfg(test)]
 mod tests;
@@ -20,77 +22,191 @@ pub(in crate::tui_render) struct GroupTabDisplay<'a> {
     pub(in crate::tui_render) group: Option<&'a TabGroup>,
     pub(in crate::tui_render) collapsed: bool,
     pub(in crate::tui_render) selected: bool,
+    pub(in crate::tui_render) pinned: bool,
+    pub(in crate::tui_render) agent: Option<TabAgent>,
+}
+
+/// The painted part of a token that a pointer projection or hit region belongs to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::tui_render) enum StripPart {
+    /// A Tab's body, including its close track while the control is hidden.
+    Tab,
+    /// A group header.
+    Header,
+    /// A Tab's revealed close control.
+    Close,
+}
+
+/// Longer Tab labels end in an ellipsis.
+const LABEL_LIMIT: usize = 24;
+/// Every Tab reserves its close control, so revealing it never resizes the strip.
+const CLOSE_WIDTH: usize = 3;
+/// A truncated Tab keeps its close track only from this width.
+const MINIMUM_CLOSE_TOKEN: usize = 7;
+
+enum Kind {
+    Tab {
+        active: bool,
+        checked: bool,
+        label: String,
+    },
+    Header {
+        color: TabGroupColor,
+        collapsed: bool,
+        current: bool,
+        checked: bool,
+        name: String,
+    },
+    Divider,
 }
 
 struct Token {
+    /// The Tab this token activates; a header's representative member.
     index: usize,
-    active: bool,
-    checked: bool,
-    label: String,
-    color: Option<TabGroupColor>,
+    /// The header of the group this token belongs to.
     header: Option<usize>,
+    agent: Option<TabAgent>,
+    kind: Kind,
 }
 
-pub(in crate::tui_render) fn render<C, P, R>(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    tabs: &[GroupTabDisplay<'_>],
-    theme: &Theme,
-    unnamed_group: &str,
-    mut interactions: GroupInteractions<'_, C, P, R>,
-) where
-    P: FnMut(&C, usize, bool, Rect) -> ProjectedPointer,
-    R: FnMut(&mut C, usize, bool, Rect),
-{
-    if area.is_empty() {
-        return;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Piece {
+    Pad,
+    Glyph,
+    Label,
+    Unread,
+    Arrow,
+    Close,
+}
+
+impl Token {
+    fn is_tab(&self) -> bool {
+        matches!(self.kind, Kind::Tab { .. })
     }
+
+    fn active(&self) -> bool {
+        match self.kind {
+            Kind::Tab { active, .. } => active,
+            Kind::Header { current, .. } => current,
+            Kind::Divider => false,
+        }
+    }
+
+    fn text(&self) -> &str {
+        match &self.kind {
+            Kind::Tab { label, .. } => label,
+            Kind::Header { name, .. } => name,
+            Kind::Divider => "",
+        }
+    }
+
+    fn natural_width(&self, theme: &Theme) -> usize {
+        self.pieces(theme, 0, usize::MAX).map_or(0, |pieces| {
+            pieces.iter().map(|(text, _)| display_width(text)).sum()
+        })
+    }
+
+    /// The token's cells within `budget`, truncating its label before dropping the close track.
+    fn pieces(
+        &self,
+        theme: &Theme,
+        working_frame: usize,
+        budget: usize,
+    ) -> Option<Vec<(String, Piece)>> {
+        if matches!(self.kind, Kind::Divider) {
+            return (budget > 0).then(|| vec![(theme.glyphs.vertical_rule.to_owned(), Piece::Pad)]);
+        }
+        let glyph = self
+            .agent
+            .map(|agent| state_glyph(agent.state, theme, working_frame).to_owned());
+        let unread = self.agent.is_some_and(|agent| agent.unread);
+        let lead = 1 + glyph.as_ref().map_or(0, |glyph| display_width(glyph) + 1);
+        let trail = if unread {
+            1 + display_width(theme.glyphs.status_bullet)
+        } else {
+            0
+        };
+        let (tail, closes): (usize, &[bool]) = if self.is_tab() {
+            if budget >= MINIMUM_CLOSE_TOKEN {
+                (1, &[true, false])
+            } else {
+                (1, &[false])
+            }
+        } else {
+            (3, &[false])
+        };
+        let text = self.text();
+        for &close in closes {
+            let fixed = lead + trail + tail + usize::from(close) * CLOSE_WIDTH;
+            let Some(room) = budget.checked_sub(fixed).filter(|room| *room > 0) else {
+                continue;
+            };
+            let marker = if display_width(theme.glyphs.ellipsis) <= room {
+                theme.glyphs.ellipsis
+            } else {
+                ""
+            };
+            let mut pieces = vec![(" ".to_owned(), Piece::Pad)];
+            if let Some(glyph) = &glyph {
+                pieces.push((glyph.clone(), Piece::Glyph));
+                pieces.push((" ".to_owned(), Piece::Pad));
+            }
+            pieces.push((truncate_display(text, room, marker), Piece::Label));
+            if unread {
+                pieces.push((format!(" {}", theme.glyphs.status_bullet), Piece::Unread));
+            }
+            if self.is_tab() {
+                pieces.push((" ".to_owned(), Piece::Pad));
+                if close {
+                    pieces.push((" ".repeat(CLOSE_WIDTH), Piece::Close));
+                }
+            } else {
+                pieces.push((" ".to_owned(), Piece::Pad));
+                pieces.push((" ".to_owned(), Piece::Arrow));
+                pieces.push((" ".to_owned(), Piece::Pad));
+            }
+            return Some(pieces);
+        }
+        // Too narrow for any cue: keep a clipped, still activatable label.
+        let clipped = truncate_display(&format!(" {text}"), budget, "");
+        (display_width(&clipped) > 0).then(|| vec![(clipped, Piece::Label)])
+    }
+}
+
+fn tokens(tabs: &[GroupTabDisplay<'_>], unnamed_group: &str, theme: &Theme) -> Vec<Token> {
     let mut tokens = Vec::<Token>::new();
     let mut current_header = None;
     for (index, item) in tabs.iter().enumerate() {
         if let Some(group) = item.group {
             if index == 0 || tabs[index - 1].group.map(|g| &g.group_id) != Some(&group.group_id) {
-                let members = tabs[index..]
+                let members: Vec<_> = tabs[index..]
                     .iter()
-                    .take_while(|item| item.group.map(|g| &g.group_id) == Some(&group.group_id));
-                let count = members.clone().count();
-                let marked = members.clone().filter(|item| item.selected).count();
-                let count = if marked > 0 {
-                    format!("{marked}/{count}")
-                } else {
-                    count.to_string()
-                };
-                let active = members.clone().any(|item| item.tab.active);
-                let representative = members
-                    .enumerate()
-                    .find(|(_, item)| item.tab.active)
-                    .map_or(index, |(offset, _)| index + offset);
+                    .take_while(|item| item.group.map(|g| &g.group_id) == Some(&group.group_id))
+                    .collect();
+                let active = members.iter().position(|item| item.tab.active);
                 current_header = Some(tokens.len());
                 tokens.push(Token {
-                    index: representative,
-                    active: item.collapsed && active,
-                    checked: false,
-                    label: format!(
-                        " {}{} {} ({count}){} ",
-                        if item.collapsed && active {
-                            theme.glyphs.active_marker
-                        } else {
-                            " "
-                        },
-                        if item.collapsed {
-                            theme.glyphs.disclosure_closed
-                        } else {
-                            theme.glyphs.disclosure_open
-                        },
-                        sanitize_terminal_text(if group.label.is_empty() {
-                            unnamed_group
-                        } else {
-                            &group.label
-                        }),
-                        if item.collapsed { "" } else { " [" },
-                    ),
-                    color: Some(group.color),
+                    index: index + active.unwrap_or(0),
                     header: None,
+                    // A collapsed group carries its hidden members' cue.
+                    agent: item
+                        .collapsed
+                        .then(|| summarize(members.iter().filter_map(|item| item.agent)))
+                        .flatten(),
+                    kind: Kind::Header {
+                        color: group.color,
+                        collapsed: item.collapsed,
+                        current: item.collapsed && active.is_some(),
+                        checked: item.collapsed && members.iter().any(|item| item.selected),
+                        name: crate::terminal_text::sanitize_terminal_text(
+                            if group.label.is_empty() {
+                                unnamed_group
+                            } else {
+                                &group.label
+                            },
+                        )
+                        .into_owned(),
+                    },
                 });
             }
             if item.collapsed {
@@ -99,38 +215,60 @@ pub(in crate::tui_render) fn render<C, P, R>(
         } else {
             current_header = None;
         }
-        if let Some((label, _)) = compact_token(&item.tab, compact_token_width(&item.tab), theme) {
-            // Group-member selection owns a fixed marker track. Changing the
-            // checked value never moves its current marker, ordinal, or label.
-            let mut label = format!(
-                "{}{label}",
-                if item.selected {
-                    theme.glyphs.active_marker
-                } else {
-                    " "
-                }
-            );
-            if let Some(group) = item.group
-                && tabs
-                    .get(index + 1)
-                    .and_then(|tab| tab.group)
-                    .map(|group| &group.group_id)
-                    != Some(&group.group_id)
-            {
-                label.push_str(" ]");
-            }
-            // Stable three-cell close track; pointer movement never resizes tabs.
-            label.push_str("   ");
-            tokens.push(Token {
-                index,
+        tokens.push(Token {
+            index,
+            header: current_header,
+            agent: item.agent,
+            kind: Kind::Tab {
                 active: item.tab.active,
                 checked: item.selected,
-                label,
-                color: None,
-                header: current_header,
+                label: truncate_display(
+                    &crate::terminal_text::sanitize_terminal_text(&item.tab.label),
+                    LABEL_LIMIT,
+                    theme.glyphs.ellipsis,
+                ),
+            },
+        });
+        // Pinned Tabs lead the strip; one rule separates them from the rest.
+        if item.pinned && tabs.get(index + 1).is_some_and(|next| !next.pinned) {
+            tokens.push(Token {
+                index,
+                header: None,
+                agent: None,
+                kind: Kind::Divider,
             });
         }
     }
+    tokens
+}
+
+/// The most urgent member state, and whether any member is unread.
+fn summarize(agents: impl Iterator<Item = TabAgent>) -> Option<TabAgent> {
+    let agents: Vec<_> = agents.collect();
+    Some(TabAgent {
+        state: crate::machine_picker::most_urgent(agents.iter().map(|agent| agent.state))?,
+        unread: agents.iter().any(|agent| agent.unread),
+    })
+}
+
+/// Paints the strip into `area` and returns the column after which the create control belongs.
+pub(in crate::tui_render) fn render<C, P, R>(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    tabs: &[GroupTabDisplay<'_>],
+    theme: &Theme,
+    unnamed_group: &str,
+    working_frame: usize,
+    mut interactions: GroupInteractions<'_, C, P, R>,
+) -> u16
+where
+    P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, StripPart, Rect),
+{
+    if area.is_empty() {
+        return 0;
+    }
+    let tokens = tokens(tabs, unnamed_group, theme);
     let width = usize::from(area.width);
     let marker_width = display_width(theme.glyphs.ellipsis);
     // Keep a complete active tab target on tiny strips. Wider strips reserve
@@ -140,9 +278,12 @@ pub(in crate::tui_render) fn render<C, P, R>(
     } else {
         0
     };
-    let total_width = tokens
+    let widths: Vec<_> = tokens
         .iter()
-        .map(|token| display_width(&token.label))
+        .map(|token| token.natural_width(theme))
+        .collect();
+    let total_width = widths
+        .iter()
         .sum::<usize>()
         .saturating_add(tokens.len().saturating_sub(1));
     let window_width = if total_width <= width {
@@ -150,13 +291,11 @@ pub(in crate::tui_render) fn render<C, P, R>(
     } else {
         width.saturating_sub(2 * overflow_track)
     };
-    let active = tokens.iter().position(|token| token.active).unwrap_or(0);
+    let active = tokens.iter().position(Token::active).unwrap_or(0);
     let mut start = active;
-    let mut occupied = tokens
-        .get(active)
-        .map_or(0, |token| display_width(&token.label));
+    let mut occupied = widths.get(active).copied().unwrap_or(0);
     while start > 0 {
-        let previous = display_width(&tokens[start - 1].label) + 1;
+        let previous = widths[start - 1] + 1;
         if occupied.saturating_add(previous) > window_width {
             break;
         }
@@ -174,25 +313,30 @@ pub(in crate::tui_render) fn render<C, P, R>(
     } else {
         None
     };
-    let mut spans = Vec::new();
-    let mut painted = Vec::new();
     let mut used = 0;
     let indices: Vec<_> = prefix.into_iter().chain(start..tokens.len()).collect();
     if start > 0 && overflow_track > 0 {
-        spans.push(Span::styled(
-            format!("{} ", theme.glyphs.ellipsis),
-            theme.style(Role::TextSecondary),
-        ));
+        paint_text(
+            frame,
+            area,
+            0,
+            &format!("{} ", theme.glyphs.ellipsis),
+            theme.content_on_surface(
+                Role::SurfaceStrip,
+                None,
+                Some(Role::TextSecondary),
+                theme.style(Role::TextSecondary),
+            ),
+        );
         used = overflow_track;
     }
     let needed = indices
         .iter()
         .map(|index| {
-            let cells = display_width(&tokens[*index].label);
             if Some(*index) == prefix {
-                cells.min(window_width / 3)
+                widths[*index].min(window_width / 3)
             } else {
-                cells
+                widths[*index]
             }
         })
         .sum::<usize>()
@@ -200,10 +344,10 @@ pub(in crate::tui_render) fn render<C, P, R>(
     let trailing =
         overflow_track > 0 && needed > width.saturating_sub(used) && active + 1 < tokens.len();
     let content_end = width.saturating_sub(usize::from(trailing) * overflow_track);
+    let mut painted_end = 0;
     for (position, token_index) in indices.into_iter().enumerate() {
         let token = &tokens[token_index];
         if position > 0 && used < content_end {
-            spans.push(Span::raw(" "));
             used += 1;
         }
         let budget = if Some(token_index) == prefix {
@@ -213,28 +357,10 @@ pub(in crate::tui_render) fn render<C, P, R>(
         } else {
             content_end.saturating_sub(used)
         };
-        if budget == 0 {
+        let Some(pieces) = token.pieces(theme, working_frame, budget) else {
             break;
-        }
-        // An ASCII ellipsis can exceed a narrow header/member budget. Keep its painted target
-        // by clipping without a marker instead of letting the empty label terminate the row.
-        let marker = if display_width(theme.glyphs.ellipsis) <= budget {
-            theme.glyphs.ellipsis
-        } else {
-            ""
         };
-        let close_width = usize::from(token.color.is_none() && budget >= 7) * 3;
-        let label = if close_width > 0 {
-            let body = token.label.strip_suffix("   ").unwrap_or(&token.label);
-            let body = truncate_display(body, budget - close_width, marker);
-            format!("{body}   ")
-        } else {
-            truncate_display(&token.label, budget, marker)
-        };
-        let cells = display_width(&label);
-        if cells == 0 {
-            break;
-        }
+        let cells: usize = pieces.iter().map(|(text, _)| display_width(text)).sum();
         let rect = Rect::new(
             area.x
                 .saturating_add(u16::try_from(used).unwrap_or(u16::MAX)),
@@ -242,43 +368,9 @@ pub(in crate::tui_render) fn render<C, P, R>(
             u16::try_from(cells).unwrap_or(u16::MAX),
             1,
         );
-        let pointer = if frame.area().intersection(rect) == rect {
-            interactions.project(token.index, token.color.is_some(), rect)
-        } else {
-            ProjectedPointer::Rest
-        };
-        let style = token.color.map_or_else(
-            || compact_style(token.active, theme),
-            |color| {
-                let surface = match pointer {
-                    ProjectedPointer::Rest => token.active.then_some(Role::SurfaceCurrent),
-                    ProjectedPointer::Hovered => Some(Role::SurfaceHover),
-                    ProjectedPointer::Pressed => Some(Role::SurfacePressed),
-                };
-                theme.tab_group_header_style(color, surface)
-            },
-        );
-        if token.checked
-            && let Some(rest) = label.strip_prefix(theme.glyphs.active_marker)
-        {
-            let checked = theme.content_on_surface(
-                Role::SurfaceChrome,
-                token.active.then_some(Role::SurfaceCurrent),
-                Some(Role::AccentSelection),
-                theme.style(Role::AccentSelection),
-            );
-            spans.push(Span::styled(theme.glyphs.active_marker, checked));
-            spans.push(Span::styled(rest.to_owned(), style));
-        } else {
-            spans.push(Span::styled(label, style));
-        }
-        if frame.area().intersection(rect) == rect {
-            painted.push(PaintedToken {
-                index: token.index,
-                group_header: token.color.is_some(),
-                rect,
-                pointer,
-            });
+        paint_token(frame, rect, token, &pieces, theme, &mut interactions);
+        if !matches!(token.kind, Kind::Divider) {
+            painted_end = used + cells;
         }
         used += cells;
         if used >= content_end {
@@ -286,18 +378,222 @@ pub(in crate::tui_render) fn render<C, P, R>(
         }
     }
     if trailing {
-        spans.push(Span::raw(" ".repeat(content_end.saturating_sub(used) + 1)));
-        spans.push(Span::styled(
+        paint_text(
+            frame,
+            area,
+            content_end + 1,
             theme.glyphs.ellipsis,
-            theme.style(Role::TextSecondary),
-        ));
+            theme.content_on_surface(
+                Role::SurfaceStrip,
+                None,
+                Some(Role::TextSecondary),
+                theme.style(Role::TextSecondary),
+            ),
+        );
+        // Hidden Tabs follow the marker; creation moves to the strip's end.
+        return area.width.saturating_add(1);
     }
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
-    for token in painted {
-        if token.group_header
-            || paint_token_pointer(frame, token.rect, token.pointer, theme).is_some()
-        {
-            interactions.record(token.index, token.group_header, token.rect);
+    u16::try_from(painted_end + usize::from(painted_end > 0)).unwrap_or(u16::MAX)
+}
+
+fn paint_text(frame: &mut Frame<'_>, area: Rect, offset: usize, text: &str, style: Style) {
+    let Ok(offset) = u16::try_from(offset) else {
+        return;
+    };
+    if offset < area.width {
+        frame.buffer_mut().set_stringn(
+            area.x + offset,
+            area.y,
+            text,
+            usize::from(area.width - offset),
+            style,
+        );
+    }
+}
+
+fn paint_token<C, P, R>(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    token: &Token,
+    pieces: &[(String, Piece)],
+    theme: &Theme,
+    interactions: &mut GroupInteractions<'_, C, P, R>,
+) where
+    P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, StripPart, Rect),
+{
+    let on_screen = |rect: Rect| frame.area().intersection(rect) == rect;
+    let close = pieces
+        .iter()
+        .any(|(_, piece)| *piece == Piece::Close)
+        .then(|| {
+            let width = u16::try_from(CLOSE_WIDTH).unwrap_or(u16::MAX);
+            Rect::new(rect.right().saturating_sub(width), rect.y, width, 1)
+        });
+    let body = close.map_or(rect, |close| {
+        Rect::new(rect.x, rect.y, close.x.saturating_sub(rect.x), 1)
+    });
+    let part = if token.is_tab() {
+        StripPart::Tab
+    } else {
+        StripPart::Header
+    };
+    let visible = on_screen(rect) && !matches!(token.kind, Kind::Divider);
+    let project = |interactions: &mut GroupInteractions<'_, C, P, R>, part, rect| {
+        if visible {
+            interactions.project(token.index, part, rect)
+        } else {
+            ProjectedPointer::Rest
+        }
+    };
+    let body_pointer = project(interactions, part, body);
+    let track_pointer = close.map_or(ProjectedPointer::Rest, |close| {
+        project(interactions, StripPart::Tab, close)
+    });
+    let close_pointer = close.map_or(ProjectedPointer::Rest, |close| {
+        project(interactions, StripPart::Close, close)
+    });
+    // A pointer on the close control still hovers its Tab.
+    let pointer = match (body_pointer, track_pointer, close_pointer) {
+        (ProjectedPointer::Pressed, _, _) | (_, ProjectedPointer::Pressed, _) => {
+            ProjectedPointer::Pressed
+        }
+        (ProjectedPointer::Rest, ProjectedPointer::Rest, ProjectedPointer::Rest) => {
+            ProjectedPointer::Rest
+        }
+        _ => ProjectedPointer::Hovered,
+    };
+    let revealed = token.active() || pointer != ProjectedPointer::Rest;
+    let style = |piece: Piece| piece_style(token, piece, pointer, close_pointer, revealed, theme);
+    let mut x = rect.x;
+    for (text, piece) in pieces {
+        let text = match piece {
+            Piece::Close if revealed => "[x]",
+            Piece::Arrow => match &token.kind {
+                Kind::Header {
+                    collapsed: true, ..
+                } => theme.glyphs.disclosure_closed,
+                Kind::Header { .. } if pointer != ProjectedPointer::Rest => {
+                    theme.glyphs.disclosure_open
+                }
+                _ => text,
+            },
+            _ => text,
+        };
+        let (next, _) = frame.buffer_mut().set_stringn(
+            x,
+            rect.y,
+            text,
+            usize::from(rect.right().saturating_sub(x)),
+            style(*piece),
+        );
+        x = next;
+    }
+    if !visible {
+        return;
+    }
+    interactions.record(token.index, part, body);
+    if let Some(close) = close {
+        let close_part = if revealed {
+            StripPart::Close
+        } else {
+            StripPart::Tab
+        };
+        interactions.record(token.index, close_part, close);
+    }
+}
+
+fn piece_style(
+    token: &Token,
+    piece: Piece,
+    pointer: ProjectedPointer,
+    close_pointer: ProjectedPointer,
+    revealed: bool,
+    theme: &Theme,
+) -> Style {
+    let pointer_surface = match pointer {
+        ProjectedPointer::Rest => None,
+        ProjectedPointer::Hovered => Some(Role::SurfaceHover),
+        ProjectedPointer::Pressed => Some(Role::SurfacePressed),
+    };
+    let agent_role = token.agent.map(|agent| Theme::agent_role(agent.state));
+    match &token.kind {
+        Kind::Divider => theme.content_on_surface(
+            Role::SurfaceStrip,
+            None,
+            None,
+            theme.style(Role::FrameDivider),
+        ),
+        Kind::Tab {
+            active, checked, ..
+        } => {
+            let surface = pointer_surface
+                .or_else(|| checked.then_some(Role::SurfaceSelection))
+                .or_else(|| active.then_some(Role::SurfaceCurrent));
+            let (role, content) = match piece {
+                Piece::Label => {
+                    let role = if *active {
+                        Role::TextPrimary
+                    } else {
+                        Role::TextSecondary
+                    };
+                    let emphasis = *active || pointer == ProjectedPointer::Pressed;
+                    let style = theme.style(role);
+                    (
+                        Some(role),
+                        if emphasis {
+                            style.add_modifier(Modifier::BOLD)
+                        } else {
+                            style
+                        },
+                    )
+                }
+                Piece::Glyph => (None, agent_role.map_or_else(Style::new, |r| theme.style(r))),
+                Piece::Unread => (None, theme.style(Role::StatusUnread)),
+                Piece::Close if revealed => {
+                    return match close_pointer {
+                        ProjectedPointer::Rest => theme.content_on_surface(
+                            Role::SurfaceStrip,
+                            surface,
+                            Some(Role::TextSecondary),
+                            theme.style(Role::TextSecondary),
+                        ),
+                        ProjectedPointer::Hovered | ProjectedPointer::Pressed => theme
+                            .content_on_surface(
+                                Role::SurfaceStrip,
+                                Some(if close_pointer == ProjectedPointer::Pressed {
+                                    Role::SurfacePressed
+                                } else {
+                                    Role::SurfaceHover
+                                }),
+                                Some(Role::AccentDestructive),
+                                theme.style(Role::AccentDestructive),
+                            ),
+                    };
+                }
+                Piece::Pad | Piece::Arrow | Piece::Close => (None, Style::new()),
+            };
+            theme.content_on_surface(Role::SurfaceStrip, surface, role, content)
+        }
+        Kind::Header {
+            color,
+            current,
+            checked,
+            ..
+        } => {
+            let surface = pointer_surface
+                .or_else(|| checked.then_some(Role::SurfaceSelection))
+                .or_else(|| current.then_some(Role::SurfaceCurrent));
+            let accent = Style::new().fg(theme.tab_groups.accent(*color));
+            let content = match piece {
+                Piece::Label => accent.add_modifier(Modifier::BOLD),
+                Piece::Arrow if pointer_surface.is_some() => theme.style(Role::TextPrimary),
+                Piece::Arrow => accent,
+                Piece::Glyph => agent_role.map_or_else(Style::new, |r| theme.style(r)),
+                Piece::Unread => theme.style(Role::StatusUnread),
+                Piece::Pad | Piece::Close => Style::new(),
+            };
+            theme.tab_group_header_style(*color, surface, content)
         }
     }
 }
@@ -310,8 +606,8 @@ pub(in crate::tui_render) struct GroupInteractions<'a, C, P, R> {
 
 impl<'a, C, P, R> GroupInteractions<'a, C, P, R>
 where
-    P: for<'context> FnMut(&'context C, usize, bool, Rect) -> ProjectedPointer,
-    R: for<'context> FnMut(&'context mut C, usize, bool, Rect),
+    P: for<'context> FnMut(&'context C, usize, StripPart, Rect) -> ProjectedPointer,
+    R: for<'context> FnMut(&'context mut C, usize, StripPart, Rect),
 {
     pub(in crate::tui_render) const fn new(
         context: &'a mut C,
@@ -328,22 +624,14 @@ where
 
 impl<C, P, R> GroupInteractions<'_, C, P, R>
 where
-    P: FnMut(&C, usize, bool, Rect) -> ProjectedPointer,
-    R: FnMut(&mut C, usize, bool, Rect),
+    P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, StripPart, Rect),
 {
-    fn project(&mut self, index: usize, group_header: bool, rect: Rect) -> ProjectedPointer {
-        (self.project_pointer)(&*self.context, index, group_header, rect)
+    fn project(&mut self, index: usize, part: StripPart, rect: Rect) -> ProjectedPointer {
+        (self.project_pointer)(&*self.context, index, part, rect)
     }
 
-    fn record(&mut self, index: usize, group_header: bool, rect: Rect) {
-        (self.record_token)(self.context, index, group_header, rect);
+    fn record(&mut self, index: usize, part: StripPart, rect: Rect) {
+        (self.record_token)(self.context, index, part, rect);
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct PaintedToken {
-    index: usize,
-    group_header: bool,
-    rect: Rect,
-    pointer: ProjectedPointer,
 }

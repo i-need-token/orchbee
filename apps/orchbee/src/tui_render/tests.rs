@@ -1999,7 +1999,7 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
     let theme = Theme::rgb_test_dark();
     let paint = |pointer: &PointerState| {
         let mut terminal = infallible(Terminal::new(TestBackend::new(panel.width, panel.height)));
-        let mut hits = HitMapBuilder::with_pointer(pointer.projection());
+        let hits = HitMapBuilder::with_pointer(pointer.projection());
         infallible(terminal.draw(|frame| {
             frame.render_widget(
                 Paragraph::new("...........\n".repeat(5)).style(theme.style(Role::SurfaceCanvas)),
@@ -2011,17 +2011,18 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
                 panel,
                 &theme,
                 std::slice::from_ref(&target),
-                &mut hits,
+                &hits,
             );
         }));
         terminal
     };
-    let assert_projection = |terminal: &Terminal<TestBackend>, interaction| {
+    let assert_projection = |terminal: &Terminal<TestBackend>| {
+        // Hover and press take the bold focus color and leave the canvas fill in place.
         let expected = theme.content_on_surface(
             Role::SurfaceCanvas,
-            Some(interaction),
-            Some(Role::FrameDivider),
-            theme.style(Role::FrameDivider),
+            None,
+            Some(Role::FrameFocused),
+            theme.style(Role::FrameFocused).add_modifier(Modifier::BOLD),
         );
         let buffer = terminal.backend().buffer();
         let boundary = theme.content_on_surface(
@@ -2033,7 +2034,6 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
         for row in divider.y..divider.bottom() {
             let cell = &buffer[(divider.x, row)];
             assert_eq!(cell.style(), expected, "target cell at row {row}");
-            assert!(!cell.modifier.contains(Modifier::BOLD));
         }
         for (column, row) in [
             (divider.x - 1, panel.y),
@@ -2051,7 +2051,7 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
     };
 
     let hovered = paint(&pointer);
-    assert_projection(&hovered, Role::SurfaceHover);
+    assert_projection(&hovered);
     pointer.event(
         &mut view,
         &mut port,
@@ -2059,7 +2059,7 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
         event(MouseAction::Press, MouseButton::Left),
     );
     let pressed = paint(&pointer);
-    assert_projection(&pressed, Role::SurfacePressed);
+    assert_projection(&pressed);
 }
 
 #[cfg(windows)]

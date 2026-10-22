@@ -1,159 +1,59 @@
-//! Keep status readable beside literal, bounded Panel metadata without consuming terminal rows.
-use crate::{
-    localization::Locale,
-    terminal_session::PanelReportView,
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_theme::{Role, Theme},
-};
+//! Panel titles and their Agent state come from the exact-scope report observation.
+use crate::{terminal_session::PanelReportView, terminal_text::sanitize_terminal_text};
 use orchbee_workbench_protocol::{MetadataState, PanelAgentState};
-use ratatui::{
-    style::Style,
-    text::{Line, Span},
-};
 
+/// Custom titles win over guarded metadata titles, then the creation label. Metadata tokens follow
+/// as literal key/value text.
 pub(super) fn title(
     custom_label: Option<&str>,
     display_label: &str,
     prefix: &str,
     view: PanelReportView<'_>,
+    separator: &str,
 ) -> String {
-    let title = custom_label.or_else(|| match view {
-        PanelReportView::Ready(row) => row.metadata.title.as_ref().map(|v| v.as_str()),
+    let row = match view {
+        PanelReportView::Ready(row) => Some(row),
         _ => None,
-    });
-    if let Some(title) = title {
-        format!(" {} ", sanitize_terminal_text(title))
+    };
+    let custom = custom_label
+        .or_else(|| row.and_then(|row| row.metadata.title.as_ref().map(|v| v.as_str())));
+    let mut title = if let Some(title) = custom {
+        sanitize_terminal_text(title).into_owned()
     } else if !display_label.is_empty() && display_label.chars().all(|c| c.is_ascii_digit()) {
         // Creation labels survive layout reordering and sibling removal.
-        format!(" {prefix} {display_label} ")
+        format!("{prefix} {display_label}")
     } else {
-        format!(" {} ", sanitize_terminal_text(display_label))
+        sanitize_terminal_text(display_label).into_owned()
+    };
+    for (key, value) in row.iter().flat_map(|row| row.tokens.as_map()) {
+        title.push_str(&sanitize_terminal_text(&format!(
+            " {separator} {}={}",
+            key.as_str(),
+            value.as_str()
+        )));
     }
+    title
 }
 
-pub(super) fn header(
-    mut title: String,
-    view: PanelReportView<'_>,
-    width: usize,
-    locale: Locale,
-    theme: &Theme,
-    title_style: Style,
-    unread: bool,
-) -> Line<'static> {
-    let mut symbol = None;
-    let (state, agent, role) = match view {
-        PanelReportView::Pending => (
-            locale.panel_report_loading().to_owned(),
-            None,
-            Role::StatusPending,
-        ),
-        PanelReportView::Unavailable => (
-            locale.panel_report_unavailable().to_owned(),
-            None,
-            Role::StatusWarning,
-        ),
-        PanelReportView::Ready(row) => {
-            for (key, value) in row.tokens.as_map() {
-                title.push_str(&format!(
-                    " {} {}={}",
-                    theme.glyphs.middle_dot,
-                    key.as_str(),
-                    value.as_str()
-                ));
-            }
-            let report = row.report.as_ref();
-            let agent = row
-                .metadata
-                .display_agent
-                .as_ref()
-                .map(|v| v.as_str())
-                .or_else(|| report.and_then(|r| r.agent.as_deref()));
-            if agent.is_none() {
-                return Line::from(Span::styled(
-                    truncate_display(
-                        &sanitize_terminal_text(&title),
-                        width,
-                        theme.glyphs.ellipsis,
-                    ),
-                    title_style,
-                ));
-            }
-            let status = report.map_or(PanelAgentState::Unknown, |r| r.state);
-            let (label, role) = match status {
-                PanelAgentState::Idle => (MetadataState::Idle, Role::TextSecondary),
-                PanelAgentState::Working => (MetadataState::Working, Role::StatusWorking),
-                PanelAgentState::Done => (MetadataState::Done, Role::StatusSuccess),
-                PanelAgentState::Error => (MetadataState::Error, Role::StatusError),
-                PanelAgentState::Blocked => (MetadataState::Blocked, Role::StatusWarning),
-                PanelAgentState::Unknown => (MetadataState::Unknown, Role::TextSecondary),
-            };
-            symbol = Some(theme.agent_glyph(label));
-            (
-                row.metadata.state_labels.get(&label).map_or_else(
-                    || locale.panel_report_state(status).to_owned(),
-                    |v| v.as_str().to_owned(),
-                ),
-                agent,
-                role,
-            )
-        }
+/// The reported Agent's state. Loading, unavailable and Agent-less rounds show no state.
+pub(super) fn agent_state(view: PanelReportView<'_>) -> Option<MetadataState> {
+    let PanelReportView::Ready(row) = view else {
+        return None;
     };
-    let prefix_width = if symbol.is_some() { width.min(2) } else { 0 };
-    let unread_width = if symbol.is_some() && width >= 4 { 2 } else { 0 };
-    let width = width.saturating_sub(prefix_width + unread_width);
-    let badge_width = width / 2;
-    let state = truncate_display(
-        &sanitize_terminal_text(&state),
-        badge_width,
-        theme.glyphs.ellipsis,
-    );
-    let state_width = display_width(&state);
-    let suffix = agent.map_or_else(String::new, |agent| {
-        format!(
-            " {} {}",
-            theme.glyphs.middle_dot,
-            sanitize_terminal_text(agent)
-        )
-    });
-    let suffix = truncate_display(
-        &suffix,
-        badge_width.saturating_sub(state_width),
-        theme.glyphs.ellipsis,
-    );
-    let used = state_width + display_width(&suffix);
-    let gap = usize::from(used > 0 && width > used);
-    let title = truncate_display(
-        &sanitize_terminal_text(&title),
-        width.saturating_sub(used + gap),
-        theme.glyphs.ellipsis,
-    );
-    let padding = width.saturating_sub(display_width(&title) + used);
-    let mut spans = vec![
-        Span::styled(title, title_style),
-        Span::raw(" ".repeat(padding)),
-        Span::styled(state, theme.style(role)),
-        Span::styled(suffix, theme.style(Role::TextSecondary)),
-    ];
-    if let Some(symbol) = symbol {
-        spans.insert(
-            0,
-            Span::styled(
-                truncate_display(&format!("{symbol} "), prefix_width, ""),
-                theme.style(role),
-            ),
-        );
-    }
-    if unread_width > 0 {
-        spans.push(Span::styled(
-            if unread {
-                format!(" {}", theme.glyphs.status_bullet)
-            } else {
-                "  ".into()
-            },
-            theme.style(Role::StatusUnread),
-        ));
-    }
-    Line::from(spans)
+    let report = row.report.as_ref();
+    row.metadata
+        .display_agent
+        .as_ref()
+        .map(|v| v.as_str())
+        .or_else(|| report.and_then(|r| r.agent.as_deref()))?;
+    Some(match report.map_or(PanelAgentState::Unknown, |r| r.state) {
+        PanelAgentState::Idle => MetadataState::Idle,
+        PanelAgentState::Working => MetadataState::Working,
+        PanelAgentState::Done => MetadataState::Done,
+        PanelAgentState::Error => MetadataState::Error,
+        PanelAgentState::Blocked => MetadataState::Blocked,
+        PanelAgentState::Unknown => MetadataState::Unknown,
+    })
 }
 
 #[cfg(test)]

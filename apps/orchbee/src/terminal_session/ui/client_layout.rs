@@ -195,9 +195,9 @@ fn project_geometry(
         return Err(Reason::Busy);
     }
     let framed = areas.tier.shows_panel_frame();
-    let content = tui_layout::native_terminal_area(areas.panel, framed, tab.panel_count() > 1);
-    let displayed_content =
-        tui_layout::native_terminal_area(areas.panel, framed, tab.panel_count() > 1 && !zoomed);
+    let pane_frame = |zoomed| tui_layout::PaneFrame::of(framed, tab.panel_count(), zoomed);
+    let content = tui_layout::native_terminal_area(areas.panel, pane_frame(false));
+    let displayed_content = tui_layout::native_terminal_area(areas.panel, pane_frame(zoomed));
     if content.is_empty() {
         return Err(Reason::ProjectionUnavailable);
     }
