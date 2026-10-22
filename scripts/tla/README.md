@@ -16,7 +16,7 @@ node scripts/tla/run-models.mjs --models native-terminal-viewport
 
 `pnpm test:tla` is the complete uncached baseline: inventory/runner tests first, then all retained model configurations and real TLC tooling witnesses in isolated concurrent groups. The complete invocation fails if it exceeds 60 seconds; success cannot be obtained by skipping configurations or reusing their results. Dependencies and the pinned JDK/jar must be installed for repeatable timing. Record three fresh-state runs when changing the portfolio or runner budget. Download and machine load affect measured wall time and are not mathematical model properties.
 
-The portfolio has 14 protocol models and 16 configurations. A configuration has a 20-second deadline. The owner contracts state exactly which concurrency claims remain formal; local UI flows, deterministic transformations and fixed workflows use controlled or generated implementation tests.
+The portfolio has 13 protocol models and 15 configurations. A configuration has a 20-second deadline. The owner contracts state exactly which concurrency claims remain formal; local UI flows, deterministic transformations and fixed workflows use controlled or generated implementation tests.
 
 `--run-dir` remains available for explicitly owned frozen-revision recovery outside the checkout. It requires a clean checkout and matching inputs/runtime/parameters. Ordinary commands permit dirty development inputs. The invoking task owns logs, state and snapshots and reclaims them after their last diagnosis or integration consumer.
 

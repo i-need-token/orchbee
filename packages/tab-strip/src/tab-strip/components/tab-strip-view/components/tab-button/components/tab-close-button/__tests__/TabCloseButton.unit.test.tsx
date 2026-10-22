@@ -1,19 +1,22 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import type { MouseEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TabCloseButton } from '../TabCloseButton';
 
 describe('TabCloseButton', () => {
-	it('closes on a primary click and renders the product close icon', () => {
-		const onClose = vi.fn<() => void>();
+	it('closes on a primary click with the original pointer type and product close icon', () => {
+		const onClose = vi.fn<(event: MouseEvent<HTMLButtonElement>, pointerType: string) => void>();
 		render(<TabCloseButton tabTitle='Docs' onClose={onClose} />);
 		const close = screen.getByRole('button', { name: 'Close' });
 		expect(close.getAttribute('tabindex')).toBe('-1');
 		expect(close.querySelector('[data-icon="close"]')).not.toBeNull();
 		expect(close.querySelector('[data-tab-strip-icon="close"]')).toBeNull();
+		fireEvent.pointerDown(close, { button: 0, pointerType: 'pen', clientX: 14, clientY: 14 });
 		fireEvent.click(close);
 		expect(onClose).toHaveBeenCalledOnce();
+		expect(onClose).toHaveBeenCalledWith(expect.objectContaining({ type: 'click' }), 'pen');
 	});
 
 	it('lets middle-pointer presses continue to the parent tab', () => {

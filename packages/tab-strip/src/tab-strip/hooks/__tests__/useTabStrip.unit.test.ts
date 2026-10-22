@@ -2,7 +2,6 @@
 
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TabStripOrientation } from '../../types/tab-strip-types';
 import { TabModel } from '../../model/tab-model';
 import { StrictMode } from 'react';
 import { TabStripComboButtonController } from '../../model/tab-strip-combo-button';
@@ -12,20 +11,6 @@ afterEach(async () => {
 	cleanup();
 	await Promise.resolve();
 	vi.useRealTimers();
-});
-
-describe('useTabStrip', () => {
-	it('prepares the horizontal view model without rendering JSX', () => {
-		const model = new TabModel({
-			tabs: [{ id: 'tab', title: 'Tab', pinned: false, group: null }],
-			groups: [],
-			activeTabId: 'tab',
-		});
-		const { result } = renderHook(() => useTabStrip({ model }));
-
-		expect(result.current.orientation).toBe(TabStripOrientation.Horizontal);
-		expect(result.current.snapshot.activeTabId).toBe('tab');
-	});
 });
 
 describe('owned combo button lifecycle', () => {

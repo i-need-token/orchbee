@@ -54,5 +54,5 @@ lease。已撤销 lease 在锁外释放；其清理绝不影响替代者。仍�
 协议 corpus 检查覆盖严格 action 解码及关联。预留测试覆盖 Pending 排他、清理责任和
 过期移除。Windows 可运行的 Worker 本地管道检查覆盖确认 detach 后才 attach、拒绝/失败及旧 token 的 input/
 resize 封锁。同作者定向测试包含同一批 Viewer 的反复交接与核实自身授权；不代表独立
-审查、崩溃恢复或真人 Windows Terminal 验收。原生集成增加有界 TLA 与受控 ConPTY
+审查、崩溃恢复或真人 Windows Terminal 验收。原生集成增加受控状态／carrier 与 ConPTY
 证据；最终整体版本验收仍然必需。

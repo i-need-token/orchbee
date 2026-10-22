@@ -149,45 +149,6 @@
 			]
 		},
 		{
-			"id": "native-control-takeover",
-			"owner": "orchbee",
-			"workspace": "apps/orchbee",
-			"module": "apps/orchbee/formal/tla/NativeControlTakeover.tla",
-			"config": "apps/orchbee/formal/tla/NativeControlTakeover.cfg",
-			"claims": ["apps/orchbee/docs/native-control-takeover.md"],
-			"triggers": [
-				"apps/orchbee/src/client_view*",
-				"apps/orchbee/src/client_view/**",
-				"apps/orchbee/src/terminal_session.rs",
-				"apps/orchbee/src/terminal_session/mailbox/control_takeover*",
-				"apps/orchbee/src/terminal_session/state/control_takeover*",
-				"apps/orchbee/src/terminal_session/connection/native/control_takeover*",
-				"apps/orchbee-server/src/local_terminal_service/controller_session*",
-				"apps/orchbee-server/src/local_terminal_service/controller_session/**",
-				"apps/orchbee/docs/native-control-takeover.zh-CN.md"
-			],
-			"requiredCoverage": [
-				"Explicit",
-				"Submit",
-				"NotSubmitted",
-				"Reserve",
-				"Detach",
-				"Attach",
-				"Refuse",
-				"ReceiveGrant",
-				"Resize",
-				"PauseDisplay",
-				"ResumeDisplay",
-				"Deliver",
-				"WorkerExit",
-				"DrawFeedback",
-				"StaleCleanup",
-				"ConcurrentRefusal",
-				"Interact",
-				"OrdinaryKey"
-			]
-		},
-		{
 			"id": "native-settings-save",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",

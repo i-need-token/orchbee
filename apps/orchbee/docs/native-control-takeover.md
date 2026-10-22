@@ -58,19 +58,23 @@ the injected clock after 200 ms and localized status, without a modal prompt.
 
 ## Evidence and limits
 
-The deterministic core and carrier checks cover admission, stale identity, monotone
-receipt retention, original deadlines and input fencing. The Server regression checks
-exercise repeated transfer and stale cleanup with the same Viewers. The bounded model
-checks explicit-only handoffs, exclusive actual authority, old-input rejection, geometry
-ownership and retention. Windows process evidence uses two native ConPTY Clients with
-different pane sizes and verifies uninterrupted program identity and bidirectional input
-transfer. These checks do not establish a physical Windows Terminal or real Agent-provider
-acceptance, nor a proactive control-label notification contract.
+The serialized native handoff uses controlled implementation evidence; it has no separate TLA
+model. Its executable witnesses exercise the actual state, framed carrier, reservation and Host
+operation boundaries:
 
-`formal/tla/NativeControlTakeover.tla` bounds two Clients and three gestures, separating
-reservation, acknowledged detach, attach, grant receipt, resize, projection pause/reactivation,
-UI delivery and draw feedback.
-It checks exclusive Host authority, explicit-only sends, old-input and frame fences, controller
-geometry and receipt preservation through exit, without a fairness/recovery claim. The Server's
-verified self-grant shortcut and real encodings are bridged by implementation tests rather than
-modeled identity transformations. Same-author review is not independent confirmation.
+| Claim                                                                                                                   | Maintained evidence                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Explicit admission, captured geometry, frame-before-input and monotone receipts after exit                              | [`state/tests/control_takeover.rs`](../src/terminal_session/state/tests/control_takeover.rs)                         |
+| Refusal, unknown outcomes without resubmission, retained grants after resize/demand loss and UI delivery loss           | [`connection/native/tests/control_takeover.rs`](../src/terminal_session/connection/native/tests/control_takeover.rs) |
+| Draw/feedback restores input without replay; peer geometry never grants authority                                       | [`ui/tests/control_takeover.rs`](../src/terminal_session/ui/tests/control_takeover.rs)                               |
+| Pending reservations exclude competitors; late cleanup preserves replacement grants                                     | [Server reservation tests](../../orchbee-server/src/local_terminal_service/controller_session/tests.rs)              |
+| Acknowledged detach precedes attach; failures cannot restore old authority; old input, resize and cleanup remain fenced | [Worker local-pipe tests](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                     |
+
+The retained [`SessionViewerOwnership`](../../orchbee-server/formal/tla/SessionViewerOwnership.tla)
+model separately checks shared Viewer/grant ownership and cleanup under its own bounds; it does
+not model the native handoff sequence. The implementation traces above do not establish exhaustive
+interleavings, fairness or crash recovery. Windows process evidence uses two native ConPTY Clients
+with different pane sizes and verifies uninterrupted program identity and bidirectional input
+transfer. These checks do not establish physical Windows Terminal or real Agent-provider
+acceptance, nor proactive control-label notification. Same-author review is not independent
+confirmation.

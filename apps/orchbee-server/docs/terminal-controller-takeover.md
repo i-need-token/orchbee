@@ -64,4 +64,4 @@ pending exclusion, cleanup ownership and stale removal. Windows-capable Worker l
 detach-before-attach, refusal/failure and old-token input/resize fences. Same-author targeted tests
 include repeated transfer with the same Viewers and verified self ownership. They do not establish
 independent review, crash recovery or physical Windows Terminal acceptance. The native integration
-adds bounded TLA and controlled ConPTY evidence; final cohort acceptance remains required.
+adds controlled state/carrier and ConPTY evidence; final cohort acceptance remains required.

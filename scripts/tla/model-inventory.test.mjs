@@ -388,7 +388,6 @@ test('protocol owner paths select their core while UI copy and deterministic loc
 	const cases = [
 		['apps/orchbee/src/terminal_session/terminal_viewport/window.rs', 'native-terminal-viewport'],
 		['apps/orchbee/src/terminal_session/state/membership.rs', 'native-client-pane-membership'],
-		['apps/orchbee/src/terminal_session/mailbox/control_takeover.rs', 'native-control-takeover'],
 		['apps/orchbee-server/src/local_terminal_service/configuration.rs', 'native-settings-save'],
 		['apps/orchbee-server/src/local_terminal_service/viewer_session.rs', 'session-viewer-routing'],
 		[

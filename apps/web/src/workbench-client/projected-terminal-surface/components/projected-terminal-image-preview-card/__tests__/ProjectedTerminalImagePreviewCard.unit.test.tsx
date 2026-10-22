@@ -61,7 +61,7 @@ describe('ProjectedTerminalImagePreviewCard', () => {
 		expect(markup).toContain('result.bmp');
 	});
 
-	it('silently removes content the browser cannot decode', () => {
+	it('silently removes undecodable content and admits a replacement image', () => {
 		const rendered = render(
 			createElement(ProjectedTerminalImagePreviewCard, {
 				preview: {
@@ -88,5 +88,27 @@ describe('ProjectedTerminalImagePreviewCard', () => {
 		expect(
 			rendered.container.querySelector('[data-slot="projected-terminal-image-preview-card"]'),
 		).toBeNull();
+
+		rendered.rerender(
+			createElement(ProjectedTerminalImagePreviewCard, {
+				preview: {
+					anchor: {
+						height: 18,
+						left: 40,
+						surfaceHeight: 400,
+						surfaceWidth: 600,
+						top: 60,
+						width: 8,
+					},
+					content: new Uint8Array([3, 4, 5]).buffer,
+					kind: 'visible',
+					mediaType: 'image/png',
+					path: '/tmp/replacement.png',
+				},
+			}),
+		);
+		expect(rendered.container.querySelector('img')?.getAttribute('src')).toBe(
+			'data:image/png;base64,AwQF',
+		);
 	});
 });

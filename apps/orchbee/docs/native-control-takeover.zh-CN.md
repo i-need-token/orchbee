@@ -51,16 +51,20 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 
 ## 证据与边界
 
-确定性核心和 carrier 检查覆盖准入、过期身份、单调回执保留、原始 deadline
-和输入屏障。Server 回归检查使用同一批 Viewer 验证反复交接和过期清理。
-有界模型检查仅显式交接、唯一真实权限、旧输入拒绝、几何归属和证据保留。
-Windows 进程证据使用两个尺寸不同的原生 ConPTY Client，验证程序身份连续
-且输入可双向交接。这些检查不代表真人 Windows Terminal 或真实 Agent provider
-验收，也不建立主动更新控制标签的通知契约。
+串行化的原生交接使用受控实现证据，不保留独立 TLA 模型。可执行证据覆盖实际状态、
+带帧 carrier、预留及 Host 操作边界：
 
-`formal/tla/NativeControlTakeover.tla` 限定两个 Client 和三次动作，区分预留、已确认
-detach、attach、grant 回执、resize、projection 暂停／重新激活、UI 投递和绘制反馈。
-它检查唯一 Host 权限、仅显式
-提交、旧输入与帧屏障、控制者几何和退出时回执保留，不宣称公平性／恢复性质。
-Server 核实自身 grant 的捷径与真实编码由实现测试桥接，不建模身份变换。
+| 声明                                                                       | 维护中的证据                                                                                                         |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`state/tests/control_takeover.rs`](../src/terminal_session/state/tests/control_takeover.rs)                         |
+| 拒绝、未知结果不重新提交、resize／demand 丢失及 UI 投递丢失后保留授权      | [`connection/native/tests/control_takeover.rs`](../src/terminal_session/connection/native/tests/control_takeover.rs) |
+| 绘制／反馈恢复输入且不重放；对端几何不授予权限                             | [`ui/tests/control_takeover.rs`](../src/terminal_session/ui/tests/control_takeover.rs)                               |
+| 待处理预留排除竞争者；迟到清理保留替代授权                                 | [Server 预留测试](../../orchbee-server/src/local_terminal_service/controller_session/tests.rs)                       |
+| 确认 detach 后才 attach；失败不恢复旧权限；旧输入、resize 和清理继续受隔离 | [Worker 本地管道测试](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                         |
+
+保留的 [`SessionViewerOwnership`](../../orchbee-server/formal/tla/SessionViewerOwnership.tla)
+模型在自身边界内单独检查共享 Viewer／grant 归属和清理，不建模原生交接序列。
+上述实现轨迹不证明穷尽交错、公平性或崩溃恢复。Windows 进程证据使用两个尺寸不同的
+原生 ConPTY Client，验证程序身份连续且输入可双向交接。这些检查不代表真人
+Windows Terminal 或真实 Agent provider 验收，也不建立主动更新控制标签的通知契约。
 同作者审读不等同独立确认。
