@@ -772,6 +772,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             redraw |= terminal_input.tick_with_client_capture(client_capture_claims(&view));
             let now = inputs.sample_time();
             redraw |= view.expire_notice(now);
+            #[cfg(windows)]
+            {
+                redraw |= view.machines.advance_sidebar_motion(now);
+            }
             redraw |= dispatcher.query_graphics(
                 (dimensions.columns, dimensions.rows),
                 now,

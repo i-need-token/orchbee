@@ -1,8 +1,5 @@
 //! Shared sidebar text projection; no observation or navigation authority.
-use super::{
-    Alignment, ClientView, Frame, Line, Locale, Modifier, Paragraph, Rect, Role, Span, Theme,
-    display_width, truncate_display,
-};
+use super::{ClientView, Line, Locale, Modifier, Role, Span, Theme, truncate_display};
 use crate::{
     machine_discovery::display_label,
     machine_picker::{Choice, Row},
@@ -67,51 +64,6 @@ pub(super) fn compose_lines(
     }
 }
 
-/// Keep section actions and counts out of the item hierarchy. The full heading
-/// retains the section's existing picker target, including the blank cells.
-pub(super) fn section_heading(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    title: &str,
-    count: &str,
-    action: &str,
-    theme: &Theme,
-) {
-    let action_width = display_width(action).min(usize::from(area.width));
-    let left_width = usize::from(area.width).saturating_sub(action_width + 2);
-    let count = if count.is_empty() {
-        String::new()
-    } else {
-        format!(" {count}")
-    };
-    let title = truncate_display(
-        title,
-        left_width.saturating_sub(display_width(&count)),
-        theme.glyphs.ellipsis,
-    );
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                title,
-                theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(count, theme.style(Role::TextSecondary)),
-        ])),
-        Rect::new(area.x, area.y, left_width as u16, 1),
-    );
-    frame.render_widget(
-        Paragraph::new(action)
-            .alignment(Alignment::Right)
-            .style(theme.style(Role::HintLabel)),
-        Rect::new(
-            area.right() - action_width as u16,
-            area.y,
-            action_width as u16,
-            1,
-        ),
-    );
-}
-
 pub(super) fn state_role(state: orchbee_workbench_protocol::MetadataState) -> (&'static str, Role) {
     match state {
         MetadataState::Blocked => ("agent-blocked", Role::StatusWarning),
@@ -122,8 +74,19 @@ pub(super) fn state_role(state: orchbee_workbench_protocol::MetadataState) -> (&
         MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
     }
 }
-pub(super) fn state_glyph(state: MetadataState, theme: &Theme) -> &'static str {
-    theme.agent_glyph(state)
+/// Working cycles through the theme's equal-width frames at the Sidebar phase; other states are
+/// static.
+pub(super) fn state_glyph(
+    state: MetadataState,
+    theme: &Theme,
+    working_frame: usize,
+) -> &'static str {
+    let frames = theme.glyphs.working_frames;
+    if state == MetadataState::Working && !frames.is_empty() {
+        frames[working_frame % frames.len()]
+    } else {
+        theme.agent_glyph(state)
+    }
 }
 /// Preserve style boundaries while truncating the entire line at a grapheme boundary.
 pub(super) fn fit(line: Line<'static>, width: usize, ellipsis: &str) -> Line<'static> {

@@ -332,8 +332,6 @@ pub(crate) enum SidebarRow<'a> {
     },
     Agent {
         row: &'a Row,
-        /// Zero-based position in the global eligible Agent projection.
-        ordinal: usize,
     },
 }
 impl SidebarRow<'_> {
@@ -556,7 +554,7 @@ pub(super) fn context_identity<'a>(
 
 fn append_context<'a>(
     navigation: &SidebarNavigation,
-    agent_children: &std::collections::BTreeMap<ContextIdentity<'a>, Vec<(usize, &'a Row)>>,
+    agent_children: &std::collections::BTreeMap<ContextIdentity<'a>, Vec<&'a Row>>,
     entries: &mut Vec<SidebarRow<'a>>,
     row: &'a Row,
 ) {
@@ -576,10 +574,7 @@ fn append_context<'a>(
         return;
     }
     if let Some(children) = children {
-        entries.extend(children.iter().map(|(ordinal, row)| SidebarRow::Agent {
-            row,
-            ordinal: *ordinal,
-        }));
+        entries.extend(children.iter().map(|row| SidebarRow::Agent { row }));
     }
 }
 
@@ -608,9 +603,8 @@ impl Picker {
 
     pub(crate) fn sidebar_navigation_rows(&self) -> Vec<SidebarRow<'_>> {
         // Join the accepted Agent projection to its exact endpoint + Site + Context once.
-        // Labels and physical placement ordinals are presentation data, never ownership keys.
+        // Labels and physical placement are presentation data, never ownership keys.
         let mut agent_children = std::collections::BTreeMap::new();
-        let mut ordinal = 0;
         for row in self.agent_rows.iter().filter(|row| row.enabled) {
             let Some(agent) = row.agent.as_ref() else {
                 continue;
@@ -618,8 +612,7 @@ impl Picker {
             agent_children
                 .entry(context_identity(&row.choice, &agent.target.context))
                 .or_insert_with(Vec::new)
-                .push((ordinal, row));
-            ordinal += 1;
+                .push(row);
         }
         let mut entries = Vec::new();
         for machine in self.rows.iter().filter(|machine| machine.enabled) {

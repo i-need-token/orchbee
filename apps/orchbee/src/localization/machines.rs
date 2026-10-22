@@ -41,19 +41,6 @@ impl Locale {
             Self::ZhCn => "返回",
         }
     }
-    /// Collapsed navigation keeps the complete Agent and waiting counts discoverable.
-    pub(crate) fn sidebar_agent_count(self, total: usize) -> String {
-        match self {
-            Self::EnUs => format!("{total} {}", if total == 1 { "Agent" } else { "Agents" }),
-            Self::ZhCn => format!("{total} 个 Agent"),
-        }
-    }
-    pub(crate) fn sidebar_waiting_count(self, waiting: usize) -> String {
-        match self {
-            Self::EnUs => format!("{waiting} waiting"),
-            Self::ZhCn => format!("{waiting} 个待处理"),
-        }
-    }
     pub(crate) fn sidebar_navigation_action(
         self,
         action: crate::machine_picker::SidebarCommand,
@@ -154,6 +141,8 @@ impl Locale {
             (Self::ZhCn, "workspace-sidebar-open") => "浏览",
             (Self::EnUs, "sidebar-create") => "Create",
             (Self::ZhCn, "sidebar-create") => "新建",
+            (Self::EnUs, "sidebar-ungrouped") => "Ungrouped",
+            (Self::ZhCn, "sidebar-ungrouped") => "未分组",
             (Self::EnUs, "agent-sidebar-open") => "Filter",
             (Self::ZhCn, "agent-sidebar-open") => "筛选",
             (Self::EnUs, "no-agents") => "No agents",

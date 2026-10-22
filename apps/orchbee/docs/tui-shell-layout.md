@@ -99,16 +99,16 @@ The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
 remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above this footer, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Nonempty legacy compatibility content appears first when present. Projects in their canonical
-display order and their children follow, then ungrouped Workspaces. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
+display order and their children follow, then ungrouped Workspaces under a localized Ungrouped heading. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. The legacy Workspace owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
 
 Fallback chrome without projected navigation rows never invents a legacy Workspace row. When
 `sidebar_navigation_rows` is empty and no Workspace creation preview exists, the Windows sidebar
-omits Site, terminal-status, Business, Projects and Workspaces placeholders, including the zero-count
-Workspaces heading. New workspace, Search and Settings keep their complete existing targets and
-footer geometry. A creation preview retains its Workspace heading and pending row.
+omits Site, terminal-status, Business, Projects and Workspaces placeholders. New workspace,
+Search and Settings keep their complete existing targets and footer geometry. A creation preview
+retains its pending row.
 The no-Workspace main content stays blank, without a Terminal title, onboarding statement or repeated
 creation hint. Fixed actions and effective keyboard routes remain available. Global actions retain
 `Ctrl+B F2` at every presentable tier, with no permanent Actions button. An empty canonical Workspace
@@ -127,38 +127,39 @@ retain the navigation hint and Settings. The default focus switch is `Ctrl+B Tab
 `Ctrl+B Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
 a Workspace. Blank sidebar cells do not change focus; the explicit binding and row controls own it.
 
-Hosts shorter than 24 rows omit the spacer after the actions; sections shorter than 10 rows
-omit heading padding before clipping entries. The unified window fits
+Hosts shorter than 24 rows omit the spacer after the actions. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
 focus, or the visible current Agent with its Context as fallback, determines focus reveal.
-The Workspaces heading identifies the list without an action. Paint and pointer regions
-use the same final rectangles; tree disclosure never changes terminal content geometry.
+The list has no heading: Project and Ungrouped headings name its groups. Paint and pointer
+regions use the same final rectangles; tree disclosure never changes terminal content geometry.
 
-A blank row normally separates the fixed actions from the Workspaces heading. When canonical rows
+A blank row normally separates the fixed actions from the first group. When canonical rows
 are available, the list omits repeated application branding and ordinary session status.
 An empty navigation tree leaves the space below the actions blank until rows or a creation preview arrive.
 Both sidebar presentations keep one top padding row and one right padding cell, with no
-outer left padding; the shared focus gutter owns the list's left edge. The heading separates
-a primary label and secondary count. The count includes every canonical Workspace, including
-collapsed descendants, plus nonempty legacy content. A blank row separates the heading from its
-body when the section can fit it. Footer rows carry only overflow ranges; fully visible lists
-leave them blank.
+outer left padding; the shared focus gutter owns the list's left edge. Footer rows carry only
+overflow ranges; fully visible lists leave them blank.
 
-Navigation rows keep a one-cell navigation marker and two-cell-per-level indentation before the
-primary identity. Only Agent rows reserve a two-cell ordinal before identity; Project, Workspace
-and legacy Workspace rows do not reserve unused Agent columns. Every row then reserves a one-cell
-leading operational state track and a one-cell gap, so root owner labels start four cells from
-the list's left edge. Eligible disclosures follow the displayed first-line identity.
+Navigation rows keep a one-cell navigation marker at the list's left edge and no per-level
+indentation; the tree shape comes from shared columns. Project and Ungrouped headings start their
+bold label in the column after the marker. Workspace rows reserve a one-cell leading operational
+state track there, then a one-cell gap, so Workspace names start three cells from the list's left
+edge. Agent rows place a two-cell tree connector (`├─`, or `└─` for the last child; ASCII `|-` and
+`` `- ``) under the Workspace state track, then their own state track and gap, so Agent titles start
+five cells from the edge. A `│` trunk continues through the leading gap between Agent siblings
+only; it never crosses the Workspace's branch line. Connectors use the divider role over the row
+surface. Eligible disclosures follow the displayed first-line identity.
 After the primary identity, a one-cell gap precedes independent one-cell current and
 unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
 their markers are blank, so changing state never moves the label. Git ahead/behind counts are
 right-aligned at the end of their configured line's primary track; the default layout places them
-on the identity line and leaves the branch alone on the second line. Grouped Workspaces indent two cells,
-and Agents indent two cells from their own Workspace parent, including a legacy Workspace. Branch
+on the identity line and leaves the branch alone on the second line. Once Git has settled, a
+configured line with no visible value collapses, so a non-repository Workspace or Standalone
+context shows one line; pending metadata keeps the configured height. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible Project
-create controls stay visible and right-aligned, with no overflow-menu slot after them. At 52 columns
+create controls are revealed with the row's other controls, right-aligned, with no overflow-menu slot after them. At 52 columns
 and above they use a localized Create action; narrower sidebars use the fixed three-cell `[+]` icon
 action. Project and Workspace rows never paint or publish an ellipsis button, including during
 hover or keyboard navigation. Secondary click and the existing keyboard menu route open their exact
@@ -172,14 +173,15 @@ existing Close Workspace confirmation. Standalone, remote-machine, other-site an
 reveal it, and the context menu and keyboard close routes remain available.
 Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
-keep their existing owners. Agent ordinals use
-two cells, and default title and provider/state lines align on the fixed primary track. Default provider labels appear only when they
-fit completely alongside the state, rather than leaving truncated fragments. Project groups reserve at least one blank row
-after preceding items; configured gaps can widen it. This external separator retains the chrome
+keep their existing owners. Agent rows carry no ordinal. The default Agent row is one title line;
+its state glyph and the hover footer hint carry state, with a blocked Agent's title in the warning
+role. Project and Ungrouped groups reserve at least one blank row
+after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
+under its heading. The default Workspace gap is one row. This external separator retains the chrome
 background and an inert list-surface target; Project hover, press, and navigation never include it.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
 while typing. The same continuous rectangle includes the name, branch, configured metadata,
-collapsed-Agent summaries, identity continuations and the leading configured gap, including their gutters
+identity continuations and the leading configured gap, including their gutters
 and trailing space. It stops at the next entry boundary, excluding Project headings and neighboring entries.
 Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across a noncurrent Workspace
 entry. Named palettes retain secondary metadata colors; host-relative text uses the surface's
@@ -192,8 +194,13 @@ current context coincide, the navigation surface takes precedence while bold ide
 current-state evidence.
 Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) after
 one blank cell following the displayed first-line identity. Text measurement and painting reserve
-these two cells before truncation, using display width for wide glyphs. Identity starts stay fixed;
-only the painted glyph cell publishes a disclosure target, excluding leading gaps and continuations.
+these two cells before truncation, using display width for wide glyphs. Identity starts stay fixed.
+Disclosure and Create appear only while the row or one of its controls is hovered or pressed, or the
+row has keyboard focus; a collapsed Project keeps its disclosure visible so hidden Workspaces stay
+discoverable. A resting row publishes no target for a hidden control. Each revealed child is
+recorded before its row, and pointer projection uses that same exposure so hover and press
+survive the reveal frame. Only the painted glyph cell publishes a disclosure target, excluding
+leading gaps and continuations.
 If the identity area cannot fit text, a separator and the glyph, disclosure is omitted and its
 existing keyboard route remains available.
 Project and Workspace primary rows support primary-button dragging; disclosure and Create remain
@@ -304,20 +311,24 @@ NativeUi tests check stale context/snapshot refusal and delegation to the origin
 owners. These deterministic tests and composed buffer previews do not establish physical-host
 palette or font behavior.
 
-## Sidebar Agent counts and discovery
+## Sidebar Agent discovery
 
 The unified sidebar joins the existing eligible Agent projection to exact owners.
-Only actual Agent rows retain global ordinals; loading, unavailable, empty and
+Only actual Agent rows appear in the tree; loading, unavailable, empty and
 no-match placeholders remain in the global Agents picker. The tree footer counts
 visible navigation entries, including Project and Context rows, and reports a
 range only on overflow. It does not present that count as an Agent total.
 
-A collapsed Project or Context retains its complete observed Agent count and waiting
-count on continuation rows. These counts use exact Machine/Session/Context membership
-before Agent filters; a filter that hides every child does not hide that evidence.
-Missing or incomplete observations do not become zero counts. Zero totals are omitted;
-positive waiting counts use the warning role. Current-Workspace styling remains on the
-Context or its collapsed Project, without changing the active terminal.
+A collapsed Project or Context shows no Agent summary; its Workspace state glyph aggregates
+the complete physical Agent checkpoint, so waiting evidence stays visible through collapse and
+Agent filters. Current-Workspace styling remains on the Context or its collapsed Project,
+without changing the active terminal.
+
+Agent and Workspace state glyphs use the sidebar presentation state: a completed turn the person
+has already seen rests as idle. Working state animates through the theme's equal-width frames
+(braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`; ASCII `-\|/`) every 100 ms while the sidebar is visible and a Working
+Agent is observed. The phase lives in the Picker and the event loop advances it, so rendering
+remains a pure function of state; pane headers keep their static state glyph.
 
 The fixed Search row opens the Workspaces picker with its name query focused. Existing Workspaces
 are immediately visible even without Agents; typing filters names, Enter opens the selected exact
@@ -335,7 +346,7 @@ The existing global `Ctrl+B Shift+N` creation route remains available. Query edi
 cancellation retain the picker's capture rules, and opening either action consumes the
 input packet tail. A visible range footer opens the Workspace picker; a blank footer
 is not an action. Workspace browsing and Agent filters remain reachable through the existing
-Machine picker modes; this layout does not assign new browse/filter controls to the heading. The fixed bottom Settings entry opens the existing settings editor directly,
+Machine picker modes; this layout does not assign new browse/filter controls to group headings. The fixed bottom Settings entry opens the existing settings editor directly,
 matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
 label. Its complete configured key path appears when it fits, using the binding registry rather
 than a hard-coded default. Keyboard users open Settings with the configured action (default `Ctrl+b F4`); the existing comma binding
@@ -345,7 +356,7 @@ admission and capture ownership.
 
 Rendering consumes trusted picker rows, the shared window, geometry and binding
 registry. It performs no observation or backend command. Render and input tests
-cover both locales, themes, configured rows, global ordinals, picker/Settings entry
+cover both locales, themes, configured rows, tree connectors, picker/Settings entry
 points and the Full/Compact/Minimal/TooSmall matrix. Host interaction requires
 separate native evidence.
 
@@ -378,7 +389,7 @@ resolved by `Picker::sidebar_parent` from the current projection. Moving a Works
 dissolving its Project never changes its terminal identity, Tab or Panel target. Agent
 joining never uses labels or row positions. Equal sibling labels retain ID annotations.
 Canonical Project order, Workspace order within each group or root list, and global
-eligible Agent ordinals remain intact.
+eligible Agent order remain intact.
 
 The shared window stores its manually positioned top row by identity and old neighbor order.
 Insertion, reorder, disclosure, background source updates and resize retain that row within viewport bounds; removal uses
@@ -414,7 +425,7 @@ focus or selection. Menu, Create, right-click and wheel retain their specialized
 | Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                                                                                        |
 | Escape / hidden sidebar            | Leave keyboard ownership and consume its packet tail. Hiding the last observation consumer releases source rows and obsolete disclosure; ordinary terminal input retains its existing owner.                                                                                                                                             |
 
-Agent ordinals occupy a fixed two-cell gutter inside their nested row. Configured
+Agent tree connectors occupy a fixed two-cell track under the Workspace state. Configured
 continuation rows align with the first name after its optional state icon. Secondary
 rows use metadata text and retain explicit token overrides. Current Contexts and
 Agents use the same neutral surface and bold identity. A dedicated marker preserves current identity
@@ -434,7 +445,7 @@ without claiming pixel or backend equivalence.
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Session/Context joins, duplicate labels, ungrouped Workspaces, preserved legacy content, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.           |
 | Valid focus and scroll                    | Bounded generated navigation traces cover topology and grouping changes; focused cases cover regroup/dissolve, removed ancestors, Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed. |
-| Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, collapsed counts/current evidence, empty Project controls, stale hits, wheel cancellation and disclosure without focus transfer.     |
+| Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, collapsed current evidence, revealed Project controls, stale hits, wheel cancellation and disclosure without focus transfer.         |
 
 These synchronous presentation transitions add no asynchronous effect or terminal
 acknowledgement. Existing sidebar-input, menu and pointer owners and their deterministic

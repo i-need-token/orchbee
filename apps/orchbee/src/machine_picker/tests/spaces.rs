@@ -395,15 +395,6 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         crate::machine_agents::Observation::Ready(std::sync::Arc::new(cp)),
     )]);
     assert!(picker.agent_rows.iter().all(|r| r.agent.is_none()));
-    let first = picker.workspace_rows[0].sidebar_target().unwrap();
-    let counts = picker.sidebar_agent_counts(&first).unwrap();
-    assert_eq!((counts.total, counts.waiting), (2, 1));
-    let project = picker.sidebar_parent(&first).unwrap();
-    assert_eq!(
-        picker.sidebar_agent_counts(&project),
-        None,
-        "an incomplete Agent checkpoint cannot assert a complete Project count"
-    );
     assert_eq!(
         picker.workspace_state(&picker.workspace_rows[0]),
         Some(MetadataState::Blocked)
@@ -433,7 +424,6 @@ fn workspace_state_uses_complete_post_attention_rows_before_agent_view_filters()
         crate::machine_agents::Observation::Unavailable,
     )]);
     assert_eq!(picker.workspace_state(&picker.workspace_rows[1]), None);
-    assert_eq!(picker.sidebar_agent_counts(&first), None);
 }
 #[test]
 fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {

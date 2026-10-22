@@ -364,7 +364,7 @@ fn sidebar_fixed_actions_revalidate_their_effect_scope_and_availability() {
 }
 
 #[test]
-fn agent_children_default_expanded_keep_global_ordinals_and_independent_disclosure() {
+fn agent_children_default_expanded_keep_projection_order_and_independent_disclosure() {
     let mut picker = picker();
     let first = workspace(1, 21).target;
     let second = workspace(1, 22).target;
@@ -378,17 +378,31 @@ fn agent_children_default_expanded_keep_global_ordinals_and_independent_disclosu
             agent(standalone.clone(), 26),
         ],
     );
-    let ordinals = |picker: &Picker| {
+    let agents = |picker: &Picker| {
         picker
             .sidebar_navigation_rows()
             .iter()
             .filter_map(|row| match row {
-                SidebarRow::Agent { ordinal, .. } => Some(*ordinal),
+                SidebarRow::Agent { row } => row
+                    .sidebar_agent()
+                    .map(|agent| agent.target.member.as_str().to_owned()),
                 _ => None,
             })
             .collect::<Vec<_>>()
     };
-    assert_eq!(ordinals(&picker), [3, 0, 2, 1]);
+    let members = |numbers: &[u64]| {
+        numbers
+            .iter()
+            .map(|n| {
+                crate::machine_agents::tests::row(*n)
+                    .target
+                    .member
+                    .as_str()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(agents(&picker), members(&[26, 23, 25, 24]));
     let first = SidebarTarget::Context {
         machine: Choice::Local,
         target: first,
@@ -400,12 +414,12 @@ fn agent_children_default_expanded_keep_global_ordinals_and_independent_disclosu
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(picker.sidebar_context_agents_expanded(&standalone));
     assert!(picker.toggle_sidebar_context_agents(&first));
-    assert_eq!(ordinals(&picker), [3, 1]);
+    assert_eq!(agents(&picker), members(&[26, 24]));
     assert!(picker.sidebar_context_agents_expanded(&standalone));
     assert!(picker.toggle_sidebar_context_agents(&standalone));
-    assert_eq!(ordinals(&picker), [1]);
+    assert_eq!(agents(&picker), members(&[24]));
     assert!(picker.toggle_sidebar_context_agents(&first));
-    assert_eq!(ordinals(&picker), [0, 2, 1]);
+    assert_eq!(agents(&picker), members(&[23, 25, 24]));
     picker.observe_focus(Choice::Local, Some(second), None);
     assert!(!picker.sidebar_context_agents_expanded(&standalone));
     assert!(picker.sidebar_context_agents_expanded(&first));
@@ -774,7 +788,7 @@ fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
 }
 
 #[test]
-fn project_collapse_keeps_independent_latent_agent_disclosure_and_counts() {
+fn project_collapse_keeps_independent_latent_agent_disclosure() {
     use orchbee_workbench_protocol::PanelAgentState;
     let mut picker = picker();
     let first = SidebarTarget::Context {
@@ -799,9 +813,6 @@ fn project_collapse_keeps_independent_latent_agent_disclosure_and_counts() {
     assert_eq!(picker.sidebar_focused_target(), Some(&project));
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(!picker.sidebar_context_agents_expanded(&second));
-    let counts = picker.sidebar_agent_counts(&project).unwrap();
-    assert_eq!((counts.total, counts.waiting), (2, 1));
-    assert_eq!(picker.sidebar_workspace_count(), 4);
     assert!(!picker.activate_sidebar_workspace(&Selection {
         machine: Choice::Local,
         context: Some(workspace(1, 21).target.into())
@@ -809,7 +820,6 @@ fn project_collapse_keeps_independent_latent_agent_disclosure_and_counts() {
     assert!(picker.toggle_sidebar_project(&project));
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(!picker.sidebar_context_agents_expanded(&second));
-    assert_eq!(picker.sidebar_agent_counts(&project), Some(counts));
     assert_eq!(picker.current_context, Some(workspace(1, 21).target));
     assert!(picker.request.is_none());
 }

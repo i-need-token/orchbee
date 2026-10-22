@@ -4,11 +4,10 @@ use crate::machine_picker::SidebarTarget;
 use ratatui::layout::Rect;
 
 const NAVIGATION_WIDTH: u16 = 1;
-const NAVIGATION_INSET: u16 = 1;
-const INDENT_WIDTH: u16 = 2;
 const DISCLOSURE_WIDTH: u16 = 1;
 const DISCLOSURE_GAP: u16 = 1;
-const ORDINAL_WIDTH: u16 = 2;
+/// Agent rows open with a two-cell tree connector (`├─`/`└─`) under their Workspace state.
+const BRANCH_WIDTH: u16 = 2;
 const CURRENT_WIDTH: u16 = 1;
 const STATE_WIDTH: u16 = 1;
 const STATE_GAP: u16 = 1;
@@ -19,7 +18,11 @@ const COMPACT_MINIMUM: u16 = 28;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum RowKind {
+    /// A Project or ungrouped heading: identity starts at the list edge without a state slot.
+    Group,
+    /// A Workspace: state at the list edge, identity after it.
     Owner,
+    /// An Agent: tree connector under the Workspace state, then state and identity.
     Agent,
 }
 
@@ -27,14 +30,8 @@ impl RowKind {
     pub(super) const fn for_target(target: &SidebarTarget) -> Self {
         match target {
             SidebarTarget::Agent { .. } => Self::Agent,
-            SidebarTarget::Project { .. } | SidebarTarget::Context { .. } => Self::Owner,
-        }
-    }
-
-    const fn ordinal_width(self) -> u16 {
-        match self {
-            Self::Owner => 0,
-            Self::Agent => ORDINAL_WIDTH,
+            SidebarTarget::Project { .. } => Self::Group,
+            SidebarTarget::Context { .. } => Self::Owner,
         }
     }
 }
@@ -103,7 +100,7 @@ pub(super) struct Tracks {
     pub(super) content_y: u16,
     pub(super) navigation: Rect,
     pub(super) disclosure: Rect,
-    pub(super) ordinal: Rect,
+    pub(super) branch: Rect,
     pub(super) current: Rect,
     pub(super) state: Rect,
     pub(super) unread: Rect,
@@ -117,17 +114,15 @@ impl Tracks {
     pub(super) fn resolve(
         band: Rect,
         leading_gap: u16,
-        depth: u16,
         actions: AuxiliaryActions,
         kind: RowKind,
     ) -> Option<Self> {
-        Self::resolve_for_width(band, leading_gap, depth, band.width, actions, kind)
+        Self::resolve_for_width(band, leading_gap, band.width, actions, kind)
     }
 
     pub(super) fn resolve_for_width(
         band: Rect,
         leading_gap: u16,
-        depth: u16,
         sidebar_width: u16,
         actions: AuxiliaryActions,
         kind: RowKind,
@@ -147,23 +142,40 @@ impl Tracks {
             band.height,
         );
         let content_y = band.y.saturating_add(leading_gap);
+        // The keyboard marker owns the list edge; every kind starts its content right after it.
         let navigation = Rect::new(
-            band.x.saturating_add(NAVIGATION_INSET),
+            band.x,
             band.y,
             NAVIGATION_WIDTH.min(band.width),
             band.height,
         );
-        let indent = depth.saturating_mul(INDENT_WIDTH);
-        let ordinal = clipped_track(
+        let branch = clipped_track(
             band,
-            navigation.right().saturating_add(indent),
-            kind.ordinal_width(),
+            navigation.right(),
+            if kind == RowKind::Agent {
+                BRANCH_WIDTH
+            } else {
+                0
+            },
         );
-        // Every sibling reserves the leading state slot, so labels share one start column.
-        let state = clipped_track(band, ordinal.right(), STATE_WIDTH);
+        // A Workspace state shares the connector column, so an Agent state aligns with its
+        // Workspace identity. Headings reserve no state slot.
+        let state = clipped_track(
+            band,
+            branch.right(),
+            if kind == RowKind::Group {
+                0
+            } else {
+                STATE_WIDTH
+            },
+        );
         let metadata_width = METADATA_GAP + CURRENT_WIDTH + UNREAD_WIDTH;
         let primary_right = auxiliary.x.checked_sub(metadata_width)?;
-        let primary_x = state.right().saturating_add(STATE_GAP);
+        let primary_x = if kind == RowKind::Group {
+            state.right()
+        } else {
+            state.right().saturating_add(STATE_GAP)
+        };
         if primary_x >= primary_right {
             return None;
         }
@@ -178,7 +190,7 @@ impl Tracks {
             content_y,
             navigation,
             disclosure,
-            ordinal,
+            branch,
             current,
             state,
             unread,

@@ -163,6 +163,37 @@ fn disclosure_cell(
     panic!("rendered disclosure cell");
 }
 
+/// Disclosure is pointer-revealed: hover the row, then publish the frame that paints the cell.
+fn revealed_disclosure(
+    dispatcher: &mut InputDispatcher,
+    view: &mut ClientView,
+    port: &mut Port,
+    target: &crate::machine_picker::SidebarTarget,
+) -> Rect {
+    let paint = |dispatcher: &InputDispatcher, view: &ClientView| {
+        rendered_sidebar_map_with(
+            view,
+            120,
+            HitMapBuilder::with_pointer(dispatcher.pointer_projection()),
+        )
+    };
+    let map = paint(dispatcher, view);
+    assert!(
+        (0..40).all(|y| (0..30).all(
+            |x| map.hit_target_at(x, y) != Some(&HitTarget::SidebarDisclosure(target.clone()))
+        )),
+        "an unrevealed disclosure publishes no target"
+    );
+    let (x, y) = sidebar_primary_cell(&map, target);
+    dispatcher.publish_hit_map(map);
+    let motion = format!("\x1b[<35;{};{}M", x + 1, y + 1);
+    dispatch_all(dispatcher, view, port, motion.as_bytes());
+    let map = paint(dispatcher, view);
+    let disclosure = disclosure_cell(&map, target);
+    dispatcher.publish_hit_map(map);
+    disclosure
+}
+
 fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     let target = sidebar_context();
     let crate::terminal_session::NativeContextLocation::Workspace { .. } = target.location else {
@@ -207,9 +238,7 @@ fn sidebar_project_pointer_toggles_without_taking_keyboard_input() {
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
-    let map = rendered_sidebar_map(&view);
-    let disclosure = disclosure_cell(&map, &target);
-    dispatcher.publish_hit_map(map);
+    let disclosure = revealed_disclosure(&mut dispatcher, &mut view, &mut port, &target);
     let mut modes = Vec::new();
     dispatcher
         .dispatch(
@@ -258,9 +287,7 @@ fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packe
                 Ok::<(), io::Error>(())
             })
             .unwrap();
-        let map = rendered_sidebar_map(&view);
-        let disclosure = disclosure_cell(&map, &target);
-        dispatcher.publish_hit_map(map);
+        let disclosure = revealed_disclosure(&mut dispatcher, &mut view, &mut port, &target);
         let mut modes = Vec::new();
         dispatcher
             .dispatch(
@@ -299,12 +326,10 @@ fn context_disclosure_is_display_only_preserves_other_focus_and_fences_the_packe
 #[test]
 fn stale_rendered_context_disclosure_rejects_mutation_but_still_fences_packet_tail() {
     let (mut view, target) = sidebar_view_with_agent();
-    let map = rendered_sidebar_map(&view);
-    let disclosure = disclosure_cell(&map, &target);
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
-    dispatcher.publish_hit_map(map);
+    let disclosure = revealed_disclosure(&mut dispatcher, &mut view, &mut port, &target);
     view.machines.observe_agents(vec![(
         crate::machine_picker::Choice::Local,
         crate::machine_agents::Observation::Unavailable,

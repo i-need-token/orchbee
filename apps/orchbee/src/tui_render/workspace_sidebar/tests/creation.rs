@@ -264,7 +264,6 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                 let tracks = layout::Tracks::resolve(
                     Rect::new(0, y, 64, 1),
                     0,
-                    depth(&view, &workspace),
                     auxiliary_actions(&view.machines.sidebar_source(), &workspace),
                     layout::RowKind::for_target(&workspace),
                 )
@@ -678,14 +677,8 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
                     if extra { 3 } else { 2 },
                     "{case}"
                 );
-                assert!(
-                    text.starts_with(&format!(
-                        "{} {}",
-                        locale.shell().workspaces,
-                        if extra { 3 } else { 2 }
-                    )),
-                    "{case}: {text}"
-                );
+                // The list opens with its Project heading; there is no counted list heading.
+                assert!(text.trim_start().starts_with("Repo"), "{case}: {text}");
                 assert!(!text.contains("Repo / same 工作区"), "{case}");
             }
         }
@@ -769,11 +762,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                     .unwrap();
                 let text = rendered_text(terminal.backend().buffer());
                 assert!(
-                    text.starts_with(&format!(
-                        "{} {}",
-                        locale.shell().workspaces,
-                        if revision < 4 { 2 } else { 1 },
-                    )),
+                    text.trim_start().starts_with("Repo"),
                     "revision {revision}, collapsed {collapsed}: {text}"
                 );
                 assert_eq!(

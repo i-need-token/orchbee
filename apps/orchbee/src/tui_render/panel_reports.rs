@@ -87,7 +87,7 @@ pub(super) fn header(
                 PanelAgentState::Blocked => (MetadataState::Blocked, Role::StatusWarning),
                 PanelAgentState::Unknown => (MetadataState::Unknown, Role::TextSecondary),
             };
-            symbol = Some(super::sidebar_text::state_glyph(label, theme));
+            symbol = Some(theme.agent_glyph(label));
             (
                 row.metadata.state_labels.get(&label).map_or_else(
                     || locale.panel_report_state(status).to_owned(),

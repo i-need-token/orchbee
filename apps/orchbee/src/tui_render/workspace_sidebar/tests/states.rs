@@ -103,7 +103,7 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
             let owner_rows = sidebar_target_rows(&hits, 40, 20, &workspace);
             let agent_rows = sidebar_target_rows(&hits, 40, 20, &agent);
             assert_eq!(owner_rows.len(), 2);
-            assert_eq!(agent_rows.len(), 2);
+            assert_eq!(agent_rows.len(), 1, "an Agent is a single title line");
             assert_eq!(agent_rows[0], owner_rows[1] + 1);
             for y in owner_rows {
                 assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome)));
@@ -168,15 +168,22 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             Role::SurfaceHover
                         };
                         let expected = theme.style(surface);
-                        assert_eq!(ys.len(), 2, "identity and supporting lines: {target:?}");
-                        let supporting_text: String = (0..40)
-                            .filter(|x| !hidden_by_candidate_wide_glyph(&buffer, *x, ys[1]))
-                            .map(|x| buffer[(x, ys[1])].symbol())
-                            .collect();
-                        assert!(
-                            supporting_text.contains(if owner { "feat/测试" } else { "codex" }),
-                            "expected branch/provider supporting line: {supporting_text}"
+                        // A Workspace keeps its branch line; an Agent is one title line.
+                        assert_eq!(
+                            ys.len(),
+                            if owner { 2 } else { 1 },
+                            "identity and supporting lines: {target:?}"
                         );
+                        if owner {
+                            let supporting_text: String = (0..40)
+                                .filter(|x| !hidden_by_candidate_wide_glyph(&buffer, *x, ys[1]))
+                                .map(|x| buffer[(x, ys[1])].symbol())
+                                .collect();
+                            assert!(
+                                supporting_text.contains("feat/测试"),
+                                "expected branch supporting line: {supporting_text}"
+                            );
+                        }
                         for y in &ys {
                             for x in 0..40 {
                                 if hidden_by_candidate_wide_glyph(&buffer, x, *y) {

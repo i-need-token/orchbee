@@ -122,10 +122,6 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                         );
                     } else if height >= 24 {
                         let text = sidebar_display_text(buffer, sidebar.area);
-                        assert!(
-                            text.contains(&format!("{} 1", locale.shell().workspaces)),
-                            "creation heading at {width}x{height}: {text}"
-                        );
                         assert!(text.contains("Codex 工作区"), "creation label: {text}");
                     }
                 }

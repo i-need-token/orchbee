@@ -136,6 +136,13 @@ pub(crate) struct GlyphSet {
     /// Project disclosure, with one-cell ASCII fallbacks.
     pub disclosure_open: &'static str,
     pub disclosure_closed: &'static str,
+    /// Two-cell sidebar tree connectors for a non-final and a final child, and the
+    /// one-cell trunk that continues past a non-final child.
+    pub tree_branch: &'static str,
+    pub tree_last: &'static str,
+    pub tree_trunk: &'static str,
+    /// One-cell Working frames; every frame has the same display width.
+    pub working_frames: &'static [&'static str],
 }
 
 impl GlyphSet {
@@ -152,6 +159,10 @@ impl GlyphSet {
         scrollbar_thumb: "┃",
         disclosure_open: "▾",
         disclosure_closed: "▸",
+        tree_branch: "├─",
+        tree_last: "└─",
+        tree_trunk: "│",
+        working_frames: &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
     };
 
     #[cfg(test)]
@@ -168,6 +179,10 @@ impl GlyphSet {
         scrollbar_thumb: "#",
         disclosure_open: "-",
         disclosure_closed: "+",
+        tree_branch: "|-",
+        tree_last: "`-",
+        tree_trunk: "|",
+        working_frames: &["-", "\\", "|", "/"],
     };
 
     pub(crate) const fn mode(self) -> GlyphMode {

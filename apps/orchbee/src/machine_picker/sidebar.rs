@@ -351,3 +351,46 @@ impl<S> Sidebar<S> {
         Scroll::settle(&mut self.scroll, &mut self.top, total)
     }
 }
+
+/// Working-glyph phase for the Sidebar. Rendering only reads the phase; the event loop advances
+/// it, so every frame remains a pure function of Client state.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct Motion {
+    frame: usize,
+    advanced: Option<std::time::Instant>,
+}
+
+/// Interval between Working glyph frames.
+const WORKING_FRAME: std::time::Duration = std::time::Duration::from_millis(100);
+
+impl Picker {
+    pub(crate) const fn sidebar_working_frame(&self) -> usize {
+        self.sidebar_motion.frame
+    }
+
+    /// Advances the Working glyph only while the visible Sidebar can show a Working Agent, and
+    /// reports whether the frame changed.
+    pub(crate) fn advance_sidebar_motion(&mut self, now: std::time::Instant) -> bool {
+        let working = self.spaces.visible()
+            && self.agent_observations.iter().any(|(_, observation)| {
+                matches!(observation, crate::machine_agents::Observation::Ready(checkpoint)
+                if checkpoint.rows.iter().any(|row| {
+                    row.display_state() == orchbee_workbench_protocol::MetadataState::Working
+                }))
+            });
+        if !working {
+            self.sidebar_motion.advanced = None;
+            return false;
+        }
+        if self
+            .sidebar_motion
+            .advanced
+            .is_some_and(|at| now.saturating_duration_since(at) < WORKING_FRAME)
+        {
+            return false;
+        }
+        self.sidebar_motion.frame = self.sidebar_motion.frame.wrapping_add(1);
+        self.sidebar_motion.advanced = Some(now);
+        true
+    }
+}

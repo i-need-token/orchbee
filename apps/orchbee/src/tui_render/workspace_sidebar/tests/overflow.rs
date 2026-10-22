@@ -29,6 +29,60 @@ fn event(column: u16, row: u16, action: MouseAction) -> MouseEvent {
     }
 }
 
+/// Row controls are pointer-revealed: hover the row's first line, then paint the frame that
+/// publishes its disclosure and Create controls.
+fn revealed_frame(
+    view: &mut ClientView,
+    pointer: &mut PointerState,
+    (locale, theme): (Locale, &Theme),
+    (width, height): (u16, u16),
+    target: &SidebarTarget,
+) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+    let (_, _, map) = paint_navigation_buffers_with_pointer(
+        view,
+        locale,
+        theme,
+        width,
+        height,
+        pointer.projection(),
+    );
+    assert!(
+        (0..height).all(|y| (0..width).all(
+            |x| map.hit_target_at(x, y) != Some(&HitTarget::SidebarDisclosure(target.clone()))
+        )),
+        "a resting row publishes no disclosure"
+    );
+    let y = sidebar_target_rows(&map, width, height, target)
+        .into_iter()
+        .find(|y| {
+            (0..width).any(|x| {
+                matches!(
+                    map.hit_target_at(x, *y),
+                    Some(
+                        HitTarget::MachineProjectRow { .. } | HitTarget::MachineWorkspaceRow { .. }
+                    )
+                )
+            })
+        })
+        .unwrap();
+    pointer.publish(map);
+    let _ = pointer.event(
+        view,
+        &mut NoInput,
+        Instant::now(),
+        event(2, y, MouseAction::Motion),
+    );
+    let (candidate, _, map) = paint_navigation_buffers_with_pointer(
+        view,
+        locale,
+        theme,
+        width,
+        height,
+        pointer.projection(),
+    );
+    (candidate, map)
+}
+
 fn active_view() -> ClientView {
     let mut view = view(120, 40);
     let SidebarTarget::Context {
@@ -55,13 +109,12 @@ fn row_and_child_hover_share_the_whole_row_surface_without_an_overflow_slot() {
             let mut pointer = PointerState::default();
             pointer.set_capture(true);
             pointer.set_motion_observability(MotionObservability::AnyMotion);
-            let (_, _, map) = paint_navigation_buffers_with_pointer(
-                &view,
-                locale,
-                &theme,
-                width,
-                12,
-                pointer.projection(),
+            let (_, map) = revealed_frame(
+                &mut view,
+                &mut pointer,
+                (locale, &theme),
+                (width, 12),
+                &target,
             );
             let y = sidebar_target_rows(&map, width, 12, &target)[0];
             let disclosure_x = (0..width)
@@ -225,13 +278,12 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                     let mut pointer = PointerState::default();
                     pointer.set_capture(true);
                     pointer.set_motion_observability(MotionObservability::AnyMotion);
-                    let (_, _, map) = paint_navigation_buffers_with_pointer(
-                        &view,
-                        locale,
-                        &theme,
-                        width,
-                        24,
-                        pointer.projection(),
+                    let (_, map) = revealed_frame(
+                        &mut view,
+                        &mut pointer,
+                        (locale, &theme),
+                        (width, 24),
+                        &target,
                     );
                     let project_y = sidebar_target_rows(&map, width, 24, &target)[0];
                     let last_workspace_y = (0..project_y)
@@ -251,9 +303,8 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                     let tracks = layout::Tracks::resolve(
                         Rect::new(0, project_y, width, 1),
                         0,
-                        0,
                         auxiliary_actions(&view.machines.sidebar_source(), &target),
-                        layout::RowKind::Owner,
+                        layout::RowKind::Group,
                     )
                     .unwrap();
                     let expected_label = truncate_display(
@@ -302,9 +353,14 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                                 } else {
                                     Role::SurfaceChrome
                                 })));
+                            // The expanded Project's disclosure is shown only while the row is hovered.
                             assert_eq!(
                                 candidate[(disclosure_x, project_y)].symbol(),
-                                theme.glyphs.disclosure_open
+                                if on_row {
+                                    theme.glyphs.disclosure_open
+                                } else {
+                                    " "
+                                }
                             );
                             for gap_y in last_workspace_y + 1..project_y {
                                 for gap_x in 0..width {
@@ -354,7 +410,8 @@ fn multirow_workspace_disclosure_has_no_hit_on_padding_or_continuations() {
                 serde_json::json!([[token("workspace")], [token("branch")]]),
                 2,
             );
-            let target = view.machines.space_rows()[0].sidebar_target().unwrap();
+            // A Project's first Workspace has no leading gap; the second owns the configured one.
+            let target = view.machines.space_rows()[1].sidebar_target().unwrap();
             let SidebarTarget::Context {
                 target: context, ..
             } = &target
@@ -368,7 +425,16 @@ fn multirow_workspace_disclosure_has_no_hit_on_padding_or_continuations() {
                 ),
             )]);
             let theme = Theme::one_light();
-            let (buffer, map) = paint_navigation(&view, locale, &theme, width, 24);
+            let mut pointer = PointerState::default();
+            pointer.set_capture(true);
+            pointer.set_motion_observability(MotionObservability::AnyMotion);
+            let (buffer, map) = revealed_frame(
+                &mut view,
+                &mut pointer,
+                (locale, &theme),
+                (width, 24),
+                &target,
+            );
             let rows = sidebar_target_rows(&map, width, 24, &target);
             let cells = rows
                 .iter()

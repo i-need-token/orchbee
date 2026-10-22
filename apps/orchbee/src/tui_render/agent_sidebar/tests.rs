@@ -36,7 +36,7 @@ fn default_agent_title_prefers_explicit_name_then_task_and_never_an_automatic_nu
                 _ => None,
             })
             .unwrap();
-        let lines = tokens::lines(&view, agent, Locale::EnUs, &Theme::terminal_native(), 80);
+        let lines = tokens::lines(&view, agent, Locale::EnUs, &Theme::terminal_native());
         let actual: String = lines[0]
             .spans
             .iter()
@@ -98,7 +98,7 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
                     .iter()
                     .find_map(|entry| match entry {
                         crate::machine_picker::SidebarRow::Agent { row, .. } => {
-                            Some(tokens::lines(&view, row, locale, &theme, 80))
+                            Some(tokens::lines(&view, row, locale, &theme))
                         }
                         _ => None,
                     })
@@ -270,7 +270,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
                 .iter()
                 .find_map(|entry| match entry {
                     crate::machine_picker::SidebarRow::Agent { row, .. } => {
-                        Some(tokens::lines(&view, row, locale, &theme, 80))
+                        Some(tokens::lines(&view, row, locale, &theme))
                     }
                     _ => None,
                 })
@@ -493,12 +493,15 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
             })
             .unwrap();
         let buffer = terminal.backend().buffer();
-        let ordinal_x = (0..30)
-            .find(|x| buffer[(*x, y)].symbol() == "1")
-            .expect("nested Agent ordinal");
+        let connector_x = (0..30)
+            .find(|x| {
+                buffer[(*x, y)].symbol()
+                    == theme.glyphs.tree_last.chars().next().unwrap().to_string()
+            })
+            .expect("nested Agent connector");
         assert_eq!(
-            buffer[(ordinal_x, y)].fg,
-            theme.style(Role::HintLabel).fg.unwrap()
+            buffer[(connector_x, y)].fg,
+            theme.style(Role::FrameDivider).fg.unwrap()
         );
         let expected = theme.sidebar_token_style(
             Role::TextPrimary,
@@ -647,13 +650,14 @@ fn filtering_out_the_last_agent_closes_disclosure_and_keeps_global_picker_entry(
 }
 
 #[test]
-fn nested_agents_use_global_ordinals_without_a_second_sidebar_region() {
+fn nested_agents_share_one_tree_without_a_second_sidebar_region() {
     let view = view(120, 40, 2);
+    let theme = Theme::terminal_native();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
+        let (rows, hits) = paint(&view, locale, &theme, 120, 40);
         let text = rows.join("\n");
-        assert!(text.contains(" 1 "), "{rows:?}");
-        assert!(text.contains(" 2 "), "{rows:?}");
+        assert!(text.contains(theme.glyphs.tree_branch), "{rows:?}");
+        assert!(text.contains(theme.glyphs.tree_last), "{rows:?}");
         assert!(!text.contains(&format!("{} 2", locale.shell().agents)));
         assert!(text.contains(locale.machine_picker_text("agent-search")));
         assert_eq!(
@@ -663,7 +667,8 @@ fn nested_agents_use_global_ordinals_without_a_second_sidebar_region() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            4
+            2,
+            "each Agent is one line"
         );
     }
 }
@@ -694,7 +699,7 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .iter()
                 .find_map(|entry| match entry {
                     crate::machine_picker::SidebarRow::Agent { row, .. } => {
-                        Some(tokens::lines(&view, row, locale, &theme, 80))
+                        Some(tokens::lines(&view, row, locale, &theme))
                     }
                     _ => None,
                 })
@@ -704,20 +709,8 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .iter()
                 .map(|span| span.content.as_ref())
                 .collect::<String>();
-            let projected_detail = projected[1]
-                .spans
-                .iter()
-                .map(|span| span.content.as_ref())
-                .collect::<String>();
             assert_eq!(projected_title, "Input handling");
-            assert_eq!(
-                projected_detail,
-                format!(
-                    "codex {} {}",
-                    theme.glyphs.middle_dot,
-                    locale.machine_picker_text("agent-working")
-                )
-            );
+            assert_eq!(projected.len(), 1, "state text lives in the hover hint");
             let y = (0..40)
                 .find(|y| {
                     matches!(
@@ -727,136 +720,14 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 })
                 .unwrap();
             assert!(rows[y as usize].contains("Input"), "{rows:?}");
-            assert!(
-                rows[y as usize].contains(
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
-                )
-            );
-            let state = locale.machine_picker_text("agent-working");
-            let detail = format!("codex {} {state}", theme.glyphs.middle_dot);
-            assert!(rows[y as usize + 1].contains(&detail));
-            assert_eq!(
-                display_width(rows[y as usize].split("Input").next().unwrap()),
-                display_width(rows[y as usize + 1].split("codex").next().unwrap())
-            );
+            assert!(rows[y as usize].contains(theme.glyphs.working_frames[0]));
             assert!(!rows.join("\n").contains("Local /"));
             assert!(!rows.join("\n").contains("本地 /"));
             assert!(!rows.join("\n").contains("space /"));
-            for row in [y, y + 1] {
-                assert!(
-                    matches!(hits.hit_target_at(2, row), Some(HitTarget::MachineAgentRow { selected, .. })
-                    if matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref() == &target))
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn default_agent_detail_keeps_status_readable_without_empty_provider_fragments() {
-    use orchbee_workbench_protocol::{MetadataState, MetadataTokenValue};
-    for (width, height) in [(120, 40), (80, 24), (60, 12)] {
-        let mut view = view(width, height, 1);
-        let mut agent = row(23);
-        agent.metadata.state_labels.insert(
-            MetadataState::Working,
-            MetadataTokenValue::parse("Investigating").unwrap(),
-        );
-        view.machines.observe_agents(vec![(
-            Choice::Local,
-            Agents::Ready(checkpoint(vec![agent])),
-        )]);
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            for theme in [
-                Theme::terminal_native(),
-                Theme::one_dark(),
-                Theme::one_light(),
-            ] {
-                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-                let mut hits = HitMapBuilder::new();
-                terminal
-                    .draw(|frame| {
-                        render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
-                    })
-                    .unwrap();
-                let hits = hits.finish();
-                let y = (0..height)
-                    .find(|y| {
-                        matches!(
-                            hits.hit_target_at(2, *y),
-                            Some(HitTarget::MachineAgentRow { .. })
-                        )
-                    })
-                    .unwrap();
-                let buffer = terminal.backend().buffer();
-                let x = (0..30)
-                    .find(|x| buffer[(*x, y + 1)].symbol() == "I")
-                    .unwrap();
-                assert_eq!(
-                    buffer[(x, y + 1)].fg,
-                    theme.style(Role::StatusWorking).fg.unwrap_or_default()
-                );
-                assert!(!buffer[(x, y + 1)].modifier.contains(Modifier::DIM));
-                let detail = (0..30)
-                    .map(|x| buffer[(x, y + 1)].symbol())
-                    .collect::<String>();
-                assert!(detail.contains("Invest"), "{detail}");
-                assert_eq!(
-                    detail.contains("Investigating"),
-                    !detail.contains(theme.glyphs.ellipsis),
-                    "{detail}"
-                );
-                assert!(!detail.contains('·'), "{detail}");
-            }
-        }
-    }
-}
-
-#[test]
-fn default_agent_detail_keeps_only_complete_provider_labels_across_cell_budgets() {
-    let mut view = view(120, 40, 1);
-    let mut agent = row(23);
-    agent.metadata.state_labels.insert(
-        orchbee_workbench_protocol::MetadataState::Working,
-        orchbee_workbench_protocol::MetadataTokenValue::parse("Investigating").unwrap(),
-    );
-    view.machines.observe_agents(vec![(
-        Choice::Local,
-        Agents::Ready(checkpoint(vec![agent])),
-    )]);
-    let rows = view.machines.sidebar_navigation_rows();
-    let row = rows
-        .iter()
-        .find_map(|row| match row {
-            crate::machine_picker::SidebarRow::Agent { row, .. } => Some(row),
-            _ => None,
-        })
-        .unwrap();
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [
-            Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark(),
-        ] {
-            for width in 17..=30 {
-                let lines = tokens::lines(&view, row, locale, &theme, width);
-                let detail = lines[1]
-                    .spans
-                    .iter()
-                    .map(|span| span.content.as_ref())
-                    .collect::<String>();
-                assert!(detail.ends_with("Investigating"), "{width}: {detail}");
-                assert!(display_width(&detail) <= width, "{width}: {detail}");
-                let complete = format!("codex {} Investigating", theme.glyphs.middle_dot);
-                let provider_fits = width >= display_width(&complete);
-                assert_eq!(detail.contains("codex"), provider_fits, "{width}: {detail}");
-                assert_eq!(
-                    detail.contains(theme.glyphs.middle_dot),
-                    provider_fits,
-                    "{width}: {detail}"
-                );
-                assert!(!detail.contains(theme.glyphs.ellipsis), "{width}: {detail}");
-            }
+            assert!(
+                matches!(hits.hit_target_at(2, y), Some(HitTarget::MachineAgentRow { selected, .. })
+                if matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref() == &target))
+            );
         }
     }
 }
@@ -881,9 +752,8 @@ fn default_agent_identity_uses_provider_for_blank_titles_without_repeating_it() 
             })
             .unwrap();
         assert!(rows[y as usize].contains("codex"), "{rows:?}");
-        assert!(rows[y as usize + 1].contains("Working"));
-        assert!(!rows[y as usize + 1].contains("codex"));
-        assert!(!rows[y as usize + 1].contains('·'));
+        assert!(!rows[y as usize].contains("Working"), "{rows:?}");
+        assert!(!rows[y as usize].contains('·'), "{rows:?}");
     }
 }
 
@@ -1181,10 +1051,9 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                 if visible {
                     assert!(joined.contains(locale.settings_title()), "{rows:?}");
                     assert!(
-                        joined.contains(locale.machine_picker_text("agent-working")),
+                        joined.contains(theme.glyphs.working_frames[0]),
                         "{width}x{height} {rows:?}"
                     );
-                    assert!(joined.contains("/21"), "{rows:?}");
                     let mut inspected = Vec::new();
                     for y in 0..height {
                         if let Some(HitTarget::MachineAgentRow { window, selected }) =
@@ -1195,29 +1064,20 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                             }
                             inspected.push(selected.clone());
                             assert!(window.capacity > 0 && window.end() <= 21);
+                            // The range footer appears exactly when the window clips entries.
+                            assert_eq!(
+                                joined.contains("/21"),
+                                window.top > 0 || window.end() < 21,
+                                "{rows:?}"
+                            );
                             let exact = (0..height)
                                 .filter(|candidate| {
                                     matches!(hits.hit_target_at(2, *candidate), Some(HitTarget::MachineAgentRow { selected: actual, .. }) if actual == selected)
                                 })
                                 .collect::<Vec<_>>();
-                            assert!(exact.len() >= 2, "{rows:?}");
+                            assert_eq!(exact.len(), 1, "{rows:?}");
                             assert!(exact.iter().all(|candidate| *candidate < height - 1));
-                            let projected = exact
-                                .iter()
-                                .map(|candidate| rows[usize::from(*candidate)].as_str())
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            assert!(
-                                projected.contains(locale.machine_picker_text("agent-working")),
-                                "{rows:?}"
-                            );
-                            if projected.contains("codex") {
-                                assert!(projected.contains(&format!(
-                                    "codex {} {}",
-                                    theme.glyphs.middle_dot,
-                                    locale.machine_picker_text("agent-working")
-                                )));
-                            }
+                            assert!(rows[usize::from(exact[0])].contains("build"), "{rows:?}");
                         }
                     }
                 } else {
@@ -1243,39 +1103,33 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
     assert!(rows[2].contains("[ Search ]"), "{rows:?}");
-    assert!(rows[3].contains("Workspaces"), "{rows:?}");
+    assert!(rows[3].contains("Ungrouped"), "{rows:?}");
     assert!(rows[4].contains("Standalone"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(
-        rows[6].contains('1') && rows[6].contains("build"),
-        "{rows:?}"
-    );
-    assert!(
-        rows[7].contains(&format!("codex {} Working", theme.glyphs.middle_dot)),
+        rows[5].contains(theme.glyphs.tree_last) && rows[5].contains("build"),
         "{rows:?}"
     );
     assert!(rows[11].contains("[ Settings ]"), "{rows:?}");
     assert!((0..30).any(|x| matches!(hits.hit_target_at(x, 2), Some(HitTarget::SearchButton))));
+    for x in [2, 27] {
+        assert!(matches!(
+            hits.hit_target_at(x, 5),
+            Some(HitTarget::MachineAgentRow { .. })
+        ));
+    }
     assert!(matches!(
-        hits.hit_target_at(2, 6),
-        Some(HitTarget::MachineAgentRow { .. })
-    ));
-    assert!(matches!(
-        hits.hit_target_at(27, 7),
-        Some(HitTarget::MachineAgentRow { .. })
-    ));
-    assert!(matches!(
-        hits.hit_target_at(28, 6),
+        hits.hit_target_at(28, 5),
         Some(HitTarget::OverlaySurface)
     ));
     assert!(
-        hits.hit_target_at(30, 6).is_none(),
+        hits.hit_target_at(30, 5).is_none(),
         "outside overlay must dismiss without selecting"
     );
 }
 
 #[test]
-fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
+fn sidebar_shares_source_order_and_never_lists_unavailable_rows() {
     let mut view = view(120, 40, 2);
     let mut round = checkpoint(vec![row(23), row(24)]).as_ref().clone();
     round.rows = round
@@ -1307,22 +1161,15 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
     ]);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
     let joined = rows.join("\n");
-    let bullet =
-        Theme::rgb_test_dark().agent_glyph(orchbee_workbench_protocol::MetadataState::Working);
-    for ordinal in [1, 2] {
-        assert!(
-            rows.iter()
-                .any(|line| line.trim_start().starts_with(&format!("{ordinal} "))
-                    && line.contains(bullet)),
-            "{joined}"
-        );
-    }
-    assert!(
-        !rows
-            .iter()
-            .any(|line| line.trim_start().starts_with("3 ") && line.contains(bullet))
+    let glyphs = Theme::rgb_test_dark().glyphs;
+    assert_eq!(
+        rows.iter()
+            .filter(|line| line.contains(glyphs.tree_branch) || line.contains(glyphs.tree_last))
+            .count(),
+        2,
+        "{joined}"
     );
-    assert!(!joined.contains("3 remote"));
+    assert!(!joined.contains("remote"), "{joined}");
     let selected = (0..40)
         .find_map(|y| match hits.hit_target_at(2, y) {
             Some(HitTarget::MachineAgentRow { selected, .. }) => Some(selected),
@@ -1416,16 +1263,6 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 )
             })
             .unwrap();
-        let ordinal_x = (0..30)
-            .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == "1")
-            .expect("current nested Agent ordinal");
-        assert_eq!(
-            terminal.backend().buffer()[(ordinal_x, y)].fg,
-            theme
-                .current_context_style(theme.style(Role::HintLabel))
-                .fg
-                .unwrap_or_default()
-        );
         assert_eq!(
             terminal.backend().buffer()[(2, y)].bg,
             theme.color(Role::SurfaceCurrent)
@@ -1449,8 +1286,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
         let marker = theme.current_context_marker();
         assert!(
-            rows[y as usize]
-                .contains(theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)),
+            rows[y as usize].contains(theme.glyphs.working_frames[0]),
             "{:?}",
             rows[y as usize]
         );

@@ -1064,27 +1064,29 @@ impl HitMapBuilder {
             })
     }
 
-    /// Projects a parent as though one pointer-revealed frontmost child were
-    /// already recorded. A frame that reveals the child publishes the parent's
-    /// exposure with it, so the next frame must project against the same shape.
+    /// Projects a target as though pointer-revealed frontmost children were
+    /// already recorded, in order. A frame that reveals children publishes the
+    /// target's exposure with them, so the next frame must project against the
+    /// same shape.
     pub(crate) fn projected_pointer_beneath(
         &mut self,
         layer: HitLayer,
-        child: (Rect, &InteractionTarget, InteractionSpec),
+        children: &[(Rect, &InteractionTarget, InteractionSpec)],
         hit_rect: Rect,
         paint_rect: Rect,
         target: &InteractionTarget,
         spec: InteractionSpec,
     ) -> ProjectedPointer {
         let recorded = self.map.regions.len();
-        let (child_rect, child_target, child_spec) = child;
-        self.record_interaction(
-            layer,
-            child_rect,
-            child_rect,
-            child_target.clone(),
-            child_spec,
-        );
+        for (child_rect, child_target, child_spec) in children {
+            self.record_interaction(
+                layer,
+                *child_rect,
+                *child_rect,
+                (*child_target).clone(),
+                *child_spec,
+            );
+        }
         let pointer = self.projected_pointer(layer, hit_rect, paint_rect, target, spec);
         self.map.regions.truncate(recorded);
         pointer

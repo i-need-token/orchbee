@@ -16,7 +16,9 @@ use crate::{
     },
     tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
 };
-use orchbee_local_site_runtime::{WindowsSidebarTokenStyle, WindowsSpaceSidebarTokenKind as Kind};
+use orchbee_local_site_runtime::{
+    WindowsSidebarTokenStyle, WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind as Kind,
+};
 use ratatui::style::Style;
 use sidebar_text::{fit, machine_label, state_role};
 mod layout;
@@ -71,6 +73,9 @@ struct Context<'a> {
     unnamed: &'static str,
     git_stale: bool,
     branch_redundant: bool,
+    /// A completed Git read (repository or not), or a Standalone context that has no Workspace
+    /// directory to read: a still-empty configured line is truly absent.
+    git_settled: bool,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
@@ -86,7 +91,32 @@ impl<'a> Context<'a> {
             unnamed: locale.unnamed_workspace(),
             git_stale: view.machines.space_checkpoint_stale(row),
             branch_redundant: view.machines.space_branch_redundant(row),
+            git_settled: !matches!(
+                row.sidebar_target(),
+                Some(SidebarTarget::Context {
+                    target: crate::terminal_session::NativeContextTarget {
+                        location: crate::terminal_session::NativeContextLocation::Workspace { .. },
+                        ..
+                    },
+                    ..
+                })
+            ) || view
+                .machines
+                .space_checkpoint_row(row)
+                .is_some_and(|observed| observed.git.is_some()),
         }
+    }
+    /// Configured lines keep their height while metadata is pending; once Git has settled, a
+    /// continuation line with no visible token is omitted instead of painting a blank row.
+    fn keeps(&self, tokens: &[WindowsSpaceSidebarToken], first: bool) -> bool {
+        !tokens.is_empty()
+            && (first
+                || !self.git_settled
+                || tokens.iter().any(|token| {
+                    let kind = token.kind();
+                    kind != Kind::StateIcon
+                        && self.visible(kind, token.style_for_value(self.value(kind)))
+                }))
     }
     fn value(&self, kind: Kind<'_>) -> Option<&str> {
         match kind {
@@ -302,7 +332,7 @@ fn lines(
             ));
         }
         // Configured tracks keep their height while asynchronous metadata arrives.
-        if !tokens.is_empty() {
+        if context.keeps(tokens, lines.is_empty()) {
             lines.push(Line::from(spans));
             trailing.push(right);
             slots.push(line_slot);
@@ -337,6 +367,17 @@ fn lines(
         trailing,
         current_identity,
     }
+}
+
+fn context_height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
+    let context = Context::new(view, row, locale);
+    let mut height = 0;
+    for tokens in view.machines.space_settings().rows() {
+        if context.keeps(tokens, height == 0) {
+            height += 1;
+        }
+    }
+    height.max(1)
 }
 
 fn configured_height(view: &ClientView) -> u16 {
@@ -416,7 +457,7 @@ fn annotations(
                 if matches!(row, SidebarRow::Project { .. }) {
                     truncate_display(
                         &label(row, locale),
-                        entry_width(view, source, row, width, sidebar_width),
+                        entry_width(source, row, width, sidebar_width),
                         theme.glyphs.ellipsis,
                     )
                 } else {
@@ -436,22 +477,11 @@ fn annotations(
     annotations
 }
 
-fn depth(view: &ClientView, target: &SidebarTarget) -> u16 {
-    let mut depth = 0;
-    let mut parent = view.machines.sidebar_parent(target);
-    while let Some(target) = parent {
-        depth += 1;
-        parent = view.machines.sidebar_parent(&target);
-    }
-    depth
-}
-
 fn auxiliary_actions(source: &SidebarSource, target: &SidebarTarget) -> layout::AuxiliaryActions {
     layout::AuxiliaryActions::new(source.has_part(target, SidebarPart::Create))
 }
 
 fn entry_width(
-    view: &ClientView,
     source: &SidebarSource,
     row: &SidebarRow<'_>,
     width: u16,
@@ -461,7 +491,6 @@ fn entry_width(
     layout::Tracks::resolve_for_width(
         Rect::new(0, 0, width, 1),
         0,
-        depth(view, &target),
         sidebar_width,
         auxiliary_actions(source, &target),
         layout::RowKind::for_target(&target),
@@ -499,15 +528,14 @@ fn entry_height(
         source,
         locale,
         sidebar_width,
-        theme,
+        theme: _,
     } = context;
     let base = match row {
         SidebarRow::Project { .. } => 1,
-        SidebarRow::Context { .. } => configured_height(view),
+        SidebarRow::Context { row, .. } => context_height(view, row, locale),
         SidebarRow::Agent { row, .. } => super::agent_sidebar::tokens::height(view, row, locale),
     };
-    let text_width = entry_width(view, source, row, width, sidebar_width);
-    let base = base + summary_lines(view, row, locale, theme, text_width).len() as u16;
+    let text_width = entry_width(source, row, width, sidebar_width);
     base + u16::try_from(suffix_rows(suffix, text_width)).unwrap_or(u16::MAX - base)
 }
 
@@ -517,44 +545,6 @@ fn continuation_style(_view: &ClientView, row: &SidebarRow<'_>, theme: &Theme) -
     } else {
         theme.style(Role::TextSecondary)
     }
-}
-
-fn summary_lines(
-    view: &ClientView,
-    row: &SidebarRow<'_>,
-    locale: Locale,
-    theme: &Theme,
-    width: usize,
-) -> Vec<Line<'static>> {
-    let target = row.target();
-    let collapsed = match row {
-        SidebarRow::Project { .. } => !view.machines.sidebar_project_expanded(&target),
-        SidebarRow::Context { .. } => !view.machines.sidebar_context_agents_expanded(&target),
-        SidebarRow::Agent { .. } => false,
-    };
-    let Some(counts) = collapsed
-        .then(|| view.machines.sidebar_agent_counts(&target))
-        .flatten()
-    else {
-        return Vec::new();
-    };
-    if counts.total == 0 {
-        return Vec::new();
-    }
-    let count = locale.sidebar_agent_count(counts.total);
-    let secondary = continuation_style(view, row, theme);
-    let mut lines = vec![Line::styled(count.clone(), secondary)];
-    if counts.waiting > 0 {
-        let waiting = locale.sidebar_waiting_count(counts.waiting);
-        let span = Span::styled(waiting.clone(), theme.style(Role::StatusWarning));
-        if display_width(&count) + 3 + display_width(&waiting) <= width {
-            lines[0].spans.push(Span::styled(" · ", secondary));
-            lines[0].spans.push(span);
-        } else {
-            lines.push(Line::from(span));
-        }
-    }
-    lines
 }
 
 fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, style: Style) {
@@ -667,7 +657,6 @@ fn render_creation(
     let Some(tracks) = layout::Tracks::resolve_for_width(
         row,
         0,
-        u16::from(preview.project_id.is_some()),
         sidebar_width,
         layout::AuxiliaryActions::default(),
         layout::RowKind::Owner,
@@ -808,44 +797,6 @@ fn row_state(
         Availability::Enabled,
         OperationState::Idle,
     )
-}
-
-struct ChildInteraction<'a> {
-    layer: HitLayer,
-    rect: Rect,
-    target: &'a InteractionTarget,
-    spec: InteractionSpec,
-    role: Role,
-}
-
-fn prepare_child(
-    frame: &mut Frame<'_>,
-    hits: &mut HitMapBuilder,
-    child: ChildInteraction<'_>,
-    theme: &Theme,
-) -> PointerPresentation {
-    let ChildInteraction {
-        layer,
-        rect,
-        target,
-        spec,
-        role,
-    } = child;
-    let pointer = pointer_presentation(hits.projected_pointer(layer, rect, rect, target, spec));
-    if paint_pointer_target(
-        frame,
-        rect,
-        ControlSurface::Chrome,
-        pointer,
-        role,
-        Availability::Enabled,
-        theme,
-    )
-    .is_some()
-    {
-        hits.record_interaction(layer, rect, rect, target.clone(), spec);
-    }
-    pointer
 }
 
 struct AuxiliaryAction<'a> {
@@ -989,32 +940,121 @@ fn current_descendant(
     })
 }
 
+fn root_context(view: &ClientView, row: &SidebarRow<'_>) -> bool {
+    matches!(row, SidebarRow::Context { .. })
+        && view.machines.sidebar_parent(&row.target()).is_none()
+}
+
+/// The first root context after other content, or at the list start, opens the ungrouped
+/// section. That section carries a heading like a Project, so no Workspace appears ownerless.
+fn opens_ungrouped(view: &ClientView, rows: &[SidebarRow<'_>], index: usize) -> bool {
+    root_context(view, &rows[index])
+        && rows[..index]
+            .iter()
+            .rev()
+            .find(|row| !matches!(row, SidebarRow::Agent { .. }))
+            .is_none_or(|previous| !root_context(view, previous))
+}
+
 fn starts_group(view: &ClientView, rows: &[SidebarRow<'_>], index: usize) -> bool {
-    match &rows[index] {
-        SidebarRow::Project { .. } => true,
-        row @ SidebarRow::Context { .. }
-            if matches!(
-                row.target(),
-                SidebarTarget::Context {
-                    target: crate::terminal_session::NativeContextTarget {
-                        location: crate::terminal_session::NativeContextLocation::Workspace { .. },
-                        ..
-                    },
-                    ..
-                }
-            ) && view.machines.sidebar_parent(&row.target()).is_none() =>
-        {
-            rows[..index]
-                .iter()
-                .rev()
-                .find(|row| !matches!(row, SidebarRow::Agent { .. }))
-                .is_some_and(|previous| {
-                    matches!(previous, SidebarRow::Project { .. })
-                        || view.machines.sidebar_parent(&previous.target()).is_some()
-                })
-        }
-        _ => false,
+    matches!(rows[index], SidebarRow::Project { .. }) || opens_ungrouped(view, rows, index)
+}
+
+/// Blank rows above `index`: Agents use their own gap, groups are always separated, and a
+/// Project's first Workspace sits directly under its heading.
+fn gap_before(
+    view: &ClientView,
+    rows: &[SidebarRow<'_>],
+    index: usize,
+    space_gap: u16,
+    agent_gap: u16,
+) -> u16 {
+    let row = &rows[index];
+    if matches!(row, SidebarRow::Agent { .. }) {
+        agent_gap
+    } else if starts_group(view, rows, index) {
+        space_gap.max(1)
+    } else if index > 0
+        && matches!(rows[index - 1], SidebarRow::Project { .. })
+        && view.machines.sidebar_parent(&row.target()).as_ref() == Some(&rows[index - 1].target())
+    {
+        0
+    } else {
+        space_gap
     }
+}
+
+#[derive(Clone, Copy)]
+struct TreePosition {
+    /// A previous Agent sibling continues the trunk through this row's leading gap.
+    follows_sibling: bool,
+    /// The final child closes the branch and leaves its continuation lines empty.
+    last: bool,
+}
+
+/// Agent connectors use divider color over the row's winning surface.
+fn paint_tree_connector(
+    frame: &mut Frame<'_>,
+    band: Rect,
+    tracks: layout::Tracks,
+    position: TreePosition,
+    interaction: Option<Role>,
+    theme: &Theme,
+) {
+    let style = theme.content_on_surface(
+        Role::SurfaceChrome,
+        interaction,
+        Some(Role::FrameDivider),
+        theme.style(Role::FrameDivider),
+    );
+    for y in band.y..band.bottom() {
+        let glyph = if y < tracks.content_y {
+            position.follows_sibling.then_some(theme.glyphs.tree_trunk)
+        } else if y == tracks.content_y {
+            Some(if position.last {
+                theme.glyphs.tree_last
+            } else {
+                theme.glyphs.tree_branch
+            })
+        } else {
+            (!position.last).then_some(theme.glyphs.tree_trunk)
+        };
+        if let Some(glyph) = glyph {
+            frame.render_widget(
+                Paragraph::new(glyph).style(style),
+                Rect::new(tracks.branch.x, y, tracks.branch.width, 1),
+            );
+        }
+    }
+}
+
+/// Paints the ungrouped section heading on a Project heading's identity track.
+fn render_group_heading(
+    frame: &mut Frame<'_>,
+    line: Rect,
+    sidebar_width: u16,
+    locale: Locale,
+    theme: &Theme,
+) {
+    frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), line);
+    let Some(tracks) = layout::Tracks::resolve_for_width(
+        line,
+        0,
+        sidebar_width,
+        layout::AuxiliaryActions::default(),
+        layout::RowKind::Group,
+    ) else {
+        return;
+    };
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            locale.machine_picker_text("sidebar-ungrouped"),
+            usize::from(tracks.primary.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+        tracks.primary,
+    );
 }
 
 pub(super) fn render(
@@ -1041,6 +1081,7 @@ pub(super) fn render(
         return;
     }
     let theme = &theme.paired_pointer_surfaces();
+    let working_frame = view.machines.sidebar_working_frame();
     let extra_creation = creation.filter(|preview| {
         !rows
             .iter()
@@ -1068,33 +1109,11 @@ pub(super) fn render(
             None => current_row(view, row, &row.target()),
         })
         .collect();
-    let unobserved = creation.is_some_and(|preview| {
-        preview.committed.is_none_or(|(_, revision)| {
-            !view
-                .machines
-                .workspace_checkpoint_covers(preview.site, revision)
-        })
-    });
-    let count = view.machines.sidebar_workspace_count() + usize::from(unobserved);
-    let header = Rect::new(area.x, area.y, area.width, 1);
-    sidebar_text::section_heading(
-        frame,
-        header,
-        locale.shell().workspaces,
-        &count.to_string(),
-        "",
-        theme,
-    );
-    if area.height < 3 {
+    if area.height < 2 {
         return;
     }
-    let header_rows = if area.height >= 10 { 2 } else { 1 };
-    let body = Rect::new(
-        area.x,
-        area.y + header_rows,
-        area.width,
-        area.height - header_rows - 1,
-    );
+    // The list opens directly under the fixed actions; Project and ungrouped headings name groups.
+    let body = Rect::new(area.x, area.y, area.width, area.height - 1);
     let insertion = extra_creation.map(|preview| creation_insertion(view, rows, preview));
     let measure = EntryMeasureContext {
         view,
@@ -1107,17 +1126,22 @@ pub(super) fn render(
     let mut heights: Vec<_> = rows
         .iter()
         .zip(&annotations)
-        .map(|(row, suffix)| entry_height(measure, row, suffix, area.width))
+        .enumerate()
+        .map(|(index, (row, suffix))| {
+            // The ungrouped heading travels with the Workspace that opens the section.
+            entry_height(measure, row, suffix, area.width)
+                + u16::from(opens_ungrouped(view, rows, index))
+        })
         .collect();
     let space_gap = view.machines.space_settings().row_gap();
     let agent_gap = view.machines.sidebar_settings().row_gap();
-    let mut gaps: Vec<_> = rows
-        .iter()
-        .enumerate()
-        .map(|(index, _)| match rows.get(index + 1) {
-            Some(SidebarRow::Agent { .. }) => agent_gap,
-            _ if index + 1 < rows.len() && starts_group(view, rows, index + 1) => space_gap.max(1),
-            _ => space_gap,
+    let mut gaps: Vec<_> = (0..rows.len())
+        .map(|index| {
+            if index + 1 < rows.len() {
+                gap_before(view, rows, index + 1, space_gap, agent_gap)
+            } else {
+                space_gap
+            }
         })
         .collect();
     if let Some(index) = insertion {
@@ -1221,9 +1245,27 @@ pub(super) fn render(
                 );
             }
         }
+        // The ungrouped heading is inert group chrome above the Workspace that opens the section.
+        let heading = u16::from(opens_ungrouped(view, rows, row_index)).min(content_height);
+        if heading > 0 {
+            let line = Rect::new(body.x, y + group_gap, body.width, 1);
+            render_group_heading(frame, line, sidebar_width, locale, theme);
+            if let Some(hits) = hits.as_deref_mut() {
+                hits.record(
+                    layer,
+                    line,
+                    crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
+                );
+            }
+        }
+        let content_height = content_height - heading;
+        if content_height == 0 {
+            y += leading_gap + heading;
+            break;
+        }
         let band = Rect::new(
             body.x,
-            y + group_gap,
+            y + group_gap + heading,
             body.width,
             leading_gap - group_gap + content_height,
         );
@@ -1232,7 +1274,6 @@ pub(super) fn render(
         let Some(tracks) = layout::Tracks::resolve_for_width(
             band,
             leading_gap - group_gap,
-            depth(view, &target),
             sidebar_width,
             actions,
             layout::RowKind::for_target(&target),
@@ -1275,8 +1316,9 @@ pub(super) fn render(
                         label
                     }
                 );
+                // Group headings carry span-level bold, which row composition keeps as authored.
                 ProjectedSidebarLines::new(
-                    vec![Line::styled(
+                    vec![Line::from(Span::styled(
                         format!(
                             "{}{inline}",
                             truncate_display(
@@ -1286,7 +1328,7 @@ pub(super) fn render(
                             )
                         ),
                         theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-                    )],
+                    ))],
                     CurrentIdentityEmphasis::Theme,
                 )
             }
@@ -1300,7 +1342,7 @@ pub(super) fn render(
                 if closeable { CLOSE_GAP } else { 0 },
             ),
             SidebarRow::Agent { row, .. } => {
-                super::agent_sidebar::tokens::projection(view, row, locale, theme, text_width)
+                super::agent_sidebar::tokens::projection(view, row, locale, theme)
             }
         };
         let (mut row_lines, mut trailing, current_identity) = projected_lines.into_parts();
@@ -1318,7 +1360,6 @@ pub(super) fn render(
                 theme.style(Role::TextSecondary),
             ));
         }
-        row_lines.extend(summary_lines(view, row, locale, theme, text_width));
         append_identity(
             &mut row_lines,
             suffix,
@@ -1354,43 +1395,6 @@ pub(super) fn render(
         let disclosure_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
         let auxiliary_spec = interaction_spec(PrimaryContract::Specialized, true);
 
-        let disclosure_pointer =
-            if let (Some(hits), Some(target)) = (hits.as_deref_mut(), disclosure_target.as_ref()) {
-                prepare_child(
-                    frame,
-                    hits,
-                    ChildInteraction {
-                        layer,
-                        rect: tracks.disclosure,
-                        target,
-                        spec: disclosure_spec,
-                        role: Role::TextSecondary,
-                    },
-                    theme,
-                )
-            } else {
-                PointerPresentation::Rest
-            };
-        let create_pointer = if let (Some(hits), Some(target), Some(action)) = (
-            hits.as_deref_mut(),
-            create_target.as_ref(),
-            create_action.as_ref(),
-        ) {
-            prepare_child(
-                frame,
-                hits,
-                ChildInteraction {
-                    layer,
-                    rect: action.rect,
-                    target,
-                    spec: auxiliary_spec,
-                    role: Role::TextSecondary,
-                },
-                theme,
-            )
-        } else {
-            PointerPresentation::Rest
-        };
         // Close sits flush with the row's trailing edge, over the first line's metadata gap and
         // current/unread marker cells, which it hides while revealed.
         let close_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
@@ -1406,40 +1410,75 @@ pub(super) fn render(
                 let rect = icon_action_rect(frame.area(), offered)?;
                 (rect.x >= tracks.primary.x).then_some((rect, InteractionTarget::Sidebar(drawn)))
             });
-        let close_pointer = match (hits.as_deref(), close_target.as_ref()) {
-            (Some(hits), Some((rect, target))) => pointer_presentation(
-                hits.projected_pointer(layer, *rect, *rect, target, close_spec),
-            ),
-            _ => PointerPresentation::Rest,
+        // Disclosure, Create and close are revealed children recorded in this order before the
+        // row. A frame publishes a child only when it also paints it, so every pointer is
+        // projected against the exposure its reveal frame published: the pointer-revealed set,
+        // then the set shown without a pointer (keyboard focus, or a collapsed Project's
+        // disclosure). Projecting without them would orphan hover or press after a reveal.
+        let collapsed_project = matches!(row, SidebarRow::Project { .. })
+            && !view.machines.sidebar_project_expanded(&target);
+        let revealed_children: Vec<_> = [
+            disclosure_target
+                .as_ref()
+                .map(|target| (tracks.disclosure, target, disclosure_spec)),
+            create_target
+                .as_ref()
+                .zip(create_action.as_ref())
+                .map(|(target, action)| (action.rect, target, auxiliary_spec)),
+            close_target
+                .as_ref()
+                .map(|(rect, target)| (*rect, target, close_spec)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        // The resting set is always a prefix of the revealed order; close is pointer-only.
+        let resting = if focused {
+            revealed_children.len() - usize::from(close_target.is_some())
+        } else {
+            usize::from(collapsed_project && disclosure_target.is_some())
         };
+        let project =
+            |hits: &mut HitMapBuilder,
+             children: &[(Rect, &InteractionTarget, InteractionSpec)],
+             (rect, target, spec): (Rect, &InteractionTarget, InteractionSpec)| {
+                [children, &revealed_children[..resting.min(children.len())]]
+                    .into_iter()
+                    .map(|beneath| {
+                        pointer_presentation(
+                            hits.projected_pointer_beneath(
+                                layer, beneath, rect, rect, target, spec,
+                            ),
+                        )
+                    })
+                    .find(|pointer| *pointer != PointerPresentation::Rest)
+                    .unwrap_or(PointerPresentation::Rest)
+            };
+        let child_pointer = |hits: &mut Option<&mut HitMapBuilder>,
+                             target: Option<&InteractionTarget>| {
+            let hits = hits.as_deref_mut()?;
+            let index = revealed_children
+                .iter()
+                .position(|(_, child, _)| Some(*child) == target)?;
+            Some(project(
+                hits,
+                &revealed_children[..index],
+                revealed_children[index],
+            ))
+        };
+        let disclosure_pointer = child_pointer(&mut hits, disclosure_target.as_ref())
+            .unwrap_or(PointerPresentation::Rest);
+        let create_pointer =
+            child_pointer(&mut hits, create_target.as_ref()).unwrap_or(PointerPresentation::Rest);
+        let close_pointer = child_pointer(&mut hits, close_target.as_ref().map(|(_, close)| close))
+            .unwrap_or(PointerPresentation::Rest);
         let row_target = source
             .drawn(target.clone(), SidebarPart::Primary, window)
             .map(InteractionTarget::Sidebar);
         let row_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
         let row_pointer = match (hits.as_deref_mut(), row_target.as_ref()) {
             (Some(hits), Some(target)) => {
-                // A revealed close was published as an exposed child of this row; projecting
-                // without it would orphan the row's hover or press after the reveal frame.
-                let beneath =
-                    close_target
-                        .as_ref()
-                        .map_or(PointerPresentation::Rest, |(rect, close)| {
-                            pointer_presentation(hits.projected_pointer_beneath(
-                                layer,
-                                (*rect, close, close_spec),
-                                band,
-                                band,
-                                target,
-                                row_spec,
-                            ))
-                        });
-                if beneath == PointerPresentation::Rest {
-                    pointer_presentation(
-                        hits.projected_pointer(layer, band, band, target, row_spec),
-                    )
-                } else {
-                    beneath
-                }
+                project(hits, &revealed_children, (band, target, row_spec))
             }
             _ => PointerPresentation::Rest,
         };
@@ -1472,6 +1511,13 @@ pub(super) fn render(
                 theme.glyphs.disclosure_closed
             }
         };
+        // Pointer presence or keyboard focus reveals row controls; a collapsed Project keeps its
+        // disclosure so hidden Workspaces stay discoverable.
+        let revealed = row_paint_pointer != PointerPresentation::Rest || focused;
+        let disclosure_shown =
+            revealed || matches!(row, SidebarRow::Project { .. }) && expanded == Some(false);
+        let disclosure_target = disclosure_target.filter(|_| disclosure_shown);
+        let create_target = create_target.filter(|_| revealed);
         if row_paint_pointer != PointerPresentation::Rest {
             let mut hint = Vec::new();
             if current {
@@ -1482,9 +1528,9 @@ pub(super) fn render(
                 ));
             }
             let state = match row {
-                SidebarRow::Agent { row, .. } => {
-                    row.sidebar_agent().map(|agent| agent.display_state())
-                }
+                SidebarRow::Agent { row, .. } => row
+                    .sidebar_agent()
+                    .map(crate::machine_agents::Row::sidebar_state),
                 SidebarRow::Context { row, .. } => view.machines.workspace_state(row),
                 SidebarRow::Project { .. } => None,
             };
@@ -1525,17 +1571,18 @@ pub(super) fn render(
                     .to_owned()
             });
         }
-        let mut bands = vec![
-            RowContentBand::explicit(tracks.current),
-            RowContentBand::explicit(tracks.state),
-            RowContentBand::explicit(tracks.unread),
-        ];
-        if !tracks.ordinal.is_empty() {
-            bands.push(RowContentBand::explicit(tracks.ordinal));
-        }
-        if !tracks.auxiliary.is_empty() {
-            bands.push(RowContentBand::explicit(tracks.auxiliary));
-        }
+        // Group headings have no state or connector track; only occupied tracks become bands.
+        let bands: Vec<_> = [
+            tracks.current,
+            tracks.state,
+            tracks.unread,
+            tracks.branch,
+            tracks.auxiliary,
+        ]
+        .into_iter()
+        .filter(|rect| !rect.is_empty())
+        .map(RowContentBand::explicit)
+        .collect();
         let painted = paint_row_interaction(
             frame,
             band,
@@ -1586,7 +1633,7 @@ pub(super) fn render(
             );
         }
 
-        let disclosure = expanded.map(disclosure_glyph);
+        let disclosure = expanded.filter(|_| disclosure_shown).map(disclosure_glyph);
         if let Some(disclosure) = disclosure {
             frame.render_widget(
                 Paragraph::new(disclosure).style(theme.content_on_surface(
@@ -1608,28 +1655,15 @@ pub(super) fn render(
             );
         }
 
-        if let SidebarRow::Agent { ordinal, .. } = row
-            && *ordinal < 9
-        {
-            frame.render_widget(
-                Paragraph::new(format!("{}", ordinal + 1)).style(theme.content_on_surface(
-                    Role::SurfaceChrome,
-                    interaction,
-                    Some(Role::HintLabel),
-                    theme.style(Role::HintLabel),
-                )),
-                tracks.first_line(tracks.ordinal),
-            );
-        }
         let state = match row {
             SidebarRow::Context { row, .. } => view.machines.workspace_state(row).map(|state| {
                 let (_, role) = state_role(state);
-                (sidebar_text::state_glyph(state, theme), role)
+                (sidebar_text::state_glyph(state, theme, working_frame), role)
             }),
             SidebarRow::Agent { row, .. } => row.sidebar_agent().map(|agent| {
-                let state = agent.display_state();
+                let state = agent.sidebar_state();
                 let (_, role) = state_role(state);
-                (sidebar_text::state_glyph(state, theme), role)
+                (sidebar_text::state_glyph(state, theme, working_frame), role)
             }),
             SidebarRow::Project { .. } => None,
         };
@@ -1707,9 +1741,24 @@ pub(super) fn render(
                 ));
             }
         }
+        if matches!(row, SidebarRow::Agent { .. }) && !tracks.branch.is_empty() {
+            paint_tree_connector(
+                frame,
+                band,
+                tracks,
+                TreePosition {
+                    follows_sibling: row_index
+                        .checked_sub(1)
+                        .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
+                    last: !matches!(rows.get(row_index + 1), Some(SidebarRow::Agent { .. })),
+                },
+                interaction,
+                theme,
+            );
+        }
         restore_interaction_background(frame, band, interaction, theme);
-        if disclosure_target.is_some() {
-            let _ = paint_pointer_target(
+        if let Some(target) = disclosure_target
+            && paint_pointer_target(
                 frame,
                 tracks.disclosure,
                 ControlSurface::Chrome,
@@ -1717,12 +1766,21 @@ pub(super) fn render(
                 Role::TextSecondary,
                 Availability::Enabled,
                 theme,
+            )
+            .is_some()
+            && let Some(hits) = hits.as_deref_mut()
+        {
+            hits.record_interaction(
+                layer,
+                tracks.disclosure,
+                tracks.disclosure,
+                target,
+                disclosure_spec,
             );
         }
-        if create_target.is_some()
+        if let Some(target) = create_target
             && let Some(action) = create_action.as_ref()
-        {
-            let _ = paint_pointer_target(
+            && paint_pointer_target(
                 frame,
                 action.rect,
                 ControlSurface::Chrome,
@@ -1730,7 +1788,11 @@ pub(super) fn render(
                 Role::TextSecondary,
                 Availability::Enabled,
                 theme,
-            );
+            )
+            .is_some()
+            && let Some(hits) = hits.as_deref_mut()
+        {
+            hits.record_interaction(layer, action.rect, action.rect, target, auxiliary_spec);
         }
         if let Some((rect, target)) = close
             && paint_pointer_target(

@@ -470,13 +470,14 @@ On Windows, the main sidebar joins the Agents picker's eligible projection to
 each exact Machine/Session/Context and renders Agents beneath their owning Workspace,
 including the nonempty legacy Workspace. Labels never establish ownership. The active machine's source
 view and Client-local status, scope, ordering and search still define eligibility.
-The first nine eligible entries retain their global filtered-list ordinals even
-when other parents are collapsed. The focused physical member is marked.
+The first nine eligible entries retain their global filtered-list ordinals for
+ordinal focus even when other parents are collapsed; the sidebar does not paint them.
+The focused physical member is marked.
 [Sidebar navigation](tui-shell-layout.md#sidebar-navigation-model) owns disclosure
 and the shared tree window. Search opens Workspace-name filtering; its Agents mode retains
 keyboard navigation, filters, Agent search, source status and complete details. The configured
 machine-picker binding followed by Tab twice also reaches Agents. Loading, unavailable, empty and no-match placeholders remain in the picker;
-they never become nested Agent rows, ordinals or navigation targets.
+they never become nested Agent rows or navigation targets.
 Sidebar rows are navigation entries: a left press
 freezes their painted endpoint/member/physical identity, re-resolves eligibility,
 and starts the existing revalidated drawable candidate. A current target is a
@@ -484,7 +485,7 @@ no-op. Changed, removed, disabled or unavailable identities never redirect to a
 replacement row. Other buttons, modifiers, releases and drags cannot activate.
 
 The sidebar uses the shell's bounded Full/Compact width and disappears at Minimal
-or too-small geometry. Default Agent entries occupy two lines; configured entries
+or too-small geometry. Default Agent entries occupy one line; configured entries
 use their resolved heights and gaps. Whole entries fit when possible; an oversized
 entry is clipped to the actual body, with grapheme-safe horizontal truncation.
 The shared footer reports the visible tree range and opens the Workspace picker.
@@ -519,25 +520,24 @@ renderer reads configuration files or starts background work.
 
 Rows contain `state_icon`, `state_text`, `machine`, `workspace`, `tab`, `pane`,
 `agent`, `terminal_title`, `terminal_title_stripped`, or `$name`. Missing values and tokens hidden by rules disappear; rows
-with no remaining tokens disappear. An entry still retains its focus marker and
-ordinal, exact target and navigation eligibility. Custom values and custom state
+with no remaining tokens disappear. An entry still retains its focus marker,
+exact target and navigation eligibility. Custom values and custom state
 labels are read from the already-fenced presentation metadata. Text rules match
 the original value; only painting sanitizes controls and truncates graphemes.
 `terminal_title` and `terminal_title_stripped` use the live physical title
 observation below; pane title and `$terminal_title` never substitute for those
 builtins.
 
-Default rows show the effective presentation title beside the ordinal and status glyph,
-followed by the provider and localized state. A blank sanitized title falls back to the
-provider; a provider identical to the title is not repeated. Parent Machine/Workspace text
-stays in the tree rather than each Agent. Provider text shrinks before the state text;
-a provider truncated to fewer than two prefix cells plus an ellipsis is omitted. Complete short
-provider names remain visible. Status color stays on the glyph, while state text uses the primary
-text role without inherited DIM.
+Default rows show the effective presentation title beside the tree connector and status
+glyph on one line. A blank sanitized title falls back to the provider. Parent Machine/Workspace
+text stays in the tree rather than each Agent. Status color stays on the glyph; the title uses
+the primary text role, or the warning role while the Agent is blocked. Hovering the row shows the
+glyph and localized state in the sidebar footer; configured `state_text` and `agent` tokens
+restore inline state and provider text.
 
 | Input or event                                 | Decision and observable result                                                                                          |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No rows setting or matching override           | Use the title-first two-line default                                                                                    |
+| No rows setting or matching override           | Use the one-line title default                                                                                          |
 | Provider override                              | Exact physical Agent label first, then its canonical report label; displayAgent cannot select an override               |
 | Empty rows, missing custom value, or hide rule | Remove configured text, preserving at least the identity line and exact hit target                                      |
 | Styled text token                              | Apply base foreground/bold/dim, then the first matching rule; `hide=true` removes that token                            |

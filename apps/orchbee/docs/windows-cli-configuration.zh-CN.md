@@ -401,7 +401,7 @@ row_gap = 1
 claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ contains = "fast", ignore_case = true, bold = true }] }]]
 ```
 
-省略布局保持已有双行默认，显式空布局保留身份及导航行；缺失或隐藏的值不占行。
+省略布局使用单行标题默认，显式空布局保留身份及导航行；缺失或隐藏的值不占行。
 [侧栏模型](machines.zh-CN.md#agent-侧栏配置模型)定义 Provider 别名、规则、按实际高度
 计算的窗口及不变的物理权威。`terminal_title`/`terminal_title_stripped` 现在读取精确物理终端的 OSC 标题。
 原始形式保留活动符号；去动画形式移除一个提权前缀和一个已知前导活动符号。
@@ -418,10 +418,10 @@ claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ 
 主侧栏将 Workspace 放在所属 Project 下，可用 Agent 放在精确归属的 Workspace 或
 Standalone 行下，共用一个滚动窗口。[侧栏导航模型](tui-shell-layout.zh-CN.md#侧栏导航模型)
 拥有展开状态和键盘导航。Workspace 选择器仍可通过打开 Machines 后按 Tab，或点击
-侧栏标题／范围页脚进入。即使重名，点击行仍保留完整机器／Session/context 身份。
+侧栏范围页脚进入。即使重名，点击行仍保留完整机器／Session/context 身份。
 `ui.sidebar.spaces` 控制 Workspace 行，`ui.sidebar.agents` 控制其 Agent 子行。
-Agent 的 `row_gap` 用于 Agent 行之前及相邻 Agent 行之间；Workspace 的 `row_gap`
-用于下一条 Project 或 Context 行之前。
+Agent 的 `row_gap` 用于 Agent 行之前及相邻 Agent 行之间；Workspace 的 `row_gap` 用于下一条 Context
+行之前，每个分组之前至少保留一行。Project 的首个 Workspace 紧贴其标题。
 
 ```toml
 [ui.sidebar.spaces]
@@ -429,7 +429,7 @@ rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [
 row_gap = 1
 ```
 
-默认值为 `[["state_icon", "workspace", "git_status"], ["branch"]]`，间隔 0。
+默认值为 `[["state_icon", "workspace", "git_status"], ["branch"]]`，间隔 1。
 显式 `rows = []` 保留身份／导航行。另一个内置值是 `state_text`；
 `$name` 读取 Workspace 报告，不替代内置值。样式与首条匹配规则共用 Agent 接纳机制，
 但图标／Git 计数拒绝文字规则，Workspace 布局没有 `rows_by_agent`。

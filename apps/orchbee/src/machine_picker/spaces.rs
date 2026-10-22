@@ -1,15 +1,6 @@
 //! Workspace projection and identity-checked input over complete read-only checkpoints.
-use super::{
-    Choice, Mode, Picker, Row, Selection, SelectionOrigin, SidebarRow, SidebarTarget, SidebarWindow,
-};
+use super::{Choice, Mode, Picker, Row, Selection, SelectionOrigin, SidebarRow, SidebarWindow};
 use orchbee_workbench_protocol::MetadataState;
-
-/// Complete physical Agent evidence, independent of sidebar disclosure and view filters.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct SidebarAgentCounts {
-    pub(crate) total: usize,
-    pub(crate) waiting: usize,
-}
 
 impl Picker {
     /// The active command lane publishes topology independently of metadata polling.
@@ -111,77 +102,6 @@ impl Picker {
                 .then_some(row.project_id.as_ref())
                 .flatten()
         })
-    }
-    /// Count canonical Workspaces, including collapsed children, and nonempty legacy content.
-    pub(crate) fn sidebar_workspace_count(&self) -> usize {
-        self.workspace_rows
-            .iter()
-            .filter(|row| row.enabled && row.context.is_some())
-            .count()
-    }
-    /// Counts for an exact Context or Project from the complete attention checkpoint.
-    pub(crate) fn sidebar_agent_counts(
-        &self,
-        target: &SidebarTarget,
-    ) -> Option<SidebarAgentCounts> {
-        if !self.sidebar_target_exists(target) || matches!(target, SidebarTarget::Agent { .. }) {
-            return None;
-        }
-        let contexts: std::collections::BTreeSet<_> = self
-            .workspace_rows
-            .iter()
-            .filter_map(|row| {
-                let context = row.context.as_ref()?;
-                let belongs = row.enabled
-                    && &row.choice == target.machine()
-                    && match target {
-                        SidebarTarget::Context { target, .. } => context.target == *target,
-                        SidebarTarget::Project {
-                            site_id,
-                            project_id,
-                            ..
-                        } => {
-                            context.target.site_id == *site_id
-                                && context.project_id.as_ref() == Some(project_id)
-                        }
-                        SidebarTarget::Agent { .. } => false,
-                    };
-                belongs.then(|| super::navigation::context_identity(&row.choice, &context.target))
-            })
-            .collect();
-        if contexts.is_empty() {
-            return Some(SidebarAgentCounts::default());
-        }
-        let checkpoint = self
-            .agent_observations
-            .iter()
-            .find_map(|(machine, observation)| match observation {
-                crate::machine_agents::Observation::Ready(checkpoint)
-                    if machine == target.machine() && &checkpoint.site_id == target.site_id() =>
-                {
-                    Some(checkpoint)
-                }
-                _ => None,
-            })?;
-        let observed_contexts = checkpoint
-            .contexts
-            .iter()
-            .map(|context| super::navigation::context_identity(target.machine(), context))
-            .collect();
-        if !contexts.is_subset(&observed_contexts) {
-            return None;
-        }
-        let mut counts = SidebarAgentCounts::default();
-        for agent in checkpoint.rows.iter().filter(|row| {
-            contexts.contains(&super::navigation::context_identity(
-                target.machine(),
-                &row.target.context,
-            ))
-        }) {
-            counts.total += 1;
-            counts.waiting += usize::from(agent.display_state() == MetadataState::Blocked);
-        }
-        Some(counts)
     }
     pub(crate) fn wants_spaces(&self) -> bool {
         self.spaces.visible() || (self.open && self.mode == Mode::Workspaces)
@@ -365,7 +285,7 @@ impl Picker {
             .rows
             .iter()
             .filter(|r| r.target.context == context.target)
-            .map(|r| r.display_state());
+            .map(crate::machine_agents::Row::sidebar_state);
         let first = states.next()?;
         let rank = |state| match state {
             MetadataState::Blocked => 0,

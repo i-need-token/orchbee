@@ -24,11 +24,20 @@ pub enum WindowsSpaceSidebarTokenKind<'a> {
     GitStatus,
     Custom(&'a str),
 }
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct RawSettings {
     rows: Option<Vec<Vec<RawToken>>>,
     row_gap: u16,
+}
+impl Default for RawSettings {
+    /// One blank row separates Workspaces unless the profile sets its own gap.
+    fn default() -> Self {
+        Self {
+            rows: None,
+            row_gap: 1,
+        }
+    }
 }
 pub(super) fn error(reason: &'static str) -> WindowsSettingsError {
     WindowsSettingsError::new("ui.sidebar.spaces", reason)

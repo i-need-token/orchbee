@@ -172,6 +172,13 @@ impl Row {
             _ => MetadataState::Unknown,
         }
     }
+    /// Sidebar presentation: a completed turn the person has already seen rests as idle.
+    pub(crate) fn sidebar_state(&self) -> MetadataState {
+        match self.display_state() {
+            MetadataState::Done if self.seen => MetadataState::Idle,
+            state => state,
+        }
+    }
     pub(crate) fn state_label(&self) -> Option<&str> {
         let state = match self.state {
             PanelAgentState::Done => MetadataState::Done,

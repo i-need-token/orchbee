@@ -494,7 +494,7 @@ row_gap = 1
 claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ contains = "fast", ignore_case = true, bold = true }] }]]
 ```
 
-An omitted layout preserves the existing two-line default; an explicit empty layout
+An omitted layout uses the one-line title default; an explicit empty layout
 keeps the identity/navigation line. Missing or hidden values do not consume rows.
 The full [sidebar model](machines.md#agent-sidebar-configuration-model) defines
 provider aliases, rules, actual-height windows and unchanged physical authority.
@@ -517,11 +517,12 @@ The main sidebar places Workspaces under their Projects and eligible Agents unde
 their exact Workspace or Standalone owner, with one shared scroll window. The
 [sidebar navigation model](tui-shell-layout.md#sidebar-navigation-model) owns
 disclosure and keyboard navigation. The Workspace picker remains available by
-opening Machines then pressing Tab, or clicking the sidebar heading/range footer.
+opening Machines then pressing Tab, or clicking the sidebar range footer.
 Row clicks retain complete machine/Session/context identity even when names coincide.
 `ui.sidebar.spaces` controls Workspace rows; `ui.sidebar.agents` controls their
 Agent children. Agent `row_gap` applies before and between Agent rows; Workspace
-`row_gap` applies before the next Project or Context row.
+`row_gap` applies before the next Context row and at least one row before each group.
+A Project's first Workspace sits directly under its heading.
 
 ```toml
 [ui.sidebar.spaces]
@@ -529,7 +530,7 @@ rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [
 row_gap = 1
 ```
 
-Defaults are `[["state_icon", "workspace", "git_status"], ["branch"]]`, gap 0.
+Defaults are `[["state_icon", "workspace", "git_status"], ["branch"]]`, gap 1.
 An explicit `rows = []` keeps an identity/navigation row. The other builtin is
 `state_text`; `$name` reads Workspace reports and never replaces a builtin.
 Styles and first-match rules share Agent admission, but icons/Git counts reject

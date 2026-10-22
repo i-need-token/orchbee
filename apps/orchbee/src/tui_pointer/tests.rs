@@ -252,7 +252,9 @@ fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
             _ => None,
         })
         .unwrap();
-    assert_eq!(after.top, window.capacity);
+    // Ten bounded wheel steps settle one page down, clamped at the last full window.
+    assert_eq!(after.top, window.capacity.min(window.maximum));
+    assert!(after.top > 0);
     assert!(pointer.map.is_none());
     assert!(view.machines.request.is_none() && port.bytes().is_empty());
     pointer.set_capture(false);
