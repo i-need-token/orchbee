@@ -248,9 +248,14 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
 
     let sidebar_surface = resize.sidebar(view.sidebar_surface());
     let areas = project_shell_areas(area, sidebar_surface);
+    // Windows raises the whole Tab row, including the hidden sidebar's restore control.
+    #[cfg(windows)]
+    let tab_row = Role::SurfaceStrip;
+    #[cfg(not(windows))]
+    let tab_row = Role::SurfaceChrome;
     frame
         .buffer_mut()
-        .set_style(areas.tabs, theme.style(Role::SurfaceChrome));
+        .set_style(areas.tabs, theme.style(tab_row));
     #[cfg(windows)]
     let mut areas = areas;
     #[cfg(windows)]
@@ -271,7 +276,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             let action = controls::ActionSpec::new(
                 restore_label,
                 controls::ActionKind::Secondary,
-                controls::ControlSurface::Chrome,
+                controls::ControlSurface::Strip,
                 chrome_action_state,
             );
             controls::action_rect(area, areas.tabs, action, theme).inspect(|button| {
@@ -438,7 +443,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             controls::ActionSpec::new(
                 restore_label,
                 controls::ActionKind::Secondary,
-                controls::ControlSurface::Chrome,
+                controls::ControlSurface::Strip,
                 chrome_action_state.with_pointer(pointer),
             ),
             theme,
