@@ -80,19 +80,22 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                       | Compact                           | Minimal        | TooSmall       |
-| ------------ | -------------------------- | --------------------------------- | -------------- | -------------- |
-| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none           | none           |
-| Status       | 1 reserved row             | 1 reserved row                    | 1 reserved row | 1 reserved row |
-| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden         | hidden         |
-| Panel chrome | pane frame and leaf titles | pane frame and leaf titles        | not drawn      | not drawn      |
-| Content      | remainder                  | remainder                         | remainder      | notice only    |
+| Chrome       | Full                       | Compact                                                                       | Minimal        | TooSmall       |
+| ------------ | -------------------------- | ----------------------------------------------------------------------------- | -------------- | -------------- |
+| Top strip    | 1 row (tabs)               | 1 row (tabs)                                                                  | none           | none           |
+| Status       | 1 reserved row             | 1 reserved row                                                                | 1 reserved row | 1 reserved row |
+| Side panel   | docked, bounded preference | docked while content keeps 60 columns, else overlay, bounded preference, left | hidden         | hidden         |
+| Panel chrome | pane frame and leaf titles | pane frame and leaf titles                                                    | not drawn      | not drawn      |
+| Content      | remainder                  | remainder                                                                     | remainder      | notice only    |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
 `project_shell_areas` translates it per tier (`Docked` and `Overlay` both mean visible: docked at
-Full, overlay at Compact, hidden below), so the rendered chrome and the wire geometry agree without
-the caller knowing the tier.
+Full; at Compact a docked intent stays docked while the content keeps the 60-column Compact minimum
+beside the effective sidebar, and becomes an overlay otherwise; hidden below), so the rendered chrome
+and the wire geometry agree without the caller knowing the tier. Hosts at least as wide as the
+default sidebar plus that minimum (90 columns) are wide and show the sidebar by default; narrower
+hosts open it only as an explicitly requested overlay.
 
 The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
@@ -151,11 +154,12 @@ only; it never crosses the Workspace's branch line. Connectors use the divider r
 surface. Eligible disclosures follow the displayed first-line identity.
 After the primary identity, a one-cell gap precedes independent one-cell current and
 unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
-their markers are blank, so changing state never moves the label. Git ahead/behind counts are
+their markers are blank, so changing state never moves the label. A Workspace shows its Agents'
+unread marker only while their rows are collapsed; expanded Agent rows carry their own. Git ahead/behind counts are
 right-aligned at the end of their configured line's primary track; the default layout places them
-on the identity line and leaves the branch alone on the second line. Once Git has settled, a
-configured line with no visible value collapses, so a non-repository Workspace or Standalone
-context shows one line; pending metadata keeps the configured height. Branch
+on the identity line and leaves the branch alone on the second line. A configured continuation
+line appears only once one of its values is visible, so a non-repository Workspace or Standalone
+context shows one line and pending metadata never reserves a blank row. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible Project
@@ -177,12 +181,13 @@ keep their existing owners. Agent rows carry no ordinal. The default Agent row i
 its state glyph and the hover footer hint carry state, with a blocked Agent's title in the warning
 role. Project and Ungrouped groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
-under its heading. The default Workspace gap is one row. This external separator retains the chrome
-background and an inert list-surface target; Project hover, press, and navigation never include it.
+under its heading. The default Workspace gap is one row. These external separators retain the chrome
+background and an inert list-surface target; hover, press, current and navigation surfaces never
+include them. Only the gap between Agent siblings stays inside the following Agent row so its trunk continues.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
-while typing. The same continuous rectangle includes the name, branch, configured metadata,
-identity continuations and the leading configured gap, including their gutters
-and trailing space. It stops at the next entry boundary, excluding Project headings and neighboring entries.
+while typing. The same continuous rectangle includes the name, branch, configured metadata and
+identity continuations, including their gutters and trailing space. It stops at the entry's own
+last line, excluding separators, Project headings and neighboring entries.
 Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across a noncurrent Workspace
 entry. Named palettes retain secondary metadata colors; host-relative text uses the surface's
 paired foreground. Explicit token colors and emphasis retain their authority. Default current names
@@ -464,7 +469,7 @@ the preference for later restoration.
 
 | State / event            | Decision and invariant                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                                                                             |
+| Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact docks while content keeps 60 columns and otherwise shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                          |
 | Keyboard width           | While sidebar navigation owns input, exact Shift+Left and Shift+Right emit a two-column narrower/wider intent; `0` emits reset to 30. The shared binding registry also supplies localized help. Require an exact current painted sidebar target even when mouse capture is released. No target means no mutation.                                                                          |
 | Adjustment at a limit    | Start from the effective width. If the clamped result equals that width, preserve the original preferred value; reset explicitly writes the default.                                                                                                                                                                                                                                       |
 | Pointer press / motion   | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible live width: rows, border hits and docked terminal geometry move together. Width preference, row focus, expansion and navigation requests remain unchanged while held.                          |
@@ -529,7 +534,8 @@ confirmation gate. The sidebar's fixed settings footer remains outside this rect
 
 An unconnected workbench paints its localized connection guidance and header in the area still
 visible beside an overlay sidebar. This authored guidance uses a separate paint rectangle;
-canonical shell areas and terminal geometry remain unchanged.
+canonical shell areas and terminal geometry remain unchanged. While an overlay sidebar is shown,
+the panes beneath it are covered: their cursor, graphics and attention cues stay hidden.
 
 The Windows [Workbench navigator](native-context-selection.md#windows-capturing-navigator)
 uses the existing centered surface with two labeled columns and a window around local focus.

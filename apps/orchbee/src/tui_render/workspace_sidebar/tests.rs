@@ -610,7 +610,7 @@ fn compact_sidebar_keeps_current_workspace_and_single_line_agent_unclipped() {
     }
 }
 #[test]
-fn workspace_leading_gaps_belong_to_whole_rows_and_style_patches_preserve_count_roles() {
+fn workspace_separators_stay_outside_entries_and_style_patches_preserve_count_roles() {
     let mut view = view(120, 40);
     let mut git = token("git_status");
     git["style"] = serde_json::json!({"fg":[16,32,48],"bold":true,"dim":false});
@@ -654,8 +654,9 @@ fn workspace_leading_gaps_belong_to_whole_rows_and_style_patches_preserve_count_
                 )
             })
             .collect();
-        // The first Workspace sits directly under its Project; later ones own their gap.
-        let expected = if index == 0 { 3 } else { 4 };
+        // Separators between Workspaces are inert list surface: every entry covers exactly its
+        // own three configured lines, whether or not a gap precedes it.
+        let expected = 3;
         assert_eq!(entry_rows.len(), expected);
         assert_eq!(
             entry_rows[expected - 1],
@@ -1560,9 +1561,14 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
                 candidate[(tracks.state.x, y)].symbol(),
                 theme.glyphs.working_frames[0]
             );
+            // An expanded Workspace leaves the unread cue to its visible Agent row.
             assert_eq!(
                 candidate[(tracks.unread.x, y)].symbol(),
-                theme.glyphs.status_bullet
+                if target == &context {
+                    " "
+                } else {
+                    theme.glyphs.status_bullet
+                }
             );
             let identity_x = (tracks.primary.x..tracks.primary.right())
                 .find(|x| candidate[(*x, y)].symbol() != " ")
@@ -1604,6 +1610,10 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
             agent,
         ])),
     )]);
+    // Collapsed Agent rows hand their unread cue to the Workspace row.
+    if view.machines.sidebar_context_agents_expanded(&active) {
+        assert!(view.machines.toggle_sidebar_context_agents(&active));
+    }
     view.machines
         .observe_focus(Choice::Local, Some(target.clone()), None);
     assert!(view.machines.focus_sidebar_target(&active));

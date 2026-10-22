@@ -384,7 +384,7 @@ fn machine_view_reads_exact_physical_attention_without_consuming_it() {
 }
 
 #[test]
-fn height_undocked_sidebar_cannot_acknowledge_covered_physical_terminals() {
+fn overlay_sidebar_cannot_acknowledge_covered_physical_terminals() {
     for managed in [false, true] {
         let (mut ui, _, mut state) = physical_fixture();
         state.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
@@ -393,15 +393,15 @@ fn height_undocked_sidebar_cannot_acknowledge_covered_physical_terminals() {
         shell.machines.available = managed;
         assert!(shell.overlay().is_none());
         assert!(!physical_seen(&ui, &state));
-        ui.after_close_draw(draw(&ui, 120, 12, &shell));
+        ui.after_close_draw(draw(&ui, 80, 40, &shell));
         assert!(
             !physical_seen(&ui, &state),
-            "height caused a geometric sidebar overlay"
+            "a narrow host overlays the sidebar on the terminal"
         );
-        ui.after_close_draw(draw(&ui, 120, 40, &shell));
+        ui.after_close_draw(draw(&ui, 120, 12, &shell));
         assert!(
             physical_seen(&ui, &state),
-            "docked sidebar leaves the terminal visible"
+            "a short host with room docks the sidebar beside the terminal"
         );
     }
 }

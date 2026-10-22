@@ -145,7 +145,7 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
     let tier = ViewportTier::from_area(area);
     // The sidebar retains its full height; the workbench reserves one stable status row.
     let body = area;
-    let surface = effective_sidebar_surface(tier, sidebar_surface);
+    let surface = effective_sidebar_surface(tier, sidebar_surface, area.width);
     let (workbench, sidebar) = match surface {
         SidebarSurface::Docked(width) => {
             let [sidebar, workbench] = Layout::horizontal([
@@ -208,14 +208,28 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
     }
 }
 
-fn effective_sidebar_surface(tier: ViewportTier, surface: SidebarSurface) -> SidebarSurface {
+fn effective_sidebar_surface(
+    tier: ViewportTier,
+    surface: SidebarSurface,
+    columns: u16,
+) -> SidebarSurface {
     let width = match surface {
         SidebarSurface::Docked(width) | SidebarSurface::Overlay(width) => Some(width),
         SidebarSurface::Hidden => None,
     };
     match tier {
         ViewportTier::TooSmall | ViewportTier::Minimal => SidebarSurface::Hidden,
-        ViewportTier::Compact => width.map_or(SidebarSurface::Hidden, SidebarSurface::Overlay),
+        // A docked sidebar stays beside the content while the content keeps the Compact minimum;
+        // only a narrower host, or an explicit overlay request, covers the content instead.
+        ViewportTier::Compact => match surface {
+            SidebarSurface::Docked(width)
+                if columns.saturating_sub(width.effective_columns(columns))
+                    >= COMPACT_MINIMUM_COLUMNS =>
+            {
+                surface
+            }
+            _ => width.map_or(SidebarSurface::Hidden, SidebarSurface::Overlay),
+        },
         ViewportTier::Full => width.map_or(SidebarSurface::Hidden, SidebarSurface::Docked),
     }
 }

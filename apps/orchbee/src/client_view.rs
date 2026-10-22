@@ -1,6 +1,8 @@
 #[cfg(test)]
 pub(crate) use bindings::PREFIX_GROUPS;
-pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
+/// Wide hosts show the sidebar by default: the default width still docks beside usable content.
+pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 =
+    crate::tui_layout::SidebarWidth::DEFAULT.docked_host_columns();
 
 mod bindings;
 #[cfg(windows)]

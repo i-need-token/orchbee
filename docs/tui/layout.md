@@ -19,13 +19,13 @@ completion condition.
 
 A full-screen Client divides the host area into persistent chrome and content, with transient status overlays:
 
-| Region        | Contract                                                                                       |
-| ------------- | ---------------------------------------------------------------------------------------------- |
-| Top strip     | At most one row; holds navigation such as tabs and the current location                        |
-| Status line   | One row over content when needed; never reserves terminal height; remains above other overlays |
-| Side panel    | Optional; docked at Full width, an overlay at Compact width, hidden at Minimal width           |
-| Content       | The remaining area; receives every row and column the chrome does not claim                    |
-| Pane boundary | One cell between split panes, shared by both neighbors                                         |
+| Region        | Contract                                                                                                                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Top strip     | At most one row; holds navigation such as tabs and the current location                                                                                                |
+| Status line   | One row over content when needed; never reserves terminal height; remains above other overlays                                                                         |
+| Side panel    | Optional; docked at Full width, and at Compact width while content keeps the Compact minimum beside it; otherwise an overlay at Compact width; hidden at Minimal width |
+| Content       | The remaining area; receives every row and column the chrome does not claim                                                                                            |
+| Pane boundary | One cell between split panes, shared by both neighbors                                                                                                                 |
 
 - Chrome row and column counts are fixed per tier and documented by the owner. Chrome never grows
   to fit its content; content adapts through tiers.
@@ -88,7 +88,7 @@ classified independently; a surface uses the lower of the two.
 | Tier    | Width         | Height     | Behavior                                                                                                                                                                         |
 | ------- | ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Full    | ≥ 100 columns | ≥ 24 rows  | Complete hints, docked side panel, full labels                                                                                                                                   |
-| Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel as overlay, truncated labels                                                                                                                         |
+| Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel docked while content keeps 60 columns beside it and otherwise an overlay, truncated labels                                                           |
 | Minimal | < 60 columns  | < 12 rows  | Hide optional top-strip actions to keep the first terminal row clear; preserve complete return/exit and primary actions while usable, otherwise suspend into the too-small state |
 
 Below 20 columns or 5 rows the Client paints one localized too-small notice and the status line,

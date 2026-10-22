@@ -22,6 +22,10 @@ impl SidebarWidth {
     pub(crate) const fn columns(self) -> u16 {
         self.0
     }
+    /// The narrowest host that docks this sidebar beside Compact-minimum content.
+    pub(crate) const fn docked_host_columns(self) -> u16 {
+        self.0 + super::COMPACT_MINIMUM_COLUMNS
+    }
     pub(super) fn effective_columns(self, host_columns: u16) -> u16 {
         self.0.min(host_columns / 2)
     }

@@ -401,7 +401,7 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
 }
 
 #[test]
-fn multirow_workspace_disclosure_has_no_hit_on_padding_or_continuations() {
+fn multirow_workspace_disclosure_has_no_hit_on_separator_or_continuations() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for width in [24, 30, 60] {
             let mut view = active_view();
@@ -410,7 +410,7 @@ fn multirow_workspace_disclosure_has_no_hit_on_padding_or_continuations() {
                 serde_json::json!([[token("workspace")], [token("branch")]]),
                 2,
             );
-            // A Project's first Workspace has no leading gap; the second owns the configured one.
+            // A Project's first Workspace has no leading gap; the second follows a separator.
             let target = view.machines.space_rows()[1].sidebar_target().unwrap();
             let SidebarTarget::Context {
                 target: context, ..
@@ -450,9 +450,17 @@ fn multirow_workspace_disclosure_has_no_hit_on_padding_or_continuations() {
             );
             let (x, y) = cells[0];
             assert_eq!(buffer[(x, y)].symbol(), theme.glyphs.disclosure_open);
+            assert_eq!(
+                rows.first(),
+                Some(&y),
+                "the entry starts at its identity line"
+            );
             assert!(
-                rows.iter().any(|row| *row < y),
-                "configured leading padding is present"
+                matches!(
+                    map.hit_target_at(x, y - 1),
+                    Some(HitTarget::MachineWorkspaceSurface(_))
+                ),
+                "the preceding separator is inert list surface"
             );
             assert!(
                 rows.iter().any(|row| *row > y),

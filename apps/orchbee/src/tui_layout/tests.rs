@@ -63,7 +63,7 @@ fn docks_the_sidebar_beside_content_with_a_reserved_status_row() {
 }
 
 #[test]
-fn overlays_the_left_edge_without_reflowing_the_compact_workbench() {
+fn compact_docks_beside_usable_content_and_otherwise_overlays_without_reflowing() {
     let viewport = Rect::new(4, 2, 70, 20);
     let hidden = project_shell_areas(viewport, SidebarSurface::Hidden);
     let overlay = project_shell_areas(viewport, SidebarSurface::Overlay(SidebarWidth::DEFAULT));
@@ -81,11 +81,32 @@ fn overlays_the_left_edge_without_reflowing_the_compact_workbench() {
         overlay.sidebar.map(|sidebar| sidebar.area),
         Some(Rect::new(4, 2, SidebarWidth::DEFAULT.columns(), 20))
     );
-    // A docked intent still presents as an overlay at Compact width.
+    // Docking would leave 40 content columns, below the Compact minimum, so it overlays.
     assert_eq!(
         docked_intent.sidebar.map(|sidebar| sidebar.layer),
         Some(SidebarLayer::Overlay)
     );
+    // A 99-column host is Compact, yet docking still leaves 69 usable content columns.
+    let threshold = SidebarWidth::DEFAULT.docked_host_columns();
+    for (columns, layer) in [
+        (99, SidebarLayer::Docked),
+        (threshold, SidebarLayer::Docked),
+        (threshold - 1, SidebarLayer::Overlay),
+    ] {
+        let areas = project_shell_areas(
+            Rect::new(0, 0, columns, 33),
+            SidebarSurface::Docked(SidebarWidth::DEFAULT),
+        );
+        assert_eq!(areas.tier, ViewportTier::Compact);
+        assert_eq!(areas.sidebar.map(|sidebar| sidebar.layer), Some(layer));
+        if layer == SidebarLayer::Docked {
+            assert_eq!(areas.workbench.x, SidebarWidth::DEFAULT.columns());
+            assert_eq!(
+                areas.workbench.width,
+                columns - SidebarWidth::DEFAULT.columns()
+            );
+        }
+    }
 }
 
 #[test]

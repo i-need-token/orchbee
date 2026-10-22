@@ -73,9 +73,6 @@ struct Context<'a> {
     unnamed: &'static str,
     git_stale: bool,
     branch_redundant: bool,
-    /// A completed Git read (repository or not), or a Standalone context that has no Workspace
-    /// directory to read: a still-empty configured line is truly absent.
-    git_settled: bool,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
@@ -91,27 +88,13 @@ impl<'a> Context<'a> {
             unnamed: locale.unnamed_workspace(),
             git_stale: view.machines.space_checkpoint_stale(row),
             branch_redundant: view.machines.space_branch_redundant(row),
-            git_settled: !matches!(
-                row.sidebar_target(),
-                Some(SidebarTarget::Context {
-                    target: crate::terminal_session::NativeContextTarget {
-                        location: crate::terminal_session::NativeContextLocation::Workspace { .. },
-                        ..
-                    },
-                    ..
-                })
-            ) || view
-                .machines
-                .space_checkpoint_row(row)
-                .is_some_and(|observed| observed.git.is_some()),
         }
     }
-    /// Configured lines keep their height while metadata is pending; once Git has settled, a
-    /// continuation line with no visible token is omitted instead of painting a blank row.
+    /// A continuation line appears only once one of its tokens has a visible value; pending
+    /// metadata reserves no blank row, so a non-repository Workspace never shrinks after Git settles.
     fn keeps(&self, tokens: &[WindowsSpaceSidebarToken], first: bool) -> bool {
         !tokens.is_empty()
             && (first
-                || !self.git_settled
                 || tokens.iter().any(|token| {
                     let kind = token.kind();
                     kind != Kind::StateIcon
@@ -1263,17 +1246,36 @@ pub(super) fn render(
             y += leading_gap + heading;
             break;
         }
+        // Spacing between Workspaces is an inert list separator, so current and hovered surfaces
+        // cover only the entry itself. Agent spacing stays inside its row: the tree trunk
+        // continues through it.
+        let separator = if matches!(row, SidebarRow::Agent { .. }) {
+            0
+        } else {
+            leading_gap - group_gap
+        };
+        if separator > 0 {
+            let gap = Rect::new(body.x, y + group_gap + heading, body.width, separator);
+            frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), gap);
+            if let Some(hits) = hits.as_deref_mut() {
+                hits.record(
+                    layer,
+                    gap,
+                    crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
+                );
+            }
+        }
         let band = Rect::new(
             body.x,
-            y + group_gap + heading,
+            y + group_gap + heading + separator,
             body.width,
-            leading_gap - group_gap + content_height,
+            leading_gap - group_gap - separator + content_height,
         );
         let target = row.target();
         let actions = auxiliary_actions(source, &target);
         let Some(tracks) = layout::Tracks::resolve_for_width(
             band,
-            leading_gap - group_gap,
+            leading_gap - group_gap - separator,
             sidebar_width,
             actions,
             layout::RowKind::for_target(&target),
@@ -1504,6 +1506,14 @@ pub(super) fn render(
             }
             | SidebarRow::Agent { .. } => None,
         };
+        // A Workspace repeats its Agents' unread marker only while those Agent rows are hidden.
+        let unread = match row {
+            SidebarRow::Agent { row, .. } => row.sidebar_agent().is_some_and(|agent| !agent.seen),
+            SidebarRow::Context { row, .. } => {
+                expanded != Some(true) && view.machines.workspace_unread(row)
+            }
+            SidebarRow::Project { .. } => false,
+        };
         let disclosure_glyph = |expanded| {
             if expanded {
                 theme.glyphs.disclosure_open
@@ -1541,13 +1551,6 @@ pub(super) fn render(
                     locale.machine_picker_text(state_role(state).0)
                 ));
             }
-            let unread = match row {
-                SidebarRow::Agent { row, .. } => {
-                    row.sidebar_agent().is_some_and(|agent| !agent.seen)
-                }
-                SidebarRow::Context { row, .. } => view.machines.workspace_unread(row),
-                SidebarRow::Project { .. } => false,
-            };
             if unread {
                 hint.push(format!(
                     "{} {}",
@@ -1678,11 +1681,6 @@ pub(super) fn render(
                 tracks.first_line(tracks.state),
             );
         }
-        let unread = match row {
-            SidebarRow::Agent { row, .. } => row.sidebar_agent().is_some_and(|agent| !agent.seen),
-            SidebarRow::Context { row, .. } => view.machines.workspace_unread(row),
-            SidebarRow::Project { .. } => false,
-        };
         let collapsed_fill_marker = theme.current_context_marker();
         if current
             && close.is_none()

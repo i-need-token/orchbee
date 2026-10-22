@@ -1440,6 +1440,12 @@ fn render_native_workbench(
             .focus_panel_id()
             .and_then(|panel| native.terminal_end(panel))
             .is_none();
+    // An overlay sidebar paints over the panes' leading columns after them, so it covers the pane
+    // cursor just as it covers pane graphics and attention.
+    let cursor_visible = input_enabled
+        && areas
+            .sidebar
+            .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay);
     let panel_area = areas.panel;
     let active_tab = native
         .active_position()
@@ -1519,6 +1525,7 @@ fn render_native_workbench(
                 leaf,
                 tab,
                 input_enabled,
+                cursor_visible,
                 pane_focused,
                 text,
                 phase_status,
@@ -1637,7 +1644,7 @@ fn render_native_workbench(
                 content_area,
                 surface,
                 terminal,
-                input_enabled,
+                cursor_visible,
                 locale,
                 theme,
                 native
@@ -1671,7 +1678,7 @@ fn render_native_workbench(
                 }
             }
         } else if let Some(terminal) = terminal {
-            let show_cursor = input_enabled;
+            let show_cursor = cursor_visible;
             #[cfg(windows)]
             let show_cursor = show_cursor && native.copy_mode().is_none();
             let tail = native
@@ -2147,6 +2154,7 @@ fn render_leaf(
     leaf: &crate::tui_layout::LeafArea,
     tab: NativeTabView<'_>,
     input_enabled: bool,
+    cursor_visible: bool,
     pane_focused: bool,
     text: ShellText,
     phase_status: &str,
@@ -2270,7 +2278,7 @@ fn render_leaf(
             content,
             surface,
             terminal,
-            input_enabled && active,
+            cursor_visible && active,
             locale,
             theme,
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
@@ -2278,7 +2286,7 @@ fn render_leaf(
             copy_active,
         );
     } else if let Some(terminal) = terminal {
-        let show_cursor = input_enabled && active;
+        let show_cursor = cursor_visible && active;
         #[cfg(windows)]
         let show_cursor = show_cursor && native.copy_mode().is_none();
         let tail = panel.and_then(|panel| native.pane_tail_window(panel.panel_id()));
