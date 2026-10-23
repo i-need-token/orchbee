@@ -103,13 +103,24 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
             let owner_rows = sidebar_target_rows(&hits, 40, 20, &workspace);
             let agent_rows = sidebar_target_rows(&hits, 40, 20, &agent);
             assert_eq!(owner_rows.len(), 2);
-            assert_eq!(agent_rows.len(), 1, "an Agent is a single title line");
+            assert_eq!(
+                agent_rows.len(),
+                2,
+                "an Agent is a title line over its provider"
+            );
             assert_eq!(agent_rows[0], owner_rows[1] + 1);
             for y in owner_rows {
                 assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome)));
             }
+            // The Agent surface starts at its state track; the tree lead stays on chrome.
+            let state_x = agent_state_x(&view, &agent);
             for y in agent_rows {
-                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent)));
+                assert!(
+                    (0..state_x).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome))
+                );
+                assert!(
+                    (state_x..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent))
+                );
             }
             assert!(view.machines.toggle_sidebar_context_agents(&workspace));
             let (collapsed, _, hits) = paint_navigation_buffers(&view, locale, &theme, 40, 20);
@@ -168,12 +179,13 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             Role::SurfaceHover
                         };
                         let expected = theme.style(surface);
-                        // A Workspace keeps its branch line; an Agent is one title line.
-                        assert_eq!(
-                            ys.len(),
-                            if owner { 2 } else { 1 },
-                            "identity and supporting lines: {target:?}"
-                        );
+                        // A Workspace keeps its branch line; an Agent keeps its provider line.
+                        assert_eq!(ys.len(), 2, "identity and supporting lines: {target:?}");
+                        let first = if owner {
+                            0
+                        } else {
+                            agent_state_x(&view, target)
+                        };
                         if owner {
                             let supporting_text: String = (0..40)
                                 .filter(|x| !hidden_by_candidate_wide_glyph(&buffer, *x, ys[1]))
@@ -190,6 +202,18 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                                     continue;
                                 }
                                 let cell = &buffer[(x, *y)];
+                                // A keyboard-focused Agent keeps its marker in the navigation
+                                // track, outside the surface.
+                                if x < first {
+                                    if x > 0 {
+                                        assert_eq!(
+                                            cell.bg,
+                                            theme.color(Role::SurfaceChrome),
+                                            "{x},{y}"
+                                        );
+                                    }
+                                    continue;
+                                }
                                 assert_eq!(cell.bg, expected.bg.unwrap(), "{surface:?} {x},{y}");
                                 assert_eq!(
                                     cell.modifier.contains(Modifier::REVERSED),
@@ -336,4 +360,18 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
             }
         }
     }
+}
+
+/// The column where an Agent row's interaction surface starts in a 40-cell navigation paint.
+fn agent_state_x(view: &ClientView, agent: &SidebarTarget) -> u16 {
+    layout::Tracks::resolve_for_width(
+        Rect::new(0, 0, 40, 1),
+        0,
+        40,
+        auxiliary_actions(&view.machines.sidebar_source(), agent),
+        layout::RowKind::Agent,
+    )
+    .unwrap()
+    .state
+    .x
 }

@@ -16,14 +16,17 @@ fn group_owner_and_agent_tracks_align_the_tree_across_width_modes() {
         assert_eq!(owner.auxiliary.width, auxiliary);
         assert_eq!(owner.navigation, Rect::new(3, 4, 1, 3));
         assert_eq!(owner.content_y, 5);
-        // A heading and a Workspace state share the column after the keyboard marker.
+        // A heading starts after the keyboard marker; a Workspace state sits one cell inside it.
         assert_eq!(group.primary.x, band.x + NAVIGATION_WIDTH);
         assert!(group.state.is_empty() && group.branch.is_empty());
-        assert_eq!(owner.state, Rect::new(band.x + NAVIGATION_WIDTH, 4, 1, 3));
+        assert_eq!(
+            owner.state,
+            Rect::new(band.x + NAVIGATION_WIDTH + TREE_INSET, 4, 1, 3)
+        );
         assert!(owner.branch.is_empty());
-        // An Agent connector sits under the Workspace state; its state aligns with the identity.
+        // An Agent connector sits under the Workspace state, then a gap before its own state.
         assert_eq!(agent.branch, Rect::new(owner.state.x, 4, BRANCH_WIDTH, 3));
-        assert_eq!(agent.state.x, owner.primary.x);
+        assert_eq!(agent.state.x, agent.branch.right() + BRANCH_GAP);
         for tracks in [owner, agent] {
             assert_eq!(tracks.state.right() + STATE_GAP, tracks.primary.x);
             assert!(tracks.disclosure.is_empty());
@@ -69,7 +72,7 @@ fn disclosure_follows_displayed_identity_and_only_owns_its_first_line_cell() {
 
 #[test]
 fn insufficient_identity_width_omits_disclosure_instead_of_publishing_a_phantom_cell() {
-    for width in [7, 8] {
+    for width in [8, 9] {
         let tracks = Tracks::resolve(
             Rect::new(0, 0, width, 1),
             0,

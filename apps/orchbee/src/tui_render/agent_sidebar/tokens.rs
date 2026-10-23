@@ -5,7 +5,6 @@ use crate::machine_picker::Row;
 use orchbee_local_site_runtime::{
     WindowsAgentSidebarToken, WindowsAgentSidebarTokenKind as Kind, WindowsSidebarTokenStyle,
 };
-use orchbee_workbench_protocol::MetadataState;
 
 struct Context<'a> {
     agent: &'a crate::machine_agents::Row,
@@ -15,7 +14,7 @@ struct Context<'a> {
 impl<'a> Context<'a> {
     fn new(view: &ClientView, row: &'a Row, locale: Locale) -> Option<Self> {
         let agent = row.sidebar_agent()?;
-        let (key, _) = super::super::sidebar_text::state_role(agent.sidebar_state());
+        let (key, _) = super::super::sidebar_text::state_role(agent.display_state());
         Some(Self {
             agent,
             machine: machine_label(view, row, locale),
@@ -93,7 +92,7 @@ pub(in crate::tui_render) fn height(view: &ClientView, row: &Row, locale: Locale
         );
     };
     let Some(rows) = configured(view, context.agent) else {
-        return 1;
+        return 2;
     };
     rows.iter()
         .filter(|tokens| tokens.iter().any(|token| context.resolved(token).is_some()))
@@ -127,12 +126,12 @@ pub(in crate::tui_render) fn projection(
         ));
         return ProjectedSidebarLines::new(lines, CurrentIdentityEmphasis::Theme);
     };
-    let (_, state_role) = super::super::sidebar_text::state_role(context.agent.sidebar_state());
+    let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
     let text_style =
         |role, _first_line| theme.sidebar_token_style(role, Default::default(), false, false);
     let Some(rows) = configured(view, context.agent) else {
-        // The default row is identity only: the state glyph, connector and hover hint carry the
-        // state, and an Agent that needs the person's input also colors its identity.
+        // The default row is the identity over its provider: the state glyph, connector and hover
+        // hint carry the state.
         let title = display_label(
             context
                 .agent
@@ -153,13 +152,14 @@ pub(in crate::tui_render) fn projection(
         } else {
             title
         };
-        let role = if context.agent.sidebar_state() == MetadataState::Blocked {
-            Role::StatusWarning
-        } else {
-            Role::TextPrimary
-        };
         return ProjectedSidebarLines::new(
-            vec![Line::from(Span::styled(title, text_style(role, true)))],
+            vec![
+                Line::from(Span::styled(title, text_style(Role::TextPrimary, true))),
+                Line::from(Span::styled(
+                    display_label(context.agent.provider()),
+                    text_style(Role::TextSecondary, false),
+                )),
+            ],
             CurrentIdentityEmphasis::Theme,
         );
     };
@@ -187,12 +187,7 @@ pub(in crate::tui_render) fn projection(
             }
             previous_icon = token.kind() == Kind::StateIcon;
             if previous_icon {
-                text = super::super::sidebar_text::state_glyph(
-                    context.agent.sidebar_state(),
-                    theme,
-                    view.machines.working_frame(),
-                )
-                .into();
+                text = theme.agent_glyph(context.agent.display_state()).into();
             }
             let token_role = if matches!(token.kind(), Kind::StateIcon | Kind::StateText) {
                 state_role

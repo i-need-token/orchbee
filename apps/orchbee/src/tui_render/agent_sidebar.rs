@@ -66,11 +66,15 @@ struct ActionsContext<'a> {
     layer: HitLayer,
     owns_keyboard: bool,
     source: &'a crate::machine_picker::SidebarSource,
+    hint_right: u16,
 }
 
+/// `hint_right` is the exclusive column where a shortcut hint ends; it may pass `area` into the
+/// sidebar's trailing padding, up to its divider.
 fn render_fixed_action(
     frame: &mut Frame<'_>,
     area: Rect,
+    hint_right: u16,
     action: FixedAction<'_>,
     theme: &Theme,
     layer: HitLayer,
@@ -126,7 +130,7 @@ fn render_fixed_action(
     }
     if let Some(hint) = hint {
         let hint_width = u16::try_from(display_width(hint)).unwrap_or(u16::MAX);
-        if let Some(hint_x) = area.right().checked_sub(hint_width)
+        if let Some(hint_x) = hint_right.checked_sub(hint_width)
             && hint_width > 0
             && hint_x >= rect.right().saturating_add(2)
         {
@@ -157,6 +161,7 @@ fn render_actions(
         layer,
         owns_keyboard,
         source,
+        hint_right,
     } = context;
     for (offset, (command, action, kind)) in [
         (
@@ -185,6 +190,7 @@ fn render_actions(
         let _ = render_fixed_action(
             frame,
             row,
+            hint_right,
             FixedAction {
                 label: locale.sidebar_navigation_action(command),
                 hint: hint.as_deref(),
@@ -270,6 +276,8 @@ pub(super) fn render(
         .padding(Padding::new(0, 1, 1, 0))
         .style(theme.style(Role::SurfaceChrome));
     let mut inner = block.inner(sidebar.area);
+    // Footer rules and shortcut hints continue through the trailing padding to the divider.
+    let content_right = sidebar.area.right().saturating_sub(1).max(inner.right());
     frame.render_widget(block, sidebar.area);
     let layer = if view.overlay() == Some(Overlay::BusinessSidebar) {
         HitLayer::Overlay
@@ -302,6 +310,7 @@ pub(super) fn render(
             layer,
             owns_keyboard,
             source: &source,
+            hint_right: content_right,
         },
         hits.as_deref_mut(),
     );
@@ -329,7 +338,7 @@ pub(super) fn render(
                 .borders(Borders::TOP)
                 .border_style(theme.style(Role::FrameDivider))
                 .style(theme.style(Role::SurfaceChrome)),
-            Rect::new(area.x, settings.y - 2, area.width, 1),
+            Rect::new(area.x, settings.y - 2, content_right - area.x, 1),
         );
     }
     if footer_rows >= 2 {
@@ -354,6 +363,7 @@ pub(super) fn render(
         render_fixed_action(
             frame,
             settings,
+            content_right,
             FixedAction {
                 label: locale.settings_title(),
                 hint: settings_hint.as_deref(),
@@ -389,6 +399,7 @@ pub(super) fn render(
             theme,
             layer,
             sidebar_width: sidebar.area.width,
+            trailing_padding: content_right - area.right(),
             owns_keyboard,
             source: &source,
             creation,

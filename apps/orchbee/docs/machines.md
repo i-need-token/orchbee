@@ -529,15 +529,15 @@ observation below; pane title and `$terminal_title` never substitute for those
 builtins.
 
 Default rows show the effective presentation title beside the tree connector and status
-glyph on one line. A blank sanitized title falls back to the provider. Parent Machine/Workspace
-text stays in the tree rather than each Agent. Status color stays on the glyph; the title uses
-the primary text role, or the warning role while the Agent is blocked. Hovering the row shows the
-glyph and localized state in the sidebar footer; configured `state_text` and `agent` tokens
-restore inline state and provider text.
+glyph, over the provider on a second line. A blank sanitized title falls back to the provider.
+Parent Machine/Workspace text stays in the tree rather than each Agent. Status color stays on the
+glyph; the title uses the primary text role and the provider the secondary role. Hovering the row
+shows the glyph and localized state in the sidebar footer; configured `state_text` and `agent`
+tokens restore inline state and provider text.
 
 | Input or event                                 | Decision and observable result                                                                                          |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No rows setting or matching override           | Use the one-line title default                                                                                          |
+| No rows setting or matching override           | Use the title-over-provider default                                                                                     |
 | Provider override                              | Exact physical Agent label first, then its canonical report label; displayAgent cannot select an override               |
 | Empty rows, missing custom value, or hide rule | Remove configured text, preserving at least the identity line and exact hit target                                      |
 | Styled text token                              | Apply base foreground/bold/dim, then the first matching rule; `hide=true` removes that token                            |
@@ -620,7 +620,7 @@ Agent rows retain a fixed leading state symbol independently of configured text 
 The Windows main sidebar resolves workspace rows from exact Session/context identities,
 not display labels or Agent source-view filtering. The settings owner admits
 `ui.sidebar.spaces` rows and `row_gap`, with at most 16 rows and 16 tokens per row.
-Builtins are `state_icon`, `state_text`, `workspace`, `branch` and `git_status`;
+Builtins are `state_icon`, `state_text`, `workspace`, `branch`, `location` and `git_status`;
 `$custom` values come from the Workspace report owner. Styles and first-match
 text rules inspect original values before terminal sanitization. Icon and Git
 count tokens do not admit text rules. Nonempty configured rows retain their slots when values are missing or hidden;
@@ -639,6 +639,8 @@ Each Workspace reads separately because equal canonical directories may diverge.
 dirty-file count nor a zero invented for an unavailable repository. Detached
 and unborn branches, absent upstream, and nonrepositories remain explicit; a
 nonrepository is an observation without branch facts, so earlier facts are not retained.
+`location` shows the observed branch, otherwise the canonical Workspace folder; a local folder
+under the Client's home is shortened to `~`. Only branch text reserves the freshness track.
 Reads never fetch, change configuration, start a terminal or execute a plugin.
 
 The Git read reuses the owned Windows discovery slot: checked start, poll,

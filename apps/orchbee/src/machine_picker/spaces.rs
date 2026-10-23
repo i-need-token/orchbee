@@ -232,41 +232,6 @@ impl Picker {
             .filter(|checkpoint| checkpoint.site_id == context.target.site_id)
             .and_then(|checkpoint| checkpoint.rows.iter().find(|r| r.target == context.target))
     }
-    pub(crate) fn space_branch_redundant(&self, row: &Row) -> bool {
-        let Some(observed) = self.space_checkpoint_row(row) else {
-            return false;
-        };
-        let Some(branch) = observed.git.as_ref().and_then(|git| git.branch.as_deref()) else {
-            return false;
-        };
-        if !self.space_checkpoint_stale(row)
-            && observed.label.as_deref().or_else(|| row.workspace_label()) == Some(branch)
-        {
-            return true;
-        }
-        if observed.directory.is_none()
-            || self.space_checkpoint_stale(row)
-            || observed
-                .git
-                .as_ref()
-                .and_then(|git| git.divergence.as_ref())
-                .is_some_and(|counts| counts.ahead > 0 || counts.behind > 0)
-        {
-            return false;
-        }
-        self.space_checkpoint(&row.choice)
-            .is_some_and(|checkpoint| {
-                checkpoint
-                    .rows
-                    .iter()
-                    .take_while(|other| other.target != observed.target)
-                    .any(|other| {
-                        other.directory == observed.directory
-                            && other.git.as_ref().and_then(|git| git.branch.as_deref())
-                                == Some(branch)
-                    })
-            })
-    }
     pub(crate) fn workspace_state(&self, row: &Row) -> Option<MetadataState> {
         let context = row.context.as_ref()?;
         let Some(crate::machine_agents::Observation::Ready(cp)) = self
@@ -285,7 +250,7 @@ impl Picker {
             cp.rows
                 .iter()
                 .filter(|r| r.target.context == context.target)
-                .map(crate::machine_agents::Row::sidebar_state),
+                .map(crate::machine_agents::Row::display_state),
         )
     }
     /// The attached machine's Agents in one Tab, summarized like a collapsed Workspace row.
@@ -304,7 +269,7 @@ impl Picker {
         };
         let rows = || cp.rows.iter().filter(|r| &r.target.tab == tab);
         Some(TabAgent {
-            state: most_urgent(rows().map(crate::machine_agents::Row::sidebar_state))?,
+            state: most_urgent(rows().map(crate::machine_agents::Row::display_state))?,
             unread: rows().any(|r| !r.seen),
         })
     }

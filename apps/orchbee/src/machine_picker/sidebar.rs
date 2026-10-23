@@ -352,8 +352,9 @@ impl<S> Sidebar<S> {
     }
 }
 
-/// Working-glyph phase shared by the Sidebar and the Tab strip. Rendering only reads the phase;
-/// the event loop advances it, so every frame remains a pure function of Client state.
+/// Working-glyph phase for the Tab strip and pane titles; the Sidebar shows Working statically.
+/// Rendering only reads the phase; the event loop advances it, so every frame remains a pure
+/// function of Client state.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct Motion {
     frame: usize,

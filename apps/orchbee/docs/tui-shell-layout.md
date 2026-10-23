@@ -106,7 +106,7 @@ The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
 remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above this footer, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Nonempty legacy compatibility content appears first when present. Projects in their canonical
-display order and their children follow, then ungrouped Workspaces under a localized Ungrouped heading. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
+display order and their children follow, then ungrouped Workspaces under a localized Standalone heading. Each heading follows its label with a secondary count of its member Workspaces, including those hidden by collapse; only the label truncates. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. The legacy Workspace owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
@@ -122,8 +122,8 @@ creation hint. Fixed actions and effective keyboard routes remain available. Glo
 keeps its localized directory and Tab creation guidance. The first workbench row remains available
 to authored guidance or terminal content; no PTY geometry is reserved.
 
-Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
-blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside
+Fixed-action shortcut hints end at the sidebar divider, with at least two blank cells after the
+button. A hint that cannot fit in full is omitted; its cells are outside
 the button's pointer target. At host heights of at least 24 rows, when the remaining sidebar area
 has at least five rows, a divider and one shortcut-hint row separate Settings from the scrolling
 list. While terminal input owns the keyboard, that hint shows the effective sidebar-focus binding
@@ -137,33 +137,40 @@ a Workspace. Blank sidebar cells do not change focus; the explicit binding and r
 Hosts shorter than 24 rows omit the spacer after the actions. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
 focus, or the visible current Agent with its Context as fallback, determines focus reveal.
-The list has no heading: Project and Ungrouped headings name its groups. Paint and pointer
+The list has no heading: Project and Standalone headings name its groups. Paint and pointer
 regions use the same final rectangles; tree disclosure never changes terminal content geometry.
 
 A blank row normally separates the fixed actions from the first group. When canonical rows
 are available, the list omits repeated application branding and ordinary session status.
 An empty navigation tree leaves the space below the actions blank until rows or a creation preview arrive.
 Both sidebar presentations keep one top padding row and one right padding cell, with no
-outer left padding; the shared focus gutter owns the list's left edge. Footer rows carry only
+outer left padding; the shared focus gutter owns the list's left edge. Row surfaces, the footer
+divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
+divider; pointer targets keep the list's own columns. Footer rows carry only
 overflow ranges; fully visible lists leave them blank.
 
 Navigation rows keep a one-cell navigation marker at the list's left edge and no per-level
-indentation; the tree shape comes from shared columns. Project and Ungrouped headings start their
-bold label in the column after the marker. Workspace rows reserve a one-cell leading operational
-state track there, then a one-cell gap, so Workspace names start three cells from the list's left
-edge. Agent rows place a two-cell tree connector (`├─`, or `└─` for the last child; ASCII `|-` and
-`` `- ``) under the Workspace state track, then their own state track and gap, so Agent titles start
-five cells from the edge. A `│` trunk continues through the leading gap between Agent siblings
-only; it never crosses the Workspace's branch line. Connectors use the divider role over the row
-surface. Eligible disclosures follow the displayed first-line identity.
+indentation; the tree shape comes from shared columns. Project and Standalone headings start their
+bold label in the column after the marker. Workspace rows sit one blank cell further in, with a
+one-cell leading operational state track and a one-cell gap, so Workspace names start four cells
+from the list's left edge. Agent rows place a two-cell tree connector (`├─`, or `╰─` for the last
+child; ASCII `|-` and `` `- ``) under the Workspace state track, then a one-cell gap, their own
+state track and gap, so Agent titles start seven cells from the edge. A `│` trunk continues through
+the leading gap between Agent siblings only; it never crosses the Workspace's branch line.
+Connectors use the divider role on chrome: an Agent row's surface starts at its state track, so
+hover, press, navigation and current fills leave the tree indent and connector unfilled. Eligible
+disclosures follow the displayed first-line identity.
 After the primary identity, a one-cell gap precedes independent one-cell current and
 unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
 their markers are blank, so changing state never moves the label. A Workspace shows its Agents'
-unread marker only while their rows are collapsed; expanded Agent rows carry their own. Git ahead/behind counts are
-right-aligned at the end of their configured line's primary track; the default layout places them
-on the identity line and leaves the branch alone on the second line. A configured continuation
-line appears only once one of its values is visible, so a non-repository Workspace or Standalone
-context shows one line and pending metadata never reserves a blank row. Branch
+unread marker only while their rows are collapsed; expanded Agent rows carry their own. Git
+ahead/behind counts use secondary text. On the identity line they sit flush with the row's trailing
+edge, where the close control appears, unless a current or unread marker occupies those cells; on
+other lines they right-align at the end of the primary track. The default layout places them on
+the identity line and shows the Workspace location on the second line: its Git branch, or without
+one its folder, with a local home folder shortened to `~`. A configured continuation line appears
+only once one of its values is visible, so a context with neither branch nor folder shows one line
+and pending metadata never reserves a blank row. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible Project
@@ -181,9 +188,9 @@ existing Close Workspace confirmation. Standalone, remote-machine, other-site an
 reveal it, and the context menu and keyboard close routes remain available.
 Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
-keep their existing owners. Agent rows carry no ordinal. The default Agent row is one title line;
-its state glyph and the hover footer hint carry state, with a blocked Agent's title in the warning
-role. Project and Ungrouped groups reserve at least one blank row
+keep their existing owners. Agent rows carry no ordinal. The default Agent row is a primary title
+line over its provider in secondary text; its state glyph and the hover footer hint carry state.
+Project and Standalone groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
 under its heading. The default Workspace gap is one row. These external separators retain the chrome
 background and an inert list-surface target; hover, press, current and navigation surfaces never
@@ -343,11 +350,12 @@ the complete physical Agent checkpoint, so waiting evidence stays visible throug
 Agent filters. Current-Workspace styling remains on the Context or its collapsed Project,
 without changing the active terminal.
 
-Agent, Workspace and Tab state glyphs use the sidebar presentation state: a completed turn the
-person has already seen rests as idle. Working state animates through the theme's equal-width frames
-(braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`; ASCII `-\|/`) every 100 ms while a Working Agent is observed. The phase
-lives in the Picker and the event loop advances it, so rendering remains a pure function of state;
-pane titles share the same phase.
+Agent, Workspace and Tab state glyphs keep the reported Agent state: a completed turn stays done
+after the person has seen it, and only its unread marker clears. Sidebar state glyphs are static,
+including Working (`◐`; ASCII `~`). Tab and pane-title Working state animates through the theme's
+equal-width frames (braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`; ASCII `-\|/`) every 100 ms while a Working Agent is
+observed. The phase lives in the Picker and the event loop advances it, so rendering remains a pure
+function of state.
 
 The fixed Search row opens the Workspaces picker with its name query focused. Existing Workspaces
 are immediately visible even without Agents; typing filters names, Enter opens the selected exact
@@ -677,7 +685,7 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-F1 includes a symbol legend for current context, unread changes, disclosure and all Agent states. Hovering a sidebar row explains its markers in the reserved sidebar footer. Branch text equal to the Workspace name, or repeated for the same canonical directory and branch, is omitted; divergence and stale observations remain visible. Configured metadata tracks retain their height during this projection.
+F1 includes a symbol legend for current context, unread changes, disclosure and all Agent states. Hovering a sidebar row explains its markers in the reserved sidebar footer. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
 
 ## Shortcut discovery scope
 

@@ -313,12 +313,12 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     layout::RowKind::for_target(&focused),
                 )
                 .unwrap();
-                assert_eq!(buffer[(agent_tracks.branch.x, agent_y)].symbol(), "└");
+                assert_eq!(buffer[(agent_tracks.branch.x, agent_y)].symbol(), "╰");
                 assert_eq!(
                     buffer[(agent_tracks.state.x, agent_y)].symbol(),
-                    theme.glyphs.working_frames[0]
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
                 );
-                assert_eq!(agent_tracks.state.x, 3);
+                assert_eq!(agent_tracks.state.x, 5);
                 assert_eq!(buffer[(agent_tracks.primary.x, agent_y)].symbol(), "I");
                 for x in 0..28 {
                     assert!(matches!(
@@ -567,7 +567,7 @@ fn workspace_sidebar_degrades_across_tiers_and_preserves_action_entries() {
 }
 
 #[test]
-fn compact_sidebar_keeps_current_workspace_and_single_line_agent_unclipped() {
+fn compact_sidebar_keeps_current_workspace_and_agent_unclipped() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let mut view = view(60, 14);
         configure(
@@ -605,7 +605,7 @@ fn compact_sidebar_keeps_current_workspace_and_single_line_agent_unclipped() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            1
+            2
         );
     }
 }
@@ -776,6 +776,7 @@ fn paint_navigation_buffers_with_pointer(
                     theme,
                     layer: HitLayer::Chrome,
                     sidebar_width: width,
+                    trailing_padding: 0,
                     owns_keyboard: view.machines.sidebar_navigation_active(),
                     source: &source,
                 },
@@ -940,7 +941,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     layout::RowKind::for_target(&project),
                 )
                 .unwrap()
-                .with_disclosure_after(display_width("Repo"));
+                .with_disclosure_after(display_width("Repo 2"));
                 for y in &project_rows {
                     for x in 0..width {
                         let hit = hits.hit_target_at(x, *y);
@@ -1079,7 +1080,7 @@ fn agents_are_nested_by_default_and_project_collapse_retains_disclosure() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            2
+            4
         );
         assert!(
             !rows
@@ -1336,7 +1337,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
                         Some(HitTarget::MachineAgentRow { .. })
                     ))
                     .count(),
-                1
+                2
             );
             // The footer divider yields; only the Agent's tree connector draws a rule glyph.
             assert!(!rows.iter().any(|row| row.contains("───")), "{rows:?}");
@@ -1559,7 +1560,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             );
             assert_eq!(
                 candidate[(tracks.state.x, y)].symbol(),
-                theme.glyphs.working_frames[0]
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
             );
             // An expanded Workspace leaves the unread cue to its visible Agent row.
             assert_eq!(
@@ -1574,10 +1575,11 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
                 .find(|x| candidate[(*x, y)].symbol() != " ")
                 .unwrap();
             assert!(!candidate[(identity_x, y)].modifier.contains(Modifier::BOLD));
+            // The Agent surface starts at its state track; the tree lead stays on chrome.
             for x in 0..120 {
                 assert_eq!(
                     candidate[(x, y)].bg,
-                    theme.color(if target == &context {
+                    theme.color(if target == &context || x < tracks.state.x {
                         Role::SurfaceChrome
                     } else {
                         Role::SurfaceCurrent
@@ -1643,7 +1645,7 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
     );
     assert_eq!(
         buffer[(tracks.state.x, y)].symbol(),
-        theme.glyphs.working_frames[0]
+        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
     );
     assert_eq!(
         buffer[(tracks.unread.x, y)].symbol(),

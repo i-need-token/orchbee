@@ -167,7 +167,7 @@ impl GlyphSet {
         disclosure_open: "▾",
         disclosure_closed: "▸",
         tree_branch: "├─",
-        tree_last: "└─",
+        tree_last: "╰─",
         tree_trunk: "│",
         working_frames: &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
     };

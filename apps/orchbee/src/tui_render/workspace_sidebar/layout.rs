@@ -4,10 +4,14 @@ use crate::machine_picker::SidebarTarget;
 use ratatui::layout::Rect;
 
 const NAVIGATION_WIDTH: u16 = 1;
+/// Workspace and Agent rows sit one blank cell inside the column where group headings start.
+const TREE_INSET: u16 = 1;
 const DISCLOSURE_WIDTH: u16 = 1;
 const DISCLOSURE_GAP: u16 = 1;
-/// Agent rows open with a two-cell tree connector (`├─`/`└─`) under their Workspace state.
+/// Agent rows open with a two-cell tree connector (`├─`/`╰─`) under their Workspace state.
 const BRANCH_WIDTH: u16 = 2;
+/// One blank cell separates the connector from the Agent state.
+const BRANCH_GAP: u16 = 1;
 const CURRENT_WIDTH: u16 = 1;
 const STATE_WIDTH: u16 = 1;
 const STATE_GAP: u16 = 1;
@@ -20,9 +24,9 @@ const COMPACT_MINIMUM: u16 = 28;
 pub(super) enum RowKind {
     /// A Project or ungrouped heading: identity starts at the list edge without a state slot.
     Group,
-    /// A Workspace: state at the list edge, identity after it.
+    /// A Workspace: inset state, identity after it.
     Owner,
-    /// An Agent: tree connector under the Workspace state, then state and identity.
+    /// An Agent: tree connector under the Workspace state, a gap, then state and identity.
     Agent,
 }
 
@@ -149,20 +153,28 @@ impl Tracks {
             NAVIGATION_WIDTH.min(band.width),
             band.height,
         );
+        let inset = if kind == RowKind::Group {
+            0
+        } else {
+            TREE_INSET
+        };
         let branch = clipped_track(
             band,
-            navigation.right(),
+            navigation.right().saturating_add(inset),
             if kind == RowKind::Agent {
                 BRANCH_WIDTH
             } else {
                 0
             },
         );
-        // A Workspace state shares the connector column, so an Agent state aligns with its
-        // Workspace identity. Headings reserve no state slot.
+        // A Workspace state shares the connector column. Headings reserve no state slot.
         let state = clipped_track(
             band,
-            branch.right(),
+            branch.right().saturating_add(if kind == RowKind::Agent {
+                BRANCH_GAP
+            } else {
+                0
+            }),
             if kind == RowKind::Group {
                 0
             } else {

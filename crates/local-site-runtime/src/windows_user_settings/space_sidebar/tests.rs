@@ -12,15 +12,20 @@ fn defaults_empty_layouts_custom_names_and_git_demand_remain_distinct() {
     assert!(empty.rows().is_empty());
     assert!(!empty.needs_git());
     assert_eq!(empty.row_gap(), u16::MAX);
-    let all = parse("rows=[['state_icon','state_text','workspace','branch','git_status','$branch','$git_status']]").unwrap();
+    let all = parse("rows=[['state_icon','state_text','workspace','branch','location','git_status','$branch','$git_status']]").unwrap();
     assert_eq!(
         all.rows()[0][3].kind(),
         WindowsSpaceSidebarTokenKind::Branch
     );
     assert_eq!(
-        all.rows()[0][5].kind(),
+        all.rows()[0][4].kind(),
+        WindowsSpaceSidebarTokenKind::Location
+    );
+    assert_eq!(
+        all.rows()[0][6].kind(),
         WindowsSpaceSidebarTokenKind::Custom("branch")
     );
+    assert!(parse("rows=[['location']]").unwrap().needs_git());
     let custom = parse("rows=[['$branch','$git_status']]").unwrap();
     assert!(!custom.needs_git());
     for settings in [default, empty, all, custom] {

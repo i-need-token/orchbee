@@ -307,11 +307,23 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                         layout::RowKind::Group,
                     )
                     .unwrap();
+                    let count =
+                        view.machines
+                            .sidebar_navigation_rows()
+                            .iter()
+                            .find_map(|row| match row {
+                                crate::machine_picker::SidebarRow::Project {
+                                    workspaces, ..
+                                } if row.target() == target => Some(format!(" {workspaces}")),
+                                _ => None,
+                            })
+                            .unwrap();
+                    // Only the name truncates; the member count stays whole before the disclosure.
                     let expected_label = truncate_display(
                         label,
-                        usize::from(tracks.text_width(true)),
+                        usize::from(tracks.text_width(true)).saturating_sub(display_width(&count)),
                         theme.glyphs.ellipsis,
-                    );
+                    ) + &count;
                     let disclosure_x = tracks.primary.x + display_width(&expected_label) as u16 + 1;
                     let disclosure_cells = (0..24)
                         .flat_map(|y| (0..width).map(move |x| (x, y)))

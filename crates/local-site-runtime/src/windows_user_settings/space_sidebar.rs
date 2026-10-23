@@ -21,6 +21,8 @@ pub enum WindowsSpaceSidebarTokenKind<'a> {
     StateText,
     Workspace,
     Branch,
+    /// The Git branch when one is observed, otherwise the Workspace folder.
+    Location,
     GitStatus,
     Custom(&'a str),
 }
@@ -49,6 +51,7 @@ fn token_kind(name: &str) -> Result<WindowsSpaceSidebarTokenKind<'_>, WindowsSet
         "state_text" => StateText,
         "workspace" => Workspace,
         "branch" => Branch,
+        "location" => Location,
         "git_status" => GitStatus,
         name => Custom(custom_key(name).map_err(error)?),
     })
@@ -81,7 +84,7 @@ impl Default for WindowsSpaceSidebarSettings {
     fn default() -> Self {
         Self::parse(
             &toml::from_str::<toml::Value>(
-                "rows=[['state_icon','workspace','git_status'],['branch']]",
+                "rows=[['state_icon','workspace','git_status'],['location']]",
             )
             .expect("default layout"),
         )
@@ -138,7 +141,9 @@ impl WindowsSpaceSidebarSettings {
         self.rows.iter().flatten().any(|token| {
             matches!(
                 token.kind(),
-                WindowsSpaceSidebarTokenKind::Branch | WindowsSpaceSidebarTokenKind::GitStatus
+                WindowsSpaceSidebarTokenKind::Branch
+                    | WindowsSpaceSidebarTokenKind::Location
+                    | WindowsSpaceSidebarTokenKind::GitStatus
             )
         })
     }

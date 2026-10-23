@@ -163,6 +163,7 @@ fn paint_creation_members(
                     theme,
                     layer: HitLayer::Chrome,
                     sidebar_width: 64,
+                    trailing_padding: 0,
                     owns_keyboard: view.machines.sidebar_navigation_active(),
                     source: &source,
                     creation: Some(creation),
@@ -185,12 +186,36 @@ fn assert_creation_member_surface(
 ) -> Vec<u16> {
     let ys = sidebar_target_rows(hits, buffer.area.width, buffer.area.height, target);
     assert!(!ys.is_empty(), "missing creation member {target:?}");
+    // An Agent surface starts at its state track; the tree lead after the navigation marker
+    // track stays on chrome.
+    let first = match target {
+        SidebarTarget::Agent { .. } => {
+            layout::Tracks::resolve(
+                Rect::new(0, 0, buffer.area.width, 1),
+                0,
+                layout::AuxiliaryActions::default(),
+                layout::RowKind::Agent,
+            )
+            .unwrap()
+            .state
+            .x
+        }
+        _ => 0,
+    };
     for y in &ys {
         for x in 0..buffer.area.width {
+            if x == 0 && first > 0 {
+                continue;
+            }
+            let expected = if x < first {
+                Role::SurfaceChrome
+            } else {
+                surface
+            };
             assert_eq!(
                 buffer[(x, *y)].bg,
-                theme.color(surface),
-                "{target:?}: {surface:?} at {x},{y}"
+                theme.color(expected),
+                "{target:?}: {expected:?} at {x},{y}"
             );
         }
     }
@@ -483,6 +508,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                             theme: &Theme::terminal_native(),
                             layer: HitLayer::Chrome,
                             sidebar_width: 50,
+                            trailing_padding: 0,
                             owns_keyboard: false,
                             source: &source,
                             creation: preview,
@@ -595,6 +621,7 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                                     theme: &Theme::terminal_native(),
                                     layer: HitLayer::Chrome,
                                     sidebar_width: 50,
+                                    trailing_padding: 0,
                                     owns_keyboard: false,
                                     source: &source,
                                     creation: Some(preview),
@@ -661,6 +688,7 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
                                 theme: &theme,
                                 layer: HitLayer::Chrome,
                                 sidebar_width: 50,
+                                trailing_padding: 0,
                                 owns_keyboard: false,
                                 source: &source,
                                 creation: Some(preview),
@@ -751,6 +779,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                                 theme: &theme,
                                 layer: HitLayer::Chrome,
                                 sidebar_width: 60,
+                                trailing_padding: 0,
                                 owns_keyboard: false,
                                 source: &source,
                                 creation: Some(preview),

@@ -72,23 +72,42 @@ struct Context<'a> {
     standalone: &'static str,
     unnamed: &'static str,
     git_stale: bool,
-    branch_redundant: bool,
+    /// The Workspace folder shown by `location` when no branch is observed.
+    folder: Option<String>,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
         let glyph_state = view.machines.workspace_state(row);
         let (key, role) =
             state_role(glyph_state.unwrap_or(orchbee_workbench_protocol::MetadataState::Unknown));
+        let observed = view.machines.space_checkpoint_row(row);
+        let folder = observed
+            .and_then(|r| r.directory.as_ref())
+            .map(|directory| {
+                let path = directory.path.as_str();
+                (row.choice == crate::machine_picker::Choice::Local)
+                    .then(local_home)
+                    .flatten()
+                    .and_then(|home| home_relative(path, home))
+                    .unwrap_or_else(|| path.to_owned())
+            });
         Self {
             row,
-            observed: view.machines.space_checkpoint_row(row),
+            observed,
             state: glyph_state.map(|_| locale.machine_picker_text(key)),
             role,
             standalone: locale.shell().standalone,
             unnamed: locale.unnamed_workspace(),
             git_stale: view.machines.space_checkpoint_stale(row),
-            branch_redundant: view.machines.space_branch_redundant(row),
+            folder,
         }
+    }
+    fn branch(&self) -> Option<&str> {
+        self.observed?.git.as_ref()?.branch.as_deref()
+    }
+    /// Branch text, unlike a folder, reserves the two-cell Git freshness track.
+    fn shows_git_text(&self, kind: Kind<'_>) -> bool {
+        kind == Kind::Branch || kind == Kind::Location && self.branch().is_some()
     }
     /// A continuation line appears only once one of its tokens has a visible value; pending
     /// metadata reserves no blank row, so a non-repository Workspace never shrinks after Git settles.
@@ -118,9 +137,8 @@ impl<'a> Context<'a> {
                     })
                     .unwrap_or(self.standalone),
             ),
-            Kind::Branch => (!self.branch_redundant)
-                .then_some(self.observed?.git.as_ref()?.branch.as_deref())
-                .flatten(),
+            Kind::Branch => self.branch(),
+            Kind::Location => self.branch().or(self.folder.as_deref()),
             Kind::Custom(key) => self
                 .observed?
                 .tokens
@@ -147,6 +165,30 @@ impl<'a> Context<'a> {
         }
     }
 }
+/// The Client's home folder, read once; it abbreviates only local Workspace folders.
+fn local_home() -> Option<&'static str> {
+    static HOME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    HOME.get_or_init(|| {
+        std::env::home_dir().and_then(|home| home.into_os_string().into_string().ok())
+    })
+    .as_deref()
+}
+/// `~` replaces a leading home folder under Windows spelling equivalence: either separator,
+/// ASCII case and trailing separators. Any other path stays verbatim.
+fn home_relative(path: &str, home: &str) -> Option<String> {
+    const SEPARATORS: [char; 2] = ['\\', '/'];
+    let home = home.trim_end_matches(SEPARATORS);
+    let separator = |byte: u8| matches!(byte, b'\\' | b'/');
+    let same = path.len() >= home.len()
+        && !home.is_empty()
+        && path.as_bytes()[..home.len()]
+            .iter()
+            .zip(home.as_bytes())
+            .all(|(&a, &b)| a.eq_ignore_ascii_case(&b) || separator(a) && separator(b));
+    let rest = path.get(home.len()..).filter(|_| same)?;
+    (rest.is_empty() || rest.starts_with(SEPARATORS))
+        .then(|| format!("~{}", rest.trim_end_matches(SEPARATORS)))
+}
 /// Ahead/behind counts painted as right-aligned metadata on their configured line.
 fn git_spans(
     context: &Context<'_>,
@@ -164,7 +206,7 @@ fn git_spans(
     if git.ahead > 0 {
         spans.push(Span::styled(
             format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-            theme.workspace_token_style(Role::StatusSuccess, style, false, false),
+            theme.workspace_token_style(Role::TextSecondary, style, false, false),
         ));
     }
     if git.behind > 0 {
@@ -173,7 +215,7 @@ fn git_spans(
         }
         spans.push(Span::styled(
             format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-            theme.workspace_token_style(Role::StatusError, style, false, false),
+            theme.workspace_token_style(Role::TextSecondary, style, false, false),
         ));
     }
     spans
@@ -223,7 +265,7 @@ fn lines(
                 }
                 let text = match kind {
                     Kind::StateIcon | Kind::GitStatus => String::new(),
-                    Kind::Branch => format!(
+                    _ if context.shows_git_text(kind) => format!(
                         "{}{}",
                         display_label(context.value(kind).expect("visible branch")),
                         if context.git_stale { " ?" } else { "  " }
@@ -280,7 +322,7 @@ fn lines(
             if identity_token && style.bold == Some(false) {
                 current_identity = CurrentIdentityEmphasis::ExplicitPlain;
             }
-            let text = if kind == Kind::Branch {
+            let text = if context.shows_git_text(kind) {
                 let marker = if context.git_stale { " ?" } else { "  " };
                 format!(
                     "{}{}",
@@ -305,7 +347,7 @@ fn lines(
             }
             let role = match kind {
                 Kind::StateIcon | Kind::StateText => context.role,
-                Kind::Branch => Role::TextSecondary,
+                Kind::Branch | Kind::Location => Role::TextSecondary,
                 _ if !lines.is_empty() => Role::TextSecondary,
                 _ => Role::TextPrimary,
             };
@@ -551,6 +593,8 @@ pub(super) struct RenderContext<'a> {
     pub(super) layer: HitLayer,
     /// The complete painted Sidebar surface, before frame and padding are removed.
     pub(super) sidebar_width: u16,
+    /// Padding cells after `area` that row surfaces continue through, up to the divider.
+    pub(super) trailing_padding: u16,
     pub(super) owns_keyboard: bool,
     pub(super) source: &'a SidebarSource,
     pub(super) creation: Option<crate::terminal_session::WorkspaceCreationPreview<'a>>,
@@ -729,6 +773,58 @@ fn winning_surface(pointer: PointerPresentation, focused: bool, current: bool) -
         PointerPresentation::Hovered => Some(Role::SurfaceHover),
         PointerPresentation::Rest if current => Some(Role::SurfaceCurrent),
         PointerPresentation::Rest => None,
+    }
+}
+
+/// Returns an Agent's leading tree cells to plain chrome after its row surface was composed over
+/// them, so the surface starts at the state track. A keyboard-focused row keeps its marker there.
+fn clear_tree_lead(frame: &mut Frame<'_>, lead: Rect, marker: Option<Rect>, theme: &Theme) {
+    let chrome = theme.style(Role::SurfaceChrome);
+    for y in lead.y..lead.bottom() {
+        for x in lead.x..lead.right() {
+            let cell = &mut frame.buffer_mut()[(x, y)];
+            cell.reset();
+            cell.set_style(chrome);
+        }
+    }
+    if let Some(marker) = marker {
+        frame.buffer_mut().set_string(
+            marker.x,
+            marker.y,
+            theme.glyphs.navigation_marker,
+            theme.content_on_surface(
+                Role::SurfaceChrome,
+                None,
+                Some(Role::AccentSelection),
+                theme.style(Role::AccentSelection),
+            ),
+        );
+    }
+}
+
+/// Continues a row's interaction surface through the trailing padding cells after it.
+fn extend_surface(
+    frame: &mut Frame<'_>,
+    surface: Rect,
+    padding: u16,
+    interaction: Option<Role>,
+    theme: &Theme,
+) {
+    let Some(interaction) = interaction else {
+        return;
+    };
+    let padding =
+        Rect::new(surface.right(), surface.y, padding, surface.height).intersection(frame.area());
+    let style = theme.content_on_surface(
+        Role::SurfaceChrome,
+        Some(interaction),
+        None,
+        theme.style(Role::SurfaceChrome),
+    );
+    for y in padding.y..padding.bottom() {
+        for x in padding.x..padding.right() {
+            frame.buffer_mut()[(x, y)].set_style(style);
+        }
     }
 }
 
@@ -975,18 +1071,17 @@ struct TreePosition {
     last: bool,
 }
 
-/// Agent connectors use divider color over the row's winning surface.
+/// Agent connectors use divider color on the chrome beside the row surface.
 fn paint_tree_connector(
     frame: &mut Frame<'_>,
     band: Rect,
     tracks: layout::Tracks,
     position: TreePosition,
-    interaction: Option<Role>,
     theme: &Theme,
 ) {
     let style = theme.content_on_surface(
         Role::SurfaceChrome,
-        interaction,
+        None,
         Some(Role::FrameDivider),
         theme.style(Role::FrameDivider),
     );
@@ -1011,11 +1106,45 @@ fn paint_tree_connector(
     }
 }
 
+/// A group heading: its bold name and complete identity suffix, then the member Workspace count
+/// in secondary text. Only the name truncates.
+fn group_heading(
+    name: &str,
+    suffix: &str,
+    count: usize,
+    width: usize,
+    theme: &Theme,
+) -> Line<'static> {
+    let count = format!(" {count}");
+    let name = truncate_display(
+        name,
+        width.saturating_sub(display_width(suffix) + display_width(&count)),
+        theme.glyphs.ellipsis,
+    );
+    Line::from(vec![
+        Span::styled(
+            format!("{name}{suffix}"),
+            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(count, theme.style(Role::TextSecondary)),
+    ])
+}
+
+/// Root Workspaces in the ungrouped section that the row at `index` opens.
+fn ungrouped_count(view: &ClientView, rows: &[SidebarRow<'_>], index: usize) -> usize {
+    rows[index..]
+        .iter()
+        .take_while(|row| matches!(row, SidebarRow::Agent { .. }) || root_context(view, row))
+        .filter(|row| root_context(view, row))
+        .count()
+}
+
 /// Paints the ungrouped section heading on a Project heading's identity track.
 fn render_group_heading(
     frame: &mut Frame<'_>,
     line: Rect,
     sidebar_width: u16,
+    count: usize,
     locale: Locale,
     theme: &Theme,
 ) {
@@ -1030,12 +1159,13 @@ fn render_group_heading(
         return;
     };
     frame.render_widget(
-        Paragraph::new(truncate_display(
-            locale.machine_picker_text("sidebar-ungrouped"),
+        Paragraph::new(group_heading(
+            locale.machine_picker_text("sidebar-standalone"),
+            "",
+            count,
             usize::from(tracks.primary.width),
-            theme.glyphs.ellipsis,
-        ))
-        .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+            theme,
+        )),
         tracks.primary,
     );
 }
@@ -1053,6 +1183,7 @@ pub(super) fn render(
         theme,
         layer,
         sidebar_width,
+        trailing_padding,
         owns_keyboard,
         source,
         creation,
@@ -1064,7 +1195,6 @@ pub(super) fn render(
         return;
     }
     let theme = &theme.paired_pointer_surfaces();
-    let working_frame = view.machines.working_frame();
     let extra_creation = creation.filter(|preview| {
         !rows
             .iter()
@@ -1194,15 +1324,21 @@ pub(super) fn render(
         }
         if insertion == Some(index) {
             if let Some(preview) = extra_creation {
+                let row = Rect::new(body.x, y + leading_gap, body.width, content_height);
+                let current = current_creation.is_some();
                 render_creation(
                     frame,
-                    Rect::new(body.x, y + leading_gap, body.width, content_height),
+                    row,
                     sidebar_width,
-                    crate::terminal_session::WorkspaceCreationPreview {
-                        current: current_creation.is_some(),
-                        ..preview
-                    },
+                    crate::terminal_session::WorkspaceCreationPreview { current, ..preview },
                     locale,
+                    theme,
+                );
+                extend_surface(
+                    frame,
+                    row,
+                    trailing_padding,
+                    winning_surface(PointerPresentation::Rest, false, current),
                     theme,
                 );
             }
@@ -1232,7 +1368,14 @@ pub(super) fn render(
         let heading = u16::from(opens_ungrouped(view, rows, row_index)).min(content_height);
         if heading > 0 {
             let line = Rect::new(body.x, y + group_gap, body.width, 1);
-            render_group_heading(frame, line, sidebar_width, locale, theme);
+            render_group_heading(
+                frame,
+                line,
+                sidebar_width,
+                ungrouped_count(view, rows, row_index),
+                locale,
+                theme,
+            );
             if let Some(hits) = hits.as_deref_mut() {
                 hits.record(
                     layer,
@@ -1299,7 +1442,9 @@ pub(super) fn render(
             ""
         };
         let projected_lines = match row {
-            SidebarRow::Project { label, .. } => {
+            SidebarRow::Project {
+                label, workspaces, ..
+            } => {
                 let machine = if view.machines.rows.iter().filter(|row| row.enabled).count() > 1 {
                     view.machines
                         .rows
@@ -1320,17 +1465,13 @@ pub(super) fn render(
                 );
                 // Group headings carry span-level bold, which row composition keeps as authored.
                 ProjectedSidebarLines::new(
-                    vec![Line::from(Span::styled(
-                        format!(
-                            "{}{inline}",
-                            truncate_display(
-                                &display_label(&name),
-                                text_width.saturating_sub(display_width(inline)),
-                                theme.glyphs.ellipsis,
-                            )
-                        ),
-                        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-                    ))],
+                    vec![group_heading(
+                        &display_label(&name),
+                        inline,
+                        *workspaces,
+                        text_width,
+                        theme,
+                    )],
                     CurrentIdentityEmphasis::Theme,
                 )
             }
@@ -1540,7 +1681,7 @@ pub(super) fn render(
             let state = match row {
                 SidebarRow::Agent { row, .. } => row
                     .sidebar_agent()
-                    .map(crate::machine_agents::Row::sidebar_state),
+                    .map(crate::machine_agents::Row::display_state),
                 SidebarRow::Context { row, .. } => view.machines.workspace_state(row),
                 SidebarRow::Project { .. } => None,
             };
@@ -1597,6 +1738,28 @@ pub(super) fn render(
             theme,
         );
         let interaction = winning_surface(row_paint_pointer, focused, filled_current);
+        // Agent surfaces start at the state track; the tree indent and connector stay on chrome.
+        let surface = if matches!(row, SidebarRow::Agent { .. }) {
+            clear_tree_lead(
+                frame,
+                Rect::new(
+                    band.x,
+                    band.y,
+                    tracks.state.x.saturating_sub(band.x),
+                    band.height,
+                ),
+                focused.then(|| tracks.first_line(tracks.navigation)),
+                theme,
+            );
+            Rect::new(
+                tracks.state.x,
+                band.y,
+                band.right().saturating_sub(tracks.state.x),
+                band.height,
+            )
+        } else {
+            band
+        };
         sidebar_text::compose_lines(
             &mut row_lines,
             interaction,
@@ -1612,6 +1775,20 @@ pub(super) fn render(
                 content_height,
             ),
         );
+        let collapsed_fill_marker = theme.current_context_marker();
+        let current_marker = current
+            && close.is_none()
+            && (current_ancestor
+                || current_identity == CurrentIdentityEmphasis::ExplicitPlain
+                || !collapsed_fill_marker.trim().is_empty());
+        let unread_marker = unread && close.is_none();
+        // First-line metadata sits flush with the row's trailing edge, where close appears,
+        // unless a current or unread marker occupies those cells.
+        let first_metadata_right = if current_marker || unread_marker {
+            tracks.primary.right()
+        } else {
+            tracks.unread.right()
+        };
         sidebar_text::compose_lines(&mut trailing, interaction, false, theme);
         for (index, metadata) in trailing.into_iter().enumerate() {
             let Ok(offset) = u16::try_from(index) else {
@@ -1625,14 +1802,15 @@ pub(super) fn render(
             if width == 0 || index == 0 && close.is_some() {
                 continue;
             }
-            let x = tracks
-                .primary
-                .right()
-                .saturating_sub(width)
-                .max(tracks.primary.x);
+            let right = if index == 0 {
+                first_metadata_right
+            } else {
+                tracks.primary.right()
+            };
+            let x = right.saturating_sub(width).max(tracks.primary.x);
             frame.render_widget(
                 Paragraph::new(metadata),
-                Rect::new(x, tracks.content_y + offset, tracks.primary.right() - x, 1),
+                Rect::new(x, tracks.content_y + offset, right - x, 1),
             );
         }
 
@@ -1658,15 +1836,15 @@ pub(super) fn render(
             );
         }
 
+        // Sidebar state glyphs are static; the Tab strip owns Working motion.
         let state = match row {
-            SidebarRow::Context { row, .. } => view.machines.workspace_state(row).map(|state| {
-                let (_, role) = state_role(state);
-                (sidebar_text::state_glyph(state, theme, working_frame), role)
-            }),
+            SidebarRow::Context { row, .. } => view
+                .machines
+                .workspace_state(row)
+                .map(|state| (theme.agent_glyph(state), state_role(state).1)),
             SidebarRow::Agent { row, .. } => row.sidebar_agent().map(|agent| {
-                let state = agent.sidebar_state();
-                let (_, role) = state_role(state);
-                (sidebar_text::state_glyph(state, theme, working_frame), role)
+                let state = agent.display_state();
+                (theme.agent_glyph(state), state_role(state).1)
             }),
             SidebarRow::Project { .. } => None,
         };
@@ -1681,13 +1859,7 @@ pub(super) fn render(
                 tracks.first_line(tracks.state),
             );
         }
-        let collapsed_fill_marker = theme.current_context_marker();
-        if current
-            && close.is_none()
-            && (current_ancestor
-                || current_identity == CurrentIdentityEmphasis::ExplicitPlain
-                || !collapsed_fill_marker.trim().is_empty())
-        {
+        if current_marker {
             frame.render_widget(
                 Paragraph::new(theme.glyphs.active_marker).style(theme.content_on_surface(
                     Role::SurfaceChrome,
@@ -1698,7 +1870,7 @@ pub(super) fn render(
                 tracks.first_line(tracks.current),
             );
         }
-        if unread && close.is_none() {
+        if unread_marker {
             frame.render_widget(
                 Paragraph::new(theme.glyphs.status_bullet).style(theme.content_on_surface(
                     Role::SurfaceChrome,
@@ -1750,11 +1922,11 @@ pub(super) fn render(
                         .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
                     last: !matches!(rows.get(row_index + 1), Some(SidebarRow::Agent { .. })),
                 },
-                interaction,
                 theme,
             );
         }
-        restore_interaction_background(frame, band, interaction, theme);
+        restore_interaction_background(frame, surface, interaction, theme);
+        extend_surface(frame, surface, trailing_padding, interaction, theme);
         if let Some(target) = disclosure_target
             && paint_pointer_target(
                 frame,

@@ -325,6 +325,8 @@ pub(crate) enum SidebarRow<'a> {
         site_id: &'a SiteId,
         project_id: &'a WorkbenchProjectId,
         label: &'a str,
+        /// Member Workspaces, including those hidden while the Project is collapsed.
+        workspaces: usize,
     },
     Context {
         row: &'a Row,
@@ -676,6 +678,9 @@ impl Picker {
                     site_id,
                     project_id,
                     label,
+                    workspaces: children
+                        .get(&(site_id.as_str(), project_id.as_str()))
+                        .map_or(0, Vec::len),
                 });
                 if expanded
                     && let SidebarTarget::Project {

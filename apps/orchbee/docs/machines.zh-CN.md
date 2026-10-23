@@ -378,14 +378,14 @@ Windows 用户通过 `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap` 选�
 `terminal_title`、`terminal_title_stripped` 使用下述实时物理标题观察；
 pane 标题和 `$terminal_title` 不冒充这两个内置值。
 
-默认行在树形连接符和状态字形旁以一行显示有效呈现标题。清理后标题为空白时回退到
-Provider。父 Machine／Workspace 信息保留在树形层级中，不在各 Agent 重复。状态颜色只用于
-字形；标题使用主要文字角色，Agent 被阻塞时使用警告角色。悬停该行时，侧栏页脚显示字形与
+默认行在树形连接符和状态字形旁显示有效呈现标题，第二行显示 Provider。清理后标题为空白时
+回退到 Provider。父 Machine／Workspace 信息保留在树形层级中，不在各 Agent 重复。状态颜色只
+用于字形；标题使用主要文字角色，Provider 使用次要文字角色。悬停该行时，侧栏页脚显示字形与
 本地化状态；配置 `state_text` 与 `agent` token 可恢复行内状态与 Provider 文字。
 
 | 输入或事件                         | 决策与可观察结果                                                     |
 | ---------------------------------- | -------------------------------------------------------------------- |
-| 未设置行且没有匹配覆盖             | 使用单行标题默认                                                     |
+| 未设置行且没有匹配覆盖             | 使用标题在上、Provider 在下的默认                                    |
 | Provider 覆盖                      | 先匹配物理 Agent 标签，再匹配其规范报告标签；displayAgent 不选择布局 |
 | 空行、缺失自定义值、隐藏规则       | 移除配置文字，至少保留身份行及精确点击目标                           |
 | 带样式文字                         | 应用基础前景色/粗体/淡化，再应用首条匹配规则；`hide=true` 移除 token |
@@ -453,7 +453,7 @@ Agent 行保留独立于配置文字 token 的固定左侧状态符号。为兼�
 
 Windows 主侧栏按精确 Session/context 身份解析工作区行，不按显示标签或 Agent 来源视图过滤。
 配置所有者接纳 `ui.sidebar.spaces` 行与 `row_gap`，最多 16 行、每行 16 个 token。
-内置值为 `state_icon`、`state_text`、`workspace`、`branch` 和 `git_status`；
+内置值为 `state_icon`、`state_text`、`workspace`、`branch`、`location` 和 `git_status`；
 `$custom` 值来自 Workspace 报告所有者。样式与首条文本规则在终端净化前检查原始值。
 图标和 Git 计数 token 不接纳文本规则。非空配置行在值缺失或隐藏时保留行位；空配置保留一行身份供导航。
 
@@ -467,6 +467,8 @@ Git 观测跟随选定 Worker 上 Workspace 的首个终端，即首个 Tab 中�
 `git_status` 是相对本地 upstream 的 ahead/behind；
 不是脏文件计数，也不为不可用仓库编造零。游离或未出生分支、缺少 upstream、非仓库均明确区分；
 非仓库是一次不含分支事实的观测，因此不保留先前事实。
+`location` 显示观测到的分支，否则显示规范 Workspace 文件夹；位于 Client 主目录下的本机文件夹
+缩写为 `~`。只有分支文字预留新鲜度轨道。
 读取不 fetch、不修改配置、不启动终端或执行插件。
 
 Git 读取复用 Windows 自有发现槽：受检启动、轮询、取消、五秒截止时间、保留回执及子进程／管道结算。

@@ -148,8 +148,8 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
     },
     WindowsUserConfigOption {
         path: "ui.sidebar.spaces.rows",
-        default: "[['state_icon', 'workspace'], ['branch', 'git_status']]",
-        choices: "up to 16 rows of 16 tokens; state_icon, state_text, workspace, branch, git_status, or custom token keys",
+        default: "[['state_icon', 'workspace', 'git_status'], ['location']]",
+        choices: "up to 16 rows of 16 tokens; state_icon, state_text, workspace, branch, location, git_status, or custom token keys",
         description: "Rows shown for Space sidebar entries.",
     },
     WindowsUserConfigOption {

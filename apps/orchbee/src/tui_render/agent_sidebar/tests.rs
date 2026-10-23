@@ -667,8 +667,8 @@ fn nested_agents_share_one_tree_without_a_second_sidebar_region() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            2,
-            "each Agent is one line"
+            4,
+            "each Agent has a title line over its provider"
         );
     }
 }
@@ -710,7 +710,15 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .map(|span| span.content.as_ref())
                 .collect::<String>();
             assert_eq!(projected_title, "Input handling");
-            assert_eq!(projected.len(), 1, "state text lives in the hover hint");
+            assert_eq!(projected.len(), 2, "state text lives in the hover hint");
+            assert_eq!(
+                projected[1]
+                    .spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>(),
+                "codex"
+            );
             let y = (0..40)
                 .find(|y| {
                     matches!(
@@ -720,7 +728,11 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 })
                 .unwrap();
             assert!(rows[y as usize].contains("Input"), "{rows:?}");
-            assert!(rows[y as usize].contains(theme.glyphs.working_frames[0]));
+            assert!(
+                rows[y as usize].contains(
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                )
+            );
             assert!(!rows.join("\n").contains("Local /"));
             assert!(!rows.join("\n").contains("本地 /"));
             assert!(!rows.join("\n").contains("space /"));
@@ -792,7 +804,7 @@ fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
             ));
             let hint_byte = footer.find(&configured_hint).unwrap();
             let hint_x = display_width(&footer[..hint_byte]);
-            assert_eq!(hint_x + display_width(&configured_hint), 28);
+            assert_eq!(hint_x + display_width(&configured_hint), 29);
             assert!(hint_x >= usize::from(*exact.last().unwrap()) + 3);
             for x in hint_x..hint_x + display_width(&configured_hint) {
                 assert!(!matches!(
@@ -1051,7 +1063,9 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                 if visible {
                     assert!(joined.contains(locale.settings_title()), "{rows:?}");
                     assert!(
-                        joined.contains(theme.glyphs.working_frames[0]),
+                        joined.contains(
+                            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                        ),
                         "{width}x{height} {rows:?}"
                     );
                     let mut inspected = Vec::new();
@@ -1075,7 +1089,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                                     matches!(hits.hit_target_at(2, *candidate), Some(HitTarget::MachineAgentRow { selected: actual, .. }) if actual == selected)
                                 })
                                 .collect::<Vec<_>>();
-                            assert_eq!(exact.len(), 1, "{rows:?}");
+                            assert_eq!(exact.len(), 2, "{rows:?}");
                             assert!(exact.iter().all(|candidate| *candidate < height - 1));
                             assert!(rows[usize::from(exact[0])].contains("build"), "{rows:?}");
                         }
@@ -1103,7 +1117,7 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
     assert!(rows[2].contains("[ Search ]"), "{rows:?}");
-    assert!(rows[3].contains("Ungrouped"), "{rows:?}");
+    assert!(rows[3].contains("Standalone 1"), "{rows:?}");
     assert!(rows[4].contains("Standalone"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(
@@ -1263,8 +1277,9 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 )
             })
             .unwrap();
+        // The Agent surface starts at its state track, after the tree connector.
         assert_eq!(
-            terminal.backend().buffer()[(2, y)].bg,
+            terminal.backend().buffer()[(5, y)].bg,
             theme.color(Role::SurfaceCurrent)
         );
         assert!((0..30).any(|x| {
@@ -1286,7 +1301,8 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
         let marker = theme.current_context_marker();
         assert!(
-            rows[y as usize].contains(theme.glyphs.working_frames[0]),
+            rows[y as usize]
+                .contains(theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)),
             "{:?}",
             rows[y as usize]
         );

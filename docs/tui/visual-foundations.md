@@ -128,9 +128,7 @@ Hierarchy describes information priority, not interaction state.
   action; it never marks a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is available
   only to the theme resolver as a terminal-native or reduced-color fallback for an interactive band;
   component renderers never request it directly. `BLINK` is forbidden everywhere.
-- Status roles color the status glyph or the status word, not the whole line. A navigation row
-  whose entity is blocked on the person may also color its identity text with `status-warning`;
-  its surface, metadata and other tracks keep their own roles.
+- Status roles color the status glyph or the status word, not the whole line.
 
 ## Interaction states
 
