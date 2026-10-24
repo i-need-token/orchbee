@@ -4,12 +4,12 @@ use orchbee_workbench_protocol::{
     ApplicationAppearance, PreferencesFailure, TerminalDisplayAppearance,
 };
 
-/// A validated default-color pair and an optional explicit terminal color scheme.
+/// A validated default-color pair and the terminal color scheme it reports.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UserTerminalColors {
     foreground: u32,
     background: u32,
-    dark: Option<bool>,
+    dark: bool,
 }
 
 impl UserTerminalColors {
@@ -17,13 +17,13 @@ impl UserTerminalColors {
     pub const LIGHT: Self = Self {
         foreground: 0x141414,
         background: 0xfcfcfc,
-        dark: Some(false),
+        dark: false,
     };
     /// Shipped dark terminal defaults, independent of explicit ANSI palette entries.
     pub const DARK: Self = Self {
         foreground: 0xd4d4d4,
         background: 0x1e1e1e,
-        dark: Some(true),
+        dark: true,
     };
 
     /// Host follows explicit application Light/Dark; System leaves captured Host defaults owned
@@ -50,12 +50,25 @@ impl UserTerminalColors {
             TerminalDisplayAppearance::Host => None,
             TerminalDisplayAppearance::Light => Some(Self::LIGHT),
             TerminalDisplayAppearance::Dark => Some(Self::DARK),
-            TerminalDisplayAppearance::Custom => Some(Self {
-                foreground: rgb(custom_foreground)?,
-                background: rgb(custom_background)?,
-                dark: None,
-            }),
+            TerminalDisplayAppearance::Custom => Some(Self::from_rgb(
+                rgb(custom_foreground)?,
+                rgb(custom_background)?,
+            )),
         })
+    }
+
+    /// Defaults whose scheme follows the background luminance, as Custom colors and an outer
+    /// terminal's observed OSC 10/11 colors do. Callers supply 24-bit RGB values.
+    #[must_use]
+    pub const fn from_rgb(foreground: u32, background: u32) -> Self {
+        let red = (background >> 16) & 0xff;
+        let green = (background >> 8) & 0xff;
+        let blue = background & 0xff;
+        Self {
+            foreground,
+            background,
+            dark: 299 * red + 587 * green + 114 * blue < 128_000,
+        }
     }
 
     /// Returns foreground then background, each within the 24-bit RGB range.
@@ -63,8 +76,8 @@ impl UserTerminalColors {
         (self.foreground, self.background)
     }
 
-    /// Custom colors preserve the Host's scheme; Light/Dark explicitly select it.
-    pub const fn dark(self) -> Option<bool> {
+    /// Light/Dark select the scheme explicitly; other pairs derive it from the background.
+    pub const fn dark(self) -> bool {
         self.dark
     }
 }

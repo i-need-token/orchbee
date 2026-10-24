@@ -79,6 +79,7 @@ fn tag(message: &ServerMessage) -> String {
             ControlOutcome::InputAccepted {} => "input".into(),
             ControlOutcome::Resized { .. } => "resize".into(),
             ControlOutcome::Pasted { .. } => "pasted".into(),
+            ControlOutcome::HostColorsAccepted {} => "host-colors".into(),
             ControlOutcome::Rejected { reason } => format!("control:{reason:?}"),
             ControlOutcome::Unavailable { reason } => format!("unavailable:{reason:?}"),
             ControlOutcome::OutcomeUnknown {} => "unknown".into(),

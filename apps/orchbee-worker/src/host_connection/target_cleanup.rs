@@ -80,6 +80,9 @@ impl HostBrokerConnection {
             ..prepared.target
         };
         self.titles.borrow_mut().remove(prepared.target.identity);
+        self.host_colors
+            .borrow_mut()
+            .remove(prepared.target.identity.terminal_id().as_bytes());
         let mut viewers = self.viewers.borrow_mut();
         for id in prepared.target.viewers.into_iter().flatten() {
             viewers.remove(id);

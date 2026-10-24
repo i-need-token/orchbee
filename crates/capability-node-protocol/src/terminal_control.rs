@@ -52,6 +52,31 @@ impl ControlInput {
         &self.0
     }
 }
+/// A Client's observed outer-terminal default colors, each a 24-bit RGB value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HostDefaultColors {
+    foreground: u32,
+    background: u32,
+}
+impl HostDefaultColors {
+    pub const fn new(foreground: u32, background: u32) -> Result<Self, ProtocolError> {
+        if foreground > 0x00ff_ffff || background > 0x00ff_ffff {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self {
+            foreground,
+            background,
+        })
+    }
+    #[must_use]
+    pub const fn foreground(self) -> u32 {
+        self.foreground
+    }
+    #[must_use]
+    pub const fn background(self) -> u32 {
+        self.background
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalControlAction {
     Acquire,
@@ -72,6 +97,11 @@ pub enum TerminalControlAction {
     Paste {
         sequence: NonZeroU64,
         content: PasteContent,
+    },
+    /// The controlling Client's outer-terminal colors for Host-default terminals.
+    HostColors {
+        sequence: NonZeroU64,
+        colors: HostDefaultColors,
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -113,6 +143,7 @@ pub enum TerminalControlOutcome {
     Pasted {
         accepted_bytes: PasteAcceptedBytes,
     },
+    HostColorsAccepted,
     Rejected(ControlRejection),
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

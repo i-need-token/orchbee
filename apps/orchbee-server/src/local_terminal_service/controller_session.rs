@@ -151,6 +151,11 @@ pub(super) fn execute<'service>(
             controller_id,
             sequence,
             ..
+        }
+        | Action::HostColors {
+            controller_id,
+            sequence,
+            ..
         } => (controller_id, *sequence),
         Action::Acquire { .. } | Action::Takeover { .. } | Action::Clear { .. } => {
             unreachable!("standalone action handled")
@@ -191,6 +196,17 @@ pub(super) fn execute<'service>(
                 Err(_) => return rejected(Rejected::HostRejected),
             }
         }
+        Action::HostColors {
+            foreground,
+            background,
+            ..
+        } => match orchbee_capability_node_protocol::HostDefaultColors::new(
+            foreground.get(),
+            background.get(),
+        ) {
+            Ok(colors) => WorkerAction::HostColors { sequence, colors },
+            Err(_) => return rejected(Rejected::HostRejected),
+        },
         Action::Acquire { .. } | Action::Takeover { .. } | Action::Clear { .. } => {
             unreachable!("effect matched")
         }
@@ -242,6 +258,7 @@ pub(super) fn execute<'service>(
     {
         Ok(WorkerOperationResult::Control(result)) => match result.outcome {
             WorkerOutcome::InputAccepted => Outcome::InputAccepted {},
+            WorkerOutcome::HostColorsAccepted => Outcome::HostColorsAccepted {},
             WorkerOutcome::Resized(geometry) => {
                 match orchbee_client_server_protocol::Geometry::new(
                     geometry.columns(),

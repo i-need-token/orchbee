@@ -37,8 +37,10 @@ default shell resolution while retaining the shared scrollback default. POSIX lo
 Windows login is refused. Invalid shared storage fails the operation before Host handoff.
 
 `UserTerminalColors` resolves terminal default colors for both native presentation and new Worker
-profiles. Host follows explicit application Light/Dark; System leaves captured Host defaults with
-their runtime owner. Explicit terminal Light/Dark/Custom take precedence. The launch snapshot freezes
+profiles. Host follows explicit application Light/Dark; System leaves Host defaults with their
+runtime owner, which builds them with `UserTerminalColors::from_rgb`. Explicit terminal
+Light/Dark/Custom take precedence; Custom and `from_rgb` derive the dark or light scheme from
+background luminance. The launch snapshot freezes
 this result with scrollback and launch selection; the resolver performs no terminal mutation.
 Retained query state and reversible Client appearance follow the [native theme boundary](../../apps/orchbee/docs/native-themes.md).
 
@@ -53,8 +55,9 @@ The former three-leaf TOML settings writer is retired; legacy TOML remains read-
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
 It returns `Some(true)` or `Some(false)` only for the documented `REG_DWORD` values `1` and `0`;
 missing, unreadable, and other values return `None`. The Client invokes this once only when its
-native terminal OSC `10`/`11` probe has no valid OSC `11` background by the deadline. The Client owns that precedence and maps the
-result to TUI appearance; this runtime helper changes no Windows setting and reads no other theme
+native terminal OSC `10`/`11` probe has no valid OSC `11` background by the deadline. The Worker
+invokes it for a Host-default launch before any Client has reported outer-terminal colors. Each
+caller owns its precedence; this runtime helper changes no Windows setting and reads no other theme
 state.
 
 ## Windows private frame directories

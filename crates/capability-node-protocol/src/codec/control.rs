@@ -1,9 +1,9 @@
 use super::{PayloadReader, decode_geometry, encode_geometry};
 use crate::{
-    CapabilityNodeMessage, ControlInput, ControlRejection, MAXIMUM_PASTE_CONTENT_BYTES,
-    OperationId, PasteAcceptedBytes, PasteContent, ProtocolError, ReadMessageError,
-    TerminalControlAction as Action, TerminalControlOutcome as Outcome, TerminalControlRequest,
-    TerminalControlResult, WorkerGeneration, WorkerId,
+    CapabilityNodeMessage, ControlInput, ControlRejection, HostDefaultColors,
+    MAXIMUM_PASTE_CONTENT_BYTES, OperationId, PasteAcceptedBytes, PasteContent, ProtocolError,
+    ReadMessageError, TerminalControlAction as Action, TerminalControlOutcome as Outcome,
+    TerminalControlRequest, TerminalControlResult, WorkerGeneration, WorkerId,
 };
 use std::io::Read;
 use std::num::NonZeroU64;
@@ -170,6 +170,12 @@ pub(super) fn encode_request(request: &TerminalControlRequest) -> Vec<u8> {
             encode_geometry(&mut bytes, *geometry);
         }
         Action::Release => bytes.push(4),
+        Action::HostColors { sequence, colors } => {
+            bytes.push(7);
+            bytes.extend(sequence.get().to_be_bytes());
+            bytes.extend(colors.foreground().to_be_bytes());
+            bytes.extend(colors.background().to_be_bytes());
+        }
         Action::Paste { .. } => unreachable!("paste requests use OBNQ framing"),
     }
     bytes
@@ -200,6 +206,13 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalControlRequest, Pro
             geometry: decode_geometry(&mut reader)?,
         },
         4 => Action::Release,
+        7 => Action::HostColors {
+            sequence: positive(reader.read_u64()?)?,
+            colors: HostDefaultColors::new(
+                u32::from_be_bytes(reader.read_array()?),
+                u32::from_be_bytes(reader.read_array()?),
+            )?,
+        },
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
@@ -257,6 +270,7 @@ pub(super) fn encode_result(result: TerminalControlResult) -> Vec<u8> {
             bytes.push(6);
             bytes.extend(accepted_bytes.get().to_be_bytes());
         }
+        Outcome::HostColorsAccepted => bytes.push(9),
     }
     bytes
 }
@@ -298,6 +312,7 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalControlResult, Proto
         6 => Outcome::Pasted {
             accepted_bytes: PasteAcceptedBytes::new(u32::from_be_bytes(reader.read_array()?))?,
         },
+        9 => Outcome::HostColorsAccepted,
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;

@@ -207,6 +207,9 @@ pub(super) fn run(
                     TerminalControlAction::Takeover { .. } => {
                         panic!("unexpected takeover in viewer fixture")
                     }
+                    TerminalControlAction::HostColors { .. } => {
+                        panic!("unexpected host colors in viewer fixture")
+                    }
                     TerminalControlAction::Acquire => {
                         (Effect::Acquire(v, c), TerminalControlOutcome::Acquired)
                     }

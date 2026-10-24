@@ -268,6 +268,8 @@ struct AttachedTerminal {
     mode: Option<ControllerMode>,
     next_sequence: u64,
     accepted_geometry: Option<Geometry>,
+    /// Outer-terminal colors this controller incarnation last reported.
+    reported_host_colors: Option<(u32, u32)>,
 }
 
 #[derive(Clone, Copy)]
@@ -568,6 +570,7 @@ impl NativeExecutor {
             mode: None,
             next_sequence: 0,
             accepted_geometry: None,
+            reported_host_colors: None,
         });
         if target.expected_host.as_ref().is_some_and(|expected| {
             host_epoch.as_str() != expected.host_epoch.as_str()
@@ -699,6 +702,7 @@ impl NativeExecutor {
             TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. } => return Err(CarrierFailure::Protocol),
             TerminalControlOutcome::OutcomeUnknown {} => {
                 return Err(CarrierFailure::OutcomeUnknown);
@@ -709,6 +713,12 @@ impl NativeExecutor {
         }
         self.set_attached_mode(&target.key, mode.clone())?;
         if let ControllerMode::Controlling(controller_id) = &mode {
+            self.report_host_colors_for_setup(
+                owner,
+                &target.key,
+                controller_id.clone(),
+                forward_cutoff,
+            )?;
             let geometry = match target.geometry {
                 Some(geometry) => geometry,
                 None => self.mailbox.latest_geometry().map_err(closed)?,
@@ -965,6 +975,7 @@ impl NativeExecutor {
         let Some(controller) = self.controller_for(key)? else {
             return Ok(());
         };
+        self.sync_host_colors_for_lease(lease, key, controller.clone(), deadline)?;
         let sequence = self.next_control_sequence(key)?;
         let outcome = self.control_for_lease(
             lease,
@@ -998,6 +1009,7 @@ impl NativeExecutor {
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
@@ -1022,6 +1034,7 @@ impl NativeExecutor {
         let Some(controller) = self.controller_for(&key)? else {
             return Ok(());
         };
+        self.sync_host_colors_for_lease(lease, &key, controller.clone(), deadline)?;
         let sequence = self.next_control_sequence(&key)?;
         let outcome = self.control_for_lease(
             lease,
@@ -1059,6 +1072,7 @@ impl NativeExecutor {
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
@@ -2400,6 +2414,7 @@ impl NativeExecutor {
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::HostColorsAccepted {}
             | TerminalControlOutcome::Cleared { .. } => {
                 return Err(CarrierFailure::Protocol);
             }
@@ -2916,9 +2931,99 @@ impl NativeExecutor {
                 sequence: self.next_control_sequence(key)?,
                 content,
             }),
+            TerminalControlAction::HostColors {
+                attachment_id,
+                controller_id,
+                foreground,
+                background,
+                ..
+            } => Ok(TerminalControlAction::HostColors {
+                attachment_id,
+                controller_id,
+                sequence: self.next_control_sequence(key)?,
+                foreground,
+                background,
+            }),
             action @ (TerminalControlAction::Acquire { .. }
             | TerminalControlAction::Takeover { .. }
             | TerminalControlAction::Clear { .. }) => Ok(action),
+        }
+    }
+
+    /// The next Host-color report for this controller incarnation, when the outer terminal's
+    /// colors are known and differ from the last report.
+    fn host_colors_action(
+        &mut self,
+        key: &PaneRef,
+        controller_id: orchbee_client_server_protocol::ControllerId,
+    ) -> Result<Option<(TerminalControlAction, (u32, u32))>> {
+        let Some(colors) = self.mailbox.host_colors().map_err(closed)? else {
+            return Ok(None);
+        };
+        if self.attached_ref(key)?.reported_host_colors == Some(colors) {
+            return Ok(None);
+        }
+        let (Ok(foreground), Ok(background)) = (
+            orchbee_client_server_protocol::TerminalRgb::new(colors.0),
+            orchbee_client_server_protocol::TerminalRgb::new(colors.1),
+        ) else {
+            return Ok(None);
+        };
+        Ok(Some((
+            TerminalControlAction::HostColors {
+                attachment_id: self.viewer_id_for(key)?,
+                controller_id,
+                sequence: self.next_control_sequence(key)?,
+                foreground,
+                background,
+            },
+            colors,
+        )))
+    }
+
+    /// Best effort: only an unknown outcome is a carrier fact. Any settled outcome marks the
+    /// colors reported so a refused report is not retried on every command.
+    fn report_host_colors_for_setup(
+        &mut self,
+        owner: SetupOwner<'_>,
+        key: &PaneRef,
+        controller_id: orchbee_client_server_protocol::ControllerId,
+        cutoff: Instant,
+    ) -> Result<()> {
+        let Some((action, colors)) = self.host_colors_action(key, controller_id)? else {
+            return Ok(());
+        };
+        match self.control_for_setup(owner, key, action, cutoff)? {
+            Some(TerminalControlOutcome::OutcomeUnknown {}) => Err(CarrierFailure::OutcomeUnknown),
+            Some(_) => {
+                self.attached_mut(key)?.reported_host_colors = Some(colors);
+                Ok(())
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// Covers an outer-terminal probe that settled after this pane acquired control.
+    fn sync_host_colors_for_lease(
+        &mut self,
+        lease: &CommandLease,
+        key: &PaneRef,
+        controller_id: orchbee_client_server_protocol::ControllerId,
+        deadline: Instant,
+    ) -> ReadyResult<()> {
+        let Some((action, colors)) = self.host_colors_action(key, controller_id)? else {
+            return Ok(());
+        };
+        match self.control_for_lease(lease, key, action, deadline)? {
+            TerminalControlOutcome::OutcomeUnknown {} => {
+                Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
+            }
+            _ => {
+                if let Ok(attached) = self.attached_mut(key) {
+                    attached.reported_host_colors = Some(colors);
+                }
+                Ok(())
+            }
         }
     }
 

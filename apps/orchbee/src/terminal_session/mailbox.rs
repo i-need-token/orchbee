@@ -1301,6 +1301,8 @@ struct MailboxState {
     desired: MailboxMembership,
     attachment_generation: u64,
     latest_geometry: Geometry,
+    /// The outer terminal's settled default foreground and background, when both are known.
+    host_colors: Option<(u32, u32)>,
     refresh_generation: u64,
     identity_cursor: u128,
     next_ui_wait_serial: u64,
@@ -1453,6 +1455,7 @@ impl CommandMailbox {
                 desired: MailboxMembership::AwaitingBootstrap,
                 attachment_generation: 0,
                 latest_geometry: initial_geometry,
+                host_colors: None,
                 refresh_generation: 0,
                 identity_cursor: identity_seed,
                 next_ui_wait_serial: 0,
@@ -1495,6 +1498,22 @@ impl CommandMailbox {
         Self::ensure_open(&state)?;
         state.latest_geometry = geometry;
         Ok(())
+    }
+
+    pub(super) fn observe_host_colors(
+        &self,
+        colors: Option<(u32, u32)>,
+    ) -> Result<(), MailboxClosed> {
+        let mut state = self.lock();
+        Self::ensure_open(&state)?;
+        state.host_colors = colors;
+        Ok(())
+    }
+
+    pub(super) fn host_colors(&self) -> Result<Option<(u32, u32)>, MailboxClosed> {
+        let state = self.lock();
+        Self::ensure_open(&state)?;
+        Ok(state.host_colors)
     }
 
     pub(super) fn latest_geometry(&self) -> Result<Geometry, MailboxClosed> {

@@ -263,6 +263,7 @@ pub(crate) fn run(
                 &dispatch,
                 Some(runtime),
                 preferences,
+                None,
                 #[cfg(windows)]
                 shell,
             )?;

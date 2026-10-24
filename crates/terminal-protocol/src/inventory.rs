@@ -282,7 +282,7 @@ fn optional_close_activity<'de, D: serde::Deserializer<'de>>(
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct TerminalThemeStateWire {
+pub(crate) struct TerminalThemeStateWire {
     #[serde(default)]
     operation_id: RequiredNullable<String>,
     revision: String,
@@ -291,7 +291,7 @@ struct TerminalThemeStateWire {
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct TerminalThemeWire {
+pub(crate) struct TerminalThemeWire {
     color_scheme: ColorSchemeWire,
     default_background_rgb: SafeInteger,
     #[serde(default)]
@@ -667,7 +667,7 @@ fn terminal_summary_from_wire(wire: TerminalSummaryWire) -> Result<TerminalSumma
     }
 }
 
-fn theme_state_from_wire(
+pub(crate) fn theme_state_from_wire(
     wire: TerminalThemeStateWire,
 ) -> Result<TerminalThemeState, ProtocolError> {
     let operation_id = wire
@@ -684,7 +684,7 @@ fn theme_state_from_wire(
     Ok(value)
 }
 
-fn theme_state_to_wire(value: &TerminalThemeState) -> TerminalThemeStateWire {
+pub(crate) fn theme_state_to_wire(value: &TerminalThemeState) -> TerminalThemeStateWire {
     TerminalThemeStateWire {
         operation_id: RequiredNullable::from_option(
             value.operation_id.map(TerminalThemeOperationId::to_text),
@@ -694,7 +694,7 @@ fn theme_state_to_wire(value: &TerminalThemeState) -> TerminalThemeStateWire {
     }
 }
 
-fn theme_from_wire(wire: TerminalThemeWire) -> Result<TerminalTheme, ProtocolError> {
+pub(crate) fn theme_from_wire(wire: TerminalThemeWire) -> Result<TerminalTheme, ProtocolError> {
     if wire.palette.len() != TERMINAL_THEME_PALETTE_ENTRIES {
         return Err(invalid_field(
             "terminal theme palette does not contain exactly 256 entries",
@@ -721,7 +721,7 @@ fn theme_from_wire(wire: TerminalThemeWire) -> Result<TerminalTheme, ProtocolErr
     })
 }
 
-fn theme_to_wire(value: &TerminalTheme) -> TerminalThemeWire {
+pub(crate) fn theme_to_wire(value: &TerminalTheme) -> TerminalThemeWire {
     TerminalThemeWire {
         color_scheme: match value.color_scheme {
             ColorScheme::Dark => ColorSchemeWire::Dark,
@@ -891,7 +891,7 @@ fn validate_theme_state(value: &TerminalThemeState) -> Result<(), ProtocolError>
     validate_theme(&value.terminal)
 }
 
-fn validate_theme(value: &TerminalTheme) -> Result<(), ProtocolError> {
+pub(crate) fn validate_theme(value: &TerminalTheme) -> Result<(), ProtocolError> {
     if value.default_background_rgb > MAXIMUM_RGB_VALUE
         || value
             .default_cursor_rgb

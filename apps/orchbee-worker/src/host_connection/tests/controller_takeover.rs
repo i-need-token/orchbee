@@ -46,6 +46,7 @@ fn fixture() -> Result<(HostBrokerConnection, UnixStream), Box<dyn Error>> {
         controllers: RefCell::new(controllers::HostControllers::default()),
         retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
         titles: RefCell::new(titles::Titles::default()),
+        host_colors: RefCell::new(crate::host_connection::HostColors::default()),
         drain: Rc::new(RefCell::new(AgentDrain::new())),
     };
     for viewer in [10, 20] {

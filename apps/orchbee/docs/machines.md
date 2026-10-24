@@ -324,7 +324,12 @@ binding; no name or row number grants navigation authority.
 At most four observation jobs run concurrently. Each job owns a separately
 admitted lane, a five-second total budget and one result slot; reads are bounded
 to 4096 bound Presentations and 8 MiB of serialized physical, report and metadata rows, with a
-two-second cooldown. Hiding the last Agent read consumer
+two-second cooldown. Each Agent source also keeps one separately admitted semantic-event
+subscription for Agent detection, Agent status and pane exit. A matching event, gap or fresh
+subscription starts that source's next read immediately, or right after its in-flight read; the
+attached machine's hint also expedites the Session's Agent attention and Panel report reads. The
+hint never replaces a read: the cooldown remains the fallback, and a failed subscription retries
+after ten seconds. Hiding the last Agent read consumer
 cancels pending jobs. Removed/disabled/replaced sources discard their results;
 freshness expires ten seconds after worker completion, including time spent
 waiting for the UI to consume the result. Only explicit activation opens a terminal.

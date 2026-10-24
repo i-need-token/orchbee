@@ -113,9 +113,9 @@ mod send_stroke;
 mod terminal_control;
 pub use send_stroke::{SendKeyStroke, SendStrokeKey};
 pub use terminal_control::{
-    ControlInput, ControlRejection, MAXIMUM_CONTROL_INPUT_BYTES, MAXIMUM_PASTE_CONTENT_BYTES,
-    PasteAcceptedBytes, PasteContent, TerminalControlAction, TerminalControlOutcome,
-    TerminalControlRequest, TerminalControlResult,
+    ControlInput, ControlRejection, HostDefaultColors, MAXIMUM_CONTROL_INPUT_BYTES,
+    MAXIMUM_PASTE_CONTENT_BYTES, PasteAcceptedBytes, PasteContent, TerminalControlAction,
+    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
 };
 pub use terminal_send::{
     MAXIMUM_SEND_ACCEPTED_BYTES, MAXIMUM_SEND_ACCEPTED_ENCODED_BYTES, MAXIMUM_SEND_AGGREGATE_BYTES,

@@ -30,7 +30,8 @@ Desktop Main 与 renderer 分别持有一次性导入回执，按任意顺序只
 共享存储无效时，在 Host 交接之前让该操作失败。
 
 `UserTerminalColors` 为原生展示和新 Worker profile 解析终端默认色。Host 跟随显式的应用浅色／
-深色；系统将捕获的 Host 默认色留给运行时所有者。显式终端浅色／深色／自定义保持更高优先级。
+深色；系统将 Host 默认色留给运行时所有者，由其通过 `UserTerminalColors::from_rgb` 构建。
+显式终端浅色／深色／自定义保持更高优先级；自定义与 `from_rgb` 按背景亮度推导深浅配色方案。
 启动快照将该结果与滚动历史及启动选择一起冻结；解析器不修改终端。保留查询状态与可撤销的
 Client 外观遵循[原生主题边界](../../apps/orchbee/docs/native-themes.zh-CN.md)。
 
@@ -45,8 +46,8 @@ Windows 配置解码为旧 profile 输入保留别名；TUI 观察与卡片调�
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`。
 只有读取到文档规定的 `REG_DWORD` 值 `1` 或 `0` 时才返回 `Some(true)` 或 `Some(false)`；缺失、
 不可读和其他值返回 `None`。Client 仅在原生终端 OSC `10`／`11` 探测在期限内没有有效 OSC `11`
-背景后调用一次。
-优先级及其到 TUI 外观的映射由 Client 负责；此运行时辅助程序不会修改任何 Windows 设置，也不会
+背景后调用一次。Worker 在尚无 Client 报告外层终端颜色时，为 Host 默认启动调用它。
+各调用方负责自身优先级；此运行时辅助程序不会修改任何 Windows 设置，也不会
 读取其他主题状态。
 
 ## Windows 私有帧目录

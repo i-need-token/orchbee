@@ -27,6 +27,7 @@ pub(crate) use events::{consume_event, validate_event};
 
 mod controllers;
 mod exchange;
+mod host_colors;
 mod target_cleanup;
 mod titles;
 mod viewers;
@@ -34,6 +35,7 @@ mod viewers;
 #[cfg(test)]
 mod tests;
 pub(crate) use exchange::{HostExchange, PeerFailure, exchange, exchange_before};
+pub(crate) use host_colors::{HostColors, recolored};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 
@@ -49,6 +51,7 @@ pub(crate) struct HostBrokerConnection {
     pub(crate) controllers: RefCell<controllers::HostControllers>,
     retired_targets: RefCell<target_cleanup::RetiredTargets>,
     titles: RefCell<titles::Titles>,
+    pub(crate) host_colors: RefCell<HostColors>,
     /// Shared handle to the admitted Server connection's Agent Drain queue.
     /// The broker only appends; the connection loop owns the watermark and
     /// outlives this Host attachment, so dropping the broker never resets it.
@@ -84,6 +87,7 @@ impl HostBrokerConnection {
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
             titles: RefCell::new(titles::Titles::default()),
+            host_colors: RefCell::new(HostColors::default()),
             drain,
         })
     }
@@ -113,6 +117,7 @@ impl HostBrokerConnection {
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
             titles: RefCell::new(titles::Titles::default()),
+            host_colors: RefCell::new(HostColors::default()),
             drain,
         })
     }

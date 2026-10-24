@@ -7,14 +7,14 @@ fn host_follows_only_explicit_application_appearance_and_terminal_choices_win() 
     for application in [App::System, App::Light, App::Dark] {
         for (terminal, explicit) in [
             (Terminal::Host, None),
-            (Terminal::Light, Some(((0x141414, 0xfcfcfc), Some(false)))),
-            (Terminal::Dark, Some(((0xd4d4d4, 0x1e1e1e), Some(true)))),
-            (Terminal::Custom, Some(((0x123456, 0xabcdef), None))),
+            (Terminal::Light, Some(((0x141414, 0xfcfcfc), false))),
+            (Terminal::Dark, Some(((0xd4d4d4, 0x1e1e1e), true))),
+            (Terminal::Custom, Some(((0x123456, 0xabcdef), false))),
         ] {
             let expected = explicit.or(match application {
                 App::System => None,
-                App::Light => Some(((0x141414, 0xfcfcfc), Some(false))),
-                App::Dark => Some(((0xd4d4d4, 0x1e1e1e), Some(true))),
+                App::Light => Some(((0x141414, 0xfcfcfc), false)),
+                App::Dark => Some(((0xd4d4d4, 0x1e1e1e), true)),
             });
             let resolved =
                 UserTerminalColors::resolve(application, terminal, "#123456", "#abcdef").unwrap();

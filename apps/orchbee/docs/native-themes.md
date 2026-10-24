@@ -32,9 +32,11 @@ These are Client-local display values, not shared terminal launch policy.
 The shared `UserTerminalColors` resolver also supplies the Worker's new-terminal profile from the
 same confirmed snapshot as scrollback and launch selection. OSC 10/11 queries then report those
 captured defaults from terminal creation, before a program chooses its appearance. Host with System
-keeps the existing launch baseline when no captured Host profile exists; the Client's appearance
-probe does not infer or publish a pane profile. Existing terminals retain their query defaults until their runtime owner explicitly applies
-a terminal theme. Client appearance changes and reversible Settings previews recolor default-marked
+launches with the outer-terminal colors most recently reported by a controlling Client, then the
+Worker's OS light/dark fallback, then the shipped light baseline. Once both probe colors settle, the
+Client reports them through the `host-colors` controller action; the Worker applies them to the
+controlled terminal only while that terminal still follows Host defaults. Existing terminals
+otherwise retain their query defaults until their runtime owner explicitly applies a terminal theme. Client appearance changes and reversible Settings previews recolor default-marked
 presentation without mutating that shared query state, rewriting ANSI palette entries, or restarting
 programs. Consequently a retained program's query-selected appearance can differ from a later local
 preview; display recoloring alone does not establish runtime theme application.

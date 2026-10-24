@@ -47,7 +47,8 @@ fn exact_launch_success_remains_in_the_kernel_slot_and_replays_without_an_effect
         let mut kernel = kernel()?;
         let launch = AuthorizedTerminalLaunch::new(authorization(1)?, None, mode, None);
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
-        let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
+        let operation =
+            PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None, false)?;
         let peer = respond(fixture.peer.try_clone()?, Ok);
         assert_eq!(
             operation.execute(
@@ -98,7 +99,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
     let mut kernel = kernel()?;
     let dispatch = launch_dispatch(&mut kernel)?;
     assert!(PreparedHostOperation::start(&dispatch, correlation()?).is_err());
-    let invalid = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
+    let invalid = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None, false)?;
     assert!(matches!(
         invalid.execute(
             &mut kernel,
@@ -110,7 +111,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
         Err(HostOperationError::InvalidBudget)
     ));
     assert!(kernel.take_result().is_none());
-    let expired = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
+    let expired = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None, false)?;
     assert_eq!(
         expired.execute(
             &mut kernel,
@@ -166,6 +167,7 @@ fn exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_re
         facts()?,
         correlation()?,
         None,
+        false,
     )?;
     let peer = respond(fixture.peer.try_clone()?, |_record| {
         let control = encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
@@ -212,7 +214,8 @@ fn malformed_response_partitions_close_host_cache_unknown_and_never_resend() -> 
             None,
         );
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
-        let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
+        let operation =
+            PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None, false)?;
         let peer = respond(fixture.peer.try_clone()?, move |mut record| {
             match partition {
                 0 => record[6] = 0,                                          // Request role.
@@ -307,6 +310,7 @@ fn observed_host_loss_before_handoff_is_a_definite_failure() -> TestResult {
         facts()?,
         correlation()?,
         None,
+        false,
     )?;
     assert_eq!(
         operation.execute(
@@ -334,6 +338,7 @@ fn server_loss_before_handoff_abandons_without_sending_or_inventing_a_result() -
         facts()?,
         correlation()?,
         None,
+        false,
     )?;
     assert_eq!(
         operation.execute(
@@ -497,6 +502,7 @@ fn server_loss_interrupts_a_waiting_host_and_closes_both_links() -> TestResult {
         facts()?,
         correlation()?,
         None,
+        false,
     )?;
     let mut peer = fixture.peer.try_clone()?;
     let server = fixture.server_peer.try_clone()?;
@@ -531,6 +537,7 @@ fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
         facts()?,
         correlation()?,
         None,
+        false,
     )?;
     let started = Instant::now();
     assert_eq!(
@@ -614,6 +621,7 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
         facts()?,
         correlation()?,
         None,
+        false,
     )?;
     assert_eq!(
         operation.execute(&mut kernel, &mut host, &server, || 100, BUDGET)?,

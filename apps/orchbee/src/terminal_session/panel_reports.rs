@@ -89,6 +89,8 @@ pub(super) struct PanelReports {
     epoch: u64,
     inflight: Option<(u64, Instant)>,
     next_read: Option<Instant>,
+    /// An Agent change arrived while a read was in flight.
+    expedited: bool,
     stopping: bool,
 }
 impl PanelReports {
@@ -109,6 +111,7 @@ impl PanelReports {
             epoch: 0,
             inflight: None,
             next_read: None,
+            expedited: false,
             stopping: false,
         }
     }
@@ -166,6 +169,14 @@ impl PanelReports {
             lane.interrupt();
         }
     }
+    /// Reads now, or right after the in-flight read, instead of awaiting the interval.
+    pub(super) fn expedite(&mut self) {
+        if self.inflight.is_some() {
+            self.expedited = true;
+        } else {
+            self.next_read = None;
+        }
+    }
     pub(super) fn tick(&mut self, scope: Option<Scope>) -> bool {
         let now = self.clock.now();
         let mut changed = false;
@@ -191,7 +202,11 @@ impl PanelReports {
                 continue;
             }
             self.inflight = None;
-            self.next_read = now.checked_add(INTERVAL);
+            self.next_read = if std::mem::take(&mut self.expedited) {
+                None
+            } else {
+                now.checked_add(INTERVAL)
+            };
             match result {
                 Ok(round) if self.scope.as_ref() == Some(&round.scope) && now < deadline => {
                     changed |= self.unavailable || self.round.as_ref() != Some(&round);

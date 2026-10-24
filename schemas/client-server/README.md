@@ -269,6 +269,13 @@ string. Gaps are allowed; an accepted submission consumes the sequence even if d
 fails or is rejected. Grant mismatch or stale sequence has no terminal effect. A new grant starts
 with no consumed sequence; an old grant never regains authority by resetting its sequence.
 
+`host-colors` reports the controlling Client's observed outer-terminal defaults. Besides
+`attachmentId`, `controllerId`, and a `sequence` from the same strictly increasing space, it carries
+`foreground` and `background`, each an integer RGB value from 0 through 16,777,215. It is best
+effort: the Worker retains the most recent report for new Host-default launches and recolors the
+controlled terminal only when that terminal follows Host defaults. The fieldless
+`host-colors-accepted` outcome confirms admission, not that a theme changed.
+
 The `paste` action is a semantic whole-envelope operation: it submits 1 through 262,144 opaque
 content bytes under the same attachment, controller, and strictly increasing sequence, and Host
 encodes them once under its current bracketed-paste mode. It is never carried by OBCS JSON: a
@@ -284,7 +291,7 @@ not enlarge the 63 KiB OBCS JSON limit; a small paste uses the same record encod
 `terminal.control.result` uses the ordinary correlated JSON envelope. Outcomes are `acquired`
 with `controllerId`, fieldless `input-accepted`, `resized` with exact accepted `geometry`, `pasted`
 with `acceptedBytes` (an integer from 1 through 1,048,576 counting the encoded bytes Host admitted
-to its bounded input queue), fieldless `outcome-unknown`, `rejected` with reason
+to its bounded input queue), fieldless `host-colors-accepted`, fieldless `outcome-unknown`, `rejected` with reason
 `viewer-unavailable`, `controller-busy`, `not-controller`, `sequence-mismatch`, `host-rejected`,
 `host-input-invalid`, `host-input-limit-exceeded`, `host-input-backpressure`, or
 `host-input-unavailable`, and `unavailable` with reason `server-busy` or

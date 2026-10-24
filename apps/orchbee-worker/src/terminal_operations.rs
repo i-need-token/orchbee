@@ -448,12 +448,14 @@ fn run_admitted_with_handoff(
                 .into());
             }
         };
+        let observed_colors = host.host_colors.borrow().latest();
         let disposition = match admission {
             HostOperationAdmission::Dispatch(dispatch) => match prepare_or_fail(
                 &mut kernel,
                 &dispatch,
                 aux.site_runtime,
                 aux.preferences,
+                observed_colors,
                 #[cfg(windows)]
                 aux.shell,
             )? {
@@ -545,12 +547,14 @@ fn prepare_or_fail(
     dispatch: &AuthorizedHostDispatch,
     site_runtime: Option<&std::path::Path>,
     preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
+    observed_colors: Option<orchbee_local_site_runtime::UserTerminalColors>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<Option<PreparedHostOperation>, Box<dyn Error>> {
     match prepare(
         dispatch,
         site_runtime,
         preferences,
+        observed_colors,
         #[cfg(windows)]
         shell,
     ) {
@@ -566,6 +570,7 @@ fn prepare(
     dispatch: &AuthorizedHostDispatch,
     site_runtime: Option<&std::path::Path>,
     preferences: Option<&orchbee_local_site_runtime::UserPreferencesStore>,
+    observed_colors: Option<orchbee_local_site_runtime::UserTerminalColors>,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<PreparedHostOperation, Box<dyn Error>> {
     let correlation = CorrelationId::from_bytes(crate::worker_identity::fresh_identity()?)?;
@@ -605,6 +610,15 @@ fn prepare(
                 .transpose()?;
             #[cfg(windows)]
             let shell = selected.as_ref().unwrap_or(shell);
+            // Host display mode follows the most recent Client's outer terminal, then the OS.
+            let follows_host = defaults
+                .as_ref()
+                .is_none_or(|defaults| defaults.colors.is_none());
+            let host_colors = if follows_host {
+                observed_colors.unwrap_or_else(system_terminal_colors)
+            } else {
+                orchbee_local_site_runtime::UserTerminalColors::LIGHT
+            };
             Ok(PreparedHostOperation::launch(
                 dispatch,
                 launch_facts::resolve(
@@ -613,6 +627,7 @@ fn prepare(
                     launch.environment(),
                     launch.plugin_environment(),
                     defaults.as_ref(),
+                    host_colors,
                     #[cfg(windows)]
                     launch.editor_source().is_some(),
                     #[cfg(windows)]
@@ -620,12 +635,21 @@ fn prepare(
                 )?,
                 correlation,
                 site_runtime,
+                follows_host,
             )?)
         }
         AuthorizedHostOperation::Start(_) => {
             Ok(PreparedHostOperation::start(dispatch, correlation)?)
         }
     }
+}
+
+fn system_terminal_colors() -> orchbee_local_site_runtime::UserTerminalColors {
+    #[cfg(windows)]
+    if orchbee_local_site_runtime::read_windows_apps_use_light_theme() == Some(false) {
+        return orchbee_local_site_runtime::UserTerminalColors::DARK;
+    }
+    orchbee_local_site_runtime::UserTerminalColors::LIGHT
 }
 
 fn unix_milliseconds() -> u64 {

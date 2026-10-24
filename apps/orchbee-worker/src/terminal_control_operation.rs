@@ -3,6 +3,7 @@ use crate::{
     worker_identity::fresh_identity,
 };
 mod clear;
+mod host_colors;
 use orchbee_capability_node_protocol::{
     ControlRejection as Rejection, OperationId, TerminalControlAction as Action,
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalControlResult,
@@ -144,7 +145,8 @@ fn apply(
     let sequence = match &request.action {
         Action::Input { sequence, .. }
         | Action::Resize { sequence, .. }
-        | Action::Paste { sequence, .. } => *sequence,
+        | Action::Paste { sequence, .. }
+        | Action::HostColors { sequence, .. } => *sequence,
         _ => unreachable!("acquisition and release handled"),
     };
     let grant = match host.controllers.borrow_mut().admit(
@@ -155,6 +157,9 @@ fn apply(
         Ok(grant) => grant,
         Err(reason) => return Ok(Outcome::Rejected(reason)),
     };
+    if let Action::HostColors { colors, .. } = request.action {
+        return host_colors::apply(host, server, target, colors);
+    }
     let revision = grant
         .capability_revision
         .ok_or_else(|| invalid("controller has no Host capability revision"))?;

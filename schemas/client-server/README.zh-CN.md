@@ -245,6 +245,12 @@ sequence，以规范十进制字符串编码。允许跳号；有效提交即消
 拒绝。Grant 不匹配或过时 sequence 不产生终端副作用。新 grant 没有已消费的 sequence；旧 grant
 不能通过重置 sequence 重新获得权限。
 
+`host-colors` 报告控制 Client 观测到的外层终端默认色。除 `attachmentId`、`controllerId` 及
+同一严格递增空间中的 `sequence` 外，它携带 `foreground` 与 `background`，各为 0 至 16,777,215
+的整数 RGB 值。该 action 尽力而为：Worker 保留最近一次报告供新的 Host 默认启动使用，并且只在
+受控终端跟随 Host 默认色时为其重新着色。无其他字段的 `host-colors-accepted` outcome 只确认
+已接纳，不表示主题已改变。
+
 `paste` action 是语义级整 envelope 操作：在同一 attachment、controller 与严格递增
 sequence 下提交 1 至 262,144 个不透明内容 byte，由 Host 按其当前 bracketed-paste mode 编码
 一次。它绝不由 OBCS JSON 承载：`terminal.control` 内的 `"kind": "paste"` action 在两个方向
@@ -258,7 +264,7 @@ action，也不扩大 63 KiB OBCS JSON 上限；小粘贴同样使用该 record 
 `terminal.control.result` 使用普通关联 JSON envelope。Outcome 包括：带 `controllerId` 的
 `acquired`、无其他字段的 `input-accepted`、带精确接受 `geometry` 的 `resized`、带
 `acceptedBytes`（1 至 1,048,576 的整数，表示 Host 接纳进有界输入 queue 的编码后 byte 数）的
-`pasted`、无其他字段的 `outcome-unknown`；reason 为 `viewer-unavailable`、`controller-busy`、
+`pasted`、无其他字段的 `host-colors-accepted`、无其他字段的 `outcome-unknown`；reason 为 `viewer-unavailable`、`controller-busy`、
 `not-controller`、`sequence-mismatch`、`host-rejected`、`host-input-invalid`、
 `host-input-limit-exceeded`、`host-input-backpressure` 或 `host-input-unavailable` 的
 `rejected`；reason 为 `server-busy` 或 `terminal-runtime-unavailable` 的 `unavailable`。

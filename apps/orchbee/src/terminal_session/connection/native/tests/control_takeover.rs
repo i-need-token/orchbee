@@ -168,6 +168,7 @@ fn exercise(cut: Cut) -> TestResult {
             mode: Some(ControllerMode::ReadOnly),
             next_sequence: 47,
             accepted_geometry: None,
+            reported_host_colors: None,
         });
         let result = executor.run_refresh(&lease, marker);
         let evidence = executor.pending_takeover.take();

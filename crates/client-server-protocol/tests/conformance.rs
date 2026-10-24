@@ -256,6 +256,8 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "control-takeover",
         "control-input",
         "control-resize",
+        "control-host-colors",
+        "control-host-colors-accepted",
         "control-acquired",
         "control-input-accepted",
         "control-resized",
@@ -649,6 +651,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 Action::Input { .. } => "control-input",
                 Action::Resize { .. } => "control-resize",
                 Action::Paste { .. } => "control-paste",
+                Action::HostColors { .. } => "control-host-colors",
             });
         }
         DecodedMessage::Server(ServerMessage::TerminalControlResult(result)) => {
@@ -662,6 +665,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 Outcome::Resized { .. } => "control-resized",
                 Outcome::Cleared { .. } => "control-cleared",
                 Outcome::Pasted { .. } => "control-pasted",
+                Outcome::HostColorsAccepted {} => "control-host-colors-accepted",
                 Outcome::OutcomeUnknown {} => "control-outcome-unknown",
                 Outcome::Rejected { reason } => match reason {
                     Rejected::ViewerUnavailable => "control-rejected-viewer-unavailable",

@@ -57,6 +57,8 @@ pub(super) struct AgentAttention {
     epoch: u64,
     inflight: Option<(u64, Instant)>,
     next_read: Option<Instant>,
+    /// An Agent change arrived while a read was in flight.
+    expedited: bool,
     stopping: bool,
     redraw: bool,
 }
@@ -182,6 +184,7 @@ impl AgentAttention {
             epoch: 0,
             inflight: None,
             next_read: None,
+            expedited: false,
             stopping: false,
             redraw: false,
         }
@@ -205,6 +208,15 @@ impl AgentAttention {
         self.redraw |= self.state.unavailable();
     }
 
+    /// Reads now, or right after the in-flight read, instead of awaiting the interval.
+    pub(super) fn expedite(&mut self) {
+        if self.inflight.is_some() {
+            self.expedited = true;
+        } else {
+            self.next_read = None;
+        }
+    }
+
     pub(super) fn focus_changed(&mut self) {
         self.redraw = true;
     }
@@ -225,7 +237,11 @@ impl AgentAttention {
                 continue;
             }
             self.inflight = None;
-            self.next_read = now.checked_add(READ_INTERVAL);
+            self.next_read = if std::mem::take(&mut self.expedited) {
+                None
+            } else {
+                now.checked_add(READ_INTERVAL)
+            };
             if self.stopping {
                 continue;
             }

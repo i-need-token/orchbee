@@ -251,6 +251,13 @@ impl TerminalSession {
         }
     }
 
+    /// Starts session-owned Agent attention and Panel report reads without awaiting their interval.
+    pub(crate) fn expedite_agent_reads(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.expedite_agent_reads();
+        }
+    }
+
     /// Time until an idle viewer poll becomes eligible; worker results wake sooner.
     pub(crate) fn next_poll_delay(&self) -> Option<std::time::Duration> {
         match &self.backend {
@@ -693,6 +700,7 @@ impl TerminalSession {
         }
         match (&mut self.client_control, &mut self.backend) {
             (Some(control), SessionBackend::Native(native)) => {
+                native.observe_host_colors(view.host_default_colors());
                 control.observe_geometry(viewport, view.sidebar_surface());
                 let changed = control.tick(
                     native,

@@ -1604,6 +1604,8 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn next_poll_delay(&self) -> Option<Duration> {
         None
     }
+    /// The attached Site published an Agent change; session-owned Agent reads start early.
+    fn expedite_agent_reads(&mut self) {}
     #[cfg(windows)]
     fn observe_client_viewport(&mut self, _view: &ClientView, _viewport: Rect) {}
     #[cfg(windows)]
@@ -1708,6 +1710,9 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     }
     fn next_poll_delay(&self) -> Option<Duration> {
         self.next_poll_delay()
+    }
+    fn expedite_agent_reads(&mut self) {
+        self.expedite_agent_reads();
     }
     #[cfg(windows)]
     fn observe_client_viewport(&mut self, view: &ClientView, viewport: Rect) {

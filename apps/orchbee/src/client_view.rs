@@ -561,6 +561,14 @@ impl ClientView {
         self.configure_host_terminal(appearance, self.host_colors)
     }
 
+    /// The outer terminal's observed default foreground and background, when both settled.
+    pub(crate) const fn host_default_colors(&self) -> Option<(u32, u32)> {
+        match (self.host_colors.foreground, self.host_colors.background) {
+            (Some(foreground), Some(background)) => Some((foreground, background)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn configure_host_terminal(
         &mut self,
         appearance: crate::terminal_host_appearance::HostAppearance,

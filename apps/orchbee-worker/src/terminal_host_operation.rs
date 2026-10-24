@@ -94,6 +94,8 @@ pub(crate) struct PreparedHostOperation {
     payload: Vec<u8>,
     expected: ExpectedResponse,
     editor_source: Option<orchbee_capability_node_protocol::TerminalEditorSource>,
+    /// Present when the launch follows Host default colors; registered once created.
+    host_theme: Option<orchbee_terminal_protocol::TerminalTheme>,
 }
 
 impl PreparedHostOperation {
@@ -102,7 +104,9 @@ impl PreparedHostOperation {
         facts: ResolvedTerminalLaunchFacts,
         correlation: CorrelationId,
         site_runtime: Option<&std::path::Path>,
+        follows_host: bool,
     ) -> Result<Self, HostOperationError> {
+        let host_theme = follows_host.then(|| facts.terminal_theme());
         let creation = map_launch_creation(dispatch, facts, site_runtime)?;
         let expected = ExpectedResponse::Created(match &creation {
             TerminalCreationControl::CreateTerminal(request) => request.creation_id,
@@ -125,6 +129,7 @@ impl PreparedHostOperation {
             payload: control.payload,
             expected,
             editor_source,
+            host_theme,
         })
     }
 
@@ -142,6 +147,7 @@ impl PreparedHostOperation {
             payload: control.payload,
             expected: ExpectedResponse::Started,
             editor_source: None,
+            host_theme: None,
         })
     }
 
@@ -195,7 +201,14 @@ impl PreparedHostOperation {
         let response = exchange.round_trip(&record);
         let failure = match response {
             Ok(response) => match self.record_response(kernel, epoch, &response) {
-                Ok(()) => return Ok(HostOperationDisposition::ResultReady),
+                Ok(created) => {
+                    if let (Some(terminal), Some(theme)) = (created, self.host_theme) {
+                        host.host_colors
+                            .borrow_mut()
+                            .follow(*terminal.as_bytes(), theme);
+                    }
+                    return Ok(HostOperationDisposition::ResultReady);
+                }
                 Err(_invalid_response) => PeerFailure::Host,
             },
             Err(failure) => failure,
@@ -215,7 +228,7 @@ impl PreparedHostOperation {
         kernel: &mut AuthorizedHostOperationKernel,
         epoch: HostEpoch,
         record: &[u8],
-    ) -> Result<(), HostOperationError> {
+    ) -> Result<Option<orchbee_terminal_protocol::TerminalId>, HostOperationError> {
         let envelope = decode_transport_envelope(record)?;
         if envelope.role != MessageRole::Response
             || envelope.correlation_id != Some(self.correlation)
@@ -226,6 +239,7 @@ impl PreparedHostOperation {
         {
             return Err(HostLaunchAdapterError::UnexpectedHostResponse.into());
         }
+        let mut created = None;
         let response = if let Ok(ConnectionControl::TypedFailure(failure)) =
             decode_connection_control(envelope.kind, envelope.role, envelope.payload)
         {
@@ -242,6 +256,7 @@ impl PreparedHostOperation {
                     else {
                         return Err(HostLaunchAdapterError::UnexpectedHostResponse.into());
                     };
+                    created = Some(identity.terminal_id);
                     TerminalHostResponse::TerminalCreated(identity)
                 }
                 ExpectedResponse::Started => {
@@ -265,7 +280,7 @@ impl PreparedHostOperation {
                 map_start_host_response(&self.dispatch, observed)?,
             )?,
         }
-        Ok(())
+        Ok(created)
     }
 }
 

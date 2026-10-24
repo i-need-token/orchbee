@@ -1994,6 +1994,24 @@ impl NativeUi {
         }
     }
 
+    pub(super) fn expedite_agent_reads(&mut self) {
+        self.attention.expedite();
+        self.reports.expedite();
+    }
+
+    /// Publishes the outer terminal's settled default colors for Host-default terminals.
+    pub(super) fn observe_host_colors(&mut self, colors: Option<(u32, u32)>) {
+        if self.retirement_failure.is_some() {
+            return;
+        }
+        let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
+            return;
+        };
+        if let Err(closed) = mailbox.observe_host_colors(colors) {
+            self.retire(closed.failure());
+        }
+    }
+
     pub(super) fn observe_geometry(&mut self, geometry: Geometry) {
         self.observe_focus_geometry(geometry);
         // A whole-session observation on a single-leaf tab is exactly that

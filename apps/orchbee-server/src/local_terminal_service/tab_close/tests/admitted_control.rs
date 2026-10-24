@@ -78,6 +78,9 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                             WorkerControlAction::Takeover { .. } => {
                                 panic!("unexpected takeover in close fixture")
                             }
+                            WorkerControlAction::HostColors { .. } => {
+                                panic!("unexpected host colors in close fixture")
+                            }
                             WorkerControlAction::Acquire => {
                                 events.push("acquire");
                                 WorkerControlOutcome::Acquired

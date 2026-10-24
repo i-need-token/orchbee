@@ -222,6 +222,7 @@ pub(in crate::terminal_session::connection::native) fn borrow(
             mode: Some(ControllerMode::ReadOnly),
             next_sequence: 47,
             accepted_geometry: None,
+            reported_host_colors: None,
         });
         let result = prepare(&mut executor, &preparation, &outcome);
         assert_eq!(

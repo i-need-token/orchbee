@@ -94,6 +94,7 @@ fn windows_host() -> Result<
         controllers: RefCell::new(controllers::HostControllers::default()),
         retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
         titles: RefCell::new(Titles::default()),
+        host_colors: RefCell::new(crate::host_connection::HostColors::default()),
         drain: Rc::new(RefCell::new(AgentDrain::new())),
     };
     Ok((host, peer, server, server_peer))

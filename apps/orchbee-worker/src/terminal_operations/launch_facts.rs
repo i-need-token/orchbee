@@ -25,6 +25,7 @@ pub(super) fn resolve(
     environment: &orchbee_capability_node_protocol::LaunchEnvironment,
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
     defaults: Option<&orchbee_local_site_runtime::UserTerminalLaunchDefaults>,
+    host_colors: orchbee_local_site_runtime::UserTerminalColors,
     #[cfg(windows)] editor_launch: bool,
     #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
@@ -78,7 +79,11 @@ pub(super) fn resolve(
         arguments,
         launch_environment(environment, plugin_environment),
         cwd,
-        terminal_profile(defaults.and_then(|defaults| defaults.colors)),
+        terminal_profile(
+            defaults
+                .and_then(|defaults| defaults.colors)
+                .unwrap_or(host_colors),
+        ),
         defaults.map(
             |defaults| orchbee_terminal_protocol::TerminalConfiguration {
                 scrollback_bytes: defaults.scrollback_bytes,
@@ -132,12 +137,10 @@ fn launch_environment(
     entries
 }
 
-// Only defaults and the explicitly selected color scheme follow confirmed device preferences.
+// Only the default colors and their color scheme follow device preferences or Host colors.
 // The ANSI palette remains the protocol profile's authority, independent of Client rendering.
-fn terminal_profile(
-    colors: Option<orchbee_local_site_runtime::UserTerminalColors>,
-) -> TerminalProfile {
-    let (foreground, background) = orchbee_local_site_runtime::UserTerminalColors::LIGHT.rgb();
+fn terminal_profile(colors: orchbee_local_site_runtime::UserTerminalColors) -> TerminalProfile {
+    let (foreground, background) = colors.rgb();
     let mut palette = vec![
         0x00_00_00, 0xcd_31_31, 0x10_7c_10, 0x94_98_00, 0x04_51_a5, 0xbc_05_bc, 0x05_98_bc,
         0x55_55_55, 0x66_66_66, 0xcd_31_31, 0x14_ce_14, 0xb5_ba_00, 0x04_51_a5, 0xbc_05_bc,
@@ -154,8 +157,12 @@ fn terminal_profile(
         let value = 8 + index * 10;
         palette.push((value << 16) | (value << 8) | value);
     }
-    let mut profile = TerminalProfile {
-        color_scheme: ColorScheme::Light,
+    TerminalProfile {
+        color_scheme: if colors.dark() {
+            ColorScheme::Dark
+        } else {
+            ColorScheme::Light
+        },
         default_background_rgb: background,
         default_cursor_blinking: false,
         default_cursor_rgb: Some(0x57_be_f8),
@@ -172,21 +179,7 @@ fn terminal_profile(
         enquiry_response: String::new(),
         palette,
         version_response: "Orchbee".to_owned(),
-    };
-    if let Some(colors) = colors {
-        (
-            profile.default_foreground_rgb,
-            profile.default_background_rgb,
-        ) = colors.rgb();
-        if let Some(dark) = colors.dark() {
-            profile.color_scheme = if dark {
-                ColorScheme::Dark
-            } else {
-                ColorScheme::Light
-            };
-        }
     }
-    profile
 }
 
 #[cfg(unix)]

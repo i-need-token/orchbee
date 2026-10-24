@@ -39,6 +39,7 @@ mod semantic_input;
 mod terminal_configuration;
 mod terminal_effect;
 mod terminal_fact;
+mod theme_control;
 mod version;
 
 pub use attachment::{
@@ -184,6 +185,10 @@ pub use terminal_effect::{
 };
 pub use terminal_fact::{
     ExitResult, ProcessObservation, RuntimeCleanupFailure, RuntimeFailure, TerminalIdentity,
+};
+pub use theme_control::{
+    ApplyTerminalTheme, EncodedThemeControl, TerminalThemeResult, TerminalThemeTransition,
+    ThemeControl, decode_theme_control, encode_theme_control,
 };
 pub use version::{CURRENT_PROTOCOL_VERSION, ProtocolVersion};
 

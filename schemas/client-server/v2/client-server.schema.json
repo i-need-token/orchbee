@@ -1106,6 +1106,11 @@
 			"maxLength": 8192,
 			"pattern": "^(?:[0-9a-f]{2})+$"
 		},
+		"terminalRgb": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 16777215
+		},
 		"controlAction": {
 			"oneOf": [
 				{
@@ -1175,6 +1180,38 @@
 						},
 						"geometry": {
 							"$ref": "#/$defs/geometry"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"controllerId",
+						"sequence",
+						"foreground",
+						"background"
+					],
+					"properties": {
+						"kind": {
+							"const": "host-colors"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"controllerId": {
+							"$ref": "#/$defs/controllerId"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"foreground": {
+							"$ref": "#/$defs/terminalRgb"
+						},
+						"background": {
+							"$ref": "#/$defs/terminalRgb"
 						}
 					}
 				},
@@ -1280,6 +1317,16 @@
 						},
 						"reason": {
 							"enum": ["server-busy", "terminal-runtime-unavailable"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "host-colors-accepted"
 						}
 					}
 				},

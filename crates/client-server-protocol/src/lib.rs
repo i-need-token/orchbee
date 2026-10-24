@@ -32,7 +32,7 @@ pub use codec::{
 pub use control::{
     ControlInput, ControlRejectedReason, ControlUnavailableReason, MAXIMUM_CONTROL_INPUT_BYTES,
     MAXIMUM_PASTE_CONTENT_BYTES, PasteAcceptedBytes, PasteContent, TerminalControlAction,
-    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
+    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult, TerminalRgb,
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use geometry::{

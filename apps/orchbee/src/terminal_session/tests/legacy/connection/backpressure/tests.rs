@@ -170,6 +170,7 @@ fn control_busy_uses_fresh_ids_and_consumes_each_effect_sequence_once() -> TestR
                             controller_id: ControllerId::parse(ID).unwrap(),
                         },
                         Control::Input { .. } => ControlOutcome::InputAccepted {},
+                        Control::HostColors { .. } => ControlOutcome::HostColorsAccepted {},
                         Control::Resize { geometry, .. } => ControlOutcome::Resized { geometry },
                         Control::Paste { .. } => ControlOutcome::Pasted {
                             accepted_bytes:

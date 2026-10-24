@@ -53,6 +53,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             &environment,
             plugin.as_ref(),
             defaults.as_ref(),
+            orchbee_local_site_runtime::UserTerminalColors::LIGHT,
             false,
             &snapshot,
         )?;
@@ -172,19 +173,23 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
 #[test]
 fn resolved_launch_colors_reach_the_profile_without_changing_the_ansi_palette() {
     use orchbee_local_site_runtime::UserTerminalColors;
-    let baseline = terminal_profile(None);
+    let baseline = terminal_profile(UserTerminalColors::LIGHT);
     for (colors, pair, scheme) in [
         (
-            Some(UserTerminalColors::DARK),
+            UserTerminalColors::DARK,
             (0xd4d4d4, 0x1e1e1e),
             ColorScheme::Dark,
         ),
         (
-            Some(UserTerminalColors::LIGHT),
+            UserTerminalColors::LIGHT,
             (0x141414, 0xfcfcfc),
             ColorScheme::Light,
         ),
-        (None, (0x141414, 0xfcfcfc), ColorScheme::Light),
+        (
+            UserTerminalColors::from_rgb(0xcccccc, 0x0c0c0c),
+            (0xcccccc, 0x0c0c0c),
+            ColorScheme::Dark,
+        ),
     ] {
         let profile = terminal_profile(colors);
         assert_eq!(

@@ -22,6 +22,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Agent changes that start the next physical Agent read early instead of awaiting its interval.
+const AGENT_EVENTS: &[orchbee_workbench_protocol::SemanticEventKind] = &[
+    orchbee_workbench_protocol::SemanticEventKind::PaneAgentDetected,
+    orchbee_workbench_protocol::SemanticEventKind::PaneAgentStatusChanged,
+    orchbee_workbench_protocol::SemanticEventKind::PaneExited,
+];
 struct Attempt {
     profile: Option<Profile>,
     context: Option<NativeStartupTarget>,
@@ -107,7 +113,7 @@ impl Manager {
             queued: None,
             selection_scope: None,
             discovery: Discovery::default(),
-            agents: crate::machine_agents::Collector::default(),
+            agents: crate::machine_agents::Collector::watching(AGENT_EVENTS),
             spaces: crate::machine_spaces::Collector::default(),
             space_git: None,
         }
@@ -223,6 +229,9 @@ impl Manager {
             now,
             crate::machine_agents::read,
         ));
+        if self.agents.hinted(&choice(self.current.as_ref())) {
+            surface.active().expedite_agent_reads();
+        }
         let space_git = view.machines.space_settings().needs_git();
         if self.space_git != Some(space_git) {
             self.spaces.clear();

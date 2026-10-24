@@ -96,6 +96,33 @@ impl<'de> Deserialize<'de> for ControlInput {
         Self::new(bytes).map_err(de::Error::custom)
     }
 }
+/// One 24-bit RGB default color, encoded as a JSON integer from 0 through 16,777,215.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalRgb(u32);
+impl TerminalRgb {
+    pub const fn new(value: u32) -> Result<Self, ProtocolError> {
+        if value > 0x00ff_ffff {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self(value))
+    }
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+impl Serialize for TerminalRgb {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(u64::from(self.0))
+    }
+}
+impl<'de> Deserialize<'de> for TerminalRgb {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = crate::number::Binary64SafeInteger::deserialize(deserializer)?.value();
+        Self::new(u32::try_from(value).map_err(de::Error::custom)?).map_err(de::Error::custom)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminalControlAction {
     Acquire {
@@ -126,6 +153,14 @@ pub enum TerminalControlAction {
         controller_id: ControllerId,
         sequence: NonZeroU64,
         content: PasteContent,
+    },
+    /// The controlling Client's observed outer-terminal default colors.
+    HostColors {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        sequence: NonZeroU64,
+        foreground: TerminalRgb,
+        background: TerminalRgb,
     },
 }
 
@@ -159,6 +194,14 @@ enum WireControlAction {
         #[serde(with = "crate::number::positive_decimal")]
         sequence: NonZeroU64,
         geometry: Geometry,
+    },
+    HostColors {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        #[serde(with = "crate::number::positive_decimal")]
+        sequence: NonZeroU64,
+        foreground: TerminalRgb,
+        background: TerminalRgb,
     },
 }
 
@@ -195,6 +238,19 @@ impl Serialize for TerminalControlAction {
                 controller_id: controller_id.clone(),
                 sequence: *sequence,
                 geometry: *geometry,
+            },
+            Self::HostColors {
+                attachment_id,
+                controller_id,
+                sequence,
+                foreground,
+                background,
+            } => WireControlAction::HostColors {
+                attachment_id: attachment_id.clone(),
+                controller_id: controller_id.clone(),
+                sequence: *sequence,
+                foreground: *foreground,
+                background: *background,
             },
             Self::Paste { .. } => {
                 return Err(serde::ser::Error::custom(
@@ -233,6 +289,19 @@ impl<'de> Deserialize<'de> for TerminalControlAction {
                 sequence,
                 geometry,
             },
+            WireControlAction::HostColors {
+                attachment_id,
+                controller_id,
+                sequence,
+                foreground,
+                background,
+            } => Self::HostColors {
+                attachment_id,
+                controller_id,
+                sequence,
+                foreground,
+                background,
+            },
         })
     }
 }
@@ -246,7 +315,8 @@ impl TerminalControlAction {
             | Self::Takeover { attachment_id }
             | Self::Input { attachment_id, .. }
             | Self::Resize { attachment_id, .. }
-            | Self::Paste { attachment_id, .. } => attachment_id,
+            | Self::Paste { attachment_id, .. }
+            | Self::HostColors { attachment_id, .. } => attachment_id,
         }
     }
 }
@@ -292,6 +362,7 @@ pub enum TerminalControlOutcome {
     Pasted {
         accepted_bytes: PasteAcceptedBytes,
     },
+    HostColorsAccepted {},
     Cleared {
         #[serde(with = "crate::number::positive_decimal")]
         generation: NonZeroU64,

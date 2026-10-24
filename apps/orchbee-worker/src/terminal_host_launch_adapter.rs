@@ -54,6 +54,18 @@ impl ResolvedTerminalLaunchFacts {
             terminal_profile,
         }
     }
+
+    /// The theme this launch commits at Host theme revision zero.
+    pub(crate) fn terminal_theme(&self) -> orchbee_terminal_protocol::TerminalTheme {
+        let profile = &self.terminal_profile;
+        orchbee_terminal_protocol::TerminalTheme {
+            color_scheme: profile.color_scheme,
+            default_background_rgb: profile.default_background_rgb,
+            default_cursor_rgb: profile.default_cursor_rgb,
+            default_foreground_rgb: profile.default_foreground_rgb,
+            palette: profile.palette.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

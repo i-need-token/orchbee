@@ -26,6 +26,10 @@ fn control_wire_preserves_scope_bytes_and_every_action_and_outcome() -> TestResu
             sequence: NonZeroU64::MIN,
             geometry,
         },
+        TerminalControlAction::HostColors {
+            sequence: NonZeroU64::MAX,
+            colors: HostDefaultColors::new(0x00cc_cccc, 0x000c_0c0c)?,
+        },
     ] {
         let message = CapabilityNodeMessage::TerminalControlRequest(TerminalControlRequest {
             action,
@@ -43,6 +47,7 @@ fn control_wire_preserves_scope_bytes_and_every_action_and_outcome() -> TestResu
         TerminalControlOutcome::Released,
         TerminalControlOutcome::InputAccepted,
         TerminalControlOutcome::Resized(geometry),
+        TerminalControlOutcome::HostColorsAccepted,
     ]
     .into_iter()
     .chain(
@@ -67,6 +72,20 @@ fn control_wire_preserves_scope_bytes_and_every_action_and_outcome() -> TestResu
     }
     assert!(ControlInput::new(Vec::new()).is_err());
     assert!(ControlInput::new(vec![0; 4097]).is_err());
+    assert!(HostDefaultColors::new(0x0100_0000, 0).is_err());
+    assert!(HostDefaultColors::new(0, 0x0100_0000).is_err());
+    let mut colors = encode_message(&CapabilityNodeMessage::TerminalControlRequest(
+        TerminalControlRequest {
+            action: TerminalControlAction::HostColors {
+                sequence: NonZeroU64::MIN,
+                colors: HostDefaultColors::new(0, 0)?,
+            },
+            ..request.clone()
+        },
+    ))?;
+    let background = colors.len() - 4;
+    colors[background] = 1;
+    assert!(decode_message(&colors).is_err());
     Ok(())
 }
 
