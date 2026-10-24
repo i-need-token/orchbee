@@ -9,7 +9,7 @@ use crate::{
 
 pub const MAXIMUM_AUTHORIZED_CWD_BYTES: usize = 4_096;
 pub const TERMINAL_LAUNCH_CAPABILITY_VERSION: TerminalLaunchCapabilityVersion =
-    TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN.saturating_add(1));
+    TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TerminalLaunchCapabilityVersion(NonZeroU16);

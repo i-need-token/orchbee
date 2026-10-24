@@ -1004,7 +1004,7 @@ fn unfocused_program_mouse_tracking_and_alternate_screen_do_not_enter_history() 
         if !alternate {
             let mut wire = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
+                "/../../packages/terminal-protocol/fixtures/ghostty-surface.bin"
             ))
             .to_vec();
             wire[100..104].copy_from_slice(&(1_u32 << 5).to_le_bytes());

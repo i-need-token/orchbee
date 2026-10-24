@@ -138,9 +138,9 @@ fn rejects_utf8_bom_invalid_utf8_duplicate_keys_trailing_values_and_non_objects(
     for invalid in [
         b"[]".as_slice(),
         b"null".as_slice(),
-        b"{\"kind\":\"terminal.create\",\"kind\":\"terminal.create\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}".as_slice(),
-        b"{\"kind\":\"terminal.create\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\",\"kind\":\"deferred\"}}".as_slice(),
-        b"{\"kind\":\"terminal.create\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}} {}".as_slice(),
+        b"{\"kind\":\"terminal.create\",\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}".as_slice(),
+        b"{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\",\"kind\":\"deferred\"}}".as_slice(),
+        b"{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}} {}".as_slice(),
     ] {
         assert_eq!(
             decode_client_frame(&frame(invalid)?),
@@ -346,7 +346,7 @@ fn terminal_create_launch_selection_is_optional_and_closed()
         r#""launch":{"exec":"/bin/sh","args":[],"extra":1}"#,
     ] {
         let raw = format!(
-            r#"{{"kind":"terminal.create","protocolVersion":2,"requestId":"33333333333333333333333333333333","workerConstraint":null,"cwd":null,"startMode":{{"kind":"immediate","geometry":{{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18}}}},{launch_json}}}"#
+            r#"{{"kind":"terminal.create","protocolVersion":1,"requestId":"33333333333333333333333333333333","workerConstraint":null,"cwd":null,"startMode":{{"kind":"immediate","geometry":{{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18}}}},{launch_json}}}"#
         );
         assert!(
             decode_client_frame(&frame(raw.as_bytes())?).is_err(),

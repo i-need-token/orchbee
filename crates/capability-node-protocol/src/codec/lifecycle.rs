@@ -5,10 +5,10 @@ use crate::{
     LeaseExpiresAtUnixMilliseconds, LeaseId, LifecycleCloseActivity, LifecycleHostFailure,
     LifecycleInventoryCursor, LifecycleInventoryFailure, LifecycleInventoryPage,
     LifecycleRejection, LifecycleStepOrdinal, LifecycleTargetObservation, LifecycleTerminalPhase,
-    LifecycleUnknownReason, OperationId, ProtocolError, TerminalFence, TerminalId,
-    TerminalLifecycleAction, TerminalLifecycleAuthorization, TerminalLifecycleCapabilityVersion,
-    TerminalLifecycleOutcome, TerminalLifecycleRequest, TerminalLifecycleResult,
-    TerminalOperationLease, WorkerGeneration, WorkerId,
+    LifecycleUnknownReason, OperationId, ProtocolError, TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
+    TerminalFence, TerminalId, TerminalLifecycleAction, TerminalLifecycleAuthorization,
+    TerminalLifecycleCapabilityVersion, TerminalLifecycleOutcome, TerminalLifecycleRequest,
+    TerminalLifecycleResult, TerminalOperationLease, WorkerGeneration, WorkerId,
 };
 
 pub(super) fn encode_request(request: TerminalLifecycleRequest) -> Vec<u8> {
@@ -36,13 +36,11 @@ pub(super) fn encode_result(result: TerminalLifecycleResult) -> Vec<u8> {
                     bytes.push(1);
                     bytes.extend(target.revision.to_be_bytes());
                     encode_phase(&mut bytes, target.phase);
-                    if result.request().authorization.capability_version.get() >= 2 {
-                        bytes.push(match target.close_activity {
-                            LifecycleCloseActivity::Unknown => 0,
-                            LifecycleCloseActivity::Idle => 1,
-                            LifecycleCloseActivity::Active => 2,
-                        });
-                    }
+                    bytes.push(match target.close_activity {
+                        LifecycleCloseActivity::Unknown => 0,
+                        LifecycleCloseActivity::Idle => 1,
+                        LifecycleCloseActivity::Active => 2,
+                    });
                 }
             }
         }
@@ -112,15 +110,11 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalLifecycleResult, Pro
                 1 => Some(LifecycleTargetObservation {
                     revision: reader.read_u64()?,
                     phase: decode_phase(&mut reader)?,
-                    close_activity: if request.authorization.capability_version.get() >= 2 {
-                        match reader.read_u8()? {
-                            0 => LifecycleCloseActivity::Unknown,
-                            1 => LifecycleCloseActivity::Idle,
-                            2 => LifecycleCloseActivity::Active,
-                            _ => return Err(ProtocolError::InvalidPayload),
-                        }
-                    } else {
-                        LifecycleCloseActivity::Unknown
+                    close_activity: match reader.read_u8()? {
+                        0 => LifecycleCloseActivity::Unknown,
+                        1 => LifecycleCloseActivity::Idle,
+                        2 => LifecycleCloseActivity::Active,
+                        _ => return Err(ProtocolError::InvalidPayload),
                     },
                 }),
                 _ => return Err(ProtocolError::InvalidPayload),
@@ -220,10 +214,14 @@ fn decode_request_body(
     let target = decode_host_identity(reader)?;
     let action = match reader.read_u8()? {
         1 => TerminalLifecycleAction::Terminate,
-        5 if capability_version.get() >= 2 => TerminalLifecycleAction::TerminateIfIdle,
-        6 if capability_version.get() >= 2 => TerminalLifecycleAction::InspectInventoryPage {
-            cursor: decode_cursor(reader)?,
-        },
+        5 if capability_version == TERMINAL_LIFECYCLE_CAPABILITY_VERSION => {
+            TerminalLifecycleAction::TerminateIfIdle
+        }
+        6 if capability_version == TERMINAL_LIFECYCLE_CAPABILITY_VERSION => {
+            TerminalLifecycleAction::InspectInventoryPage {
+                cursor: decode_cursor(reader)?,
+            }
+        }
         2 => TerminalLifecycleAction::Force,
         3 => TerminalLifecycleAction::Dispose,
         4 => TerminalLifecycleAction::InventoryPage {

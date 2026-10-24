@@ -13,7 +13,7 @@ English remains canonical.
 
 ## Windows Worker handoff
 
-Frame version 2 adds fixed-size kinds 26 Request, 27 Result, 28 Hello, 29 Ready and 30 Owned.
+Frame version 1 adds fixed-size kinds 26 Request, 27 Result, 28 Hello, 29 Ready and 30 Owned.
 Private cohorts reject unknown kinds; there is no mixed-cohort ordinary admission fallback.
 A Request body after its kind is operation ID (16 bytes), Worker ID (16), positive generation
 (`u64`), nonzero handoff ID (16), target cohort SHA-256 (32) and action (`u8`: 1 Prepare,
@@ -59,7 +59,7 @@ OBCN kind 24 requests Windows editor-command resolution with a nonzero operation
 ID, Worker ID and positive full-width Worker generation. Kind 25 echoes the entire
 request and returns a validated `LaunchSelection` with `visual`, `editor` or
 `default` provenance, or a closed refusal: wrong Worker, stale generation,
-unsupported platform, invalid command or unavailable program. Frame version 2
+unsupported platform, invalid command or unavailable program. Frame version 1
 and the 40 KiB payload bound remain unchanged; old cohorts reject these tags.
 
 Integers are big-endian. Requests contain kind, two 16-byte IDs and u64 generation.
@@ -118,14 +118,14 @@ Worker execution and Server continuation remain pending; this codec does not imp
 admission, cleanup, or a whole inventory walk. Protocol, Server, Worker and native Close activate
 together. Old private cohorts reject the additive tags; no mixed-cohort fallback is defined.
 
-Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` use frame version 2 and
+Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` use frame version 1 and
 the 40 KiB payload bound. All integers are unsigned big-endian and IDs are nonzero 16-byte values.
-The request body after its kind is, in order: lifecycle capability version (`u16`, current 2),
+The request body after its kind is, in order: lifecycle capability version (`u16`, current 1),
 product Terminal ID (16), Worker ID (16), Worker generation (`u64`, positive), retained binding fence
 (`u64`, positive), fresh lease ID (16), lease Unix-millisecond expiry (`u64`, positive), Close
 operation ID (16), step request ID (16), attempt generation (`u64`, positive), step ordinal (`u8`,
 1 through 32), Host creation/epoch/terminal IDs (16 each), and action (`u8`). The lifecycle
-capability is distinct from launch capability version 2. The fence references the exact current
+capability is distinct from launch capability version 1. The fence references the exact current
 retained Launch/Start binding without replacing it. The fresh lifecycle lease is independent of the
 original launch lease. Viewer/controller authority is absent. The authenticated Server issues fresh
 step request IDs; codec validation alone does not establish authorization or replay safety.
@@ -210,20 +210,18 @@ Server activate kinds 11 and 12 together in the same unpublished local cohort.
 One canonical frame contains the fixed `OBCN` magic, an unsigned big-endian frame version, an
 unsigned big-endian payload length, and at most 40 KiB of payload. The frame codec rejects unknown
 magic, version, message or enum tags, malformed or incomplete values, excess bytes, and oversized
-payloads. Frame version 1 and terminal-launch capability version 2 are separate version domains.
+payloads. Frame version 1 and terminal-launch capability version 1 are separate version domains.
 Bounded streaming helpers read the complete eight-byte header before validating it and allocating
 the declared payload, then read exactly that payload; writes tolerate partial progress. I/O failure
 is distinct from a syntactically invalid protocol frame. Writing one frame does not flush a
 caller-owned buffer; that carrier policy remains with the adapter.
 
-Capability version 2 adds the generation-local Worker binding bound and its typed capacity result
-without changing the frame envelope. A Worker admits only its exact supported capability version;
-version 1 and version 2 requests therefore reject each other as `UnsupportedCapability`. Both
-versions use the same rejection tag for that outcome, while a version 1 decoder rejects the new
-capacity tag as unknown. Mixed versions consequently fail closed instead of silently using version
-1's unbounded binding behavior. The current Worker authorization kernel is fixed to version 2
-rather than accepting a configurable version with version 2 capacity behavior. Construction and
-decoding also reject `CapacityExceeded` when its echoed authorization is not version 2.
+Launch capability version 1 includes the generation-local Worker binding bound and typed
+capacity result. The Worker authorization kernel admits only the exact current capability;
+other versions return `UnsupportedCapability`. Construction and decoding reject
+`CapacityExceeded` when the echoed authorization does not use the current capability.
+The matched native cohort follows the repository
+[pre-release version rule](../../docs/ARCHITECTURE.md#data-boundaries).
 
 | Message                    | Direction                 | Closed semantic payload                                                                                                                                                                            |
 | -------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -380,7 +378,7 @@ Server and Worker guides own single-controller reservation, cleanup and real PTY
 
 Native send requests use a dedicated `OBNS` record: magic, big-endian u16 encoding version 1, reserved zero u16, u32 body length, then request ID (16 bytes), Worker ID (16), Worker generation (u64), Host creation/epoch/terminal IDs (48), Server-assigned input attachment ID (16), u8 record count (1–64), and ordered records. The maximum body is `105 + 64 * 7 + 1,048,576` bytes, checked before allocation. The retired kind-13 request is not decoded as a current request. No target rebinding or controller/viewer/resize authority is granted.
 
-Record tags 1–6 carry text, named key, legacy combo, opaque bytes, paste content, and semantic stroke respectively, with the exact field encodings and bounds in the [native send contract](../../schemas/client-server/README.md#native-version-2). `SendKeyStroke` independently validates modifier bits 0..15, named keys 1..13, Insert, F1..F25 and non-control Unicode scalar characters. New records preserve legacy bytes and the aggregate 1 MiB decoded payload limit. The Server maps independent OBCS values; Worker forwards semantic keys to the Host encoder.
+Record tags 1–6 carry text, named key, legacy combo, opaque bytes, paste content, and semantic stroke respectively, with the exact field encodings and bounds in the [native send contract](../../schemas/client-server/README.md#current-native-contract). `SendKeyStroke` independently validates modifier bits 0..15, named keys 1..13, Insert, F1..F25 and non-control Unicode scalar characters. New records preserve legacy bytes and the aggregate 1 MiB decoded payload limit. The Server maps independent OBCS values; Worker forwards semantic keys to the Host encoder.
 
 Kind 14 results retain request identity, input outcome (unavailable, rejected, accepted or unknown), confirmed prefix progress and independent cleanup state. Progress encodes accepted-record count and first stopped record as u8, then accepted encoded bytes as u64. A stopped request is not atomic; unknown or partially accepted input is never replayed automatically. Existing typed constructors and codecs validate outcome/progress/cleanup consistency. Dedicated request records coexist with the bounded OBCN result frames.
 
@@ -542,7 +540,7 @@ pnpm lint:projects
 
 ## Managed Worker shutdown
 
-The Windows managed Site lifecycle adds kinds 19/20 under frame version 2 and the
+The Windows managed Site lifecycle adds kinds 19/20 under frame version 1 and the
 existing 40 KiB bound. The request contains operation ID and Worker ID (16 nonzero
 bytes each), positive Worker generation (u64), and a cooperative budget (u32,
 1..15000 ms), all integers big-endian. Only the exact admitted managed Worker may
@@ -611,7 +609,7 @@ mutation may have occurred, and bounded diagnostics. Stage tags 1–6 are Probe,
 CheckBranch, DirtyCheck, Mutate and Verify. Effect tags 0/1 are None/MayHaveChanged.
 An interrupted or failed Git mutation is never represented as proven rollback.
 
-OBCN version 2 kind 21 encodes operation ID (16), Worker ID (16), generation (u64),
+OBCN version 1 kind 21 encodes operation ID (16), Worker ID (16), generation (u64),
 and action (u8: 1 Start, 2 Poll, 3 Cancel). Poll/Cancel add Job ID (16). Start adds
 trust (strict boolean), intent tag (1 Create, 2 Open, 3 InspectRemove, 4 Remove, 5 InspectSource),
 source and its intent operands in the order above. Open selector tags 1/2 are path/branch.
@@ -746,9 +744,7 @@ Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and te
 
 ## Conditional Close inspection and guard
 
-Lifecycle capability version 2 retains version 1 bytes for decoding existing actions/results;
-version 1 cannot express the new actions. The current matched Server/Worker cohort requires
-version 2. Action 5 `TerminateIfIdle` maps only to Host kind 82; it accepts outcome 1 or known
+Lifecycle capability version 1 uses one current layout. Action 5 `TerminateIfIdle` maps only to Host kind 82; it accepts outcome 1 or known
 HostFailure reason 3 `ConfirmationRequired` (or the existing common failure outcomes). That new
 reason is invalid for every other action. Action 6 `InspectInventoryPage` has the same cursor and
 page representation as action 4, but is read-only and never claims, advances or replaces a retained
@@ -756,9 +752,9 @@ Worker Close owner/ordinal/mutation receipt. It still validates Worker generatio
 lease and complete Host identity before handoff. A preflight can therefore be followed by a fresh
 confirmed Close without a phantom lifecycle conflict.
 
-For capability 2 each matched inventory target appends one close-activity byte after its phase and
-optional termination flag: 0 unknown, 1 idle, 2 active. Other bytes fail decoding. Capability 1
-retains its original target layout and yields unknown. Worker maps missing Host metadata to unknown;
+Each matched inventory target appends one close-activity byte after its phase and
+optional termination flag: 0 unknown, 1 idle, 2 active. Missing or other bytes fail decoding.
+Worker maps missing Host metadata to unknown;
 no retained launch, terminal count or Client frame becomes idle evidence. Independent byte goldens,
 Worker receipt tests and the Server conditional-close witnesses cover these refinements. Upgrade
 and roll back the matched native cohort together; no mixed-version safety bypass is supported.

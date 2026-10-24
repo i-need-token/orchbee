@@ -1047,7 +1047,7 @@ fn departed_pane_pending_draw_settles_no_feedback_not_frame_applied() {
     // frame's baked route.
     let mut frame = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
+        "/../../packages/terminal-protocol/fixtures/ghostty-surface.bin"
     ))
     .to_vec();
     frame[48..56].copy_from_slice(&1u64.to_le_bytes());

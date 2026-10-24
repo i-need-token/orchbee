@@ -35,9 +35,6 @@
 			"$ref": "#/$defs/terminalOpenResult"
 		},
 		{
-			"$ref": "#/$defs/terminalSend"
-		},
-		{
 			"$ref": "#/$defs/terminalSendResult"
 		},
 		{
@@ -215,8 +212,39 @@
 				},
 				"startMode": {
 					"$ref": "#/$defs/startMode"
+				},
+				"launch": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/launchSelection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"environment": {
+					"$ref": "#/$defs/launchEnvironment"
+				},
+				"pluginEnvironment": {
+					"$ref": "#/$defs/pluginTerminalEnvironment"
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"required": ["pluginEnvironment"]
+					},
+					"then": {
+						"required": ["launch"],
+						"properties": {
+							"launch": {
+								"$ref": "#/$defs/launchSelection"
+							}
+						}
+					}
+				}
+			]
 		},
 		"terminalStart": {
 			"type": "object",
@@ -471,6 +499,67 @@
 			"pattern": "^[1-9][0-9]{0,19}$",
 			"$comment": "Canonical positive u64 text; semantic validation additionally rejects values above 18446744073709551615."
 		},
+		"selectionViewportPoint": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["column", "row"],
+			"properties": {
+				"column": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4095
+				},
+				"row": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 4095
+				}
+			}
+		},
+		"selectionGesturePosition": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["x", "y"],
+			"properties": {
+				"x": {
+					"type": "integer",
+					"minimum": -65535,
+					"maximum": 65535
+				},
+				"y": {
+					"type": "integer",
+					"minimum": -65535,
+					"maximum": 65535
+				}
+			}
+		},
+		"selectionGestureGeometry": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["cellWidth", "columns", "paddingLeft", "screenHeight"],
+			"properties": {
+				"cellWidth": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"paddingLeft": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				},
+				"screenHeight": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 65535
+				}
+			}
+		},
 		"viewerAction": {
 			"oneOf": [
 				{
@@ -609,6 +698,9 @@
 							"type": "integer",
 							"minimum": 112,
 							"maximum": 8388608
+						},
+						"detail": {
+							"enum": ["text", "render"]
 						}
 					}
 				},
@@ -766,10 +858,205 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"generation",
+						"action",
+						"clickCount",
+						"point",
+						"position",
+						"selectOutput"
+					],
+					"properties": {
+						"kind": {
+							"const": "selection-gesture"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"action": {
+							"const": "start"
+						},
+						"clickCount": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 3
+						},
+						"point": {
+							"$ref": "#/$defs/selectionViewportPoint"
+						},
+						"position": {
+							"$ref": "#/$defs/selectionGesturePosition"
+						},
+						"selectOutput": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"generation",
+						"action",
+						"geometry",
+						"point",
+						"position",
+						"rectangle"
+					],
+					"properties": {
+						"kind": {
+							"const": "selection-gesture"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"action": {
+							"const": "update"
+						},
+						"geometry": {
+							"$ref": "#/$defs/selectionGestureGeometry"
+						},
+						"point": {
+							"$ref": "#/$defs/selectionViewportPoint"
+						},
+						"position": {
+							"$ref": "#/$defs/selectionGesturePosition"
+						},
+						"rectangle": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "generation", "action", "point"],
+					"properties": {
+						"kind": {
+							"const": "selection-gesture"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"action": {
+							"const": "end"
+						},
+						"point": {
+							"$ref": "#/$defs/selectionViewportPoint"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "generation", "action"],
+					"properties": {
+						"kind": {
+							"const": "selection-gesture"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"action": {
+							"const": "cancel"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "exportSequence", "format"],
+					"properties": {
+						"kind": {
+							"const": "selection-export"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"exportSequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"format": {
+							"const": "plain"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "exportSequence", "chunkSequence"],
+					"properties": {
+						"kind": {
+							"const": "selection-export-chunk-applied"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"exportSequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"chunkSequence": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 4294967295
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "exportSequence", "reason"],
+					"properties": {
+						"kind": {
+							"const": "selection-export-cancel"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"exportSequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"reason": {
+							"enum": ["clipboard-failed", "disposed", "replaced", "user"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
 					"required": ["kind", "attachmentId"],
 					"properties": {
 						"kind": {
 							"const": "detach"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "read-process-info"
 						},
 						"attachmentId": {
 							"$ref": "#/$defs/viewerId"
@@ -783,7 +1070,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId", "hostEpoch"],
+					"required": ["kind", "attachmentId", "hostEpoch", "hostTerminalId"],
 					"properties": {
 						"kind": {
 							"const": "attached"
@@ -793,6 +1080,9 @@
 						},
 						"hostEpoch": {
 							"$ref": "#/$defs/identity"
+						},
+						"hostTerminalId": {
+							"$ref": "#/$defs/hostTerminalId"
 						}
 					}
 				},
@@ -926,6 +1216,11 @@
 			"maxLength": 8192,
 			"pattern": "^(?:[0-9a-f]{2})+$"
 		},
+		"terminalRgb": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 16777215
+		},
 		"controlAction": {
 			"oneOf": [
 				{
@@ -935,6 +1230,19 @@
 					"properties": {
 						"kind": {
 							"const": "acquire"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "takeover"
 						},
 						"attachmentId": {
 							"$ref": "#/$defs/viewerId"
@@ -982,6 +1290,51 @@
 						},
 						"geometry": {
 							"$ref": "#/$defs/geometry"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"controllerId",
+						"sequence",
+						"foreground",
+						"background"
+					],
+					"properties": {
+						"kind": {
+							"const": "host-colors"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"controllerId": {
+							"$ref": "#/$defs/controllerId"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"foreground": {
+							"$ref": "#/$defs/terminalRgb"
+						},
+						"background": {
+							"$ref": "#/$defs/terminalRgb"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId"],
+					"properties": {
+						"kind": {
+							"const": "clear"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
 						}
 					}
 				}
@@ -1058,7 +1411,8 @@
 								"host-input-invalid",
 								"host-input-limit-exceeded",
 								"host-input-backpressure",
-								"host-input-unavailable"
+								"host-input-unavailable",
+								"host-clear-alternate-screen"
 							]
 						}
 					}
@@ -1082,7 +1436,36 @@
 					"required": ["kind"],
 					"properties": {
 						"kind": {
+							"const": "host-colors-accepted"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
 							"const": "outcome-unknown"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "generation", "revision", "cleanupConfirmed"],
+					"properties": {
+						"kind": {
+							"const": "cleared"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"cleanupConfirmed": {
+							"type": "boolean"
 						}
 					}
 				}
@@ -1225,64 +1608,6 @@
 			"title": "HostTerminalId",
 			"$ref": "#/$defs/identity"
 		},
-		"sendText": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 4096,
-			"$comment": "Non-empty UTF-8 text; the combined byte length including the optional folded carriage return must not exceed 4096 bytes, enforced semantically on decoded UTF-8."
-		},
-		"sendKey": {
-			"enum": [
-				"enter",
-				"escape",
-				"tab",
-				"backspace",
-				"delete",
-				"up",
-				"down",
-				"left",
-				"right",
-				"home",
-				"end",
-				"page-up",
-				"page-down",
-				"ctrl-c",
-				"ctrl-d"
-			]
-		},
-		"sendPayload": {
-			"oneOf": [
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["kind", "text", "enter"],
-					"properties": {
-						"kind": {
-							"const": "text"
-						},
-						"text": {
-							"$ref": "#/$defs/sendText"
-						},
-						"enter": {
-							"type": "boolean"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["kind", "key"],
-					"properties": {
-						"kind": {
-							"const": "key"
-						},
-						"key": {
-							"$ref": "#/$defs/sendKey"
-						}
-					}
-				}
-			]
-		},
 		"sendTarget": {
 			"type": "object",
 			"additionalProperties": false,
@@ -1321,7 +1646,8 @@
 				"worker-unavailable",
 				"terminal-runtime-unavailable",
 				"host-unavailable",
-				"host-protocol-fault"
+				"host-protocol-fault",
+				"input-budget-exhausted"
 			]
 		},
 		"sendOutcome": {
@@ -1329,18 +1655,16 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "acceptedBytes", "cleanup"],
+					"required": ["kind", "cleanup", "progress"],
 					"properties": {
 						"kind": {
 							"const": "accepted"
 						},
-						"acceptedBytes": {
-							"type": "integer",
-							"minimum": 0,
-							"maximum": 1048576
-						},
 						"cleanup": {
 							"enum": ["confirmed", "unconfirmed"]
+						},
+						"progress": {
+							"$ref": "#/$defs/sendProgress"
 						}
 					},
 					"$comment": "An accepted input implies a real attachment, so cleanup is never not-needed."
@@ -1348,7 +1672,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason", "cleanup"],
+					"required": ["kind", "reason", "cleanup", "progress"],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -1358,13 +1682,16 @@
 						},
 						"cleanup": {
 							"$ref": "#/$defs/sendCleanupStatus"
+						},
+						"progress": {
+							"$ref": "#/$defs/sendProgress"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason", "cleanup"],
+					"required": ["kind", "reason", "cleanup", "progress"],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
@@ -1374,60 +1701,30 @@
 						},
 						"cleanup": {
 							"$ref": "#/$defs/sendCleanupStatus"
+						},
+						"progress": {
+							"$ref": "#/$defs/sendProgress"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "cleanup"],
+					"required": ["kind", "cleanup", "progress"],
 					"properties": {
 						"kind": {
 							"const": "outcome-unknown"
 						},
 						"cleanup": {
 							"enum": ["not-needed", "unconfirmed"]
+						},
+						"progress": {
+							"$ref": "#/$defs/sendProgress"
 						}
 					},
 					"$comment": "A confirmed cleanup implies a completed exchange, so it never accompanies an unknown outcome."
 				}
 			]
-		},
-		"terminalSend": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"siteId",
-				"workerId",
-				"terminalId",
-				"payload"
-			],
-			"properties": {
-				"kind": {
-					"const": "terminal.send"
-				},
-				"protocolVersion": {
-					"const": 1
-				},
-				"requestId": {
-					"$ref": "#/$defs/requestId"
-				},
-				"siteId": {
-					"$ref": "#/$defs/siteId"
-				},
-				"workerId": {
-					"$ref": "#/$defs/workerId"
-				},
-				"terminalId": {
-					"$ref": "#/$defs/terminalId"
-				},
-				"payload": {
-					"$ref": "#/$defs/sendPayload"
-				}
-			}
 		},
 		"terminalSendResult": {
 			"type": "object",
@@ -1483,7 +1780,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason", "cleanup"],
+					"required": ["kind", "reason", "cleanup", "progress"],
 					"properties": {
 						"kind": {
 							"const": "rejected"
@@ -1493,13 +1790,16 @@
 						},
 						"cleanup": {
 							"const": "not-needed"
+						},
+						"progress": {
+							"$ref": "#/$defs/sendProgress"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "reason", "cleanup"],
+					"required": ["kind", "reason", "cleanup", "progress"],
 					"properties": {
 						"kind": {
 							"const": "unavailable"
@@ -1509,6 +1809,9 @@
 						},
 						"cleanup": {
 							"const": "not-needed"
+						},
+						"progress": {
+							"$ref": "#/$defs/sendProgress"
 						}
 					}
 				}
@@ -1739,8 +2042,44 @@
 						},
 						"launch": {
 							"$ref": "#/$defs/launchFact"
+						},
+						"launchProfile": {
+							"oneOf": [
+								{
+									"$ref": "#/$defs/launchProfile"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"launchSelection": {
+							"$ref": "#/$defs/launchSelection"
 						}
-					}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["launch"],
+								"properties": {
+									"launch": {
+										"type": "object",
+										"required": ["state"],
+										"properties": {
+											"state": {
+												"const": "not-tracked"
+											}
+										}
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"launchSelection": false
+								}
+							}
+						}
+					]
 				},
 				{
 					"type": "object",
@@ -1785,6 +2124,252 @@
 					"$ref": "#/$defs/launchReadOutcome"
 				}
 			}
+		},
+		"launchSelection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["exec", "args"],
+			"properties": {
+				"exec": {
+					"title": "Absolute local-platform working directory intent",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 30720,
+					"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
+					"$comment": "The combined executable/arguments bound is 30720 UTF-8 bytes and 30720 worst-case escaped JSON string-content bytes; code-point limits are necessary but not sufficient."
+				},
+				"args": {
+					"type": "array",
+					"maxItems": 128,
+					"items": {
+						"type": "string",
+						"pattern": "^[^\\u0000]*$",
+						"maxLength": 30720
+					}
+				}
+			},
+			"$comment": "Executable and arguments together are at most 30720 UTF-8 bytes and worst-case JSON string-content bytes, enforced by the binding."
+		},
+		"launchEnvironment": {
+			"type": "array",
+			"maxItems": 32,
+			"items": {
+				"type": "array",
+				"minItems": 2,
+				"maxItems": 2,
+				"prefixItems": [
+					{
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 128,
+						"pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+						"not": {
+							"pattern": "^(?:[Oo][Rr][Cc][Hh][Bb][Ee][Ee]_|[Tt][Ee][Rr][Mm]$|[Cc][Oo][Ll][Oo][Rr][Tt][Ee][Rr][Mm]$|[Tt][Ee][Rr][Mm]_[Pp][Rr][Oo][Gg][Rr][Aa][Mm]$)"
+						}
+					},
+					{
+						"type": "string",
+						"pattern": "^[^\\u0000]*$",
+						"maxLength": 1023
+					}
+				],
+				"items": false
+			},
+			"$comment": "Names are unique ignoring ASCII case; combined UTF-8 name/value bytes <=1024. Binding refinements enforce both."
+		},
+		"launchProfile": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["profileId", "catalogRevision"],
+			"properties": {
+				"profileId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"catalogRevision": {
+					"$ref": "#/$defs/projectionUnsigned"
+				}
+			}
+		},
+		"sendProgress": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["recordsAccepted", "firstStoppedRecord", "acceptedEncodedBytes"],
+			"properties": {
+				"recordsAccepted": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 64
+				},
+				"firstStoppedRecord": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 64
+				},
+				"acceptedEncodedBytes": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 67108864
+				}
+			},
+			"$comment": "recordsAccepted <= firstStoppedRecord. Accepted outcome requires nonzero equal count/index; nonzero count requires cleanup other than not-needed. Binding checks cross-field relations."
+		},
+		"pluginTerminalEnvironment": {
+			"type": "array",
+			"minItems": 7,
+			"maxItems": 10,
+			"items": {
+				"type": "array",
+				"minItems": 2,
+				"maxItems": 2,
+				"prefixItems": [
+					{
+						"enum": [
+							"ORCHBEE_PLUGIN_ID",
+							"ORCHBEE_PLUGIN_ROOT",
+							"ORCHBEE_PLUGIN_ENTRYPOINT_ID",
+							"ORCHBEE_PLUGIN_CONFIG_DIR",
+							"ORCHBEE_PLUGIN_STATE_DIR",
+							"ORCHBEE_PLUGIN_CONTEXT_JSON",
+							"ORCHBEE_BIN_PATH",
+							"ORCHBEE_WORKSPACE_ID",
+							"ORCHBEE_TAB_ID",
+							"ORCHBEE_PANE_ID"
+						]
+					},
+					{
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 24576,
+						"not": {
+							"pattern": "\u0000"
+						}
+					}
+				]
+			},
+			"allOf": [
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_ID"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_ROOT"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_ENTRYPOINT_ID"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_CONFIG_DIR"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_STATE_DIR"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PLUGIN_CONTEXT_JSON"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_BIN_PATH"
+							}
+						]
+					},
+					"minContains": 1,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_WORKSPACE_ID"
+							}
+						]
+					},
+					"minContains": 0,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_TAB_ID"
+							}
+						]
+					},
+					"minContains": 0,
+					"maxContains": 1
+				},
+				{
+					"contains": {
+						"type": "array",
+						"prefixItems": [
+							{
+								"const": "ORCHBEE_PANE_ID"
+							}
+						]
+					},
+					"minContains": 0,
+					"maxContains": 1
+				}
+			]
 		}
 	}
 }

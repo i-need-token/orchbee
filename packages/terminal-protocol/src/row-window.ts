@@ -49,7 +49,7 @@ export const TERMINAL_ROW_WINDOW_HEADER_BYTES = 112;
 export const TERMINAL_ROW_WINDOW_MAGIC = new Uint8Array([0x4f, 0x42, 0x52, 0x57]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_ROW_WINDOW_FORMAT = { major: 0, minor: 0, patch: 3 } as const;
+export const TERMINAL_ROW_WINDOW_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 
 export const TerminalTextRowFlag = {
 	identityAscii: 0x04,

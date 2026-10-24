@@ -6,8 +6,8 @@ The same-cohort additive `terminal-control` action `{kind:"clear", attachmentId}
 
 ## Authority and boundary
 
-[`v2/client-server.schema.json`](v2/client-server.schema.json) and this document are the
-language-neutral authority for version 2 of the Orchbee Client-Server terminal-control protocol
+[`v1/client-server.schema.json`](v1/client-server.schema.json) and this document are the
+language-neutral authority for version 1 of the Orchbee Client-Server terminal-control protocol
 (`OBCS`). OBCS carries terminal semantic control between an authorized Client Session and Server
 over any ordered byte stream. The Rust crate `orchbee-client-server-protocol` is an independent
 binding and may not add values, omit invariants, or redefine field meaning.
@@ -21,7 +21,7 @@ OBCS has these adjacent boundaries:
 | `OBCN`               | Server-to-Worker placement authorization, operation, generation, lease, and fence facts.        |
 | Workbench projection | Read-only authorized product projection; it is not a terminal-control writer.                   |
 
-Version 2 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
+Version 1 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
 `terminal.start.result`, `terminal.viewer`, `terminal.viewer.result`, `terminal.control`, and
 `terminal.control.result`, plus the unshipped `terminal.open` / `terminal.open.result` and viewer
 `attach-binding` extensions, `terminal.launch.read` / result and `terminal.send.result`. Send requests use OBSN binary records. It defines no close, cancel, retry transport, authentication,
@@ -34,7 +34,7 @@ authorization policy, Server state store, Worker operation, Host launch, or Work
 | Magic          | Four bytes `OBCS`                                      |
 | Frame version  | Unsigned 16-bit big-endian integer `1`                 |
 | Payload length | Unsigned 16-bit big-endian byte length, at most 63 KiB |
-| Payload        | Strict UTF-8 JSON object with `protocolVersion: 2`     |
+| Payload        | Strict UTF-8 JSON object with `protocolVersion: 1`     |
 
 A decoder validates the complete eight-byte header before allocating payload storage, reads exactly
 the declared payload, and rejects an invalid magic, unsupported frame version, payload over 63 KiB,
@@ -46,7 +46,7 @@ The payload rejects a UTF-8 BOM, invalid UTF-8, duplicate object keys at any dep
 JSON value, non-object roots, unknown fields, unknown message or enum tags, and a message in the
 wrong direction. Whitespace, object-key order, and equivalent JSON string escapes are not semantic.
 Numeric `protocolVersion` and geometry values refine through finite IEEE 754 binary64 safe integers
-before their exact bounds are applied. Integral decimal and exponent spellings such as `2.0`, `2e0`,
+before their exact bounds are applied. Integral decimal and exponent spellings such as `1.0`, `1e0`,
 and `8e1` are therefore admitted when their refined value is in range; values that remain
 fractional after refinement, non-finite values, unsafe integers, and out-of-range values are
 rejected. Canonical encoding is deterministic compact JSON and emits ordinary integer tokens.
@@ -92,7 +92,7 @@ Every geometry contains all four integer fields and satisfies every invariant:
 
 Deferred creation carries no geometry or fallback. Immediate creation carries one complete valid
 geometry. A `terminal.create` request never supplies a Terminal identity, Worker generation,
-operation, lease, fence, Host identity or epoch, Project, Workspace, Panel, Worktree, Client generation, profile, or configuration fact. Optional literal launch/environment values follow the version-2 contract below.
+operation, lease, fence, Host identity or epoch, Project, Workspace, Panel, Worktree, Client generation, profile, or configuration fact. Optional literal launch/environment values follow the version-1 contract below.
 
 `terminal.start` contains `protocolVersion`, a new `requestId`, the distinct
 `terminalCreateRequestId` that identifies the deferred create request, and one complete valid
@@ -201,7 +201,7 @@ resolved live runtime target returns `already-attached`; different targets can c
 defines capacity precedence, disposal, generation fencing, and cleanup. The codec validates syntax,
 not runtime ownership.
 
-This required selector changes the unpublished OBCS v2 request shape. Build, deploy, and roll back
+This required selector changes the unpublished OBCS v1 request shape. Build, deploy, and roll back
 the exact Client/Server/Worker development cohort together; mixed cohorts and an implicit-current
 viewer fallback are unsupported. The OBSR carrier format does not change; `read-rows` /
 `rows-rejected` additively extend the matched OBCN cohort (action tag 6 and result tag 6), and the
@@ -257,7 +257,7 @@ identities and fences the old grant before transfer; Worker acknowledges exact o
 before new acquisition. A failed takeover may revoke the old controller without granting a new one,
 never silently restoring authority. Rejected, Unavailable and OutcomeUnknown remain distinct;
 unknown cleanup retains a fence. See the [takeover model](../../apps/orchbee-server/docs/terminal-controller-takeover.md).
-This additive v2 action requires the same development cohort; older peers reject it. The
+This additive action requires the same development cohort; older peers reject it. The
 `acquired` result carries a fresh `controllerId`, using the nonzero 32-character lowercase hex
 identity format. The grant is bound to that Session, viewer, Worker generation, and Host terminal.
 
@@ -309,19 +309,19 @@ fields. Runtime ownership and Host admission remain with their owning Server and
 
 ## Submission, reference, and cancellation obligations
 
-A Client submits each mutating intent at most once. OBCS version 2 defines no replay lookup,
+A Client submits each mutating intent at most once. OBCS version 1 defines no replay lookup,
 historical duplicate detection, or idempotency ledger. A consumer may reject a request when its
 current accepted state exposes an ID collision or otherwise makes the request invalid, but that
 state validation is not a promise to retain, recognize, or replay a historical request.
 
-Version 2 has no cancel message. A timeout, transport loss, Client Session loss, or caller
+Version 1 has no cancel message. A timeout, transport loss, Client Session loss, or caller
 abandonment neither encodes cancellation nor proves that a terminal effect did not commit. A Client
 must not automatically resend the mutating intent after any of those events; an ambiguous result is
 reconciled through a future read-only projection or observation boundary instead.
 
 ## Conformance and limits
 
-[`v2/client-server-conformance-v2.json`](v2/client-server-conformance-v2.json) is the deterministic
+[`v1/client-server-conformance-v1.json`](v1/client-server-conformance-v1.json) is the deterministic
 cross-language oracle. Its JSON fixtures and independently authored binary hex records cover every message, result category, reason, accepted-state variant,
 and accepted-start transition, plus malformed and semantically invalid payloads. Repeated-value
 recipes compactly materialize exact byte-boundary, multibyte, and worst-case JSON path inputs.
@@ -345,7 +345,7 @@ integration.
 
 ## Standalone terminal opening
 
-The unshipped version-2 extension `terminal.open` carries `protocolVersion`, a fresh
+The unshipped version-1 extension `terminal.open` carries `protocolVersion`, a fresh
 Client-generated `requestId`, and complete `geometry`. It opens the local single-subject
 Server's standalone terminal reference: first prepare creates an immediate terminal using
 Worker-default cwd; later opens return the same reference. Open itself neither dispatches nor commits Resize; a Client may subsequently attach, acquire controller authority, and submit a separate validated Resize.
@@ -377,11 +377,11 @@ roll back together. This extension adds no persisted state or migration.
 
 Absolute wire paths accept a POSIX leading slash or an ASCII drive letter followed by `:` and `/` or `\`, optionally prefixed by `\\?\` for a Windows verbatim drive path. This lexical rule is independent of the decoder platform; bytes are preserved without expansion or normalization. Backslash-rooted, drive-relative, UNC, and device paths are not admitted by this Windows increment. Existing byte bounds and NUL/Unicode validation remain unchanged. The execution owner still validates the path against its local filesystem before effects.
 
-## Native version 2
+## Current native contract
 
-The native cohort uses JSON `protocolVersion: 2`, OBCS frame version 1 and a 63 KiB JSON payload limit. The [version-1 schema](v1/client-server.schema.json) and [corpus](v1/client-server-conformance-v1.json) remain frozen references; the current [version-2 schema](v2/client-server.schema.json) and [corpus](v2/client-server-conformance-v2.json) govern the native binding. Version 2 rejects version-1 bodies and legacy JSON `terminal.send` requests. The dedicated OBSN binary request retains encoding version 1; its four nonzero 16-byte identities, ordered record sequence and progress-result semantics are native v2 contracts. Binary framing, aggregate content limits and lexical validation are separate from the JSON schema.
+The native cohort follows the repository [pre-release version rule](../../docs/ARCHITECTURE.md#data-boundaries): JSON `protocolVersion: 1`, OBCS frame version 1 and a 63 KiB JSON payload limit. The [schema](v1/client-server.schema.json) and [corpus](v1/client-server-conformance-v1.json) describe the sole current shape. Strict parsing rejects other shapes, including JSON `terminal.send` requests. The dedicated OBSN binary request uses encoding version 1; its four nonzero 16-byte identities, ordered record sequence and progress-result semantics belong to this contract. Binary framing, aggregate content limits and lexical validation are separate from the JSON schema.
 
-A v2 Create additionally accepts optional `launch` (null or literal `{exec,args}`) and `environment` (ordered `[name,value]` pairs, omitted when empty). The executable is absolute, argv excludes argv0, at most 128 arguments and 30,720 combined UTF-8 bytes, with no NUL. Environment admits at most 32 entries and 1,024 combined UTF-8 name/value bytes. ASCII identifier names have 1–128 bytes, are unique ignoring ASCII case and exclude `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` ignoring case. Values are literal, may be empty, and exclude NUL. Byte sums and case-folded uniqueness are binding refinements beyond JSON Schema. The optional `launchProfile` sibling in a found launch read carries opaque `profileId` (1–128 UTF-8 bytes) and canonical unsigned-64 decimal `catalogRevision`; it records captured provenance and grants no launch authority.
+A Create additionally accepts optional `launch` (null or literal `{exec,args}`) and `environment` (ordered `[name,value]` pairs, omitted when empty). The executable is absolute, argv excludes argv0, at most 128 arguments and 30,720 combined UTF-8 bytes, with no NUL. Environment admits at most 32 entries and 1,024 combined UTF-8 name/value bytes. ASCII identifier names have 1–128 bytes, are unique ignoring ASCII case and exclude `ORCHBEE_*`, `TERM`, `COLORTERM` and `TERM_PROGRAM` ignoring case. Values are literal, may be empty, and exclude NUL. Byte sums and case-folded uniqueness are binding refinements beyond JSON Schema. The optional `launchProfile` sibling in a found launch read carries opaque `profileId` (1–128 UTF-8 bytes) and canonical unsigned-64 decimal `catalogRevision`; it records captured provenance and grants no launch authority.
 
 A found launch read may also carry non-null `launchSelection:{exec,args}` under the same program/argument bounds. It is the resolved selection frozen at creation; default-shell and `not-tracked` facts omit it. Null, malformed selections and `not-tracked` with a selection are rejected. Older messages may omit the member. It exports no environment, does not read the current profile catalog and does not imply persistence across restart. Deploy/roll back this unpublished additive field with the same cohort; older readers may reject it.
 
@@ -400,7 +400,7 @@ The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 r
 
 Stroke identities are named key `(1,1..13)`, Insert `(2,0)`, F1..F25 `(3,1..25)` or one non-control Unicode scalar `(4,codepoint)`. Unknown bits, C0/C1 controls, surrogates and out-of-range values are rejected before dispatch. Legacy record bytes and combo bounds are unchanged. Both native protocol owners use the same field semantics and validate independently; this unpublished extension requires a matched Client/Server/Worker/Host cohort.
 
-Combo bases are named key `(1,1..13)`, Insert `(2,0)`, F1..F12 `(3,1..12)`, Space `(4,0)`, ASCII lowercase letter `(5,97..122)` or digit `(6,48..57)`. Extra flag bits, invalid bases, unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; keys carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The v2 corpus supplies canonical binary bytes, every key and base kind, mixed records and negative controls independently of the Rust encoder.
+Combo bases are named key `(1,1..13)`, Insert `(2,0)`, F1..F12 `(3,1..12)`, Space `(4,0)`, ASCII lowercase letter `(5,97..122)` or digit `(6,48..57)`. Extra flag bits, invalid bases, unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; keys carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The corpus supplies canonical binary bytes, every key and base kind, mixed records and negative controls independently of the Rust encoder.
 
 ## Styled buffer reads
 
@@ -411,7 +411,7 @@ still applies. Server validates the returned OBRW detail against the request. Re
 Host's existing complete projection plus graphics snapshot; the 8 MiB payload budget is unchanged.
 A render refusal never falls back to text or silently discards graphics. Viewport reads remain text.
 
-This is an additive unpublished OBCS v2 contract with the existing frame version. Client, Server,
+This is an additive unpublished OBCS v1 contract with the existing frame version. Client, Server,
 Worker and Host development artifacts roll out or roll back together. Old readers reject the new
 member; no durable state or migration is added. Windows ANSI CLI output is the concrete consumer,
 while the wire remains platform-neutral. JSON-schema and independent Rust cases cover default

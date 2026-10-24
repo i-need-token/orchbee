@@ -17,7 +17,7 @@ pub struct TerminalFrameRoute {
     pub base_revision: Option<u64>,
 }
 
-/// Inspect the OBTF 0.0.3 routing prefix without decoding or copying the terminal projection.
+/// Inspect the OBTF 0.1.0 routing prefix without decoding or copying the terminal projection.
 pub fn inspect_terminal_frame_route(bytes: &[u8]) -> Result<TerminalFrameRoute, ProtocolError> {
     if bytes.len() < TERMINAL_FRAME_HEADER_BYTES {
         return Err(error(ProtocolErrorCode::Truncated));
@@ -29,8 +29,8 @@ pub fn inspect_terminal_frame_route(bytes: &[u8]) -> Result<TerminalFrameRoute, 
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
     if bytes[4] != 0
-        || bytes[5] != 0
-        || bytes[144] != 3
+        || bytes[5] != 1
+        || bytes[144] != 0
         || u16::from_le_bytes(array(bytes, 12)?) != 160
     {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));

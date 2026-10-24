@@ -25,7 +25,7 @@ export const TERMINAL_FRAME_HEADER_BYTES = 160;
 export const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 0, patch: 3 } as const;
+export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 
 const MAX_UINT16 = 0xffff;
 const MAX_UINT32 = 0xffff_ffff;
@@ -1438,7 +1438,7 @@ function readExtensions(
 		if ((flags & 0x8000) !== 0) {
 			return protocolFailure(
 				ProtocolErrorCode.unknownRequiredFlag,
-				`Frame extension ${kind} is required but unknown to format 0.0.2`,
+				`Frame extension ${kind} is required but unknown to format 0.1.0`,
 			);
 		}
 		totalBytes += length;

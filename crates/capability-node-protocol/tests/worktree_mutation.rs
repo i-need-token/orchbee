@@ -45,7 +45,7 @@ fn completed(value: WorktreeMutationCompletion) -> CapabilityNodeMessage {
 }
 
 fn frame(payload: &[u8]) -> Vec<u8> {
-    let mut frame = b"OBCN\0\x02".to_vec();
+    let mut frame = b"OBCN\0\x01".to_vec();
     frame.extend(u16::try_from(payload.len()).unwrap().to_be_bytes());
     frame.extend(payload);
     frame

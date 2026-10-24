@@ -194,7 +194,7 @@
 		{
 			"direction": "server-to-client",
 			"name": "viewer-attached",
-			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"attached\",\"attachmentId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"44444444444444444444444444444444\"}}"
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"attached\",\"attachmentId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"44444444444444444444444444444444\",\"hostTerminalId\":\"77777777777777777777777777777777\"}}"
 		},
 		{
 			"direction": "server-to-client",
@@ -258,6 +258,16 @@
 		},
 		{
 			"direction": "client-to-server",
+			"name": "control-host-colors",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":13421772,\"background\":789516}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-bounds",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0,\"background\":16777215}}"
+		},
+		{
+			"direction": "client-to-server",
 			"name": "control-max-input",
 			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"2\",\"bytes\":\"abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab\"}}"
 		},
@@ -275,6 +285,11 @@
 			"direction": "server-to-client",
 			"name": "control-resized",
 			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"resized\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-host-colors-accepted",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"host-colors-accepted\"}}"
 		},
 		{
 			"direction": "server-to-client",
@@ -427,84 +442,39 @@
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rows-rejected\",\"reason\":\"invalid-phase\"}}"
 		},
 		{
-			"direction": "client-to-server",
-			"name": "send-text-folded-return",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"ls -la\",\"enter\":true}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-text-without-return",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"cargo test --locked\",\"enter\":false}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-text-unicode-and-spaces",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"cd /tmp/工作 目录\",\"enter\":true}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-text-maximum-without-return",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":false}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-text-maximum-minus-one-with-return",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":true}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-text-maximum-multibyte",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工\",\"enter\":true}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-key-enter",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"enter\"}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-key-ctrl-c",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"ctrl-c\"}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "send-key-page-down",
-			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"page-down\"}}"
-		},
-		{
 			"direction": "server-to-client",
 			"name": "send-result-accepted-confirmed",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":12,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":12},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"direction": "server-to-client",
 			"name": "send-result-accepted-zero-unconfirmed",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":0,\"cleanup\":\"unconfirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":0},\"cleanup\":\"unconfirmed\"}}"
 		},
 		{
 			"direction": "server-to-client",
 			"name": "send-result-rejected-with-target",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-backpressure\",\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-backpressure\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"direction": "server-to-client",
 			"name": "send-result-rejected-pre-admission",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"cleanup\":\"not-needed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}"
 		},
 		{
 			"direction": "server-to-client",
 			"name": "send-result-unavailable-host",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"host-unavailable\",\"cleanup\":\"not-needed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"host-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}"
 		},
 		{
 			"direction": "server-to-client",
 			"name": "send-result-outcome-unknown-unconfirmed",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"unconfirmed\"}}"
 		},
 		{
 			"direction": "server-to-client",
 			"name": "send-result-unavailable-pre-admission",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\",\"cleanup\":\"not-needed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}"
 		},
 		{
 			"direction": "client-to-server",
@@ -555,6 +525,41 @@
 			"direction": "client-to-server",
 			"name": "viewer-history-observed",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"5\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-start",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"start\",\"clickCount\":2,\"point\":{\"column\":3,\"row\":4},\"position\":{\"x\":-5,\"y\":6},\"selectOutput\":true}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-update",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"update\",\"geometry\":{\"cellWidth\":8,\"columns\":80,\"paddingLeft\":2,\"screenHeight\":480},\"point\":{\"column\":7,\"row\":8},\"position\":{\"x\":9,\"y\":-10},\"rectangle\":false}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-end",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"end\",\"point\":{\"column\":11,\"row\":12}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-cancel",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"cancel\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-export",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"format\":\"plain\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-chunk-applied",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-chunk-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"chunkSequence\":42}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-cancel",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-cancel\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"reason\":\"clipboard-failed\"}}"
 		},
 		{
 			"direction": "server-to-client",
@@ -610,6 +615,76 @@
 			"direction": "server-to-client",
 			"name": "launch-read-unavailable-server-busy",
 			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "create-literal-launch-environment",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":{\"exec\":\"C:/Program Files/tool.exe\",\"args\":[\"--literal\",\"中文 = $()\",\"\"]},\"environment\":[[\"EXAMPLE\",\"literal=中文 $()\"],[\"EMPTY\",\"\"]]}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "create-default-shell-environment",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"EXAMPLE\",\"value\"]]}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-profile-provenance",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchProfile\":{\"profileId\":\"example:1\",\"catalogRevision\":\"18446744073709551615\"}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-partial-budget-exhausted",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"input-budget-exhausted\",\"progress\":{\"recordsAccepted\":2,\"firstStoppedRecord\":2,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-process-info",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-render-rows",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"render\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-explicit-program",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"C:\\\\Program Files\\\\shell.exe\",\"args\":[\"\",\"--login\",\"quoted \\\" text\",\"中文\"]}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-maximum-arguments",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"]}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-maximum-bytes",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}}}"
+		},
+		{
+			"name": "launch-read-program-long-resume",
+			"direction": "server-to-client",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"C:\\\\shell.exe\",\"args\":[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "clear-transient",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"clear\",\"attachmentId\":\"22222222222222222222222222222222\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-known",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"18446744073709551615\",\"revision\":\"1\",\"cleanupConfirmed\":true}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-rejected-alternate-screen",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-clear-alternate-screen\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -678,6 +753,18 @@
 			"direction": "server-to-client",
 			"name": "server-start-geometry-integral-exponent",
 			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":8e1,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"started\"}}"
+		},
+		{
+			"canonical": "create-immediate-default",
+			"direction": "client-to-server",
+			"name": "empty-launch-options-omitted",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":null,\"environment\":[]}"
+		},
+		{
+			"canonical": "viewer-read-rows",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-explicit-text",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"text\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
 		}
 	],
 	"invalidMessages": [
@@ -1157,6 +1244,24 @@
 		},
 		{
 			"direction": "client-to-server",
+			"name": "control-host-colors-overflow-rgb",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":16777216,\"background\":0}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-fractional-rgb",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0.5,\"background\":0}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-host-colors-missing-background",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"host-colors\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"foreground\":0}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
 			"name": "control-zero-grant",
 			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"00000000000000000000000000000000\",\"sequence\":\"1\",\"bytes\":\"ab\"}}",
 			"boundary": "schema"
@@ -1468,13 +1573,13 @@
 			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"payload\":{\"kind\":\"key\",\"key\":\"enter\"}}"
 		},
 		{
-			"boundary": "semantic",
+			"boundary": "schema",
 			"direction": "client-to-server",
 			"name": "send-text-maximum-with-return-overflows",
 			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":true}}"
 		},
 		{
-			"boundary": "semantic",
+			"boundary": "schema",
 			"direction": "client-to-server",
 			"name": "send-text-multibyte-over-byte-bound",
 			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工\",\"enter\":false}}"
@@ -1483,85 +1588,85 @@
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-accepted-cleanup-not-needed",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"not-needed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"not-needed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-unknown-cleanup-confirmed",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-missing-cleanup",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0}}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-missing-target-field",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"unconfirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-unknown-cleanup-status",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"future\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"future\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-unknown-rejected-reason",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"controller-busy\",\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"controller-busy\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-accepted-bytes-overflow",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1048577,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":67108865},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-accepted-bytes-negative",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":-1,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":-1},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-target-zero-generation",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"0\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"0\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-target-zero-identity",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"00000000000000000000000000000000\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"00000000000000000000000000000000\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-target-unknown-field",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\",\"expected\":true},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\",\"expected\":true},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-accepted-target-null",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":3,\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":3},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-outcome-unknown-target-null",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"unconfirmed\"}}"
 		},
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "send-result-rejected-confirmed-target-null",
-			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"confirmed\"}}"
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}"
 		},
 		{
 			"boundary": "schema",
@@ -1835,6 +1940,72 @@
 		},
 		{
 			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-unknown-action",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"future\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-click-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"start\",\"clickCount\":0,\"point\":{\"column\":3,\"row\":4},\"position\":{\"x\":-5,\"y\":6},\"selectOutput\":true}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-point-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"end\",\"point\":{\"column\":4096,\"row\":4}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-position-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"start\",\"clickCount\":2,\"point\":{\"column\":3,\"row\":4},\"position\":{\"x\":65536,\"y\":6},\"selectOutput\":true}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-geometry-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"update\",\"geometry\":{\"cellWidth\":0,\"columns\":80,\"paddingLeft\":2,\"screenHeight\":480},\"point\":{\"column\":7,\"row\":8},\"position\":{\"x\":9,\"y\":-10},\"rectangle\":false}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"9\",\"action\":\"cancel\",\"extra\":true}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-selection-gesture-generation-u64-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-gesture\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"18446744073709551616\",\"action\":\"cancel\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-sequence-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"0\",\"format\":\"plain\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-format-open",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"format\":\"html\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-chunk-u32-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-chunk-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"chunkSequence\":4294967296}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-selection-export-cancel-reason-open",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"selection-export-cancel\",\"attachmentId\":\"33333333333333333333333333333333\",\"exportSequence\":\"10\",\"reason\":\"future\"}}"
+		},
+		{
+			"boundary": "schema",
 			"direction": "server-to-client",
 			"name": "viewer-rejected-unknown-reason",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-busy\"}}"
@@ -1886,6 +2057,336 @@
 			"direction": "server-to-client",
 			"name": "launch-read-result-unknown-unavailable-reason",
 			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-text-folded-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"ls -la\",\"enter\":true}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-text-without-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"cargo test --locked\",\"enter\":false}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-text-unicode-and-spaces",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"cd /tmp/工作 目录\",\"enter\":true}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-text-maximum-without-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":false}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-text-maximum-minus-one-with-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":true}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-text-maximum-multibyte",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工\",\"enter\":true}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-key-enter",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"enter\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-key-ctrl-c",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"ctrl-c\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "legacy-json-send-key-page-down",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"page-down\"}}",
+			"boundary": "schema"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-empty-name",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"\",\"v\"]]}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-managed-name",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"oRcHbEe_test\",\"v\"]]}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-term-name",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"Term\",\"v\"]]}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "create-env-duplicate-name",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"a\",\"1\"],[\"A\",\"2\"]]}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-nul-value",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"A\",\"\\u0000\"]]}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "create-env-byte-overflow",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"A\",\"界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界\"]]}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-too-many",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"A0\",\"\"],[\"A1\",\"\"],[\"A2\",\"\"],[\"A3\",\"\"],[\"A4\",\"\"],[\"A5\",\"\"],[\"A6\",\"\"],[\"A7\",\"\"],[\"A8\",\"\"],[\"A9\",\"\"],[\"A10\",\"\"],[\"A11\",\"\"],[\"A12\",\"\"],[\"A13\",\"\"],[\"A14\",\"\"],[\"A15\",\"\"],[\"A16\",\"\"],[\"A17\",\"\"],[\"A18\",\"\"],[\"A19\",\"\"],[\"A20\",\"\"],[\"A21\",\"\"],[\"A22\",\"\"],[\"A23\",\"\"],[\"A24\",\"\"],[\"A25\",\"\"],[\"A26\",\"\"],[\"A27\",\"\"],[\"A28\",\"\"],[\"A29\",\"\"],[\"A30\",\"\"],[\"A31\",\"\"],[\"A32\",\"\"]]}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-pair-arity",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":[[\"A\",\"v\",\"extra\"]]}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-env-null",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"environment\":null}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-launch-relative",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":{\"exec\":\"tool.exe\",\"args\":[]}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-launch-nul-argument",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":{\"exec\":\"C:/tool.exe\",\"args\":[\"\\u0000\"]}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "create-launch-byte-overflow",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":{\"exec\":\"C:/tool.exe\",\"args\":[\"中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中\"]}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "create-launch-too-many",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}},\"launch\":{\"exec\":\"C:/tool.exe\",\"args\":[\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"]}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-profile-empty",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchProfile\":{\"profileId\":\"\",\"catalogRevision\":\"0\"}}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "server-to-client",
+			"name": "launch-profile-byte-overflow",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchProfile\":{\"profileId\":\"界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界\",\"catalogRevision\":\"0\"}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "launch-profile-revision-leading-zero",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchProfile\":{\"profileId\":\"example:1\",\"catalogRevision\":\"01\"}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-progress-count-after-stop",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":2,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}",
+			"boundary": "semantic"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-progress-zero-accepted",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}",
+			"boundary": "semantic"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-progress-partial-success",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":2,\"acceptedEncodedBytes\":1},\"cleanup\":\"confirmed\"}}",
+			"boundary": "semantic"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-progress-accepted-without-cleanup",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":1},\"cleanup\":\"not-needed\"}}",
+			"boundary": "semantic"
+		},
+		{
+			"name": "viewer-process-info-missing-attachment",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\"}}"
+		},
+		{
+			"name": "viewer-process-info-zero-attachment",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"00000000000000000000000000000000\"}}"
+		},
+		{
+			"name": "viewer-process-info-arbitrary-pid",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\",\"pid\":41}}"
+		},
+		{
+			"name": "viewer-process-info-arbitrary-terminal",
+			"direction": "client-to-server",
+			"boundary": "schema",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-process-info\",\"attachmentId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-detail-unknown",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":\"future\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-detail-null",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":null,\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-rows-detail-number",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"detail\":1,\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-injected-grant",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-missing-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-null-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":null}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-malformed-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"3333333333333333333333333333333g\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-zero-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"00000000000000000000000000000000\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-uppercase-attachment",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-extra-field",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"attachmentId\":\"33333333333333333333333333333333\",\"viewerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-takeover-wrong-selector-name",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"takeover\",\"viewerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-null",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":null}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-relative",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"sh\",\"args\":[]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-missing-args",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\"}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-unknown-field",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[],\"env\":{}}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-nul",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[\"\\u0000\"]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-too-many-arguments",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-utf8-budget",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"started\",\"workerGeneration\":\"1\",\"createOutcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}},\"geometry\":{\"columns\":120,\"rows\":40,\"cellPixelWidth\":8,\"cellPixelHeight\":16}},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[\"中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中\"]}}}",
+			"boundary": "semantic"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "launch-read-program-untracked",
+			"payload": "{\"kind\":\"terminal.launch.read.result\",\"protocolVersion\":1,\"requestId\":\"90909090909090909090909090909090\",\"outcome\":{\"kind\":\"found\",\"siteId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"workbenchRevision\":\"7\",\"terminal\":{\"terminalId\":\"30303030303030303030303030303030\",\"workerId\":\"6f7263686265652d6c6f63616c2d7631\",\"boundTo\":{\"presentationId\":\"28282828282828282828282828282828\",\"panelId\":\"27272727272727272727272727272727\",\"tabId\":\"21212121212121212121212121212121\",\"terminalContextId\":\"20202020202020202020202020202020\"}},\"launch\":{\"state\":\"not-tracked\",\"workerGeneration\":null,\"createOutcome\":null,\"geometry\":null},\"launchSelection\":{\"exec\":\"/sh\",\"args\":[]}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "clear-has-no-controller",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"clear\",\"attachmentId\":\"22222222222222222222222222222222\",\"controllerId\":\"33333333333333333333333333333333\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-zero-generation",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"0\",\"revision\":\"1\",\"cleanupConfirmed\":true}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "clear-nonboolean-cleanup",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"cleared\",\"generation\":\"18446744073709551615\",\"revision\":\"1\",\"cleanupConfirmed\":\"true\"}}",
+			"boundary": "schema"
 		}
 	],
 	"workingDirectoryCases": [
@@ -2216,6 +2717,170 @@
 			"field": "config",
 			"name": "launch-configuration",
 			"value": {}
+		}
+	],
+	"validSendRecords": [
+		{
+			"name": "send-text-folded-return",
+			"frameHex": "4f42534e000100000000004b11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010100066c73202d6c6101"
+		},
+		{
+			"name": "send-text-without-return",
+			"frameHex": "4f42534e00010000000000581111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401010013636172676f2074657374202d2d6c6f636b656400"
+		},
+		{
+			"name": "send-text-unicode-and-spaces",
+			"frameHex": "4f42534e000100000000005a11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010100156364202f746d702fe5b7a5e4bd9c20e79baee5bd9501"
+		},
+		{
+			"name": "send-text-maximum-without-return",
+			"frameHex": "4f42534e000100000000104511111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010110007878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787800"
+		},
+		{
+			"name": "send-text-maximum-minus-one-with-return",
+			"frameHex": "4f42534e00010000000010441111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401010fff78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787801"
+		},
+		{
+			"name": "send-text-maximum-multibyte",
+			"frameHex": "4f42534e00010000000010441111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401010fffe5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a5e5b7a501"
+		},
+		{
+			"name": "send-key-enter",
+			"frameHex": "4f42534e000100000000004311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010201"
+		},
+		{
+			"name": "send-key-ctrl-c",
+			"frameHex": "4f42534e00010000000000431111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401020e"
+		},
+		{
+			"name": "send-key-page-down",
+			"frameHex": "4f42534e00010000000000431111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401020d"
+		},
+		{
+			"name": "send-combo-control-shift-letter",
+			"frameHex": "4f42534e0001000000000045111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440103050563"
+		},
+		{
+			"name": "send-bytes-opaque",
+			"frameHex": "4f42534e00010000000000491111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401040000000300ff80"
+		},
+		{
+			"name": "send-paste-literal",
+			"frameHex": "4f42534e000100000000004a11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010500000004611b620a"
+		},
+		{
+			"name": "send-ordered-mixed",
+			"frameHex": "4f42534e0001000000000053111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440402010302030c0400000001ff050000000178"
+		},
+		{
+			"name": "send-every-key-and-combo-base",
+			"frameHex": "4f42534e000100000000007b1111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444416020102020203020402050206020702080209020a020b020c020d020e020f0301010103020200030303010304040003050561030606300307010d"
+		},
+		{
+			"name": "send-stroke-unicode-super-then-enter",
+			"frameHex": "4f42534e000100000000004a11111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444020608040001f6000201"
+		}
+	],
+	"invalidSendRecords": [
+		{
+			"name": "unknown-kind",
+			"frameHex": "4f42534e00010000000000421111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401ff"
+		},
+		{
+			"name": "invalid-key",
+			"frameHex": "4f42534e000100000000004311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010200"
+		},
+		{
+			"name": "empty-text",
+			"frameHex": "4f42534e0001000000000045111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440101000000"
+		},
+		{
+			"name": "invalid-text-utf8",
+			"frameHex": "4f42534e00010000000000461111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401010001ff00"
+		},
+		{
+			"name": "invalid-enter",
+			"frameHex": "4f42534e000100000000004611111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010100017802"
+		},
+		{
+			"name": "empty-bytes",
+			"frameHex": "4f42534e000100000000004611111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010400000000"
+		},
+		{
+			"name": "empty-paste",
+			"frameHex": "4f42534e000100000000004611111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010500000000"
+		},
+		{
+			"name": "combo-no-modifier",
+			"frameHex": "4f42534e0001000000000045111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440103000561"
+		},
+		{
+			"name": "combo-unknown-modifier",
+			"frameHex": "4f42534e0001000000000045111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440103080561"
+		},
+		{
+			"name": "combo-modified-base",
+			"frameHex": "4f42534e000100000000004511111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010301010e"
+		},
+		{
+			"name": "combo-function-overflow",
+			"frameHex": "4f42534e000100000000004511111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010301030d"
+		},
+		{
+			"name": "combo-uppercase-letter",
+			"frameHex": "4f42534e0001000000000045111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440103010541"
+		},
+		{
+			"name": "empty-sequence",
+			"frameHex": "4f42534e00010000000000411111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444400"
+		},
+		{
+			"name": "sequence-count-overflow",
+			"frameHex": "4f42534e00010000000000c3111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444444102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201020102010201"
+		},
+		{
+			"name": "reserved-header",
+			"frameHex": "4f42534e000100010000004311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010201"
+		},
+		{
+			"name": "version-header",
+			"frameHex": "4f42534e000200000000004311111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010201"
+		},
+		{
+			"name": "zero-identity",
+			"frameHex": "4f42534e000100000000004300000000000000000000000000000000222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010201"
+		},
+		{
+			"name": "trailing-byte",
+			"frameHex": "4f42534e00010000000000431111111111111111111111111111111122222222222222222222222222222222333333333333333333333333333333334444444444444444444444444444444401020100"
+		},
+		{
+			"name": "oversized-header",
+			"frameHex": "4f42534e000100000010018211111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010201"
+		},
+		{
+			"name": "send-stroke-invalid-modifiers",
+			"frameHex": "4f42534e0001000000000048111111111111111111111111111111112222222222222222222222222222222233333333333333333333333333333333444444444444444444444444444444440106100400000020"
+		},
+		{
+			"name": "send-stroke-invalid-surrogate",
+			"frameHex": "4f42534e000100000000004811111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600040000d800"
+		},
+		{
+			"name": "send-stroke-invalid-control",
+			"frameHex": "4f42534e000100000000004811111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600040000001b"
+		},
+		{
+			"name": "send-stroke-invalid-function",
+			"frameHex": "4f42534e000100000000004811111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600030000001a"
+		},
+		{
+			"name": "send-stroke-invalid-named-alias",
+			"frameHex": "4f42534e000100000000004811111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600010000000e"
+		},
+		{
+			"name": "send-stroke-invalid-truncated",
+			"frameHex": "4f42534e000100000000004611111111111111111111111111111111222222222222222222222222222222223333333333333333333333333333333344444444444444444444444444444444010600040000"
 		}
 	]
 }

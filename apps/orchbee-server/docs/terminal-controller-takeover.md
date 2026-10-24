@@ -52,7 +52,7 @@ Ordinary Acquire retains its controller-busy behavior.
 
 ## Compatibility and evidence
 
-This additive unshipped OBCS v2 action and private OBCN action tag 5 require one development cohort.
+This additive unshipped OBCS v1 action and private OBCN action tag 5 require one development cohort.
 Older peers reject the action; there is no fallback that disconnects another Client or retries an
 uncertain effect. No new Host protocol or dependency is needed. Native stream control and attach
 consume this authority. The Windows native Client's explicit `Ctrl+B t` integration is governed by

@@ -2527,7 +2527,7 @@ maximum sizes, CLI scope and redaction, Server composition and replay identity, 
 Windows child observing cwd/environment after public Tab and split commands. No new
 macOS/Linux adapter or execution claim is included; This workflow uses implementation tests.
 
-Native launch commands use a dedicated 96 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v2 frames admit 63 KiB; OBCN admits 40 KiB. The OBCS v2 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
+Native launch commands use a dedicated 96 KiB JSON request budget so maximum escaped cwd, argv, label and environment fit together. OBWP command kind 2 admits this bound before allocation; non-launch intents retain 16 KiB and results retain their existing bounds. OBCS v1 frames admit 63 KiB; OBCN admits 40 KiB. The OBCS v1 schema/corpus covers these launch values; shared Workbench schemas and the Desktop binding still do not establish support for the native extensions.
 
 ## Calling Panel context
 

@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub const TERMINAL_LIFECYCLE_CAPABILITY_VERSION: TerminalLifecycleCapabilityVersion =
-    TerminalLifecycleCapabilityVersion::new(NonZeroU16::new(2).unwrap());
+    TerminalLifecycleCapabilityVersion::new(NonZeroU16::MIN);
 pub const LIFECYCLE_INVENTORY_PAGE_TERMINALS: u16 = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -183,7 +183,7 @@ impl TerminalLifecycleResult {
     ) -> Result<Self, ProtocolError> {
         use TerminalLifecycleAction as Action;
         use TerminalLifecycleOutcome as Outcome;
-        if request.authorization.capability_version.get() < 2
+        if request.authorization.capability_version != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
             && matches!(
                 request.action,
                 Action::TerminateIfIdle | Action::InspectInventoryPage { .. }
@@ -212,7 +212,7 @@ impl TerminalLifecycleResult {
                 Outcome::InventoryPage(page),
             ) => {
                 validate_page(cursor, page)?;
-                if request.authorization.capability_version.get() < 2
+                if request.authorization.capability_version != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
                     && page.target.is_some_and(|target| {
                         target.close_activity != LifecycleCloseActivity::Unknown
                     })

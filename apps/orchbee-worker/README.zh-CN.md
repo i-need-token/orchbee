@@ -276,7 +276,7 @@ current 后，才能开始新的 producer scope。
 一个 kernel 代表一个已接受的 Worker generation，并且最多为该 generation 保留 1,024 个不同的
 terminal binding。它没有 release、TTL、LRU 或 eviction transition。Capacity 只拒绝此前未见过的
 `TerminalId`；map 满时，exact cached replay 以及对现有 terminal 的有效 higher-fence replacement
-仍然 eligible。该 behavior 属于 terminal-launch capability version 2；version 1 或其他 mismatched
+仍然 eligible。该 behavior 属于 terminal-launch capability version 1；mismatched
 request 会在考虑 capacity 之前以 `UnsupportedCapability` fail closed。当前 kernel 本身就是
 version 2 implementation；其 constructor 不能被配置为在保留 version 2 capacity semantic 的同时
 admit legacy 或 future capability。

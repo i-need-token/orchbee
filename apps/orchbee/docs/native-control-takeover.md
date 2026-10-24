@@ -5,7 +5,7 @@
 On Windows, the built-in `Ctrl+B t` action explicitly requests control of the focused,
 attached native pane. Ordinary typing, clicking, selection and Viewer polling never request
 takeover. The Server remains the authority for controller grants through the existing
-OBCS v2 Takeover action; the Client does not select or revoke another Client's identity.
+OBCS v1 Takeover action; the Client does not select or revoke another Client's identity.
 The terminal, program and Viewer attachments survive the handoff.
 
 The successful requester supplies its pane content geometry. The previous controller

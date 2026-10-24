@@ -1197,7 +1197,7 @@ fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
         decode_terminal_render_row_window, encode_transport_envelope,
     };
     const ROWS: &[u8] = include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
+        "../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin"
     );
     let expected = decode_terminal_render_row_window(ROWS).unwrap();
     let envelope = Envelope {
@@ -1254,7 +1254,7 @@ fn row_response_requires_the_transport_envelope_and_matching_bounded_payload() {
     .unwrap();
     assert!(super::decode_viewport_window(&mismatched, u32::MAX).is_err());
     let text = include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin"
+        "../../../../../packages/terminal-protocol/fixtures/terminal-row-window.bin"
     );
     let text_record = encode_transport_envelope(&Envelope {
         payload: text,

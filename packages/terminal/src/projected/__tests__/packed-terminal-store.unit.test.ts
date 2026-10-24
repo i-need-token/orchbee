@@ -66,10 +66,7 @@ interface PresentationStoreTraceCorpus {
 }
 
 const presentationStoreTraceCorpus: PresentationStoreTraceCorpus = JSON.parse(
-	readFileSync(
-		new URL('./fixtures/presentation-store-transition-v0.0.3.json', import.meta.url),
-		'utf8',
-	),
+	readFileSync(new URL('./fixtures/presentation-store-transition.json', import.meta.url), 'utf8'),
 );
 
 const presentationStoreActions = [
@@ -320,7 +317,7 @@ describe('PackedTerminalStore', () => {
 	it('matches the shared OBTF presentation transition trace corpus', () => {
 		expect(presentationStoreTraceCorpus).toMatchObject({
 			schemaVersion: 1,
-			terminalFrameFormat: '0.0.3',
+			terminalFrameFormat: '0.1.0',
 		});
 		expect(presentationStoreTraceCorpus.cases).toHaveLength(5);
 

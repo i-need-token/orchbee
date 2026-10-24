@@ -79,7 +79,7 @@ const HOST_EPOCH: &str = "11111111111111111111111111111111";
 const CONTROLLER_ID: &str = "33333333333333333333333333333333";
 const FRAME: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
+    "/../../packages/terminal-protocol/fixtures/ghostty-surface.bin"
 ));
 
 #[derive(Clone, Copy)]

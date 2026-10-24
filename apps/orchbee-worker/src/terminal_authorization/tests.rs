@@ -123,12 +123,12 @@ fn rejects_invalid_authority_for_launch_and_start_without_dispatch() -> TestResu
 }
 
 #[test]
-fn version_two_kernel_rejects_legacy_and_future_capabilities() -> TestResult {
-    let legacy_capability = TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
+fn current_kernel_rejects_unsupported_capabilities() -> TestResult {
+    let unsupported_capability = TerminalLaunchCapabilityVersion::new(nonzero_u16(2)?);
     let future_capability = TerminalLaunchCapabilityVersion::new(nonzero_u16(3)?);
 
     for request_kind in [RequestKind::Launch, RequestKind::Start] {
-        for capability in [legacy_capability, future_capability] {
+        for capability in [unsupported_capability, future_capability] {
             let mut kernel = kernel()?;
             let operation = operation(
                 request_kind,

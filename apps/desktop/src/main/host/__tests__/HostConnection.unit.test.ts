@@ -221,7 +221,7 @@ describe('HostConnection', () => {
 			payload: new Uint8Array(
 				await readFile(
 					new URL(
-						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin',
+						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin',
 						import.meta.url,
 					),
 				),

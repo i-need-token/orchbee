@@ -24,7 +24,7 @@ fn result(outcome: WorktreeJobOutcome) -> CapabilityNodeMessage {
     })
 }
 fn frame(payload: &[u8]) -> Vec<u8> {
-    let mut bytes = b"OBCN\0\x02".to_vec();
+    let mut bytes = b"OBCN\0\x01".to_vec();
     bytes.extend(u16::try_from(payload.len()).unwrap().to_be_bytes());
     bytes.extend(payload);
     bytes

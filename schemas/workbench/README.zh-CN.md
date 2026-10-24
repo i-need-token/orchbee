@@ -57,6 +57,8 @@ UI 都不得另行定义默认值、重置语义或第二个持久化写入者�
 
 ## 权威
 
+契约变更遵循仓库的[发布前版本规则](../../docs/zh-CN/ARCHITECTURE.md#数据边界)。
+
 [`v1/workbench.schema.json`](v1/workbench.schema.json) 是 version-1 只读 Workbench projection
 kernel 的语言中立权威。`@orchbee/workbench-client-protocol` 中的 TypeScript binding 与
 `orchbee-workbench-protocol` 中的 Rust binding 是独立实现。任何 binding 都不能增加可接受值、

@@ -36,7 +36,7 @@ test "no-demand projection owns no render state or frame allocation" {
     try std.testing.expectEqual(@as(u64, 0), projection.counters.encodes);
 }
 
-test "projection captures Ghostty state into a valid OBTF 0.0.2 snapshot" {
+test "projection captures Ghostty state into a valid OBTF 0.1.0 snapshot" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,

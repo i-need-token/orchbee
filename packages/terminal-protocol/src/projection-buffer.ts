@@ -48,7 +48,7 @@ export const TERMINAL_PROJECTION_BUFFER_HEADER_BYTES = 320;
 export const TERMINAL_PROJECTION_BUFFER_MAGIC = new Uint8Array([0x4f, 0x42, 0x50, 0x42]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_PROJECTION_BUFFER_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
+export const TERMINAL_PROJECTION_BUFFER_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 
 export const TerminalProjectionSection = {
 	backgroundColors: 8,
@@ -440,7 +440,7 @@ export function encodeTerminalProjectionBufferWithin(
 	if (frame.extensions.length !== 0) {
 		return protocolFailure(
 			ProtocolErrorCode.invalidField,
-			'Projection buffer 0.0.2 has no extension section',
+			'Projection buffer 0.1.0 has no extension section',
 		);
 	}
 	const cellCount = frame.rowData.length * frame.columns;

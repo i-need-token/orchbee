@@ -31,7 +31,7 @@ fn round_trip(value: Message) {
 
 #[test]
 fn handoff_golden_bytes_are_fixed_sized_and_direction_tagged() {
-    let mut expected = vec![b'O', b'B', b'C', b'N', 0, 2, 0, 90, 26];
+    let mut expected = vec![b'O', b'B', b'C', b'N', 0, 1, 0, 90, 26];
     expected.extend([1; 16]);
     expected.extend([2; 16]);
     expected.extend([0, 0, 0, 0, 0, 0, 0, 3]);
@@ -59,7 +59,7 @@ fn handoff_golden_bytes_are_fixed_sized_and_direction_tagged() {
             Message::WorkerHandoffOwned(request(WorkerHandoffAction::Prepare).peer()),
         ),
     ] {
-        let mut peer = vec![b'O', b'B', b'C', b'N', 0, 2, 0, 73, tag];
+        let mut peer = vec![b'O', b'B', b'C', b'N', 0, 1, 0, 73, tag];
         peer.extend(&expected[25..97]);
         assert_eq!(encode_message(&message).unwrap(), peer);
         round_trip(message);

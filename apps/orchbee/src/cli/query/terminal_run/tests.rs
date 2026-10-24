@@ -8,7 +8,7 @@ use std::num::NonZeroU64;
 fn only_the_exact_completed_invocation_can_finish_a_wait() {
     let mut frame = decode_terminal_text_frame(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+        "/../../packages/terminal-protocol/fixtures/terminal-frame.bin"
     )))
     .unwrap();
     let id = "11".repeat(16);

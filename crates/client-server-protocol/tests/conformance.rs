@@ -11,9 +11,9 @@ use orchbee_client_server_protocol::{
 use serde::Deserialize;
 use serde_json::Value;
 
-const SCHEMA: &str = include_str!("../../../schemas/client-server/v2/client-server.schema.json");
+const SCHEMA: &str = include_str!("../../../schemas/client-server/v1/client-server.schema.json");
 const CORPUS: &str =
-    include_str!("../../../schemas/client-server/v2/client-server-conformance-v2.json");
+    include_str!("../../../schemas/client-server/v1/client-server-conformance-v1.json");
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -175,7 +175,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
     );
     assert_eq!(
         schema.pointer("/$id").and_then(Value::as_str),
-        Some("urn:orchbee:schema:client-server:v2")
+        Some("urn:orchbee:schema:client-server:v1")
     );
     assert_eq!(
         schema
@@ -188,7 +188,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
     let schema_validator = jsonschema::draft202012::new(&schema)?;
 
     let corpus = read_corpus()?;
-    assert_eq!(corpus.contract_version, 2);
+    assert_eq!(corpus.contract_version, 1);
     let mut names = BTreeSet::new();
     for fixture in &corpus.valid_messages {
         assert!(
@@ -539,9 +539,9 @@ fn every_canonical_message_is_rejected_by_the_opposite_direction_decoder()
 fn rejects_every_unknown_tag_enum_and_nested_object_field() -> Result<(), Box<dyn std::error::Error>>
 {
     let client_payloads = [
-        r#"{"kind":"terminal.create","protocolVersion":2,"requestId":"11111111111111111111111111111111","workerConstraint":{"kind":"any","workerId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"cwd":null,"startMode":{"kind":"deferred"}}"#,
-        r#"{"kind":"terminal.create","protocolVersion":2,"requestId":"11111111111111111111111111111111","workerConstraint":null,"cwd":null,"startMode":{"kind":"later"}}"#,
-        r#"{"kind":"terminal.start","protocolVersion":2,"requestId":"22222222222222222222222222222222","terminalCreateRequestId":"11111111111111111111111111111111","geometry":{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18,"pixels":1}}"#,
+        r#"{"kind":"terminal.create","protocolVersion":1,"requestId":"11111111111111111111111111111111","workerConstraint":{"kind":"any","workerId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"cwd":null,"startMode":{"kind":"deferred"}}"#,
+        r#"{"kind":"terminal.create","protocolVersion":1,"requestId":"11111111111111111111111111111111","workerConstraint":null,"cwd":null,"startMode":{"kind":"later"}}"#,
+        r#"{"kind":"terminal.start","protocolVersion":1,"requestId":"22222222222222222222222222222222","terminalCreateRequestId":"11111111111111111111111111111111","geometry":{"columns":80,"rows":24,"cellPixelWidth":9,"cellPixelHeight":18,"pixels":1}}"#,
     ];
     for invalid in client_payloads {
         assert_eq!(
@@ -551,14 +551,14 @@ fn rejects_every_unknown_tag_enum_and_nested_object_field() -> Result<(), Box<dy
     }
 
     let server_payloads = [
-        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"degraded"}}"#,
-        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"accepted","state":{"kind":"starting"}}}"#,
-        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
-        r#"{"kind":"terminal.create.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"worker-failed"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"rejected","reason":"missing"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"host-failed"}}"#,
-        r#"{"kind":"terminal.start.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"outcome-unknown","detail":"hidden"}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"degraded"}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"accepted","state":{"kind":"starting"}}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
+        r#"{"kind":"terminal.create.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"worker-failed"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"rejected","reason":"missing"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"network"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"failed","reason":"host-failed"}}"#,
+        r#"{"kind":"terminal.start.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"outcome-unknown","detail":"hidden"}}"#,
     ];
     for invalid in server_payloads {
         assert_eq!(
@@ -995,7 +995,7 @@ fn payload(frame: &[u8]) -> Result<&[u8], Box<dyn std::error::Error>> {
 fn create_with_cwd(cwd: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let value = serde_json::json!({
         "kind": "terminal.create",
-        "protocolVersion": 2,
+        "protocolVersion": 1,
         "requestId": "11111111111111111111111111111111",
         "workerConstraint": null,
         "cwd": cwd,
@@ -1007,7 +1007,7 @@ fn create_with_cwd(cwd: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 fn start_with_geometry(geometry: &Value) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let message = serde_json::json!({
         "kind": "terminal.start",
-        "protocolVersion": 2,
+        "protocolVersion": 1,
         "requestId": "22222222222222222222222222222222",
         "terminalCreateRequestId": "11111111111111111111111111111111",
         "geometry": geometry.clone()

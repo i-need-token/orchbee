@@ -2,6 +2,8 @@
 
 ## 权威
 
+契约变更遵循仓库的[发布前版本规则](../../docs/zh-CN/ARCHITECTURE.md#数据边界)。
+
 [`v1/agent-observation.schema.json`](v1/agent-observation.schema.json) 是 OBAP 帧内 version-1
 Agent 观察读取体的语言中立权威。`orchbee-agent-observation-protocol` 中的 Rust 绑定与任何未
 来绑定是相互独立的实现。任何绑定都不得新增可接受取值、省略不变量或重定义字段含义。

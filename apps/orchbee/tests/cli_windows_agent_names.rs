@@ -653,9 +653,8 @@ fn agent_visible_read_returns_a_schema_valid_frame_and_detaches_before_output() 
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_agent_reply(&mut stream, session_detail("sess-alpha"));
-            let bytes = include_bytes!(
-                "../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
-            );
+            let bytes =
+                include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
             let route = inspect_terminal_frame_route(bytes).unwrap();
             let attachment_id = ViewerId::parse(&route.attachment_id.to_text()).unwrap();
             let mut exchange = |expected: &str, outcome| {

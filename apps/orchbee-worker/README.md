@@ -326,7 +326,7 @@ One kernel represents one accepted Worker generation and retains at most 1,024 d
 bindings for that generation. It has no release, TTL, LRU, or eviction transition. Capacity rejects
 only a previously unseen `TerminalId`; exact cached replay and a valid higher-fence replacement of
 an existing terminal remain eligible when the map is full. This behavior is terminal-launch
-capability version 2; a version 1 or otherwise mismatched request fails closed as
+capability version 1; a mismatched request fails closed as
 `UnsupportedCapability` before capacity is considered. The current kernel is intrinsically a
 version 2 implementation; its constructor cannot be configured to admit a legacy or future
 capability while retaining version 2 capacity semantics.

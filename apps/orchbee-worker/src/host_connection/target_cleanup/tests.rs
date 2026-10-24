@@ -58,7 +58,7 @@ fn viewer(id: u8, terminal: u8) -> TestResult<TerminalViewerRequest> {
 fn frame(id: u8, epoch: HostEpoch) -> TestResult<Vec<u8>> {
     let mut payload = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+        "/../../packages/terminal-protocol/fixtures/terminal-frame.bin"
     ))
     .to_vec();
     payload[6] = 1;

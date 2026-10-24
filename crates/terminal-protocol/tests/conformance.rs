@@ -11,11 +11,11 @@ use orchbee_terminal_protocol::{
 use serde::Deserialize;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance.json");
 const ENVELOPE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/transport-envelope-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/transport-envelope.bin");
 const FRAME_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame.bin");
 
 #[derive(Deserialize)]
 struct ControlFixture {

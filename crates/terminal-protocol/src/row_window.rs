@@ -197,7 +197,7 @@ fn decode_header(bytes: &[u8]) -> Result<Header, ProtocolError> {
     let projection_length = reader.u32()?;
     let graphics_length = reader.u32()?;
     let reserved_tail = reader.array::<3>()?;
-    if format_major != 0 || format_minor != 0 || format_patch != 3 || header_length != 112 {
+    if format_major != 0 || format_minor != 1 || format_patch != 0 || header_length != 112 {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }
     if u64::from(total_length) != bytes.len() as u64

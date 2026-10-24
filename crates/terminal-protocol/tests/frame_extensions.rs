@@ -1,6 +1,6 @@
 use orchbee_terminal_protocol::{TerminalProgress, decode_terminal_text_frame};
 const FRAME: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame.bin");
 fn u16_at(bytes: &[u8], n: usize) -> usize {
     usize::from(u16::from_le_bytes(bytes[n..n + 2].try_into().unwrap()))
 }
@@ -32,7 +32,7 @@ fn frame(extensions: &[(u16, u16, &[u8])]) -> Vec<u8> {
 #[test]
 fn opaque_graphics_and_prompt_rows_cannot_be_mistaken_for_unstyled_blank_space() {
     let mut empty = vec![0_u8; 40];
-    empty[..7].copy_from_slice(b"OBKG\0\0\x02");
+    empty[..7].copy_from_slice(b"OBKG\0\x01\0");
     empty[7] = 1;
     empty[8..12].copy_from_slice(&40_u32.to_le_bytes());
     assert_eq!(

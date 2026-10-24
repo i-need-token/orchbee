@@ -12,7 +12,7 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 
 ## Windows Worker 交接
 
-帧版本 2 新增定长 kind 26 Request、27 Result、28 Hello、29 Ready 与 30 Owned。
+帧版本 1 新增定长 kind 26 Request、27 Result、28 Hello、29 Ready 与 30 Owned。
 私有 cohort 拒绝未知 kind；普通准入不提供混合 cohort 回退。Request 的 kind 后依次为
 操作 ID（16 字节）、Worker ID（16）、正代际（`u64`）、非零交接 ID（16）、目标 cohort
 SHA-256（32）及动作（`u8`：1 Prepare、2 Commit、3 Abort）。ID 非零，整数均为大端。
@@ -50,7 +50,7 @@ Server 在派发前解析已安装配置。Worker 覆盖 Site 路由，用 Windo
 OBCN kind 24 请求解析 Windows 编辑器命令，携带非零操作 ID、Worker ID 与正数完整宽度 Worker 代次。
 Kind 25 完整回显请求，返回已验证 `LaunchSelection` 和 `visual`、`editor` 或 `default` 来源，
 或封闭拒绝原因：Worker 不匹配、代次过期、平台不支持、命令非法、程序不可用。
-帧版本 2 和 40 KiB payload 上限不变；旧 cohort 拒绝这些 tag。
+帧版本 1 和 40 KiB payload 上限不变；旧 cohort 拒绝这些 tag。
 
 整数使用大端序。请求包含 kind、两个 16 字节 ID 和 u64 代次。
 结果包含 kind、相同的 40 字节请求与结局字节：1 表示已解析
@@ -100,13 +100,13 @@ Worker 保留精确生命周期观察，在返回 Disposed 前仅清理已销毁
 仍待实现；编解码器不实现重放、准入、清理或完整库存遍历。协议、Server、Worker 及原生
 Close 共同激活。旧私有 cohort 拒绝新增 tag；不定义混合 cohort 回退。
 
-kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 使用帧版本 2 及
+kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 使用帧版本 1 及
 40 KiB payload 上限。整数均为无符号大端，ID 均为非零 16 字节值。请求 kind 后依次为：
-生命周期能力版本（`u16`，当前为 2）、产品 Terminal ID（16）、Worker ID（16）、Worker
+生命周期能力版本（`u16`，当前为 1）、产品 Terminal ID（16）、Worker ID（16）、Worker
 代次（正 `u64`）、保留绑定 fence（正 `u64`）、新 lease ID（16）、lease Unix 毫秒到期值
 （正 `u64`）、Close 操作 ID（16）、步骤请求 ID（16）、尝试代次（正 `u64`）、步骤序号
 （`u8`，1 至 32）、Host creation/epoch/terminal ID（各 16）及 action（`u8`）。生命周期
-能力独立于 launch 能力版本 2。fence 精确引用当前保留的 Launch/Start 绑定，不替换它。
+能力独立于 launch 能力版本 1。fence 精确引用当前保留的 Launch/Start 绑定，不替换它。
 新生命周期 lease 独立于原 launch lease，不包含 Viewer/controller 授权。已认证 Server
 签发新的步骤请求 ID；仅编解码校验不能证明授权或重放安全。
 
@@ -183,20 +183,16 @@ kind 11 与 12。
 一条 canonical frame 包含固定 `OBCN` magic、unsigned big-endian frame version、unsigned
 big-endian payload length，以及最多 40 KiB 的 payload。Frame codec 会拒绝 unknown magic、
 version、message 或 enum tag、malformed 或 incomplete value、extra byte 与 oversized payload。
-Frame version 1 与 terminal-launch capability version 2 是彼此独立的 version domain。
+Frame version 1 与 terminal-launch capability version 1 是彼此独立的 version domain。
 Bounded streaming helper 会先完整读取 8-byte header，在 validation 通过后才按声明长度分配
 payload，并精确读取该 payload；write 会容忍 partial progress。I/O failure 与 syntactically
 invalid protocol frame 明确区分。写入一条 frame 不会 flush caller-owned buffer；该 carrier
 policy 仍由 adapter 决定。
 
-Capability version 2 在不改变 frame envelope 的情况下增加 generation-local Worker binding bound
-及其 typed capacity result。Worker 只 admit 与自身精确匹配的 supported capability version；因此
-version 1 与 version 2 request 会互相以 `UnsupportedCapability` 拒绝。两个 version 对该 outcome
-使用相同 rejection tag，而 version 1 decoder 会把新的 capacity tag 当作 unknown 拒绝。Mixed
-version 由此 fail closed，而不会静默使用 version 1 的 unbounded binding behavior。当前 Worker
-authorization kernel 固定为 version 2，而不是接受带 version 2 capacity behavior 的可配置 version。
-当 echoed authorization 不是 version 2 时，construction 与 decoding 也会拒绝
-`CapacityExceeded`。
+启动能力版本 1 包含 generation-local Worker binding bound 及明确的容量结果。
+Worker 授权内核只接纳精确匹配的当前能力；其他版本返回 `UnsupportedCapability`。
+构造与解码会拒绝回显授权未使用当前能力的 `CapacityExceeded`。
+配套原生 cohort 遵循仓库的[发布前版本规则](../../docs/zh-CN/ARCHITECTURE.md#数据边界)。
 
 | Message                    | 方向                      | 闭合 semantic payload                                                                                                                                            |
 | -------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -344,7 +340,7 @@ cleanup 和真实 PTY 证据。
 
 原生发送请求使用独立的 `OBNS` record：magic、big-endian u16 编码版本 1、保留零 u16、u32 body 长度，然后依次为 request ID（16 byte）、Worker ID（16）、Worker generation（u64）、Host creation/epoch/terminal ID（48）、Server 分配的输入 attachment ID（16）、u8 记录数（1–64）及有序记录。body 上限为 `105 + 64 * 7 + 1,048,576` byte，分配前检查。已退役的 kind-13 request 不作为当前请求解码。此消息不重绑目标，不授予 controller/viewer/resize 权限。
 
-记录 tag 1–6 分别携带 text、具名 key、旧 combo、opaque bytes、paste content 和语义 stroke；精确字段与边界见[原生发送契约](../../schemas/client-server/README.zh-CN.md#原生版本-2)。`SendKeyStroke` 独立校验 0..15 修饰键位、1..13 具名键、Insert、F1..F25 及非控制 Unicode 标量字符。新增记录保留旧字节和 1 MiB 聚合 decoded payload 上限。Server 映射独立的 OBCS 值，Worker 将语义按键交给 Host 编码器。
+记录 tag 1–6 分别携带 text、具名 key、旧 combo、opaque bytes、paste content 和语义 stroke；精确字段与边界见[原生发送契约](../../schemas/client-server/README.zh-CN.md#当前原生契约)。`SendKeyStroke` 独立校验 0..15 修饰键位、1..13 具名键、Insert、F1..F25 及非控制 Unicode 标量字符。新增记录保留旧字节和 1 MiB 聚合 decoded payload 上限。Server 映射独立的 OBCS 值，Worker 将语义按键交给 Host 编码器。
 
 Kind 14 结果保留请求身份、输入结果（unavailable、rejected、accepted 或 unknown）、已确认前缀进度与独立清理状态。进度以 u8 编码已接受记录数和首个停止记录，然后以 u64 编码已接受编码字节数。中止请求不具原子性；未知或部分接受的输入绝不自动重放。既有类型构造器和 codec 校验 outcome/progress/cleanup 一致性。专用请求记录与有界 OBCN 结果帧共存。
 
@@ -493,7 +489,7 @@ pnpm lint:projects
 
 ## 托管 Worker 停止
 
-Windows 托管 Site 生命周期在帧版本 2 和既有 40 KiB 上限下增加 kind 19/20。
+Windows 托管 Site 生命周期在帧版本 1 和既有 40 KiB 上限下增加 kind 19/20。
 请求依次包含操作 ID、Worker ID（各 16 字节，整体非零）、正 Worker generation（u64）
 和协作式预算（u32，1..15000 毫秒），整数均为大端。仅精确准入的托管 Worker 可执行；
 非托管或身份不匹配在效果前拒绝。既有 20 秒 carrier 回应窗口不变，响应回显完整请求。
@@ -551,7 +547,7 @@ Cancel 指向原 Start ID。Create 携带源目录、checkout 路径、分支及
 Select、CheckBranch、DirtyCheck、Mutate、Verify。副作用标签 0/1 为 None/MayHaveChanged。
 中断或失败的 Git 变更绝不能表示成已证实回滚。
 
-OBCN 版本 2、kind 21 依次编码操作 ID（16）、Worker ID（16）、generation（u64）及
+OBCN 版本 1、kind 21 依次编码操作 ID（16）、Worker ID（16）、generation（u64）及
 action（u8：1 Start、2 Poll、3 Cancel）。Poll/Cancel 增加 Job ID（16）。Start 增加
 trust（严格布尔）、意图标签（1 Create、2 Open、3 InspectRemove、4 Remove、5 InspectSource）、源目录
 及按上文顺序排列的意图参数。Open 选择器标签 1/2 为路径／分支。Remove 的 force 位于
@@ -674,16 +670,15 @@ SelectionChanged、SelectionExportStarted 及取消后的 SelectionExportFinishe
 
 ## 条件 Close 检查与门禁
 
-生命周期能力版本 2 保留既有动作／结果的版本 1 解码字节；版本 1 无法表达新增动作。
-当前配套 Server／Worker cohort 要求版本 2。动作 5 `TerminateIfIdle` 只映射到 Host kind 82；
+生命周期能力版本 1 使用唯一的当前布局。动作 5 `TerminateIfIdle` 只映射到 Host kind 82；
 接受 outcome 1 或已知 HostFailure reason 3 `ConfirmationRequired`（以及既有通用失败结果）。
 其他动作使用该新 reason 均非法。动作 6 `InspectInventoryPage` 使用与动作 4 相同的 cursor／
 page 表示，但它只读，绝不申请、推进或替换保留的 Worker Close owner／ordinal／mutation
 receipt。交接前仍校验 Worker generation、绑定 fence、lease 和完整 Host 身份。因此预检后
 可以用新请求进行已确认 Close，不会产生虚假的生命周期冲突。
 
-对于能力 2，每个匹配的库存目标在 phase 及可选 termination flag 之后追加一个关闭活动字节：
-0 unknown、1 idle、2 active。其他字节解码失败。能力 1 保留原目标布局，并得到 unknown。
+每个匹配的库存目标在 phase 及可选 termination flag 之后追加一个关闭活动字节：
+0 unknown、1 idle、2 active。缺失或其他字节均解码失败。
 Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端数量或 Client frame 均不构成
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。

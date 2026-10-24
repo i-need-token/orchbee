@@ -10,7 +10,7 @@ fn render_window(start: u64, sequence: u64, uri: Option<&str>, wide: bool, text:
     let route = frame.route;
     let columns = usize::from(frame.geometry.columns);
     let mut projection = vec![0_u8; 320];
-    projection[..8].copy_from_slice(b"OBPB\0\0\x01\0");
+    projection[..8].copy_from_slice(b"OBPB\0\x01\x01\0");
     projection[12..14].copy_from_slice(&320_u16.to_le_bytes());
     projection[14..16].copy_from_slice(&frame.geometry.columns.to_le_bytes());
     for at in [16, 18] {
@@ -32,7 +32,7 @@ fn render_window(start: u64, sequence: u64, uri: Option<&str>, wide: bool, text:
     projection[102..104].copy_from_slice(&1_u16.to_le_bytes());
     projection[104] = 1;
     projection[106] = 1;
-    projection[144] = 2;
+    projection[144] = 0;
     for at in [124, 132] {
         projection[at..at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
     }
@@ -117,11 +117,11 @@ fn render_window(start: u64, sequence: u64, uri: Option<&str>, wide: bool, text:
     projection[8..12].copy_from_slice(&length.to_le_bytes());
     decode_terminal_projection_buffer(&projection).expect("valid independent render row");
     let mut graphics = vec![0_u8; 40];
-    graphics[..8].copy_from_slice(b"OBKG\0\0\x02\x01");
+    graphics[..8].copy_from_slice(b"OBKG\0\x01\0\x01");
     graphics[8..12].copy_from_slice(&40_u32.to_le_bytes());
     let total = 112 + projection.len() + graphics.len();
     let mut window = vec![0_u8; 112];
-    window[..8].copy_from_slice(b"OBRW\0\0\x01\0");
+    window[..8].copy_from_slice(b"OBRW\0\x01\x01\0");
     window[8..12].copy_from_slice(&(total as u32).to_le_bytes());
     window[12..14].copy_from_slice(&112_u16.to_le_bytes());
     window[14..16].copy_from_slice(&frame.geometry.columns.to_le_bytes());
@@ -139,7 +139,7 @@ fn render_window(start: u64, sequence: u64, uri: Option<&str>, wide: bool, text:
     window[88..90].copy_from_slice(&1_u16.to_le_bytes());
     window[92..96].copy_from_slice(&(columns as u32).to_le_bytes());
     window[96..100].copy_from_slice(&((projection.len() + 40) as u32).to_le_bytes());
-    window[100] = 3;
+    window[100] = 0;
     window[101..105].copy_from_slice(&(projection.len() as u32).to_le_bytes());
     window[105..109].copy_from_slice(&40_u32.to_le_bytes());
     window.extend(projection);

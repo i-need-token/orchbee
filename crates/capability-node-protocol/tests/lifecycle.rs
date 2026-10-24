@@ -35,7 +35,7 @@ fn request_payload(action: &[u8]) -> Vec<u8> {
 
 fn frame(payload: &[u8]) -> Vec<u8> {
     [
-        b"OBCN\0\x02".as_slice(),
+        b"OBCN\0\x01".as_slice(),
         &u16::try_from(payload.len()).unwrap().to_be_bytes(),
         payload,
     ]
@@ -43,18 +43,19 @@ fn frame(payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn v2_inspection_activity_and_idle_guard_have_distinct_closed_bytes() -> TestResult {
+fn current_inspection_activity_and_idle_guard_have_distinct_closed_bytes() -> TestResult {
     for (action, outcome) in [
         (vec![5], vec![1]),
         (vec![5], vec![6, 3]),
         (vec![6, 0], vec![7, 3]),
     ] {
         let mut payload = request_payload(&action);
+        payload[2] = 2;
         assert!(
             decode_message(&frame(&payload)).is_err(),
-            "v1 cannot claim a v2 action"
+            "an unsupported capability cannot claim current-only actions"
         );
-        payload[2] = 2;
+        payload[2] = 1;
         assert_eq!(
             encode_message(&decode_message(&frame(&payload))?)?,
             frame(&payload)
@@ -69,10 +70,9 @@ fn v2_inspection_activity_and_idle_guard_have_distinct_closed_bytes() -> TestRes
     for activity in 0..=3 {
         let mut payload = request_payload(&[6, 0]);
         payload[0] = 10;
-        payload[2] = 2;
-        let mut observation = vec![2, 0]; // Running, terminateRequested=false.
-        observation.push(activity);
-        payload.extend(page_bytes(7, None, 1, Some(&observation)));
+        let mut observation = page_bytes(7, None, 1, Some(&[2, 0]));
+        *observation.last_mut().unwrap() = activity;
+        payload.extend(observation);
         let decoded = decode_message(&frame(&payload));
         if activity == 3 {
             assert!(decoded.is_err());
@@ -167,6 +167,7 @@ fn page_bytes(
             bytes.push(1);
             bytes.extend(u64::MAX.to_be_bytes());
             bytes.extend(phase);
+            bytes.push(0); // Current layout always carries close activity (unknown).
         }
     }
     bytes
@@ -411,7 +412,7 @@ fn every_golden_round_trips_and_streams_without_consuming_the_next_frame() -> Te
             .filter(|frame| frame[8] == 10)
             .map(Vec::len)
             .max(),
-        Some(229)
+        Some(230)
     );
     Ok(())
 }
@@ -448,7 +449,7 @@ fn malformed_seal_tags_and_positive_fields_are_rejected() {
     for ordinal in [1, 32] {
         assert_eq!(LifecycleStepOrdinal::new(ordinal).unwrap().get(), ordinal);
     }
-    for action in [vec![0], vec![5], vec![4, 2], query_action(Some((0, 0)))] {
+    for action in [vec![0], vec![7], vec![4, 2], query_action(Some((0, 0)))] {
         assert!(decode_message(&frame(&request_payload(&action))).is_err());
     }
     for (group, last) in [(5, 8), (6, 2), (7, 4), (8, 3)] {

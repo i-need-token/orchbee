@@ -8,13 +8,12 @@ mod encoded_fixture;
 use encoded_fixture::base64;
 
 const WINDOW: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-row-window.bin");
 const CANONICAL: &str = include_str!("../../../packages/terminal-protocol/fixtures/canonical.json");
 const MALFORMED: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/malformed-row-window-v0.0.3.json");
-const PACKED: &str = include_str!(
-    "../../../packages/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json"
-);
+    include_str!("../../../packages/terminal-protocol/fixtures/malformed-row-window.json");
+const PACKED: &str =
+    include_str!("../../../packages/terminal-protocol/fixtures/packed-projection-conformance.json");
 
 #[test]
 fn canonical_text_window_matches_the_encoding_owner() -> Result<(), Box<dyn Error>> {
@@ -294,7 +293,7 @@ fn legal_render_window_fails_closed_as_text_only() -> Result<(), Box<dyn Error>>
     // The real Host-produced render window completes full header validation,
     // then fails closed: the text decoder never interprets render payloads.
     let render = include_bytes!(
-        "../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
+        "../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin"
     );
     let error = decode_terminal_text_row_window(render)
         .err()
@@ -318,6 +317,7 @@ fn assembled_render_window(projection_length: u32, graphics_length: u32) -> Vec<
     let body_length = projection_length + graphics_length;
     let mut bytes = vec![0_u8; TERMINAL_ROW_WINDOW_HEADER_BYTES + body_length as usize];
     bytes[0..4].copy_from_slice(b"OBRW");
+    bytes[5] = 1;
     bytes[6] = 1;
     let total_length = bytes.len() as u32;
     bytes[8..12].copy_from_slice(&total_length.to_le_bytes());
@@ -333,7 +333,7 @@ fn assembled_render_window(projection_length: u32, graphics_length: u32) -> Vec<
     bytes[88..90].copy_from_slice(&24_u16.to_le_bytes());
     bytes[92..96].copy_from_slice(&144_u32.to_le_bytes());
     bytes[96..100].copy_from_slice(&body_length.to_le_bytes());
-    bytes[100] = 3;
+    bytes[100] = 0;
     bytes[101..105].copy_from_slice(&projection_length.to_le_bytes());
     bytes[105..109].copy_from_slice(&graphics_length.to_le_bytes());
     bytes

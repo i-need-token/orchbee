@@ -1148,7 +1148,7 @@ export class PackedTerminalStore {
 		return this.#replaceSnapshot(frame, maximumBytes, null);
 	}
 
-	/** Retains one immutable OBPB 0.0.2 buffer and exposes per-row typed views without repacking. */
+	/** Retains one immutable OBPB 0.1.0 buffer and exposes per-row typed views without repacking. */
 	replaceProjectionBufferSnapshot(
 		frame: DecodedTerminalProjectionBuffer,
 		maximumBytes: number,

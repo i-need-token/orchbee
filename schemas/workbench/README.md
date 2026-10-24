@@ -64,6 +64,8 @@ present. Runtime publication and cleanup belong to the [Windows event owner](../
 
 ## Authority
 
+Contract changes follow the repository [pre-release version rule](../../docs/ARCHITECTURE.md#data-boundaries).
+
 [`v1/workbench.schema.json`](v1/workbench.schema.json) is the language-neutral authority for the
 version-1 read-only Workbench projection kernel. The TypeScript binding in
 `@orchbee/workbench-client-protocol` and the Rust binding in `orchbee-workbench-protocol` are

@@ -2,6 +2,8 @@
 
 ## Authority
 
+Contract changes follow the repository [pre-release version rule](../../docs/ARCHITECTURE.md#data-boundaries).
+
 [`v1/agent-observation.schema.json`](v1/agent-observation.schema.json) is the language-neutral
 authority for the version-1 Agent observation read bodies exchanged inside OBAP frames. The Rust
 binding in `orchbee-agent-observation-protocol` and any future binding are independent

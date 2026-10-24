@@ -15,7 +15,7 @@ use orchbee_terminal_protocol::{
 use serde_json::{Map, Value, json};
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance.json");
 
 #[test]
 fn editor_capture_round_trips_full_u64_fences_and_retains_the_ordinary_request()

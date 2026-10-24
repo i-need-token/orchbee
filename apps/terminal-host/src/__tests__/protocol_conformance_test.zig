@@ -864,7 +864,7 @@ test "shared packed projection corpus drives both native strict validators" {
     );
     defer parsed.deinit();
     try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
-    try std.testing.expectEqualStrings("0.0.3", parsed.value.formatVersion);
+    try std.testing.expectEqualStrings("0.1.0", parsed.value.formatVersion);
     try std.testing.expectEqual(@as(usize, 34), parsed.value.cases.len);
 
     var inventory = PackedProjectionInventory{};
@@ -1464,7 +1464,7 @@ test "native control replies and events conform to TypeScript schemas" {
     try expectOwnedJson(allocator, outputs.protocol_rejected, try control_encode.protocolRejected(
         allocator,
         0,
-        1,
+        2,
         0,
         protocol.current_protocol_major,
         protocol.current_protocol_minor,

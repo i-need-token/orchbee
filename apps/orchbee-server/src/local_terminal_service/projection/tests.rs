@@ -118,10 +118,9 @@ fn projection() -> Result<ViewerProjection, Box<dyn Error>> {
     ))
 }
 fn frame(sequence: u64, revision: u64) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut payload = include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
-    )
-    .to_vec();
+    let mut payload =
+        include_bytes!("../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin")
+            .to_vec();
     payload[6] = 1;
     payload[16..32].fill(1);
     payload[32..48].fill(2);

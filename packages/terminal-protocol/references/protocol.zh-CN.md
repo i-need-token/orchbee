@@ -6,7 +6,7 @@
 | 线主         | `@orchbee/terminal-protocol`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 本土消费者   | `apps/terminal-host` 使用声明的模式和夹具导出来实现有界本机调度和 Zig 一致性                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Rust binding | 尚未发布的独立 `crates/terminal-protocol` binding 镜像完整 message registry、固定 OBTP envelope、connection-control payload、kind-10 terminal-inventory control、kind 12-19 非创建 lifecycle control、kind 20-25 attachment control、kind-30/31 raw-input 交换、kind-32/33 resize-control 交换、kind 34-39 semantic-input request、kind-43/44 projection-feedback control、kind-45/50 row-access control、kind 47-49 projection demand、kind 51-54 history control、kind 55-58 terminal-effect event 表示、kind 60-62 selection control、kind 63-68 selection-export 表示，以及 kind 70-73 terminal-configuration control；尚未发布的 Rust Worker 只为现有 Host handshake 消费 envelope 与 connection-control 子集 |
-| 参考范围     | 精确协议 `0.0.25`；OBTF 格式 `0.0.3`；OBPB 格式 `0.0.2`；OBRW 格式 `0.0.3`；OBKG 格式 `0.0.2`；输入/选择编解码器；失败术语；边界；以及夹具                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 参考范围     | 精确协议 `0.1.0`；OBTF 格式 `0.1.0`；OBPB 格式 `0.1.0`；OBRW 格式 `0.1.0`；OBKG 格式 `0.1.0`；输入/选择编解码器；失败术语；边界；以及夹具                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 变更规则     | 字段、消息语义、线协议字节、边界或夹具发生变化时，必须更新本文、两种语言实现、每个生产者/消费者及证据                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## 建模记录
@@ -39,7 +39,7 @@
 | `TerminalThemeOperationId` | 应用程序为一个终端主题比较和设置操作创建的幂等性身份                         |
 | `CorrelationId`            | `Hello` 之后的每个请求和响应都需要；全零信封字节意味着仅握手消息或事件不存在 |
 
-当前协议版本精确为 `0.0.25`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区格式精确为 `0.0.2`；OBRW 行窗口格式精确为 `0.0.3`；OBKG 图形扩展格式精确为 `0.0.2`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
+当前协议版本精确为 `0.1.0`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.1.0`；OBPB 投影缓冲区格式精确为 `0.1.0`；OBRW 行窗口格式精确为 `0.1.0`；OBKG 图形扩展格式精确为 `0.1.0`。对应解码器只接受这些精确格式，并遵循仓库的[发布前版本规则](../../../docs/zh-CN/ARCHITECTURE.md#数据边界)。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
 
 ## 控制合约
 
@@ -105,7 +105,7 @@ Host 拥有采样与 attachment 授权。未知或不可读 attachment 返回 `m
 | `ResizeTerminal`                  | 附件身份、接受的规范单元/像素几何形状以及由此产生的修订                                                                                                                      |
 | `ClearTerminal` / `ResetTerminal` | 附件和终端身份、精确操作以及最终的修订/生成                                                                                                                                  |
 | 投影需求                          | 附件身份加接受`active`或`paused`需求                                                                                                                                         |
-| 帧/恢复                           | OBTF 格式 `0.0.3` 快照/增量事件，携带已提交的主机主题修订版，精确 `FrameApplied`，键入 `NeedSnapshot`，或键入 `ProjectionBlocked`                                            |
+| 帧/恢复                           | OBTF 格式 `0.1.0` 快照/增量事件，携带已提交的主机主题修订版，精确 `FrameApplied`，键入 `NeedSnapshot`，或键入 `ProjectionBlocked`                                            |
 | 历史/读取行                       | 接受的历史需求，有界渲染/文本 `RowsSnapshot`、精确 `RowsApplied`、`HistoryChanged` 和 `HistoryObserved`                                                                      |
 | 选择/导出                         | 当前选择状态加上有界的开始/块/确认/完成或取消流程                                                                                                                            |
 | 终端开始/结果                     | `TerminalStarted` 携带子进程存在后的终端标识。正常退出携带最终修订和退出代码、信号或未知结果。运行时故障包含最终修订、类型化故障和过程观察。库存使用互斥的阶段特定汇总字段。 |
@@ -179,7 +179,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 未列出的号码未分配。标题和当前目录更改通过终端 frame 和带精确 identity 的 metadata event 传播。初始调整大小租约权限通过附件许可返回；稍后的所有权 transfer 使用附件作用域的 claim 与完整 event。
 
-`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.25.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
+`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
 
 `TerminalBell` 是包含 `attachmentId` 和正规范终端响铃 `sequence` 的仅事件控制记录。主机以终端的当前序列为新的可读取附件设置基线，因此在连接或重新连接时不会重播较早的铃声。当提交其确切的传出记录时，每个后续序列都会针对每个实时可读附件发出一次。该事件没有客户端确认，仅携带语义意图；声音、视觉闪烁、通知和可访问性策略仍然是应用程序效果而不是线路行为。
 
@@ -221,7 +221,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 | ------ | ---: | ---------------------------------------------------------------------- |
 | `0`    |    4 | ASCII `OBTF`                                                           |
 | `4`    |    1 | 主要格式 `0`                                                           |
-| `5`    |    1 | 次要格式 `0`                                                           |
+| `5`    |    1 | 次要格式 `1`                                                           |
 | `6`    |    1 | 快照 `1` 或增量 `2`                                                    |
 | `7`    |    1 | 帧标志；目前为零                                                       |
 | `8`    |    4 | 总帧字节数                                                             |
@@ -252,7 +252,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 | `134`  |    2 | 保留零                                                                 |
 | `136`  |    4 | 单元格像素宽度和高度为两个 `u16` 值                                    |
 | `140`  |    4 | 编码单元格总数                                                         |
-| `144`  |    1 | 格式补丁 `3`                                                           |
+| `144`  |    1 | 格式补丁 `0`                                                           |
 | `145`  |    8 | 已提交的 Host 终端主题修订                                             |
 | `153`  |    7 | 保留零                                                                 |
 
@@ -268,7 +268,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 | 种类 |         字节 | 含义                                                                                                                 |
 | ---: | -----------: | -------------------------------------------------------------------------------------------------------------------- |
 |  `1` |          `1` | 实时关闭活动：`0=unknown`、`1=idle`、`2=active`。 Terminal Host 仅发出 `idle` 或 `active` 并在其观察未知时忽略扩展。 |
-|  `2` | `40..33 MiB` | 一份严格解码的 OBKG `0.0.2` Kitty 图形资源快照或仅放置更新。                                                         |
+|  `2` | `40..33 MiB` | 一份严格解码的 OBKG `0.1.0` Kitty 图形资源快照或仅放置更新。                                                         |
 |  `3` |          `2` | 当前终端进度：状态字节加百分比`0..100`或空哨兵`255`。                                                                |
 |  `4` |         `25` | 最新语义命令完成：正序列、持续时间毫秒、正挂钟完成毫秒和标准化退出代码。                                             |
 |  `5` | `10` or `66` | 行原点 epoch 和最近一次关联 Shell 调用；见下文扩展契约。                                                             |
@@ -286,7 +286,7 @@ OBKG 以这个固定的 40 字节标头开头：
 | 偏移量 | 字节 | 字段                          |
 | ------ | ---: | ----------------------------- |
 | `0`    |    4 | ASCII `OBKG`                  |
-| `4`    |    3 | 格式主、次和补丁 `0.0.2`      |
+| `4`    |    3 | 格式主、次和补丁 `0.1.0`      |
 | `7`    |    1 | 资源快照 `1` 或仅放置更新 `2` |
 | `8`    |    4 | 总 OBKG 字节                  |
 | `12`   |    8 | 仅放置更新复用的资源修订      |
@@ -300,19 +300,19 @@ OBKG 以这个固定的 40 字节标头开头：
 
 客户端在 256 个可见解码图像和 1,024 个可见放置中最多保留 32 MiB。仅放置更新不携带图像字节，并且必须命名精确的已保留资源修订；消费者在提交任何文本行前还会根据已保留图像图验证每个引用与裁剪。携带仅放置扩展数据的终端快照无效。资源集或显示动画 generation 变化、重传、删除、重置、屏幕变化或未确认基线都会把 Host 的整个 OBTF 记录提升为快照。direct、文件、临时文件及受支持的 POSIX 共享内存输入、raw/PNG/zlib/chunk 传输、动画、virtual 与 relative 放置、裁剪、有符号 z 合成和历史相交都在本机边界解析。固定版本加载器最多接纳 400 MiB 编码采集数据，而解码存储与每个投影资源集仍分别限制为 32 MiB。OBKG 只携带自有解码像素和已解析放置；绝不携带路径、URL、句柄、共享内存名称或映射、编码容器、压缩流或未解析 Ghostty pin。
 
-快照没有 base，并按 canonical 顺序包含每个可见行。Delta 命名精确的已确认 base，并按递增 row 顺序替换完整且唯一的 dirty row；它绝不携带 partial cell。没有 grid row 变脏时，delta 可以包含零行，同时仍携带 metadata 与 revision transition。Columns、grid-row count、cell-pixel width、cell-pixel height、active-screen 或 generation 变化都要求 snapshot。TypeScript decoder 会先验证并扫描所有 table 与 row，再分配精确 typed column 并读取 cell，而不为每个 cell 构建 JavaScript object。Projected store 在改变 committed grid 前暂存完整 snapshot 或每个 delta row。Frame sequence 单调发出，但 abandoned frame 可能在 committed client sequence 中留下 gap。Delta 必须是精确 next sequence 并命名精确 committed base；complete snapshot 可以使用任何大于 last committed sequence 的 sequence，并跨 gap 原子重建 client base。Fixed-header inspector 只验证 bounded header，绝不准入 cell、string、style、row 或 extension data。Capability-scoped local client 可以在 full decode 前用该 inspector 仅确认已经 committed 的 sequence；这是可靠的，因为 Host delivery owner 在交付该 scoped sequence 时使完整 encoded record immutable。每个更高的 OBTF format-`0.0.3` sequence，以及 trusted local delivery path 之外到达的每一帧，在暴露或提交任何 payload data 前仍须 full decode。OBPB format `0.0.2` projection buffer 提供下文单独命名的 strict-decode 与 local structural-view boundary。Header commit metadata 不同的 repeated sequence 是需要 recovery 的 protocol-state conflict。显式 trusted local duplicate path 可以依赖 immutable commit metadata 而不 hash body；external 与 relayed consumer 也可以在 acknowledgement 前完整 decode duplicate。若 fixed-header validation 与精确 scope association 成功后 full body decode 失败，`NeedSnapshot(decoder-rejected)` 必须命名该 header 的精确 sequence；若 fixed header 本身无法验证或关联，consumer 会 fail the connection closed，绝不猜测 sequence。对于一帧中存在的每对 adjacent row，前一行的 wrap flag 等于下一行的 wrap-continuation flag。Spacer-head 只允许位于 wrapped row 的最后一列；若下一行存在，则它以对应 wide cell 开始。这些关系在 frame 暴露或提交前验证。Sparse delta 改变 retained state 前，consumer 还须对 complete candidate 校验每个 replaced row 与其 retained predecessor/successor 之间的 wrap 和 spacer-head/wide topology。
+快照没有 base，并按 canonical 顺序包含每个可见行。Delta 命名精确的已确认 base，并按递增 row 顺序替换完整且唯一的 dirty row；它绝不携带 partial cell。没有 grid row 变脏时，delta 可以包含零行，同时仍携带 metadata 与 revision transition。Columns、grid-row count、cell-pixel width、cell-pixel height、active-screen 或 generation 变化都要求 snapshot。TypeScript decoder 会先验证并扫描所有 table 与 row，再分配精确 typed column 并读取 cell，而不为每个 cell 构建 JavaScript object。Projected store 在改变 committed grid 前暂存完整 snapshot 或每个 delta row。Frame sequence 单调发出，但 abandoned frame 可能在 committed client sequence 中留下 gap。Delta 必须是精确 next sequence 并命名精确 committed base；complete snapshot 可以使用任何大于 last committed sequence 的 sequence，并跨 gap 原子重建 client base。Fixed-header inspector 只验证 bounded header，绝不准入 cell、string、style、row 或 extension data。Capability-scoped local client 可以在 full decode 前用该 inspector 仅确认已经 committed 的 sequence；这是可靠的，因为 Host delivery owner 在交付该 scoped sequence 时使完整 encoded record immutable。每个更高的 OBTF format-`0.1.0` sequence，以及 trusted local delivery path 之外到达的每一帧，在暴露或提交任何 payload data 前仍须 full decode。OBPB format `0.1.0` projection buffer 提供下文单独命名的 strict-decode 与 local structural-view boundary。Header commit metadata 不同的 repeated sequence 是需要 recovery 的 protocol-state conflict。显式 trusted local duplicate path 可以依赖 immutable commit metadata 而不 hash body；external 与 relayed consumer 也可以在 acknowledgement 前完整 decode duplicate。若 fixed-header validation 与精确 scope association 成功后 full body decode 失败，`NeedSnapshot(decoder-rejected)` 必须命名该 header 的精确 sequence；若 fixed header 本身无法验证或关联，consumer 会 fail the connection closed，绝不猜测 sequence。对于一帧中存在的每对 adjacent row，前一行的 wrap flag 等于下一行的 wrap-continuation flag。Spacer-head 只允许位于 wrapped row 的最后一列；若下一行存在，则它以对应 wide cell 开始。这些关系在 frame 暴露或提交前验证。Sparse delta 改变 retained state 前，consumer 还须对 complete candidate 校验每个 replaced row 与其 retained predecessor/successor 之间的 wrap 和 spacer-head/wide topology。
 
-原生表面证据集包含导出的 `ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.3.bin`。Terminal Host 从一个固定版本的原生 Ghostty VT 和真实 OBTF 编码器依次生成 OBTF 夹具对。另一个固定版本的终端会重放主语料，加入 DECSCA 受保护与未受保护单元，并且只通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 生成 render-detail OBRW；这些字节不由 TypeScript 编码器构造。生产者一致性检查会重新生成并逐字节比较全部三个夹具。TypeScript OBRW 消费者依据一份按契约编写的完整 6x8 矩阵检查严格视图与可信视图，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并验证颜色节顺序、样式、语义、保护、超链接、行换行和宽度拓扑的线协议有效变异。该证据能检测原生列误赋值或遗漏，但不会改变格式、验证 PTY/历史行为，也不向本包授予 VT、渲染器、生命周期或可信本地路径权威。
+原生表面证据集包含导出的 `ghostty-surface.bin`、`ghostty-alternate-surface.bin` 和 `ghostty-render-row-window.bin`。Terminal Host 从一个固定版本的原生 Ghostty VT 和真实 OBTF 编码器依次生成 OBTF 夹具对。另一个固定版本的终端会重放主语料，加入 DECSCA 受保护与未受保护单元，并且只通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 生成 render-detail OBRW；这些字节不由 TypeScript 编码器构造。生产者一致性检查会重新生成并逐字节比较全部三个夹具。TypeScript OBRW 消费者依据一份按契约编写的完整 6x8 矩阵检查严格视图与可信视图，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并验证颜色节顺序、样式、语义、保护、超链接、行换行和宽度拓扑的线协议有效变异。该证据能检测原生列误赋值或遗漏，但不会改变格式、验证 PTY/历史行为，也不向本包授予 VT、渲染器、生命周期或可信本地路径权威。
 
 语料中的 OSC 10/11 覆盖在单元格颜色中表现为显式前景／背景 RGB，包括空白单元格；帧头仍保留相同的有效值。Host 投影仅对不存在程序覆盖的通道保留默认标记，但 DECSCNM 生效期间会显式输出两个已交换的默认色。显式单元格和调色板 RGB 即使等于默认色也保持确切值。这些夹具使用现有 RGB／默认标记编码，格式不变。
 
 ## 当前投影缓冲区
 
-OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalProjectionBuffer` 是默认边界，在公开类型化视图之前严格扫描行、单元格、颜色、字符串范围、UTF-8 和宽单元格不变量。网络对等点、插件或持久工件必须使用该严格边界。 `viewTerminalProjectionBuffer` 保留用于不可变、同一用户、功能范围的本地主机路径。它检查固定标头、身份、计数、规范节目录、对齐和零填充、总长度以及两个小元数据字符串，然后在相同字节上创建类型化数组视图。它故意不遍历每个单元格来重新验证已从规范 Ghostty 状态生成的值；跨语言一致性和生产者测试建立了这些列不变量。
+OBPB 格式 `0.1.0` 是打包的主机到渲染数据平面。 `decodeTerminalProjectionBuffer` 是默认边界，在公开类型化视图之前严格扫描行、单元格、颜色、字符串范围、UTF-8 和宽单元格不变量。网络对等点、插件或持久工件必须使用该严格边界。 `viewTerminalProjectionBuffer` 保留用于不可变、同一用户、功能范围的本地主机路径。它检查固定标头、身份、计数、规范节目录、对齐和零填充、总长度以及两个小元数据字符串，然后在相同字节上创建类型化数组视图。它故意不遍历每个单元格来重新验证已从规范 Ghostty 状态生成的值；跨语言一致性和生产者测试建立了这些列不变量。
 
 `materializeTerminalProjectionFrame` 在分配物化行/样式图或解码 UTF-8 之前，验证每个选中的字素与超链接源范围。同一来源的精确别名仅计数一次且仅解码一次；范围键包含来源身份。不同或重叠的范围各自以其完整字节长度计入累计逻辑解码工作量，且总量不得超过 `PROTOCOL_LIMITS.maxFrameBytes`。重复的原始样式元组复用其物化样式，而解码为等价样式的不同范围仍共享一个语义样式表条目。`TerminalFrameSchema` 在一次解析中仅验证一次相同的字符串内容，并在每个无效出现路径上保留问题。
 
-固定标头为 320 字节。字节`0..159`包含`OBPB`，版本`0.0.2`，快照/增量种类，总/标题长度，列，网格行，包含的行/单元格，主机和附件标识，序列/基础/修订/生成，回滚原点，光标和像素几何形状，交互标志，默认颜色，可为空的标题/当前目录blob范围、总字符串字节和提交的主机终端主题修订。字节`160..287`包含`{ u32 offset, u32 byteLength }`的十六个固定目录项；字节 `288..319` 保留为零。可空元数据使用偏移量 `0xffffffff`；所有其他字符串偏移量都相对于最终字符串字节部分。
+固定标头为 320 字节。字节`0..159`包含`OBPB`，版本`0.1.0`，快照/增量种类，总/标题长度，列，网格行，包含的行/单元格，主机和附件标识，序列/基础/修订/生成，回滚原点，光标和像素几何形状，交互标志，默认颜色，可为空的标题/当前目录blob范围、总字符串字节和提交的主机终端主题修订。字节`160..287`包含`{ u32 offset, u32 byteLength }`的十六个固定目录项；字节 `288..319` 保留为零。可空元数据使用偏移量 `0xffffffff`；所有其他字符串偏移量都相对于最终字符串字节部分。
 
 所有整数都是小尾数。固定标头是：
 
@@ -320,7 +320,7 @@ OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalPr
 | -----: | ---: | ----------------------------------------- |
 |      0 |    4 | 魔法`OBPB`                                |
 |      4 |    1 | 主要格式 `0`                              |
-|      5 |    1 | 次要格式 `0`                              |
+|      5 |    1 | 次要格式 `1`                              |
 |      6 |    1 | 种类：快照 `1`、增量 `2`                  |
 |      7 |    1 | 可选标志；位 `7` 是必需的/保留的          |
 |      8 |    4 | 缓冲区总字节数                            |
@@ -353,7 +353,7 @@ OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalPr
 |    132 |    4 | 可为空的当前目录字节偏移量                |
 |    136 |    4 | 当前目录字节长度                          |
 |    140 |    4 | 字符串节字节长度                          |
-|    144 |    1 | 格式补丁 `2`                              |
+|    144 |    1 | 格式补丁 `0`                              |
 |    145 |    8 | 已提交的 Host 终端主题修订                |
 |    153 |    7 | 保留零                                    |
 |    160 |  128 | 十六个目录条目                            |
@@ -388,7 +388,7 @@ OBPB 在偏移 108 携带相同交互字，render 行窗口内也保持一致。
 
 部分使用其自然对齐和规范槽顺序，并具有零对齐填充。快照包含按规范顺序排列的每一行。增量包含按升序排列的零个或多个完整脏行，并命名确切的已确认基数。快照消费者保留不可变的缓冲区；增量消费者仅保留仍被脏行范围引用的缓冲区。共享内存不是此版本的一部分。
 
-导出的 `packed-projection-conformance-v0.0.3.json` 是 OBPB 与 OBRW 共享严格准入用例的已生成、已跟踪证据权威。其 23 个 OBPB 用例包含 17 个规范变异类别、被接受的稀疏增量行索引 `[0, 2]` 及重复和降序拒绝，以及可选/必需头部标志分区；其 11 个 OBRW 用例覆盖等价的头部标志分区，以及投影段长度、图形段长度和图形快照 kind 失败，另含 5 个 text-detail 成功见证：identity-ASCII 隐式单元格映射行、总文本超过 16 KiB 而每个单元格跨度均在单格上限内的聚合行、空行、三行换行链，以及以 U+FEFF 开头的行。夹具生成器负责每个完整规范字节串，并直接硬编码依据契约编写的结果与成功观察值，不向任一解码器获取判定结果。`test:fixtures` 会拒绝缺失或字节已过时的输出。`decodeTerminalProjectionBuffer` 与 `decodeTerminalRowWindow` 消费每个匹配用例；Host runner 解析已声明的包导出，提供有界语料字节，并让两个 Zig 严格验证器消费相同用例，同时仅断言其公共摘要公开的观察值。
+导出的 `packed-projection-conformance.json` 是 OBPB 与 OBRW 共享严格准入用例的已生成、已跟踪证据权威。其 23 个 OBPB 用例包含 17 个规范变异类别、被接受的稀疏增量行索引 `[0, 2]` 及重复和降序拒绝，以及可选/必需头部标志分区；其 11 个 OBRW 用例覆盖等价的头部标志分区，以及投影段长度、图形段长度和图形快照 kind 失败，另含 5 个 text-detail 成功见证：identity-ASCII 隐式单元格映射行、总文本超过 16 KiB 而每个单元格跨度均在单格上限内的聚合行、空行、三行换行链，以及以 U+FEFF 开头的行。夹具生成器负责每个完整规范字节串，并直接硬编码依据契约编写的结果与成功观察值，不向任一解码器获取判定结果。`test:fixtures` 会拒绝缺失或字节已过时的输出。`decodeTerminalProjectionBuffer` 与 `decodeTerminalRowWindow` 消费每个匹配用例；Host runner 解析已声明的包导出，提供有界语料字节，并让两个 Zig 严格验证器消费相同用例，同时仅断言其公共摘要公开的观察值。
 
 ## 当前打包的终端行窗口
 
@@ -409,7 +409,7 @@ Host 解析一次来源并返回连续 `RowsSnapshot`。每个附件的每个 pu
 | ------ | ---: | -------------------------------------------- |
 | `0`    |    4 | ASCII `OBRW`                                 |
 | `4`    |    1 | 主要格式 `0`                                 |
-| `5`    |    1 | 次要格式 `0`                                 |
+| `5`    |    1 | 次要格式 `1`                                 |
 | `6`    |    1 | 详细信息：渲染 `1` 或文本 `2`                |
 | `7`    |    1 | 可选标志；所需位 `7` 当前为零                |
 | `8`    |    4 | 行窗口总字节数                               |
@@ -426,13 +426,13 @@ Host 解析一次来源并返回连续 `RowsSnapshot`。每个附件的每个 pu
 | `90`   |    2 | 保留零                                       |
 | `92`   |    4 | 渲染细节的单元格计数或文本细节的逻辑映射计数 |
 | `96`   |    4 | 正文字节                                     |
-| `100`  |    1 | 格式补丁 `3`                                 |
+| `100`  |    1 | 格式补丁 `0`                                 |
 | `101`  |    4 | render detail 的 OBPB 投影长度；text 时为零  |
 | `105`  |    4 | render detail 的 OBKG 图形长度；text 时为零  |
 | `109`  |    3 | 保留零                                       |
 | `112`  |    N | render 时先投影再图形，或 text 行            |
 
-渲染详情会依次连接一份 OBPB format-`0.0.2` 快照和一份完整 OBKG format-`0.0.2` 图形快照。OBPB 的身份、序列、修订、generation、列数、行数及回滚行原点都与外层窗口一致。每个图形放置都与所选行区间相交并重定位到窗口坐标；每项被引用图像都包含在内。文本详情要求两个段长度均为零，并把每行存储为 12 字节头部，后接严格 UTF-8 文本，并在需要时附上已排序的 12 字节 UTF-8/UTF-16/列/宽度映射。行标志位 `2` (`0x04`) 要求序列化零个映射，并声明每个文本字节都是窄 ASCII，其 UTF-8 字节偏移、UTF-16 代码单元偏移与终端列均等于字符索引。头部条目数仍然包含这些逻辑映射，因此 262,144 个条目的界限保持不变。Unicode、宽单元格、组合字素和未标记行保留显式映射。非空显式行至少有一个从字节偏移零和 UTF-16 偏移零开始的映射。每个映射都从 UTF-8 代码点边界开始，标明对应的 UTF-16 位置，位于列数范围内，并且不与前一个映射单元重叠。每个映射界定一个逻辑单元，因此单个 UTF-8 字符串上限（16 KiB）适用于每个映射单元：从一个映射起点到下一个映射起点的每段字节，以及最后一个映射起点到行文本结尾的最终字节段，都不得超过 16,384 字节。即使每个映射单元的跨度都有界，一行合计仍可能超过 16 KiB。相邻行的换行标志必须一致。文本行、逻辑映射、字节、UTF-8、排序、标记和每单元跨度关系都会经过严格验证。导出的行窗口解码器复用严格的投影缓冲区解码器。单独命名的原生行窗口视图复用投影缓冲区结构视图，不会再执行第二次逐单元语义扫描。
+渲染详情会依次连接一份 OBPB format-`0.1.0` 快照和一份完整 OBKG format-`0.1.0` 图形快照。OBPB 的身份、序列、修订、generation、列数、行数及回滚行原点都与外层窗口一致。每个图形放置都与所选行区间相交并重定位到窗口坐标；每项被引用图像都包含在内。文本详情要求两个段长度均为零，并把每行存储为 12 字节头部，后接严格 UTF-8 文本，并在需要时附上已排序的 12 字节 UTF-8/UTF-16/列/宽度映射。行标志位 `2` (`0x04`) 要求序列化零个映射，并声明每个文本字节都是窄 ASCII，其 UTF-8 字节偏移、UTF-16 代码单元偏移与终端列均等于字符索引。头部条目数仍然包含这些逻辑映射，因此 262,144 个条目的界限保持不变。Unicode、宽单元格、组合字素和未标记行保留显式映射。非空显式行至少有一个从字节偏移零和 UTF-16 偏移零开始的映射。每个映射都从 UTF-8 代码点边界开始，标明对应的 UTF-16 位置，位于列数范围内，并且不与前一个映射单元重叠。每个映射界定一个逻辑单元，因此单个 UTF-8 字符串上限（16 KiB）适用于每个映射单元：从一个映射起点到下一个映射起点的每段字节，以及最后一个映射起点到行文本结尾的最终字节段，都不得超过 16,384 字节。即使每个映射单元的跨度都有界，一行合计仍可能超过 16 KiB。相邻行的换行标志必须一致。文本行、逻辑映射、字节、UTF-8、排序、标记和每单元跨度关系都会经过严格验证。导出的行窗口解码器复用严格的投影缓冲区解码器。单独命名的原生行窗口视图复用投影缓冲区结构视图，不会再执行第二次逐单元语义扫描。
 
 ## 主机拥有的选择和导出
 

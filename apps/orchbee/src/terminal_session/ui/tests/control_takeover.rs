@@ -19,9 +19,8 @@ use orchbee_terminal_protocol::{
 use ratatui::{Terminal, backend::TestBackend};
 use std::sync::atomic::Ordering;
 
-const SNAPSHOT: &[u8] = include_bytes!(
-    "../../../../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
-);
+const SNAPSHOT: &[u8] =
+    include_bytes!("../../../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
 
 fn poll_snapshot(
     ui: &mut NativeUi,

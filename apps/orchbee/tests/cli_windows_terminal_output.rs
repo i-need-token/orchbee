@@ -13,7 +13,7 @@ use orchbee_terminal_protocol::*;
 use peer_support::*;
 use serde_json::Value;
 const OBTF: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
 const ID: &str = "33333333333333333333333333333333";
 
 #[path = "cli_windows_terminal_output/ansi.rs"]
@@ -126,7 +126,7 @@ fn obrw_window(
     let total = 112 + body.len();
     let mut record = Vec::with_capacity(total);
     record.extend_from_slice(b"OBRW");
-    record.extend_from_slice(&[0, 0]); // format major/minor
+    record.extend_from_slice(&[0, 1]); // format major/minor
     record.push(2); // detail: text
     record.push(0); // flags
     record.extend_from_slice(&(total as u32).to_le_bytes());
@@ -143,7 +143,7 @@ fn obrw_window(
     record.extend_from_slice(&[0; 2]); // reserved
     record.extend_from_slice(&entry_count.to_le_bytes());
     record.extend_from_slice(&(body.len() as u32).to_le_bytes()); // body bytes
-    record.push(3); // format patch
+    record.push(0); // format patch
     record.extend_from_slice(&0_u32.to_le_bytes()); // projection bytes: text only
     record.extend_from_slice(&0_u32.to_le_bytes()); // graphics bytes: text only
     record.extend_from_slice(&[0; 3]); // reserved tail

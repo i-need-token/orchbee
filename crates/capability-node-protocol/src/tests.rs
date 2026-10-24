@@ -196,10 +196,10 @@ fn lifecycle_active_rejections_use_distinct_documented_launch_and_start_tags()
 }
 
 #[test]
-fn capability_two_capacity_rejections_have_exact_canonical_tags()
+fn current_capability_capacity_rejections_have_exact_canonical_tags()
 -> Result<(), Box<dyn std::error::Error>> {
-    assert_eq!(PROTOCOL_VERSION, 2);
-    assert_eq!(TERMINAL_LAUNCH_CAPABILITY_VERSION.get(), 2);
+    assert_eq!(PROTOCOL_VERSION, 1);
+    assert_eq!(TERMINAL_LAUNCH_CAPABILITY_VERSION.get(), 1);
 
     let current_authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
     let launch = CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
@@ -208,8 +208,8 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
     )?);
     let encoded_launch = encode(&launch)?;
     assert_eq!(encoded_launch.len(), 101);
-    assert_eq!(&encoded_launch[..8], &[b'O', b'B', b'C', b'N', 0, 2, 0, 93]);
-    assert_eq!(&encoded_launch[97..99], &[0, 2]);
+    assert_eq!(&encoded_launch[..8], &[b'O', b'B', b'C', b'N', 0, 1, 0, 93]);
+    assert_eq!(&encoded_launch[97..99], &[0, 1]);
     assert_eq!(&encoded_launch[99..], &[2, 8]);
     assert_eq!(decode_message(&encoded_launch)?, launch);
 
@@ -221,16 +221,17 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
     )?);
     let encoded_start = encode(&start)?;
     assert_eq!(encoded_start.len(), 149);
-    assert_eq!(&encoded_start[..8], &[b'O', b'B', b'C', b'N', 0, 2, 0, 141]);
-    assert_eq!(&encoded_start[97..99], &[0, 2]);
+    assert_eq!(&encoded_start[..8], &[b'O', b'B', b'C', b'N', 0, 1, 0, 141]);
+    assert_eq!(&encoded_start[97..99], &[0, 1]);
     assert_eq!(&encoded_start[147..], &[2, 9]);
     assert_eq!(decode_message(&encoded_start)?, start);
 
-    let legacy_capability = TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
+    let unsupported_capability =
+        TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN.saturating_add(1));
     let future_capability = TerminalLaunchCapabilityVersion::new(
         NonZeroU16::new(3).ok_or("future capability must be nonzero")?,
     );
-    for unsupported_capability in [legacy_capability, future_capability] {
+    for unsupported_capability in [unsupported_capability, future_capability] {
         let unsupported_authorization = authorization(unsupported_capability)?;
         assert_eq!(
             TerminalLaunchResult::new(
@@ -263,14 +264,17 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
         );
     }
 
-    let legacy_request =
+    let unsupported_request =
         CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
-            authorization(legacy_capability)?,
+            authorization(unsupported_capability)?,
             None,
             TerminalLaunchMode::Deferred,
             None,
         ));
-    assert_eq!(decode_message(&encode(&legacy_request)?)?, legacy_request);
+    assert_eq!(
+        decode_message(&encode(&unsupported_request)?)?,
+        unsupported_request
+    );
     Ok(())
 }
 

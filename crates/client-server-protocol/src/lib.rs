@@ -22,7 +22,7 @@ mod viewer_record;
 mod wire;
 mod working_directory;
 
-pub const PROTOCOL_VERSION: u8 = 2;
+pub const PROTOCOL_VERSION: u8 = 1;
 
 pub use codec::{
     FRAME_HEADER_BYTES, FRAME_MAGIC, FRAME_VERSION, MAXIMUM_FRAME_PAYLOAD_BYTES,

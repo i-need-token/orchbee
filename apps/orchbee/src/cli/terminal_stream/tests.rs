@@ -19,7 +19,7 @@ use std::{
 };
 
 pub(super) const SNAPSHOT: &[u8] =
-    include_bytes!("../../../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
+    include_bytes!("../../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
 pub(super) const COHORT: &str = "terminal-stream-test";
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 

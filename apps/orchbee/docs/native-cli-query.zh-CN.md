@@ -2118,7 +2118,7 @@ cwd 和环境。空选项保留旧 JSON 和二进制编码。非空 OBCN 环境�
 组合及重放身份，以及公开 Tab 和分屏命令启动的 Windows 子进程观察真实 cwd/环境。
 不新增 macOS/Linux 适配器或运行声明；此流程采用实现测试。
 
-原生启动命令使用独立的 96 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v2 帧允许 63 KiB；OBCN 允许 40 KiB。OBCS v2 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。
+原生启动命令使用独立的 96 KiB JSON 请求预算，使 cwd、argv、label 和环境的最大转义编码可同时容纳。OBWP command kind 2 在分配前按此上限检查；非启动 intent 仍为 16 KiB，结果沿用既有上限。OBCS v1 帧允许 63 KiB；OBCN 允许 40 KiB。OBCS v1 schema/corpus 已覆盖这些启动值；共享 Workbench schema 和 Desktop binding 仍不构成对这些原生扩展的支持证据。
 
 ## 调用者 Panel 上下文
 

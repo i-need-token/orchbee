@@ -147,7 +147,7 @@ pub fn decode_terminal_projection_buffer(
     if &bytes[..4] != b"OBPB" {
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
-    if bytes[4] != 0 || bytes[5] != 0 || bytes[144] != 2 || u16_at(bytes, 12) != 320 {
+    if bytes[4] != 0 || bytes[5] != 1 || bytes[144] != 0 || u16_at(bytes, 12) != 320 {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }
     if u32_at(bytes, 8) as usize != bytes.len() {

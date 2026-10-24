@@ -45,7 +45,7 @@ lease。已撤销 lease 在锁外释放；其清理绝不影响替代者。仍�
 
 ## 兼容性及证据
 
-此尚未发布的 OBCS v2 新 action 与私有 OBCN action tag 5 要求同一开发版本整体部署。
+此尚未发布的 OBCS v1 新 action 与私有 OBCN action tag 5 要求同一开发版本整体部署。
 旧 peer 拒绝此 action；不会回退为断开另一 Client 或重试不确定效果。无需新增 Host 协议
 或依赖。原生 stream control 和 attach 消费此权威。Windows 原生 Client 的显式
 `Ctrl+B t` 集成由[原生控制权接管](../../orchbee/docs/native-control-takeover.zh-CN.md)治理；

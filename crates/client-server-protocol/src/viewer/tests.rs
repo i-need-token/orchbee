@@ -45,7 +45,7 @@ fn attach_binding_round_trips_equal_bytes_through_distinct_identity_domains()
     assert_eq!(
         frame.get(FRAME_HEADER_BYTES..),
         Some(
-            br#"{"kind":"terminal.viewer","protocolVersion":2,"requestId":"11111111111111111111111111111111","action":{"kind":"attach-binding","siteId":"11111111111111111111111111111111","workerId":"11111111111111111111111111111111","terminalId":"11111111111111111111111111111111"}}"#
+            br#"{"kind":"terminal.viewer","protocolVersion":1,"requestId":"11111111111111111111111111111111","action":{"kind":"attach-binding","siteId":"11111111111111111111111111111111","workerId":"11111111111111111111111111111111","terminalId":"11111111111111111111111111111111"}}"#
                 .as_slice()
         )
     );
@@ -67,7 +67,7 @@ fn workbench_unavailable_round_trips_only_as_a_viewer_outcome()
     assert_eq!(
         frame.get(FRAME_HEADER_BYTES..),
         Some(
-            br#"{"kind":"terminal.viewer.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"workbench-unavailable"}}"#
+            br#"{"kind":"terminal.viewer.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"unavailable","reason":"workbench-unavailable"}}"#
                 .as_slice()
         )
     );
@@ -175,7 +175,7 @@ fn history_viewport_actions_encode_their_canonical_json_shape()
         ));
         let frame = encode_client_frame(&message)?;
         let expected = format!(
-            r#"{{"kind":"terminal.viewer","protocolVersion":2,"requestId":"{SHARED_IDENTITY}","action":{payload}}}"#
+            r#"{{"kind":"terminal.viewer","protocolVersion":1,"requestId":"{SHARED_IDENTITY}","action":{payload}}}"#
         );
         assert_eq!(frame.get(FRAME_HEADER_BYTES..), Some(expected.as_bytes()));
         assert_eq!(decode_client_frame(&frame)?, message);
@@ -212,7 +212,7 @@ fn history_viewport_actions_reject_out_of_bounds_and_unknown_values()
         r#"{"kind":"scroll-history","attachmentId":"33333333333333333333333333333333"}"#,
     ] {
         let payload = format!(
-            r#"{{"kind":"terminal.viewer","protocolVersion":2,"requestId":"{SHARED_IDENTITY}","action":{action}}}"#
+            r#"{{"kind":"terminal.viewer","protocolVersion":1,"requestId":"{SHARED_IDENTITY}","action":{action}}}"#
         );
         let mut frame = b"OBCS\x00\x01".to_vec();
         frame.extend_from_slice(&(payload.len() as u32).to_be_bytes());
@@ -236,7 +236,7 @@ fn host_rejected_round_trips_as_viewer_rejection() -> Result<(), Box<dyn std::er
     assert_eq!(
         frame.get(FRAME_HEADER_BYTES..),
         Some(
-            br#"{"kind":"terminal.viewer.result","protocolVersion":2,"requestId":"11111111111111111111111111111111","outcome":{"kind":"rejected","reason":"host-rejected"}}"#
+            br#"{"kind":"terminal.viewer.result","protocolVersion":1,"requestId":"11111111111111111111111111111111","outcome":{"kind":"rejected","reason":"host-rejected"}}"#
                 .as_slice()
         )
     );
@@ -265,7 +265,7 @@ fn viewport_render_detail_is_explicit_and_closed() -> Result<(), Box<dyn std::er
 
 fn raw_viewer_action_frame(action: &str) -> Vec<u8> {
     let payload = format!(
-        r#"{{"kind":"terminal.viewer","protocolVersion":2,"requestId":"{SHARED_IDENTITY}","action":{action}}}"#
+        r#"{{"kind":"terminal.viewer","protocolVersion":1,"requestId":"{SHARED_IDENTITY}","action":{action}}}"#
     );
     let mut frame = Vec::with_capacity(FRAME_HEADER_BYTES + payload.len());
     frame.extend_from_slice(b"OBCS");

@@ -404,10 +404,10 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
     // The decode boundary applies the same rule, and a missing `target` field
     // is rejected rather than treated as `null`.
     for payload in [
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":3},\"cleanup\":\"confirmed\"}}",
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}",
-        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"progress\":{\"recordsAccepted\":1,\"firstStoppedRecord\":1,\"acceptedEncodedBytes\":3},\"cleanup\":\"confirmed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"confirmed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
     ] {
         assert!(
             crate::wire::decode_server_payload(payload.as_bytes()).is_err(),
@@ -416,7 +416,7 @@ fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dy
     }
     assert!(
         crate::wire::decode_server_payload(
-            b"{\"kind\":\"terminal.send.result\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
+            b"{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"progress\":{\"recordsAccepted\":0,\"firstStoppedRecord\":0,\"acceptedEncodedBytes\":0},\"cleanup\":\"not-needed\"}}",
         )
         .is_ok()
     );

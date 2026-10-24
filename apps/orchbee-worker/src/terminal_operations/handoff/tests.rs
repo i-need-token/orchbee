@@ -541,7 +541,7 @@ fn connected_host() -> (HostBrokerConnection, LocalStream) {
         let control = encode_connection_control(&ConnectionControl::HelloAccepted(HelloAccepted {
             frame_bytes: hello.frame_bytes,
             host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([4; 16]).unwrap(),
-            host_version: "0.0.25".into(),
+            host_version: "0.1.0".into(),
             input_bytes: hello.input_bytes,
             protocol: hello.protocol,
             row_window_bytes: hello.row_window_bytes,

@@ -12,7 +12,7 @@ use orchbee_terminal_protocol::{
 };
 use std::{io, num::NonZeroU64};
 const ROWS: &[u8] = include_bytes!(
-    "../../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
+    "../../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin"
 );
 fn rows() -> Vec<u8> {
     let mut bytes = ROWS.to_vec();

@@ -73,7 +73,7 @@ The accepted contract requires these externally visible properties:
 - Kitty graphics remain bounded native state. Ghostty owns direct, regular-file, temporary-file,
   and supported POSIX shared-memory media plus animation, virtual/relative placement, cropping,
   query/delete, and signed-z composition. Host projects only owned decoded pixels and resolved
-  placements through OBKG `0.0.2`; render-detail OBRW `0.0.3` includes a graphics snapshot, while
+  placements through OBKG `0.1.0`; render-detail OBRW `0.1.0` includes a graphics snapshot, while
   text detail excludes graphics. macOS and supported libc-backed Linux targets enable every medium;
   Windows enables direct, regular-file, and temporary-file media but not POSIX shared memory.
 - Terminal control queries, including DECRQSS, read that same canonical Ghostty state and enqueue their replies through the Host-owned bounded terminal-reply path; attachments never emulate a second VT reply surface.

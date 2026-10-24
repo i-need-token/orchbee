@@ -2,7 +2,7 @@ use super::*;
 
 fn frame() -> TerminalTextFrame {
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+        "../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     frame.geometry.columns = 104;

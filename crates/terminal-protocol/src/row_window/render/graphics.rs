@@ -14,7 +14,7 @@ pub(super) fn validate_snapshot(bytes: &[u8]) -> Result<(u16, u16), ProtocolErro
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
     let mut reader = Reader::new(&bytes[4..]);
-    if reader.take(3)? != [0, 0, 2] {
+    if reader.take(3)? != [0, 1, 0] {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }
     let kind = reader.u8()?;

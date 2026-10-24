@@ -9,9 +9,8 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope, message_contract,
 };
 
-const FIXTURE: &[u8] = include_bytes!(
-    "../../../packages/terminal-protocol/fixtures/selection-export-chunk-v0.0.25.bin"
-);
+const FIXTURE: &[u8] =
+    include_bytes!("../../../packages/terminal-protocol/fixtures/selection-export-chunk.bin");
 
 #[test]
 fn canonical_chunk_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>> {

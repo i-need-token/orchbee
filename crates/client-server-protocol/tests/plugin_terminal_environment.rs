@@ -32,7 +32,7 @@ fn plugin_terminal_environment_roundtrips_and_closed_schema_requires_an_explicit
     assert_eq!(decode_client_frame(&encoded).unwrap(), message);
     let document: serde_json::Value = serde_json::from_slice(&encoded[8..]).unwrap();
     let schema: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../schemas/client-server/v2/client-server.schema.json"
+        "../../../schemas/client-server/v1/client-server.schema.json"
     ))
     .unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();

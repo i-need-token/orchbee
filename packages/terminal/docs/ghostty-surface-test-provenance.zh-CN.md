@@ -68,15 +68,15 @@
 
 ## 投影 Kitty 图形
 
-固定 Ghostty 仍是解码图像、帧选择、virtual 与 relative 放置、源相交及 z 顺序的状态所有者。Terminal Host 把这些状态解析成有界 OBKG `0.0.2` 自有像素与绝对放置。路径、文件描述符、共享内存名称或映射、压缩流、编码容器及未解析 pin 都不会到达本包。
+固定 Ghostty 仍是解码图像、帧选择、virtual 与 relative 放置、源相交及 z 顺序的状态所有者。Terminal Host 把这些状态解析成有界 OBKG `0.1.0` 自有像素与绝对放置。路径、文件描述符、共享内存名称或映射、压缩流、编码容器及未解析 pin 都不会到达本包。
 
-打包 store 会原子提交图像资源、放置、资源修订与单调 animation tick。Canvas2D 和 WebGPU 对每项图像 generation 缓存一份转换后资源，使用相交的源矩形与目标几何，并在三个对应接缝绘制：`z < -1073741824` 位于单元格背景下方，`-1073741824 <= z < 0` 位于背景与文本之间，`z >= 0` 位于文本上方。替换与失败路径不能保留过时 Canvas 或 GPU 资源。Render-detail OBRW `0.0.3` 携带一份重定位到所选历史窗口的独立完整图形快照；text detail 不携带图形。
+打包 store 会原子提交图像资源、放置、资源修订与单调 animation tick。Canvas2D 和 WebGPU 对每项图像 generation 缓存一份转换后资源，使用相交的源矩形与目标几何，并在三个对应接缝绘制：`z < -1073741824` 位于单元格背景下方，`-1073741824 <= z < 0` 位于背景与文本之间，`z >= 0` 位于文本上方。替换与失败路径不能保留过时 Canvas 或 GPU 资源。Render-detail OBRW `0.1.0` 携带一份重定位到所选历史窗口的独立完整图形快照；text detail 不携带图形。
 
 上游 `src/renderer/image.zig` 声明共同映射到 Host 投影与客户端 renderer：源相交及 relative/virtual 放置在线协议前解析；pending/replaced 图像由原子 store 替换与资源清理覆盖；当前动画帧由 Host generation/tick 证据与按 generation 建键的 renderer cache 共同覆盖。包 renderer 不会成为第二个 Kitty 解析器或动画状态机。
 
 ## 宿主衍生的投影语料库
 
-`@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.3.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
+`@orchbee/terminal-protocol/fixtures/ghostty-surface.bin`、`ghostty-alternate-surface.bin` 和 `ghostty-render-row-window.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
 
 Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影渲染器测试会解码主 OBTF 字节作为 Canvas 和 WebGPU 证据，再通过打包存储提交两个 OBTF 快照以获得转换证据。OBRW 消费者独立固定完整的六行乘八单元格判定：行索引、标志、提示类、字素与超链接字符串及其原始字节范围、全部三个颜色列、每个样式标志和下划线类型、宽度拓扑、语义内容、受保护标志和提交元数据。它要求严格解码与可信结构视图匹配同一矩阵，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并按相同语义列检查每一存储行。线协议有效的内存变更覆盖前景/背景交换、受支持样式变化、受支持语义变化、清除受保护单元格、规范移除超链接、协调行换行和有效宽度拓扑替换。
 

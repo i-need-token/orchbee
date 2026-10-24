@@ -1,9 +1,8 @@
 //! Actual Windows processes prove styled sources, strict records and cleanup.
 use super::*;
 
-const RENDER: &[u8] = include_bytes!(
-    "../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
-);
+const RENDER: &[u8] =
+    include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin");
 const SCHEMA: &str = include_str!("../../src/cli/schemas/orchbee.terminal.output.json");
 
 fn render_window() -> Vec<u8> {

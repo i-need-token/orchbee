@@ -11,17 +11,17 @@ use orchbee_terminal_protocol::{
 };
 
 const KEY_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/key-input-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/key-input.bin");
 const TEXT_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/text-input-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/text-input.bin");
 const MOUSE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/mouse-input-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/mouse-input.bin");
 const FOCUS_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/focus-input-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/focus-input.bin");
 const PASTE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-input-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-input.bin");
 const PASTE_AUTO_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-auto-input-v0.0.25.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-auto-input.bin");
 
 #[test]
 fn every_canonical_semantic_input_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>>

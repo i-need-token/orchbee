@@ -613,7 +613,7 @@ function textRowWindow(sequence: bigint, textLength: number): Uint8Array {
 	const view = new DataView(bytes.buffer);
 	bytes.set([0x4f, 0x42, 0x52, 0x57], 0); // OBRW
 	bytes[4] = 0;
-	bytes[5] = 0;
+	bytes[5] = 1;
 	bytes[6] = 2; // text detail
 	bytes[7] = 0;
 	view.setUint32(8, total, true);
@@ -629,7 +629,7 @@ function textRowWindow(sequence: bigint, textLength: number): Uint8Array {
 	view.setUint16(88, 1, true); // row count
 	view.setUint32(92, 1, true); // entry count
 	view.setUint32(96, bodyLength, true);
-	bytes[100] = 1; // format patch
+	bytes[100] = 0; // format patch
 	bytes[112] = 0; // row flags: no wrap, not identity-ascii
 	bytes[113] = 0; // prompt class: none
 	view.setUint16(114, 0, true);

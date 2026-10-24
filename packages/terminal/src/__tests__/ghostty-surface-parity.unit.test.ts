@@ -34,13 +34,13 @@ import { detectTerminalRowLinks } from '../terminal-row-links';
 
 const moduleRequire = createRequire(import.meta.url);
 const surfaceFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin',
+	'@orchbee/terminal-protocol/fixtures/ghostty-surface.bin',
 );
 const alternateSurfaceFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin',
+	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface.bin',
 );
 const renderRowWindowFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin',
+	'@orchbee/terminal-protocol/fixtures/ghostty-render-row-window.bin',
 );
 
 const RENDER_ATTACHMENT_ID = '44444444444444444444444444444444';

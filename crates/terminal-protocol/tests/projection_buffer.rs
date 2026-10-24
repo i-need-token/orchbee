@@ -5,12 +5,10 @@ use encoded_fixture::base64;
 use orchbee_terminal_protocol::{ProtocolErrorCode, decode_terminal_projection_buffer};
 use std::error::Error;
 
-const CORPUS: &str = include_str!(
-    "../../../packages/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json"
-);
-const PROJECTION: &[u8] = include_bytes!(
-    "../../../packages/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin"
-);
+const CORPUS: &str =
+    include_str!("../../../packages/terminal-protocol/fixtures/packed-projection-conformance.json");
+const PROJECTION: &[u8] =
+    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-projection-buffer.bin");
 
 #[test]
 fn shared_obpb_corpus_has_identical_admission_and_observations() -> Result<(), Box<dyn Error>> {

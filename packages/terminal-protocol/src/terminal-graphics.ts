@@ -4,7 +4,7 @@ import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-
 import type { ProtocolResult } from './protocol-result';
 
 export const TERMINAL_GRAPHICS_MAGIC = new Uint8Array([0x4f, 0x42, 0x4b, 0x47]);
-export const TERMINAL_GRAPHICS_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
+export const TERMINAL_GRAPHICS_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 export const TERMINAL_GRAPHICS_HEADER_BYTES = 40;
 
 const IMAGE_RECORD_BYTES = 32;

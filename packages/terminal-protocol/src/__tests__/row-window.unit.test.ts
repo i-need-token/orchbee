@@ -354,7 +354,7 @@ function countByteSequence(bytes: Uint8Array, value: Uint8Array): number {
 }
 
 describe('packed terminal row windows', () => {
-	it('round-trips a render window through nested OBPB 0.0.2 and snapshot OBKG 0.0.2', () => {
+	it('round-trips a render window through nested OBPB 0.1.0 and snapshot OBKG 0.1.0', () => {
 		const bytes = encodedRenderWindow();
 		const decoded = decodeTerminalRowWindow(bytes);
 		if (!decoded.ok) throw new Error(decoded.detail);
@@ -556,7 +556,7 @@ describe('packed terminal row windows', () => {
 		expect(decoded.value.rows[0]?.identityAscii).toBe(false);
 		expect([...(decoded.value.rows[0]?.columns ?? [])]).toEqual([0, 1]);
 		const differentFormat = encoded.value.slice();
-		differentFormat[5] = 1;
+		differentFormat[5] = 2;
 		expect(decodeTerminalRowWindow(differentFormat)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }),
 		);
@@ -771,7 +771,7 @@ describe('packed terminal row windows', () => {
 			totalRows: 20n,
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
-		expect(encoded.value[5]).toBe(0);
+		expect(encoded.value[5]).toBe(1);
 		expect(encoded.value[112]).toBe(0x04);
 		expect(new DataView(encoded.value.buffer).getUint32(92, true)).toBe(3);
 		expect(new DataView(encoded.value.buffer).getUint32(120, true)).toBe(0);

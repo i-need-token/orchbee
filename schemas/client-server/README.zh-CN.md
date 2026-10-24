@@ -6,8 +6,8 @@
 
 ## 权威与边界
 
-[`v2/client-server.schema.json`](v2/client-server.schema.json) 与本文档是 Orchbee Client-Server
-terminal-control protocol version 2（`OBCS`）的语言中立权威。OBCS 通过任意有序 byte stream，
+[`v1/client-server.schema.json`](v1/client-server.schema.json) 与本文档是 Orchbee Client-Server
+terminal-control protocol version 1（`OBCS`）的语言中立权威。OBCS 通过任意有序 byte stream，
 在已授权 Client Session 与 Server 之间承载 terminal semantic control。Rust crate
 `orchbee-client-server-protocol` 是独立 binding，不得增加 value、省略 invariant 或重新定义 field
 含义。
@@ -21,7 +21,7 @@ OBCS 有以下相邻边界：
 | `OBCN`               | 负责 Server-to-Worker placement authorization、operation、generation、lease 与 fence fact。      |
 | Workbench projection | 只读 authorized product projection；它不是 terminal-control writer。                             |
 
-Version 2 准入 `terminal.create`、`terminal.create.result`、`terminal.start`、
+Version 1 准入 `terminal.create`、`terminal.create.result`、`terminal.start`、
 `terminal.start.result`、`terminal.viewer`、`terminal.viewer.result`、`terminal.control` 和
 `terminal.control.result`，以及尚未发布的 `terminal.open` / `terminal.open.result` 和 viewer
 `attach-binding` 扩展、`terminal.launch.read` / result 以及 `terminal.send.result`。Send request 使用 OBSN binary record。它不定义 close、cancel、retry transport、authentication、authorization
@@ -34,7 +34,7 @@ policy、Server state store、Worker operation、Host launch 或 Workbench mutat
 | Magic          | 四个 byte `OBCS`                                      |
 | Frame version  | unsigned 16-bit big-endian integer `1`                |
 | Payload length | unsigned 16-bit big-endian byte length，至多 63 KiB   |
-| Payload        | 带有 `protocolVersion: 2` 的 strict UTF-8 JSON object |
+| Payload        | 带有 `protocolVersion: 1` 的 strict UTF-8 JSON object |
 
 Decoder 在分配 payload storage 之前校验完整的八 byte header，精确读取声明的 payload，并拒绝
 无效 magic、不支持的 frame version、超过 63 KiB 的 payload、truncation，或在解码单个完整
@@ -44,8 +44,8 @@ in-memory frame 时出现的额外 byte。Stream reader 每次消费一个 frame
 Payload 拒绝 UTF-8 BOM、无效 UTF-8、任意深度的重复 object key、尾随的第二个 JSON value、
 非 object root、未知 field、未知 message 或 enum tag，以及方向错误的 message。Whitespace、
 object-key order 与等价 JSON string escape 不具有语义。Numeric `protocolVersion` 与 geometry
-value 会先 refine 为有限的 IEEE 754 binary64 safe integer，再应用其精确 bound。因此 `2.0`、
-`2e0` 与 `8e1` 等 integral decimal 或 exponent spelling 在 refined value 位于范围内时有效；
+value 会先 refine 为有限的 IEEE 754 binary64 safe integer，再应用其精确 bound。因此 `1.0`、
+`1e0` 与 `8e1` 等 integral decimal 或 exponent spelling 在 refined value 位于范围内时有效；
 refinement 后仍为 fractional 的 value、non-finite value、unsafe integer 与越界 value 无效。
 Canonical encoding 是确定性的 compact JSON，并使用普通 integer token。
 
@@ -89,7 +89,7 @@ default；省略该 field 无效。
 
 Deferred creation 不携带 geometry 或 fallback。Immediate creation 携带一个完整有效 geometry。
 `terminal.create` request 绝不提交 Terminal identity、Worker generation、operation、lease、fence、
-Host identity 或 epoch、Project、Workspace、Panel、Worktree、Client generation、profile 或 configuration fact。可选 literal launch/environment value 遵循下方 version-2 契约。
+Host identity 或 epoch、Project、Workspace、Panel、Worktree、Client generation、profile 或 configuration fact。可选 literal launch/environment value 遵循下方 version-1 契约。
 
 `terminal.start` 包含 `protocolVersion`、新的 `requestId`、用于标识 deferred create request 且与
 前者不同的 `terminalCreateRequestId`，以及一个完整有效 `geometry`。它不携带 terminal identity
@@ -187,7 +187,7 @@ revision 的全等回显，Host 可交付 clamp 后的窗口。`rows-applied` �
 [Server 归属指南](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record)
 定义容量优先级、disposal、generation fence 和 cleanup。Codec 校验语法，不判断运行时所有权。
 
-必需 selector 改变了尚未发布的 OBCS v2 请求形状。必须一起构建、部署和回滚精确匹配的
+必需 selector 改变了尚未发布的 OBCS v1 请求形状。必须一起构建、部署和回滚精确匹配的
 Client/Server/Worker 开发 cohort；不支持混合 cohort 或隐式 current viewer fallback。
 OBSR 载体格式不变；`read-rows`/`rows-rejected` 对匹配的 OBCN cohort 做增量扩展（action tag 6
 与 result tag 6），五个 viewport 与 history action 同样新增 OBCN action tag 7 至 11——旧 Worker
@@ -235,7 +235,7 @@ controller，不自动提升。普通 Acquire 拒绝已占用终端；显式 `ta
 身份并在交接前封锁旧授权；Worker 收到精确旧 Host detach 确认后才获取新授权。接管失败
 可能撤销旧权限而未授予新权限，绝不静默恢复权威。Rejected、Unavailable 和 OutcomeUnknown
 保持区分；清理结果未知时保留封锁。见[接管模型](../../apps/orchbee-server/docs/terminal-controller-takeover.zh-CN.md)。
-此 v2 新 action 要求同一开发版本整体部署，旧 peer 会拒绝它。`acquired` 结果携带新的 `controllerId`，采用非零 32 字符小写
+此 action 要求同一开发版本整体部署，旧 peer 会拒绝它。`acquired` 结果携带新的 `controllerId`，采用非零 32 字符小写
 hex 身份格式。Grant 绑定该 Session、viewer、Worker 代次与 Host 终端。
 
 `input` 还包含 `controllerId`、`sequence` 和 `bytes`；`resize` 还包含 `controllerId`、`sequence`
@@ -281,18 +281,18 @@ Runtime 所有权与 Host admission 仍由 Server 和 Worker 归属指南负责�
 
 ## Submission、reference 与 cancellation obligation
 
-Client 对每个 mutating intent 至多提交一次。OBCS version 2 不定义 replay lookup、历史 duplicate
+Client 对每个 mutating intent 至多提交一次。OBCS version 1 不定义 replay lookup、历史 duplicate
 detection 或 idempotency ledger。Consumer 可在其当前 accepted state 暴露 ID collision 或以其他
 方式使 request 无效时拒绝该 request，但这种 state validation 不是保留、识别或 replay 历史
 request 的承诺。
 
-Version 2 没有 cancel message。Timeout、transport loss、Client Session loss 或 caller abandonment
+Version 1 没有 cancel message。Timeout、transport loss、Client Session loss 或 caller abandonment
 既不编码 cancellation，也不能证明 terminal effect 未 commit。Client 不得在这些事件后自动重发
 mutating intent；ambiguous result 应改由未来的只读 projection 或 observation boundary reconcile。
 
 ## Conformance 与限制
 
-[`v2/client-server-conformance-v2.json`](v2/client-server-conformance-v2.json) 是确定性的跨语言
+[`v1/client-server-conformance-v1.json`](v1/client-server-conformance-v1.json) 是确定性的跨语言
 oracle。其 JSON fixture 与独立编写的 binary hex record 覆盖每个 message、result category、reason、accepted-state variant 与 accepted-start
 transition，以及 malformed 和 semantically invalid payload。Repeated-value recipe 以紧凑形式
 materialize 精确 byte-boundary、multibyte 与 worst-case JSON path input。Binding 消费该 corpus 时
@@ -314,7 +314,7 @@ cancellation、terminal execution、persistence、recovery 或任何 live transp
 
 ## 独立终端打开
 
-尚未发布的 version-2 扩展 `terminal.open` 携带 `protocolVersion`、Client 新生成的
+尚未发布的 version-1 扩展 `terminal.open` 携带 `protocolVersion`、Client 新生成的
 `requestId` 和完整 `geometry`。它打开本机单主体 Server 的独立终端引用：首次准备使用
 Worker 默认 cwd 创建立即启动的终端；后续打开返回同一个引用。Open 自身不 dispatch 或提交 Resize；Client 可随后 attach、获取 controller 权限，并提交独立的已校验 Resize。
 此终端线协议不增加 Workbench payload。原生 Server 拥有启动前首次共享独立终端成员关系的提交，
@@ -342,11 +342,11 @@ source contract 与 runtime cohort 一起 rollback。该扩展不增加 persiste
 
 线协议中的绝对路径接受 POSIX 前导斜杠，或 ASCII 盘符后跟 `:` 及 `/` 或 `\`；Windows 逐字盘符路径可以带 `\\?\` 前缀。词法规则不依赖解码器所在平台；字节保持原样，不展开、不规范化。本次 Windows 增量不接受反斜杠根路径、盘符相对路径、UNC 或设备路径。既有字节上限和 NUL／Unicode 校验不变。执行方仍须在产生效果前依据本地文件系统验证路径。
 
-## 原生版本 2
+## 当前原生契约
 
-原生 cohort 使用 JSON `protocolVersion: 2`、OBCS frame version 1 和 63 KiB JSON payload 上限。[version-1 schema](v1/client-server.schema.json) 与 [corpus](v1/client-server-conformance-v1.json) 保留为冻结参考；当前 [version-2 schema](v2/client-server.schema.json) 与 [corpus](v2/client-server-conformance-v2.json) 约束原生 binding。Version 2 拒绝 version-1 body 和旧版 JSON `terminal.send` 请求。专用 OBSN binary request 保持 encoding version 1；其四个非零 16-byte identity、有序 record sequence 和 progress-result 语义属于原生 v2 契约。Binary framing、聚合 content 上限与词法验证独立于 JSON schema。
+原生 cohort 遵循仓库的[发布前版本规则](../../docs/zh-CN/ARCHITECTURE.md#数据边界)：JSON `protocolVersion: 1`、OBCS frame version 1 和 63 KiB JSON payload 上限。[schema](v1/client-server.schema.json) 与 [corpus](v1/client-server-conformance-v1.json) 描述唯一的当前形状。严格解析拒绝其他形状，包括 JSON `terminal.send` 请求。专用 OBSN 二进制请求使用 encoding version 1；其四个非零 16-byte identity、有序 record sequence 和 progress-result 语义属于当前契约。二进制 framing、聚合内容上限和词法校验独立于 JSON schema。
 
-v2 Create 额外接受可选 `launch`（null 或 literal `{exec,args}`）和 `environment`（有序 `[name,value]` pair，空时省略）。Executable 必须绝对，argv 不含 argv0，最多 128 个 argument，合计 30,720 UTF-8 bytes，禁止 NUL。Environment 最多 32 项，name/value 合计最多 1,024 UTF-8 bytes。ASCII identifier name 长 1–128 bytes，忽略 ASCII 大小写唯一，并忽略大小写拒绝 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`。Value 为 literal，可以为空，禁止 NUL。Byte sum 与忽略大小写唯一性由 binding 在 JSON Schema 之外细化。Found launch read 的可选同级 `launchProfile` 携带 opaque `profileId`（1–128 UTF-8 bytes）和规范 unsigned-64 decimal `catalogRevision`；它记录捕获的来源，不授予 launch authority。
+Create 额外接受可选 `launch`（null 或 literal `{exec,args}`）和 `environment`（有序 `[name,value]` pair，空时省略）。Executable 必须绝对，argv 不含 argv0，最多 128 个 argument，合计 30,720 UTF-8 bytes，禁止 NUL。Environment 最多 32 项，name/value 合计最多 1,024 UTF-8 bytes。ASCII identifier name 长 1–128 bytes，忽略 ASCII 大小写唯一，并忽略大小写拒绝 `ORCHBEE_*`、`TERM`、`COLORTERM` 和 `TERM_PROGRAM`。Value 为 literal，可以为空，禁止 NUL。Byte sum 与忽略大小写唯一性由 binding 在 JSON Schema 之外细化。Found launch read 的可选同级 `launchProfile` 携带 opaque `profileId`（1–128 UTF-8 bytes）和规范 unsigned-64 decimal `catalogRevision`；它记录捕获的来源，不授予 launch authority。
 
 Found launch read 还可携带非 null 的 `launchSelection:{exec,args}`，复用上述程序／参数边界，表示创建时经解析后冻结的选择；默认 shell 与 `not-tracked` 时省略。出现 null、非法选择或 `not-tracked` 携带选择均拒绝。旧消息可省略该成员；不导出 environment，不读取当前 profile 目录，也不声明跨重启保存。该未发布的增量字段要求同 cohort 部署／回滚，旧 reader 可能拒绝。
 
@@ -365,7 +365,7 @@ OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 res
 
 Stroke 身份为具名键 `(1,1..13)`、Insert `(2,0)`、F1..F25 `(3,1..25)` 或单个非控制 Unicode 标量 `(4,codepoint)`。未知位、C0/C1 控制符、代理码点和越界值在分发前拒绝。旧记录字节及 combo 边界不变。两个原生协议责任方独立校验相同字段语义；此未发布扩展要求 Client/Server/Worker/Host 同批部署。
 
-Combo base 为 named key `(1,1..13)`、Insert `(2,0)`、F1..F12 `(3,1..12)`、Space `(4,0)`、ASCII 小写字母 `(5,97..122)` 或数字 `(6,48..57)`。额外 flag bit、无效 base、未知 kind、truncation 与 trailing byte 均拒绝。Decoded text（含折叠 CR）、bytes 与 paste content 聚合最多 1,048,576 bytes；key 不携带 decoded payload。请求不具备原子性：result 保留已确认前缀和首个停止 record。v2 corpus 独立于 Rust encoder 提供 canonical binary bytes、每个 key 和 base kind、混合 record 与 negative control。
+Combo base 为 named key `(1,1..13)`、Insert `(2,0)`、F1..F12 `(3,1..12)`、Space `(4,0)`、ASCII 小写字母 `(5,97..122)` 或数字 `(6,48..57)`。额外 flag bit、无效 base、未知 kind、truncation 与 trailing byte 均拒绝。Decoded text（含折叠 CR）、bytes 与 paste content 聚合最多 1,048,576 bytes；key 不携带 decoded payload。请求不具备原子性：result 保留已确认前缀和首个停止 record。corpus 独立于 Rust encoder 提供 canonical binary bytes、每个 key 和 base kind、混合 record 与 negative control。
 
 ## 带样式的 buffer 读取
 
@@ -375,7 +375,7 @@ Combo base 为 named key `(1,1..13)`、Insert `(2,0)`、F1..F12 `(3,1..12)`、Sp
 完整投影及图形快照，8 MiB 负载预算不变。render 被拒绝时不得退回 text 或静默丢弃图形。
 viewport 读取仍为 text。
 
-这是增量的未发布 OBCS v2 契约，保留现有帧版本。Client、Server、Worker 与 Host 开发产物
+这是增量的未发布 OBCS v1 契约，保留现有帧版本。Client、Server、Worker 与 Host 开发产物
 必须一起部署或回退。旧读取端拒绝新成员，不新增持久状态或迁移。Windows ANSI CLI 输出是
 具体消费者，wire 保持平台无关。JSON schema 及独立 Rust 用例覆盖默认 text 兼容、render
 选择和非法 detail；运行时 peer 验证精确响应固定。

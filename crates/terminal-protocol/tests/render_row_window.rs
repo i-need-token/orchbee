@@ -8,14 +8,12 @@ use orchbee_terminal_protocol::{
 };
 use std::error::Error;
 
-const WINDOW: &[u8] = include_bytes!(
-    "../../../packages/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin"
-);
-const PACKED: &str = include_str!(
-    "../../../packages/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json"
-);
+const WINDOW: &[u8] =
+    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin");
+const PACKED: &str =
+    include_str!("../../../packages/terminal-protocol/fixtures/packed-projection-conformance.json");
 const MALFORMED: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/malformed-row-window-v0.0.3.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/malformed-row-window.json");
 
 #[test]
 fn host_render_snapshot_is_borrowed_and_all_prefixes_reject() -> Result<(), Box<dyn Error>> {
@@ -116,9 +114,8 @@ fn every_nested_route_pin_must_agree_with_the_outer_snapshot() {
             .code(),
         ProtocolErrorCode::InvalidField
     );
-    let text = include_bytes!(
-        "../../../packages/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin"
-    );
+    let text =
+        include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-row-window.bin");
     assert_eq!(
         decode_terminal_render_row_window(text).unwrap_err().code(),
         ProtocolErrorCode::InvalidField
@@ -141,7 +138,7 @@ fn graphics_snapshot() -> Vec<u8> {
     // One 2x1 RGBA image and two placements sharing the legal zero placement ID.
     // Fields are authored from the wire contract, independently of the decoder.
     let mut bytes = vec![0; 40];
-    bytes[..8].copy_from_slice(b"OBKG\0\0\x02\x01");
+    bytes[..8].copy_from_slice(b"OBKG\0\x01\0\x01");
     bytes[12..20].copy_from_slice(&1_u64.to_le_bytes());
     bytes[28..30].copy_from_slice(&1_u16.to_le_bytes());
     bytes[30..32].copy_from_slice(&2_u16.to_le_bytes());

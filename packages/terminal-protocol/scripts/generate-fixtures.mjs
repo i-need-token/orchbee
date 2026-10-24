@@ -69,46 +69,28 @@ function versionText(version) {
 	return `${version.major}.${version.minor}.${version.patch}`;
 }
 
-const protocolVersion = versionText(CURRENT_PROTOCOL_VERSION);
-const frameVersion = versionText(TERMINAL_FRAME_FORMAT);
-const projectionVersion = versionText(TERMINAL_PROJECTION_BUFFER_FORMAT);
 const rowWindowVersion = versionText(TERMINAL_ROW_WINDOW_FORMAT);
 const canonicalPath = path.join(fixturesDirectory, 'canonical.json');
-const framePath = path.join(fixturesDirectory, `terminal-frame-v${frameVersion}.bin`);
-const projectionPath = path.join(
-	fixturesDirectory,
-	`terminal-projection-buffer-v${projectionVersion}.bin`,
-);
-const envelopePath = path.join(fixturesDirectory, `transport-envelope-v${protocolVersion}.bin`);
-const inputPath = path.join(fixturesDirectory, `write-input-v${protocolVersion}.bin`);
-const keyInputPath = path.join(fixturesDirectory, `key-input-v${protocolVersion}.bin`);
-const textInputPath = path.join(fixturesDirectory, `text-input-v${protocolVersion}.bin`);
-const mouseInputPath = path.join(fixturesDirectory, `mouse-input-v${protocolVersion}.bin`);
-const focusInputPath = path.join(fixturesDirectory, `focus-input-v${protocolVersion}.bin`);
-const pasteInputPath = path.join(fixturesDirectory, `paste-input-v${protocolVersion}.bin`);
-const pasteAutoInputPath = path.join(fixturesDirectory, `paste-auto-input-v${protocolVersion}.bin`);
-const selectionExportChunkPath = path.join(
-	fixturesDirectory,
-	`selection-export-chunk-v${protocolVersion}.bin`,
-);
-const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed-v${protocolVersion}.json`);
-const controlConformancePath = path.join(
-	fixturesDirectory,
-	`control-conformance-v${protocolVersion}.json`,
-);
-const utf8BomConformancePath = path.join(
-	fixturesDirectory,
-	`utf8-bom-conformance-v${protocolVersion}.json`,
-);
-const malformedPath = path.join(fixturesDirectory, `malformed-frame-v${frameVersion}.json`);
-const rowWindowPath = path.join(fixturesDirectory, `terminal-row-window-v${rowWindowVersion}.bin`);
-const malformedRowWindowPath = path.join(
-	fixturesDirectory,
-	`malformed-row-window-v${rowWindowVersion}.json`,
-);
+const framePath = path.join(fixturesDirectory, `terminal-frame.bin`);
+const projectionPath = path.join(fixturesDirectory, `terminal-projection-buffer.bin`);
+const envelopePath = path.join(fixturesDirectory, `transport-envelope.bin`);
+const inputPath = path.join(fixturesDirectory, `write-input.bin`);
+const keyInputPath = path.join(fixturesDirectory, `key-input.bin`);
+const textInputPath = path.join(fixturesDirectory, `text-input.bin`);
+const mouseInputPath = path.join(fixturesDirectory, `mouse-input.bin`);
+const focusInputPath = path.join(fixturesDirectory, `focus-input.bin`);
+const pasteInputPath = path.join(fixturesDirectory, `paste-input.bin`);
+const pasteAutoInputPath = path.join(fixturesDirectory, `paste-auto-input.bin`);
+const selectionExportChunkPath = path.join(fixturesDirectory, `selection-export-chunk.bin`);
+const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed.json`);
+const controlConformancePath = path.join(fixturesDirectory, `control-conformance.json`);
+const utf8BomConformancePath = path.join(fixturesDirectory, `utf8-bom-conformance.json`);
+const malformedPath = path.join(fixturesDirectory, `malformed-frame.json`);
+const rowWindowPath = path.join(fixturesDirectory, `terminal-row-window.bin`);
+const malformedRowWindowPath = path.join(fixturesDirectory, `malformed-row-window.json`);
 const packedProjectionConformancePath = path.join(
 	fixturesDirectory,
-	`packed-projection-conformance-v${rowWindowVersion}.json`,
+	`packed-projection-conformance.json`,
 );
 const checkOnly = process.argv.includes('--check');
 
@@ -1000,7 +982,7 @@ function createControlConformanceFixture() {
 		),
 		protocol_rejected: controlText(
 			ProtocolRejectedSchema,
-			{ client: { major: 0, minor: 1, patch: 0 }, host: protocol, reason: 'version-mismatch' },
+			{ client: { major: 0, minor: 2, patch: 0 }, host: protocol, reason: 'version-mismatch' },
 			'ProtocolRejected',
 		),
 		resize_accepted: controlText(
@@ -1353,7 +1335,7 @@ function assembleTextRowWindowBytes({
 	const bytes = new Uint8Array(ROW_WINDOW_HEADER_BYTES + bodyLength);
 	const view = new DataView(bytes.buffer);
 	bytes.set([0x4f, 0x42, 0x52, 0x57], 0);
-	bytes[5] = 0;
+	bytes[5] = 1;
 	bytes[6] = 2; // text detail
 	bytes[7] = 0;
 	view.setUint32(8, bytes.byteLength, true);
@@ -1370,7 +1352,7 @@ function assembleTextRowWindowBytes({
 	view.setUint16(90, 0, true);
 	view.setUint32(92, entryCount, true);
 	view.setUint32(96, bodyLength, true);
-	bytes[100] = 3;
+	bytes[100] = 0;
 	let offset = ROW_WINDOW_HEADER_BYTES;
 	for (const part of rowParts) {
 		bytes.set(part, offset);
@@ -1468,7 +1450,7 @@ function malformedRowWindowCorpus(rowWindowBytes, renderRowWindowBytes) {
 	const firstTextLength = canonicalView.getUint32(firstRow + 4, true);
 	const firstMappings = firstRow + 12 + firstTextLength;
 	const unsupportedVersion = rowWindowBytes.slice();
-	unsupportedVersion[5] = 1;
+	unsupportedVersion[5] = 2;
 
 	const zeroSequence = rowWindowBytes.slice();
 	zeroSequence.fill(0, 48, 56);

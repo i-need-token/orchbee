@@ -168,6 +168,7 @@ fn rows_record(
     }
     let mut payload = vec![0_u8; bytes];
     payload[..4].copy_from_slice(b"OBRW");
+    payload[5] = 1;
     payload[6] = 2;
     payload[8..12].copy_from_slice(&(bytes as u32).to_le_bytes());
     payload[12..14].copy_from_slice(&112_u16.to_le_bytes());
@@ -181,7 +182,7 @@ fn rows_record(
     payload[80..88].copy_from_slice(&start_row.to_le_bytes());
     payload[88..90].copy_from_slice(&row_count.to_le_bytes());
     payload[96..100].copy_from_slice(&((bytes - 112) as u32).to_le_bytes());
-    payload[100] = 3;
+    payload[100] = 0;
     if reply_detail.unwrap_or(detail) == orchbee_capability_node_protocol::ViewerRowDetail::Render {
         payload[6] = 1;
         payload[92..96].copy_from_slice(&(u32::from(row_count) * 80).to_le_bytes());
@@ -314,7 +315,7 @@ fn read_rows_record_at_the_requested_budget_is_delivered() {
 fn frame_record(sequence: u64) -> Vec<u8> {
     let mut payload = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+        "/../../packages/terminal-protocol/fixtures/terminal-frame.bin"
     ))
     .to_vec();
     payload[6] = 1;

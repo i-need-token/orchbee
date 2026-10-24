@@ -10,7 +10,7 @@
 		"detach_terminal": "{\"attachmentId\":\"22222222222222222222222222222222\"}",
 		"empty": "{}",
 		"frame_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"7\"}",
-		"hello": "{\"clientId\":\"55555555555555555555555555555555\",\"frameBytes\":8388608,\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":0,\"patch\":25},\"rowWindowBytes\":46137344,\"supportedOptionalFeatures\":[\"future-x\"]}",
+		"hello": "{\"clientId\":\"55555555555555555555555555555555\",\"frameBytes\":8388608,\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":1,\"patch\":0},\"rowWindowBytes\":46137344,\"supportedOptionalFeatures\":[\"future-x\"]}",
 		"history_demand": [
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"following-bottom\"}",
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"viewing-history\"}"
@@ -693,7 +693,7 @@
 		"resize_lease_changed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"resizeLease\":true,\"terminalId\":\"44444444444444444444444444444444\"}",
 		"empty": "{}",
 		"frame_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"7\"}",
-		"hello_accepted": "{\"frameBytes\":8388608,\"hostEpoch\":\"11111111111111111111111111111111\",\"hostVersion\":\"0.1.0\",\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":0,\"patch\":25},\"rowWindowBytes\":46137344,\"supportedOptionalFeatures\":[]}",
+		"hello_accepted": "{\"frameBytes\":8388608,\"hostEpoch\":\"11111111111111111111111111111111\",\"hostVersion\":\"0.1.0\",\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":1,\"patch\":0},\"rowWindowBytes\":46137344,\"supportedOptionalFeatures\":[]}",
 		"history_changed": [
 			"{\"anchorStatus\":\"evicted\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"1\",\"totalRows\":\"125\"}",
 			"{\"anchorStatus\":\"none\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"2\",\"totalRows\":\"125\"}",
@@ -723,7 +723,7 @@
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"active\"}",
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"paused\"}"
 		],
-		"protocol_rejected": "{\"client\":{\"major\":0,\"minor\":1,\"patch\":0},\"host\":{\"major\":0,\"minor\":0,\"patch\":25},\"reason\":\"version-mismatch\"}",
+		"protocol_rejected": "{\"client\":{\"major\":0,\"minor\":2,\"patch\":0},\"host\":{\"major\":0,\"minor\":1,\"patch\":0},\"reason\":\"version-mismatch\"}",
 		"resize_accepted": "{\"attachmentId\":\"22222222222222222222222222222222\",\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":100,\"revision\":\"43\",\"rows\":30}",
 		"rows_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"requestSequence\":\"8\",\"revision\":\"42\"}",
 		"selection_changed": [

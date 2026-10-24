@@ -3126,11 +3126,10 @@ fn completion_scripts_execute_in_bash_and_zsh() -> TestResult {
 // rejection, and disconnect paths all run against production code.
 
 const OBTF: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
 
-const OBTF_ALT: &[u8] = include_bytes!(
-    "../../../packages/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin"
-);
+const OBTF_ALT: &[u8] =
+    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-alternate-surface.bin");
 
 const TERMINAL_ID: &str = "00000000000000000000000000000001";
 
@@ -4007,7 +4006,7 @@ fn expect_session_eof(stream: &UnixStream) {
     }
 }
 
-/// A decoder-legal OBTF 0.0.3 snapshot built from a shared string table:
+/// A decoder-legal OBTF 0.1.0 snapshot built from a shared string table:
 /// `rows` carries `(flags, cells)` pairs where each cell entry is a string
 /// index and every row must hold exactly `columns` cells — the only shape
 /// this builder emits, so no impossible state can be expressed. It reuses
@@ -4044,7 +4043,7 @@ fn budget_obtf_scrolled_at(
     let row_count = u16::try_from(rows.len()).expect("row count fits u16");
     let mut frame = Vec::new();
     frame.extend_from_slice(b"OBTF");
-    frame.extend_from_slice(&[0, 0]); // format major/minor
+    frame.extend_from_slice(&[0, 1]); // format major/minor
     frame.push(1); // snapshot kind: no base revision
     frame.push(0); // routing flags
     frame.extend_from_slice(&[0; 4]); // total length, patched below
@@ -4401,7 +4400,7 @@ fn obrw_window(
     let total = 112 + body.len();
     let mut record = Vec::with_capacity(total);
     record.extend_from_slice(b"OBRW");
-    record.extend_from_slice(&[0, 0]); // format major/minor
+    record.extend_from_slice(&[0, 1]); // format major/minor
     record.push(2); // detail: text
     record.push(0); // flags
     record.extend_from_slice(&(total as u32).to_le_bytes());
@@ -4418,7 +4417,7 @@ fn obrw_window(
     record.extend_from_slice(&[0; 2]); // reserved
     record.extend_from_slice(&entry_count.to_le_bytes());
     record.extend_from_slice(&(body.len() as u32).to_le_bytes()); // body bytes
-    record.push(3); // format patch
+    record.push(0); // format patch
     record.extend_from_slice(&0_u32.to_le_bytes()); // projection bytes: text only
     record.extend_from_slice(&0_u32.to_le_bytes()); // graphics bytes: text only
     record.extend_from_slice(&[0; 3]); // reserved tail

@@ -39,22 +39,16 @@ import { CURRENT_PROTOCOL_VERSION } from '../version';
 const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
 if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
-const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.3.bin', import.meta.url);
-const envelopeFixtureUrl = new URL(
-	'../../fixtures/transport-envelope-v0.0.25.bin',
-	import.meta.url,
-);
-const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.3.json', import.meta.url);
-const rowWindowFixtureUrl = new URL(
-	'../../fixtures/terminal-row-window-v0.0.3.bin',
-	import.meta.url,
-);
+const frameFixtureUrl = new URL('../../fixtures/terminal-frame.bin', import.meta.url);
+const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope.bin', import.meta.url);
+const malformedFixtureUrl = new URL('../../fixtures/malformed-frame.json', import.meta.url);
+const rowWindowFixtureUrl = new URL('../../fixtures/terminal-row-window.bin', import.meta.url);
 const malformedRowWindowFixtureUrl = new URL(
-	'../../fixtures/malformed-row-window-v0.0.3.json',
+	'../../fixtures/malformed-row-window.json',
 	import.meta.url,
 );
 const packedProjectionConformanceFixtureUrl = new URL(
-	'../../fixtures/packed-projection-conformance-v0.0.3.json',
+	'../../fixtures/packed-projection-conformance.json',
 	import.meta.url,
 );
 
@@ -183,7 +177,7 @@ const packedProjectionCaseSchema = z.union([
 const packedProjectionCorpusSchema = z
 	.strictObject({
 		cases: z.array(packedProjectionCaseSchema).length(34),
-		formatVersion: z.literal('0.0.3'),
+		formatVersion: z.literal('0.1.0'),
 		schemaVersion: z.literal(1),
 	})
 	.superRefine((corpus, context) => {
