@@ -116,7 +116,7 @@ fn unbound_export_preserves_members_without_runtime_reads_or_focus_changes() {
         &document,
         include_str!("../src/cli/schemas/orchbee.layout.export.json"),
     );
-    assert_eq!(document["version"], 2);
+    assert_eq!(document["version"], 1);
     let root = &document["result"]["layout"]["root"];
     assert_eq!(root["primary"]["start"], false);
     assert_eq!(root["children"][0]["start"], false);

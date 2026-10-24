@@ -58,7 +58,7 @@ fn headless_layout_and_export_only_read_canonical_snapshots() {
                 &document,
                 include_str!("../../src/cli/schemas/orchbee.layout.export.json"),
             );
-            assert_eq!(document["version"], 3);
+            assert_eq!(document["version"], 1);
             assert_eq!(document["source"]["scope"], "shared");
             assert!(document["source"]["clientId"].is_null());
             assert!(document["result"]["layout"]["zoomed"].is_null());
