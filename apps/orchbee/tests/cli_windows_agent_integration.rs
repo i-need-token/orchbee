@@ -1284,12 +1284,13 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
     .unwrap();
     let state_path = fixture.config_home().join("grok-state.json");
     let current = fs::read(&state_path).unwrap();
-    for (source, version, expected, code) in [(
-        fixture.0.join("foreign/bundle"),
-        Value::from("0.4.17"),
-        "conflict",
-        3,
-    )] {
+    {
+        let (source, version, expected, code) = (
+            fixture.0.join("foreign/bundle"),
+            Value::from("0.4.17"),
+            "conflict",
+            3,
+        );
         let mut state: Value = serde_json::from_slice(&current).unwrap();
         state["source"] = serde_json::json!(source);
         state["version"] = version;
@@ -1762,7 +1763,8 @@ fn claude_repairs_outdated_identities_and_preserves_foreign_sources() {
         fixture.provider_document("explain", "claude-code", 0)["result"]["state"],
         "enabled"
     );
-    for (source, version, expected) in [(fixture.0.join("foreign"), "1.0.0", "conflict")] {
+    {
+        let (source, version, expected) = (fixture.0.join("foreign"), "1.0.0", "conflict");
         let original = state(&source, version);
         fs::write(&state_path, &original).unwrap();
         let calls = fixture.claude_calls();
@@ -1961,7 +1963,8 @@ fn foreign_and_invalid_roots_are_refused_without_provider_commands() {
     let fixture = Fixture::new();
     fixture.document("enable", 0);
     let calls = fixture.calls();
-    for (path, state) in [(fixture.0.join("foreign"), "conflict")] {
+    {
+        let (path, state) = (fixture.0.join("foreign"), "conflict");
         let content = format!(
             "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = {}\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
             serde_json::to_string(&path).unwrap()
@@ -1986,7 +1989,7 @@ fn foreign_and_invalid_roots_are_refused_without_provider_commands() {
 
 #[test]
 fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
-    for case in ["absent", "older", "newer", "foreign", "unknown"] {
+    for case in ["absent", "version", "digest", "foreign", "unknown"] {
         let fixture = Fixture::new();
         let config = fixture.config_home().join("config.toml");
         let content = match case {
@@ -1994,8 +1997,8 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
             "unknown" => "#".repeat(512 * 1024 + 1),
             _ => {
                 let root = match case {
-                    "older" => fixture.capsule().parent().unwrap().join("0.3.0"),
-                    "newer" => fixture.capsule().parent().unwrap().join("9.0.0"),
+                    "version" => fixture.capsule().parent().unwrap().join("0.3.0"),
+                    "digest" => fixture.capsule().parent().unwrap().join("b".repeat(64)),
                     _ => fixture.0.join("foreign"),
                 };
                 format!(
@@ -2028,7 +2031,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
         assert_eq!(result["complete"], case != "unknown", "{case}: {doc}");
         assert_eq!(
             result["integrations"].as_array().unwrap().len(),
-            usize::from(case == "older")
+            usize::from(matches!(case, "version" | "digest"))
         );
         assert_eq!(
             result["unresolvedProviderIds"].as_array().unwrap().len(),
@@ -2036,7 +2039,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
         );
         assert_eq!(
             result["blockedProviderIds"].as_array().unwrap().len(),
-            usize::from(matches!(case, "newer" | "foreign"))
+            usize::from(case == "foreign")
         );
         assert_eq!(fs::read_to_string(config).unwrap(), content);
         assert!(fixture.calls().is_empty());
