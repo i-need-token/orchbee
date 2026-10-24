@@ -37,6 +37,7 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
                         }),
                         label: "peer".into(),
                         presentation_id: TerminalPresentationId::parse(&super::id(2_013)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&super::id(2_014)).unwrap(),

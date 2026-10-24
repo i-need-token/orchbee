@@ -284,6 +284,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
                             binding,
                             label: "terminal".into(),
                             presentation_id: TerminalPresentationId::parse(ID).unwrap(),
+                            launch_failure: None,
                         },
                     },
                     tab_id: WorkbenchTabId::parse(ID).unwrap(),

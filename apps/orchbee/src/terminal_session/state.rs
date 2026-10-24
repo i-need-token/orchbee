@@ -459,6 +459,14 @@ impl CreateTerminalProvenance {
         matches!(self, Self::Started | Self::BindingOnly)
     }
 
+    /// A committed Server launch failure supersedes retained or observer provenance, so no
+    /// Client attaches to a terminal that never started.
+    pub(super) fn observed_for(self, member: &super::NativePresentation) -> Self {
+        member
+            .launch_failure()
+            .map_or(self, |failure| Self::Failed(failure.reason))
+    }
+
     fn from_terminal_outcome(outcome: WorkbenchTerminalOutcome) -> Self {
         match outcome {
             WorkbenchTerminalOutcome::Started { .. } => Self::Started,
@@ -3374,7 +3382,8 @@ impl NativeSessionState {
             provenance
         } else {
             CreateTerminalProvenance::BindingOnly
-        };
+        }
+        .observed_for(member);
         let incarnation = self.next_incarnation;
         self.next_incarnation += 1;
         Some(AttachTarget {
@@ -4138,6 +4147,19 @@ impl<'a> NativeSessionView<'a> {
 
     pub(super) fn controller_mode(&self) -> Option<&ControllerMode> {
         self.state.controller_mode()
+    }
+
+    pub(super) fn selected_launch_failure(
+        &self,
+    ) -> Option<&'a orchbee_workbench_protocol::PresentationLaunchFailure> {
+        let active = self.state.active()?;
+        let panel = self
+            .state
+            .cache
+            .tabs()
+            .get(active.index())?
+            .panel(active.panel_index())?;
+        self.state.selected_presentation(panel).launch_failure()
     }
 
     pub(super) fn selected_provenance(&self) -> Option<&CreateTerminalProvenance> {

@@ -1154,13 +1154,14 @@ impl Locale {
                     }
                 }
             }
-            Phase::RetryableAttachUnavailable => label.map_or_else(
-                || {
-                    self.terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
-                        .to_owned()
-                },
-                |label| self.native_terminal_unavailable(label),
-            ),
+            Phase::RetryableAttachUnavailable => match (label, provenance) {
+                // A committed launch failure observed after selection ends the retry story.
+                (Some(label), Some(Provenance::Failed)) => self.native_terminal_failed(label),
+                (Some(label), _) => self.native_terminal_unavailable(label),
+                (None, _) => self
+                    .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
+                    .to_owned(),
+            },
             Phase::Retired => self
                 .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
                 .to_owned(),

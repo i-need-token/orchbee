@@ -90,6 +90,7 @@ fn removal_tab(index: usize) -> Tab {
                 }),
                 label,
                 presentation_id: presentation_id(seed + 2),
+                launch_failure: None,
             },
         },
         tab_id: tab_id(seed),

@@ -12,7 +12,7 @@ The checkpoint retains optional Project membership, Project labels, global local
 Workspaces and their display order, terminal contexts, ordered
 Tabs, groups, pinned state, split structure and ratios, Panel input policy and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
-All primary and child Presentations survive structurally but carry no terminal binding.
+All primary and child Presentations survive structurally but carry no terminal binding or launch failure.
 Version 2 also retains validated external provider references; see [Agent restart references](agent-restart-reference.md).
 
 It does not retain running processes, Site/Worker identities, controller grants, leases, Client

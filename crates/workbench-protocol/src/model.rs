@@ -33,7 +33,21 @@ pub struct Presentation {
     )]
     pub custom_label: Option<crate::PanelCustomLabel>,
     pub label: String,
+    /// Runtime fact about the current binding, never persisted or carried across a rebinding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launch_failure: Option<PresentationLaunchFailure>,
     pub presentation_id: TerminalPresentationId,
+}
+
+/// The Server's committed fact that the terminal bound to a Presentation never started. It names
+/// the launched executable only; arguments and environment never enter the projection.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresentationLaunchFailure {
+    /// Null when the Worker resolved its default shell rather than an explicit executable.
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub executable: Option<String>,
+    pub reason: crate::command::WorkbenchTerminalFailureReason,
 }
 
 impl Presentation {

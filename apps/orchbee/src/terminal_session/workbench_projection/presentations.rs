@@ -1,8 +1,8 @@
 //! Canonical members of one Panel; child terminals never become layout leaves.
 use super::{NativeProjectionError, NativeTerminalBinding};
 use orchbee_workbench_protocol::{
-    PanelCustomLabel, PanelRightClickTarget, Presentation, TerminalPresentationId, WorkbenchLabel,
-    WorkbenchPanelId,
+    PanelCustomLabel, PanelRightClickTarget, Presentation, PresentationLaunchFailure,
+    TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -11,6 +11,7 @@ pub(crate) struct NativePresentation {
     pub(super) presentation_label: WorkbenchLabel,
     pub(super) custom_label: Option<PanelCustomLabel>,
     pub(super) binding: Option<NativeTerminalBinding>,
+    pub(super) launch_failure: Option<PresentationLaunchFailure>,
 }
 
 impl NativePresentation {
@@ -24,6 +25,7 @@ impl NativePresentation {
                 worker_id: binding.worker_id.clone(),
                 terminal_id: binding.terminal_id.clone(),
             }),
+            launch_failure: value.launch_failure.clone(),
         })
     }
 
@@ -42,6 +44,10 @@ impl NativePresentation {
     }
     pub(in crate::terminal_session) fn binding(&self) -> Option<&NativeTerminalBinding> {
         self.binding.as_ref()
+    }
+    /// The Server's committed failure for the current binding, visible to every Client.
+    pub(in crate::terminal_session) fn launch_failure(&self) -> Option<&PresentationLaunchFailure> {
+        self.launch_failure.as_ref()
     }
 }
 

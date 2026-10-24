@@ -206,6 +206,8 @@ fn replace_presentation(
         return false;
     }
     presentation.binding = Some(fresh.clone());
+    // A failure describes only the binding it was recorded for.
+    presentation.launch_failure = None;
     presentation.presentation_id = presentation_id.clone();
     true
 }

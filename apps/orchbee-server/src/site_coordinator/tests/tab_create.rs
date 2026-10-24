@@ -1056,9 +1056,23 @@ fn completion_maps_every_terminal_reason_and_worker_generation_fence() {
             WorkbenchTerminalOutcome::OutcomeUnknown {},
         ),
     ];
+    let executable = if cfg!(windows) {
+        r"C:\missing\program.exe"
+    } else {
+        "/missing/program"
+    };
     for (index, (case, expected)) in cases.into_iter().enumerate() {
         let mut coordinator = site();
-        let command = tab_command(&coordinator, 600 + index as u128, 0, "mapping");
+        let mut command = tab_command(&coordinator, 600 + index as u128, 0, "mapping");
+        if let WorkbenchAction::TabCreate { launch, .. } = &mut command.action {
+            *launch = Some(
+                orchbee_workbench_protocol::LaunchSelection::new(
+                    executable.to_owned(),
+                    vec!["--token=secret".to_owned()],
+                )
+                .unwrap(),
+            );
+        }
         let pending = dispatch_tab(&mut coordinator, command, 700 + index as u128);
         let authorization = tab_authorization(&pending);
         let completion = completion(case, &pending, authorization);
@@ -1076,6 +1090,30 @@ fn completion_maps_every_terminal_reason_and_worker_generation_fence() {
             coordinator.standalone,
             StandaloneTerminal::Settled { .. }
         ));
+        // Only a definite failure publishes one more revision naming the executable, never its
+        // arguments; pending, unavailable and unknown outcomes keep the committed projection.
+        let snapshot = coordinator.workbench.as_ref().unwrap().snapshot();
+        let failed = matches!(expected, WorkbenchTerminalOutcome::Failed { .. });
+        assert_eq!(
+            snapshot.revision.value(),
+            1 + u64::from(failed),
+            "case {case:?}"
+        );
+        let PanelNode::Panel {
+            primary_presentation,
+            ..
+        } = &snapshot.terminal_contexts[0].tabs[0].root
+        else {
+            panic!("created Panel expected")
+        };
+        assert_eq!(
+            primary_presentation.launch_failure,
+            failed.then(|| orchbee_workbench_protocol::PresentationLaunchFailure {
+                executable: Some(executable.to_owned()),
+                reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
+            }),
+            "case {case:?}"
+        );
     }
 }
 

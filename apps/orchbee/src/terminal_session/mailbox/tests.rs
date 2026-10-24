@@ -2732,6 +2732,7 @@ fn projected_tabs(tab_count: usize) -> NativeContextTabs {
                                 label,
                                 presentation_id: TerminalPresentationId::parse(&id(4 + offset))
                                     .unwrap(),
+                                launch_failure: None,
                             },
                         },
                         tab_id: WorkbenchTabId::parse(&id(1 + offset)).unwrap(),

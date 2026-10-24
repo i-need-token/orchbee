@@ -17,6 +17,7 @@ fn source() -> Snapshot {
             worker_id: worker_id(9001),
             terminal_id: terminal_id(9002),
         }),
+        launch_failure: None,
     });
     source
 }

@@ -957,6 +957,7 @@ fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) 
                     binding: Some(replacement.binding.clone()),
                     label: replacement.label.to_owned(),
                     presentation_id: replacement.presentation_id.clone(),
+                    launch_failure: None,
                 },
             };
             let new_first = matches!(

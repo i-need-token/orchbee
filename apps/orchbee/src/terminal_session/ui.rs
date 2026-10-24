@@ -452,26 +452,37 @@ pub(crate) enum NativeLaunchProfile<'a> {
 impl<'a> NativeSessionView<'a> {
     pub(crate) fn launch_failure(
         &self,
-        panel: &super::NativePanel,
+        panel: &'a super::NativePanel,
     ) -> Option<NativeLaunchFailure<'a>> {
         let state = self.state.as_ref()?;
-        let failed = state.pane_by_panel(panel.panel_id()).is_some_and(|record| {
-            matches!(record.provenance(), CreateTerminalProvenance::Failed(_))
-        }) || (self.focus == Some(panel.panel_id())
-            && self.selected_provenance() == Some(NativeDisplayProvenance::Failed));
+        let observed = state.selected_presentation(panel).launch_failure();
+        let failed = observed.is_some()
+            || state.pane_by_panel(panel.panel_id()).is_some_and(|record| {
+                matches!(record.provenance(), CreateTerminalProvenance::Failed(_))
+            })
+            || (self.focus == Some(panel.panel_id())
+                && self.selected_provenance() == Some(NativeDisplayProvenance::Failed));
         if !failed || self.retirement.is_some() {
             return None;
         }
-        let description = state.launch_description(panel);
-        Some(NativeLaunchFailure {
-            profile: match description {
-                Some(description) => description.profile_name.as_deref().map_or(
+        // This Client's captured description names the profile; the Server fact names only
+        // the executable, so a Tab created elsewhere never claims a profile identity.
+        Some(match (state.launch_description(panel), observed) {
+            (Some(description), _) => NativeLaunchFailure {
+                profile: description.profile_name.as_deref().map_or(
                     NativeLaunchProfile::SystemDefault,
                     NativeLaunchProfile::Named,
                 ),
-                None => NativeLaunchProfile::Unknown,
+                executable: description.executable.as_deref(),
             },
-            executable: description.and_then(|description| description.executable.as_deref()),
+            (None, Some(observed)) => NativeLaunchFailure {
+                profile: NativeLaunchProfile::Unknown,
+                executable: observed.executable.as_deref(),
+            },
+            (None, None) => NativeLaunchFailure {
+                profile: NativeLaunchProfile::Unknown,
+                executable: None,
+            },
         })
     }
     /// A shell-local projection never changes the cache or canonical layout inspection.
@@ -675,8 +686,12 @@ impl<'a> NativeSessionView<'a> {
     }
 
     pub(crate) fn selected_provenance(&self) -> Option<NativeDisplayProvenance> {
-        self.state
-            .as_ref()?
+        let state = self.state.as_ref()?;
+        // The Server's committed failure also explains a Tab created by another Client.
+        if state.selected_launch_failure().is_some() {
+            return Some(NativeDisplayProvenance::Failed);
+        }
+        state
             .selected_provenance()
             .map(|provenance| match provenance {
                 CreateTerminalProvenance::Started => NativeDisplayProvenance::Started,

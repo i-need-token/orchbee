@@ -144,6 +144,7 @@ fn fixture() -> (Snapshot, PaneGraphicsTarget) {
                         binding: None,
                         custom_label: None,
                         label: "Panel".into(),
+                        launch_failure: None,
                     },
                 },
             }],

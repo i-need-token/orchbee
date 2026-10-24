@@ -844,6 +844,14 @@ owners remain process-local.
 | Received Launch/Start followed by current-Worker mismatch                           | outcome-unknown                            |
 | Ambiguous delivery or mismatched post-handoff observation                           | outcome-unknown                            |
 
+A failed Tab, Workspace-launch or Panel creation also publishes `launchFailure` on the created
+Presentation in one further revision under the settlement's Site gate, so observers that never
+received the result learn the failure from the snapshot. It names only the submitted executable,
+or `null` when the Worker resolved its default shell. Publication is skipped when the Presentation
+was rebound, removed or already failed, or when the projection budget or revision space is
+exhausted; the result then remains the only failure fact. Nothing retries the launch, and
+restoration rebinding clears the fact.
+
 Worker IPC and Client result writes occur after releasing registry and Site gates. Another
 admitted Client can complete a snapshot read or pure navigation command while launch or response
 delivery stalls. The existing Worker carrier still serializes its one in-flight and one queued

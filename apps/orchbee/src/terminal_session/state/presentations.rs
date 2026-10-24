@@ -53,6 +53,7 @@ impl NativeSessionState {
         } else {
             CreateTerminalProvenance::BindingOnly
         }
+        .observed_for(member)
     }
 
     pub(super) fn target_provenance_valid(&self, target: &AttachTarget) -> bool {

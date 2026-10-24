@@ -218,6 +218,7 @@ fn plugin_pane_source_context_tracks_child_observations_and_fails_before_creatio
                     worker_id: WorkerId::parse("6f7263686265652d6c6f63616c2d7631").unwrap(),
                     terminal_id: TerminalId::parse(&id(406)).unwrap(),
                 }),
+                launch_failure: None,
             });
             snapshot_reply(&mut stream, before.clone());
             let selected = record(false, false, false);

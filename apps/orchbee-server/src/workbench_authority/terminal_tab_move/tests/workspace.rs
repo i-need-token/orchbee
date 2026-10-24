@@ -320,6 +320,7 @@ fn workspace_unbound_primary_child_and_split_preserve_missing_target_and_boundar
                             presentation_id: TerminalPresentationId::parse(&identity(800)).unwrap(),
                             label: "child".to_owned(),
                             binding: None,
+                            launch_failure: None,
                         });
                     }
                 }

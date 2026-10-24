@@ -193,6 +193,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
         binding: None,
         label: "child".into(),
         presentation_id: presentation_id(43),
+        launch_failure: None,
     });
     assert!(project_native_standalone_tabs(&child).is_ok());
 

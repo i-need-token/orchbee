@@ -770,6 +770,7 @@ fn worktree_entry_current_context_child_uses_existing_primary_presentation_switc
             terminal_id: TerminalId::parse(&format!("{:032x}", 9901)).unwrap(),
             worker_id: op.plan.discovery.worker.clone(),
         }),
+        launch_failure: None,
     });
     let cache = project_native_context_tabs(&snapshot, &entry.location).unwrap();
     let mailbox = Arc::new(CommandMailbox::new(

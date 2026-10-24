@@ -706,6 +706,12 @@ Worker 更换从不替换引用、绑定或启动。这些所有者仍属于进�
 | 收到 Launch/Start 后发现当前 Worker 不匹配                | outcome-unknown                            |
 | 投递不确定或移交后观察不匹配                              | outcome-unknown                            |
 
+Tab、Workspace 启动或 Panel 创建失败时，还会在结算的同一 Site 门闩内，以下一个修订在新建
+Presentation 上发布 `launchFailure`，使从未收到结果的观察者也能从快照得知失败。它只记录提交
+的程序路径；Worker 解析默认 shell 时为 `null`。若该 Presentation 已重新绑定、已移除或已有失败，
+或投影预算、修订空间耗尽，则跳过发布，结果仍是唯一的失败事实。不会重试启动；恢复时的重新
+绑定会清除该事实。
+
 Worker IPC 和 Client 结果写入都在释放注册表与 Site 门闩之后发生。启动或响应投递停滞期间，
 另一个已接纳 Client 仍能完成快照读取或纯导航命令。现有 Worker 载体仍串行处理一个进行中
 和一个排队操作；不承诺同一 Worker 的启动停滞期间，viewer/终端操作能够完成。

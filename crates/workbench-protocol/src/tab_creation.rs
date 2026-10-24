@@ -190,6 +190,7 @@ pub fn create_terminal_tab(
                     label,
                     custom_label: None,
                     binding: Some(fresh.binding),
+                    launch_failure: None,
                 },
             },
         },

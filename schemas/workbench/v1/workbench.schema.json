@@ -144,8 +144,35 @@
 				"label": {
 					"$ref": "#/$defs/label"
 				},
+				"launchFailure": {
+					"$ref": "#/$defs/presentationLaunchFailure"
+				},
 				"presentationId": {
 					"$ref": "#/$defs/presentationId"
+				}
+			}
+		},
+		"presentationLaunchFailure": {
+			"$comment": "Requires a non-null binding on the same Presentation; Rust and TypeScript enforce that and the 30 KiB worst-case escaped-content budget.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["executable", "reason"],
+			"properties": {
+				"executable": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 30720,
+							"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000\\uD800-\\uDFFF]*$"
+						}
+					]
+				},
+				"reason": {
+					"enum": ["terminal-create-failed"]
 				}
 			}
 		},

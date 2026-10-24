@@ -180,9 +180,9 @@ pub use identity::{
 };
 pub use model::{
     Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation, PanelNode, PanelOrientation,
-    PanelRightClickTarget, PanelSlot, Presentation, PresentationBinding, Project, Snapshot,
-    SnapshotReadIntent, Tab, TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument,
-    WorkbenchPublicationDocument, Workspace, tab_display_label,
+    PanelRightClickTarget, PanelSlot, Presentation, PresentationBinding, PresentationLaunchFailure,
+    Project, Snapshot, SnapshotReadIntent, Tab, TabGroup, TabGroupColor, TerminalContext,
+    WorkbenchProtocolDocument, WorkbenchPublicationDocument, Workspace, tab_display_label,
 };
 pub use validation::{
     ContractError, MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL, MAXIMUM_DELTA_CHANGES,

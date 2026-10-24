@@ -860,7 +860,8 @@ impl NativeSessionState {
                 prepared.provenance[index].clone()
             } else {
                 CreateTerminalProvenance::BindingOnly
-            };
+            }
+            .observed_for(member);
             selected_presentation = Some(member.presentation_id().clone());
             if let Some(binding) = member
                 .binding()

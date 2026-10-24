@@ -152,6 +152,11 @@ errors. Changing settings cannot relabel an earlier failure. These Client-local 
 bounded by known canonical membership and disappear with the Client; other failures use generic
 guidance when no captured description exists, without claiming a known profile identity.
 
+A Tab whose launch failed on another Client is explained by the snapshot's Server `launchFailure`.
+Every Client selects that member without attaching, shows the failed page with the recorded
+executable and an unknown profile, and offers Create Tab or Close in place of a retry. A failure
+first observed during a retryable attach shows the failed status instead of terminal unavailable.
+
 The failed page wraps the profile, executable-path guidance and Settings → Launch profiles repair
 steps. It displays effective Settings and copy-mode bindings; invoking copy mode here copies the
 diagnostic text through the existing bounded clipboard queue. Its exact pane identity fences queued

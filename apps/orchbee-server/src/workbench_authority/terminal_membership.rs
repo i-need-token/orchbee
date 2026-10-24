@@ -370,6 +370,7 @@ pub(super) fn append_simple_tab(
                 presentation_id: ids.presentation_id.clone(),
                 label: label.to_owned(),
                 binding: Some(binding),
+                launch_failure: None,
             },
             child_presentations: Vec::new(),
         },

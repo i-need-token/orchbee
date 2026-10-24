@@ -128,6 +128,7 @@ fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_or
                 terminal_id: terminal_id(9101),
                 worker_id: worker_id(9102),
             }),
+            launch_failure: None,
         });
         let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
         let location = state.cache.navigation()[1].location.clone();

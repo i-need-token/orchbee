@@ -9,9 +9,9 @@ use crate::{
     },
     localization::Locale,
     terminal_session::{
-        NativeDisplayController, NativeDisplayPhase, NativeLocationLabelStatus,
-        NativeLocationLabelTarget, NativeSessionView, NativeSetupStatus, TakeoverStatus,
-        TerminalSessionView,
+        NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
+        NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSessionView, NativeSetupStatus,
+        TakeoverStatus, TerminalSessionView,
     },
     terminal_text::{display_width, sanitize_terminal_text},
     tui_composition::CaptureOwner,
@@ -979,6 +979,13 @@ fn native_phase_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
             if native.controller() == Some(NativeDisplayController::ReadOnly) =>
         {
             vec![StatusAction::TakeControl]
+        }
+        // A known failed launch is never retried; another Tab is the direct recovery.
+        NativeDisplayPhase::SelectedWithoutAttachment
+            if native.active_position().is_some()
+                && native.selected_provenance() == Some(NativeDisplayProvenance::Failed) =>
+        {
+            vec![StatusAction::CreateTab]
         }
         NativeDisplayPhase::ProjectionUnavailable
         | NativeDisplayPhase::MoveProjectionUnavailable

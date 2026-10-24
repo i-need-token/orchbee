@@ -10,13 +10,14 @@ use orchbee_client_server_protocol::{
     ServerMessage, StartMode, TerminalCreateRequest, WorkerConstraint, WorkingDirectory,
 };
 use orchbee_server::{
-    PendingWorkbenchTabCreate, WorkbenchGrant, WorkbenchTabCreateBegin,
+    PendingWorkbenchTabCreate, WorkbenchAuthority, WorkbenchGrant, WorkbenchTabCreateBegin,
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchTerminalFailureReason,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    PresentationBinding, ProtocolVersion, TerminalPresentationId, WorkbenchAction,
+    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchCommandUnavailableReason, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
 };
 
 pub(crate) enum PreparedTerminalTabCreate {
@@ -428,7 +429,7 @@ impl SiteCoordinator {
             workspace_cwd: _,
             launch_cwd: _,
             environment: _,
-            launch: _,
+            launch,
             plugin_environment: _,
         } = pending;
         let terminal = terminals
@@ -439,12 +440,19 @@ impl SiteCoordinator {
         let standalone_changed = metadata.is_standalone()
             && matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference);
         let settled_open = standalone_changed.then(|| open_outcome(&reference, terminal.result()));
-        let workbench = workbench
-            .prepare_terminal_tab_settlement(workbench_pending, terminal_outcome)
+        let settlement = workbench
+            .prepare_terminal_tab_settlement(workbench_pending, terminal_outcome.clone())
             .map_err(|_mismatch| PostcommitCoordinationError)?;
 
         terminal.commit();
-        let result = workbench.commit();
+        let result = settlement.commit();
+        record_launch_failure(
+            workbench,
+            &terminal_outcome,
+            metadata.presentation_id(),
+            metadata.binding(),
+            launch.as_ref(),
+        );
         if let Some(outcome) = settled_open {
             *standalone = StandaloneTerminal::Settled { reference, outcome };
         }
@@ -452,6 +460,23 @@ impl SiteCoordinator {
             result,
             standalone_changed,
         })
+    }
+}
+
+/// Publishes a definite launch failure on the created Presentation; other outcomes publish nothing.
+pub(super) fn record_launch_failure(
+    workbench: &mut WorkbenchAuthority,
+    outcome: &WorkbenchTerminalOutcome,
+    presentation_id: &TerminalPresentationId,
+    binding: &PresentationBinding,
+    launch: Option<&orchbee_client_server_protocol::LaunchSelection>,
+) {
+    if matches!(outcome, WorkbenchTerminalOutcome::Failed { .. }) {
+        workbench.record_terminal_launch_failure(
+            presentation_id,
+            binding,
+            launch.map(orchbee_client_server_protocol::LaunchSelection::executable),
+        );
     }
 }
 

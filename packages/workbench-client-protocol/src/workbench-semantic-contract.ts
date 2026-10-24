@@ -128,17 +128,63 @@ export const WorkbenchPresentationBindingSchema = z
 	.strictObject({ terminalId: TerminalIdSchema, workerId: WorkerIdSchema })
 	.readonly();
 
+const launchUtf8 = new TextEncoder();
+
+/** Applies the explicit launch selection's combined UTF-8 and worst-case escaped budgets. */
+export function fitsWorkbenchLaunchSelectionBudget(texts: readonly string[]): boolean {
+	let bytes = 0;
+	let escaped = 0;
+	for (const text of texts) {
+		for (const byte of launchUtf8.encode(text)) {
+			bytes += 1;
+			if (byte <= 31) escaped += 6;
+			else if (byte === 34 || byte === 92) escaped += 2;
+			else escaped += 1;
+		}
+	}
+	return bytes <= 30 * 1024 && escaped <= 30 * 1024;
+}
+
+export const WorkbenchLaunchTextSchema = z
+	.string()
+	.refine(
+		(value) => !value.includes('\0') && !/[\uD800-\uDFFF]/u.test(value),
+		'Launch text must be NUL-free Unicode scalar text',
+	);
+
+export const WorkbenchLaunchExecutableSchema = WorkbenchLaunchTextSchema.refine(
+	(value) => /^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value),
+	'Launch executable must be an absolute path',
+);
+
+export const WorkbenchTerminalFailureReasonSchema = z.enum(['terminal-create-failed']);
+
+/** The Server's fact that the bound terminal never started; it never carries arguments. */
+export const WorkbenchPresentationLaunchFailureSchema = z
+	.strictObject({
+		executable: WorkbenchLaunchExecutableSchema.refine(
+			(value) => fitsWorkbenchLaunchSelectionBudget([value]),
+			'Launch executable exceeds its byte budget',
+		).nullable(),
+		reason: WorkbenchTerminalFailureReasonSchema,
+	})
+	.readonly();
+
 export const WorkbenchPresentationSchema = z
 	.strictObject({
 		binding: WorkbenchPresentationBindingSchema.nullable(),
 		customLabel: WorkbenchPanelCustomLabelSchema.optional(),
 		label: WorkbenchLabelSchema,
+		launchFailure: WorkbenchPresentationLaunchFailureSchema.optional(),
 		presentationId: TerminalPresentationIdSchema,
 	})
 	.readonly();
 
 export type WorkbenchPresentationBinding = z.infer<typeof WorkbenchPresentationBindingSchema>;
 export type WorkbenchPresentation = z.infer<typeof WorkbenchPresentationSchema>;
+export type WorkbenchPresentationLaunchFailure = z.infer<
+	typeof WorkbenchPresentationLaunchFailureSchema
+>;
 
 export interface WorkbenchPanelNodePanel {
 	readonly rightClick?: 'orchbee' | 'panel' | undefined;
@@ -727,6 +773,11 @@ function validatePresentation(
 			'bound Terminal',
 			context,
 		);
+	} else if (presentation.launchFailure !== undefined) {
+		context.addIssue({
+			code: 'custom',
+			message: 'A launch failure describes only a bound Terminal Presentation',
+		});
 	}
 }
 

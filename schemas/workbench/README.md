@@ -104,7 +104,8 @@ contains:
 - ordered Tab groups and Tabs;
 - complete binary Panel/Split topology for every Tab;
 - one primary and zero or more child Terminal Presentations per Panel; and
-- an optional opaque Worker/Terminal binding for a Presentation.
+- an optional opaque Worker/Terminal binding for a Presentation, with an optional launch failure for
+  that binding.
 
 Each Directory carries its typed identity, exact Worker identity, and an absolute local-platform UTF-8 path.
 Each Workspace carries required nullable `projectId` and primary Directory references. Project
@@ -114,7 +115,12 @@ terminal lifecycle policy, Environment, Checkout, Worktree, Agent, Launch Profil
 epoch, attachment, or persistence facts. It also contains no Client-local active location, active
 Tab, focus, disclosure, selection, maximization, split weight, viewport, geometry, search, window,
 DOM, React, or pixel state. A missing Presentation binding means only that this projection exposes
-no attachable Terminal identity; a Client must not infer a lifecycle reason.
+no attachable Terminal identity; a Client must not infer a lifecycle reason. An optional
+`launchFailure` is the Server's committed fact that the terminal under the current binding never
+started. It requires a binding, names the launched absolute executable or `null` for a
+Worker-resolved default shell, and carries the closed `terminal-create-failed` reason; arguments,
+environment and OS error text never enter it. It is runtime-only: rebinding or checkpoint capture
+removes it, and Clients show the failure instead of attaching.
 
 Project, Directory, Workspace, and Terminal Context arrays use ascending identity order. Directory
 identities are unique across the Site projection, and a non-null Workspace reference resolves in

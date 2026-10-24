@@ -537,7 +537,17 @@ fn validate_presentation(
 }
 
 fn validate_presentation_structure(presentation: &Presentation) -> Result<(), ValidationError> {
-    validate_label(&presentation.label)
+    validate_label(&presentation.label)?;
+    match &presentation.launch_failure {
+        None => Ok(()),
+        // A failure describes the current binding, and its executable meets the launch contract.
+        Some(_) if presentation.binding.is_none() => Err(ValidationError),
+        Some(failure) => failure.executable.as_ref().map_or(Ok(()), |executable| {
+            crate::LaunchSelection::new(executable.clone(), Vec::new())
+                .map(drop)
+                .map_err(|_| ValidationError)
+        }),
+    }
 }
 
 fn validate_label(label: &str) -> Result<(), ValidationError> {

@@ -1,8 +1,8 @@
 use super::tab_create::{
     client_geometry, pending_authorization, pending_authorization_from_message,
     pending_cwd_matches, pending_environment_matches, pending_launch_matches,
-    pending_plugin_environment_matches, placement_matches_worker, terminal_outcome,
-    terminal_preflight_reason, unavailable_by_id,
+    pending_plugin_environment_matches, placement_matches_worker, record_launch_failure,
+    terminal_outcome, terminal_preflight_reason, unavailable_by_id,
 };
 use super::{
     PostcommitCoordinationError, SiteCoordinator, StandaloneTerminal, open_outcome,
@@ -355,7 +355,7 @@ impl SiteCoordinator {
             worker: _,
             launch_cwd: _,
             environment: _,
-            launch: _,
+            launch,
             plugin_environment: _,
         } = pending;
         let terminal = terminals
@@ -366,13 +366,20 @@ impl SiteCoordinator {
         let standalone_changed = metadata.is_standalone()
             && matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference);
         let settled_open = standalone_changed.then(|| open_outcome(&reference, terminal.result()));
-        let workbench = workbench
-            .prepare_terminal_panel_create_settlement(workbench_pending, terminal_outcome)
+        let settlement = workbench
+            .prepare_terminal_panel_create_settlement(workbench_pending, terminal_outcome.clone())
             .map_err(|_mismatch: WorkbenchPanelCreateSettlementTokenMismatch| {
                 PostcommitCoordinationError
             })?;
         terminal.commit();
-        let result = workbench.commit();
+        let result = settlement.commit();
+        record_launch_failure(
+            workbench,
+            &terminal_outcome,
+            metadata.presentation_id(),
+            metadata.binding(),
+            launch.as_ref(),
+        );
         if let Some(outcome) = settled_open {
             *standalone = StandaloneTerminal::Settled { reference, outcome };
         }

@@ -127,6 +127,7 @@ fn presentation(n: u64) -> Presentation {
             worker_id: WorkerId::parse(&id(99)).unwrap(),
             terminal_id: TerminalId::parse(&id(n + 100)).unwrap(),
         }),
+        launch_failure: None,
     }
 }
 pub(crate) fn physical(n: u64) -> AgentLaunchBinding {

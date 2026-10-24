@@ -8,7 +8,7 @@
 
 检查点保留可选 Project 成员关系、Project 标签、全局本地目录路径、Workspace 及其显示顺序、终端上下文、有序 Tab、分组、固定状态、
 分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
-包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定。
+包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定或启动失败。
 版本 2 还保留已校验的外部 provider 引用，详见 [Agent 重启引用](agent-restart-reference.zh-CN.md)。
 
 它不保留运行进程、Site／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布

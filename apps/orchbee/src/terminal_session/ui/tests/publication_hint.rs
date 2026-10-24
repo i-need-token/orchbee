@@ -691,6 +691,7 @@ pub(in crate::terminal_session) fn split_snapshot(revision: u64) -> Snapshot {
                         label: "peer".into(),
                         presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 3_013))
                             .unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 3_014)).unwrap(),

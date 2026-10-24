@@ -15,6 +15,7 @@ fn leaf(n: u128) -> PanelNode {
             custom_label: None,
             label: format!("shell {n}"),
             presentation_id: TerminalPresentationId::parse(&identity(n + 1)).unwrap(),
+            launch_failure: None,
         },
     }
 }

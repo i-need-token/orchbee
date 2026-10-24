@@ -3,38 +3,26 @@ import {
 	PluginInvocationContextSchema,
 	normalizePluginInvocationContext,
 } from './workbench-plugin-context-contract';
-import { WorkbenchDirectoryPathSchema } from './workbench-semantic-contract';
+import {
+	WorkbenchDirectoryPathSchema,
+	WorkbenchLaunchExecutableSchema,
+	WorkbenchLaunchTextSchema as literalLaunchStringSchema,
+	WorkbenchTerminalFailureReasonSchema,
+	fitsWorkbenchLaunchSelectionBudget,
+} from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES = 96 * 1024;
 
-const literalLaunchStringSchema = z
-	.string()
-	.refine(
-		(value) => !value.includes('\0') && !/[\uD800-\uDFFF]/u.test(value),
-		'Launch text must be NUL-free Unicode scalar text',
-	);
 const utf8 = new TextEncoder();
 const WorkbenchLaunchSelectionSchema = z
 	.strictObject({
-		exec: literalLaunchStringSchema.refine(
-			(value) => /^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value),
-			'Launch executable must be an absolute path',
-		),
+		exec: WorkbenchLaunchExecutableSchema,
 		args: z.array(literalLaunchStringSchema).max(128).readonly(),
 	})
-	.refine((value) => {
-		let bytes = 0;
-		let escaped = 0;
-		for (const text of [value.exec, ...value.args]) {
-			for (const byte of utf8.encode(text)) {
-				bytes += 1;
-				if (byte <= 31) escaped += 6;
-				else if (byte === 34 || byte === 92) escaped += 2;
-				else escaped += 1;
-			}
-		}
-		return bytes <= 30 * 1024 && escaped <= 30 * 1024;
-	}, 'Launch selection exceeds its byte budget')
+	.refine(
+		(value) => fitsWorkbenchLaunchSelectionBudget([value.exec, ...value.args]),
+		'Launch selection exceeds its byte budget',
+	)
 	.readonly();
 
 const WorkbenchLaunchProfileSelectorSchema = z
@@ -201,7 +189,7 @@ export const WorkbenchTerminalUnavailableReasonSchema = z.enum([
 	'terminal-runtime-unavailable',
 	'server-busy',
 ]);
-export const WorkbenchTerminalFailureReasonSchema = z.enum(['terminal-create-failed']);
+export { WorkbenchTerminalFailureReasonSchema };
 export const WorkbenchTerminalOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({ kind: z.literal('started'), geometry: WorkbenchTerminalGeometrySchema })

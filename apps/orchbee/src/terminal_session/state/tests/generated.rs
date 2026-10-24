@@ -2207,6 +2207,7 @@ fn commit_edit(
                     }),
                     label: label.as_str().to_owned(),
                     presentation_id: presentation_id.clone(),
+                    launch_failure: None,
                 },
             };
             if !graft_split(

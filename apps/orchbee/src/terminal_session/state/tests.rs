@@ -1139,6 +1139,45 @@ fn append_only_refresh_preserves_a_nonfirst_active_id_and_known_provenance() {
     assert!(state.invariant_holds());
 }
 
+/// R-003: another Client's failed creation reaches this Client only through the snapshot. The
+/// failure keeps it from attaching and explains the Tab with the recorded executable.
+#[test]
+fn observed_launch_failure_selects_without_attachment_and_names_the_executable() {
+    let mut baseline = snapshot(2, 1, None);
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &mut baseline.terminal_contexts[0].tabs[1].root
+    else {
+        unreachable!()
+    };
+    primary_presentation.launch_failure =
+        Some(orchbee_workbench_protocol::PresentationLaunchFailure {
+            executable: Some("/missing/program".into()),
+            reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
+        });
+    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
+    let target = state.target_for_switch(1, key, deadlines).unwrap();
+    let failed =
+        CreateTerminalProvenance::Failed(WorkbenchTerminalFailureReason::TerminalCreateFailed);
+    assert_eq!(target.provenance, failed);
+    assert!(state.begin_switch(target));
+    let view = state.view();
+    assert_eq!(
+        view.selected_launch_failure()
+            .and_then(|f| f.executable.as_deref()),
+        Some("/missing/program")
+    );
+    // The tab that never failed keeps ordinary attachable observer provenance.
+    let healthy = state.cache().tabs()[0].panel(0).unwrap();
+    assert_eq!(
+        state.member_provenance(0, healthy, healthy.primary()),
+        CreateTerminalProvenance::BindingOnly
+    );
+}
+
 #[test]
 fn peer_panel_split_refresh_preserves_active_panel_identity() {
     let mut baseline = snapshot(1, 1, None);
@@ -1163,6 +1202,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
                         }),
                         label: "peer".into(),
                         presentation_id: TerminalPresentationId::parse(&id(3_013)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&id(3_014)).unwrap(),
@@ -1213,6 +1253,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
                                     label: "new".into(),
                                     presentation_id: TerminalPresentationId::parse(&id(3_033))
                                         .unwrap(),
+                                    launch_failure: None,
                                 },
                             },
                             slot_id: WorkbenchPanelSlotId::parse(&id(3_034)).unwrap(),
@@ -1278,6 +1319,7 @@ fn split_panel_baseline() -> Snapshot {
                         }),
                         label: "peer".into(),
                         presentation_id: TerminalPresentationId::parse(&id(3_013)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&id(3_014)).unwrap(),
@@ -2256,6 +2298,7 @@ fn tab(index: usize) -> Tab {
                 }),
                 label,
                 presentation_id: presentation_id(seed + 2),
+                launch_failure: None,
             },
         },
         tab_id: tab_id(seed),

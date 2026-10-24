@@ -93,7 +93,7 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 - 有序 Tab group 与 Tab；
 - 每个 Tab 的完整 binary Panel/Split topology；
 - 每个 Panel 的一个 primary Terminal Presentation 与零个或多个 child Terminal Presentation；以及
-- Presentation 可选的 opaque Worker/Terminal binding。
+- Presentation 可选的 opaque Worker/Terminal binding，以及该 binding 可选的启动失败事实。
 
 每个 Directory 携带自身的 typed identity、确切 Worker identity 与 absolute local-platform UTF-8 path。
 每个 Workspace 携带必填且可为空的 `projectId` 与 primary Directory reference。
@@ -103,7 +103,10 @@ Environment、Checkout、Worktree、Agent、Launch Profile、Archive、SSH、lea
 attachment 或 persistence fact。它也不包含 Client-local active location、active Tab、focus、
 disclosure、selection、maximization、split weight、viewport、geometry、search、window、DOM、React
 或 pixel state。Presentation 缺少 binding 只表示本 projection 没有暴露可 attach 的 Terminal
-identity；Client 不能据此推断 lifecycle reason。
+identity；Client 不能据此推断 lifecycle reason。可选的 `launchFailure` 是 Server 已提交的事实，
+表示当前 binding 下的终端从未启动。它要求存在 binding，记录启动的绝对程序路径（Worker 解析
+默认 shell 时为 `null`）及封闭的 `terminal-create-failed` 原因；参数、环境和 OS 错误文本从不
+进入其中。它只属于运行时：重新绑定或捕获 checkpoint 会移除它，Client 据此显示失败而非 attach。
 
 Project、Directory、Workspace 与 Terminal Context array 使用 identity 升序。Directory identity
 在整个 Site projection 中唯一，Workspace 的非空 reference 必须在全局 Directory 池中解析。Tab group 与 Tab 保留显式产品

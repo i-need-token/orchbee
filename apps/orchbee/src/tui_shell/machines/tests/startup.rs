@@ -34,6 +34,7 @@ fn snapshot(empty: bool) -> Snapshot {
                 label: "unbound".into(),
                 presentation_id: TerminalPresentationId::parse(&id(5)).unwrap(),
                 binding: None,
+                launch_failure: None,
             },
         },
     };
@@ -80,6 +81,7 @@ fn snapshot(empty: bool) -> Snapshot {
                             label: "workspace".into(),
                             presentation_id: TerminalPresentationId::parse(&id(11)).unwrap(),
                             binding: None,
+                            launch_failure: None,
                         },
                     };
                     vec![other]

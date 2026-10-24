@@ -264,6 +264,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                                 .terminal_id()
                                 .clone(),
                         }),
+                        launch_failure: None,
                     },
                 },
             }

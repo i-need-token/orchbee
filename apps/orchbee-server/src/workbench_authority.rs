@@ -60,6 +60,7 @@ pub use terminal_membership::{
 pub use worktree_operation::{
     PreparedWorktreeRebind, WorktreeOperationPlan, WorktreeRebindError, WorktreeSourceTarget,
 };
+mod terminal_launch_failure;
 mod terminal_tab_create;
 pub use terminal_tab_create::{
     CommittedWorkbenchTabCreate, CommittedWorkbenchTabCreateMetadata, PendingWorkbenchTabCreate,

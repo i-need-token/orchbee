@@ -127,6 +127,7 @@ fn workspace_uses_first_terminal_primary_instead_of_later_tab_or_child_agent() {
             worker_id: WorkerId::parse(&id(1013)).unwrap(),
         }),
         label: "focused Agent".into(),
+        launch_failure: None,
     });
     let source =
         AddressedWorktreeSource::capture(&value, &SidebarWorktreeTarget::Workspace(workspace(80)))

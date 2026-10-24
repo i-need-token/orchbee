@@ -40,6 +40,7 @@ fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
                         binding: Some(binding(700 + count)),
                         label: "right".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&identity(104)).unwrap(),

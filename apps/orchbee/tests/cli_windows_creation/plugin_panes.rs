@@ -44,6 +44,7 @@ fn plugin_overlay_open_pins_actual_source_member_and_preserves_creation_on_focus
                     label: "child".into(),
                     custom_label: None,
                     binding: None,
+                    launch_failure: None,
                 });
             }
             snapshot_reply(&mut stream, before.clone());

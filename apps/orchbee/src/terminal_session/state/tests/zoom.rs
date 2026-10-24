@@ -81,6 +81,7 @@ fn split_root(root: &mut PanelNode, seed: u128) {
                         }),
                         label: "peer".into(),
                         presentation_id: presentation_id(seed + 13),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&id(seed + 14)).unwrap(),

@@ -325,6 +325,7 @@ fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
                 presentation_id: TerminalPresentationId::parse(&identity(8)).unwrap(),
                 label: "child".to_owned(),
                 binding: None,
+                launch_failure: None,
             });
         } else {
             primary_presentation.binding = None;
@@ -370,6 +371,7 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
                         binding: None,
                         label: "left-child".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(104)).unwrap(),
+                        launch_failure: None,
                     }],
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
@@ -377,6 +379,7 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
                         binding: Some(binding()),
                         label: "left-primary".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&identity(101)).unwrap(),
@@ -391,6 +394,7 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
                         binding: None,
                         label: "right-primary".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(107)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&identity(105)).unwrap(),
@@ -437,6 +441,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
                         binding: Some(binding()),
                         label: "left".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&identity(101)).unwrap(),
@@ -454,6 +459,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
                         }),
                         label: "right".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(106)).unwrap(),
+                        launch_failure: None,
                     },
                 },
                 slot_id: WorkbenchPanelSlotId::parse(&identity(104)).unwrap(),
@@ -531,6 +537,7 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
                             }),
                             label: "right".to_owned(),
                             presentation_id: TerminalPresentationId::parse(&identity(106)).unwrap(),
+                            launch_failure: None,
                         },
                     },
                     slot_id: WorkbenchPanelSlotId::parse(&identity(104)).unwrap(),
@@ -567,6 +574,7 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
                         presentation_id: TerminalPresentationId::parse(&identity(130)).unwrap(),
                         label: "child".to_owned(),
                         binding: None,
+                        launch_failure: None,
                     }),
                 }
             }

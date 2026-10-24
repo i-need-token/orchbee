@@ -503,6 +503,7 @@ fn remove_local_bindings(
                     return Err(WorkbenchCheckpointError::ForeignWorker);
                 }
                 presentation.binding = None;
+                presentation.launch_failure = None;
             }
         }
     }

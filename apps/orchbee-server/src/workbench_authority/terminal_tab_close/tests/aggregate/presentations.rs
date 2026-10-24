@@ -26,6 +26,7 @@ fn add_children(node: &mut PanelNode, next: &mut u128) {
                     label: format!("child {next}"),
                     presentation_id: TerminalPresentationId::parse(&identity(*next + 1000))
                         .unwrap(),
+                    launch_failure: None,
                 });
             }
         }

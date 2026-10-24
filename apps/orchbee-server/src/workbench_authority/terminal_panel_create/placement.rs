@@ -104,6 +104,7 @@ impl TerminalPlacement {
                     label: label.as_str().to_owned(),
                     custom_label: None,
                     binding: Some(binding),
+                    launch_failure: None,
                 });
                 true
             }

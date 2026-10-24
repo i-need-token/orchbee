@@ -556,6 +556,7 @@ fn child_only_bindings_cannot_be_omitted_from_idle_proof() {
             presentation_id: TerminalPresentationId::parse(&identity(8800)).unwrap(),
             binding: primary_presentation.binding.take(),
             label: "child only".into(),
+            launch_failure: None,
         });
         owner.projection = WorkbenchProjectionStore::load(
             &orchbee_workbench_protocol::serialize_document(
