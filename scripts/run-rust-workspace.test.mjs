@@ -140,6 +140,14 @@ runner-shared.workspace = true
 	assert.equal(lock.status, 0, lock.output);
 }
 
+function lintDependencyFixture(root) {
+	// Each case authors a different graph; prepare its lock before the runner
+	// exercises the same --locked boundary as the repository gate.
+	const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
+	assert.equal(lock.status, 0, lock.output);
+	return runTask(root, 'lint');
+}
+
 for (const [scope, declaration, inherited] of [
 	[
 		'normal',
@@ -174,13 +182,13 @@ alias.workspace = true
 '''
 `;
 			writeFileSync(manifest, `${source}\n${declaration}\n`);
-			const rejected = runTask(root, 'lint');
+			const rejected = lintDependencyFixture(root);
 			assert.notEqual(rejected.status, 0, rejected.output);
 			assert.match(rejected.output, /fixture\/Cargo\.toml.*alias/u);
 			assert.match(rejected.output, /inherit with workspace = true/u);
 			assert.match(rejected.output, /docs\/RUST\.md#manifests-dependencies-and-generated-state/u);
 			writeFileSync(manifest, `${source}\n${inherited}\n`);
-			const accepted = runTask(root, 'lint');
+			const accepted = lintDependencyFixture(root);
 			assert.equal(accepted.status, 0, accepted.output);
 		});
 	});
@@ -199,7 +207,7 @@ test('the Rust lint gate rejects enabled defaults in root and member dependency 
 					`runner-shared = { version = "1.0.0"${defaults} }`,
 				),
 			);
-			const rejected = runTask(root, 'lint');
+			const rejected = lintDependencyFixture(root);
 			assert.notEqual(rejected.status, 0, rejected.output);
 			assert.match(rejected.output, /Cargo\.toml \[workspace\.dependencies\] runner-shared/u);
 			assert.match(rejected.output, /default-features = false/u);
@@ -212,7 +220,7 @@ test('the Rust lint gate rejects enabled defaults in root and member dependency 
 			'runner-shared = "1.0.0"',
 		]) {
 			writeFileSync(memberManifest, `${member}\n[dependencies]\n${declaration}\n`);
-			const rejected = runTask(root, 'lint');
+			const rejected = lintDependencyFixture(root);
 			assert.notEqual(rejected.status, 0, rejected.output);
 			assert.match(rejected.output, /fixture\/Cargo\.toml.*must disable default features/u);
 		}
@@ -220,7 +228,7 @@ test('the Rust lint gate rejects enabled defaults in root and member dependency 
 			memberManifest,
 			`${member}\n[dependencies]\nrunner-shared.workspace = true\nrunner-peer = { path = "../peer" }\n`,
 		);
-		const accepted = runTask(root, 'lint');
+		const accepted = lintDependencyFixture(root);
 		assert.equal(accepted.status, 0, accepted.output);
 	});
 });
@@ -240,7 +248,7 @@ runner-shared = { version = "1.0.0", default-features = false }
 runner-shared = { version = "1.0.0", default-features = false }
 `,
 		);
-		const accepted = runTask(root, 'lint');
+		const accepted = lintDependencyFixture(root);
 		assert.equal(accepted.status, 0, accepted.output);
 		const manifest = join(root, 'Cargo.toml');
 		writeFileSync(
@@ -250,7 +258,7 @@ runner-shared = { version = "1.0.0", default-features = false }
 				'[workspace.dependencies]\nunused = "1.0.0"',
 			),
 		);
-		const rejected = runTask(root, 'lint');
+		const rejected = lintDependencyFixture(root);
 		assert.notEqual(rejected.status, 0, rejected.output);
 		assert.match(
 			rejected.output,
