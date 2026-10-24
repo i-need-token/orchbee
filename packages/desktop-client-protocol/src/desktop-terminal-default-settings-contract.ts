@@ -2,7 +2,7 @@ import { TerminalConfigurationSchema } from '@orchbee/terminal-protocol';
 import { UserPreferencesSourceSchema } from '@orchbee/workbench-client-protocol';
 import { z } from 'zod';
 
-export const DesktopTerminalDefaultSettingsPersistenceIssueSchema = z.enum([
+const DesktopTerminalDefaultSettingsPersistenceIssueSchema = z.enum([
 	'invalid-record',
 	'read-failed',
 	'write-failed',
@@ -39,7 +39,7 @@ export const DesktopTerminalDefaultSettingsRendererCommandSchema = z.discriminat
 	}),
 ]);
 
-export const DesktopTerminalDefaultSettingsFailureCodeSchema = z.enum([
+const DesktopTerminalDefaultSettingsFailureCodeSchema = z.enum([
 	'busy',
 	'control-unavailable',
 	'host-rejected',
@@ -72,9 +72,7 @@ export type DesktopTerminalDefaultSettingsFailureCode = z.infer<
 export type DesktopTerminalDefaultSettingsMainEvent = z.infer<
 	typeof DesktopTerminalDefaultSettingsMainEventSchema
 >;
-export type DesktopTerminalDefaultSettingsPersistenceIssue = z.infer<
-	typeof DesktopTerminalDefaultSettingsPersistenceIssueSchema
->;
+
 export type DesktopTerminalDefaultSettingsRendererCommand = z.infer<
 	typeof DesktopTerminalDefaultSettingsRendererCommandSchema
 >;

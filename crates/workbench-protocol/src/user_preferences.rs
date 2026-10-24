@@ -194,7 +194,7 @@ impl UserPreferencesPatch {
                 .collect(),
         )
     }
-    /// Reset explicitly claims these keys, preventing subsequent legacy import from restoring them.
+    /// Reset explicitly claims these keys and restores their common defaults.
     pub fn reset(keys: impl IntoIterator<Item = PreferenceKey>) -> Self {
         Self(keys.into_iter().map(|key| (key, Value::Null)).collect())
     }
@@ -213,19 +213,9 @@ impl UserPreferencesPatch {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-    /// Exact affected identities used by the migration and reset owner.
+    /// Exact affected identities used by the update and reset owner.
     pub fn keys(&self) -> impl Iterator<Item = PreferenceKey> + '_ {
         self.0.keys().copied()
-    }
-    /// Fill-only import cannot overwrite an explicit edit, reset, or earlier native value.
-    pub fn excluding(&self, claimed: &BTreeSet<PreferenceKey>) -> Self {
-        Self(
-            self.0
-                .iter()
-                .filter(|(key, _)| !claimed.contains(key))
-                .map(|(key, value)| (*key, value.clone()))
-                .collect(),
-        )
     }
     /// Validate and construct the whole candidate before any externally observable effect.
     pub fn apply(
@@ -251,27 +241,6 @@ impl UserPreferencesPatch {
 }
 
 /// No paths or arbitrary file operations cross the helper's request boundary.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DesktopPreferencesPart {
-    Main,
-    Renderer,
-}
-impl DesktopPreferencesPart {
-    /// Legacy Main records own launch profiles and scrollback; renderer records own presentation.
-    pub const fn admits(self, key: PreferenceKey) -> bool {
-        let main = matches!(
-            key,
-            PreferenceKey::LaunchProfiles | PreferenceKey::ScrollbackBytes
-        );
-        match self {
-            Self::Main => main,
-            Self::Renderer => !main,
-        }
-    }
-}
-
-/// No paths or arbitrary file operations cross the helper's request boundary.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, tag = "operation", rename_all = "kebab-case")]
 pub enum UserPreferencesRequest {
@@ -280,10 +249,6 @@ pub enum UserPreferencesRequest {
         #[serde(deserialize_with = "source_value")]
         source: String,
         #[serde(deserialize_with = "nonempty_patch")]
-        changes: UserPreferencesPatch,
-    },
-    ImportDesktop {
-        part: DesktopPreferencesPart,
         changes: UserPreferencesPatch,
     },
 }
@@ -297,8 +262,6 @@ pub struct UserPreferencesSnapshot {
     pub values: UserPreferencesValues,
     #[serde(deserialize_with = "claimed_keys")]
     pub claimed: BTreeSet<PreferenceKey>,
-    pub desktop_imported: bool,
-    pub desktop_main_imported: bool,
 }
 
 /// Expected failures remain machine identities; the UI owns localized recovery copy.
@@ -350,12 +313,6 @@ pub fn parse_user_preferences_request(
                 return Err(PreferencesFailure::InvalidRequest);
             }
             if changes.is_empty() {
-                return Err(PreferencesFailure::InvalidChanges);
-            }
-            changes
-        }
-        UserPreferencesRequest::ImportDesktop { part, changes } => {
-            if changes.keys().any(|key| !part.admits(key)) {
                 return Err(PreferencesFailure::InvalidChanges);
             }
             changes

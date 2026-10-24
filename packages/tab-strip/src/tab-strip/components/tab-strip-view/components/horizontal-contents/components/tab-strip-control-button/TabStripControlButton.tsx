@@ -2,7 +2,7 @@ import styles from './TabStripControlButton.module.css';
 import type { MouseEventHandler, ReactNode } from 'react';
 import { joinClassNames } from '../../../../../../utils/tab-strip-internals';
 
-export interface TabStripControlButtonProps {
+interface TabStripControlButtonProps {
 	type?: 'button' | 'reset' | 'submit';
 	'aria-label': string;
 	disabled?: boolean;

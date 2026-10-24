@@ -9,7 +9,7 @@ import type { ProductIconName } from '@orchbee/ui/components';
 
 import type { WorkbenchSearchFilter } from './workbench-search';
 
-export interface WorkbenchSearchProviderContext {
+interface WorkbenchSearchProviderContext {
 	readonly filter: WorkbenchSearchFilter;
 	readonly locale: OrchbeeLocale;
 }

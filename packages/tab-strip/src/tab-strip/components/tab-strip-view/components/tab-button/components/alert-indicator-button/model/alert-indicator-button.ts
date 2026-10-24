@@ -7,7 +7,7 @@ const ALERT_INDICATOR_RECORDING_CYCLES = 2;
 export const ALERT_INDICATOR_RECORDING_ANIMATION_MS =
 	ALERT_INDICATOR_RECORDING_CYCLES * (ALERT_INDICATOR_FADE_IN_MS + ALERT_INDICATOR_FADE_OUT_MS) +
 	ALERT_INDICATOR_FADE_IN_MS;
-export type AlertIndicatorFadeKind = 'none' | 'fade-in' | 'fade-out' | 'recording';
+type AlertIndicatorFadeKind = 'none' | 'fade-in' | 'fade-out' | 'recording';
 
 export interface AlertIndicatorSnapshot {
 	revision: number;

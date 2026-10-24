@@ -185,12 +185,7 @@ A replacement Session/editor episode cannot inherit an old completion.
 | Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
 | Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
 
-The Session freezes its native configuration identity at startup. Clients send no
-paths, raw TOML, alternate device selector or arbitrary file write. Shared values
-live in a bounded sibling private preference record; the old TOML remains an
-explicit one-time import source. Desktop Main and renderer import only their
-allowed unclaimed keys. Reset claims prevent later imports from restoring old
-values. See [scope and persistence](../../../crates/workbench-protocol/docs/user-preferences.md#scope-persistence-and-migration).
+The Session freezes its native configuration identity at startup. Clients send no paths, raw TOML, alternate device selector or arbitrary file write. Shared values live in a bounded sibling private preference record; native old TOML remains an explicit initial source. Desktop Main and renderer submit only current reads and updates, without old-record import. See [scope and persistence](../../../crates/workbench-protocol/docs/user-preferences.md#scope-persistence-and-migration).
 
 | Transition           | Required behavior                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -303,25 +298,15 @@ notification, sound or physical emulator delivery. The configuration watcher cas
 also retain confirmed shared appearance and pointer-release state while updating
 live bindings, their hints and both sidebar profiles together.
 
-`SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process
-writers, separate Main/renderer imports, explicit edit/reset values, and one
-noncooperating external edit. `Acquire` owns the shared lock; `Write` rechecks the
-source and preserves other keys. Imports fill only unclaimed keys. Publication
-carries an immutable committed snapshot; apply failure and lost replies do not
-roll back or authorize another write. No-op receipts, filesystem primitives,
-capability discovery and UI geometry remain implementation-test obligations.
+`SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process writers, explicit edit/reset values and one noncooperating external edit. `Acquire` obtains the shared lock; `Write` rechecks the source and preserves other keys. Publication carries an immutable committed snapshot; apply failure and lost replies do not roll back or authorize another write. No-op receipts, native initial sources, filesystem primitives, capability discovery and UI geometry remain implementation-test obligations.
 
-An import's captured source, values and claims are needed only while it owns the
-lock. Both release paths reset that scratch to canonical defaults; the next import
-captures a fresh read set. This merges states that differ only in obsolete input,
-while retaining every actor, input value, attempted/completed import, durable claim,
-commit, publication and receipt, and every permitted external-edit ordering.
+The model contains no retired Desktop Main/renderer import actors, receipts or scratch state; shared storage implementation and tests still own native initial-value admission.
 
 Checked properties cover single-writer ownership, unrelated-key preservation,
-reset/claim preservation across migration, committed publication, complete values,
+committed publication, complete values,
 immutable publication identities and nonreplayed unknown outcomes. Negative
-controls remove the final source comparison and the import claim guard, and must
-produce overwrite/reset-resurrection counterexamples. Protocol conformance,
+controls remove the final source comparison and the unknown-receipt preservation guard, and must
+produce overwrite/unknown-receipt replacement counterexamples. Protocol conformance,
 storage/helper tests, GUI/TUI draft tests, field-focused correction and guarded
 outside-click lifetimes, launch capture, terminal presentation
 and input tests cover concrete boundaries. Actual bidirectional GUI/TUI edits,

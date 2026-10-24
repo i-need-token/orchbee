@@ -1,13 +1,11 @@
 import { z } from 'zod';
-import type { UserPreferencesPatch } from '@orchbee/workbench-client-protocol';
 
 import {
 	DEFAULT_TERMINAL_INTERACTION_PREFERENCES,
 	type TerminalInteractionPreferences,
 } from './terminal-interaction-preferences';
 
-const TERMINAL_INTERACTION_STORAGE_KEY = 'orchbee:web:terminal-interaction:v2';
-const LEGACY_TERMINAL_INTERACTION_STORAGE_KEY = 'orchbee:web:terminal-interaction:v1';
+const TERMINAL_INTERACTION_STORAGE_KEY = 'orchbee:web:terminal-interaction:v1';
 
 export type TerminalInteractionPersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
 
@@ -20,25 +18,6 @@ const terminalInteractionPreferencesSchema = z.strictObject({
 	copyOnSelect: z.boolean(),
 	trimTrailingBlankRowsForAgents: z.boolean(),
 });
-const legacyTerminalInteractionPreferencesSchema = z.strictObject({ copyOnSelect: z.boolean() });
-
-export function readLegacyInteractionPreferencePatch(
-	storage: TerminalInteractionStorage,
-): Pick<UserPreferencesPatch, 'copyOnSelect' | 'trimTrailingBlankRowsForAgents'> | null {
-	try {
-		const current = storage.getItem(TERMINAL_INTERACTION_STORAGE_KEY);
-		const legacy = storage.getItem(LEGACY_TERMINAL_INTERACTION_STORAGE_KEY);
-		if (current === null && legacy === null) return {};
-		const restored = readTerminalInteractionPreferences(storage);
-		if (restored.issue !== null) return null;
-		return current === null
-			? { copyOnSelect: restored.preferences.copyOnSelect }
-			: restored.preferences;
-	} catch {
-		return null;
-	}
-}
-
 export function normalizeTerminalInteractionPreferences(
 	input: unknown,
 ): TerminalInteractionPreferences | null {
@@ -56,35 +35,12 @@ export function readTerminalInteractionPreferences(storage: TerminalInteractionS
 	} catch {
 		return { issue: 'read-failed', preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };
 	}
-	if (serialized !== null) {
-		try {
-			const result = terminalInteractionPreferencesSchema.safeParse(JSON.parse(serialized));
-			return result.success
-				? { issue: null, preferences: Object.freeze(result.data) }
-				: { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };
-		} catch {
-			return { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };
-		}
-	}
-
-	try {
-		serialized = storage.getItem(LEGACY_TERMINAL_INTERACTION_STORAGE_KEY);
-	} catch {
-		return { issue: 'read-failed', preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };
-	}
-	if (serialized === null) {
+	if (serialized === null)
 		return { issue: null, preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };
-	}
 	try {
-		const result = legacyTerminalInteractionPreferencesSchema.safeParse(JSON.parse(serialized));
+		const result = terminalInteractionPreferencesSchema.safeParse(JSON.parse(serialized));
 		return result.success
-			? {
-					issue: null,
-					preferences: Object.freeze({
-						...result.data,
-						trimTrailingBlankRowsForAgents: true,
-					}),
-				}
+			? { issue: null, preferences: Object.freeze(result.data) }
 			: { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };
 	} catch {
 		return { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_INTERACTION_PREFERENCES };

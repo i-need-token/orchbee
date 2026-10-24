@@ -6,7 +6,6 @@ import {
 import {
 	DEFAULT_USER_PREFERENCES,
 	UserPreferencesSnapshotSchema,
-	type UserPreferencesPatch,
 	type UserPreferencesResponse,
 } from '@orchbee/workbench-client-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,8 +24,6 @@ const initial = UserPreferencesSnapshotSchema.parse({
 	source: 'a'.repeat(64),
 	values: DEFAULT_USER_PREFERENCES,
 	claimed: [],
-	desktopImported: true,
-	desktopMainImported: true,
 });
 
 function fixture() {
@@ -55,7 +52,7 @@ function fixture() {
 }
 
 async function initialize(test: ReturnType<typeof fixture>): Promise<void> {
-	const ready = test.client.initialize(() => ({}));
+	const ready = test.client.refresh();
 	await vi.waitFor(() => expect(test.commands).toHaveLength(1));
 	test.reply(1, { kind: 'snapshot', snapshot: initial, changed: false });
 	await ready;
@@ -218,74 +215,6 @@ describe('Desktop common preference consumer', () => {
 		expect(test.client.getSnapshot().draftResetRevision).toBe(0);
 	});
 
-	it('does not read legacy storage after the initialization receipt retires the client', async () => {
-		const test = fixture();
-		const readLegacy = vi.fn<() => UserPreferencesPatch>(() => ({}));
-		test.client.subscribe(() => {
-			if (test.client.getSnapshot().available) test.client.dispose();
-		});
-		const ready = test.client.initialize(readLegacy);
-		await vi.waitFor(() => expect(test.commands).toHaveLength(1));
-		test.reply(1, {
-			kind: 'snapshot',
-			snapshot: { ...initial, desktopImported: false },
-			changed: false,
-		});
-		await ready;
-		expect(readLegacy).not.toHaveBeenCalled();
-		expect(test.client.getSnapshot()).toMatchObject({ available: false, failure: 'unavailable' });
-	});
-
-	it('keeps retirement authoritative when the legacy storage callback disposes the client', async () => {
-		const test = fixture();
-		let retired: ReturnType<DesktopUserPreferencesClient['getSnapshot']> | undefined;
-		const readLegacy = vi.fn<() => null>(() => {
-			test.client.dispose();
-			retired = test.client.getSnapshot();
-			return null;
-		});
-		const ready = test.client.initialize(readLegacy);
-		await vi.waitFor(() => expect(test.commands).toHaveLength(1));
-		test.reply(1, {
-			kind: 'snapshot',
-			snapshot: { ...initial, desktopImported: false },
-			changed: false,
-		});
-		await ready;
-		expect(readLegacy).toHaveBeenCalledOnce();
-		expect(retired).toBeDefined();
-		expect(test.client.getSnapshot()).toBe(retired);
-		expect(test.client.getSnapshot().failure).toBe('unavailable');
-	});
-
-	it('keeps an uncertain write receipt frozen through every later admission and subscription', async () => {
-		const test = fixture();
-		await initialize(test);
-		const pending = test.client.update({ copyOnSelect: false });
-		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
-		test.client.dispose();
-		expect(await pending).toEqual({ kind: 'outcome-unknown' });
-		const retired = test.client.getSnapshot();
-		const listener = vi.fn<() => void>();
-		const readLegacy = vi.fn<() => UserPreferencesPatch>(() => ({}));
-		test.client.subscribe(listener);
-		expect(await test.client.update({ copyOnSelect: true })).toEqual({
-			kind: 'refused',
-			reason: 'unavailable',
-		});
-		expect(await test.client.reset(['copyOnSelect'])).toEqual({
-			kind: 'refused',
-			reason: 'unavailable',
-		});
-		expect(await test.client.refresh()).toEqual({ kind: 'refused', reason: 'unavailable' });
-		await test.client.initialize(readLegacy);
-		expect(test.client.getSnapshot()).toBe(retired);
-		expect(test.client.getSnapshot().failure).toBe('outcome-unknown');
-		expect(listener).not.toHaveBeenCalled();
-		expect(readLegacy).not.toHaveBeenCalled();
-		expect(test.commands).toHaveLength(2);
-	});
-
 	it('does not repeat a subscriber re-registered during its current notification', async () => {
 		const test = fixture();
 		await initialize(test);
@@ -366,7 +295,7 @@ describe('Desktop common preference consumer', () => {
 
 	it('clears an initial read refusal after a confirmed poll without fabricating a failed save', async () => {
 		const test = fixture();
-		const ready = test.client.initialize(() => ({}));
+		const ready = test.client.refresh();
 		await vi.waitFor(() => expect(test.commands).toHaveLength(1));
 		test.reply(1, { kind: 'refused', reason: 'busy' });
 		await ready;

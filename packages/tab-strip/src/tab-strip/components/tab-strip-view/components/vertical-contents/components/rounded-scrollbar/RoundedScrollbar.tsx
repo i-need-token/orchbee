@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react';
 
 import { useRoundedScrollbar } from './hooks/useRoundedScrollbar';
 
-export interface RoundedScrollbarProps {
+interface RoundedScrollbarProps {
 	viewportRef: RefObject<HTMLElement | null>;
 	isAnimatingSize?: boolean;
 	shouldHaveRightMargin?: boolean;

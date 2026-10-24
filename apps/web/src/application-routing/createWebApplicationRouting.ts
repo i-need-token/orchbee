@@ -108,46 +108,6 @@ const workspaceTabRoute = createRoute({
 	path: '/workspaces/$workspaceId/tabs/$tabId',
 });
 
-const legacyWorkspaceRoute = createRoute({
-	beforeLoad: ({ context, params }) =>
-		prepareRoute(context, {
-			kind: 'workspace',
-			legacyProjectId: params.projectId,
-
-			workspaceId: params.workspaceId,
-		}),
-	component: WorkbenchRoute,
-	getParentRoute: () => webApplicationRootRoute,
-	path: '/projects/$projectId/workspaces/$workspaceId',
-});
-
-const legacyWorkspaceTabsRoute = createRoute({
-	beforeLoad: ({ context, params }) =>
-		prepareRoute(context, {
-			kind: 'workspace',
-			legacyProjectId: params.projectId,
-
-			workspaceId: params.workspaceId,
-		}),
-	component: WorkbenchRoute,
-	getParentRoute: () => webApplicationRootRoute,
-	path: '/projects/$projectId/workspaces/$workspaceId/tabs',
-});
-
-const legacyWorkspaceTabRoute = createRoute({
-	beforeLoad: ({ context, params }) =>
-		prepareRoute(context, {
-			kind: 'workspace',
-			legacyProjectId: params.projectId,
-
-			tabId: params.tabId,
-			workspaceId: params.workspaceId,
-		}),
-	component: WorkbenchRoute,
-	getParentRoute: () => webApplicationRootRoute,
-	path: '/projects/$projectId/workspaces/$workspaceId/tabs/$tabId',
-});
-
 const routeTree = webApplicationRootRoute.addChildren([
 	indexRoute,
 	standaloneRoute,
@@ -159,9 +119,6 @@ const routeTree = webApplicationRootRoute.addChildren([
 	workspaceRoute,
 	workspaceTabsRoute,
 	workspaceTabRoute,
-	legacyWorkspaceRoute,
-	legacyWorkspaceTabsRoute,
-	legacyWorkspaceTabRoute,
 ]);
 
 interface WebApplicationRoutingInput extends Omit<WebApplicationProps, 'navigation'> {

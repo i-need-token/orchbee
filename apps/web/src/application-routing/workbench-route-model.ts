@@ -42,7 +42,6 @@ export type WorkbenchRouteRequest =
 	| { readonly kind: 'project'; readonly projectId: string }
 	| {
 			readonly kind: 'workspace';
-			readonly legacyProjectId?: string | undefined;
 			readonly tabId?: string | undefined;
 			readonly workspaceId: string;
 	  };
@@ -142,7 +141,7 @@ function resolveWorkspaceRoute(
 	if (request.tabId !== undefined) {
 		return workspace.tabIds.includes(request.tabId)
 			? {
-					kind: request.legacyProjectId === undefined ? 'ready' : 'redirect',
+					kind: 'ready',
 					location: {
 						kind: 'workspace',
 
@@ -153,9 +152,7 @@ function resolveWorkspaceRoute(
 			: { kind: 'unavailable', reason: 'tab-not-found' };
 	}
 	const location = workspaceLocation(workspace, 'first');
-	return location.tabId === null && request.legacyProjectId === undefined
-		? { kind: 'ready', location }
-		: { kind: 'redirect', location };
+	return location.tabId === null ? { kind: 'ready', location } : { kind: 'redirect', location };
 }
 
 function standaloneLocation(

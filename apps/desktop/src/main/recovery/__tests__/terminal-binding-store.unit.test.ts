@@ -33,7 +33,7 @@ describe('terminal binding store model', () => {
 		expect(findTerminalBinding(updated, second.bindingId)).toEqual(requested);
 		expect(removeTerminalBinding(updated, second.bindingId)).toEqual({
 			bindings: [first],
-			version: 3,
+			version: 1,
 		});
 	});
 
@@ -46,25 +46,28 @@ describe('terminal binding store model', () => {
 		};
 		const closing = TerminalBindingSchema.parse({
 			...binding,
-			state: { identity, kind: 'closing' },
+			state: { disposition: 'remove', identity, kind: 'closing' },
 		});
 
 		expect(createTerminalBindingStoreDocument([closing])).toEqual({
 			bindings: [closing],
-			version: 3,
+			version: 1,
 		});
+		expect(
+			TerminalBindingSchema.safeParse({ ...binding, state: { identity, kind: 'closing' } }).success,
+		).toBe(false);
 	});
 
 	it('rejects noncanonical order, duplicate durable identities, and foreign CreationIds', () => {
 		const first = createBinding(1);
 		const second = createBinding(2);
 		expect(
-			TerminalBindingStoreFileSchema.safeParse({ bindings: [second, first], version: 3 }).success,
+			TerminalBindingStoreFileSchema.safeParse({ bindings: [second, first], version: 1 }).success,
 		).toBe(false);
 		expect(
 			TerminalBindingStoreFileSchema.safeParse({
 				bindings: [first, { ...second, creationId: first.creationId }],
-				version: 3,
+				version: 1,
 			}).success,
 		).toBe(false);
 		expect(

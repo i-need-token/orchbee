@@ -1,4 +1,4 @@
-export interface TabKeyboardReorderInput {
+interface TabKeyboardReorderInput {
 	readonly commandOrControl: boolean;
 	readonly horizontal: boolean;
 	readonly key: string;
@@ -6,7 +6,7 @@ export interface TabKeyboardReorderInput {
 	readonly shift: boolean;
 }
 
-export interface TabKeyboardReorder {
+interface TabKeyboardReorder {
 	readonly direction: -1 | 1;
 	readonly moveToEnd: boolean;
 }

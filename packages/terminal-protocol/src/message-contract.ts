@@ -86,12 +86,12 @@ export type PayloadEncoding = (typeof PayloadEncoding)[keyof typeof PayloadEncod
 
 export type MessageRole = 'event' | 'request' | 'response';
 
-export interface RequestMessageContract {
+interface RequestMessageContract {
 	readonly payloadEncoding: PayloadEncoding;
 	readonly successKind: MessageKind;
 }
 
-export interface MessageContract {
+interface MessageContract {
 	readonly eventEncoding: PayloadEncoding | null;
 	readonly name: string;
 	readonly request: RequestMessageContract | null;
@@ -554,14 +554,14 @@ type RequestKindForEncoding<Encoding extends PayloadEncoding> = {
 		: never;
 }[MessageKind];
 
-export type ControlRequestKind = RequestKindForEncoding<typeof PayloadEncoding.controlJson>;
-export type InputRequestKind = RequestKindForEncoding<typeof PayloadEncoding.rawBytes>;
+type ControlRequestKind = RequestKindForEncoding<typeof PayloadEncoding.controlJson>;
+type InputRequestKind = RequestKindForEncoding<typeof PayloadEncoding.rawBytes>;
 
 export function isKnownMessageKind(value: number): value is MessageKind {
 	return Number.isInteger(value) && Object.hasOwn(MESSAGE_CONTRACTS, value);
 }
 
-export function messageContract(kind: number): MessageContract | null {
+function messageContract(kind: number): MessageContract | null {
 	return isKnownMessageKind(kind) ? MESSAGE_CONTRACTS[kind] : null;
 }
 

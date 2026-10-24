@@ -1,11 +1,6 @@
 import { z } from 'zod';
 
-import {
-	TerminalPresentationIdSchema,
-	TerminalPresentationOperationIdSchema,
-	TerminalPresentationRemovalIdSchema,
-} from '../../terminal-presentation';
-import { WorkbenchSharedDocumentRevisionSchema } from '../document';
+import { TerminalPresentationIdSchema } from '../../terminal-presentation';
 
 const identifierSchema = z.string().min(1).max(512);
 const textEncoder = new TextEncoder();
@@ -27,10 +22,6 @@ const optionalPageShape = {
 export const WorkbenchProjectListInputSchema = z.strictObject(optionalPageShape);
 export const WorkbenchDirectoryListInputSchema = z.strictObject({
 	resourceScopeId: identifierSchema,
-	...optionalPageShape,
-});
-export const WorkbenchWorkspaceListInputSchema = z.strictObject({
-	projectId: identifierSchema.nullable(),
 	...optionalPageShape,
 });
 
@@ -57,7 +48,7 @@ export const WorkbenchPanelListInputSchema = z.strictObject({
 });
 
 export const WORKBENCH_TERMINAL_OUTPUT_DEFAULT_ROWS = 80;
-export const WORKBENCH_TERMINAL_OUTPUT_MAXIMUM_ROWS = 1_000;
+const WORKBENCH_TERMINAL_OUTPUT_MAXIMUM_ROWS = 1_000;
 export const WORKBENCH_TERMINAL_OUTPUT_MAXIMUM_TEXT_BYTES = 128 * 1_024;
 
 export const WorkbenchTerminalOutputReadInputSchema = z.strictObject({
@@ -120,116 +111,6 @@ export const WorkbenchTerminalOutputReadOutputSchema = z
 			});
 		}
 	});
-
-const pageShape = {
-	nextCursor: z.string().min(1).max(4096).nullable(),
-	revision: WorkbenchSharedDocumentRevisionSchema,
-};
-
-const projectListItemSchema = z.strictObject({
-	name: z.string(),
-	projectId: identifierSchema,
-});
-
-const directoryListItemSchema = z.strictObject({
-	available: z.boolean(),
-	directoryId: identifierSchema,
-	kind: z.enum(['folder', 'worktree']),
-	name: z.string(),
-	path: z.string().min(1),
-	placement: z.discriminatedUnion('kind', [
-		z.strictObject({ kind: z.literal('local') }),
-		z.strictObject({ environmentId: identifierSchema, kind: z.literal('environment') }),
-	]),
-	primary: z.boolean(),
-	source: z.enum(['created', 'discovered', 'selected']),
-});
-
-const workspaceListItemSchema = z.strictObject({
-	projectId: identifierSchema.nullable(),
-	resourceScopeId: identifierSchema,
-	name: z.string(),
-	primaryDirectoryId: identifierSchema,
-	workspaceId: identifierSchema,
-});
-
-const tabListItemSchema = z.strictObject({
-	groupId: identifierSchema.nullable(),
-	panelCount: z.number().int().positive(),
-	pinned: z.boolean(),
-	tabCustomTitle: z.string().min(1).nullable(),
-	tabFallbackTitle: z.string(),
-	tabId: identifierSchema,
-	terminalContextId: identifierSchema,
-	terminalCount: z.number().int().positive(),
-});
-
-const panelListItemSchema = z.strictObject({
-	panelId: identifierSchema,
-	position: z.number().int().positive(),
-	tabId: identifierSchema,
-	terminalContextId: identifierSchema,
-	terminalCount: z.number().int().positive(),
-});
-
-const terminalIntentSchema = z.discriminatedUnion('kind', [
-	z.strictObject({
-		kind: z.literal('provision'),
-		operationId: TerminalPresentationOperationIdSchema,
-	}),
-	z.strictObject({ kind: z.literal('retain') }),
-	z.strictObject({
-		kind: z.literal('stop'),
-		operationId: TerminalPresentationOperationIdSchema,
-	}),
-	z.strictObject({ kind: z.literal('stopped') }),
-	z.strictObject({
-		kind: z.literal('close'),
-		operationId: TerminalPresentationOperationIdSchema,
-		removalId: TerminalPresentationRemovalIdSchema,
-	}),
-]);
-
-const terminalListItemSchema = z.strictObject({
-	groupId: identifierSchema.nullable(),
-	intent: terminalIntentSchema,
-	launchCwd: z.string().nullable(),
-	launchDirectoryId: identifierSchema.nullable(),
-	panelId: identifierSchema,
-	pinned: z.boolean(),
-	presentationId: TerminalPresentationIdSchema,
-	role: z.enum(['child', 'primary']),
-	tabCustomTitle: z.string().min(1).nullable(),
-	tabFallbackTitle: z.string(),
-	tabId: identifierSchema,
-	terminalContextId: identifierSchema,
-	terminalTitle: z.string(),
-});
-
-export const WorkbenchProjectListPageSchema = z.strictObject({
-	...pageShape,
-	items: z.array(projectListItemSchema).max(200),
-});
-export const WorkbenchDirectoryListPageSchema = z.strictObject({
-	...pageShape,
-	items: z.array(directoryListItemSchema).max(200),
-});
-export const WorkbenchWorkspaceListPageSchema = z.strictObject({
-	...pageShape,
-	items: z.array(workspaceListItemSchema).max(200),
-});
-export const WorkbenchTabListPageSchema = z.strictObject({
-	...pageShape,
-	items: z.array(tabListItemSchema).max(200),
-});
-export const WorkbenchPanelListPageSchema = z.strictObject({
-	...pageShape,
-	items: z.array(panelListItemSchema).max(200),
-});
-export const WorkbenchTerminalListPageSchema = z.strictObject({
-	...pageShape,
-	items: z.array(terminalListItemSchema).max(200),
-});
 
 export const WORKBENCH_PROJECT_LIST_OPERATION = Object.freeze({
 	confirmation: 'noninteractive-allowed',
@@ -300,26 +181,6 @@ export const WORKBENCH_PANEL_LIST_OPERATION = Object.freeze({
 	retry: 'same-request-while-retained',
 	schemaVersion: 1,
 } as const);
-
-export type WorkbenchPageInput = z.infer<typeof WorkbenchProjectListInputSchema>;
-export type WorkbenchProjectListInput = z.infer<typeof WorkbenchProjectListInputSchema>;
-export type WorkbenchDirectoryListInput = z.infer<typeof WorkbenchDirectoryListInputSchema>;
-export type WorkbenchWorkspaceListInput = z.infer<typeof WorkbenchWorkspaceListInputSchema>;
-export type WorkbenchTabListInput = z.infer<typeof WorkbenchTabListInputSchema>;
-export type WorkbenchPanelListInput = z.infer<typeof WorkbenchPanelListInputSchema>;
-export type WorkbenchTerminalListInput = z.infer<typeof WorkbenchTerminalListInputSchema>;
-export type WorkbenchTerminalOutputReadInput = z.infer<
-	typeof WorkbenchTerminalOutputReadInputSchema
->;
-export type WorkbenchProjectListPage = z.infer<typeof WorkbenchProjectListPageSchema>;
-export type WorkbenchDirectoryListPage = z.infer<typeof WorkbenchDirectoryListPageSchema>;
-export type WorkbenchWorkspaceListPage = z.infer<typeof WorkbenchWorkspaceListPageSchema>;
-export type WorkbenchTabListPage = z.infer<typeof WorkbenchTabListPageSchema>;
-export type WorkbenchPanelListPage = z.infer<typeof WorkbenchPanelListPageSchema>;
-export type WorkbenchTerminalListPage = z.infer<typeof WorkbenchTerminalListPageSchema>;
-export type WorkbenchTerminalOutputReadOutput = z.infer<
-	typeof WorkbenchTerminalOutputReadOutputSchema
->;
 
 function containsUnpairedSurrogate(value: string): boolean {
 	for (let index = 0; index < value.length; index += 1) {

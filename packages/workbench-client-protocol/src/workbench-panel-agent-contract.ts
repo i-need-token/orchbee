@@ -18,7 +18,7 @@ export const PanelAgentStateSchema = z.enum([
 	'error',
 	'unknown',
 ]);
-export const PanelAgentDispositionSchema = z.enum(['applied', 'ignored', 'deferred']);
+const PanelAgentDispositionSchema = z.enum(['applied', 'ignored', 'deferred']);
 const trim = (value: string) => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
 const label = z.string().refine((value) => trim(value).length > 0);
 const normalizedLabel = label.refine((value) => trim(value) === value);
@@ -27,7 +27,7 @@ const optionalString = z
 	.nullish()
 	.transform((value) => value ?? undefined);
 const optionalSequence = WorkbenchRevisionSchema.nullish().transform((value) => value ?? undefined);
-export const PanelAgentReportSchema = z.discriminatedUnion('kind', [
+const PanelAgentReportSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('state'),
@@ -75,7 +75,7 @@ export const TerminalAgentBindingSchema = z
 		hostTerminalId: hostIdentity,
 	})
 	.readonly();
-export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
+const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('titles'),
@@ -142,7 +142,7 @@ export const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const PanelAgentReferenceSchema = z
+const PanelAgentReferenceSchema = z
 	.strictObject({ kind: z.enum(['id', 'path']), value: z.string() })
 	.refine(
 		(ref) =>
@@ -171,7 +171,7 @@ const officialPairs: ReadonlySet<string> = new Set([
 	'herdr:letta/letta',
 	'herdr:antigravity_cli/agy',
 ]);
-export const PanelAgentSessionSchema = z
+const PanelAgentSessionSchema = z
 	.strictObject({
 		source: z.string(),
 		agent: normalizedLabel,
@@ -197,7 +197,7 @@ export const PanelAgentViewSchema = z
 			(view.message === null || view.authoritySource !== null),
 	)
 	.readonly();
-export const PanelAgentRowSchema = z
+const PanelAgentRowSchema = z
 	.strictObject({
 		panelId: WorkbenchPanelIdSchema,
 		binding: WorkbenchPresentationBindingSchema.nullable(),
@@ -205,7 +205,7 @@ export const PanelAgentRowSchema = z
 	})
 	.refine((row) => (row.binding === null) === (row.report === null))
 	.readonly();
-export const PanelAgentFailureSchema = z.enum([
+const PanelAgentFailureSchema = z.enum([
 	'denied',
 	'unavailable',
 	'site-mismatch',
@@ -464,7 +464,7 @@ const terminalExplanation = z
 			: t.sample !== null,
 	)
 	.readonly();
-export const PresentationAgentRowSchema = z
+const PresentationAgentRowSchema = z
 	.strictObject({
 		presentationId: TerminalPresentationIdSchema,
 		panel: PanelAgentRowSchema,
@@ -490,7 +490,7 @@ const terminalTitleRow = z
 		]),
 	})
 	.readonly();
-export const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
+const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('titles'),
@@ -618,17 +618,3 @@ export const PanelAgentResultSchema = z
 		outcome: PanelAgentOutcomeSchema,
 	})
 	.readonly();
-
-export type PanelAgentState = z.infer<typeof PanelAgentStateSchema>;
-export type PanelAgentDisposition = z.infer<typeof PanelAgentDispositionSchema>;
-export type PanelAgentReport = z.infer<typeof PanelAgentReportSchema>;
-export type PanelAgentAction = z.infer<typeof PanelAgentActionSchema>;
-export type PanelAgentReference = z.infer<typeof PanelAgentReferenceSchema>;
-export type PanelAgentSession = z.infer<typeof PanelAgentSessionSchema>;
-export type PanelAgentView = z.infer<typeof PanelAgentViewSchema>;
-export type PanelAgentRow = z.infer<typeof PanelAgentRowSchema>;
-export type PanelAgentFailure = z.infer<typeof PanelAgentFailureSchema>;
-export type PanelAgentOutcome = z.infer<typeof PanelAgentOutcomeSchema>;
-export type PanelAgentRequest = z.infer<typeof PanelAgentRequestSchema>;
-export type PanelAgentResult = z.infer<typeof PanelAgentResultSchema>;
-export type PresentationAgentRow = z.infer<typeof PresentationAgentRowSchema>;

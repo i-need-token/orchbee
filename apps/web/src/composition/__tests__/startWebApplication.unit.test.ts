@@ -88,7 +88,7 @@ describe('startWebApplication', () => {
 		const rootElement = {} as Element;
 		const layoutStorage = {
 			getItem: (key: string) =>
-				key === 'orchbee:web:application-locale:v1' ? JSON.stringify({ locale: 'en-US' }) : null,
+				key === 'orchbee:web:locale-preference:v1' ? JSON.stringify({ locale: 'en-US' }) : null,
 			setItem: vi.fn<(key: string, value: string) => void>(),
 		};
 
@@ -102,7 +102,7 @@ describe('startWebApplication', () => {
 
 		expect(documentElement.lang).toBe('en-US');
 		expect(layoutStorage.setItem).not.toHaveBeenCalledWith(
-			'orchbee:web:application-locale:v1',
+			'orchbee:web:locale-preference:v1',
 			expect.any(String),
 		);
 

@@ -28,5 +28,3 @@ export const DesktopRendererBootstrapWindowMessageSchema = z.strictObject({
 	security: z.strictObject({ contextIsolated: z.boolean(), sandboxed: z.boolean() }),
 	type: z.literal(DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE),
 });
-
-export type DesktopRendererBootstrap = z.infer<typeof DesktopRendererBootstrapSchema>;

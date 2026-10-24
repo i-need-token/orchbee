@@ -32,7 +32,7 @@ export type TerminalTabPresentationHandoffState =
 			readonly targetTabId: string;
 	  };
 
-export type TerminalTabPresentationHandoffEvent =
+type TerminalTabPresentationHandoffEvent =
 	| {
 			readonly expectedPresentationIds: readonly string[];
 			readonly outgoingAvailable: boolean;

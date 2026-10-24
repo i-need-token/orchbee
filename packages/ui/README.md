@@ -24,11 +24,11 @@ export function Example() {
 }
 ```
 
-The root entry currently retains the `Button` compatibility export. The explicit `@orchbee/ui/components` entry exports the complete checked-in shadcn Base UI component set and Orchbee-authored visual primitives. Components keep their standard variants, `className` composition, and Base UI props.
+The explicit `@orchbee/ui/components` entry exports consumed shadcn Base UI and Orchbee visual primitives; the root has no compatibility aliases. Components retain the relied-on variants, `className` composition and Base UI props. New components and slots require an admitted use rather than speculative inventory.
 
 `Tabs` also exposes the `workspace` variant used for full-height application work areas. Compose it with `TabsBar`, a workspace `TabsList`, one `TabsItem` per trigger, and an independent one-pixel `TabsDivider` between adjacent items. Tab triggers do not draw their own separators. `TabsBar` is `35px` high, composed of a `34px` content area and a `1px` bottom border, and may contain product-owned controls beside the semantic tab list. Each item is at most `200px` wide and shrinks equally when space is constrained. Unselected tabs use the brighter base surface, hover adds a lighter surface without changing the label color, and the selected tab uses the darker selected surface. The UI package provides accessible Base UI interaction and responsive chrome; product packages remain responsible for tab data and semantic actions such as selection, creation, and closure.
 
-Dropdown, context, menubar, and submenu surfaces use the shared `250px` menu width and shrink only when the available viewport is narrower. Product consumers keep the primitive default instead of assigning one-off menu widths. Their content, trigger, and interaction contract follows the repository [frontend menu standard](../../docs/frontend/menus.md).
+Dropdown, context, and submenu surfaces use the shared `250px` menu width and shrink only when the available viewport is narrower. Product consumers keep the primitive default instead of assigning one-off menu widths. Their content, trigger, and interaction contract follows the repository [frontend menu standard](../../docs/frontend/menus.md).
 
 Portaled floating content keeps its generated default layer outside a modal. Modal consumers use the supported `positionerClassName` override with a CSS Module class mapped to `--ob-ref-layer-modal`, so the portal stays above its owning dialog without a one-off popup `z-index`.
 
@@ -36,7 +36,7 @@ Default Dialog and Alert Dialog surfaces use the shared `480px` width, constrain
 
 ## Product icons
 
-Product code consumes `ProductIcon` through the package API and uses its Orchbee-owned name allowlist. It must not import Codicons CSS, vendor class names, font characters, or asset paths directly. The package stylesheet loads the icon font once, while `ProductIcon` keeps every glyph decorative so the owning control supplies the accessible name. `ProductIcon` and generated primitive icon defaults use the shared `14px` small-icon size; a non-default glyph size is an explicit `ProductIcon` component variant rather than a consumer override. Compact section-heading actions use the documented `13px` section-action variant. Leading Dropdown, Context, and Menubar icons use the `16px` menu-leading variant while trailing disclosure arrows remain `14px`.
+Product code consumes `ProductIcon` through the package API and uses its Orchbee-owned name allowlist. It must not import Codicons CSS, vendor class names, font characters, or asset paths directly. The package stylesheet loads the icon font once, while `ProductIcon` keeps every glyph decorative so the owning control supplies the accessible name. `ProductIcon` and generated primitive icon defaults use the shared `14px` small-icon size; a non-default glyph size is an explicit `ProductIcon` component variant rather than a consumer override. Compact section-heading actions use the documented `13px` section-action variant. Leading Dropdown and Context icons use the `16px` menu-leading variant while trailing disclosure arrows remain `14px`.
 
 The product allowlist contains `sidebar-left`, `add`, `arrow-left`, `close`, `ellipsis`, `more-vertical`, `pin`, `search`, `settings`, and `terminal`, backed by their corresponding Codicons glyphs. Generated shadcn sources retain their upstream Lucide dependencies inside the generated compatibility boundary. See the repository [frontend styling standard](../../docs/frontend/styling.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
@@ -46,11 +46,7 @@ The resizable component facade exports `ResizablePanelGroupHandle` for product a
 
 The package-level [`components.json`](components.json) pins the Base UI Nova style and directs the official CLI to `src/components/ui`.
 
-```sh
-pnpm --dir packages/ui exec shadcn add --all --overwrite
-```
-
-The repository owns a complete snapshot of the official Base UI registry rather than adding primitives on demand. Review the CLI diff before accepting a refresh because focused Orchbee compatibility adaptations may need to be reapplied. Do not hand-write a primitive that is available from shadcn.
+Use the package's `component:add` script only for checked-in components or explicit names admitted under the [experience-component rules](../../docs/frontend/experience-components.md). Do not import the entire registry; a Story alone does not establish product admission. Review CLI changes, preserve Orchbee adaptations and narrowed exports, and do not restore unused slots. Do not hand-write primitives available from shadcn.
 
 The snapshot uses `@orchbee/foundation/react` where generated event callbacks need the repository's stable-identity and latest-render-value contract. Preserve that focused adaptation when refreshing the affected registry components unless upstream provides the same contract.
 

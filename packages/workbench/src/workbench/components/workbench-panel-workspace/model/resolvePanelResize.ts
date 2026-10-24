@@ -3,7 +3,7 @@ import type { PanelLayoutNode, PanelSplit } from './panel-layout-types';
 export type PanelResizeAdjustment = 'narrower' | 'reset' | 'shorter' | 'taller' | 'wider';
 export type PanelResizeMultiplier = 1 | 2;
 
-export type PanelResizeResolution =
+type PanelResizeResolution =
 	| {
 			readonly kind: 'applied';
 			readonly root: PanelLayoutNode;

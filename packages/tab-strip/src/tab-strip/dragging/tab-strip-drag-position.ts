@@ -6,7 +6,7 @@ interface DragPositionTab {
 	group: TabGroupId | null;
 }
 
-export interface HorizontalDragInsertionInput {
+interface HorizontalDragInsertionInput {
 	draggedBounds: Readonly<Rect>;
 	tabs: readonly Readonly<DragPositionTab>[];
 	idealTabBounds: readonly Readonly<Rect>[];

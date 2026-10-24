@@ -135,7 +135,7 @@ Desktop bootstrap 在调用渲染器工厂前占住唯一的渲染器启动位�
 
 ## 导航
 
-所有组合使用同一个 TanStack Browser Router。规范 Workspace 路由使用 `/workspaces/$workspaceId[/tabs/$tabId]`，与可空 Project 成员关系独立。带 Project 的旧 Workspace 链接按稳定 Workspace 身份重定向，即使已重新分组或解散。只指向组的链接解析当前成员；未知 Workspace/Tab 身份仍不可用。导航推入历史，规范化替换历史。渲染器焦点恢复在显式路由协调前恢复精确存活的 Workspace、Tab、Panel 和子终端。见 [`docs/navigation-routing.md`](docs/navigation-routing.zh-CN.md)。
+所有组合使用同一个 TanStack Browser Router。规范 Workspace 路由使用 `/workspaces/$workspaceId[/tabs/$tabId]`，与可空 Project 成员关系独立。旧的 Project 限定 Workspace 路径不再准入。只指向组的链接解析当前成员；未知 Workspace/Tab 身份仍不可用。导航推入历史，规范化替换历史。渲染器焦点恢复在显式路由协调前恢复精确存活的 Workspace、Tab、Panel 和子终端。见 [`docs/navigation-routing.md`](docs/navigation-routing.zh-CN.md)。
 
 ## 设置
 

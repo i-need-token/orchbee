@@ -13,7 +13,6 @@ export const terminalSettingsMessages = defineMessages({
 	sharedConflict: message('terminal.settings.shared.conflict'),
 	sharedUnknown: message('terminal.settings.shared.unknown'),
 	sharedHost: message('terminal.settings.shared.host'),
-	sharedLegacy: message('terminal.settings.shared.legacy'),
 	sharedRefresh: message('terminal.settings.shared.refresh'),
 	sharedReloadDraft: message('terminal.settings.shared.reloadDraft'),
 	sharedReset: message('terminal.settings.shared.reset'),

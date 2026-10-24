@@ -1,6 +1,6 @@
 export const TAB_GROUP_EDITOR_IGNORE_SCROLL_MS = 250;
 
-export type TabGroupEditorCloseReason = 'explicit' | 'scroll' | 'vertical-tab-mode-change';
+type TabGroupEditorCloseReason = 'explicit' | 'scroll' | 'vertical-tab-mode-change';
 
 type OpenListener = () => void;
 type CloseListener = (reason: TabGroupEditorCloseReason) => void;

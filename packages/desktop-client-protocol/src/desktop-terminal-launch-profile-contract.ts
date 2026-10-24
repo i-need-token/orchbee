@@ -4,7 +4,6 @@ import {
 	BUILT_IN_USER_LAUNCH_PROFILE_ID as DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	USER_LAUNCH_PROFILE_LIMITS as DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
 	UserLaunchProfileCatalogSchema as DesktopTerminalLaunchProfileCatalogSchema,
-	UserLaunchProfileCommandSchema as DesktopTerminalLaunchProfileCommandSchema,
 	UserLaunchProfileIdSchema as DesktopTerminalLaunchProfileIdSchema,
 	UserLaunchProfileNameSchema as DesktopTerminalLaunchProfileNameSchema,
 	UserLaunchProfileSchema as DesktopTerminalLaunchProfileSchema,
@@ -13,13 +12,12 @@ export {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
 	DesktopTerminalLaunchProfileCatalogSchema,
-	DesktopTerminalLaunchProfileCommandSchema,
 	DesktopTerminalLaunchProfileIdSchema,
 	DesktopTerminalLaunchProfileNameSchema,
 	DesktopTerminalLaunchProfileSchema,
 };
 
-export const DesktopTerminalLaunchProfilePersistenceIssueSchema = z.enum([
+const DesktopTerminalLaunchProfilePersistenceIssueSchema = z.enum([
 	'invalid-record',
 	'read-failed',
 	'write-failed',
@@ -79,7 +77,7 @@ export const DesktopTerminalLaunchProfileRendererCommandSchema = z.discriminated
 	}),
 ]);
 
-export const DesktopTerminalLaunchProfileFailureCodeSchema = z.enum([
+const DesktopTerminalLaunchProfileFailureCodeSchema = z.enum([
 	'busy',
 	'catalog-full',
 	'control-unavailable',
@@ -116,9 +114,7 @@ export type DesktopTerminalLaunchProfile = z.infer<typeof DesktopTerminalLaunchP
 export type DesktopTerminalLaunchProfileCatalog = z.infer<
 	typeof DesktopTerminalLaunchProfileCatalogSchema
 >;
-export type DesktopTerminalLaunchProfileCommand = z.infer<
-	typeof DesktopTerminalLaunchProfileCommandSchema
->;
+
 export type DesktopTerminalLaunchProfileFailureCode = z.infer<
 	typeof DesktopTerminalLaunchProfileFailureCodeSchema
 >;
@@ -126,9 +122,7 @@ export type DesktopTerminalLaunchProfileId = z.infer<typeof DesktopTerminalLaunc
 export type DesktopTerminalLaunchProfileMainEvent = z.infer<
 	typeof DesktopTerminalLaunchProfileMainEventSchema
 >;
-export type DesktopTerminalLaunchProfilePersistenceIssue = z.infer<
-	typeof DesktopTerminalLaunchProfilePersistenceIssueSchema
->;
+
 export type DesktopTerminalLaunchProfileRendererCommand = z.infer<
 	typeof DesktopTerminalLaunchProfileRendererCommandSchema
 >;

@@ -28,38 +28,41 @@
 		"packages/agent": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"ignoreBinaries": ["java!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"],
+			"includeEntryExports": true
 		},
 		"packages/foundation": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"],
+			"includeEntryExports": true
 		},
 		"packages/ui": {
 			"entry": ["stories/**/*.stories.tsx!"],
 			"ignoreDependencies": ["shadcn!", "tailwindcss!", "tw-animate-css!"],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"],
+			"includeEntryExports": true
 		},
 		"packages/workbench": {
 			"entry": ["stories/**/*.stories.tsx!"],
 			"ignoreBinaries": ["java!"],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts", "!src/**/__tests__/**!"]
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts", "!src/**/__tests__/**!"],
+			"includeEntryExports": true
 		},
 		"packages/terminal-protocol": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!", "scripts/*.mjs!"],
 			"ignoreBinaries": ["java!"],
-			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts"],
+			"includeEntryExports": true
 		},
 		"packages/desktop-client-protocol": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"],
+			"includeEntryExports": true
 		},
 		"packages/workbench-client-protocol": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
-		},
-		"packages/remote-client-protocol": {
-			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"],
+			"includeEntryExports": true
 		},
 		"packages/terminal": {
 			"entry": ["src/projected/projected-terminal.ts!", "src/**/*.unit.test.{ts,tsx}"],
@@ -71,7 +74,8 @@
 				"src/**/*.unit.test.{ts,tsx}",
 				"stories/**/*.stories.tsx"
 			],
-			"project": ["src/**/*.{ts,tsx}", "stories/**/*.tsx", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}", "stories/**/*.tsx", "*.ts"],
+			"includeEntryExports": true
 		},
 		"apps/web": {
 			"entry": [
@@ -122,6 +126,18 @@
 				"scripts/*.mjs!"
 			],
 			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts!"]
+		},
+		"packages/actions": {
+			"includeEntryExports": true
+		},
+		"packages/design-tokens": {
+			"includeEntryExports": true
+		},
+		"packages/i18n": {
+			"includeEntryExports": true
+		},
+		"packages/keyboard-shortcuts": {
+			"includeEntryExports": true
 		}
 	}
 }

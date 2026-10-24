@@ -1,6 +1,6 @@
 import type { PanelLayoutNode, PanelSplitOrientation } from './panel-layout-types';
 
-export type PanelEqualizationResolution =
+type PanelEqualizationResolution =
 	| {
 			readonly kind: 'applied';
 			readonly root: PanelLayoutNode;

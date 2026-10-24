@@ -58,7 +58,7 @@ export type PanelVisualSelectionStartResult =
 			readonly session: PanelVisualSelectionSession;
 	  };
 
-export type PanelVisualSelectionEvent =
+type PanelVisualSelectionEvent =
 	| {
 			readonly code: string;
 			readonly isComposing: boolean;

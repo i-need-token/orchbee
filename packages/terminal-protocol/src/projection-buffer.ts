@@ -45,10 +45,10 @@ import type { ProtocolFailure, ProtocolResult } from './protocol-result';
 import { isValidUtf8, utf8ByteLength } from './utf8';
 
 export const TERMINAL_PROJECTION_BUFFER_HEADER_BYTES = 320;
-export const TERMINAL_PROJECTION_BUFFER_MAGIC = new Uint8Array([0x4f, 0x42, 0x50, 0x42]);
+const TERMINAL_PROJECTION_BUFFER_MAGIC = new Uint8Array([0x4f, 0x42, 0x50, 0x42]);
 // Keep this synchronized with schemas/terminal/v1/constants.json, Rust and Zig. Released changes (>= 1.0.0) also update
 // schemas/terminal/docs/version-history.md in the same change.
-export const TERMINAL_PROJECTION_BUFFER_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
+const TERMINAL_PROJECTION_BUFFER_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 
 export const TerminalProjectionSection = {
 	backgroundColors: 8,
@@ -121,7 +121,7 @@ function projectionByteValueKey(bytes: Uint8Array): string {
 	return chunks.join('');
 }
 
-export interface DecodedTerminalProjectionCells {
+interface DecodedTerminalProjectionCells {
 	readonly backgroundColors: Uint32Array;
 	readonly foregroundColors: Uint32Array;
 	readonly graphemeLengths: Uint16Array;
@@ -136,7 +136,7 @@ export interface DecodedTerminalProjectionCells {
 	readonly widths: Uint8Array;
 }
 
-export interface DecodedTerminalProjectionRows {
+interface DecodedTerminalProjectionRows {
 	readonly flags: Uint8Array;
 	readonly indices: Uint16Array;
 	readonly promptClasses: Uint8Array;
@@ -180,7 +180,7 @@ export interface DecodedTerminalProjectionBuffer {
 	readonly title: string | null;
 }
 
-export interface TerminalProjectionFrameMaterialization {
+interface TerminalProjectionFrameMaterialization {
 	readonly attachmentId: AttachmentId;
 	readonly revealCursor: boolean;
 	readonly rowCount: number;

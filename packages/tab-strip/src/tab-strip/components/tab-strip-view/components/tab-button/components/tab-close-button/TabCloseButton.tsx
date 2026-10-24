@@ -5,7 +5,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { useTabCloseButton } from './hooks/useTabCloseButton';
 import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages';
 
-export interface TabCloseButtonProps {
+interface TabCloseButtonProps {
 	tabTitle: string;
 	touchUi?: boolean;
 	onClose: (event: MouseEvent<HTMLButtonElement>, pointerType: string) => void;

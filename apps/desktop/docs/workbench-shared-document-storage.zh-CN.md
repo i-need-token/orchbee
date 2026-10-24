@@ -22,16 +22,12 @@ placement。有效文档可以保留旧的 Environment placement，但它不提�
 | 状态          | 含义                                             |
 | ------------- | ------------------------------------------------ |
 | `missing`     | 新的共享文档路径不存在。                         |
-| `available`   | 完整的文件解析为一个规范的版本 3 共享文档。      |
+| `available`   | 完整的文件解析为一个规范的版本 1 共享文档。      |
 | `unavailable` | 路径不可读、非文件、无效 UTF-8/JSON 或无效文档。 |
 
-当前文件名是 `workbench-shared-document-v2.json`。`load()` 首先只读取该路径。只要它存在，无论有效或
-无效，它都是唯一 authority，Desktop 绝不 fallback 到 v1。若它缺失，Desktop 可以通过 Workbench 的历史
-v1 parser 读取精确 `workbench-shared-document-v1.json` 一次，为每个 Directory 增加 local placement，
-并原子写入已校验 v3 document。v1 file 保持逐字节不变。缺失 v1 仍为 `missing`；无效或不可读 v1 是
-`unavailable` 且永不修复。不提供反向 migration。
+当前文件名是 `workbench-shared-document-v1.json`。`load()` 只读取该路径并严格校验当前 version-1 图。缺失返回 `missing`；无效或不可读返回 `unavailable` 且不改写。旧文件、历史 DTO 与回退迁移不再准入。
 
-既有文件名保持不变。有效 v2 内容在内存中严格迁移为 v3，保留修订、终端图及 scope 资源；下一次成功规范提交写入 v3。v1 回退也在写入前完成严格 v2→v3 迁移。无效旧图保持不可用，绝不重置。Project 分组不定义 Directory 或远程终端权限。
+当前图要求完整资源命名空间、Directory placement 与显式 Tab `customTitle`。缺失这些字段的旧 v1 不能被误认为当前记录。Project 分组不定义 Directory 或远程终端权限。
 
 `commit(expectedRevision, document)` 与存储实例上的每个操作一起序列化，并应用以下规则：
 
@@ -101,7 +97,7 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 | 仅精确下一修订的 CAS 能更改存储修订    | [修订决策测试][decision-tests]和[文件存储测试][store-tests]         | 缺失、过期、非下一修订、大修订值及并发写入者 |
 | 已处置的排队工作在存储前被抑制         | [会话队列测试][queue-tests]                                         | 受控的准入前后断连；已准入工作仍可完成       |
 | 无效或当前不可用的状态不会被覆盖       | [文件存储测试][store-tests]                                         | 选定的损坏和文件系统故障                     |
-| v1 迁移单向，当前文件名具有权威性      | [文件存储测试][store-tests]和[文档迁移测试][document-tests]         | 严格 v1/v2 输入和选定的 rename 故障          |
+| 当前文件与当前形状是唯一权威           | [文件存储测试][store-tests] 与 [文档测试][document-tests]           | 严格解析、无效输入保留与选定写失败           |
 | 仅 Client View 变化不写共享状态        | [文档运行时测试][runtime-tests]和[渲染器协调器测试][renderer-tests] | 每个 Client View 保持客户端本地              |
 | 渲染器只接收声明的文档能力             | [会话 broker 测试][broker-tests]和[preload 测试][preload-tests]     | 信任 Electron 结构化克隆                     |
 | Main 拥有的变更与渲染器提案共用队列    | [会话队列测试][queue-tests]和[Worktree 运行时测试][worktree-tests]  | 受控的进程内提交与故障轨迹                   |
@@ -112,7 +108,7 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 
 存储与会话队列各自只有一个进程内串行化所有者。上面的实现测试直接检查修订决策、竞争提交、
 准入前后断连和队列排空。此边界不声明 TLA+ 安全性或进展性的穷举保证；完成轨迹假设等待的操作
-最终结算。文件测试覆盖选定的迁移和写入故障，不证明一般文件系统持久性。多客户端仲裁、发布、
+最终结算。文件测试覆盖选定的严格准入和写入故障，不证明一般文件系统持久性。多客户端仲裁、发布、
 断开和 quiescing 的证据由[会话协调器](multi-client-session-coordinator.zh-CN.md)拥有。
 
 [decision-tests]: ../src/main/workbench-document/__tests__/decideWorkbenchDocumentCommit.unit.test.ts

@@ -13,10 +13,10 @@ import {
 } from './workbench-tab-close-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES = 1024 * 1024;
-export const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS = 256;
-export const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS = 64;
+const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_MEMBERS = 256;
+const WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS = 64;
 const attemptSchema = z.number().int().min(1).max(WORKBENCH_MAXIMUM_WORKSPACE_GROUP_CLOSE_ATTEMPTS);
-export const WorkspaceGroupCloseActionSchema = z.discriminatedUnion('kind', [
+const WorkspaceGroupCloseActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('start'),
@@ -42,26 +42,26 @@ export const WorkbenchWorkspaceGroupCloseRequestSchema = z
 		action: WorkspaceGroupCloseActionSchema,
 	})
 	.readonly();
-export const WorkspaceGroupCloseObservationSchema = z
+const WorkspaceGroupCloseObservationSchema = z
 	.strictObject({
 		attemptGeneration: WorkbenchTabCloseAttemptGenerationSchema,
 		status: WorkbenchTabCloseStatusSchema,
 	})
 	.readonly();
-export const WorkspaceGroupCloseChildSchema = z
+const WorkspaceGroupCloseChildSchema = z
 	.strictObject({
 		requestId: WorkbenchRequestIdSchema,
 		observation: WorkspaceGroupCloseObservationSchema.nullable(),
 	})
 	.readonly();
-export const WorkspaceGroupCloseMemberSchema = z
+const WorkspaceGroupCloseMemberSchema = z
 	.strictObject({
 		workspaceId: WorkbenchWorkspaceIdSchema,
 		label: WorkbenchLabelSchema,
 		close: WorkspaceGroupCloseChildSchema.nullable(),
 	})
 	.readonly();
-export const WorkspaceGroupCloseFailureSchema = z.enum([
+const WorkspaceGroupCloseFailureSchema = z.enum([
 	'source-changed',
 	'worker-unavailable',
 	'child-admission',
@@ -71,7 +71,7 @@ export const WorkspaceGroupCloseFailureSchema = z.enum([
 	'site-stopping',
 	'internal',
 ]);
-export const WorkspaceGroupCloseStatusSchema = z.discriminatedUnion('kind', [
+const WorkspaceGroupCloseStatusSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.enum(['pending', 'closed']) }).readonly(),
 	z
 		.strictObject({
@@ -81,7 +81,7 @@ export const WorkspaceGroupCloseStatusSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const WorkspaceGroupCloseUnavailableSchema = z.enum([
+const WorkspaceGroupCloseUnavailableSchema = z.enum([
 	'unsupported',
 	'service-unavailable',
 	'busy',
@@ -94,7 +94,7 @@ export const WorkspaceGroupCloseUnavailableSchema = z.enum([
 	'stale-attempt',
 	'attempt-exhausted',
 ]);
-export const WorkspaceGroupCloseOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkspaceGroupCloseOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.enum(['not-found', 'conflict', 'denied']) }).readonly(),
 	z
 		.strictObject({ kind: z.literal('unavailable'), reason: WorkspaceGroupCloseUnavailableSchema })
@@ -166,18 +166,3 @@ export const WorkbenchWorkspaceGroupCloseResultSchema = z
 			});
 	})
 	.readonly();
-
-export type WorkbenchWorkspaceGroupCloseRequest = z.infer<
-	typeof WorkbenchWorkspaceGroupCloseRequestSchema
->;
-export type WorkbenchWorkspaceGroupCloseResult = z.infer<
-	typeof WorkbenchWorkspaceGroupCloseResultSchema
->;
-export type WorkspaceGroupCloseAction = z.infer<typeof WorkspaceGroupCloseActionSchema>;
-export type WorkspaceGroupCloseObservation = z.infer<typeof WorkspaceGroupCloseObservationSchema>;
-export type WorkspaceGroupCloseChild = z.infer<typeof WorkspaceGroupCloseChildSchema>;
-export type WorkspaceGroupCloseMember = z.infer<typeof WorkspaceGroupCloseMemberSchema>;
-export type WorkspaceGroupCloseFailure = z.infer<typeof WorkspaceGroupCloseFailureSchema>;
-export type WorkspaceGroupCloseStatus = z.infer<typeof WorkspaceGroupCloseStatusSchema>;
-export type WorkspaceGroupCloseUnavailable = z.infer<typeof WorkspaceGroupCloseUnavailableSchema>;
-export type WorkspaceGroupCloseOutcome = z.infer<typeof WorkspaceGroupCloseOutcomeSchema>;

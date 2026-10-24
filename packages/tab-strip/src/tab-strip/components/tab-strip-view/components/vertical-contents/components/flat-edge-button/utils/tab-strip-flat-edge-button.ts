@@ -14,14 +14,14 @@ export const TabStripFlatEdge = {
 
 export type TabStripFlatEdge = (typeof TabStripFlatEdge)[keyof typeof TabStripFlatEdge];
 
-export interface CornerRadii {
+interface CornerRadii {
 	topLeft: number;
 	topRight: number;
 	bottomRight: number;
 	bottomLeft: number;
 }
 
-export interface FlatEdgeButtonSize {
+interface FlatEdgeButtonSize {
 	width: number;
 	height: number;
 }

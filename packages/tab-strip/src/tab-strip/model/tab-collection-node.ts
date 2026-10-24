@@ -12,7 +12,7 @@ export const TabCollectionNodeType = {
 } as const;
 export type TabCollectionNodeType =
 	(typeof TabCollectionNodeType)[keyof typeof TabCollectionNodeType];
-export interface TabCollectionNodeDescriptor {
+interface TabCollectionNodeDescriptor {
 	handle: string;
 	type: TabCollectionNodeType;
 	children?: readonly TabCollectionNodeDescriptor[];
@@ -35,7 +35,7 @@ export interface TabCollectionMemoryView {
  * collection tree. The callbacks correspond to Chromium's custom add/remove
  * and attach/detach hooks.
  */
-export interface TabCollectionViewAdapter<View = TabCollectionMemoryView> {
+interface TabCollectionViewAdapter<View = TabCollectionMemoryView> {
 	createView(node: TabCollectionNode<View>): View;
 	addChild(parent: View, child: View, index: number): void;
 	removeChild(parent: View, child: View): void;

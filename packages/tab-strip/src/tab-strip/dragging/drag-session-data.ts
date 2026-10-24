@@ -5,12 +5,12 @@ export const DragSlotViewType = {
 	GroupHeader: 'group-header',
 } as const;
 export type DragSlotViewType = (typeof DragSlotViewType)[keyof typeof DragSlotViewType];
-export interface GroupHeaderDragData {
+interface GroupHeaderDragData {
 	group: TabGroupId;
 	activeTabIndexWithinGroup: number;
 	wasCollapsedFromDrag: boolean;
 }
-export interface TabDragGroupData<TVisualData = unknown> {
+interface TabDragGroupData<TVisualData = unknown> {
 	groupId: TabGroupId;
 	groupVisualData: TVisualData;
 	indexInGroup: number;
@@ -23,7 +23,7 @@ export interface TabDragData<TVisualData = unknown> {
 	pinned: boolean;
 	tabGroupData: TabDragGroupData<TVisualData> | null;
 }
-export interface DragSessionDataInit<TVisualData = unknown> {
+interface DragSessionDataInit<TVisualData = unknown> {
 	tabDragData: readonly TabDragData<TVisualData>[];
 	groupHeaderDragData?: GroupHeaderDragData | null;
 	draggingGroups?: ReadonlySet<TabGroupId>;

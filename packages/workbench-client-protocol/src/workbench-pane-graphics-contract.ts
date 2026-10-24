@@ -36,7 +36,7 @@ const correlation = {
 	siteId: SiteIdSchema,
 };
 const positiveRevision = WorkbenchRevisionSchema.refine((value) => BigInt(value) > 0n);
-export const PaneGraphicsTargetSchema = z.strictObject({
+const PaneGraphicsTargetSchema = z.strictObject({
 	panelId: WorkbenchPanelIdSchema,
 	presentationId: TerminalPresentationIdSchema.nullable(),
 });
@@ -48,7 +48,7 @@ const layer = { layerId: GraphicsLayerIdSchema };
 const zIndex = z.number().int().min(-2147483648).max(2147483647);
 const stream = { streamId: WorkbenchRequestIdSchema };
 const file = WorkbenchDirectoryPathSchema;
-export const PaneGraphicsLayerSchema = z
+const PaneGraphicsLayerSchema = z
 	.strictObject({
 		...layer,
 		zIndex,
@@ -58,7 +58,7 @@ export const PaneGraphicsLayerSchema = z
 		streamId: WorkbenchRequestIdSchema.nullable(),
 	})
 	.refine((value) => graphicsRgbaBytes(value.width, value.height) !== null);
-export const PaneGraphicsFailureSchema = z.enum([
+const PaneGraphicsFailureSchema = z.enum([
 	'denied',
 	'invalid-intent',
 	'site-mismatch',
@@ -287,5 +287,3 @@ export const PaneGraphicsResultSchema = z
 	.strictObject({ kind: z.literal('workbench.pane-graphics.result'), ...correlation, outcome })
 	.refine((value) => encoder.encode(JSON.stringify(value)).byteLength <= GRAPHICS_RESULT_BYTES)
 	.readonly();
-export type PaneGraphicsRequest = z.infer<typeof PaneGraphicsRequestSchema>;
-export type PaneGraphicsResult = z.infer<typeof PaneGraphicsResultSchema>;

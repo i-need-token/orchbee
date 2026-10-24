@@ -55,7 +55,7 @@ export type TabStripTabCreationIntent =
 	| { readonly kind: 'new-group' }
 	| { readonly kind: 'duplicate'; readonly tabIds: readonly string[] };
 
-export interface TabStripCloseRequest {
+interface TabStripCloseRequest {
 	readonly closeSource: TabCloseSource;
 	readonly tabIds: readonly string[];
 }

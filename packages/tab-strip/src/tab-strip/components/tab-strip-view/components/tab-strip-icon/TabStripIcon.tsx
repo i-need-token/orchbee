@@ -23,7 +23,7 @@ type TabStripIconName =
 	| 'usb'
 	| 'volume'
 	| 'vr';
-export interface TabStripIconProps {
+interface TabStripIconProps {
 	name: TabStripIconName;
 	variantClass?: TabStripIconVariantClass | undefined;
 }

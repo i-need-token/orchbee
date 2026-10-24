@@ -14,7 +14,7 @@ import {
 	type AgentTransition,
 } from './reducer';
 
-export type AgentRuntimeListener = () => void;
+type AgentRuntimeListener = () => void;
 export type AgentSemanticEventListener = (event: AgentSemanticEvent) => void;
 
 export interface AgentSnapshotSource {

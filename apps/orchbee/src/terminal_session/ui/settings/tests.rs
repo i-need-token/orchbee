@@ -31,8 +31,6 @@ fn draft_basis() -> Basis {
         source: "missing".into(),
         values: orchbee_workbench_protocol::UserPreferencesValues::default(),
         claimed: Default::default(),
-        desktop_imported: false,
-        desktop_main_imported: false,
     }
 }
 fn draft_basis_with_application_theme(
@@ -45,8 +43,6 @@ fn draft_basis_with_application_theme(
             ..orchbee_workbench_protocol::UserPreferencesValues::default()
         },
         claimed: Default::default(),
-        desktop_imported: false,
-        desktop_main_imported: false,
     }
 }
 

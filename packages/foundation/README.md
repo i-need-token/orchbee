@@ -10,7 +10,7 @@ The root entry is a reviewed allowlist rather than an automatic barrel. Framewor
 
 ## React
 
-`@orchbee/foundation/react` owns domain-neutral primitives whose semantics depend on the React render lifecycle. React is a peer dependency. The root entry currently re-exports `useMemoizedFn`; consumers may use the explicit React entry when the dependency boundary matters.
+`@orchbee/foundation/react` owns domain-neutral primitives whose semantics depend on the React render lifecycle. React is a peer dependency. `useMemoizedFn` is exported only through the explicit React subpath; the root has no compatibility alias.
 
 ```ts
 import { useMemoizedFn } from '@orchbee/foundation/react';

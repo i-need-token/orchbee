@@ -9,7 +9,7 @@ export type TabStripRovingItem =
 	  }
 	| { readonly key: `tab:${string}`; readonly kind: 'tab'; readonly tabId: string };
 
-export type TabStripRovingNavigation = 'first' | 'last' | 'next' | 'previous';
+type TabStripRovingNavigation = 'first' | 'last' | 'next' | 'previous';
 
 interface TabStripKeyboardEvent {
 	readonly altKey: boolean;

@@ -91,7 +91,7 @@ export interface PanelBroadcastTransition {
 	readonly state: PanelBroadcastSessionState;
 }
 
-export type PanelBroadcastStartResolution =
+type PanelBroadcastStartResolution =
 	| { readonly kind: 'ready'; readonly snapshot: PanelBroadcastTargetSnapshot }
 	| {
 			readonly kind: 'unavailable';
@@ -113,7 +113,7 @@ export interface PanelBroadcastEnvironment {
 	readonly state: PanelWorkspaceState;
 }
 
-export type PanelBroadcastPreflight =
+type PanelBroadcastPreflight =
 	| {
 			readonly kind: 'ready';
 			readonly targets: readonly {
@@ -123,7 +123,7 @@ export type PanelBroadcastPreflight =
 	  }
 	| { readonly kind: 'invalidated' };
 
-export type PanelBroadcastDispatchResult =
+type PanelBroadcastDispatchResult =
 	| {
 			readonly deliveredTargetCount: number;
 			readonly epoch: number;

@@ -15,7 +15,7 @@ export type WorkbenchTerminalPresentation = TerminalPresentation;
 export type WorkbenchTerminalPresentationMode = 'active' | 'incoming' | 'retained';
 export type WorkbenchTerminalPresentationReadiness = 'activation-ready' | 'display-ready';
 
-export interface WorkbenchTerminalActionContextCaptureRequest {
+interface WorkbenchTerminalActionContextCaptureRequest {
 	readonly altKey: boolean;
 	readonly clientX: number;
 	readonly clientY: number;
@@ -40,7 +40,7 @@ export interface WorkbenchTerminalActionContextProvider {
 	executePrepared(invocation: PreparedActionInvocation): ActionExecution;
 }
 
-export interface WorkbenchTerminalBroadcastKeyModifiers {
+interface WorkbenchTerminalBroadcastKeyModifiers {
 	readonly alt: boolean;
 	readonly altLeft: boolean;
 	readonly altRight: boolean;

@@ -5,7 +5,7 @@ import type { ProposedLayout, Size, SizeBounds } from './proposed-layout';
 
 const TAB_VERTICAL_PADDING = 2;
 
-export interface UnpinnedTabContainerLayoutInput {
+interface UnpinnedTabContainerLayoutInput {
 	orientation: TabStripOrientation;
 	sizeBounds: SizeBounds;
 	children: readonly CollectionChildLayoutData[];

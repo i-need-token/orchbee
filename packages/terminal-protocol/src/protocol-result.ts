@@ -21,7 +21,7 @@ export interface ProtocolFailure {
 	readonly ok: false;
 }
 
-export interface ProtocolSuccess<Value> {
+interface ProtocolSuccess<Value> {
 	readonly ok: true;
 	readonly value: Value;
 }

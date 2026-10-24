@@ -2,14 +2,14 @@ import { z } from 'zod';
 import { WorkbenchLabelSchema, WorkbenchPresentationSchema } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES = 1024 * 1024;
-export const WorkbenchLayoutPresentationSchema = z
+const WorkbenchLayoutPresentationSchema = z
 	.strictObject({
 		label: WorkbenchLabelSchema,
 		customLabel: WorkbenchPresentationSchema.unwrap().shape.customLabel,
 	})
 	.readonly();
-export type WorkbenchLayoutPresentation = z.infer<typeof WorkbenchLayoutPresentationSchema>;
-export type WorkbenchLayoutNode =
+type WorkbenchLayoutPresentation = z.infer<typeof WorkbenchLayoutPresentationSchema>;
+type WorkbenchLayoutNode =
 	| {
 			readonly kind: 'panel';
 			readonly primary: WorkbenchLayoutPresentation;

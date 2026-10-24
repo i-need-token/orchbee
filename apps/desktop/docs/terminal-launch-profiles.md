@@ -53,16 +53,12 @@ Reset writes null, claims the leaf and restores the common built-in catalog.
 Lost replies are never replayed; explicit reload discovers the durable result.
 Main observes confirmed shared snapshots, including TUI edits.
 
-The old `userData` catalog is only a bounded migration input. Valid legacy choices, including a
-saved POSIX login decision, fill an unclaimed leaf once. Invalid sources remain visible and
-unmodified. Explicit edits or resets prevent delayed import from restoring old values.
-The standalone file-store adapter remains tested as legacy input; production uses the
-[shared Desktop settings authority](terminal-settings.md).
+Production uses shared native storage without importing the old `userData` catalog. The current standalone controller and file adapter remain in Desktop initialization and its standalone capability; replacing them requires migration of the current Main runtime path in the next phase.
 
 ## Verification and limits
 
 Cross-language conformance covers catalog bounds. Main and renderer tests cover CRUD, literal
-argv, platform validation, source conflicts, pending/disposal, migration and failure retention.
+argv, platform validation, source conflicts, pending/disposal, strict admission and failure retention.
 Lifecycle tests cover failed discovery, close during discovery, coalesced provision and durable
 capture. Real process tests use isolated scopes. Applicable system tests and the affected root
 gate exclude the manual native-window test.

@@ -4,7 +4,7 @@ import { TabStripOrientation } from '../../../../../../types/tab-strip-types';
 import { getFlatEdgeButtonCornerRadii, TabStripFlatEdge } from './utils/tab-strip-flat-edge-button';
 import { joinClassNames } from '../../../../../../utils/tab-strip-internals';
 
-export interface FlatEdgeButtonProps {
+interface FlatEdgeButtonProps {
 	type?: 'button' | 'reset' | 'submit' | undefined;
 	'aria-label': string;
 	disabled?: boolean | undefined;

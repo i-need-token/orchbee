@@ -11,8 +11,6 @@ export const enUSTerminalSettingsMessages = {
 		'The save result is unknown. Read current settings before deciding whether another edit is needed.',
 	'terminal.settings.shared.host':
 		'Settings are saved, but the terminal service has not applied them. New terminals may still use the previous defaults.',
-	'terminal.settings.shared.legacy':
-		'Existing desktop settings could not be imported. They have been preserved for recovery.',
 	'terminal.settings.shared.refresh': 'Reload settings and discard drafts',
 	'terminal.settings.shared.reloadDraft': 'Load current values',
 	'terminal.settings.shared.reset': 'Reset shared settings',

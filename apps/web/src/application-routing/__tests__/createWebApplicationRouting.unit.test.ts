@@ -152,10 +152,7 @@ describe('createWebApplicationRouting', () => {
 		runtime
 			.getActiveTerminalContext()
 			.tabModel.addTab({ group: null, pinned: false, title: 'Encoded' }, { id: 'tab/encoded' });
-		const fixture = createRouting(
-			'/projects/project-1/workspaces/workspace-1/tabs/tab%2Fencoded',
-			runtime,
-		);
+		const fixture = createRouting('/workspaces/workspace-1/tabs/tab%2Fencoded', runtime);
 		await fixture.routing.router.load();
 
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().activeTabId).toBe(
@@ -168,7 +165,7 @@ describe('createWebApplicationRouting', () => {
 	});
 
 	it('keeps an explicit stale route unavailable instead of selecting another entity', async () => {
-		const fixture = createRouting('/projects/project-1/workspaces/workspace-1/tabs/missing-tab');
+		const fixture = createRouting('/workspaces/workspace-1/tabs/missing-tab');
 		const container = document.createElement('div');
 		const root = createRoot(container);
 		await act(async () => {
@@ -181,7 +178,7 @@ describe('createWebApplicationRouting', () => {
 			);
 		});
 		expect(fixture.routing.router.history.location.pathname).toBe(
-			'/projects/project-1/workspaces/workspace-1/tabs/missing-tab',
+			'/workspaces/workspace-1/tabs/missing-tab',
 		);
 		expect(container.textContent).toContain('This page isn’t available');
 		await act(async () => root.unmount());

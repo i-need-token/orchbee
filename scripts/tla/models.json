@@ -190,9 +190,6 @@
 				"Publish",
 				"ApplyFails",
 				"LoseReply",
-				"AcquireImport",
-				"Import",
-				"RejectImport",
 				"ExternalEdit"
 			]
 		},

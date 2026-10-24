@@ -17,19 +17,19 @@ export type WorkbenchProjectWorktreeFailureCode =
 	| 'worktree-retained'
 	| 'worktree-not-found';
 
-export interface WorkbenchProjectExistingWorktree {
+interface WorkbenchProjectExistingWorktree {
 	readonly label: string;
 	readonly worktreeId: string;
 }
 
-export type WorkbenchProjectWorktreeInventory =
+type WorkbenchProjectWorktreeInventory =
 	| {
 			readonly kind: 'available';
 			readonly worktrees: readonly WorkbenchProjectExistingWorktree[];
 	  }
 	| { readonly kind: 'unavailable' };
 
-export interface WorkbenchProjectWorktreeRepository {
+interface WorkbenchProjectWorktreeRepository {
 	readonly defaultBaseRef: string;
 	readonly label: string;
 	readonly localBaseRefs: readonly string[];

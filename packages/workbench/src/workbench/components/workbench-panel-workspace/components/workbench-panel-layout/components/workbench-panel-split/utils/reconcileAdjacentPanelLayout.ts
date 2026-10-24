@@ -3,7 +3,7 @@ import { projectAdjacentPanelLayout } from './projectAdjacentPanelLayout';
 
 const PANEL_LAYOUT_TOLERANCE = 0.000_001;
 
-export interface ReconcileAdjacentPanelLayoutInput {
+interface ReconcileAdjacentPanelLayoutInput {
 	readonly availablePanelSizePx: number;
 	readonly candidateLayout: Readonly<Record<string, number>>;
 	readonly childIds: readonly string[];
@@ -18,7 +18,7 @@ type AdjacentPanelLayoutRejection =
 	| 'invalid-model-layout'
 	| 'non-adjacent-change';
 
-export type AdjacentPanelLayoutReconciliation =
+type AdjacentPanelLayoutReconciliation =
 	| {
 			readonly kind: 'accepted';
 			readonly candidateNeedsCorrection: boolean;

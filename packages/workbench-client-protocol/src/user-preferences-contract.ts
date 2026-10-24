@@ -18,7 +18,7 @@ export const USER_PREFERENCE_KEYS = [
 	'scrollbackBytes',
 	'launchProfiles',
 ] as const;
-export const UserPreferenceKeySchema = z.enum(USER_PREFERENCE_KEYS);
+const UserPreferenceKeySchema = z.enum(USER_PREFERENCE_KEYS);
 const locale = z.enum(['system', 'en-US', 'zh-CN']);
 const applicationTheme = z.enum(['system', 'light', 'dark']);
 const terminalDisplayTheme = z.enum(['host', 'light', 'dark', 'custom']);
@@ -93,10 +93,8 @@ export const UserPreferencesSnapshotSchema = z.strictObject({
 		.array(UserPreferenceKeySchema)
 		.max(USER_PREFERENCE_KEYS.length)
 		.refine((keys) => new Set(keys).size === keys.length, 'Claimed keys must be unique'),
-	desktopImported: z.boolean(),
-	desktopMainImported: z.boolean(),
 });
-export const UserPreferencesFailureSchema = z.enum([
+const UserPreferencesFailureSchema = z.enum([
 	'invalid-request',
 	'invalid-changes',
 	'invalid-source',
@@ -117,21 +115,7 @@ export const UserPreferencesRequestSchema = z
 				'Update requires a changed key',
 			),
 		}),
-		z.strictObject({
-			operation: z.literal('import-desktop'),
-			part: z.enum(['main', 'renderer']),
-			changes: UserPreferencesPatchSchema,
-		}),
 	])
-	.refine(
-		(request) =>
-			request.operation !== 'import-desktop' ||
-			Object.keys(request.changes).every(
-				(key) =>
-					(key === 'launchProfiles' || key === 'scrollbackBytes') === (request.part === 'main'),
-			),
-		'Legacy import keys must belong to the declared Desktop storage owner',
-	)
 	.refine(
 		(request) =>
 			encoder.encode(JSON.stringify(request)).byteLength <= MAXIMUM_USER_PREFERENCES_BYTES,
@@ -148,7 +132,7 @@ export const UserPreferencesResponseSchema = z.discriminatedUnion('kind', [
 ]);
 
 export type UserPreferenceKey = z.infer<typeof UserPreferenceKeySchema>;
-export type UserPreferencesValues = z.infer<typeof UserPreferencesValuesSchema>;
+type UserPreferencesValues = z.infer<typeof UserPreferencesValuesSchema>;
 export type UserPreferencesPatch = z.infer<typeof UserPreferencesPatchSchema>;
 export type UserPreferencesSnapshot = z.infer<typeof UserPreferencesSnapshotSchema>;
 export type UserPreferencesFailure = z.infer<typeof UserPreferencesFailureSchema>;

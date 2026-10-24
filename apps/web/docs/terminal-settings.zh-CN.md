@@ -24,19 +24,15 @@ Ghostty 分析是临时报告；远端诊断不拥有 SSH，也不修改远端�
 确认的 Desktop 快照无需重载即可更新 document 的 lang/dir 及产品表面。
 用户数据、路径、命令与共享内容绝不翻译。
 
-Browser Preview 使用严格的 `orchbee:web:application-locale:v2`，
-值为 `{ locale: null | 'en-US' | 'zh-CN' }`，其中 null 保留“系统”选择。
-v2 缺失可使用有效 v1；当前数据无效时不回退。
-浏览器写入失败保留 session 选择并显示问题。
-Desktop 只向未声明键导入一次有效旧语言，随后使用确认的共享写入。
+Browser Preview 只使用严格的 `orchbee:web:locale-preference:v1`，值为 `{ locale: null | 'en-US' | 'zh-CN' }`，其中 null 保留“系统”选择。新名称段隔离形状兼容的旧 v1 数据。缺失时使用默认值，无效数据报告问题；不读取旧键。浏览器写入失败保留会话选择并显示问题。Desktop 直接读取共享偏好，不导入浏览器旧记录。
 
 ## 外观与交互偏好记录
 
-Browser Preview 写入 `orchbee:web:terminal-appearance:v3`。Desktop 只向
+Browser Preview 写入 `orchbee:web:terminal-appearance:v1`。Desktop 只向
 `orchbee:web:terminal-host-appearance:v1` 写入七项宿主字段，四项通用外观字段来自共享存储。它的值是一个完整且没有未知字段的 JSON 对象：
 
 ```ts
-interface StoredTerminalAppearancePreferencesV3 {
+interface StoredTerminalAppearancePreferencesV1 {
 	readonly applicationTheme: 'light' | 'dark' | 'system';
 	readonly backgroundOpacityPercent: number;
 	readonly customBackground: `#${string}`;
@@ -51,25 +47,22 @@ interface StoredTerminalAppearancePreferencesV3 {
 }
 ```
 
-v3 缺失允许有效 v2 或后续 v1 记录作为内存迁移输入。当前记录无效时不回退。
-浏览器写入使用 v3；Desktop 仅为宿主后备和未声明通用字段的一次性导入读取这些记录。
+外观仅接受当前完整 v1 形状。旧 v1 缺少必填字体、字重与内边距字段，校验失败；不读取其他键或补齐历史字段。Desktop 宿主外观记录缺失时直接使用默认值。
 
 字体族会被修剪，长度为 1–256 个字符。字号是 8 到 48 之间的整数。两个字重都是 100 到
 900 之间以百为单位的整数。终端内边距是 0 到 32 CSS 像素之间的整数。自定义颜色必须是
 `#RRGGBB` 并规范化为小写。背景不透明度是 10 到 100 之间的整数百分比。
 
-在 Browser Preview 中，独立严格键 `orchbee:web:terminal-interaction:v2` 包含一个没有未知字段的完整对象：
+在 Browser Preview 中，独立严格键 `orchbee:web:terminal-interaction:v1` 包含一个没有未知字段的完整对象：
 
 ```ts
-interface StoredTerminalInteractionPreferencesV2 {
+interface StoredTerminalInteractionPreferencesV1 {
 	readonly copyOnSelect: boolean;
 	readonly trimTrailingBlankRowsForAgents: boolean;
 }
 ```
 
-版本 2 缺失时，一个有效的 `orchbee:web:terminal-interaction:v1` 记录只会在内存中迁移，并补入
-`trimTrailingBlankRowsForAgents: true`。迁移不会立即写入；之后每次语义写入都使用版本 2。版本 2
-数据无效时绝不回退读取版本 1。该记录拥有独立控制器、持久化问题与订阅。
+交互只读取当前完整 v1 记录；缺少任一布尔字段的旧形状被拒绝。缺失时使用默认值，无效或不可读时报告问题，不迁移或读取其他键。该记录拥有独立控制器、持久化问题与订阅。
 
 完整产品默认值为：
 
@@ -102,7 +95,7 @@ interface StoredTerminalInteractionPreferencesV2 {
 
 Browser Preview 偏好写入是完整记录事务：验证、提交 session 快照、发布给已安装 Presentation，然后尝试 Browser
 持久化。写入失败时，请求值在当前 session 保持生效，并报告现有的可恢复持久化问题；之后的变更会
-重试。重置会恢复两个交互默认值。确定性控制器测试覆盖版本 1 迁移、无效版本隔离、默认开启重置、
+重试。重置会恢复两个交互默认值。确定性控制器测试覆盖旧形状拒绝、当前版本严格隔离、默认开启重置、
 即时发布与写入失败。派生来源测试覆盖 Agent 启动、结束、替换、缺少能力、关闭偏好与处置；投影终端
 证据负责行分类与 Host 窗口边界。
 
@@ -156,7 +149,7 @@ Host 默认值、持久化问题、来源、待处理状态和有界失败代码
 
 Desktop 通用更新使用确认的共享持久化。草稿首次编辑时冻结来源；
 来源过期、存储无效或写入拒绝时保留草稿及最后确认的运行值。
-重新加载显式放弃草稿。重置发送 null 并声明选定键，防止延迟迁移覆盖。
+重新加载显式放弃草稿。重置发送 null，恢复默认值并声明选定键。
 结果不明要求重新读取，绝不自动重放。待处理控件禁用；Enter 后失焦最多提交一次。
 
 启动配置、终端默认值与 Agent 集成控制客户端的请求所有权独立于呈现观察者。观察者抛异常
@@ -166,14 +159,13 @@ Desktop 通用更新使用确认的共享持久化。草稿首次编辑时冻结
 [客户端生命周期轨迹](../src/desktop-client/composition/__tests__/control-client-lifetimes.unit.test.ts)
 覆盖三个协议的这些顺序；它们不替代原生传输证据。
 
-Desktop 偏好客户端退役时保留最终快照和回执。后续更新、Reset 调用、订阅、刷新续程与旧数据导入
-回调不能替换该状态或发起另一请求。每次发布最多访问每个已捕获回调一次，并跳过当前已不再登记的回调。
+Desktop 偏好客户端退役时保留最终快照和回执。后续更新、Reset 调用、订阅、刷新续程不能替换该状态或发起另一请求。每次发布最多访问每个已捕获回调一次，并跳过当前已不再登记的回调。
 
 系统外观跟随实时 prefers-color-scheme 订阅。只有自定义终端主题启用自定义颜色。
 声音默认关闭，并决定系统通知是否静音。
 
 下面的本地记录算法只适用于 Browser Preview 和 Desktop 宿主专用字段。
-严格编解码器拒绝未知字段，仅在新键缺失时读取旧版本。
+严格编解码器拒绝未知字段，只接受一个 v1 键上的当前形状。
 缺失采用默认值；来源无效或不可读时显示可恢复问题。
 
 一个语义更新遵循以下顺序：
@@ -195,7 +187,7 @@ Desktop 偏好客户端退役时保留最终快照和回执。后续更新、Res
 Desktop 接纳通用写入时可以同步通知订阅者。提交混合更新中的宿主专用部分前，外观控制器会重新
 检查自身生命周期和本地修订；较新的宿主编辑优先。销毁本地控制器不会取消共享客户端已经接纳的通用写入。
 
-语言、键盘快捷键、终端外观、交互、反馈和 macOS 输入的本地存储写入共用应用内部的 `PreferenceWriteQueue`。Desktop 仅对渲染器本地字段使用此队列；设备通用值仍走等待确认的共享持久化路径。每个本地存储所有者先提交完整的会话值再调用存储，串行执行同步写入，并将重入时排队的写入合并为最新值。只有仍存活的当前修订可以发布写入结果。写入尚未完成的嵌套更新返回 `applied-session-only`；销毁会丢弃排队工作。验证、存储键、迁移和失败映射仍由各偏好所有者负责。确定性的控制器轨迹覆盖写入顺序、合并、失败和销毁；此机制不提供跨标签页同步。
+语言、键盘快捷键、终端外观、交互、反馈和 macOS 输入的本地存储写入共用应用内部的 `PreferenceWriteQueue`。Desktop 仅对渲染器本地字段使用此队列；设备通用值仍走等待确认的共享持久化路径。每个本地存储所有者先提交完整的会话值再调用存储，串行执行同步写入，并将重入时排队的写入合并为最新值。只有仍存活的当前修订可以发布写入结果。写入尚未完成的嵌套更新返回 `applied-session-only`；销毁会丢弃排队工作。验证、存储键和失败映射仍由各偏好所有者负责。确定性的控制器轨迹覆盖写入顺序、合并、失败和销毁；此机制不提供跨标签页同步。
 
 无效的候选者不会更改内存、主题、存储或订阅者。当持久性健康时，有效的无操作不会执行任何操作。写入异常不会回滚会话值；快照报告该设置已应用于此会话，但未保存。下一个有效更新将重试完整写入并在成功后清除该问题。一次终端准备失败会将每个已安装的终端和应用程序表面保留在其先前提交的完整呈现状态，而不回滚首选项。
 
@@ -332,11 +324,7 @@ Shell 的正常启动路径，再 source 共享集成。不受支持的形式保
 
 对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path。Local 或 reverse-forwarded v1 socket 返回准确 acceptance ACK 后，remote adapter 会把有界 private-APC correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 application signal。OSC 9、OSC 777、OSC 99、OSC 1337、BEL 与 provider notification hook 不用作 Agent-observation correlation channel。
 
-Browser Preview 反馈使用 `orchbee:web:terminal-feedback:v3`：Agent 模式（never/hidden）、
-完成模式（never/unfocused/always）、最小整秒（1–3600）及声音布尔值。
-默认分别是 never、never、5 和 false。仅在新记录缺失时读取旧 v2/v1。
-当前数据无效时不回退；浏览器写入失败保留 session 值并显示问题。
-Desktop 只导入一次有效旧值，随后使用确认共享快照。
+Browser Preview 反馈只使用 `orchbee:web:terminal-feedback:v1` 的完整形状：Agent 模式（never/hidden）、完成模式（never/unfocused/always）、最短整数秒数（1–3600）与声音布尔值。默认分别是 never、never、5 和 false。旧 v1 缺少必填字段而被拒绝；不读取旧 v2/v3。浏览器写入失败保留会话值并报告问题。Desktop 使用确认的共享快照。
 
 每个客户端根据终端身份和肯定的完成顺序进行重复数据删除，忽略超过 60 秒或未来超过 5 秒的事实，并将一个终端的系统通知限制为每 30 秒一次。 `unfocused` 要求文档或终端根目录缺少焦点。只能通过专用的“设置”按钮请求浏览器通知权限；终端输出、启动、存储恢复和配置分析从不要求它。当系统能力不可用时，合格事件仍呈现终端内部的本地化状态。通知仅包含持续时间和退出状态，而不包含命令文本、参数、目录、环境、输出或用户身份。
 
@@ -380,7 +368,7 @@ Copy 只根据有界 Agent identity 与 event kind 生成，是本地化且 cura
 
 ## 所需证据
 
-- 存储测试涵盖缺失、格式错误、未知字段、版本 1 内存迁移、无效版本 2 的优先级、越界、读取异常、写入失败后成功、重置修复和健康无操作行为。
+- 存储测试涵盖缺失、格式错误、未知字段、旧形状拒绝、当前键隔离、越界、读取异常、写入失败后成功、重置修复和健康无操作行为。
 - 应用语言存储与控制器测试涵盖记录缺失和显式偏好优先级、严格拒绝、与识别结果相同的显式选择、document 元数据与订阅实时更新、仅 session 生效的写入失败、重试和处置。组件与 composition 测试覆盖三个选项、产品文案立即更新、搜索发现、reload 恢复，以及仅在不存在有效偏好时使用自动识别。
 - 源测试证明完整的单次 Presentation 发布、独立交互发布、实时附件更新、应用主题隔离、终端设置隔离、稳定订阅和处置。
 - [Desktop 偏好消费者测试](../src/desktop-client/user-preferences/__tests__/DesktopUserPreferencesClient.unit.test.ts)

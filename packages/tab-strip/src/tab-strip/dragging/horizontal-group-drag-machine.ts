@@ -43,7 +43,7 @@ export interface HorizontalGroupDragState {
 	readonly authoritative: HorizontalGroupDragAuthoritativeState;
 	readonly drag: HorizontalGroupDragPhase;
 }
-export type HorizontalGroupDragActiveSurface =
+type HorizontalGroupDragActiveSurface =
 	| {
 			readonly activeTabId: string;
 			readonly id: string;
@@ -54,7 +54,7 @@ export type HorizontalGroupDragActiveSurface =
 			readonly id: string;
 			readonly kind: 'tab';
 	  };
-export type HorizontalGroupDragEvent =
+type HorizontalGroupDragEvent =
 	| {
 			readonly collapseExpandedBackingModel?: boolean;
 			readonly groupId: string;
@@ -95,7 +95,7 @@ export type HorizontalGroupDragCommand =
 	| {
 			readonly type: 'restore';
 	  };
-export interface HorizontalGroupDragTransitionResult {
+interface HorizontalGroupDragTransitionResult {
 	readonly commands: readonly HorizontalGroupDragCommand[];
 	readonly state: HorizontalGroupDragState;
 }

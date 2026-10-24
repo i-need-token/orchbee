@@ -1,4 +1,4 @@
-export type WorkbenchDirectorySource = 'created' | 'discovered' | 'selected';
+type WorkbenchDirectorySource = 'created' | 'discovered' | 'selected';
 
 export type WorkbenchDirectoryPlacement =
 	| { readonly kind: 'local' }
@@ -10,17 +10,13 @@ interface WorkbenchDirectoryGitMetadataBase {
 	readonly repositoryId: string;
 }
 
-export interface WorkbenchRepositoryDirectoryGitMetadata extends WorkbenchDirectoryGitMetadataBase {
+interface WorkbenchRepositoryDirectoryGitMetadata extends WorkbenchDirectoryGitMetadataBase {
 	readonly worktree: false;
 }
 
-export interface WorkbenchWorktreeDirectoryGitMetadata extends WorkbenchDirectoryGitMetadataBase {
+interface WorkbenchWorktreeDirectoryGitMetadata extends WorkbenchDirectoryGitMetadataBase {
 	readonly worktree: true;
 }
-
-export type WorkbenchDirectoryGitMetadata =
-	| WorkbenchRepositoryDirectoryGitMetadata
-	| WorkbenchWorktreeDirectoryGitMetadata;
 
 interface WorkbenchDirectoryBase {
 	readonly available: boolean;
@@ -43,7 +39,7 @@ export interface WorkbenchWorktreeDirectory extends WorkbenchDirectoryBase {
 
 export type WorkbenchDirectory = WorkbenchFolderDirectory | WorkbenchWorktreeDirectory;
 
-export interface WorkbenchLaunchConfigurationReference {
+interface WorkbenchLaunchConfigurationReference {
 	readonly id: string;
 	readonly name: string;
 }
@@ -213,7 +209,7 @@ export type ProjectWorkspaceEvent =
 			readonly projectName: string;
 	  };
 
-export type ProjectWorkspaceRejection =
+type ProjectWorkspaceRejection =
 	| 'directory-already-exists'
 	| 'directory-environment-conflict'
 	| 'directory-invalid'
@@ -273,7 +269,7 @@ export function findWorkbenchWorkspace(
 	return state.workspaces.find((workspace) => workspace.id === workspaceId);
 }
 
-export function findWorkbenchResourceScope(
+function findWorkbenchResourceScope(
 	state: ProjectWorkspaceState,
 	resourceScopeId: string,
 ): WorkbenchResourceScope | undefined {

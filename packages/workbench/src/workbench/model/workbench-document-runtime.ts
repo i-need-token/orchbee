@@ -31,7 +31,7 @@ interface WorkbenchDocumentRuntimeContextSnapshot {
 	readonly terminalContextId: string;
 }
 
-export interface WorkbenchDocumentRuntimeSnapshot {
+interface WorkbenchDocumentRuntimeSnapshot {
 	readonly projectWorkspace: ProjectWorkspaceState;
 	readonly terminalContexts: readonly WorkbenchDocumentRuntimeContextSnapshot[];
 }
@@ -44,7 +44,7 @@ interface HydratedWorkbenchDocumentTerminalContext {
 	readonly terminalContextId: string;
 }
 
-export interface HydratedWorkbenchDocuments {
+interface HydratedWorkbenchDocuments {
 	readonly clientView: WorkbenchClientView;
 	readonly projectWorkspace: ProjectWorkspaceState;
 	readonly revision: WorkbenchSharedDocumentRevision;

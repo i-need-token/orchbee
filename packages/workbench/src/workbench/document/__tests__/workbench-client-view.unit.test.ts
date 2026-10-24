@@ -62,7 +62,7 @@ describe('Workbench Client View', () => {
 					terminalContextId: 'terminal-context-1',
 				},
 			],
-			version: 2,
+			version: 1,
 		});
 	});
 

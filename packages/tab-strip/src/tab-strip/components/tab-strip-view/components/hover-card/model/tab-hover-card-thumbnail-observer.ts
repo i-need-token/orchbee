@@ -1,6 +1,6 @@
 import type { ThumbnailCaptureReadiness } from './tab-hover-card-controller';
 
-export interface HoverCardThumbnailSize {
+interface HoverCardThumbnailSize {
 	width: number;
 	height: number;
 }
@@ -19,7 +19,7 @@ export interface HoverCardThumbnailSource<Image> {
 	requestThumbnailImage(): void;
 }
 
-export type HoverCardThumbnailObserverCallback<Image> = (
+type HoverCardThumbnailObserverCallback<Image> = (
 	observer: TabHoverCardThumbnailObserver<Image>,
 	image: Image,
 ) => void;

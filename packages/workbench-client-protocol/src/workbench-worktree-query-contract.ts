@@ -49,7 +49,7 @@ const checkoutSchema = z
 	)
 	.readonly();
 
-export const WorktreeQuerySourceSchema = z
+const WorktreeQuerySourceSchema = z
 	.strictObject({
 		requestedPath: WorkbenchDirectoryPathSchema,
 		repositoryRoot: WorkbenchDirectoryPathSchema,
@@ -58,21 +58,21 @@ export const WorktreeQuerySourceSchema = z
 		workspaceId: WorkbenchWorkspaceIdSchema.nullable(),
 	})
 	.readonly();
-export const WorktreeWorkspaceAssociationSchema = z
+const WorktreeWorkspaceAssociationSchema = z
 	.strictObject({
 		projectId: WorkbenchProjectIdSchema.nullable(),
 		workspaceId: WorkbenchWorkspaceIdSchema,
 		label: WorkbenchLabelSchema,
 	})
 	.readonly();
-export const WorktreeQueryEntrySchema = z
+const WorktreeQueryEntrySchema = z
 	.strictObject({
 		checkout: checkoutSchema,
 		linked: z.boolean(),
 		workspaces: z.array(WorktreeWorkspaceAssociationSchema).readonly(),
 	})
 	.readonly();
-export const WorktreeQueryFailureSchema = z.discriminatedUnion('kind', [
+const WorktreeQueryFailureSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.enum([
@@ -116,7 +116,7 @@ export const WorktreeQueryFailureSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z.strictObject({ kind: z.literal('owner-io'), stage: stageSchema.nullable() }).readonly(),
 ]);
-export const WorkbenchWorktreeQueryOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchWorktreeQueryOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('found'),
@@ -183,11 +183,3 @@ export const WorkbenchWorktreeQueryResultSchema = z
 		outcome: WorkbenchWorktreeQueryOutcomeSchema,
 	})
 	.readonly();
-
-export type WorktreeQuerySource = z.infer<typeof WorktreeQuerySourceSchema>;
-export type WorktreeWorkspaceAssociation = z.infer<typeof WorktreeWorkspaceAssociationSchema>;
-export type WorktreeQueryEntry = z.infer<typeof WorktreeQueryEntrySchema>;
-export type WorktreeQueryFailure = z.infer<typeof WorktreeQueryFailureSchema>;
-export type WorkbenchWorktreeQueryOutcome = z.infer<typeof WorkbenchWorktreeQueryOutcomeSchema>;
-export type WorkbenchWorktreeQuery = z.infer<typeof WorkbenchWorktreeQuerySchema>;
-export type WorkbenchWorktreeQueryResult = z.infer<typeof WorkbenchWorktreeQueryResultSchema>;

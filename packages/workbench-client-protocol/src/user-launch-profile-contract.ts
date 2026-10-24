@@ -58,7 +58,7 @@ export const UserLaunchProfileNameSchema = boundedText(MAXIMUM_PROFILE_NAME_BYTE
 	.refine((value) => value.trim() === value, 'Profile name must be trimmed')
 	.min(1);
 
-export const UserLaunchProfileCommandSchema = z.discriminatedUnion('kind', [
+const UserLaunchProfileCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('system-shell'),
 		login: z.boolean(),
@@ -121,7 +121,3 @@ export const UserLaunchProfileCatalogSchema = z
 			});
 		}
 	});
-
-export type UserLaunchProfile = z.infer<typeof UserLaunchProfileSchema>;
-export type UserLaunchProfileCatalog = z.infer<typeof UserLaunchProfileCatalogSchema>;
-export type UserLaunchProfileId = z.infer<typeof UserLaunchProfileIdSchema>;

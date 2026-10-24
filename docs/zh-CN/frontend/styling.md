@@ -63,11 +63,7 @@ export function FilterPanel() {
 
 ## 引入 shadcn 组件
 
-使用以下命令刷新完整的官方 Base UI 注册表快照：
-
-```sh
-pnpm --dir packages/ui exec shadcn add --all --overwrite
-```
+使用 UI 包的 `component:add` 脚本刷新明确指定的已准入组件。组件准入遵循 [体验组件规范](experience-components.md)；仅供 Story 展示不是准入理由。不整体导入官方注册表。
 
 CLI 读取 `packages/ui/components.json` 并写入 `packages/ui/src/components/ui`；审查生成变更时使用 `--dry-run`、`--view` 和 `--diff`。
 
@@ -76,7 +72,7 @@ CLI 读取 `packages/ui/components.json` 并写入 `packages/ui/src/components/u
 1. 保留生成的实现和 utility，除非仓库需要聚焦适配。
 2. 恢复 `packages/ui/src/styles.css` 到 `@orchbee/design-tokens` 的映射，包括 `@source './components'`；拒绝重新生成的原始主题值。
 3. 审查每次覆盖，并保留 TypeScript、声明输出和模块边界适配。
-4. 通过 `@orchbee/ui/components` 导出每个注册表组件，绝不导出物理源码路径。
+4. 通过 `@orchbee/ui/components` 只导出有已准入消费者的组件与插槽；保留收窄后的入口，不暴露物理源码路径。
 5. 测试仓库适配和依赖的语义，不重复上游测试套件。
 6. 运行 UI 包检查和根验证门禁。
 

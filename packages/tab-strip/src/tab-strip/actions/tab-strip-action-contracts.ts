@@ -32,7 +32,7 @@ export interface TabCreateInput {
 	readonly title: string;
 }
 
-export interface TabIdsInput {
+interface TabIdsInput {
 	readonly tabIds: readonly string[];
 }
 
@@ -44,7 +44,7 @@ export interface TabSelectionInput extends TabIdInput {
 	readonly mode: 'add-range' | 'extend' | 'replace' | 'toggle';
 }
 
-export interface TabMoveInput extends TabIdInput {
+interface TabMoveInput extends TabIdInput {
 	readonly direction: 'first' | 'last' | 'next' | 'previous';
 }
 
@@ -52,38 +52,38 @@ export interface TabCloseInput extends TabIdsInput {
 	readonly closeSource: TabCloseSource;
 }
 
-export interface TabGroupIdInput {
+interface TabGroupIdInput {
 	readonly groupId: string;
 }
 
 type TabGroupCreateInput = TabIdsInput;
 
-export interface TabGroupCollapsedInput extends TabGroupIdInput {
+interface TabGroupCollapsedInput extends TabGroupIdInput {
 	readonly collapsed: boolean;
 }
 
-export interface TabGroupShiftInput extends TabGroupIdInput {
+interface TabGroupShiftInput extends TabGroupIdInput {
 	readonly direction: -1 | 1;
 }
 
-export interface TabGroupMoveInput extends TabIdsInput {
+interface TabGroupMoveInput extends TabIdsInput {
 	readonly groupId: string | null;
 }
 
-export interface TabPinnedInput extends TabIdsInput {
+interface TabPinnedInput extends TabIdsInput {
 	readonly pinned: boolean;
 }
 
-export interface TabGroupUpdateInput extends TabGroupIdInput {
+interface TabGroupUpdateInput extends TabGroupIdInput {
 	readonly color?: TabGroupColor | undefined;
 	readonly title?: string | undefined;
 }
 
-export interface BooleanValueInput {
+interface BooleanValueInput {
 	readonly value: boolean;
 }
 
-export interface TabArrangementInput {
+interface TabArrangementInput {
 	readonly state: TabDragRestoreState;
 }
 

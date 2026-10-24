@@ -11,7 +11,7 @@ never permission to replay a write.
 
 The [shared preference contract](../../schemas/workbench/README.md) owns values and wire semantics.
 [`orchbee-local-site-runtime`](../../crates/local-site-runtime/README.md) owns configuration-scoped
-storage and migration. Native Site calls that same owner directly.
+storage and native initial-source admission. Native Site calls that same owner directly.
 
 The separate `--system-shell-v1` mode accepts exactly a closed empty JSON object and returns
 one JSON executable path or null. It calls the shared native resolver without launching a shell.

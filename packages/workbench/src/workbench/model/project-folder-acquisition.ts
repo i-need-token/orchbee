@@ -31,7 +31,7 @@ export type WorkbenchProjectFolderAcquisitionEvent =
 			readonly target: WorkbenchProjectFolderAcquisitionTarget;
 	  };
 
-export interface WorkbenchProjectFolderAcquisitionTransition {
+interface WorkbenchProjectFolderAcquisitionTransition {
 	readonly commands: readonly WorkbenchProjectFolderAcquisitionCommand[];
 	readonly state: WorkbenchProjectFolderAcquisitionState;
 }

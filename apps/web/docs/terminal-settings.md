@@ -25,19 +25,16 @@ General offers System, English and 简体中文. System is a persisted choice fo
 declared locale inputs. Confirmed Desktop snapshots update document lang/dir and product surfaces
 without reload. User data, paths, commands and shared content are never translated.
 
-Browser Preview uses strict `orchbee:web:application-locale:v2` with
-`{ locale: null | 'en-US' | 'zh-CN' }`, where null preserves System. Missing v2 may use valid v1; invalid current data
-never falls back. Browser write failures retain the session choice with a visible issue.
-Desktop imports valid legacy locale once into an unclaimed key, then uses confirmed shared writes.
+Browser Preview reads only strict `orchbee:web:locale-preference:v1` with `{ locale: null | 'en-US' | 'zh-CN' }`, where null preserves System. The new name isolates shape-compatible old v1 data. Missing data uses defaults and invalid data reports an issue; old keys are not read. Browser write failures retain the session choice with a visible issue. Desktop reads shared preferences directly without importing old browser records.
 
 ## Appearance and interaction preference records
 
-Browser Preview writes `orchbee:web:terminal-appearance:v3`. Desktop writes only seven host leaves to
+Browser Preview writes `orchbee:web:terminal-appearance:v1`. Desktop writes only seven host leaves to
 `orchbee:web:terminal-host-appearance:v1`; four common appearance leaves come from shared storage. Its value is one complete JSON
 object with no unknown fields:
 
 ```ts
-interface StoredTerminalAppearancePreferencesV3 {
+interface StoredTerminalAppearancePreferencesV1 {
 	readonly applicationTheme: 'light' | 'dark' | 'system';
 	readonly backgroundOpacityPercent: number;
 	readonly customBackground: `#${string}`;
@@ -52,29 +49,24 @@ interface StoredTerminalAppearancePreferencesV3 {
 }
 ```
 
-Missing v3 permits a valid v2 or then v1 record as an in-memory migration input. Invalid current
-records never fall back. Browser writes use v3; Desktop uses these only for host fallback and
-one-time import of unclaimed common fields.
+Appearance accepts only the complete current v1 shape. Old v1 records lack required font, weight and padding fields and fail validation. No other key is read and no historical fields are synthesized. Missing Desktop host appearance uses defaults directly.
 
 The font family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
 Both weights are integer hundreds from 100 through 900. Terminal padding is an integer from 0
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-In Browser Preview, the separate strict key `orchbee:web:terminal-interaction:v2` contains one complete object with no
+In Browser Preview, the separate strict key `orchbee:web:terminal-interaction:v1` contains one complete object with no
 unknown fields:
 
 ```ts
-interface StoredTerminalInteractionPreferencesV2 {
+interface StoredTerminalInteractionPreferencesV1 {
 	readonly copyOnSelect: boolean;
 	readonly trimTrailingBlankRowsForAgents: boolean;
 }
 ```
 
-When version 2 is absent, one valid `orchbee:web:terminal-interaction:v1` record is migrated only in
-memory by adding `trimTrailingBlankRowsForAgents: true`. No eager migration write occurs; every
-later semantic write uses version 2. Invalid version-2 data never falls back to version 1. The
-record has an independent controller, persistence issue, and subscriptions.
+Interaction reads only the complete current v1 record; old shapes missing either boolean field are rejected. Missing data uses defaults; invalid or unreadable data reports an issue without migration or another key read. The record has independent controller, persistence issue and subscriptions.
 
 The complete product default is:
 
@@ -111,8 +103,8 @@ window and its fallback behavior; neither layer changes PTY geometry or retained
 Preference writes are complete-record transactions: validate, commit the session snapshot, publish
 to installed presentations, then attempt Browser persistence. A failed write keeps the requested
 session value and reports the existing recoverable persistence issue; a later change retries it.
-Reset restores both interaction defaults. Deterministic controller tests cover version-1 migration,
-invalid-version isolation, default-on reset, immediate publication, and write failure. Derived-source
+Reset restores both interaction defaults. Deterministic controller tests cover old-shape rejection,
+strict current-version isolation, default-on reset, immediate publication, and write failure. Derived-source
 tests cover Agent start, end, replacement, missing capability, preference disablement, and disposal;
 projected-terminal evidence owns the row-classification and Host-window boundaries.
 
@@ -205,8 +197,8 @@ never replay. Existing terminal history is unchanged. The authoritative Main tra
 
 Desktop common updates use confirmed shared persistence. A draft freezes its source on first edit;
 stale source, invalid storage and write refusal preserve the draft and last confirmed runtime value.
-Reload explicitly discards the draft. Reset sends null and claims the selected keys against delayed
-migration. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
+Reload explicitly discards the draft. Reset sends null, restores defaults and claims the selected
+keys. Unknown outcomes require rereading, never automatic replay. Pending controls are disabled;
 Enter followed by blur commits at most once.
 
 The launch-profile, terminal-default and Agent-integration control clients keep request ownership
@@ -219,15 +211,14 @@ that retires the client during pending publication prevents the subsequent port 
 exercise these orderings across all three protocols; they do not replace native transport evidence.
 
 The Desktop preference client retains its final snapshot and receipt when retired.
-Late updates, Reset calls, subscriptions, refresh continuations and legacy-import
-callbacks cannot replace that state or start another request. Each publication visits
+Late updates, Reset calls, subscriptions, refresh continuations cannot replace that state or start another request. Each publication visits
 each captured callback at most once and skips callbacks that are no longer registered.
 
 System appearance follows a live prefers-color-scheme subscription. Custom colors are enabled only
 for Custom terminal theme. Sound defaults off and selects silent system notification delivery.
 
 The local record algorithm below applies only to Browser Preview and Desktop host-specific leaves.
-Strict codecs reject unknown fields and consult old versions only when newer keys are absent.
+Strict codecs reject unknown fields and accept only the current shape at one v1 key.
 Missing uses defaults; invalid or unreadable sources expose a recoverable issue.
 
 One semantic update follows this order:
@@ -274,8 +265,8 @@ for its renderer-local leaves; common device values retain their confirmed share
 Each local-storage owner commits its complete session value before storage, serializes synchronous
 writes, and coalesces pending reentrant writes to the latest value.
 Only the current live revision may publish a write result. A nested update whose write has not
-completed reports `applied-session-only`; disposal drops queued work. Validation, storage keys,
-migration, and failure mapping remain with each preference owner. Deterministic controller traces
+completed reports `applied-session-only`; disposal drops queued work. Validation, storage keys
+and failure mapping remain with each preference owner. Deterministic controller traces
 cover write ordering, coalescing, failure, and disposal; this mechanism does not synchronize tabs.
 
 An invalid candidate does not change memory, theme, storage, or subscribers. A valid no-op does
@@ -510,11 +501,7 @@ resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host projects 
 application signals. OSC 9, OSC 777, OSC 99, OSC 1337, BEL, and provider notification hooks are not
 used as the Agent-observation correlation channel.
 
-Browser Preview feedback uses `orchbee:web:terminal-feedback:v3`: Agent mode (never/hidden),
-completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean.
-Defaults are never, never, 5 and false. Older v2/v1 records are read only when newer records are
-absent. Invalid current data never falls back; Browser write failures retain session values with
-an issue. Desktop imports valid legacy values once and thereafter uses confirmed shared snapshots.
+Browser Preview feedback reads only the complete `orchbee:web:terminal-feedback:v1` shape: Agent mode (never/hidden), completion mode (never/unfocused/always), minimum integer seconds (1–3600), and sound boolean. Defaults are never, never, 5 and false. Old v1 lacks required fields and is rejected; old v2/v3 keys are not read. Browser write failures retain session values with an issue. Desktop uses confirmed shared snapshots.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
@@ -595,8 +582,7 @@ not claims about Ghostty's byte limits.
 
 ## Required evidence
 
-- Storage tests cover missing, malformed, unknown, version-1 in-memory migration, invalid version-2
-  precedence, out-of-range, read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
+- Storage tests cover missing, malformed, unknown, old-shape rejection, current-key isolation, out-of-range, read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
 - Application-locale storage and controller tests cover missing and explicit preference precedence,
   strict rejection, same-as-detected explicit selection, live document metadata and subscriptions,
   session-only write failure, retry, and disposal. Component and composition tests cover both

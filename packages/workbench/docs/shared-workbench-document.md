@@ -18,7 +18,7 @@ contract contains a platform discriminator.
 
 ```text
 WorkbenchSharedDocument
-├── version: 3
+├── version: 1
 ├── revision: canonical unsigned decimal text
 ├── projectWorkspace
 │   ├── identity sequences, ordered optional Projects and independent launch-resource scopes
@@ -78,7 +78,7 @@ fallback and custom title unchanged.
 
 ```text
 WorkbenchClientView
-├── version: 2
+├── version: 1
 ├── active Workspace-only location and expanded Projects
 └── terminalContexts[]
     ├── active/selected Tabs, selection anchor, recent Group, and collapsed Groups
@@ -158,11 +158,11 @@ recovery requires a separate accepted owner and contract.
 
 ## Compatibility and application integration
 
-`WorkbenchSharedDocument` version `3` separates ordered Project groups from ordered Workspaces and immutable launch-resource namespaces. Strict historical v2 DTOs validate the complete old graph first, including scoped Directory/configuration references, duplicate IDs, context ownership and terminal topology. Migration assigns each old Project ID to its resource namespace, copies every Directory/configuration including unused entries, and preserves Workspace/context identities, order, revision and durable intent. The complete v3 graph validates again. Raw resource IDs may legitimately repeat across namespaces. Allocation skips occupied IDs, including historical IDs that resemble a new sequence.
+`WorkbenchSharedDocument` version `1` separates ordered Project groups from ordered Workspaces and immutable launch-resource namespaces. Strict parsing validates the complete current graph, including scoped Directory/configuration references, duplicate IDs, context ownership and terminal topology. Resource IDs may repeat across namespaces; allocation skips every occupied ID.
 
-Version `1` first adds local Directory placement through its strict historical DTO, then follows the validated v2 migration. Its historical omitted Tab `customTitle` still defaults to `null`. Partial, malformed, unknown-version and development-era unsupported topologies never become empty replacements. Applications own migration persistence.
+Only the current complete shape is accepted; Tab `customTitle` is required and may be `null`. Partial, malformed, unknown-version and historical development topologies are rejected without migration or empty replacement state.
 
-Client View version `2` uses `workspaceId` without Project identity. Its strict v1 migration requires the historical `projectId` field, validates the view graph, and then removes only that grouping-dependent selection field. Reconciliation against v3 preserves the same Workspace after move or dissolution. A grouping-only shared publication retains live context, Tab model and Panel store objects, local focus/zoom/child selection, and terminal attachments.
+Client View version `1` uses `workspaceId` without Project identity and validates only the current view graph. Reconciliation preserves the same Workspace after move or dissolution. A grouping-only shared publication retains live context, Tab model and Panel store objects, local focus/zoom/child selection and terminal attachments.
 
 Only shared changes advance the application-owned revision and enter its durability barrier.
 `subscribeDocument(...)` and `subscribeClientView(...)` compare their owned projections and notify
@@ -175,7 +175,7 @@ broadcasts.
 | Claim                                                                       | Evidence                                                                                                                                                                                                                                                                  | Limits                                                           |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | Strict shared documents preserve every binary relationship                  | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies                                                                                                                                                                                           | Generated bounds: eight Tabs, four Panels each                   |
-| Historical v1/v2 migration is exact and one-way                             | Strict parser, field-preservation, and Desktop file-authority tests                                                                                                                                                                                                       | Strict historical versions 1 and 2 only                          |
+| Only the complete current shape is accepted                                 | Strict parsing, invalid-graph rejection and Desktop file-authority tests                                                                                                                                                                                                  | No historical-record migration                                   |
 | Client Views are isolated and reconciliation is idempotent                  | Two-view examples, stale-reference regression, and fixed-seed properties                                                                                                                                                                                                  | In-memory view contract only                                     |
 | Hydration preserves durable terminal intent                                 | Provision/retain/close/stop/stopped runtime round trips                                                                                                                                                                                                                   | Host binding existence remains application work                  |
 | Custom title survives while natural metadata stays transient                | Title override/reset and shared-document hydration scenarios                                                                                                                                                                                                              | Rename presentation is adapter-owned                             |
@@ -186,4 +186,4 @@ broadcasts.
 | Preview state cannot claim shared durability                                | Deterministic rejection test                                                                                                                                                                                                                                              | Preview remains an in-memory composition                         |
 | Application stop is durable before close and batch-retryable                | [Stop lifecycle tests](../src/workbench/model/__tests__/terminal-session-stop.unit.test.ts) and [document runtime tests](../src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts)                                                                        | Controlled runtime fixtures; OS termination is outside the claim |
 
-Pure document/view projection and strict one-way v1/v2-to-v3 migration use deterministic/property tests. Controlled lifecycle tests cover commit-before-close, retryable failure, stopped-without-binding, fresh replacement identity and preservation of placement, title and launch-CWD. Desktop document-store CAS retains its separately bounded protocol model; that model does not establish the whole multi-client or lifecycle composition.
+Pure document/view projection and strict current-shape admission use deterministic/property tests. Controlled lifecycle tests cover commit-before-close, retryable failure, stopped-without-binding, fresh replacement identity and preservation of placement, title and launch-CWD. Desktop document-store CAS retains its separately bounded protocol model; that model does not establish the whole multi-client or lifecycle composition.

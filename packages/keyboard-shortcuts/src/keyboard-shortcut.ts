@@ -1,5 +1,5 @@
 export type KeyboardShortcutPlatform = 'apple' | 'standard';
-export type KeyboardShortcutModifier = 'alt' | 'control' | 'meta' | 'mod' | 'shift';
+type KeyboardShortcutModifier = 'alt' | 'control' | 'meta' | 'mod' | 'shift';
 
 export interface KeyboardShortcutChord {
 	readonly code: string;
@@ -17,7 +17,7 @@ export interface KeyboardShortcutEvent {
 	readonly shiftKey: boolean;
 }
 
-export type KeyboardShortcutCaptureResult =
+type KeyboardShortcutCaptureResult =
 	| { readonly chord: KeyboardShortcutChord; readonly kind: 'captured' }
 	| {
 			readonly kind: 'ignored';

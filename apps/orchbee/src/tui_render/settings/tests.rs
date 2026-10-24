@@ -25,8 +25,6 @@ fn basis(source: &str, values: UserPreferencesValues) -> Basis {
         source: source.into(),
         values,
         claimed: Default::default(),
-        desktop_imported: false,
-        desktop_main_imported: false,
     }
 }
 

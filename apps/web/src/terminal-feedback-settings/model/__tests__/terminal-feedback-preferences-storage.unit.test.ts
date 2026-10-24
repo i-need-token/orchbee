@@ -82,7 +82,7 @@ describe('terminal feedback preference storage', () => {
 			),
 		).toBe(true);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:terminal-feedback:v3',
+			'orchbee:web:terminal-feedback:v1',
 			'{"agentNotificationMode":"hidden","completionReminderMinimumSeconds":12,"completionReminderMode":"always","soundEnabled":false}',
 		);
 
@@ -99,24 +99,16 @@ describe('terminal feedback preference storage', () => {
 		).toBe(false);
 	});
 
-	it('migrates the legacy record with Agent notifications off', () => {
-		const legacy = JSON.stringify({
-			completionReminderMinimumSeconds: 12,
-			completionReminderMode: 'unfocused',
-		});
+	it('rejects an old feedback shape without supplying missing fields', () => {
 		expect(
 			readTerminalFeedbackPreferences({
-				getItem: (key) => (key === 'orchbee:web:terminal-feedback:v1' ? legacy : null),
+				getItem: () =>
+					JSON.stringify({
+						completionReminderMinimumSeconds: 12,
+						completionReminderMode: 'unfocused',
+					}),
 				setItem: () => undefined,
 			}),
-		).toEqual({
-			issue: null,
-			preferences: {
-				agentNotificationMode: 'never',
-				soundEnabled: false,
-				completionReminderMinimumSeconds: 12,
-				completionReminderMode: 'unfocused',
-			},
-		});
+		).toEqual({ issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES });
 	});
 });

@@ -1,5 +1,7 @@
 # @orchbee/actions
 
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+
 Framework-independent runtime for Orchbee product-semantic Actions.
 
 The package owns scoped registration and resolution, discovery, availability rechecks, observable sync/async execution, confirmation, cooperative cancellation, progress, and explicit concurrency policy. Feature packages retain their authoritative state and register handlers that call their existing domain operations. Applications create one `ActionRuntime` per mounted composition and inject the runtime or a narrower invocation capability.

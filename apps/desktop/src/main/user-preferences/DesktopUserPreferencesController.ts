@@ -9,7 +9,7 @@ import type { NativeUserPreferencesClient } from './NativeUserPreferencesClient'
 
 export type DesktopUserPreferencesObservation = Pick<
 	DesktopUserPreferencesEvent,
-	'response' | 'applicationIssue' | 'legacyIssue'
+	'response' | 'applicationIssue'
 >;
 
 /** One device authority; polling observes other writers and never replays a mutation. */
@@ -24,7 +24,6 @@ export class DesktopUserPreferencesController {
 	#apply: ((snapshot: UserPreferencesSnapshot) => Promise<void>) | undefined;
 	#applicationIssue: DesktopUserPreferencesObservation['applicationIssue'] = null;
 	#appliedSource: string | undefined;
-	#legacyUnavailable = false;
 
 	constructor(client: Pick<NativeUserPreferencesClient, 'execute' | 'dispose'>) {
 		this.#client = client;
@@ -32,9 +31,6 @@ export class DesktopUserPreferencesController {
 
 	getSnapshot(): UserPreferencesSnapshot | undefined {
 		return this.#snapshot;
-	}
-	noteLegacyUnavailable(): void {
-		this.#legacyUnavailable = true;
 	}
 
 	subscribe(listener: (observation: DesktopUserPreferencesObservation) => void): () => void {
@@ -109,7 +105,6 @@ export class DesktopUserPreferencesController {
 		return {
 			response,
 			applicationIssue: this.#applicationIssue,
-			legacyIssue: this.#legacyUnavailable && this.#snapshot?.desktopMainImported !== true,
 		};
 	}
 

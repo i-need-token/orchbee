@@ -9,7 +9,7 @@
 
 [共享偏好契约](../../schemas/workbench/README.zh-CN.md)负责值与传输语义。
 [`orchbee-local-site-runtime`](../../crates/local-site-runtime/README.zh-CN.md)负责配置作用域内的
-存储与迁移。原生 Site 直接调用同一个所有者。
+存储与原生初始来源准入。原生 Site 直接调用同一个所有者。
 
 独立的 `--system-shell-v1` 模式只接受已关闭输入的空 JSON 对象，
 返回一个 JSON 可执行文件路径或 null。它调用共享原生解析器，不启动 Shell。

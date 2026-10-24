@@ -33,7 +33,7 @@ const exitedStateSchema = z.strictObject({
 	kind: z.literal('exited'),
 });
 const closingStateSchema = z.strictObject({
-	disposition: z.enum(['remove', 'stop']).default('remove'),
+	disposition: z.enum(['remove', 'stop']),
 	identity: TerminalIdentitySchema,
 	kind: z.literal('closing'),
 });
@@ -72,7 +72,7 @@ export const TerminalBindingSchema = z
 const TerminalBindingStoreDocumentSchema = z
 	.strictObject({
 		bindings: z.array(TerminalBindingSchema),
-		version: z.literal(3),
+		version: z.literal(1),
 	})
 	.superRefine((document, context) => {
 		const bindingIds = new Set<string>();
@@ -152,7 +152,7 @@ export function createTerminalBindingStoreDocument(
 		bindings: [...bindings].sort((left, right) =>
 			compareBindingIds(left.bindingId, right.bindingId),
 		),
-		version: 3,
+		version: 1,
 	});
 }
 

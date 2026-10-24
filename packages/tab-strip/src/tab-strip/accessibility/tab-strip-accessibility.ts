@@ -76,7 +76,7 @@ export function getGroupAccessibleName(
 	if (group.collapsed && group.attention && tabs.length > 0) parts.push('new activity');
 	return parts.join(', ');
 }
-export interface AccessibleTabContext {
+interface AccessibleTabContext {
 	group?: Readonly<TabGroupData> | null;
 }
 

@@ -26,7 +26,7 @@ afterEach(async () => {
 describe('FileTerminalBindingStore', () => {
 	it('serializes targeted writes without losing unrelated bindings', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'recovery', 'bindings-v3.json');
+		const storePath = path.join(directory, 'recovery', 'bindings-v1.json');
 		const store = new FileTerminalBindingStore(storePath, { randomToken: () => 'temporary' });
 		const first = createBinding(1);
 		const second = createBinding(2);
@@ -41,11 +41,11 @@ describe('FileTerminalBindingStore', () => {
 		await store.remove(second.bindingId);
 
 		expect(await store.load()).toEqual({
-			document: { bindings: [requested], version: 3 },
+			document: { bindings: [requested], version: 1 },
 			kind: 'available',
 		});
 		expect((await readFile(storePath, 'utf8')).endsWith('\n')).toBe(true);
-		expect(await readdir(path.dirname(storePath))).toEqual(['bindings-v3.json']);
+		expect(await readdir(path.dirname(storePath))).toEqual(['bindings-v1.json']);
 		const fileMode = process.platform === 'win32' ? 0o600 : (await stat(storePath)).mode & 0o777;
 		const directoryMode =
 			process.platform === 'win32' ? 0o700 : (await stat(path.dirname(storePath))).mode & 0o777;
@@ -55,7 +55,7 @@ describe('FileTerminalBindingStore', () => {
 
 	it('fails closed for corrupt current data and does not overwrite it', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'bindings-v3.json');
+		const storePath = path.join(directory, 'bindings-v1.json');
 		await writeFile(storePath, '{not-json', 'utf8');
 		const store = new FileTerminalBindingStore(storePath);
 
@@ -66,7 +66,7 @@ describe('FileTerminalBindingStore', () => {
 
 	it('loads a valid collection larger than the former whole-file byte cap', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'bindings-v3.json');
+		const storePath = path.join(directory, 'bindings-v1.json');
 		const document = createTerminalBindingStoreDocument(
 			Array.from({ length: 257 }, (_, index) => createBinding(index + 1)),
 		);

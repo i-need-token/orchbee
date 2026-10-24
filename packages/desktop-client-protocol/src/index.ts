@@ -1,21 +1,14 @@
 export {
 	DESKTOP_AGENT_INTEGRATION_IDS,
-	DesktopAgentIntegrationAvailabilitySchema,
 	DesktopAgentIntegrationIdSchema,
-	DesktopAgentIntegrationIssueSchema,
-	DesktopAgentIntegrationManagementFailureCodeSchema,
 	DesktopAgentIntegrationManagementMainEventSchema,
-	DesktopAgentIntegrationManagementModeSchema,
 	DesktopAgentIntegrationManagementRendererCommandSchema,
 	DesktopAgentIntegrationManagementRequestIdSchema,
 	DesktopAgentIntegrationManagementSnapshotSchema,
-	DesktopAgentIntegrationSnapshotItemSchema,
-	DesktopAgentIntegrationStateSchema,
 } from './desktop-agent-integration-management-contract';
 export type {
 	DesktopAgentIntegrationAvailability,
 	DesktopAgentIntegrationId,
-	DesktopAgentIntegrationIssue,
 	DesktopAgentIntegrationManagementFailureCode,
 	DesktopAgentIntegrationManagementMainEvent,
 	DesktopAgentIntegrationManagementMode,
@@ -31,23 +24,15 @@ export {
 	DesktopAgentObservationRendererCommandSchema,
 	DesktopAgentObservationRequestIdSchema,
 } from './desktop-agent-observation-contract';
-export type {
-	DesktopAgentObservationMainEvent,
-	DesktopAgentObservationRendererCommand,
-	DesktopAgentObservationRequestId,
-} from './desktop-agent-observation-contract';
+export type { DesktopAgentObservationRequestId } from './desktop-agent-observation-contract';
 
 export {
-	DesktopClipboardFailureCodeSchema,
 	DesktopClipboardMainEventSchema,
-	DesktopClipboardReadResultSchema,
 	DesktopClipboardRendererCommandSchema,
 	DesktopClipboardRequestIdSchema,
 	DesktopClipboardTextSchema,
 } from './desktop-clipboard-contract';
 export type {
-	DesktopClipboardFailureCode,
-	DesktopClipboardMainEvent,
 	DesktopClipboardReadResult,
 	DesktopClipboardRendererCommand,
 	DesktopClipboardRequestId,
@@ -74,11 +59,9 @@ export {
 	DesktopRendererBootstrapSchema,
 	DesktopRendererBootstrapWindowMessageSchema,
 } from './desktop-renderer-bootstrap-contract';
-export type { DesktopRendererBootstrap } from './desktop-renderer-bootstrap-contract';
+
 export {
-	DesktopTerminalDefaultSettingsFailureCodeSchema,
 	DesktopTerminalDefaultSettingsMainEventSchema,
-	DesktopTerminalDefaultSettingsPersistenceIssueSchema,
 	DesktopTerminalDefaultSettingsRendererCommandSchema,
 	DesktopTerminalDefaultSettingsRequestIdSchema,
 	DesktopTerminalDefaultSettingsSnapshotSchema,
@@ -86,7 +69,6 @@ export {
 export type {
 	DesktopTerminalDefaultSettingsFailureCode,
 	DesktopTerminalDefaultSettingsMainEvent,
-	DesktopTerminalDefaultSettingsPersistenceIssue,
 	DesktopTerminalDefaultSettingsRendererCommand,
 	DesktopTerminalDefaultSettingsRequestId,
 	DesktopTerminalDefaultSettingsSnapshot,
@@ -94,37 +76,25 @@ export type {
 export { DESKTOP_FILE_PATH_BRIDGE_KEY } from './desktop-file-path-bridge-contract';
 export {
 	DesktopNewProjectFolderNameSchema,
-	DesktopProjectFolderAcquisitionFailureCodeSchema,
 	DesktopProjectFolderAcquisitionMainEventSchema,
 	DesktopProjectFolderAcquisitionRendererCommandSchema,
 	DesktopProjectFolderAcquisitionRequestIdSchema,
-	DesktopProjectFolderAcquisitionResultSchema,
 	DesktopProjectFolderPathSchema,
 } from './desktop-project-folder-acquisition-contract';
 export {
-	DesktopProjectExistingWorktreeSchema,
-	DesktopProjectWorktreeAdoptionResultSchema,
-	DesktopProjectWorktreeCreationResultSchema,
-	DesktopProjectWorktreeDiscoverySchema,
-	DesktopProjectWorktreeFailureCodeSchema,
 	DesktopProjectWorktreeMainEventSchema,
 	DesktopProjectWorktreeRendererCommandSchema,
-	DesktopProjectWorktreeRepositorySchema,
 	DesktopProjectWorktreeRequestIdSchema,
-	DesktopProjectWorktreeInventorySchema,
 } from './desktop-project-worktree-contract';
 export type {
 	DesktopProjectWorktreeAdoptionResult,
 	DesktopProjectWorktreeCreationResult,
 	DesktopProjectWorktreeDiscovery,
 	DesktopProjectWorktreeFailureCode,
-	DesktopProjectWorktreeMainEvent,
-	DesktopProjectWorktreeRendererCommand,
 	DesktopProjectWorktreeRequestId,
 } from './desktop-project-worktree-contract';
 export type {
 	DesktopProjectFolderAcquisitionFailureCode,
-	DesktopProjectFolderAcquisitionMainEvent,
 	DesktopProjectFolderAcquisitionRendererCommand,
 	DesktopProjectFolderAcquisitionRequestId,
 	DesktopProjectFolderAcquisitionResult,
@@ -134,12 +104,9 @@ export {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
 	DesktopTerminalLaunchProfileCatalogSchema,
-	DesktopTerminalLaunchProfileCommandSchema,
-	DesktopTerminalLaunchProfileFailureCodeSchema,
 	DesktopTerminalLaunchProfileIdSchema,
 	DesktopTerminalLaunchProfileMainEventSchema,
 	DesktopTerminalLaunchProfileNameSchema,
-	DesktopTerminalLaunchProfilePersistenceIssueSchema,
 	DesktopTerminalLaunchProfileRendererCommandSchema,
 	DesktopTerminalLaunchProfileRequestIdSchema,
 	DesktopTerminalLaunchProfileSchema,
@@ -148,11 +115,9 @@ export {
 export type {
 	DesktopTerminalLaunchProfile,
 	DesktopTerminalLaunchProfileCatalog,
-	DesktopTerminalLaunchProfileCommand,
 	DesktopTerminalLaunchProfileFailureCode,
 	DesktopTerminalLaunchProfileId,
 	DesktopTerminalLaunchProfileMainEvent,
-	DesktopTerminalLaunchProfilePersistenceIssue,
 	DesktopTerminalLaunchProfileRendererCommand,
 	DesktopTerminalLaunchProfileRequestId,
 	DesktopTerminalLaunchProfileSnapshot,

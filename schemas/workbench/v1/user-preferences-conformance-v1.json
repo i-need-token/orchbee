@@ -60,15 +60,6 @@
 			}
 		},
 		{
-			"name": "late empty desktop migration",
-			"direction": "request",
-			"document": {
-				"operation": "import-desktop",
-				"changes": {},
-				"part": "renderer"
-			}
-		},
-		{
 			"name": "every field reset",
 			"direction": "request",
 			"document": {
@@ -183,9 +174,7 @@
 							]
 						}
 					},
-					"claimed": [],
-					"desktopImported": false,
-					"desktopMainImported": false
+					"claimed": []
 				}
 			}
 		},
@@ -202,17 +191,6 @@
 			"direction": "response",
 			"document": {
 				"kind": "outcome-unknown"
-			}
-		},
-		{
-			"name": "independent Main migration",
-			"direction": "request",
-			"document": {
-				"operation": "import-desktop",
-				"part": "main",
-				"changes": {
-					"scrollbackBytes": 4096
-				}
 			}
 		}
 	],
@@ -348,11 +326,11 @@
 			"name": "unknown locale",
 			"direction": "request",
 			"document": {
-				"operation": "import-desktop",
+				"operation": "update",
+				"source": "missing",
 				"changes": {
 					"locale": "fr-FR"
-				},
-				"part": "renderer"
+				}
 			},
 			"boundary": "schema"
 		},
@@ -605,11 +583,21 @@
 			"boundary": "schema"
 		},
 		{
-			"name": "renderer cannot import Main legacy fields",
+			"name": "retired late empty desktop migration",
 			"direction": "request",
 			"document": {
 				"operation": "import-desktop",
-				"part": "renderer",
+				"changes": {},
+				"part": "renderer"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "retired independent Main migration",
+			"direction": "request",
+			"document": {
+				"operation": "import-desktop",
+				"part": "main",
 				"changes": {
 					"scrollbackBytes": 4096
 				}

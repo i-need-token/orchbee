@@ -58,8 +58,6 @@ impl Port {
                 source: "missing".into(),
                 values,
                 claimed: Default::default(),
-                desktop_imported: false,
-                desktop_main_imported: false
             }
         ));
         // Activation is authorized only after this incarnation has actually
@@ -1222,8 +1220,6 @@ fn settings_backdrop_retains_drafts_children_confirmations_and_inflight_operatio
                     source: "missing".into(),
                     values: Default::default(),
                     claimed: Default::default(),
-                    desktop_imported: false,
-                    desktop_main_imported: false,
                 }
             ));
             assert!(matches!(port.editor.view(), Some(View::Draft(draft)) if !draft.dirty));

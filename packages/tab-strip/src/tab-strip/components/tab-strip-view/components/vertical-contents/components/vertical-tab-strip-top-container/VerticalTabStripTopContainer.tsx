@@ -11,7 +11,7 @@ import { FlatEdgeButton } from '../flat-edge-button/FlatEdgeButton';
 import { getVerticalTopContainerChildBounds } from './utils/getVerticalTopContainerChildBounds';
 import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages';
 
-export interface VerticalTabStripTopContainerProps {
+interface VerticalTabStripTopContainerProps {
 	availableWidth: number;
 	collapsed: boolean;
 	toolbarHeight?: number;

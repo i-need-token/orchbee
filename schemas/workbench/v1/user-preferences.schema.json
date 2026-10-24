@@ -284,15 +284,9 @@
 					},
 					"maxItems": 13,
 					"uniqueItems": true
-				},
-				"desktopImported": {
-					"type": "boolean"
-				},
-				"desktopMainImported": {
-					"type": "boolean"
 				}
 			},
-			"required": ["source", "values", "claimed", "desktopImported", "desktopMainImported"]
+			"required": ["source", "values", "claimed"]
 		},
 		"request": {
 			"oneOf": [
@@ -328,66 +322,6 @@
 						}
 					},
 					"required": ["operation", "source", "changes"]
-				},
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"properties": {
-						"operation": {
-							"const": "import-desktop"
-						},
-						"changes": {
-							"$ref": "#/$defs/patch"
-						},
-						"part": {
-							"type": "string",
-							"enum": ["main", "renderer"]
-						}
-					},
-					"required": ["operation", "changes", "part"],
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"part": {
-										"const": "main"
-									}
-								}
-							},
-							"then": {
-								"properties": {
-									"changes": {
-										"propertyNames": {
-											"enum": ["launchProfiles", "scrollbackBytes"]
-										},
-										"type": "object"
-									}
-								}
-							},
-							"else": {
-								"properties": {
-									"changes": {
-										"propertyNames": {
-											"enum": [
-												"locale",
-												"applicationTheme",
-												"terminalDisplayTheme",
-												"customForeground",
-												"customBackground",
-												"copyOnSelect",
-												"trimTrailingBlankRowsForAgents",
-												"agentNotificationMode",
-												"completionReminderMode",
-												"completionReminderMinimumSeconds",
-												"soundEnabled"
-											]
-										},
-										"type": "object"
-									}
-								}
-							}
-						}
-					]
 				}
 			]
 		},

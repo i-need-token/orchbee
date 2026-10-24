@@ -10,10 +10,9 @@ export interface UserPreferencesState {
 	readonly snapshot: UserPreferencesSnapshot | null;
 	readonly pending: boolean;
 	readonly available: boolean;
-	readonly failure: UserPreferencesFailure | 'outcome-unknown' | 'legacy-unavailable' | null;
+	readonly failure: UserPreferencesFailure | 'outcome-unknown' | null;
 	readonly applicationIssue: 'host-rejected' | null;
 	readonly draftResetRevision: number;
-	readonly legacyIssue: boolean;
 }
 
 /** Confirmed values only. A draft must keep its observed source until explicitly rebased. */

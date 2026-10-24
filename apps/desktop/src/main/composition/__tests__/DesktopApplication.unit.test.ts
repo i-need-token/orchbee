@@ -407,7 +407,6 @@ describe('DesktopApplication', () => {
 		);
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledWith(
 			createRuntime().workbenchDocumentStorePath,
-			createRuntime().workbenchDocumentLegacyStorePath,
 		);
 
 		expect(harness.requestControl).toHaveBeenCalledWith(

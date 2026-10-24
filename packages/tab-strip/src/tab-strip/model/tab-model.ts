@@ -106,7 +106,7 @@ export interface DetachedTabBundle {
 	activeTabId: string | null;
 	selectedTabIds: readonly string[];
 }
-export interface DraggedTabsInsertionInput {
+interface DraggedTabsInsertionInput {
 	containerStartIndex: number;
 	containerEndIndex: number;
 	targetIndex: number;
@@ -115,7 +115,7 @@ export interface DraggedTabsInsertionInput {
 	targetGroup: TabGroupId | null;
 	firstSelectedIndex: number;
 }
-export interface DraggedTabsInsertionResult {
+interface DraggedTabsInsertionResult {
 	adjustedTargetIndex: number;
 	noOp: boolean;
 }

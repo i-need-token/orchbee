@@ -2,7 +2,7 @@
 
 ## Ownership and consumption
 
-`@orchbee/design-tokens` owns the enumerable visual decisions shared by Orchbee CSS interfaces. Its authoritative CSS registry is `packages/design-tokens/src/tokens.css`; `packages/design-tokens/src/design-token-names.generated.ts` is the generated TypeScript inventory behind the `designTokenNames` export. The package test and `pnpm lint:styles` reject stale generated output.
+`@orchbee/design-tokens` owns the enumerable visual decisions shared by Orchbee CSS interfaces. Its authoritative CSS registry is `packages/design-tokens/src/tokens.css`; `packages/design-tokens/src/design-token-names.generated.ts` is the internal TypeScript inventory for package tests and repository style tooling, not a product JavaScript API. The package test and `pnpm lint:styles` reject stale generated output.
 
 Common GUI/TUI roles and theme correspondence follow
 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). This registry implements the GUI mapping; native

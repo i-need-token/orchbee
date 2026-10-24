@@ -15,5 +15,4 @@ export type {
 } from './isTerminalThemePresentationSource';
 export { TerminalSettingsController } from './TerminalSettingsController';
 export type { TerminalSettingsSnapshot } from './TerminalSettingsController';
-export { readLegacyAppearancePreferencePatch } from './terminal-appearance-preferences-storage';
 export type { TerminalResolvedThemePreferences } from './terminal-appearance-preferences';

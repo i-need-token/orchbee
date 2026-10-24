@@ -3,7 +3,7 @@ import { TabStripOrientation } from '../types/tab-strip-types';
 import { LAYOUT_CONSTANTS } from './layout-constants';
 import type { Size, SizeBounds } from './proposed-layout';
 
-export interface TabStripRegionLayout {
+interface TabStripRegionLayout {
 	hostSize: Size;
 	pinnedBounds: Rect;
 	pinnedVisible: boolean;
@@ -13,7 +13,7 @@ export interface TabStripRegionLayout {
 	unpinnedVisible: boolean;
 }
 
-export interface TabStripViewLayoutInput {
+interface TabStripViewLayoutInput {
 	orientation: TabStripOrientation;
 	sizeBounds: SizeBounds;
 	pinnedPreferred: Size;

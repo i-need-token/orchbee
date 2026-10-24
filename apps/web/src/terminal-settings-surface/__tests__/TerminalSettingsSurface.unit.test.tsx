@@ -318,7 +318,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.querySelector("select[aria-label='Display language']")).not.toBeNull();
 		expect(container.textContent).toContain('Settings');
 		expect(storage.setItem).toHaveBeenCalledWith(
-			'orchbee:web:application-locale:v2',
+			'orchbee:web:locale-preference:v1',
 			'{"locale":"en-US"}',
 		);
 	});

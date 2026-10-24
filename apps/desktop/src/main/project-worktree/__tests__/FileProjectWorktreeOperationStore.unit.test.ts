@@ -39,37 +39,26 @@ describe('FileProjectWorktreeOperationStore', () => {
 		await expect(store.load()).resolves.toEqual({ kind: 'ready', operations: [operation] });
 		expect(JSON.parse(await readFile(filePath, 'utf8'))).toEqual({
 			operations: [operation],
-			version: 2,
+			version: 1,
 		});
 	});
 
-	it('migrates a strict v1 ledger without guessing a source Workspace and rejects malformed records', async () => {
+	it('rejects a historical ledger and leaves the persisted bytes unchanged', async () => {
 		const filePath = await temporaryFilePath();
 		const {
 			sourceWorkspaceId: _workspace,
 			sourceResourceScopeId: _scope,
 			sourceTerminalContextId: _context,
-			...old
+			...operation
 		} = pendingOperation();
-		const legacy = { ...old, projectId: 'legacy-project' };
-		await writeFile(filePath, JSON.stringify({ version: 1, operations: [legacy] }));
-		const store = new FileProjectWorktreeOperationStore(filePath);
-		await expect(store.load()).resolves.toEqual({
-			kind: 'ready',
-			operations: [
-				{
-					...old,
-					sourceWorkspaceId: null,
-					sourceResourceScopeId: 'legacy-project',
-					sourceTerminalContextId: null,
-				},
-			],
+		const oldRecord = { version: 1, operations: [{ ...operation, projectId: 'project-1' }] };
+		const original = JSON.stringify(oldRecord);
+		await writeFile(filePath, original);
+		expect(await new FileProjectWorktreeOperationStore(filePath).load()).toEqual({
+			kind: 'unavailable',
+			reason: 'invalid',
 		});
-		await writeFile(
-			filePath,
-			JSON.stringify({ version: 1, operations: [{ ...legacy, sourceWorkspaceId: 'guessed' }] }),
-		);
-		await expect(store.load()).resolves.toEqual({ kind: 'unavailable', reason: 'invalid' });
+		expect(await readFile(filePath, 'utf8')).toBe(original);
 	});
 
 	it('preserves the prior ledger when atomic replacement cannot create its temporary file', async () => {

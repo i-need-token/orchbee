@@ -15,7 +15,7 @@ export interface WorkspaceCreationActivationCommand {
 	readonly workspaceId: string;
 }
 
-export interface WorkspaceCreationActivationTransition {
+interface WorkspaceCreationActivationTransition {
 	readonly commands: readonly WorkspaceCreationActivationCommand[];
 	readonly state: WorkspaceCreationActivationState;
 }

@@ -63,11 +63,7 @@ Do not import the token registry twice. Storybook scaffolding never restyles com
 
 ## Shadcn component intake
 
-Refresh the complete official Base UI registry snapshot with:
-
-```sh
-pnpm --dir packages/ui exec shadcn add --all --overwrite
-```
+Use the UI package's `component:add` script to refresh explicit admitted component names. Admission follows [experience components](experience-components.md); a Story alone is insufficient. Do not import the complete official registry.
 
 The CLI reads `packages/ui/components.json` and writes to `packages/ui/src/components/ui`; use `--dry-run`, `--view`, and `--diff` when reviewing generated changes.
 
@@ -76,7 +72,7 @@ After refresh:
 1. Keep generated implementations and utilities unless a focused repository adaptation is required.
 2. Restore the `packages/ui/src/styles.css` mapping to `@orchbee/design-tokens`, including `@source './components'`; reject regenerated raw theme values.
 3. Review every overwrite and preserve TypeScript, declaration-output, and module-boundary adaptations.
-4. Export every registry component through `@orchbee/ui/components`, never a physical source path.
+4. Export only components and slots with admitted consumers through `@orchbee/ui/components`; preserve the narrowed entry and never expose physical source paths.
 5. Test repository adaptations and relied-on semantics without duplicating the upstream suite.
 6. Run the UI package checks and root verification gate.
 

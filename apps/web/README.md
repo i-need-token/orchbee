@@ -306,7 +306,7 @@ Composition tests cover duplicate startup, late acquisition, and failed bootstra
 
 ## Navigation
 
-All compositions use one TanStack Browser Router. Canonical Workspace routes use `/workspaces/$workspaceId[/tabs/$tabId]`, independent of nullable Project membership. Legacy Project-qualified Workspace links redirect by stable Workspace identity even after regrouping or dissolution. Group-only links resolve current membership; unknown Workspace/Tab identities remain unavailable. Navigation pushes history; canonicalization replaces it. Renderer focus recovery restores the exact surviving Workspace, Tab, Panel and child before explicit route reconciliation. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
+All compositions use one TanStack Browser Router. Canonical Workspace routes use `/workspaces/$workspaceId[/tabs/$tabId]`, independent of nullable Project membership. Old Project-qualified Workspace paths are not admitted. Group-only links resolve current membership; unknown Workspace/Tab identities remain unavailable. Navigation pushes history; canonicalization replaces it. Renderer focus recovery restores the exact surviving Workspace, Tab, Panel and child before explicit route reconciliation. See [`docs/navigation-routing.md`](docs/navigation-routing.md).
 
 ## Settings
 

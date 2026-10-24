@@ -50,7 +50,7 @@ export const AgentExecutionLocationSchema = z.strictObject({
 	executionLocationId: AgentExecutionLocationIdSchema,
 });
 
-export const AgentPresentationVisibilitySchema = z.enum(['visible', 'hidden', 'unknown']);
+const AgentPresentationVisibilitySchema = z.enum(['visible', 'hidden', 'unknown']);
 
 const hasLoneSurrogate = (value: string): boolean => {
 	for (let index = 0; index < value.length; index += 1) {
@@ -89,7 +89,7 @@ export const AgentObservationSchema = z.strictObject({
 	source: z.enum(['native', 'hook', 'terminal', 'heuristic']),
 });
 
-export const AgentTurnStateSchema = z.discriminatedUnion('kind', [
+const AgentTurnStateSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('unknown') }),
 	z.strictObject({ kind: z.literal('idle') }),
 	z.strictObject({
@@ -246,7 +246,7 @@ export type AgentAttentionRequest = z.infer<typeof AgentAttentionRequestSchema>;
 export type AgentCapability = z.infer<typeof AgentCapabilitySchema>;
 export type AgentEventId = z.infer<typeof AgentEventIdSchema>;
 export type AgentExecutionLocation = z.infer<typeof AgentExecutionLocationSchema>;
-export type AgentExecutionLocationId = z.infer<typeof AgentExecutionLocationIdSchema>;
+
 export type AgentObservation = z.infer<typeof AgentObservationSchema>;
 export type AgentPresentationAttachment = z.infer<typeof AgentPresentationAttachmentSchema>;
 export type AgentPresentationVisibility = z.infer<typeof AgentPresentationVisibilitySchema>;

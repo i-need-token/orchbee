@@ -2,13 +2,11 @@
 EXTENDS Naturals, FiniteSets
 
 \* Two OS processes share one record lock. Each explicit edit/reset is submitted
-\* once. Main/renderer migration claims only untouched keys. One noncooperating
+\* once. Desktop imports are not admitted. One noncooperating
 \* external edit challenges the final source comparison. Concrete schema and
 \* filesystem durability remain implementation-test obligations.
 Clients == {1, 2}
 Keys == {"a", "b"}
-Parts == {"main", "renderer"}
-ImportKey(p) == IF p = "main" THEN "a" ELSE "b"
 Defaults == [k \in Keys |-> 0]
 Stages == {"idle", "prepared", "owned", "written", "done"}
 VARIABLE s
@@ -21,9 +19,7 @@ Init == s = [
   writes |-> [c \in Clients |-> 0], receipt |-> [c \in Clients |-> "none"],
   saved |-> [c \in Clients |-> Defaults], savedVersion |-> [c \in Clients |-> 0],
   active |-> [c \in Clients |-> Defaults], commits |-> {}, published |-> {},
-  imported |-> {}, importAttempted |-> {}, importPart |-> "none",
-  importBasis |-> 0, importValues |-> Defaults, importClaimed |-> {},
-  writePreservedOther |-> TRUE, importPreservedClaims |-> TRUE]
+  writePreservedOther |-> TRUE]
 
 Fresh(c) == s.basis[c] = s.version
 Prepare(c) ==
@@ -62,48 +58,22 @@ LoseReply(c) ==
   /\ s.phase[c] \in {"prepared", "owned", "written"}
   /\ s.receipt[c] # "unknown"
   /\ s' = [s EXCEPT !.receipt[c] = "unknown"]
-AcquireImport(p) ==
-  /\ s.owner = 0 /\ p \notin s.importAttempted
-  /\ s' = [s EXCEPT !.owner = 3, !.importPart = p,
-       !.importAttempted = @ \cup {p}, !.importBasis = s.version,
-       !.importValues = s.values, !.importClaimed = s.claimed]
-Import ==
-  /\ s.owner = 3 /\ s.importBasis = s.version
-  /\ LET k == ImportKey(s.importPart)
-         value == IF k \in s.importClaimed THEN s.importValues[k] ELSE 1
-         next == [s.importValues EXCEPT ![k] = value] IN
-       s' = [s EXCEPT !.owner = 0, !.version = @ + 1,
-         !.values = next, !.claimed = @ \cup {k},
-         !.imported = @ \cup {s.importPart}, !.importPart = "none",
-         !.importBasis = 0, !.importValues = Defaults, !.importClaimed = {},
-         !.importPreservedClaims = \A key \in s.importClaimed: next[key] = s.importValues[key]]
-\* Only a lock-owning import reads its captured source, values and claims.
-\* Both release paths erase that dead scratch, retaining every durable claim,
-\* attempt, commit and receipt instead of distinguishing obsolete read sets.
-RejectImport ==
-  /\ s.owner = 3
-  /\ s' = [s EXCEPT !.owner = 0, !.importPart = "none",
-       !.importBasis = 0, !.importValues = Defaults, !.importClaimed = {}]
 ExternalEdit ==
   /\ ~s.external
   /\ s' = [s EXCEPT !.external = TRUE, !.version = @ + 1,
        !.values = [k \in Keys |-> 1]]
-Next == ExternalEdit \/ Import \/ RejectImport
-  \/ (\E p \in Parts: AcquireImport(p))
+Next == ExternalEdit
   \/ (\E c \in Clients: Prepare(c) \/ Acquire(c) \/ Reject(c) \/ Write(c) \/
       Publish(c) \/ ApplyFails(c) \/ LoseReply(c))
 Spec == Init /\ [][Next]_vars
 
 TypeOK ==
-  /\ s.phase \in [Clients -> Stages] /\ s.owner \in 0..3
-  /\ s.version \in 0..5 /\ s.values \in [Keys -> 0..2]
-  /\ s.claimed \subseteq Keys /\ s.imported \subseteq s.importAttempted
-  /\ s.importAttempted \subseteq Parts /\ s.writes \in [Clients -> 0..1]
+  /\ s.phase \in [Clients -> Stages] /\ s.owner \in 0..2
+  /\ s.version \in 0..3 /\ s.values \in [Keys -> 0..2]
+  /\ s.claimed \subseteq Keys /\ s.writes \in [Clients -> 0..1]
 OneWriter ==
   /\ (\A c \in Clients: (s.phase[c] \in {"owned", "written"}) <=> s.owner = c)
-  /\ (s.owner = 3 <=> s.importPart \in Parts)
 OtherSettingsPreserved == s.writePreservedOther
-ResetSurvivesMigration == s.importPreservedClaims
 PublicationHasCommittedWrite == s.published \subseteq s.commits
 PublicationIsComplete == \A p \in s.published: p.values \in [Keys -> 0..2]
 PublicationIdentity == \A a,b \in s.published: a.version = b.version => a.values = b.values

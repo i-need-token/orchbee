@@ -29,7 +29,6 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 		failure: null,
 		applicationIssue: null,
 		draftResetRevision: 0,
-		legacyIssue: false,
 	};
 	#pending: Pending | undefined;
 	#sequence = 0;
@@ -55,19 +54,6 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 		if (!this.#disposed && response.kind === 'snapshot')
 			this.#publish({ ...this.#state, draftResetRevision: this.#state.draftResetRevision + 1 });
 		return response;
-	}
-
-	async initialize(readLegacy: () => UserPreferencesPatch | null): Promise<void> {
-		const response = await this.#request({ operation: 'read' });
-		if (this.#disposed || response.kind !== 'snapshot' || response.snapshot.desktopImported) return;
-		const changes = readLegacy();
-		if (this.#disposed) return;
-		if (changes === null) {
-			this.#retainFailure = true;
-			this.#publish({ ...this.#state, failure: 'legacy-unavailable' });
-			return;
-		}
-		await this.#request({ operation: 'import-desktop', part: 'renderer', changes });
 	}
 
 	update(changes: UserPreferencesPatch, source?: string): Promise<UserPreferencesResponse> {
@@ -129,7 +115,7 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 			this.#retire();
 			return;
 		}
-		const { requestId, response, applicationIssue, legacyIssue } = parsed.data;
+		const { requestId, response, applicationIssue } = parsed.data;
 		const pending = this.#pending;
 		if (requestId !== null && (pending === undefined || pending.id !== requestId)) {
 			this.#retire();
@@ -151,7 +137,6 @@ export class DesktopUserPreferencesClient implements UserPreferencesControl {
 			snapshot: response.kind === 'snapshot' ? response.snapshot : this.#state.snapshot,
 			available: response.kind === 'snapshot',
 			applicationIssue,
-			legacyIssue,
 			// Polls clear transient read failures, but retain failed/uncertain write receipts.
 			failure,
 		});

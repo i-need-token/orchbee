@@ -25,26 +25,17 @@ export const TRANSPORT_ENVELOPE_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x50])
 export {
 	isControlRequestKind,
 	isInputRequestKind,
-	isKnownMessageKind,
-	messageContract,
 	messagePayloadEncoding,
-	MESSAGE_CONTRACTS,
 	MessageKind,
 	PayloadEncoding,
 	requestMessageContract,
 } from './message-contract';
-export type {
-	ControlRequestKind,
-	InputRequestKind,
-	MessageContract,
-	MessageRole,
-	RequestMessageContract,
-} from './message-contract';
+export type { MessageRole } from './message-contract';
 
 const payloadEncodingSchema = z.enum(PayloadEncoding);
 const uint16Schema = z.number().int().min(0).max(65_535);
 
-export const ProtocolEnvelopeSchema = z
+const ProtocolEnvelopeSchema = z
 	.strictObject({
 		correlationId: CorrelationIdSchema.nullable(),
 		event: z.boolean(),
@@ -99,8 +90,6 @@ export const ProtocolEnvelopeSchema = z
 			});
 		}
 	});
-
-export type ProtocolEnvelope = z.infer<typeof ProtocolEnvelopeSchema>;
 
 export interface DecodedProtocolEnvelope {
 	readonly correlationId: CorrelationId | null;

@@ -16,17 +16,9 @@ just like an edit. Windows uses the pinned private-cache boundary; Unix uses des
 no-follow private files and synchronizes the containing directory after replacement. A failure after
 replacement reports an unknown outcome and never authorizes automatic replay.
 
-After full validation, an unclaimed `applicationTheme` resolves to `system`, including an older
-record that serialized the former `light` default. Reading preserves the original bytes and source
-token and does not write or claim the key; an accepted write may persist the effective value with
-its complete candidate. Claimed Light, Dark and System values, including explicit legacy imports
-and resets, remain unchanged.
+Reads preserve validated current values, claims and source without reinterpreting an unclaimed old default or rewriting bytes. Desktop import fields are outside the current strict record.
 
-Explicit legacy Windows TOML values seed unclaimed preferences without changing that file. The
-initial observation includes its source fingerprint. Desktop Main and renderer imports have separate
-one-time receipts and fill only unclaimed keys, in either order; a later import cannot undo an edit
-or reset. Applications own UI drafts, polling, publication into running terminals, and process launch.
-The helper and native Site are consumers of this same storage owner, not separate stores.
+Explicit legacy Windows TOML values still seed unclaimed preferences without changing that file. The initial observation includes its source fingerprint. Desktop does not submit old-record imports. Applications own UI drafts, polling, publication into running terminals, and process launch. The helper and native Site consume this same storage owner, not separate stores.
 
 ## Shared launch and notification policy
 

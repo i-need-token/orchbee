@@ -44,7 +44,7 @@ export interface WorkbenchTabTitlePolicy {
 	readonly tabId: string;
 }
 
-export type WorkbenchTabTitleUpdateResult =
+type WorkbenchTabTitleUpdateResult =
 	| { readonly kind: 'applied' | 'unchanged' }
 	| { readonly kind: 'rejected'; readonly reason: 'tab-not-found' };
 

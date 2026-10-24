@@ -30,7 +30,7 @@ export function getHorizontalTabSeparatorBounds(width: number): Readonly<{
 	};
 }
 
-export interface TabSeparatorState {
+interface TabSeparatorState {
 	active: boolean;
 	selected: boolean;
 	hovered: boolean;

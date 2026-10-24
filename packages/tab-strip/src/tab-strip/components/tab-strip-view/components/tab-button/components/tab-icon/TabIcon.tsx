@@ -6,7 +6,7 @@ import type { TabStatusAdornment } from '../../../../../../types/tab-strip-optio
 
 import { useTabIcon } from './hooks/useTabIcon';
 
-export interface TabIconProps {
+interface TabIconProps {
 	tab: Readonly<TabData>;
 	availableWidth?: number;
 	discardRingTreatmentEnabled?: boolean;

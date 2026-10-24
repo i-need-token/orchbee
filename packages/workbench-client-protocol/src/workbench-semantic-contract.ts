@@ -3,20 +3,20 @@ import { z } from 'zod';
 export const WORKBENCH_PROTOCOL_VERSION = 1;
 export const WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES = 16 * 1024;
 export const WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES = 1024 * 1024;
-export const WORKBENCH_MAXIMUM_LABEL_LENGTH = 512;
-export const WORKBENCH_MAXIMUM_PROJECTS = 256;
-export const WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT = 256;
+const WORKBENCH_MAXIMUM_LABEL_LENGTH = 512;
+const WORKBENCH_MAXIMUM_PROJECTS = 256;
+const WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT = 256;
 export const WORKBENCH_MAXIMUM_DIRECTORIES =
 	WORKBENCH_MAXIMUM_PROJECTS * WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT;
-export const WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES = 4096;
-export const WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT = 256;
-export const WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS = 1024;
-export const WORKBENCH_MAXIMUM_TAB_GROUPS_PER_CONTEXT = 64;
+const WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES = 4096;
+const WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT = 256;
+const WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS = 1024;
+const WORKBENCH_MAXIMUM_TAB_GROUPS_PER_CONTEXT = 64;
 export const WORKBENCH_MAXIMUM_TABS_PER_CONTEXT = 256;
-export const WORKBENCH_MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL = 16;
+const WORKBENCH_MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL = 16;
 export const WORKBENCH_MAXIMUM_PANEL_NODE_DEPTH = 16;
 export const WORKBENCH_MAXIMUM_PANEL_NODES_PER_CONTEXT = 4096;
-export const WORKBENCH_MAXIMUM_DELTA_CHANGES = 1024;
+const WORKBENCH_MAXIMUM_DELTA_CHANGES = 1024;
 
 const MAXIMUM_UINT64_TEXT = '18446744073709551615';
 const ZERO_IDENTITY = '00000000000000000000000000000000';
@@ -107,21 +107,17 @@ export const WorkbenchDirectoryPathSchema = z
 	)
 	.brand<'WorkbenchDirectoryPath'>();
 
-export type SiteId = z.infer<typeof SiteIdSchema>;
-export type WorkbenchRequestId = z.infer<typeof WorkbenchRequestIdSchema>;
-export type WorkbenchProjectId = z.infer<typeof WorkbenchProjectIdSchema>;
-export type WorkbenchWorkspaceId = z.infer<typeof WorkbenchWorkspaceIdSchema>;
-export type WorkbenchDirectoryId = z.infer<typeof WorkbenchDirectoryIdSchema>;
-export type WorkbenchDirectoryPath = z.infer<typeof WorkbenchDirectoryPathSchema>;
-export type WorkbenchTerminalContextId = z.infer<typeof WorkbenchTerminalContextIdSchema>;
-export type WorkbenchTabGroupId = z.infer<typeof WorkbenchTabGroupIdSchema>;
-export type WorkbenchTabId = z.infer<typeof WorkbenchTabIdSchema>;
-export type WorkbenchPanelId = z.infer<typeof WorkbenchPanelIdSchema>;
-export type WorkbenchSplitId = z.infer<typeof WorkbenchSplitIdSchema>;
-export type WorkbenchPanelSlotId = z.infer<typeof WorkbenchPanelSlotIdSchema>;
-export type TerminalPresentationId = z.infer<typeof TerminalPresentationIdSchema>;
-export type WorkerId = z.infer<typeof WorkerIdSchema>;
-export type TerminalId = z.infer<typeof TerminalIdSchema>;
+type WorkbenchProjectId = z.infer<typeof WorkbenchProjectIdSchema>;
+
+type WorkbenchTerminalContextId = z.infer<typeof WorkbenchTerminalContextIdSchema>;
+type WorkbenchTabGroupId = z.infer<typeof WorkbenchTabGroupIdSchema>;
+type WorkbenchTabId = z.infer<typeof WorkbenchTabIdSchema>;
+type WorkbenchPanelId = z.infer<typeof WorkbenchPanelIdSchema>;
+type WorkbenchSplitId = z.infer<typeof WorkbenchSplitIdSchema>;
+type WorkbenchPanelSlotId = z.infer<typeof WorkbenchPanelSlotIdSchema>;
+type TerminalPresentationId = z.infer<typeof TerminalPresentationIdSchema>;
+
+type TerminalId = z.infer<typeof TerminalIdSchema>;
 export type WorkbenchRevision = z.infer<typeof WorkbenchRevisionSchema>;
 
 export const WorkbenchPresentationBindingSchema = z
@@ -160,7 +156,7 @@ export const WorkbenchLaunchExecutableSchema = WorkbenchLaunchTextSchema.refine(
 export const WorkbenchTerminalFailureReasonSchema = z.enum(['terminal-create-failed']);
 
 /** The Server's fact that the bound terminal never started; it never carries arguments. */
-export const WorkbenchPresentationLaunchFailureSchema = z
+const WorkbenchPresentationLaunchFailureSchema = z
 	.strictObject({
 		executable: WorkbenchLaunchExecutableSchema.refine(
 			(value) => fitsWorkbenchLaunchSelectionBudget([value]),
@@ -180,13 +176,9 @@ export const WorkbenchPresentationSchema = z
 	})
 	.readonly();
 
-export type WorkbenchPresentationBinding = z.infer<typeof WorkbenchPresentationBindingSchema>;
-export type WorkbenchPresentation = z.infer<typeof WorkbenchPresentationSchema>;
-export type WorkbenchPresentationLaunchFailure = z.infer<
-	typeof WorkbenchPresentationLaunchFailureSchema
->;
+type WorkbenchPresentation = z.infer<typeof WorkbenchPresentationSchema>;
 
-export interface WorkbenchPanelNodePanel {
+interface WorkbenchPanelNodePanel {
 	readonly rightClick?: 'orchbee' | 'panel' | undefined;
 	readonly childPresentations: readonly WorkbenchPresentation[];
 	readonly kind: 'panel';
@@ -194,14 +186,14 @@ export interface WorkbenchPanelNodePanel {
 	readonly primaryPresentation: WorkbenchPresentation;
 }
 
-export interface WorkbenchPanelNodeSlot {
+interface WorkbenchPanelNodeSlot {
 	readonly node: WorkbenchPanelNode;
 	readonly slotId: WorkbenchPanelSlotId;
 }
 
 export const WorkbenchSplitRatioSchema = z.number().finite().min(0.1).max(0.9);
 
-export interface WorkbenchPanelNodeSplit {
+interface WorkbenchPanelNodeSplit {
 	readonly children: readonly [WorkbenchPanelNodeSlot, WorkbenchPanelNodeSlot];
 	readonly kind: 'split';
 	readonly orientation: 'horizontal' | 'vertical';
@@ -209,7 +201,7 @@ export interface WorkbenchPanelNodeSplit {
 	readonly ratio?: number | undefined;
 }
 
-export type WorkbenchPanelNode = WorkbenchPanelNodePanel | WorkbenchPanelNodeSplit;
+type WorkbenchPanelNode = WorkbenchPanelNodePanel | WorkbenchPanelNodeSplit;
 
 export const WorkbenchPanelNodeSchema: z.ZodType<WorkbenchPanelNode> = z.lazy(() =>
 	z.discriminatedUnion('kind', [
@@ -260,7 +252,7 @@ export const WorkbenchTabGroupSchema = z
 	})
 	.readonly();
 
-export const WorkbenchTabSchema = z
+const WorkbenchTabSchema = z
 	.strictObject({
 		automaticLabel: z.boolean().optional(),
 		groupId: WorkbenchTabGroupIdSchema.nullable(),
@@ -271,7 +263,7 @@ export const WorkbenchTabSchema = z
 	})
 	.readonly();
 
-export const WorkbenchTerminalContextSchema = z
+const WorkbenchTerminalContextSchema = z
 	.strictObject({
 		groups: z
 			.array(WorkbenchTabGroupSchema)
@@ -282,7 +274,7 @@ export const WorkbenchTerminalContextSchema = z
 	})
 	.readonly();
 
-export const WorkbenchDirectorySchema = z
+const WorkbenchDirectorySchema = z
 	.strictObject({
 		directoryId: WorkbenchDirectoryIdSchema,
 		workerId: WorkerIdSchema,
@@ -300,7 +292,7 @@ export const WorkbenchWorkspaceSchema = z
 	})
 	.readonly();
 
-export const WorkbenchProjectSchema = z
+const WorkbenchProjectSchema = z
 	.strictObject({
 		label: WorkbenchLabelSchema,
 		projectId: WorkbenchProjectIdSchema,
@@ -319,8 +311,6 @@ export const WorkbenchWorkspacePlacementSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-
-export type WorkbenchWorkspacePlacement = z.infer<typeof WorkbenchWorkspacePlacementSchema>;
 
 function validateDisplayOrder(
 	order: readonly string[] | undefined,
@@ -496,33 +486,22 @@ export const WorkbenchProtocolDocumentSchema = z.union([
 	WorkbenchDeltaSchema,
 ]);
 
-export type WorkbenchTabGroup = z.infer<typeof WorkbenchTabGroupSchema>;
-export type WorkbenchTab = z.infer<typeof WorkbenchTabSchema>;
-export type WorkbenchTerminalContext = z.infer<typeof WorkbenchTerminalContextSchema>;
-export type WorkbenchDirectory = z.infer<typeof WorkbenchDirectorySchema>;
-export type WorkbenchWorkspace = z.infer<typeof WorkbenchWorkspaceSchema>;
-export type WorkbenchProject = z.infer<typeof WorkbenchProjectSchema>;
-export type WorkbenchNavigation = z.infer<typeof WorkbenchNavigationSchema>;
-export type WorkbenchSnapshot = z.infer<typeof WorkbenchSnapshotSchema>;
-export type WorkbenchSnapshotReadIntent = z.infer<typeof WorkbenchSnapshotReadIntentSchema>;
-export type WorkbenchDeltaChange = z.infer<typeof WorkbenchDeltaChangeSchema>;
-export type WorkbenchDelta = z.infer<typeof WorkbenchDeltaSchema>;
-export type WorkbenchProtocolDocument = z.infer<typeof WorkbenchProtocolDocumentSchema>;
+type WorkbenchTerminalContext = z.infer<typeof WorkbenchTerminalContextSchema>;
 
-export type WorkbenchDeltaRejectionReason =
+type WorkbenchSnapshot = z.infer<typeof WorkbenchSnapshotSchema>;
+
+type WorkbenchDelta = z.infer<typeof WorkbenchDeltaSchema>;
+
+type WorkbenchDeltaRejectionReason =
 	| 'base-revision-mismatch'
 	| 'duplicate-change-target'
 	| 'invalid-projection'
 	| 'non-increasing-revision'
 	| 'site-mismatch';
 
-export type WorkbenchDeltaApplicationResult =
+type WorkbenchDeltaApplicationResult =
 	| { readonly kind: 'applied'; readonly snapshot: WorkbenchSnapshot }
 	| { readonly kind: 'rejected'; readonly reason: WorkbenchDeltaRejectionReason };
-
-export function parseWorkbenchSnapshotReadIntent(value: unknown): WorkbenchSnapshotReadIntent {
-	return WorkbenchSnapshotReadIntentSchema.parse(value);
-}
 
 export function parseWorkbenchSnapshot(value: unknown): WorkbenchSnapshot {
 	return WorkbenchSnapshotSchema.parse(value);
@@ -530,10 +509,6 @@ export function parseWorkbenchSnapshot(value: unknown): WorkbenchSnapshot {
 
 export function parseWorkbenchDelta(value: unknown): WorkbenchDelta {
 	return WorkbenchDeltaSchema.parse(value);
-}
-
-export function parseWorkbenchProtocolDocument(value: unknown): WorkbenchProtocolDocument {
-	return WorkbenchProtocolDocumentSchema.parse(value);
 }
 
 export function applyWorkbenchDelta(

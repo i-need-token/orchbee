@@ -5,7 +5,7 @@ import type { TabAlertState } from '../../../../../../model/tab-model';
 import { TabAlertIndicatorGlyph } from '../../../tab-alert-indicator-glyph/TabAlertIndicatorGlyph';
 import { useAlertIndicatorButton } from './hooks/useAlertIndicatorButton';
 
-export interface AlertIndicatorButtonProps {
+interface AlertIndicatorButtonProps {
 	alertState: TabAlertState;
 }
 

@@ -47,7 +47,7 @@ const worker = z.strictObject({
 const positive = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const timestamp = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const cursor = z.strictObject({ worker, before: positive });
-export const PluginLinkCatalogGuardSchema = z.strictObject({
+const PluginLinkCatalogGuardSchema = z.strictObject({
 	revision: timestamp,
 	fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
 });
@@ -64,7 +64,7 @@ const failure = z.enum([
 	'cancelled',
 	'physical-unknown',
 ]);
-export const PluginCommandLogSchema = z
+const PluginCommandLogSchema = z
 	.strictObject({
 		jobId,
 		sequence: positive,
@@ -244,6 +244,3 @@ export const PluginResultSchema = z
 		]),
 	})
 	.readonly();
-export type PluginRequest = z.infer<typeof PluginRequestSchema>;
-export type PluginResult = z.infer<typeof PluginResultSchema>;
-export type PluginLinkCatalogGuard = z.infer<typeof PluginLinkCatalogGuardSchema>;

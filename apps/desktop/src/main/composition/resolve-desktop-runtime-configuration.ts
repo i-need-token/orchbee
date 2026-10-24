@@ -76,7 +76,6 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalLaunch: DesktopTerminalLaunchTemplate;
 	readonly terminalLaunchProfileStorePath: string;
 	readonly windowStateStorePath: string;
-	readonly workbenchDocumentLegacyStorePath: string;
 	readonly workbenchDocumentStorePath: string;
 }
 
@@ -274,13 +273,9 @@ export function resolveDesktopRuntimeConfiguration(
 			'terminal-launch-profiles-v1.json',
 		),
 		windowStateStorePath: platformPath.join(input.userDataPath, 'window-state-v1.json'),
-		workbenchDocumentLegacyStorePath: platformPath.join(
-			recoveryDirectory,
-			'workbench-shared-document-v1.json',
-		),
 		workbenchDocumentStorePath: platformPath.join(
 			recoveryDirectory,
-			'workbench-shared-document-v2.json',
+			'workbench-shared-document-v1.json',
 		),
 	};
 	return executable === null

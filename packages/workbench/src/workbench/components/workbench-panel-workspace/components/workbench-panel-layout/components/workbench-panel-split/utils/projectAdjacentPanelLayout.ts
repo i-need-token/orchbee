@@ -1,4 +1,4 @@
-export interface AdjacentPanelLayoutProjection {
+interface AdjacentPanelLayoutProjection {
 	readonly leadingWeight: number;
 	readonly layout: Readonly<Record<string, number>>;
 }

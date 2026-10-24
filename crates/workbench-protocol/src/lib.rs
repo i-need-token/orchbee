@@ -12,7 +12,7 @@ pub use agent_view::{
     MAXIMUM_AGENT_VIEW_SPEC_BYTES, parse_agent_view_spec,
 };
 pub use user_preferences::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, DesktopPreferencesPart,
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode,
     MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, PreferencesLocale,
     TerminalDisplayAppearance, UserLaunchCommand, UserLaunchField, UserLaunchProfile,
     UserLaunchProfiles, UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse,

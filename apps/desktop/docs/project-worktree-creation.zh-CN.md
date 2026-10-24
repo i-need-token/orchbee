@@ -41,7 +41,7 @@ Discovery 读取源 Workspace 资源 scope 内可用本地 Directory，优先所
 
 ## 补偿与恢复
 
-严格版本 `2` 操作日志独立于分组记录 `sourceWorkspaceId`、`sourceResourceScopeId` 和 `sourceTerminalContextId`。精确版本 `1` 记录把 Project ID 迁移为资源 scope；缺失的源 Workspace/context 明确保留 null，绝不猜测。既有日志文件名保持稳定。无效或重复记录视为不可用，不重置。
+严格版本 `1` 操作日志独立于分组记录 `sourceWorkspaceId`、`sourceResourceScopeId` 和 `sourceTerminalContextId`，字段必须显式存在。仅保存历史 Project ID 的形状被拒绝，不推导缺失身份。日志文件名保持稳定；无效或重复记录视为不可用，原始字节不变。
 
 `git-created` 或 `retained` 结果绝不因规范提交失败、来源移动/关闭或渲染器退役而自动删除。Main 持久记录 `retained` 并返回 `worktree-retained`，用户之后可选择已有 Worktree。启动时跨分组清除已提交目标，保留已观察到的创建目标。保留记录不阻止其他 Worktree 操作。接纳在规范提交后清除对应保留回执。
 

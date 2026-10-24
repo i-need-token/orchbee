@@ -11,7 +11,7 @@ import {
 } from './project-workbench-agent-overview';
 import type { WorkbenchProjectWorkspaceRuntime } from './WorkbenchProjectWorkspaceRuntime';
 
-export type WorkbenchAgentNavigationProjection = 'pending' | 'ready' | 'unavailable';
+type WorkbenchAgentNavigationProjection = 'pending' | 'ready' | 'unavailable';
 
 interface WorkbenchAgentNavigationWaitingState {
 	readonly actionAccepted: boolean;
@@ -56,7 +56,7 @@ export type WorkbenchAgentNavigationCommand =
 	| { readonly kind: 'announce-unavailable' }
 	| { readonly kind: 'request-terminal-focus' };
 
-export interface WorkbenchAgentNavigationTransition {
+interface WorkbenchAgentNavigationTransition {
 	readonly commands: readonly WorkbenchAgentNavigationCommand[];
 	readonly state: WorkbenchAgentNavigationState;
 }

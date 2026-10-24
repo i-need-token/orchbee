@@ -1,8 +1,8 @@
 import { requireDefined } from '../utils/requireDefined';
 import type { Rect } from '../utils/rectRight';
 export type DraggedTabsAxes = 'vertical-only' | 'both';
-export type DraggedTabsLayoutMode = 'vertical' | 'squash';
-export interface DraggedLayoutView {
+type DraggedTabsLayoutMode = 'vertical' | 'squash';
+interface DraggedLayoutView {
 	id: string;
 	bounds: Rect;
 	source?: boolean;
@@ -16,7 +16,7 @@ interface DraggedViewVisualData {
 	shouldHide: boolean;
 	shouldFloat: boolean;
 }
-export interface DraggedTabsLayoutResult {
+interface DraggedTabsLayoutResult {
 	boundsRelativeToPointer: Rect;
 	views: readonly DraggedViewVisualData[];
 }
@@ -249,7 +249,7 @@ export function shouldRemainInVerticalTabGroup(
 		draggedBounds.height - groupHeaderHeight * 0.1,
 	);
 }
-export interface DragTargetLayoutChild {
+interface DragTargetLayoutChild {
 	id: string;
 	visible: boolean;
 	bounds: Rect;

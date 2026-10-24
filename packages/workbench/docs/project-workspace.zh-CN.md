@@ -38,7 +38,7 @@ ProjectWorkspaceState
           primaryDirectoryId, launchConfigurationId: nullable, terminalContextId }
 ```
 
-`Directory` 是领域术语，产品文案使用“文件夹”。`resourceScopeId` 是启动资源及回退 Directory 的稳定命名空间，不是另一种可见分组。多个 Workspace 可以共享它。移动或解散保留所有资源，包括未使用的 Directory 和启动配置。迁移后 scope ID 可以等于历史 Project ID，但其权限与生命周期独立。每个资源键都是 `(resourceScopeId, id)`。
+`Directory` 是领域术语，产品文案使用“文件夹”。`resourceScopeId` 是启动资源及回退 Directory 的稳定命名空间，不是另一种可见分组。多个 Workspace 可以共享它。移动或解散保留所有资源，包括未使用的 Directory 和启动配置。scope 与 Project 身份的权限与生命周期独立。每个资源键都是 `(resourceScopeId, id)`。
 
 Project 不定义仓库身份，也不拥有终端结构。一个项目可以含多个仓库，同一仓库可以出现在多个项目中。每个 Workspace 拥有独立的终端上下文，内含 Tab、Panel 与 presentation。启动配置只保留稳定引用和显示名称，可执行内容仍由宿主拥有。
 
@@ -194,10 +194,10 @@ Workbench 拥有纯组织模型、Action 适配器、资源对话框与客户端
 
 ## 正确性和验证
 
-确定性与固定种子生成测试覆盖独立创建、scope ID 冲突、移动/新建组/取消分组/解散、同级顺序、关闭与关闭全部、资源和选择保留、不可用回退、物理 Worktree 去重及拒绝转变。严格历史迁移测试覆盖图验证、未使用资源、序列冲突和无效 Client View。双客户端运行时测试保留上下文对象身份、焦点、子终端选择与放大；首 shell 分配失败不会发布结构。
+确定性与固定种子生成测试覆盖独立创建、scope ID 冲突、移动/新建组/取消分组/解散、同级顺序、关闭与关闭全部、资源和选择保留、不可用回退、物理 Worktree 去重及拒绝转变。当前形状测试覆盖图验证与无效 Client View。双客户端运行时测试保留上下文对象身份、焦点、子终端选择与放大；首 shell 分配失败不会发布结构。
 
-Hook 与组件测试覆盖立即创建、菜单、稳定管理目标、Agent 行及延迟激活抑制。Desktop 拥有异步 Git 竞争与部分结果保留；Web 拥有稳定路由和旧链接重定向。DOM 测试不能证明原生窗口焦点或实际 shell 进程行为。仓库集成 gate 仍由集成负责人执行。
+Hook 与组件测试覆盖立即创建、菜单、稳定管理目标、Agent 行及延迟激活抑制。Desktop 拥有异步 Git 竞争与部分结果保留；Web 拥有稳定路由与不可用身份。DOM 测试不能证明原生窗口焦点或实际 shell 进程行为。仓库集成 gate 仍由集成负责人执行。
 
 ## 交付与恢复
 
-GUI 共享文档从严格 v2 迁移到 v3；Client View 从 v1 迁移到 v2。迁移前验证完整旧图，迁移后验证完整新图。无效图绝不重置。既有 ID、资源顺序、未使用配置和上下文结构均保留。见 [shared-workbench-document.md](shared-workbench-document.zh-CN.md)。回退分组实现不能丢弃 v3 新增的未分组 Workspace 或资源命名空间；旧构建不能安全解释此模型。
+GUI 共享文档与 Client View 只接受当前 version-1 形状。完整图在使用前校验；无效图不会迁移、重置或修复。旧开发形状不享有兼容承诺。见 [shared-workbench-document.md](shared-workbench-document.zh-CN.md)。

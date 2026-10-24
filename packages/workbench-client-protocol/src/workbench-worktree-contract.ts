@@ -14,9 +14,9 @@ import {
 } from './workbench-terminal-launch-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_WORKTREE_OPERATION_BYTES = 96 * 1024;
-export const WORKBENCH_MAXIMUM_WORKTREE_OPERATION_ATTEMPTS = 64;
+const WORKBENCH_MAXIMUM_WORKTREE_OPERATION_ATTEMPTS = 64;
 
-export const WorktreeReferenceSchema = z
+const WorktreeReferenceSchema = z
 	.string()
 	.min(1)
 	.max(1024)
@@ -39,7 +39,7 @@ export const WorktreeSourceSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z.strictObject({ kind: z.literal('directory'), path: WorkbenchDirectoryPathSchema }).readonly(),
 ]);
-export const WorktreeSelectorSchema = z.discriminatedUnion('kind', [
+const WorktreeSelectorSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('path'), path: WorkbenchDirectoryPathSchema }).readonly(),
 	z.strictObject({ kind: z.literal('branch'), branch: WorktreeReferenceSchema }).readonly(),
 ]);
@@ -49,7 +49,7 @@ const launch = {
 	geometry: WorkbenchTerminalGeometrySchema,
 	trustRepository: z.boolean(),
 };
-export const WorktreeIntentSchema = z.discriminatedUnion('kind', [
+const WorktreeIntentSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('create'),
@@ -71,7 +71,7 @@ export const WorktreeIntentSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const WorkbenchWorktreeActionSchema = z.discriminatedUnion('kind', [
+const WorkbenchWorktreeActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('start'),
@@ -104,7 +104,7 @@ export const WorkbenchWorktreeRequestSchema = z
 		action: WorkbenchWorktreeActionSchema,
 	})
 	.readonly();
-export const WorktreeCheckoutFactsSchema = z
+const WorktreeCheckoutFactsSchema = z
 	.strictObject({
 		repositoryRoot: WorkbenchDirectoryPathSchema,
 		commonDirectory: WorkbenchDirectoryPathSchema,
@@ -113,7 +113,7 @@ export const WorktreeCheckoutFactsSchema = z
 		dirty: z.boolean(),
 	})
 	.readonly();
-export const WorktreeWorkspaceDispositionSchema = z.discriminatedUnion('kind', [
+const WorktreeWorkspaceDispositionSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('unassociated') }).readonly(),
 	z.strictObject({ kind: z.literal('open'), workspaceId: WorkbenchWorkspaceIdSchema }).readonly(),
 	z
@@ -124,7 +124,7 @@ export const WorktreeWorkspaceDispositionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const WorktreeOperationFailureSchema = z.discriminatedUnion('kind', [
+const WorktreeOperationFailureSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('git'),
@@ -194,7 +194,7 @@ const shellCountSchema = z
 	.min(0)
 	.max(4096)
 	.transform((value) => (value === 0 ? 0 : value));
-export const WorktreeShellRestorationSchema = z
+const WorktreeShellRestorationSchema = z
 	.strictObject({
 		total: shellCountSchema,
 		attempted: shellCountSchema,
@@ -212,7 +212,7 @@ export const WorktreeShellRestorationSchema = z
 		);
 	}, 'Restoration counts must describe one serial launch prefix')
 	.readonly();
-export const WorktreeProgressSchema = z
+const WorktreeProgressSchema = z
 	.strictObject({
 		path: WorkbenchDirectoryPathSchema.nullable(),
 		checkout: WorktreeCheckoutFactsSchema.nullable(),
@@ -225,7 +225,7 @@ export const WorktreeProgressSchema = z
 		'Checkout facts must match the retained path',
 	)
 	.readonly();
-export const WorktreeOperationStatusSchema = z.discriminatedUnion('kind', [
+const WorktreeOperationStatusSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('pending'),
@@ -311,19 +311,3 @@ export const WorkbenchWorktreeResultSchema = z
 		outcome: WorkbenchWorktreeOutcomeSchema,
 	})
 	.readonly();
-
-export type WorktreeReference = z.infer<typeof WorktreeReferenceSchema>;
-export type WorktreeSource = z.infer<typeof WorktreeSourceSchema>;
-export type WorktreeSelector = z.infer<typeof WorktreeSelectorSchema>;
-export type WorktreeIntent = z.infer<typeof WorktreeIntentSchema>;
-export type WorkbenchWorktreeAction = z.infer<typeof WorkbenchWorktreeActionSchema>;
-export type WorkbenchWorktreeRequest = z.infer<typeof WorkbenchWorktreeRequestSchema>;
-export type WorktreeCheckoutFacts = z.infer<typeof WorktreeCheckoutFactsSchema>;
-export type WorktreeWorkspaceDisposition = z.infer<typeof WorktreeWorkspaceDispositionSchema>;
-export type WorktreeProgress = z.infer<typeof WorktreeProgressSchema>;
-export type WorktreeOperationFailure = z.infer<typeof WorktreeOperationFailureSchema>;
-export type WorktreeOperationStatus = z.infer<typeof WorktreeOperationStatusSchema>;
-export type WorkbenchWorktreeOutcome = z.infer<typeof WorkbenchWorktreeOutcomeSchema>;
-export type WorkbenchWorktreeResult = z.infer<typeof WorkbenchWorktreeResultSchema>;
-
-export type WorktreeShellRestoration = z.infer<typeof WorktreeShellRestorationSchema>;

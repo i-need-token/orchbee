@@ -26,10 +26,10 @@ const cases = [
 	],
 	[
 		'native-settings-save',
-		'legacy import resurrects an explicit reset',
-		'value == IF k \\in s.importClaimed THEN s.importValues[k] ELSE 1',
-		'value == 1',
-		/Invariant ResetSurvivesMigration is violated/u,
+		'saved publication erases an unknown receipt',
+		'!.receipt[c] = IF @ = "unknown" THEN @ ELSE "saved"',
+		'!.receipt[c] = "saved"',
+		/Temporal properties were violated/u,
 	],
 	[
 		'session-viewer-routing',

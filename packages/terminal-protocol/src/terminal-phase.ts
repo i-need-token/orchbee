@@ -1,8 +1,6 @@
-import { z } from 'zod';
-
 // Wire vocabulary only. Terminal lifecycle transitions and invariants are
-// owned by apps/terminal-host; protocol consumers use this schema solely to
-// validate the phase carried by a terminal inventory summary.
+// owned by apps/terminal-host; protocol consumers use this vocabulary for
+// the phase carried by a terminal inventory summary.
 export const TerminalPhase = {
 	awaitingStart: 'awaiting-start',
 	containingFailure: 'containing-failure',
@@ -11,7 +9,5 @@ export const TerminalPhase = {
 	finishing: 'finishing',
 	running: 'running',
 } as const;
-
-export const TerminalPhaseSchema = z.enum(TerminalPhase);
 
 export type TerminalPhase = (typeof TerminalPhase)[keyof typeof TerminalPhase];

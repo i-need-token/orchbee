@@ -82,6 +82,3 @@ export const ConfiguredCommandSelectionSchema = z
 		return difference > -4096n && difference < 4096n;
 	})
 	.readonly();
-export type ConfiguredCommandDescriptor = z.infer<typeof ConfiguredCommandDescriptorSchema>;
-export type ConfiguredCommandPopupSpec = z.infer<typeof ConfiguredCommandPopupSpecSchema>;
-export type ConfiguredCommandSelection = z.infer<typeof ConfiguredCommandSelectionSchema>;

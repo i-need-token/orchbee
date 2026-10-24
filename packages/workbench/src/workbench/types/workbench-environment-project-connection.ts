@@ -1,4 +1,4 @@
-export type WorkbenchEnvironmentProjectConnectionState =
+type WorkbenchEnvironmentProjectConnectionState =
 	| 'blocked'
 	| 'connected'
 	| 'connecting'

@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import {
 	parseWorkbenchSharedDocument,
-	migrateWorkbenchSharedDocumentVersion1,
 	WorkbenchSharedDocumentRevisionSchema,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedDocumentRevision,
@@ -20,32 +19,25 @@ import {
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
 export interface FileWorkbenchDocumentStoreOptions {
-	readonly legacyFilePath?: string;
 	readonly randomToken?: () => string;
 	readonly synchronizeParentDirectory?: (directoryPath: string) => Promise<void>;
 }
 
 export class FileWorkbenchDocumentStore implements WorkbenchDocumentStore {
 	readonly #filePath: string;
-	readonly #legacyFilePath: string | undefined;
 	readonly #randomToken: () => string;
 	readonly #synchronizeParentDirectory: (directoryPath: string) => Promise<void>;
 	#operationTail = Promise.resolve();
 
 	constructor(filePath: string, options: FileWorkbenchDocumentStoreOptions = {}) {
 		this.#filePath = path.resolve(filePath);
-		this.#legacyFilePath =
-			options.legacyFilePath === undefined ? undefined : path.resolve(options.legacyFilePath);
-		if (this.#legacyFilePath === this.#filePath) {
-			throw new Error('Workbench document migration paths must be distinct.');
-		}
 		this.#randomToken = options.randomToken ?? (() => randomBytes(16).toString('hex'));
 		this.#synchronizeParentDirectory =
 			options.synchronizeParentDirectory ?? synchronizeParentDirectory;
 	}
 
 	load(): Promise<WorkbenchDocumentStoreLoadResult> {
-		return this.#enqueue(async () => this.#loadCurrentOrMigrate());
+		return this.#enqueue(async () => this.#loadCurrent());
 	}
 
 	commit(
@@ -58,7 +50,7 @@ export class FileWorkbenchDocumentStore implements WorkbenchDocumentStore {
 				: WorkbenchSharedDocumentRevisionSchema.parse(expectedRevision);
 		const canonicalDocument = parseWorkbenchSharedDocument(document);
 		return this.#enqueue(async () => {
-			const loaded = await this.#loadCurrentOrMigrate();
+			const loaded = await this.#loadCurrent();
 			const decision = decideWorkbenchDocumentCommit(
 				loaded,
 				canonicalExpectedRevision,
@@ -93,28 +85,6 @@ export class FileWorkbenchDocumentStore implements WorkbenchDocumentStore {
 		return readDocumentFile(this.#filePath);
 	}
 
-	async #loadCurrentOrMigrate(): Promise<WorkbenchDocumentStoreLoadResult> {
-		const current = await this.#loadCurrent();
-		if (current.kind !== 'missing' || this.#legacyFilePath === undefined) return current;
-		const legacy = await readDocumentFile(
-			this.#legacyFilePath,
-			migrateWorkbenchSharedDocumentVersion1,
-		);
-		if (legacy.kind !== 'available') return legacy;
-		try {
-			await this.#writeDocument(legacy.document);
-			return legacy;
-		} catch (error) {
-			if (!(error instanceof WorkbenchDocumentWriteError) || !error.renameCompleted) {
-				return { kind: 'unavailable', reason: 'write-failed' };
-			}
-			const reloaded = await this.#loadCurrent();
-			return reloaded.kind === 'available' && documentsEqual(reloaded.document, legacy.document)
-				? reloaded
-				: { kind: 'unavailable', reason: 'write-failed' };
-		}
-	}
-
 	async #writeDocument(document: WorkbenchSharedDocument): Promise<void> {
 		const canonical = parseWorkbenchSharedDocument(document);
 		const encoded = Buffer.from(`${JSON.stringify(canonical)}\n`, 'utf8');
@@ -146,10 +116,7 @@ export class FileWorkbenchDocumentStore implements WorkbenchDocumentStore {
 	}
 }
 
-async function readDocumentFile(
-	filePath: string,
-	parse: (value: unknown) => WorkbenchSharedDocument = parseWorkbenchSharedDocument,
-): Promise<WorkbenchDocumentStoreLoadResult> {
+async function readDocumentFile(filePath: string): Promise<WorkbenchDocumentStoreLoadResult> {
 	try {
 		const metadata = await stat(filePath);
 		if (!metadata.isFile()) return { kind: 'unavailable', reason: 'invalid' };
@@ -160,7 +127,7 @@ async function readDocumentFile(
 		} catch {
 			return { kind: 'unavailable', reason: 'invalid' };
 		}
-		const parsed = parseDocumentFile(value, parse);
+		const parsed = parseDocumentFile(value);
 		return parsed === null
 			? { kind: 'unavailable', reason: 'invalid' }
 			: { document: parsed, kind: 'available' };
@@ -170,12 +137,9 @@ async function readDocumentFile(
 	}
 }
 
-function parseDocumentFile(
-	value: unknown,
-	parse: (value: unknown) => WorkbenchSharedDocument,
-): WorkbenchSharedDocument | null {
+function parseDocumentFile(value: unknown): WorkbenchSharedDocument | null {
 	try {
-		return parse(value);
+		return parseWorkbenchSharedDocument(value);
 	} catch {
 		return null;
 	}
@@ -189,10 +153,6 @@ async function synchronizeParentDirectory(directoryPath: string): Promise<void> 
 	} finally {
 		await directoryHandle.close();
 	}
-}
-
-function documentsEqual(left: WorkbenchSharedDocument, right: WorkbenchSharedDocument): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
 }
 
 class WorkbenchDocumentWriteError extends Error {

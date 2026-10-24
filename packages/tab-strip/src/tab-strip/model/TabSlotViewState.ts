@@ -1,7 +1,7 @@
 import type { Rect } from '../utils/rectRight';
 import type { TabGroupId } from './tab-types';
 
-export type TabPinTransition = 'pinning' | 'unpinning';
+type TabPinTransition = 'pinning' | 'unpinning';
 
 /** Browser-independent state carried by Chromium's TabSlotView base class. */
 export class TabSlotViewState {

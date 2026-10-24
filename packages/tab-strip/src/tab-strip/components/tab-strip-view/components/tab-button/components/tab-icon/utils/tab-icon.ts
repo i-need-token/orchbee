@@ -9,7 +9,7 @@ export const TAB_ICON_CRASH_FRAMES_PER_SECOND = 25;
 export const TAB_ICON_THROBBER_ROTATION_MS = 1_568;
 const TAB_ICON_INCREASED_DISCARD_RADIUS = 2;
 
-export type TabIconNetworkState = NonNullable<TabData['networkState']>;
+type TabIconNetworkState = NonNullable<TabData['networkState']>;
 
 export interface TabIconVisualState {
 	networkState: TabIconNetworkState;
@@ -22,7 +22,7 @@ export interface TabIconVisualState {
 	increasedDiscardIndicatorRadius: number;
 }
 
-export interface TabIconCrashFrame {
+interface TabIconCrashFrame {
 	showingCrashedFavicon: boolean;
 	hidingFraction: number;
 }

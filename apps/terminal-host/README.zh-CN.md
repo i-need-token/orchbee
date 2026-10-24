@@ -11,7 +11,7 @@ Terminal Host 是 Orchbee 的本地权威终端执行服务。它拥有本机终
 - [桌面版](../desktop/README.md)拥有产品拓扑、恢复策略、展示、平台效果。
 - [Worker](../orchbee-worker/README.zh-CN.md) 拥有其尚未发布、Server-first 的本地 Broker 连接与对端存活耦合；它不拥有终端语义。
 
-已接受的 [Desktop 更新连续性提案](../../proposals/terminal-host/desktop-terminal-host-update-continuity.md)记录未来实现设计；它不是当前运行时权威。
+[原生运行时拓扑提案](../../proposals/platform/native-runtime-topology.zh-CN.md#desktop-main-目标处置) 将 Host 生命周期归 Worker，并取代旧 Desktop 更新连续性设计；目标提案不证明现行 Desktop 路径已经迁移。
 
 运行时契约已经接受，但这不表示当前所有实现路径都已符合契约。只有受影响的契约声明具备所需可执行证据时，行为变更才算完成。
 

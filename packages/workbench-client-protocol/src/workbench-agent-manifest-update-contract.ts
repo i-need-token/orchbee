@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { WorkbenchRevisionSchema } from './workbench-semantic-contract';
 const revision = WorkbenchRevisionSchema.refine((v) => v !== '0');
-export const AgentManifestUpdateFailureSchema = z.enum([
+const AgentManifestUpdateFailureSchema = z.enum([
 	'invalid-source',
 	'invalid-catalog',
 	'fetch',
@@ -64,7 +64,7 @@ const provider = z
 				row.attemptedVersion === row.cachedVersion,
 	)
 	.readonly();
-export const AgentManifestUpdateReportSchema = z
+const AgentManifestUpdateReportSchema = z
 	.strictObject({
 		version: z.literal(1),
 		catalogUrl: source,
@@ -91,7 +91,7 @@ export const AgentManifestsFailureSchema = z.enum([
 	'conflict',
 	'update-unavailable',
 ]);
-export const AgentManifestActivationSchema = z.discriminatedUnion('kind', [
+const AgentManifestActivationSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('not-attempted') }),
 	z.strictObject({ kind: z.literal('applied'), revision }),
 	z.strictObject({ kind: z.literal('failed'), reason: AgentManifestsFailureSchema }),
@@ -107,7 +107,7 @@ export const AgentManifestsOperationSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('applied'), revision }),
 	z.strictObject({ kind: z.literal('failed'), reason: AgentManifestsFailureSchema }),
 ]);
-export const AgentManifestAutomaticSchema = z
+const AgentManifestAutomaticSchema = z
 	.strictObject({
 		manifestCheck: z.boolean(),
 		manifestCheckSource: z.enum(['default', 'file']),
@@ -136,7 +136,3 @@ export const AgentManifestMaintenanceSchema = z
 		m.sourceUrl === null ? m.sourceError === 'invalid-source' : m.sourceError === null,
 	)
 	.readonly();
-export type AgentManifestUpdateReport = z.infer<typeof AgentManifestUpdateReportSchema>;
-export type AgentManifestMaintenance = z.infer<typeof AgentManifestMaintenanceSchema>;
-
-export type AgentManifestAutomatic = z.infer<typeof AgentManifestAutomaticSchema>;

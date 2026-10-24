@@ -9,7 +9,7 @@ import {
 	type AgentSessionSnapshot,
 } from './model';
 
-export type AgentTransitionRejection =
+type AgentTransitionRejection =
 	| 'capability-not-declared'
 	| 'capacity-exceeded'
 	| 'generation-mismatch'

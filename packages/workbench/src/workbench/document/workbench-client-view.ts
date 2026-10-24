@@ -60,26 +60,8 @@ const workbenchClientViewBaseSchema = z.strictObject({
 	activeLocation: activeLocationSchema,
 	expandedProjectIds: z.array(identifierSchema),
 	terminalContexts: z.array(terminalContextViewSchema),
-	version: z.literal(2),
+	version: z.literal(1),
 });
-
-const historicalWorkbenchClientViewSchema = z
-	.strictObject({
-		activeLocation: z.discriminatedUnion('kind', [
-			z.strictObject({ kind: z.literal('standalone') }),
-			z.strictObject({
-				kind: z.literal('workspace'),
-				projectId: identifierSchema,
-				workspaceId: identifierSchema,
-			}),
-		]),
-		expandedProjectIds: z.array(identifierSchema),
-		terminalContexts: z.array(terminalContextViewSchema),
-		version: z.literal(1),
-	})
-	.superRefine((view, context) => {
-		for (const message of validateClientView(view)) context.addIssue({ code: 'custom', message });
-	});
 
 export const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefine(
 	(view, context) => {
@@ -90,24 +72,14 @@ export const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefi
 );
 
 export type WorkbenchClientView = z.infer<typeof WorkbenchClientViewSchema>;
-export type WorkbenchClientViewInput = Omit<WorkbenchClientView, 'version'>;
+type WorkbenchClientViewInput = Omit<WorkbenchClientView, 'version'>;
 
 export function createWorkbenchClientView(input: WorkbenchClientViewInput): WorkbenchClientView {
-	return WorkbenchClientViewSchema.parse({ ...input, version: 2 });
+	return WorkbenchClientViewSchema.parse({ ...input, version: 1 });
 }
 
 export function parseWorkbenchClientView(value: unknown): WorkbenchClientView {
-	const version = z.object({ version: z.number() }).parse(value).version;
-	if (version !== 1) return WorkbenchClientViewSchema.parse(value);
-	const historical = historicalWorkbenchClientViewSchema.parse(value);
-	return WorkbenchClientViewSchema.parse({
-		...historical,
-		version: 2,
-		activeLocation:
-			historical.activeLocation.kind === 'standalone'
-				? historical.activeLocation
-				: { kind: 'workspace', workspaceId: historical.activeLocation.workspaceId },
-	});
+	return WorkbenchClientViewSchema.parse(value);
 }
 
 export function createDefaultWorkbenchClientView(

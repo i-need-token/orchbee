@@ -76,7 +76,7 @@ describe('ApplicationLocaleController', () => {
 		expect(controller.select('zh-CN')).toEqual({ kind: 'applied-and-saved' });
 		expect(controller.getSnapshot().preference).toBe('zh-CN');
 		expect(storage.setItem).toHaveBeenCalledWith(
-			'orchbee:web:application-locale:v2',
+			'orchbee:web:locale-preference:v1',
 			'{"locale":"zh-CN"}',
 		);
 	});

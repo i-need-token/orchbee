@@ -1,7 +1,7 @@
 import { AgentRuntimeSnapshotSchema, AgentSemanticEventSchema } from '@orchbee/agent';
 import { z } from 'zod';
 
-export const DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION = 2;
+export const DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION = 1;
 
 export const DesktopAgentObservationRequestIdSchema = z
 	.string()
@@ -30,12 +30,6 @@ export const DesktopAgentObservationMainEventSchema = z.discriminatedUnion('type
 	}),
 ]);
 
-export type DesktopAgentObservationMainEvent = z.infer<
-	typeof DesktopAgentObservationMainEventSchema
->;
-export type DesktopAgentObservationRendererCommand = z.infer<
-	typeof DesktopAgentObservationRendererCommandSchema
->;
 export type DesktopAgentObservationRequestId = z.infer<
 	typeof DesktopAgentObservationRequestIdSchema
 >;

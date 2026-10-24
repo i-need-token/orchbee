@@ -22,31 +22,17 @@ export type {
 	TerminalPresentationRemovalId,
 } from './terminal-presentation-contracts';
 export {
-	TerminalThemeFailureSchema,
-	TerminalThemeHostStateSchema,
-	TerminalThemeOperationIdSchema,
-	TerminalThemeRevisionSchema,
-	TerminalThemeSnapshotSchema,
-	createTerminalThemeRevisionState,
 	createTerminalThemeRevisionStateFromHost,
 	normalizeTerminalThemeHostState,
 	normalizeTerminalThemeSnapshot,
 	terminalThemeOperationId,
-	terminalThemeRevision,
 	transitionTerminalThemeRevision,
 } from './terminal-theme-revision';
 export type {
-	ActiveTerminalThemeRevision,
 	TerminalThemeFailure,
-	TerminalThemeHostSnapshot,
-	TerminalThemeHostState,
 	TerminalThemeOperationId,
-	TerminalThemePresentationCommit,
-	TerminalThemePresentationMode,
-	TerminalThemeRevision,
 	TerminalThemeRevisionCommand,
 	TerminalThemeRevisionEvent,
 	TerminalThemeRevisionState,
-	TerminalThemeRevisionTransition,
 	TerminalThemeSnapshot,
 } from './terminal-theme-revision';

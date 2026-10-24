@@ -16,17 +16,10 @@ import {
 } from './workbench-workspace-metadata-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_PANEL_METADATA_RESULT_BYTES = 512 * 1024;
-export const MetadataStateSchema = z.enum([
-	'idle',
-	'working',
-	'blocked',
-	'done',
-	'error',
-	'unknown',
-]);
+const MetadataStateSchema = z.enum(['idle', 'working', 'blocked', 'done', 'error', 'unknown']);
 const labels = z.partialRecord(MetadataStateSchema, MetadataTokenValueSchema).readonly();
 const optionalValue = MetadataTokenValueSchema.nullish().transform((value) => value ?? undefined);
-export const PanelMetadataPatchSchema = z
+const PanelMetadataPatchSchema = z
 	.strictObject({
 		agent: optionalValue,
 		appliesToSource: MetadataSourceSchema.nullish().transform((value) => value ?? undefined),
@@ -53,7 +46,7 @@ export const PanelMetadataPatchSchema = z
 		'Empty report or conflicting set and clear',
 	)
 	.readonly();
-export const PanelMetadataActionSchema = z.discriminatedUnion('kind', [
+const PanelMetadataActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('read-presentations'),
@@ -110,7 +103,7 @@ export const PanelMetadataActionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const PanelMetadataFailureSchema = z.enum([
+const PanelMetadataFailureSchema = z.enum([
 	'invalid-request',
 	'site-mismatch',
 	'not-found',
@@ -125,13 +118,13 @@ export const PanelMetadataFailureSchema = z.enum([
 	'deadline-overflow',
 	'result-too-large',
 ]);
-export const PanelMetadataFieldSchema = z
+const PanelMetadataFieldSchema = z
 	.strictObject({
 		value: MetadataTokenValueSchema,
 		order: WorkbenchRevisionSchema.refine((value) => value !== '0'),
 	})
 	.readonly();
-export const PanelMetadataPresentationSchema = z
+const PanelMetadataPresentationSchema = z
 	.strictObject({
 		source: MetadataSourceSchema,
 		agent: MetadataTokenValueSchema.nullable(),
@@ -144,7 +137,7 @@ export const PanelMetadataPresentationSchema = z
 		(p) => p.title !== null || p.displayAgent !== null || Object.keys(p.stateLabels).length > 0,
 	)
 	.readonly();
-export const PanelMetadataRowSchema = z
+const PanelMetadataRowSchema = z
 	.strictObject({
 		panelId: WorkbenchPanelIdSchema,
 		binding: WorkbenchPresentationBindingSchema.nullable(),
@@ -186,13 +179,13 @@ function validateFieldOrders(
 		}
 	}
 }
-export const PresentationMetadataRowSchema = z
+const PresentationMetadataRowSchema = z
 	.strictObject({
 		presentationId: TerminalPresentationIdSchema,
 		panel: PanelMetadataRowSchema,
 	})
 	.readonly();
-export const PanelMetadataOutcomeSchema = z.discriminatedUnion('kind', [
+const PanelMetadataOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('presentations-read'),
@@ -268,14 +261,3 @@ export const PanelMetadataResultSchema = z
 		outcome: PanelMetadataOutcomeSchema,
 	})
 	.readonly();
-export type MetadataState = z.infer<typeof MetadataStateSchema>;
-export type PanelMetadataPatch = z.infer<typeof PanelMetadataPatchSchema>;
-export type PanelMetadataAction = z.infer<typeof PanelMetadataActionSchema>;
-export type PanelMetadataFailure = z.infer<typeof PanelMetadataFailureSchema>;
-export type PanelMetadataField = z.infer<typeof PanelMetadataFieldSchema>;
-export type PanelMetadataPresentation = z.infer<typeof PanelMetadataPresentationSchema>;
-export type PanelMetadataRow = z.infer<typeof PanelMetadataRowSchema>;
-export type PanelMetadataOutcome = z.infer<typeof PanelMetadataOutcomeSchema>;
-export type PanelMetadataRequest = z.infer<typeof PanelMetadataRequestSchema>;
-export type PanelMetadataResult = z.infer<typeof PanelMetadataResultSchema>;
-export type PresentationMetadataRow = z.infer<typeof PresentationMetadataRowSchema>;

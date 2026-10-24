@@ -49,7 +49,7 @@ export type WorkbenchTerminalLocationActivationCommand =
 			readonly targetLocation: WorkbenchActiveLocation;
 	  };
 
-export interface WorkbenchTerminalLocationActivationTransition {
+interface WorkbenchTerminalLocationActivationTransition {
 	readonly commands: readonly WorkbenchTerminalLocationActivationCommand[];
 	readonly state: WorkbenchTerminalLocationActivationState;
 }

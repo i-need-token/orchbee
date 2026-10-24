@@ -1,5 +1,7 @@
 # @orchbee/agent
 
+私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
+
 Orchbee 中 observed Agent 状态的 provider-neutral 领域模型与确定性运行时。
 
 该包是 canonical observed Agent Session、Turn、Attention Request、Outcome、hierarchy、provenance、freshness、generation fencing 与 presentation projection 语义的唯一 owner。它不包含 provider adapter、Electron 或 React 依赖、transport 实现、平台 effect、prompt submission 或 Agent orchestration 权威。其机器可读 scope 由 [`project.json`](project.json) 定义。

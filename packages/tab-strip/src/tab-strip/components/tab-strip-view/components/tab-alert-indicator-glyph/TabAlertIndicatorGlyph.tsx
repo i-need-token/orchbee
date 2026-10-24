@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { TabAlertState } from '../../../../model/tab-model';
 import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
 
-export interface TabAlertIndicatorGlyphProps {
+interface TabAlertIndicatorGlyphProps {
 	state: TabAlertState;
 }
 

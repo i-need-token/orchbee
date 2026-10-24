@@ -12,7 +12,7 @@ import {
 	WorkbenchTerminalContextIdSchema,
 } from './workbench-semantic-contract';
 
-export const PluginPopupSizeSchema = z.discriminatedUnion('kind', [
+const PluginPopupSizeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('cells'), value: z.number().int().min(0).max(65535) }),
 	z.strictObject({ kind: z.literal('percent'), value: z.number().int().min(1).max(100) }),
 ]);
@@ -41,5 +41,3 @@ export const PluginPopupSpecSchema = z
 		(spec) => new TextEncoder().encode(JSON.stringify(spec.source.member)).byteLength <= 4 * 1024,
 	)
 	.readonly();
-export type PluginPopupSize = z.infer<typeof PluginPopupSizeSchema>;
-export type PluginPopupSpec = z.infer<typeof PluginPopupSpecSchema>;

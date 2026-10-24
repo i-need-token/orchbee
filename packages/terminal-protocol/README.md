@@ -1,5 +1,7 @@
 # Terminal Protocol
 
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+
 `@orchbee/terminal-protocol` is the TypeScript binding for the language-neutral [Terminal contract](../../schemas/terminal/README.md) between the native Terminal Host and its local clients. It implements protocol identities, exact current-version validation, safety limits, control schemas, attachment-prefixed binary input, and terminal-frame, transport-envelope, row-window and selection-export codecs.
 
 It does not open sockets or named pipes, spawn processes, parse VT, route Electron IPC, render a terminal, or own terminal lifecycle, delivery, recovery, Project, Workspace, Workbench, Tab, Panel, agent, or product-session state.

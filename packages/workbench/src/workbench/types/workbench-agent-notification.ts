@@ -1,6 +1,6 @@
 import type { AgentSemanticEvent } from '@orchbee/agent';
 
-export interface WorkbenchAgentNotificationRequest {
+interface WorkbenchAgentNotificationRequest {
 	readonly body: string;
 	readonly onActivate: () => void;
 	readonly tag: string;

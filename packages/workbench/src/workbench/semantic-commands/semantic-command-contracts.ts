@@ -15,17 +15,17 @@ export type WorkbenchLocationRef =
 			readonly workspaceId: string;
 	  };
 
-export interface WorkbenchSemanticReadSnapshot<Item> {
+interface WorkbenchSemanticReadSnapshot<Item> {
 	readonly items: readonly Item[];
 	readonly revision: WorkbenchSharedDocumentRevision;
 }
 
-export interface WorkbenchProjectListItem {
+interface WorkbenchProjectListItem {
 	readonly name: string;
 	readonly projectId: string;
 }
 
-export interface WorkbenchDirectoryListItem {
+interface WorkbenchDirectoryListItem {
 	readonly available: boolean;
 	readonly directoryId: string;
 	readonly kind: 'folder' | 'worktree';
@@ -36,7 +36,7 @@ export interface WorkbenchDirectoryListItem {
 	readonly source: 'created' | 'discovered' | 'selected';
 }
 
-export interface WorkbenchWorkspaceListItem {
+interface WorkbenchWorkspaceListItem {
 	readonly projectId: string | null;
 	readonly resourceScopeId: string;
 	readonly name: string;
@@ -44,7 +44,7 @@ export interface WorkbenchWorkspaceListItem {
 	readonly workspaceId: string;
 }
 
-export interface WorkbenchTabListItem {
+interface WorkbenchTabListItem {
 	readonly groupId: string | null;
 	readonly panelCount: number;
 	readonly pinned: boolean;
@@ -79,7 +79,7 @@ export interface WorkbenchTerminalListItem {
 	readonly terminalTitle: string;
 }
 
-export type WorkbenchSemanticReadRejection =
+type WorkbenchSemanticReadRejection =
 	| { readonly kind: 'rejected'; readonly reason: 'resource-scope-not-found' }
 	| { readonly kind: 'rejected'; readonly reason: 'project-not-found' }
 	| { readonly kind: 'rejected'; readonly reason: 'workspace-not-found' }
@@ -124,7 +124,7 @@ export type WorkbenchTerminalCreateIntent =
 			readonly operationId: TerminalPresentationOperationId;
 	  };
 
-export interface WorkbenchTerminalCreateOperationCreated {
+interface WorkbenchTerminalCreateOperationCreated {
 	readonly intent: WorkbenchTerminalCreateIntent;
 	readonly kind: 'created';
 	readonly panelId: string;
@@ -133,7 +133,7 @@ export interface WorkbenchTerminalCreateOperationCreated {
 	readonly terminalContextId: string;
 }
 
-export type WorkbenchTerminalCreateRejectionReason =
+type WorkbenchTerminalCreateRejectionReason =
 	| 'explicit-directory-not-found'
 	| 'explicit-directory-unavailable'
 	| 'project-not-found'

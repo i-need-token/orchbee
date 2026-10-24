@@ -33,7 +33,7 @@ const correlation = {
 	requestId: WorkbenchRequestIdSchema,
 	siteId: SiteIdSchema,
 };
-export const ConfiguredCommandInvocationSchema = z
+const ConfiguredCommandInvocationSchema = z
 	.strictObject({
 		commandId: ConfiguredCommandIdSchema,
 		expectedRevision: WorkbenchRevisionSchema,
@@ -194,6 +194,3 @@ export const ConfiguredCommandResultSchema = z
 	})
 	.refine(bounded)
 	.readonly();
-export type ConfiguredCommandInvocation = z.infer<typeof ConfiguredCommandInvocationSchema>;
-export type ConfiguredCommandRequest = z.infer<typeof ConfiguredCommandRequestSchema>;
-export type ConfiguredCommandResult = z.infer<typeof ConfiguredCommandResultSchema>;

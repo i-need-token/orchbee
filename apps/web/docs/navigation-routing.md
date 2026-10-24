@@ -18,21 +18,20 @@ route tree through a separately accepted change before becoming current behavior
 
 ## Route tree
 
-| Path                                                           | Resolution                                                                    |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `/`                                                            | Current canonical route from reconciled Client View                           |
-| `/terminal`                                                    | First standalone Tab or empty standalone context                              |
-| `/terminal/tabs`                                               | First standalone Tab or `/terminal`                                           |
-| `/terminal/tabs/$tabId`                                        | Exact standalone Tab                                                          |
-| `/workspaces/$workspaceId`                                     | First Tab or empty Workspace context                                          |
-| `/workspaces/$workspaceId/tabs`                                | First Tab or empty Workspace route                                            |
-| `/workspaces/$workspaceId/tabs/$tabId`                         | Exact Workspace and Tab, independent of grouping                              |
-| `/projects`                                                    | First globally ordered Workspace, including ungrouped, or standalone          |
-| `/projects/$projectId`                                         | First current member Workspace and its first Tab                              |
-| `/projects/$projectId/workspaces`                              | Same current-member resolution                                                |
-| `/projects/$projectId/workspaces/$workspaceId[/tabs[/$tabId]]` | Legacy link; resolve stable Workspace/Tab then replace with `/workspaces/...` |
+| Path                                   | Resolution                                                           |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `/`                                    | Current canonical route from reconciled Client View                  |
+| `/terminal`                            | First standalone Tab or empty standalone context                     |
+| `/terminal/tabs`                       | First standalone Tab or `/terminal`                                  |
+| `/terminal/tabs/$tabId`                | Exact standalone Tab                                                 |
+| `/workspaces/$workspaceId`             | First Tab or empty Workspace context                                 |
+| `/workspaces/$workspaceId/tabs`        | First Tab or empty Workspace route                                   |
+| `/workspaces/$workspaceId/tabs/$tabId` | Exact Workspace and Tab, independent of grouping                     |
+| `/projects`                            | First globally ordered Workspace, including ungrouped, or standalone |
+| `/projects/$projectId`                 | First current member Workspace and its first Tab                     |
+| `/projects/$projectId/workspaces`      | Same current-member resolution                                       |
 
-Project-qualified Workspace links remain usable after the Workspace moves or its former group dissolves. Their Project segment is historical context, not identity or authority. Group-only links still require the current Project. Missing explicit Workspace or Tab identity remains unavailable at the entered address and never selects a different entity. An empty group has no terminal route.
+Workspace links use stable Workspace/Tab identities. Old Project-qualified Workspace paths are outside the route tree. Group-only links still require the current Project. Missing explicit Workspace or Tab identity remains unavailable at the entered address and never selects a different entity. An empty group has no terminal route.
 
 Incomplete routes resolve by authoritative order, then replace history with the deepest available canonical route. Parameters are stable IDs, encoded as one segment and decoded once. Query strings and fragments do not select objects. `/settings` and `/login` remain outside the current route tree.
 

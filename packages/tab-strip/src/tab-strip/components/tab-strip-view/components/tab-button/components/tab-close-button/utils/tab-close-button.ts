@@ -2,7 +2,7 @@ const TAB_CLOSE_ICON_SIZE = 16;
 const TAB_CLOSE_TOUCH_ICON_SIZE = 24;
 const TAB_CLOSE_BUTTON_PADDING = 12;
 
-export interface TabCloseButtonMetrics {
+interface TabCloseButtonMetrics {
 	iconSize: number;
 	buttonSize: number;
 	nonVisiblePadding: number;
@@ -18,7 +18,7 @@ export function getTabCloseButtonMetrics(touchUi = false): TabCloseButtonMetrics
 	};
 }
 
-export interface TabCloseTargetInput {
+interface TabCloseTargetInput {
 	x: number;
 	y: number;
 	touchDown?: boolean;

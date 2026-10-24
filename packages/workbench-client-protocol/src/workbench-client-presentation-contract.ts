@@ -30,5 +30,3 @@ export const ClientPresentationSnapshotSchema = z
 	})
 	.refine((value) => new TextEncoder().encode(JSON.stringify(value)).byteLength <= 4 * 1024)
 	.readonly();
-export type ClientPresentationSelection = z.infer<typeof ClientPresentationSelectionSchema>;
-export type ClientPresentationSnapshot = z.infer<typeof ClientPresentationSnapshotSchema>;

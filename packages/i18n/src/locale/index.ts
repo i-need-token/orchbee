@@ -4,4 +4,4 @@ export {
 	ORCHBEE_LOCALES,
 	resolveOrchbeeLocale,
 } from './locale';
-export type { OrchbeeLocale, OrchbeeTextDirection } from './locale';
+export type { OrchbeeLocale } from './locale';

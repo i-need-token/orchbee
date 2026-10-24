@@ -6,7 +6,7 @@ import { getVerticalBottomContainerPresentation } from './utils/vertical-tab-str
 import { FlatEdgeButton } from '../flat-edge-button/FlatEdgeButton';
 import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages';
 
-export interface VerticalTabStripBottomContainerProps {
+interface VerticalTabStripBottomContainerProps {
 	collapseState: VerticalTabStripCollapseState;
 	onNewTab: () => void;
 	disabled?: boolean | undefined;

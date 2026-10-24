@@ -16,7 +16,7 @@ export const HoverCardUpdateType = {
 
 export type HoverCardUpdateType = (typeof HoverCardUpdateType)[keyof typeof HoverCardUpdateType];
 
-export interface HoverCardTarget {
+interface HoverCardTarget {
 	id: string;
 	width: number;
 	minimumWidth: number;
@@ -58,7 +58,7 @@ export function getHoverCardShowDelay(
 	return Math.round(delay);
 }
 
-export class ScopedHideHoverCardLock {
+class ScopedHideHoverCardLock {
 	private disposed = false;
 	private controller: TabHoverCardController | null;
 
@@ -297,7 +297,7 @@ export type ThumbnailWaitState = (typeof ThumbnailWaitState)[keyof typeof Thumbn
 
 export type ThumbnailPresentation = 'none' | 'placeholder' | 'crashed' | 'thumbnail';
 
-export interface ThumbnailPlanInput {
+interface ThumbnailPlanInput {
 	previewsEnabled: boolean;
 	needsThumbnail: boolean;
 	isGroup: boolean;
@@ -311,7 +311,7 @@ export interface ThumbnailPlanInput {
 	crossfadeStart: number | null;
 }
 
-export interface ThumbnailPlan {
+interface ThumbnailPlan {
 	presentation: ThumbnailPresentation;
 	waitState: ThumbnailWaitState;
 	captureDelayMs: number | null;

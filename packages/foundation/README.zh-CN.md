@@ -10,7 +10,7 @@ API 只有在具备具体的工作区使用方，并且脱离产品、功能、�
 
 ## React
 
-`@orchbee/foundation/react` 拥有语义依赖 React 渲染生命周期的领域无关原语。React 是 peer dependency。根入口当前重新导出 `useMemoizedFn`；需要明确依赖边界时，使用方可以改用显式的 React 入口。
+`@orchbee/foundation/react` 拥有语义依赖 React 渲染生命周期的领域无关原语。React 是 peer dependency。`useMemoizedFn` 只从显式 React 子路径导出；根入口没有兼容别名。
 
 ```ts
 import { useMemoizedFn } from '@orchbee/foundation/react';

@@ -20,16 +20,7 @@ GUI/TUI 共同语义与主题对应关系遵循
 }
 ```
 
-需要 CSS 变量引用的 JavaScript 消费者可以使用类型化库存：
-
-```ts
-import { designToken, responsiveBreakpoints } from '@orchbee/design-tokens';
-
-const foreground = designToken('--ob-sys-color-text-primary');
-const compactViewport = responsiveBreakpoints.sm;
-```
-
-`designTokenNames` 导出是完整的公共 CSS 自定义属性清单。[`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) 根据 [`src/tokens.css`](src/tokens.css) 生成该清单与 `responsiveBreakpoints`；包测试和仓库样式检查会拒绝过时输出。
+根入口没有 JavaScript API；产品通过 CSS 自定义属性消费令牌。[`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) 从 [`src/tokens.css`](src/tokens.css) 生成内部 `designTokenNames` 与 `responsiveBreakpoints` 清单，供包测试与仓库样式检查使用并拒绝过时输出。
 
 ## Tailwind 兼容性
 
@@ -64,7 +55,7 @@ Tailwind 的内部 `--tw-*` 实用程序状态故意位于设计令牌库存之�
 
 创作的动作使用语义持续时间和缓动标记。当用户请求减少运动时，注册表将非即时语义持续时间映射到即时。
 
-CSS 自定义属性无法在媒体查询条件中求值。只能把导出的 `responsiveBreakpoints` 值用作字面量 `@media` 或 `@container` 阈值；仓库样式检查会强制执行少量明确例外。
+CSS 自定义属性无法在媒体查询条件中求值。只能把生成的 `responsiveBreakpoints` 清单值用作字面量 `@media` 或 `@container` 阈值；仓库样式检查会强制执行少量明确例外。
 
 24rem 的 `xs` 断点用于窄屏手机，展示标题与主要操作在该宽度下需要更紧凑的排列。
 

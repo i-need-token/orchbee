@@ -22,8 +22,6 @@ export function SharedPreferenceStatus({
 	if (state.pending) descriptor = terminalSettingsMessages.sharedPending;
 	else if (state.failure === 'outcome-unknown') descriptor = terminalSettingsMessages.sharedUnknown;
 	else if (state.failure === 'source-changed') descriptor = terminalSettingsMessages.sharedConflict;
-	else if (state.failure === 'legacy-unavailable' || state.legacyIssue)
-		descriptor = terminalSettingsMessages.sharedLegacy;
 	else if (!state.available) descriptor = terminalSettingsMessages.sharedUnavailable;
 	else if (state.failure !== null) descriptor = terminalSettingsMessages.sharedFailed;
 	else if (state.applicationIssue !== null) descriptor = terminalSettingsMessages.sharedHost;

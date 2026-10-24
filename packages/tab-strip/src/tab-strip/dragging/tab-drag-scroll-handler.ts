@@ -13,7 +13,7 @@ export interface TabDragScrollable {
 	setDragOverflowGradient?(gradient: TabDragOverflowGradient): void;
 }
 
-export interface TabDragScrollSnapshot {
+interface TabDragScrollSnapshot {
 	scrolling: boolean;
 	increment: number;
 	gradient: TabDragOverflowGradient;

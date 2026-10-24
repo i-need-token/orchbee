@@ -7,7 +7,7 @@ export const ExpandOnHoverLockType = {
 export type ExpandOnHoverLockType =
 	(typeof ExpandOnHoverLockType)[keyof typeof ExpandOnHoverLockType];
 
-export interface VerticalExpandOnHoverEnvironment {
+interface VerticalExpandOnHoverEnvironment {
 	shouldDisplayVerticalTabs: boolean;
 	collapsed: boolean;
 	enabled: boolean;
@@ -25,7 +25,7 @@ export interface VerticalExpandOnHoverSnapshot {
 	keepExpandedLocks: number;
 }
 
-export interface VerticalExpandOnHoverHeuristicOptions {
+interface VerticalExpandOnHoverHeuristicOptions {
 	useVelocityHeuristic: boolean;
 	velocityDelayMs: number;
 	minimumSamples: number;

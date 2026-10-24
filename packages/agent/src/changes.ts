@@ -10,10 +10,10 @@ import {
 } from './model';
 import { AgentSemanticStatusSchema, projectAgentSession } from './projection';
 
-export const AGENT_RUNTIME_CHANGE_RETENTION = 512;
+const AGENT_RUNTIME_CHANGE_RETENTION = 512;
 export const MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE = 100;
 
-export const AgentObservationTransitionKindSchema = z.enum(
+const AgentObservationTransitionKindSchema = z.enum(
 	completeAgentObservationTransitionKinds([
 		'session-observed',
 		'turn-started',
@@ -31,7 +31,7 @@ export const AgentObservationTransitionKindSchema = z.enum(
 	]),
 );
 
-export const AgentRuntimeChangeSessionSchema = z.strictObject({
+const AgentRuntimeChangeSessionSchema = z.strictObject({
 	lifecycle: z.enum(['live', 'ended']),
 	observation: AgentObservationSchema,
 	parentSessionId: AgentSessionIdSchema.nullable(),
@@ -47,7 +47,7 @@ export const AgentRuntimeChangeSchema = z.strictObject({
 	transition: AgentObservationTransitionKindSchema,
 });
 
-export const AgentRuntimeChangeReadInputSchema = z.strictObject({
+const AgentRuntimeChangeReadInputSchema = z.strictObject({
 	afterRevision: z.number().int().nonnegative().safe(),
 	limit: z.number().int().min(1).max(MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE),
 });
@@ -114,11 +114,10 @@ export const AgentRuntimeChangeReadResultSchema = z
 		);
 	});
 
-export type AgentObservationTransitionKind = z.infer<typeof AgentObservationTransitionKindSchema>;
 export type AgentRuntimeChange = z.infer<typeof AgentRuntimeChangeSchema>;
 export type AgentRuntimeChangeReadInput = z.infer<typeof AgentRuntimeChangeReadInputSchema>;
 export type AgentRuntimeChangeReadResult = z.infer<typeof AgentRuntimeChangeReadResultSchema>;
-export type AgentRuntimeChangeSession = z.infer<typeof AgentRuntimeChangeSessionSchema>;
+type AgentRuntimeChangeSession = z.infer<typeof AgentRuntimeChangeSessionSchema>;
 
 export function createAgentRuntimeChange(
 	snapshot: AgentRuntimeSnapshot,

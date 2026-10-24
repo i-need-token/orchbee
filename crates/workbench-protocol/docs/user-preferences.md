@@ -63,11 +63,7 @@ no explicit override is present; release uses the native platform location. A TU
 development identity must select the same absolute `ORCHBEE_CONFIG_FILE`. This keeps development
 preferences isolated from the installed release while preserving one authority within each scope.
 
-Read returns a complete validated snapshot, exact source token, claimed keys,
-and separate Desktop Main/renderer import receipts. Source is `missing` or a
-lowercase SHA-256 token; before initial materialization it also accounts for the
-explicit legacy native source. Invalid, unreadable, unsafe, or oversized sources
-are refused without replacement. The complete record/exchange is bounded at 2 MiB.
+Read returns a complete validated snapshot, exact source token and claimed keys. Source is `missing` or a lowercase SHA-256 token; before the first persisted record it also covers the explicit legacy native source. Invalid, unreadable, unsafe or oversized sources are refused rather than replaced. The complete record/exchange bound is 2 MiB.
 
 An update contains an expected source and a nonempty typed patch. Omitted keys
 remain unchanged; null resets a key to its canonical default. An OS-held lock
@@ -78,13 +74,7 @@ automatically replayed. A saved snapshot describes that commit, not immunity
 from a later edit. Noncooperating external editors are outside the shared lock's
 transaction boundary.
 
-Explicit native legacy values seed and claim their own keys. Desktop Main imports
-launch/default settings; renderer imports the other common preferences. Each part
-has a one-time receipt and fills only unclaimed keys. Explicit edits and resets
-claim keys even when the reset value already equals the default, so a delayed
-legacy import cannot resurrect an old choice. Import order is immaterial for
-claimed keys. Legacy sources are preserved; malformed legacy input is reported,
-not marked successfully imported.
+Explicit native legacy values still seed and claim their own keys. Desktop Main and renderer only read or update the current shared record; old-record imports and import receipts are not admitted. Explicit edits and resets claim keys even when the reset value already equals the default. Native initial-source admission remains separate from Desktop transport ownership.
 
 ## Client behavior and capability boundaries
 
@@ -121,6 +111,6 @@ commit failures; the matched helper tests the real bounded process exchange.
 Desktop and native tests check draft/source ownership, publication, disposal,
 launch capture, and existing-terminal presentation. The
 [native settings model](../../../apps/orchbee/docs/native-settings.md#correctness-and-evidence)
-checks two writers, separate imports, resets, uncertain receipts and publication.
+checks two writers, resets, uncertain receipts and publication.
 Physical GUI/TUI acceptance remains required for visible synchronization and
 host-specific effects; cross-compilation alone is not runtime acceptance.

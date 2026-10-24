@@ -20,16 +20,7 @@ Import the CSS registry once through the application stylesheet or a compatibili
 }
 ```
 
-JavaScript consumers that need a CSS variable reference can use the typed inventory:
-
-```ts
-import { designToken, responsiveBreakpoints } from '@orchbee/design-tokens';
-
-const foreground = designToken('--ob-sys-color-text-primary');
-const compactViewport = responsiveBreakpoints.sm;
-```
-
-The `designTokenNames` export is the complete public CSS custom-property inventory. [`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) generates that inventory and `responsiveBreakpoints` from [`src/tokens.css`](src/tokens.css); package tests and the repository style check reject stale output.
+The root has no JavaScript API; products consume CSS custom properties. [`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) generates the internal `designTokenNames` and `responsiveBreakpoints` inventories from [`src/tokens.css`](src/tokens.css); package tests and repository style checks use them to reject stale output.
 
 ## Tailwind compatibility
 
@@ -64,7 +55,7 @@ The sans and code stacks include explicit Chinese system-font fallbacks, avoidin
 
 Authored motion uses the semantic duration and easing tokens. The registry maps non-instant semantic durations to instant when the user requests reduced motion.
 
-CSS custom properties cannot be evaluated in media-query conditions. Use only the exported `responsiveBreakpoints` values as literal `@media` or `@container` thresholds; the repository style check enforces that finite exception.
+CSS custom properties cannot be evaluated in media-query conditions. Use only the generated `responsiveBreakpoints` inventory values as literal `@media` or `@container` thresholds; the repository style check enforces that finite exception.
 
 The `xs` breakpoint at 24rem distinguishes narrow phone layouts where display headings and primary actions need a more compact arrangement.
 

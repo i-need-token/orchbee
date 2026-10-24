@@ -7,7 +7,7 @@ const TAB_CLOSE_WATCH_TRAILING_SLOP = 60;
 
 export type TabCloseSource = 'mouse' | 'touch' | 'non-ui';
 
-export interface TabClosingWidthInput {
+interface TabClosingWidthInput {
 	currentOverride: number | null;
 	containerWidth: number;
 	modelCountAfterRemoval: number;

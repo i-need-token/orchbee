@@ -5,7 +5,7 @@ import {
 	keyboardShortcutBindingSource,
 } from '../keyboard-shortcut-settings-controller';
 
-const CURRENT_STORAGE_KEY = 'orchbee:web:keyboard-shortcuts:v21';
+const CURRENT_STORAGE_KEY = 'orchbee:web:keyboard-shortcut-overrides:v1';
 const CURRENT_OVERRIDE_RECORD =
 	'{"overrides":[{"chord":{"code":"KeyY","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":21}';
 
@@ -167,7 +167,7 @@ describe('KeyboardShortcutSettingsController', () => {
 					shortcutId: 'workbench.search.all.open',
 				},
 			],
-			version: 21,
+			version: 1,
 		});
 	});
 
@@ -226,37 +226,6 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.current()['workbench.search.all.open'].code).toBe('KeyY');
 		expect(listener).not.toHaveBeenCalled();
 	});
-
-	it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const)(
-		'writes a canonical v21 migration while retaining the v%s rollback record',
-		(version) => {
-			const legacy = JSON.stringify({
-				overrides: [
-					{
-						chord: { code: 'KeyY', modifiers: ['mod', 'shift'] },
-						shortcutId: 'workbench.search.all.open',
-					},
-				],
-				version,
-			});
-			const sourceKey = `orchbee:web:keyboard-shortcuts:v${version}`;
-			const setItem = vi.fn<(key: string, value: string) => void>();
-			const getItem = vi.fn<(key: string) => string | null>((key) =>
-				key === sourceKey ? legacy : null,
-			);
-
-			const controller = new KeyboardShortcutSettingsController({
-				platform: 'standard',
-				storage: { getItem, setItem },
-			});
-
-			expect(controller.getSnapshot().persistenceIssue).toBeNull();
-			expect(controller.getSnapshot().overrides).toHaveLength(1);
-			expect(setItem).toHaveBeenCalledWith(CURRENT_STORAGE_KEY, CURRENT_OVERRIDE_RECORD);
-			expect(getItem).toHaveBeenCalledWith(sourceKey);
-			expect(setItem).not.toHaveBeenCalledWith(sourceKey, expect.anything());
-		},
-	);
 
 	it('falls back after an invalid stored record and stops writes and notifications after disposal', () => {
 		const setItem = vi.fn<(key: string, value: string) => void>();

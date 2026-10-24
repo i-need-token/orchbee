@@ -60,7 +60,6 @@ export class DesktopUserPreferencesBroker {
 			this.#post(requestId, {
 				response: { kind: 'refused', reason: 'busy' },
 				applicationIssue: null,
-				legacyIssue: false,
 			});
 			return;
 		}
@@ -75,7 +74,6 @@ export class DesktopUserPreferencesBroker {
 							? { kind: 'refused', reason: 'unavailable' }
 							: { kind: 'outcome-unknown' },
 					applicationIssue: null,
-					legacyIssue: false,
 				});
 			})
 			.finally(() => {

@@ -37,30 +37,13 @@ const TerminalExitRejectionEntrySchema = z.strictObject({
 const TerminalExitSpillFileSchema = z.strictObject({
 	pending: z.array(TerminalExitSpillEntrySchema).max(MAX_PENDING_TERMINAL_EXITS),
 	rejected: z.array(TerminalExitRejectionEntrySchema).max(MAX_REJECTED_TERMINAL_EXITS),
-	version: z.literal(2),
-});
-const LegacyTerminalExitSpillFileSchema = z.strictObject({
-	events: z
-		.array(
-			z.strictObject({
-				event: TerminalExitedSchema,
-				reason: TerminalExitSpillReasonSchema.exclude(['host-admission']),
-				state: z.enum(['pending', 'published']).default('pending'),
-			}),
-		)
-		.max(MAX_PENDING_TERMINAL_EXITS),
 	version: z.literal(1),
 });
-
 export type TerminalExitSpillReason = z.infer<typeof TerminalExitSpillReasonSchema>;
 
 type TerminalExitSpillLoadResult =
 	| { readonly kind: 'ready' }
 	| { readonly kind: 'unavailable'; readonly reason: 'invalid' | 'read-failed' };
-
-export interface TerminalExitPublicationEvidence {
-	hasExact(event: TerminalExited): boolean;
-}
 
 type TerminalExitSpillAdmission = { readonly kind: 'admitted' } | { readonly kind: 'full' };
 export type TerminalExitRejectionReason = z.infer<typeof TerminalExitRejectionReasonSchema>;
@@ -87,9 +70,7 @@ export class TerminalExitSpillStore {
 		this.#randomToken = randomToken;
 	}
 
-	async load(
-		publicationEvidence?: TerminalExitPublicationEvidence,
-	): Promise<TerminalExitSpillLoadResult> {
+	async load(): Promise<TerminalExitSpillLoadResult> {
 		// A failed reload must never leave callers using a partially replaced
 		// in-memory state from an earlier successful load.
 		this.#loaded = false;
@@ -102,37 +83,11 @@ export class TerminalExitSpillStore {
 				return { kind: 'unavailable', reason: 'invalid' };
 			}
 			const parsed = TerminalExitSpillFileSchema.safeParse(value);
-			const legacy = LegacyTerminalExitSpillFileSchema.safeParse(value);
-			if (!parsed.success && !legacy.success) return { kind: 'unavailable', reason: 'invalid' };
+			if (!parsed.success) return { kind: 'unavailable', reason: 'invalid' };
 			const entries = new Map<string, TerminalExitSpillEntry>();
 			const rejections = new Map<string, TerminalExitSpillRejectionEntry>();
-			let migratedLegacy = false;
-			let pending: readonly TerminalExitSpillEntry[];
-			if (parsed.success) {
-				pending = parsed.data.pending;
-			} else if (legacy.success) {
-				migratedLegacy = true;
-				const migrated: TerminalExitSpillEntry[] = [];
-				for (const { event, reason, state } of legacy.data.events) {
-					if (state === 'published') {
-						// A legacy published marker is not publication evidence. It may be
-						// discarded only when the already-loaded ledger confirms it.
-						if (publicationEvidence === undefined || !publicationEvidence.hasExact(event)) {
-							return { kind: 'unavailable', reason: 'invalid' };
-						}
-						continue;
-					}
-					migrated.push({ event, reason });
-				}
-				pending = migrated;
-			} else {
-				pending = [];
-			}
-			for (const entry of pending) this.#setNewestPending(entries, entry);
-			if (parsed.success) {
-				for (const rejection of parsed.data.rejected)
-					this.#setNewestRejection(rejections, rejection);
-			}
+			for (const entry of parsed.data.pending) this.#setNewestPending(entries, entry);
+			for (const rejection of parsed.data.rejected) this.#setNewestRejection(rejections, rejection);
 			this.#normalizeStates(entries, rejections);
 			if (
 				entries.size > MAX_PENDING_TERMINAL_EXITS ||
@@ -140,7 +95,6 @@ export class TerminalExitSpillStore {
 			) {
 				return { kind: 'unavailable', reason: 'invalid' };
 			}
-			if (migratedLegacy) this.#persist(entries, rejections);
 			this.#replaceEntries(entries);
 			this.#replaceRejections(rejections);
 			this.#loaded = true;
@@ -269,7 +223,7 @@ export class TerminalExitSpillStore {
 		const document = TerminalExitSpillFileSchema.parse({
 			pending: [...entries.values()],
 			rejected: [...rejections.values()],
-			version: 2,
+			version: 1,
 		});
 		const encoded = Buffer.from(`${JSON.stringify(document)}\n`, 'utf8');
 		const directory = path.dirname(this.#filePath);

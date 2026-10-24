@@ -1,11 +1,11 @@
 # Project 与 Workspace 平台 Effects
 
-| 字段     | 内容                                                                                                                                                                         |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 当前模型、浏览器预览、原生现有 Folder 选择、本地 shared-document 持久化，以及已接受的托管 Worktree 创建与已有 Worktree 接纳契约已有 owner；启动和跨设备 effects 仍是未来工作 |
-| Owner    | Workbench 产品维护者与平台应用 owner                                                                                                                                         |
-| 当前权威 | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                         |
-| 退出条件 | 实现分别接受的平台切片，把维护事实迁入对应 application 和 package 指南，然后删除本提案                                                                                       |
+| 字段     | 内容                                                                                                                   |
+| -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 状态     | 保留为下一阶段 GUI 规划输入；受原生运行时拓扑约束。现行 Desktop 能力保持运行，未来删除、启动和跨设备效果尚需分别准入。 |
+| Owner    | Workbench 产品维护者与平台应用 owner                                                                                   |
+| 当前权威 | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                   |
+| 退出条件 | 实现分别接受的平台切片，把维护事实迁入对应 application 和 package 指南，然后删除本提案                                 |
 
 英文 [project-workspace-experience.md](project-workspace-experience.md) 是 canonical 版本；本文用于简体中文评审。
 
@@ -15,8 +15,7 @@
 terminal-presentation 组合。浏览器预览支持不产生文件系统或 Git effect 的合成 Folder path。这些已实现
 事实由当前权威维护，不在这里重复。
 
-平台应用只能替换 Folder acquisition、normalized Directory observation 等 capability boundary，
-不能接管 Workbench 产品模型。
+下一阶段遵循[原生运行时拓扑](../platform/native-runtime-topology.zh-CN.md)：Server 拥有规范 Workbench 状态与授权，Worker 拥有文件系统、Git 和终端效果，Desktop 保留原生选择器与客户端平台适配，Web 拥有交互与呈现。当前 TypeScript 模型是现行实现；本提案不要求未来继续保留其规范状态所有权。
 
 ## 原生 Folder acquisition
 
@@ -34,9 +33,7 @@ picker 和时间点目录校验，再把 host-normalized path 交给浏览器预
 - 一个 renderer 最多拥有一个请求，renderer retirement 会撤销晚到 completion。
 - Add Folder 提交前重新检查当前 Project 和 exact duplicate path。
 
-当前切片会规范化绝对路径，在保留所选符号链接拼写的同时跟随目标完成目录与 read/traverse 校验，且不
-执行需要补偿的文件系统 mutation。New Folder 仍是未来工作，必须另行定义目标路径策略、竞态、回滚与
-恢复。可移动位置的持续可用性也不属于本次时间点选择声明。
+当前文件夹准入与创建行为以所属 Desktop 文档为准。下一阶段应保留路径校验、取消、失败与恢复语义，并按 Server/Worker 所有权重新接线。持续的外部文件系统观测和可移动位置可用性仍需明确的契约与证据。
 
 ## Git Worktree effects
 

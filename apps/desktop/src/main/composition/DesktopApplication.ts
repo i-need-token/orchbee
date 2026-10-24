@@ -290,7 +290,6 @@ function terminalRgbCss(value: number): string {
 export interface DesktopApplicationOptions {
 	readonly userPreferences?: DesktopUserPreferencesController;
 	readonly resolveSystemShell?: (() => Promise<string | null>) | undefined;
-	readonly runtimeScrollbackPreference?: number;
 	readonly prepareDevelopmentHostRestart?:
 		| ((documentRevision: WorkbenchSharedDocumentRevision) => Promise<boolean>)
 		| undefined;
@@ -424,10 +423,7 @@ export interface DesktopApplicationDependencies {
 	readonly createTerminalIntentReconciler: (
 		dependencies: DesktopTerminalIntentReconcilerDependencies,
 	) => DesktopTerminalIntentReconciler;
-	readonly createWorkbenchDocumentStore: (
-		filePath: string,
-		legacyFilePath: string,
-	) => WorkbenchDocumentStore;
+	readonly createWorkbenchDocumentStore: (filePath: string) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly createWindowStateStore: (filePath: string) => DesktopWindowStateStore;
 	readonly getWindowDisplayTopology: () => DesktopWindowDisplayTopology;
@@ -555,8 +551,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createTerminalIntentReconciler: (dependencies) =>
 		new DesktopTerminalIntentReconciler(dependencies),
 	createTerminalExitPublicationLedger: (filePath) => new TerminalExitPublicationLedger(filePath),
-	createWorkbenchDocumentStore: (filePath, legacyFilePath) =>
-		new FileWorkbenchDocumentStore(filePath, { legacyFilePath }),
+	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	createWindowStateStore: (filePath) => new FileDesktopWindowStateStore(filePath),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
@@ -677,7 +672,6 @@ export class DesktopApplication {
 		);
 		this.#workbenchDocumentStore = dependencies.createWorkbenchDocumentStore(
 			options.runtime.workbenchDocumentStorePath,
-			options.runtime.workbenchDocumentLegacyStorePath,
 		);
 		this.#terminalLaunchProfileController = dependencies.createTerminalLaunchProfileController({
 			userPreferences: options.userPreferences,
@@ -810,9 +804,7 @@ export class DesktopApplication {
 					`Terminal exit publication ledger is unavailable: ${publicationLedgerLoad.reason}.`,
 				);
 			}
-			const spillLoad = await this.#terminalExitSpillStore.load(
-				this.#terminalExitPublicationLedger,
-			);
+			const spillLoad = await this.#terminalExitSpillStore.load();
 			if (spillLoad.kind !== 'ready') {
 				throw new Error(`Terminal exit spill store is unavailable: ${spillLoad.reason}.`);
 			}
@@ -820,26 +812,6 @@ export class DesktopApplication {
 			await this.#terminalLaunchProfileController.initialize();
 			const userPreferences = this.#options.userPreferences;
 			if (userPreferences !== undefined) {
-				const defaults = terminalDefaultSettingsController.getSnapshot();
-				const profiles = this.#terminalLaunchProfileController.getSnapshot();
-				if (defaults.persistenceIssue === null && profiles.persistenceIssue === null) {
-					const importedScrollbackBytes =
-						defaults.source === 'stored'
-							? defaults.configuration.scrollbackBytes
-							: this.#options.runtimeScrollbackPreference;
-					await userPreferences.execute({
-						operation: 'import-desktop',
-						part: 'main',
-						changes: {
-							...(importedScrollbackBytes === undefined
-								? {}
-								: { scrollbackBytes: importedScrollbackBytes }),
-							...(profiles.source === 'stored' ? { launchProfiles: profiles.catalog } : {}),
-						},
-					});
-				} else {
-					userPreferences.noteLegacyUnavailable();
-				}
 				await userPreferences.start(async (snapshot) => {
 					const configuration = { scrollbackBytes: snapshot.values.scrollbackBytes };
 					const accepted = await connection.requestControl(

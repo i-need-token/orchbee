@@ -9,7 +9,7 @@ import {
 
 export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_METADATA_RESULT_BYTES = 128 * 1024;
 export const MetadataSourceSchema = z.string().regex(/^[a-zA-Z0-9:._-]{1,80}$(?![\s\S])/u);
-export const MetadataTokenKeySchema = z.string().regex(/^[a-zA-Z0-9_-]{1,32}$(?![\s\S])/u);
+const MetadataTokenKeySchema = z.string().regex(/^[a-zA-Z0-9_-]{1,32}$(?![\s\S])/u);
 // Rust str::trim uses Unicode White_Space, not ECMAScript's BOM-inclusive trim.
 const edgeWhitespace = /^[\p{White_Space}]|[\p{White_Space}]$/u;
 export const MetadataTokenValueSchema = z
@@ -49,7 +49,7 @@ export const MetadataTokensSchema = tokenEntries
 	.pipe(z.array(z.tuple([MetadataTokenKeySchema, MetadataTokenValueSchema])).max(32))
 	.transform((entries) => Object.fromEntries(entries))
 	.readonly();
-export const WorkspaceMetadataActionSchema = z.discriminatedUnion('kind', [
+const WorkspaceMetadataActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('read'),
@@ -77,7 +77,7 @@ export const WorkspaceMetadataActionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const WorkspaceMetadataFailureSchema = z.enum([
+const WorkspaceMetadataFailureSchema = z.enum([
 	'invalid-request',
 	'site-mismatch',
 	'not-found',
@@ -90,7 +90,7 @@ export const WorkspaceMetadataFailureSchema = z.enum([
 	'deadline-overflow',
 	'result-too-large',
 ]);
-export const WorkspaceMetadataOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkspaceMetadataOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('read'),
@@ -136,13 +136,3 @@ export const WorkspaceMetadataResultSchema = z
 		outcome: WorkspaceMetadataOutcomeSchema,
 	})
 	.readonly();
-export type MetadataSource = z.infer<typeof MetadataSourceSchema>;
-export type MetadataTokenKey = z.infer<typeof MetadataTokenKeySchema>;
-export type MetadataTokenValue = z.infer<typeof MetadataTokenValueSchema>;
-export type MetadataTokenPatch = z.infer<typeof MetadataTokenPatchSchema>;
-export type MetadataTokens = z.infer<typeof MetadataTokensSchema>;
-export type WorkspaceMetadataAction = z.infer<typeof WorkspaceMetadataActionSchema>;
-export type WorkspaceMetadataFailure = z.infer<typeof WorkspaceMetadataFailureSchema>;
-export type WorkspaceMetadataOutcome = z.infer<typeof WorkspaceMetadataOutcomeSchema>;
-export type WorkspaceMetadataRequest = z.infer<typeof WorkspaceMetadataRequestSchema>;
-export type WorkspaceMetadataResult = z.infer<typeof WorkspaceMetadataResultSchema>;

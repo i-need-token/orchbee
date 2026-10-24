@@ -392,7 +392,7 @@ export const WORKBENCH_SHORTCUTS = {
 	},
 } as const satisfies Readonly<Record<string, WorkbenchShortcutDefinition>>;
 
-export type WorkbenchShortcutAction = keyof typeof WORKBENCH_SHORTCUTS;
+type WorkbenchShortcutAction = keyof typeof WORKBENCH_SHORTCUTS;
 export type WorkbenchShortcutId =
 	(typeof WORKBENCH_SHORTCUTS)[WorkbenchShortcutAction]['shortcutId'];
 export type WorkbenchShortcutBindings = Readonly<

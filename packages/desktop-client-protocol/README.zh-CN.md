@@ -1,5 +1,9 @@
 # @orchbee/desktop-client-protocol
 
+私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
+
+Desktop Agent 观测能力使用协议版本 `1`，仅接受当前严格形状。Main、preload 与 renderer 属于同一未发布批次；该能力不协商历史版本。
+
 用于 Orchbee Desktop 与权威 `apps/web` 渲染器之间 Electron 专属能力边界的严格、运行时无关数据契约。
 
 ## 适用范围

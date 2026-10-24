@@ -84,8 +84,6 @@ fn settings_save_receipts_confirm_dirty_values_reset_claims_and_uncertainty_with
         source: "a".repeat(64),
         values: after,
         claimed: [PreferenceKey::ApplicationTheme].into(),
-        desktop_imported: false,
-        desktop_main_imported: false,
     };
     let mut result = NativeSettingsResult {
         protocol_version: ProtocolVersion,

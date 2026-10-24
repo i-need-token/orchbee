@@ -78,6 +78,7 @@ test('real workspace selection retains foreign fixture, resource, process and di
 		['apps/orchbee-worker', ['apps/orchbee', 'apps/orchbee-server']],
 		['apps/orchbee-server', ['apps/orchbee']],
 		['apps/web', ['apps/desktop', 'apps/storybook']],
+		['apps/orchbee-settings', ['apps/desktop']],
 	]) {
 		const selected = selectVerificationScope(actual, [provider + '/src/changed']);
 		assert.equal(selected.all, false);

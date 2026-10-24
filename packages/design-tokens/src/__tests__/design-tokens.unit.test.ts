@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { designToken, designTokenNames, responsiveBreakpoints } from '../design-tokens';
+import { designTokenNames, responsiveBreakpoints } from '../design-token-names.generated';
 
 function ruleTokenNames(css: string, selector: "[data-theme='light']" | "[data-theme='dark']") {
 	const escapedSelector = selector.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -22,10 +22,6 @@ describe('design tokens', () => {
 
 		expect(uniqueDeclarations).toEqual(new Set(designTokenNames));
 		expect(designTokenNames.length).toBe(uniqueDeclarations.size);
-	});
-
-	it('creates a typed CSS variable reference', () => {
-		expect(designToken('--ob-sys-color-text-primary')).toBe('var(--ob-sys-color-text-primary)');
 	});
 
 	it('publishes the finite responsive breakpoint vocabulary', () => {

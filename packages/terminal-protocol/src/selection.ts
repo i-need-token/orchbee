@@ -16,7 +16,7 @@ export const SELECTION_EXPORT_CHUNK_HEADER_BYTES = 32;
 const MAX_UINT32 = 0xffff_ffff;
 const MAX_UINT64 = 0xffff_ffff_ffff_ffffn;
 
-export const SelectionExportChunkSchema = z.strictObject({
+const SelectionExportChunkSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	bytes: z
 		.instanceof(Uint8Array)
@@ -31,7 +31,7 @@ export const SelectionExportChunkSchema = z.strictObject({
 
 export type SelectionExportChunk = z.infer<typeof SelectionExportChunkSchema>;
 
-export interface DecodedSelectionExportChunkRoute {
+interface DecodedSelectionExportChunkRoute {
 	readonly attachmentId: z.infer<typeof AttachmentIdSchema>;
 	readonly chunkSequence: number;
 	readonly exportSequence: bigint;

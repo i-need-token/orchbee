@@ -31,7 +31,7 @@ import {
 	WorkbenchRevisionSchema,
 } from './workbench-semantic-contract';
 
-export const WORKBENCH_MAXIMUM_CLIENT_VIEWS = 32;
+const WORKBENCH_MAXIMUM_CLIENT_VIEWS = 32;
 export const WORKBENCH_MAXIMUM_ENCODED_CLIENT_VIEW_RESULT_BYTES = 64 * 1024;
 export const WorkbenchClientIdSchema = z
 	.string()
@@ -39,8 +39,8 @@ export const WorkbenchClientIdSchema = z
 	.refine((value) => value !== '00000000000000000000000000000000')
 	.brand<'WorkbenchClientId'>();
 export const ClientViewSequenceSchema = WorkbenchRevisionSchema.refine((value) => value !== '0');
-export const ClientViewPhaseSchema = z.enum(['starting', 'ready', 'busy', 'unavailable']);
-export const ClientViewSelectionSchema = z
+const ClientViewPhaseSchema = z.enum(['starting', 'ready', 'busy', 'unavailable']);
+const ClientViewSelectionSchema = z
 	.strictObject({
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		tabId: WorkbenchTabIdSchema.nullable(),
@@ -68,7 +68,7 @@ export const ClientViewObservationSchema = z
 			context.addIssue({ code: 'custom', message: 'Invalid Client view selection' });
 	})
 	.readonly();
-export const ClientViewRecordSchema = z
+const ClientViewRecordSchema = z
 	.strictObject({
 		clientId: WorkbenchClientIdSchema,
 		heartbeat: ClientViewSequenceSchema,
@@ -95,7 +95,7 @@ const attentionSessions = z
 	.max(100)
 	.refine((sessions) => new Set(sessions).size === sessions.length);
 const agentInteger = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-export const ClientAgentAttentionSnapshotSchema = z
+const ClientAgentAttentionSnapshotSchema = z
 	.strictObject({
 		cursor: z.string().regex(/^v1\.[A-Za-z0-9_-]{59}\.[A-Za-z0-9_-]{43}$/u),
 		revision: agentInteger,
@@ -187,7 +187,7 @@ const clientNavigation = z
 			context.addIssue({ code: 'custom', message: 'Duplicate Client navigation identity' });
 	})
 	.readonly();
-export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
+const ClientViewIntentSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('popup-open'), spec: PluginPopupSpecSchema }).readonly(),
 	z.strictObject({ kind: z.literal('editor-open'), spec: ScrollbackEditorSpecSchema }).readonly(),
 	z
@@ -273,7 +273,7 @@ export const ClientViewIntentSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('zoom'), ...panelTarget, enabled: z.boolean() }).readonly(),
 	z.strictObject({ kind: z.literal('toggle-zoom'), ...panelTarget }).readonly(),
 ]);
-export const ClientViewControlSchema = z
+const ClientViewControlSchema = z
 	.strictObject({
 		operationId: WorkbenchRequestIdSchema,
 		clientId: WorkbenchClientIdSchema,
@@ -282,7 +282,7 @@ export const ClientViewControlSchema = z
 		intent: ClientViewIntentSchema,
 	})
 	.readonly();
-export const ClientViewControlReasonSchema = z.enum([
+const ClientViewControlReasonSchema = z.enum([
 	'busy',
 	'stale-view',
 	'target-unavailable',
@@ -292,7 +292,7 @@ export const ClientViewControlReasonSchema = z.enum([
 	'expired',
 	'unsupported',
 ]);
-export const ClientViewCompletionSchema = z
+const ClientViewCompletionSchema = z
 	.strictObject({
 		operationId: WorkbenchRequestIdSchema,
 		outcome: z.discriminatedUnion('kind', [
@@ -353,7 +353,7 @@ export const ClientViewCompletionSchema = z
 		]),
 	})
 	.readonly();
-export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
+const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('popup-opened'),
@@ -454,7 +454,7 @@ export const ClientViewControlStatusSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-export const ClientViewOperationSchema = z
+const ClientViewOperationSchema = z
 	.strictObject({
 		command: ClientViewControlSchema,
 		status: ClientViewControlStatusSchema,
@@ -755,7 +755,7 @@ export const ClientViewOperationSchema = z
 			context.addIssue({ code: 'custom', message: 'Applied target is not observed' });
 	})
 	.readonly();
-export const ClientViewActionSchema = z.discriminatedUnion('kind', [
+const ClientViewActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('synchronize'),
@@ -833,20 +833,3 @@ export const WorkbenchClientViewResultSchema = z
 			context.addIssue({ code: 'custom', message: 'Control does not match current Client view' });
 	})
 	.readonly();
-
-export type WorkbenchClientId = z.infer<typeof WorkbenchClientIdSchema>;
-export type ClientViewSequence = z.infer<typeof ClientViewSequenceSchema>;
-export type ClientViewPhase = z.infer<typeof ClientViewPhaseSchema>;
-export type ClientViewSelection = z.infer<typeof ClientViewSelectionSchema>;
-export type ClientViewObservation = z.infer<typeof ClientViewObservationSchema>;
-export type ClientViewRecord = z.infer<typeof ClientViewRecordSchema>;
-export type ClientViewIntent = z.infer<typeof ClientViewIntentSchema>;
-export type ClientViewControl = z.infer<typeof ClientViewControlSchema>;
-export type ClientViewControlReason = z.infer<typeof ClientViewControlReasonSchema>;
-export type ClientViewCompletion = z.infer<typeof ClientViewCompletionSchema>;
-export type ClientViewControlStatus = z.infer<typeof ClientViewControlStatusSchema>;
-export type ClientViewOperation = z.infer<typeof ClientViewOperationSchema>;
-export type ClientViewAction = z.infer<typeof ClientViewActionSchema>;
-export type ClientViewOutcome = z.infer<typeof ClientViewOutcomeSchema>;
-export type WorkbenchClientViewRequest = z.infer<typeof WorkbenchClientViewRequestSchema>;
-export type WorkbenchClientViewResult = z.infer<typeof WorkbenchClientViewResultSchema>;

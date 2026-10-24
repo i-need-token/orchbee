@@ -1,5 +1,9 @@
 # @orchbee/desktop-client-protocol
 
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+
+The Desktop Agent observation capability uses protocol version `1` with only its current strict shape. Main, preload and renderer belong to the same unpublished cohort; this capability does not negotiate historical versions.
+
 Strict, runtime-neutral data contracts for the Electron-specific capability boundary between Orchbee Desktop and the canonical `apps/web` renderer.
 
 ## Scope

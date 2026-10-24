@@ -16,8 +16,6 @@ const saved = UserPreferencesSnapshotSchema.parse({
 	source,
 	values: DEFAULT_USER_PREFERENCES,
 	claimed: [],
-	desktopImported: true,
-	desktopMainImported: true,
 });
 const observed: UserPreferencesExchange = {
 	kind: 'response',
@@ -117,7 +115,7 @@ describe('Desktop shared preference publication', () => {
 		await controller.dispose();
 	});
 
-	it('applies an already imported snapshot when the Host joins, then only changed sources', async () => {
+	it('applies an observed snapshot when the Host joins, then only changed sources', async () => {
 		vi.useFakeTimers();
 		const execute = vi.fn<(request: UserPreferencesRequest) => Promise<UserPreferencesExchange>>(
 			async () => observed,
@@ -125,7 +123,7 @@ describe('Desktop shared preference publication', () => {
 		const dispose = vi.fn<() => Promise<void>>(async () => undefined);
 		const controller = new DesktopUserPreferencesController({ execute, dispose });
 		const apply = vi.fn<() => Promise<void>>(async () => undefined);
-		await controller.execute({ operation: 'import-desktop', part: 'main', changes: {} });
+		await controller.execute({ operation: 'read' });
 		await controller.start(apply);
 		expect(apply).toHaveBeenCalledExactlyOnceWith(saved);
 		await vi.advanceTimersByTimeAsync(1000);
@@ -156,14 +154,12 @@ describe('Desktop shared preference publication', () => {
 		expect(listener).toHaveBeenLastCalledWith({
 			response: observed.response,
 			applicationIssue: 'host-rejected',
-			legacyIssue: false,
 		});
 		expect(controller.getSnapshot()).toEqual(saved);
 		await vi.advanceTimersByTimeAsync(1000);
 		expect(listener).toHaveBeenLastCalledWith({
 			response: observed.response,
 			applicationIssue: null,
-			legacyIssue: false,
 		});
 		expect(execute.mock.calls.every(([request]) => request.operation === 'read')).toBe(true);
 		await controller.dispose();

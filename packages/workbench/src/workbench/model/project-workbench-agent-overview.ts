@@ -44,7 +44,7 @@ interface WorkbenchWorkspaceAgentOverview extends AgentAggregatePresentation {
 	readonly workspaceId: string;
 }
 
-export interface WorkbenchAgentOverview {
+interface WorkbenchAgentOverview {
 	readonly workspaces: readonly WorkbenchWorkspaceAgentOverview[];
 }
 

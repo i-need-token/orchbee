@@ -5,11 +5,9 @@ import { TabStripMessagesContext } from './contexts/tab-strip-messages-context';
 import { useTabStrip } from './hooks/useTabStrip';
 import type { TabStripMessages } from './types/tab-strip-messages';
 import type {
-	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
-	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripTabCreationIntent,
 	TabStripOptions,
@@ -19,17 +17,15 @@ import type {
 	TabStatusAdornmentKind,
 } from './types/tab-strip-options';
 
-export interface TabStripProps extends TabStripOptions {
+interface TabStripProps extends TabStripOptions {
 	horizontalLeadingActions?: ReactNode;
 	messages?: TabStripMessages;
 }
 
 export type {
-	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
-	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripTabCreationIntent,
 	TabStripSelectCallback,

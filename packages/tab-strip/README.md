@@ -1,5 +1,7 @@
 # @orchbee/tab-strip
 
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+
 Complete reusable React tab-strip capability. The package combines the public component, its domain model, layout rules, accessibility projections, drag interactions, and recursively owned private component tree behind one package entry. It is an Rslib library, not a standalone site.
 
 ## Scope

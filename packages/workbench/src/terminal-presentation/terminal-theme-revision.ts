@@ -8,8 +8,7 @@ const opaqueIdentitySchema = z
 	.regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u);
 const rgbSchema = z.number().int().min(0).max(0xff_ff_ff);
 
-export const TerminalThemeOperationIdSchema =
-	opaqueIdentitySchema.brand<'TerminalThemeOperationId'>();
+const TerminalThemeOperationIdSchema = opaqueIdentitySchema.brand<'TerminalThemeOperationId'>();
 export type TerminalThemeOperationId = z.infer<typeof TerminalThemeOperationIdSchema>;
 
 export const TerminalThemeRevisionSchema = z
@@ -22,7 +21,7 @@ export const TerminalThemeRevisionSchema = z
 		'Theme revision exceeds unsigned 64-bit range',
 	)
 	.brand<'TerminalThemeRevision'>();
-export type TerminalThemeRevision = z.infer<typeof TerminalThemeRevisionSchema>;
+type TerminalThemeRevision = z.infer<typeof TerminalThemeRevisionSchema>;
 
 const terminalThemeApplicationSchema = z
 	.strictObject({ colorScheme: z.enum(['dark', 'light']) })
@@ -56,9 +55,9 @@ export const TerminalThemeSnapshotSchema = z
 	})
 	.readonly();
 export type TerminalThemeSnapshot = z.infer<typeof TerminalThemeSnapshotSchema>;
-export type TerminalThemeHostSnapshot = TerminalThemeSnapshot['terminal'];
+type TerminalThemeHostSnapshot = TerminalThemeSnapshot['terminal'];
 
-export const TerminalThemeHostStateSchema = z
+const TerminalThemeHostStateSchema = z
 	.strictObject({
 		operationId: TerminalThemeOperationIdSchema.nullable(),
 		revision: TerminalThemeRevisionSchema,
@@ -85,9 +84,9 @@ export const TerminalThemeFailureSchema = z
 	.readonly();
 export type TerminalThemeFailure = z.infer<typeof TerminalThemeFailureSchema>;
 
-export type TerminalThemePresentationMode = 'active' | 'hidden' | 'suspended';
+type TerminalThemePresentationMode = 'active' | 'hidden' | 'suspended';
 
-export interface TerminalThemePresentationCommit {
+interface TerminalThemePresentationCommit {
 	readonly operationId: TerminalThemeOperationId | null;
 	readonly revision: TerminalThemeRevision;
 	readonly snapshot: TerminalThemeSnapshot;
@@ -107,7 +106,7 @@ type TerminalThemeClientProgress =
 	| { readonly kind: 'presenting'; readonly revision: TerminalThemeRevision }
 	| { readonly failure: TerminalThemeFailure; readonly kind: 'failed' };
 
-export interface ActiveTerminalThemeRevision {
+interface ActiveTerminalThemeRevision {
 	readonly client: TerminalThemeClientProgress;
 	readonly host: TerminalThemeHostProgress;
 	readonly operationId: TerminalThemeOperationId;
@@ -212,7 +211,7 @@ type TerminalThemeTransitionReason =
 	| 'revision-regression'
 	| 'stale-operation';
 
-export type TerminalThemeRevisionTransition =
+type TerminalThemeRevisionTransition =
 	| {
 			readonly commands: readonly TerminalThemeRevisionCommand[];
 			readonly kind: 'accepted' | 'completed';

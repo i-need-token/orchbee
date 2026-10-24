@@ -95,7 +95,7 @@ fn malformed_requests_have_no_effect_and_separate_invocations_observe_one_commit
 }
 
 #[test]
-fn competing_processes_cannot_overwrite_and_delayed_import_cannot_undo_reset() {
+fn competing_processes_cannot_overwrite_and_explicit_reset_is_durable() {
     let fixture = Fixture::new();
     let initial = fixture.exchange(&json!({"operation": "read"}));
     let barrier = std::sync::Barrier::new(2);
@@ -132,17 +132,8 @@ fn competing_processes_cannot_overwrite_and_delayed_import_cannot_undo_reset() {
         "changes": {"locale": null}}),
     );
     assert_eq!(reset["snapshot"]["values"]["locale"], "system");
-    let renderer = fixture.exchange(&json!({"operation": "import-desktop", "part": "renderer",
-        "changes": {"locale": "zh-CN", "soundEnabled": true}}));
-    assert_eq!(renderer["snapshot"]["values"]["locale"], "system");
-    assert_eq!(renderer["snapshot"]["values"]["soundEnabled"], true);
-    let main = fixture.exchange(&json!({"operation": "import-desktop", "part": "main",
-        "changes": {"scrollbackBytes": 2048}}));
-    assert_eq!(main["snapshot"]["values"]["scrollbackBytes"], 2048);
-    assert_eq!(main["snapshot"]["values"]["locale"], "system");
-    assert_eq!(main["snapshot"]["values"]["soundEnabled"], true);
     assert_eq!(
         fixture.exchange(&json!({"operation": "read"}))["snapshot"],
-        main["snapshot"]
+        reset["snapshot"]
     );
 }

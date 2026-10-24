@@ -1,4 +1,4 @@
-export interface ContiguousBlockMove {
+interface ContiguousBlockMove {
 	readonly length: number;
 	readonly preRemovalTargetIndex: number;
 	readonly start: number;

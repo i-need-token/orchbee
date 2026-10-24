@@ -38,7 +38,7 @@ ProjectWorkspaceState
           primaryDirectoryId, launchConfigurationId: nullable, terminalContextId }
 ```
 
-`Directory` is the domain term; product copy uses Folder. `resourceScopeId` is the stable namespace for launch resources and the fallback Directory, not another user-visible group. Several Workspaces may share one namespace. A move or dissolution retains every resource, including unused Directories and launch configurations. Scope IDs may equal historical Project IDs after migration, but have separate authority and lifetime. Each resource key is `(resourceScopeId, id)`.
+`Directory` is the domain term; product copy uses Folder. `resourceScopeId` is the stable namespace for launch resources and the fallback Directory, not another user-visible group. Several Workspaces may share one namespace. A move or dissolution retains every resource, including unused Directories and launch configurations. Scope and Project identities have separate authority and lifetime. Each resource key is `(resourceScopeId, id)`.
 
 Projects neither define repository identity nor own terminal structure. One Project can contain several repositories; one repository can appear in several Projects. Each Workspace owns one independent terminal context containing Tabs, Panels and presentations. Launch configurations retain stable references and display names; executable payload remains host-owned.
 
@@ -268,10 +268,10 @@ Workbench owns the pure organization model, action adapters, resource dialogs an
 
 ## Correctness and verification
 
-Deterministic and fixed-seed generated tests cover independent creation, scoped ID collisions, move/new-group/ungroup/dissolve, peer ordering, close versus close-all, resource and selection retention, unavailable fallbacks, physical Worktree deduplication and rejected transitions. Strict historical migration tests cover graph validation, unused resources, sequence collisions and malformed Client Views. Two-client runtime tests preserve context object identity, focus, child selection and zoom; first-shell allocation failure leaves no published structure.
+Deterministic and fixed-seed generated tests cover independent creation, scoped ID collisions, move/new-group/ungroup/dissolve, peer ordering, close versus close-all, resource and selection retention, unavailable fallbacks, physical Worktree deduplication and rejected transitions. Current-shape tests cover graph validation and malformed Client Views. Two-client runtime tests preserve context object identity, focus, child selection and zoom; first-shell allocation failure leaves no published structure.
 
-Hook and component tests cover immediate creation, menus, stable management targets, Agent rows and late activation suppression. Desktop owns async Git races and retained partial results; Web owns stable routes and legacy-link redirects. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
+Hook and component tests cover immediate creation, menus, stable management targets, Agent rows and late activation suppression. Desktop owns async Git races and retained partial results; Web owns stable routes and unavailable identities. DOM tests do not establish native-window focus or actual shell process behavior. The repository integration gate remains the integration owner's responsibility.
 
 ## Delivery and recovery
 
-GUI shared documents migrate from strict v2 to v3; Client View v1 migrates to v2. The complete old graph validates before migration, then the complete new graph validates. No malformed graph is reset. Existing IDs, resource order, unused configurations and context structure survive. See [shared-workbench-document.md](shared-workbench-document.md). Grouping rollback must not discard v3-only ungrouped Workspaces or resource namespaces; older builds cannot safely interpret this model.
+GUI shared documents and Client Views accept only their current version-1 shapes. Complete graphs validate before use; invalid graphs are never migrated, reset or repaired. Historical development shapes have no compatibility promise. See [shared-workbench-document.md](shared-workbench-document.md).

@@ -30,7 +30,7 @@ const compareUnicodeScalars = (left: string, right: string) => {
 	}
 	return leftScalars.length - rightScalars.length;
 };
-export const ConfigurationDiagnosticSchema = z
+const ConfigurationDiagnosticSchema = z
 	.strictObject({
 		field: bounded(256).refine((value) => !/\p{Cc}/u.test(value)),
 		reason: z
@@ -123,7 +123,3 @@ export const ConfigurationResultSchema = z
 		]),
 	})
 	.readonly();
-export type ConfigurationRequest = z.infer<typeof ConfigurationRequestSchema>;
-export type ConfigurationResult = z.infer<typeof ConfigurationResultSchema>;
-export type ConfigurationDiagnostic = z.infer<typeof ConfigurationDiagnosticSchema>;
-export type ConfigurationDiagnostics = z.infer<typeof ConfigurationDiagnosticsSchema>;

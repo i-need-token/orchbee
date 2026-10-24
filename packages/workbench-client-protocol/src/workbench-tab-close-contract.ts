@@ -107,7 +107,7 @@ export const WorkbenchTabCloseReadSchema = z
 	.strictObject({ kind: z.literal('workbench.tab-close.read'), ...correlation, ...target })
 	.readonly();
 
-export const WorkbenchTabCloseReadOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchTabCloseReadOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('not-closing') }).readonly(),
 	deniedSchema,
 	unavailableSchema,
@@ -141,7 +141,7 @@ export const WorkbenchTabCloseResumeSchema = z
 	})
 	.readonly();
 
-export const WorkbenchTabCloseResumeOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchTabCloseResumeOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('resumed'),
@@ -174,26 +174,6 @@ export const WorkbenchTabCloseResumeResultSchema = z
 	})
 	.readonly();
 
-export type WorkbenchTabCloseAttemptGeneration = z.infer<
-	typeof WorkbenchTabCloseAttemptGenerationSchema
->;
-export type WorkbenchTabClosePhase = z.infer<typeof WorkbenchTabClosePhaseSchema>;
-export type WorkbenchTabCloseUnknownPhase = z.infer<typeof WorkbenchTabCloseUnknownPhaseSchema>;
-export type WorkbenchTabCloseBlockedReason = z.infer<typeof WorkbenchTabCloseBlockedReasonSchema>;
-export type WorkbenchTabCloseUnknownReason = z.infer<typeof WorkbenchTabCloseUnknownReasonSchema>;
-export type WorkbenchTabClosePublicationReason = z.infer<
-	typeof WorkbenchTabClosePublicationReasonSchema
->;
-export type WorkbenchTabCloseUnavailableReason = z.infer<
-	typeof WorkbenchTabCloseUnavailableReasonSchema
->;
-export type WorkbenchTabCloseResumeRejectionReason = z.infer<
-	typeof WorkbenchTabCloseResumeRejectionReasonSchema
->;
-export type WorkbenchTabCloseStatus = z.infer<typeof WorkbenchTabCloseStatusSchema>;
-export type WorkbenchTabCloseRead = z.infer<typeof WorkbenchTabCloseReadSchema>;
-export type WorkbenchTabCloseReadOutcome = z.infer<typeof WorkbenchTabCloseReadOutcomeSchema>;
-export type WorkbenchTabCloseReadResult = z.infer<typeof WorkbenchTabCloseReadResultSchema>;
 export type WorkbenchTabCloseResume = z.infer<typeof WorkbenchTabCloseResumeSchema>;
-export type WorkbenchTabCloseResumeOutcome = z.infer<typeof WorkbenchTabCloseResumeOutcomeSchema>;
+
 export type WorkbenchTabCloseResumeResult = z.infer<typeof WorkbenchTabCloseResumeResultSchema>;

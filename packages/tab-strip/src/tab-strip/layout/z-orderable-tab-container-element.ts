@@ -4,7 +4,7 @@ export const GROUP_VIEW_Z_VALUE_BIT = 1 << TAB_Z_VALUE_RESERVED_BITS;
 
 type TabContainerElementKind = 'tab' | 'group-header' | 'group-underline' | 'group-highlight';
 
-export interface TabContainerZValueInput {
+interface TabContainerZValueInput {
 	kind: TabContainerElementKind;
 	active?: boolean;
 	selected?: boolean;

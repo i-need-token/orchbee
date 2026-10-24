@@ -32,14 +32,14 @@ export const DesktopClipboardRendererCommandSchema = z.strictObject({
 	type: z.literal('desktop-clipboard-read-text-requested'),
 });
 
-export const DesktopClipboardFailureCodeSchema = z.enum([
+const DesktopClipboardFailureCodeSchema = z.enum([
 	'clipboard-read-failed',
 	'clipboard-text-invalid',
 	'desktop-quiescing',
 	'desktop-clipboard-unavailable',
 ]);
 
-export const DesktopClipboardReadResultSchema = z.discriminatedUnion('kind', [
+const DesktopClipboardReadResultSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('completed'), text: DesktopClipboardTextSchema }),
 	z.strictObject({ code: DesktopClipboardFailureCodeSchema, kind: z.literal('failed') }),
 ]);
@@ -50,8 +50,6 @@ export const DesktopClipboardMainEventSchema = z.strictObject({
 	type: z.literal('desktop-clipboard-read-text-responded'),
 });
 
-export type DesktopClipboardFailureCode = z.infer<typeof DesktopClipboardFailureCodeSchema>;
-export type DesktopClipboardMainEvent = z.infer<typeof DesktopClipboardMainEventSchema>;
 export type DesktopClipboardReadResult = z.infer<typeof DesktopClipboardReadResultSchema>;
 export type DesktopClipboardRendererCommand = z.infer<typeof DesktopClipboardRendererCommandSchema>;
 export type DesktopClipboardRequestId = z.infer<typeof DesktopClipboardRequestIdSchema>;

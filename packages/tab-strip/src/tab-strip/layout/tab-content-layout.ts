@@ -26,7 +26,7 @@ export function calculateHorizontalAlertCloseGap(contentsWidth: number, touchUi 
 	return TAB_AFTER_TITLE_PADDING + adjustment;
 }
 
-export interface TabChildVisibility {
+interface TabChildVisibility {
 	showFavicon: boolean;
 	showAlert: boolean;
 	showClose: boolean;
@@ -34,7 +34,7 @@ export interface TabChildVisibility {
 	centerSingleControl: boolean;
 }
 
-export interface HorizontalTabChildVisibilityInput {
+interface HorizontalTabChildVisibilityInput {
 	width: number;
 	contentsWidth: number;
 	height?: number;
@@ -173,7 +173,7 @@ const VERTICAL_TAB_HORIZONTAL_INSET = 8;
 const VERTICAL_TAB_CHILD_UNCOLLAPSED_MIN_WIDTH = 45;
 const VERTICAL_TAB_CLOSE_APPEARANCE_THRESHOLD = VERTICAL_TAB_CHILD_UNCOLLAPSED_MIN_WIDTH - 3;
 
-export interface VerticalTabChildVisibilityInput {
+interface VerticalTabChildVisibilityInput {
 	width: number;
 	active: boolean;
 	pinned: boolean;

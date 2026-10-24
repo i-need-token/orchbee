@@ -4,7 +4,7 @@ import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-
 import type { ProtocolResult } from './protocol-result';
 
 export const IDENTIFIER_BYTE_LENGTH = 16;
-export const IDENTIFIER_TEXT_LENGTH = IDENTIFIER_BYTE_LENGTH * 2;
+
 const ZERO_IDENTIFIER_TEXT = '00000000000000000000000000000000';
 
 const identifierPattern = /^[0-9a-f]{32}$/;
@@ -28,7 +28,7 @@ export type CorrelationId = z.infer<typeof CorrelationIdSchema>;
 export type CreationId = z.infer<typeof CreationIdSchema>;
 export type HostEpoch = z.infer<typeof HostEpochSchema>;
 export type TerminalId = z.infer<typeof TerminalIdSchema>;
-export type TerminalThemeOperationId = z.infer<typeof TerminalThemeOperationIdSchema>;
+type TerminalThemeOperationId = z.infer<typeof TerminalThemeOperationIdSchema>;
 
 export function identifierBytes(value: string): Uint8Array {
 	const bytes = new Uint8Array(IDENTIFIER_BYTE_LENGTH);
@@ -74,10 +74,6 @@ function parseIdentifier<Schema extends z.ZodType>(
 
 export function parseAttachmentId(value: unknown): ProtocolResult<AttachmentId> {
 	return parseIdentifier(AttachmentIdSchema, value, 'AttachmentId');
-}
-
-export function parseClientId(value: unknown): ProtocolResult<ClientId> {
-	return parseIdentifier(ClientIdSchema, value, 'ClientId');
 }
 
 export function parseCorrelationId(value: unknown): ProtocolResult<CorrelationId> {

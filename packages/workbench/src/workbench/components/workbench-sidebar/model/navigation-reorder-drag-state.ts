@@ -14,7 +14,7 @@ export type NavigationReorderDragState =
 			readonly pointerId: number;
 	  };
 
-export type NavigationReorderDragEvent =
+type NavigationReorderDragEvent =
 	| {
 			readonly clientX: number;
 			readonly clientY: number;
@@ -46,7 +46,7 @@ interface NavigationReorderCommitCommand {
 	readonly type: 'commit-navigation-reorder';
 }
 
-export interface NavigationReorderDragTransition {
+interface NavigationReorderDragTransition {
 	readonly command: NavigationReorderCommitCommand | null;
 	readonly state: NavigationReorderDragState;
 }

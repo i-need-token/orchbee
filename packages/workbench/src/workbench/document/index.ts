@@ -3,8 +3,6 @@ export {
 	WorkbenchSharedDocumentRevisionSchema,
 	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchSharedDocument,
-	migrateWorkbenchSharedDocumentVersion1,
-	migrateWorkbenchSharedDocumentVersion2,
 	parseWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 } from './workbench-document';
@@ -24,4 +22,4 @@ export {
 	parseWorkbenchClientView,
 	reconcileWorkbenchClientView,
 } from './workbench-client-view';
-export type { WorkbenchClientView, WorkbenchClientViewInput } from './workbench-client-view';
+export type { WorkbenchClientView } from './workbench-client-view';

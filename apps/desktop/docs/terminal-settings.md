@@ -10,15 +10,11 @@ the matched `orchbee-settings` helper calls Native Site's `UserPreferencesStore`
 
 Scope follows the frozen native configuration identity, including explicit `ORCHBEE_CONFIG_FILE`,
 independently of Electron `userData`, Workspace and remote terminals.
-The old `terminal-default-settings-v1.json` and launch-profile file are one-time migration inputs.
+Desktop no longer imports standalone default-settings or launch-profile files into the shared record.
 
 ## Startup and recovery
 
-Main verifies the exact helper filename and SHA-256 manifest before each bounded hidden process
-exchange. Requests contain no path or arbitrary process command.
-Main imports valid legacy launch profiles and scrollback only into unclaimed keys; the renderer
-separately imports eleven common leaves. Invalid legacy sources remain visible and unmodified.
-Explicit edits and resets protect their keys against delayed import.
+Main verifies the exact helper filename and SHA-256 manifest before each bounded hidden process exchange. Requests contain no path or arbitrary process command. The shared protocol accepts only reads and source-bound updates, without Desktop legacy-record import.
 
 Main reads confirmed preferences before terminal runtime initialization and applies scrollback to
 Host. One-second polling observes TUI and other Desktop writers. Invalid or unreadable shared
@@ -70,7 +66,7 @@ storage and omits unavailable native launch and scrollback controls.
 ## Verification
 
 Controller, broker, preload, renderer and lifecycle tests cover admission, conflict, disposal,
-migration, failure retention and new-terminal capture. Runtime and real helper process tests
+strict current-shape admission, failure retention and new-terminal capture. Runtime and real helper process tests
 cover competing writers and shared storage. Model and negative controls are described in the
 [native contract](../../orchbee/docs/native-settings.md#correctness-and-evidence).
 Run the affected root gate. Native process evidence applies only to the host where it ran.

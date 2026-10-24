@@ -1,6 +1,6 @@
 import type { PanelLayoutNode, PanelLeaf } from './panel-layout-types';
 
-export type PanelSwapResolution =
+type PanelSwapResolution =
 	| {
 			readonly kind: 'applied';
 			readonly root: PanelLayoutNode;

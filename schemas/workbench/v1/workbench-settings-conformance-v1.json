@@ -145,9 +145,7 @@
 							"soundEnabled",
 							"scrollbackBytes",
 							"launchProfiles"
-						],
-						"desktopImported": true,
-						"desktopMainImported": true
+						]
 					}
 				}
 			}
@@ -206,9 +204,7 @@
 							"soundEnabled",
 							"scrollbackBytes",
 							"launchProfiles"
-						],
-						"desktopImported": true,
-						"desktopMainImported": true
+						]
 					},
 					"changed": true
 				}
@@ -268,9 +264,7 @@
 							"soundEnabled",
 							"scrollbackBytes",
 							"launchProfiles"
-						],
-						"desktopImported": true,
-						"desktopMainImported": true
+						]
 					},
 					"changed": false
 				}
@@ -616,9 +610,7 @@
 							"soundEnabled",
 							"scrollbackBytes",
 							"launchProfiles"
-						],
-						"desktopImported": true,
-						"desktopMainImported": true
+						]
 					}
 				}
 			}
@@ -691,9 +683,7 @@
 							"soundEnabled",
 							"scrollbackBytes",
 							"launchProfiles"
-						],
-						"desktopImported": true,
-						"desktopMainImported": true
+						]
 					}
 				}
 			}
@@ -738,9 +728,7 @@
 								]
 							}
 						},
-						"claimed": ["locale", "locale"],
-						"desktopImported": true,
-						"desktopMainImported": true
+						"claimed": ["locale", "locale"]
 					}
 				}
 			}
@@ -798,9 +786,7 @@
 							"soundEnabled",
 							"scrollbackBytes",
 							"launchProfiles"
-						],
-						"desktopImported": true,
-						"desktopMainImported": true
+						]
 					}
 				}
 			}

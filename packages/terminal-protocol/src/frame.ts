@@ -22,10 +22,10 @@ import {
 import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 
 export const TERMINAL_FRAME_HEADER_BYTES = 160;
-export const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
+const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
 // Keep this synchronized with schemas/terminal/v1/constants.json, Rust and Zig. Released changes (>= 1.0.0) also update
 // schemas/terminal/docs/version-history.md in the same change.
-export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
+const TERMINAL_FRAME_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 
 const MAX_UINT16 = 0xffff;
 const MAX_UINT32 = 0xffff_ffff;
@@ -137,7 +137,7 @@ export const TerminalCloseActivityCode = {
 	unknown: 0,
 } as const;
 
-export const TerminalProgressState = {
+const TerminalProgressState = {
 	error: 'error',
 	indeterminate: 'indeterminate',
 	pause: 'pause',
@@ -145,8 +145,7 @@ export const TerminalProgressState = {
 	set: 'set',
 } as const;
 
-export type TerminalProgressState =
-	(typeof TerminalProgressState)[keyof typeof TerminalProgressState];
+type TerminalProgressState = (typeof TerminalProgressState)[keyof typeof TerminalProgressState];
 
 export interface TerminalProgress {
 	readonly state: TerminalProgressState;
@@ -203,13 +202,13 @@ const positiveUint64Schema = uint64Schema.refine((value) => value > 0n, {
 	message: 'Value must be greater than zero',
 });
 
-export const TerminalColorSchema = z.discriminatedUnion('kind', [
+const TerminalColorSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal(TerminalColorKind.default) }),
 	z.strictObject({ kind: z.literal(TerminalColorKind.none) }),
 	z.strictObject({ kind: z.literal(TerminalColorKind.rgb), rgb: rgbSchema }),
 ]);
 
-export const TerminalInteractionSchema = z.strictObject({
+const TerminalInteractionSchema = z.strictObject({
 	alternateScroll: z.boolean(),
 	applicationCursorKeys: z.boolean(),
 	applicationKeypad: z.boolean(),
@@ -231,7 +230,7 @@ export const TerminalInteractionSchema = z.strictObject({
 	mouseX10: z.boolean(),
 });
 
-export const TerminalCellSchema = z.strictObject({
+const TerminalCellSchema = z.strictObject({
 	grapheme: z.string(),
 	protected: z.boolean(),
 	semanticContent: z.enum(SemanticContent),
@@ -239,7 +238,7 @@ export const TerminalCellSchema = z.strictObject({
 	width: z.enum(CellWidth),
 });
 
-export const TerminalStyleSchema = z.strictObject({
+const TerminalStyleSchema = z.strictObject({
 	background: TerminalColorSchema,
 	blink: z.boolean(),
 	bold: z.boolean(),
@@ -255,7 +254,7 @@ export const TerminalStyleSchema = z.strictObject({
 	underlineKind: z.enum(UnderlineKind),
 });
 
-export const TerminalRowSchema = z.strictObject({
+const TerminalRowSchema = z.strictObject({
 	cells: z.array(TerminalCellSchema).max(PROTOCOL_LIMITS.maxFrameColumns),
 	index: uint16Schema,
 	promptClass: z.enum(RowPromptClass),
@@ -263,7 +262,7 @@ export const TerminalRowSchema = z.strictObject({
 	wrapContinuation: z.boolean(),
 });
 
-export const TerminalFrameExtensionSchema = z.strictObject({
+const TerminalFrameExtensionSchema = z.strictObject({
 	data: z.instanceof(Uint8Array),
 	kind: uint16Schema,
 	required: z.boolean(),
@@ -450,15 +449,14 @@ export const TerminalFrameSchema = z
 		if (!commandCompletion.ok) addIssue(context, ['extensions'], commandCompletion.detail);
 	});
 
-export type TerminalCell = z.infer<typeof TerminalCellSchema>;
 export type TerminalColor = z.infer<typeof TerminalColorSchema>;
 export type TerminalFrame = z.infer<typeof TerminalFrameSchema>;
-export type TerminalFrameExtension = z.infer<typeof TerminalFrameExtensionSchema>;
+type TerminalFrameExtension = z.infer<typeof TerminalFrameExtensionSchema>;
 export type TerminalInteraction = z.infer<typeof TerminalInteractionSchema>;
-export type TerminalRow = z.infer<typeof TerminalRowSchema>;
+type TerminalRow = z.infer<typeof TerminalRowSchema>;
 export type TerminalStyle = z.infer<typeof TerminalStyleSchema>;
 
-export interface DecodedTerminalStyles {
+interface DecodedTerminalStyles {
 	readonly backgroundColors: Uint32Array;
 	readonly flags: Uint16Array;
 	readonly foregroundColors: Uint32Array;
@@ -467,14 +465,14 @@ export interface DecodedTerminalStyles {
 	readonly underlineKinds: Uint8Array;
 }
 
-export interface DecodedTerminalRows {
+interface DecodedTerminalRows {
 	readonly cellOffsets: Uint32Array;
 	readonly flags: Uint8Array;
 	readonly indices: Uint16Array;
 	readonly promptClasses: Uint8Array;
 }
 
-export interface DecodedTerminalCells {
+interface DecodedTerminalCells {
 	readonly graphemeStringIndices: Uint32Array;
 	readonly protected: Uint8Array;
 	readonly semanticContents: Uint8Array;
@@ -524,7 +522,7 @@ export interface DecodedTerminalFrame {
 	readonly title: string | null;
 }
 
-export interface DecodedTerminalFrameRoute {
+interface DecodedTerminalFrameRoute {
 	readonly attachmentId: AttachmentId;
 	readonly hostEpoch: HostEpoch;
 }

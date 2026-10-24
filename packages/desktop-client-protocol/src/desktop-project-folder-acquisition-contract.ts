@@ -59,7 +59,7 @@ export const DesktopProjectFolderAcquisitionRendererCommandSchema = z.discrimina
 	}),
 ]);
 
-export const DesktopProjectFolderAcquisitionFailureCodeSchema = z.enum([
+const DesktopProjectFolderAcquisitionFailureCodeSchema = z.enum([
 	'busy',
 	'already-exists',
 	'control-unavailable',
@@ -72,7 +72,7 @@ export const DesktopProjectFolderAcquisitionFailureCodeSchema = z.enum([
 	'validation-failed',
 ]);
 
-export const DesktopProjectFolderAcquisitionResultSchema = z.discriminatedUnion('kind', [
+const DesktopProjectFolderAcquisitionResultSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('cancelled') }),
 	z.strictObject({ kind: z.literal('selected'), path: DesktopProjectFolderPathSchema }),
 	z.strictObject({ kind: z.literal('parent-selected'), path: DesktopProjectFolderPathSchema }),
@@ -101,9 +101,7 @@ export const DesktopProjectFolderAcquisitionMainEventSchema = z.discriminatedUni
 export type DesktopProjectFolderAcquisitionFailureCode = z.infer<
 	typeof DesktopProjectFolderAcquisitionFailureCodeSchema
 >;
-export type DesktopProjectFolderAcquisitionMainEvent = z.infer<
-	typeof DesktopProjectFolderAcquisitionMainEventSchema
->;
+
 export type DesktopProjectFolderAcquisitionRendererCommand = z.infer<
 	typeof DesktopProjectFolderAcquisitionRendererCommandSchema
 >;

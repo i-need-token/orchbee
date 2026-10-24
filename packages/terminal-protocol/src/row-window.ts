@@ -51,7 +51,7 @@ export const TERMINAL_ROW_WINDOW_MAGIC = new Uint8Array([0x4f, 0x42, 0x52, 0x57]
 // schemas/terminal/docs/version-history.md in the same change.
 export const TERMINAL_ROW_WINDOW_FORMAT = { major: 0, minor: 1, patch: 0 } as const;
 
-export const TerminalTextRowFlag = {
+const TerminalTextRowFlag = {
 	identityAscii: 0x04,
 } as const;
 
@@ -85,14 +85,14 @@ const EMPTY_UINT32_ARRAY = new Uint32Array(0);
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
-export const TerminalTextCellMappingSchema = z.strictObject({
+const TerminalTextCellMappingSchema = z.strictObject({
 	byteOffset: uint32Schema,
 	column: columnSchema,
 	utf16Offset: uint32Schema,
 	width: z.number().int().min(1).max(2),
 });
 
-export const TerminalTextRowSchema = z.strictObject({
+const TerminalTextRowSchema = z.strictObject({
 	index: uint64Schema,
 	mappings: z.array(TerminalTextCellMappingSchema).max(PROTOCOL_LIMITS.maxFrameColumns),
 	promptClass: z.enum(RowPromptClass),
@@ -112,7 +112,7 @@ const rowWindowBaseShape = {
 	totalRows: uint64Schema,
 } as const;
 
-export const TerminalRenderRowWindowSchema = z
+const TerminalRenderRowWindowSchema = z
 	.strictObject({
 		...rowWindowBaseShape,
 		detail: z.literal(TerminalRowWindowDetail.render),
@@ -152,7 +152,7 @@ export const TerminalRenderRowWindowSchema = z
 		}
 	});
 
-export const TerminalTextRowWindowSchema = z
+const TerminalTextRowWindowSchema = z
 	.strictObject({
 		...rowWindowBaseShape,
 		detail: z.literal(TerminalRowWindowDetail.text),
@@ -311,18 +311,17 @@ function matchesUtf8Position(
 	return position.byteOffset === targetByteOffset && position.utf16Offset === targetUtf16Offset;
 }
 
-export const TerminalRowWindowSchema = z.discriminatedUnion('detail', [
+const TerminalRowWindowSchema = z.discriminatedUnion('detail', [
 	TerminalRenderRowWindowSchema,
 	TerminalTextRowWindowSchema,
 ]);
 
-export type TerminalRenderRowWindow = z.infer<typeof TerminalRenderRowWindowSchema>;
-export type TerminalRowWindow = z.infer<typeof TerminalRowWindowSchema>;
-export type TerminalTextCellMapping = z.infer<typeof TerminalTextCellMappingSchema>;
-export type TerminalTextRow = z.infer<typeof TerminalTextRowSchema>;
-export type TerminalTextRowWindow = z.infer<typeof TerminalTextRowWindowSchema>;
+type TerminalRowWindow = z.infer<typeof TerminalRowWindowSchema>;
 
-export interface DecodedTerminalTextRow {
+export type TerminalTextRow = z.infer<typeof TerminalTextRowSchema>;
+type TerminalTextRowWindow = z.infer<typeof TerminalTextRowWindowSchema>;
+
+interface DecodedTerminalTextRow {
 	readonly byteOffsets: Uint32Array;
 	readonly columns: Uint16Array;
 	/** The UTF-8 byte, UTF-16 code-unit, and terminal-column offsets are all the character index. */
@@ -354,7 +353,7 @@ export interface DecodedTerminalRenderRowWindow extends DecodedTerminalRowWindow
 	readonly graphics: TerminalGraphics;
 }
 
-export interface DecodedTerminalTextRowWindow extends DecodedTerminalRowWindowBase {
+interface DecodedTerminalTextRowWindow extends DecodedTerminalRowWindowBase {
 	readonly detail: 'text';
 	readonly rows: readonly DecodedTerminalTextRow[];
 }

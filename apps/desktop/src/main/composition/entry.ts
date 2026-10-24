@@ -182,9 +182,6 @@ if (!singleInstanceLockOwned) {
 			}
 			desktopApplication = new DesktopApplication({
 				resolveSystemShell: () => nativePreferences.resolveSystemShell(),
-				...(process.env['ORCHBEE_TERMINAL_SCROLLBACK_BYTES'] === undefined
-					? {}
-					: { runtimeScrollbackPreference: runtime.terminalConfiguration.scrollbackBytes }),
 				userPreferences: new DesktopUserPreferencesController(nativePreferences),
 				...(developmentRestartPlanStore === undefined
 					? {}

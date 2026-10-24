@@ -10,8 +10,6 @@ fn basis() -> Basis {
         source: "missing".into(),
         values: UserPreferencesValues::default(),
         claimed: Default::default(),
-        desktop_imported: false,
-        desktop_main_imported: false,
     }
 }
 fn basis_with_application_theme(application_theme: ApplicationAppearance) -> Basis {
@@ -22,8 +20,6 @@ fn basis_with_application_theme(application_theme: ApplicationAppearance) -> Bas
             ..UserPreferencesValues::default()
         },
         claimed: Default::default(),
-        desktop_imported: false,
-        desktop_main_imported: false,
     }
 }
 fn ready_with_basis(initial: Basis) -> Editor {

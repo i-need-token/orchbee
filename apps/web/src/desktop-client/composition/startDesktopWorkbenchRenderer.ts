@@ -40,7 +40,7 @@ import {
 import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import { DesktopTerminalDefaultSettingsClient } from '../terminal-default-settings';
-import { DesktopUserPreferencesClient, readDesktopLegacyPreferences } from '../user-preferences';
+import { DesktopUserPreferencesClient } from '../user-preferences';
 
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
@@ -230,7 +230,7 @@ export function startDesktopWorkbenchRenderer(
 	): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		await userPreferences.initialize(() => readDesktopLegacyPreferences(storage.preferences));
+		await userPreferences.refresh();
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		const [
 			runtimeStart,

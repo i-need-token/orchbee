@@ -20,7 +20,7 @@ export interface TabStripLayoutController {
 	getActiveIndex(): number | null;
 	isGroupCollapsed(group: TabGroupId): boolean;
 }
-export interface TabStripIdealBounds {
+interface TabStripIdealBounds {
 	totalWidth: number;
 	layoutDomain: LayoutDomain;
 	tabBounds: ReadonlyMap<string, Rect>;

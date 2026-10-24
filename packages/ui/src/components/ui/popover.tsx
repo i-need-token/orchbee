@@ -11,10 +11,6 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
 	return <PopoverPrimitive.Trigger data-slot='popover-trigger' {...props} />;
 }
 
-function PopoverClose({ ...props }: PopoverPrimitive.Close.Props) {
-	return <PopoverPrimitive.Close data-slot='popover-close' {...props} />;
-}
-
 function PopoverContent({
 	className,
 	align = 'center',
@@ -81,12 +77,4 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
 	);
 }
 
-export {
-	Popover,
-	PopoverClose,
-	PopoverContent,
-	PopoverDescription,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverTrigger,
-};
+export { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger };

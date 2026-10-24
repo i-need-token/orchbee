@@ -3,9 +3,9 @@ import { TabStripOrientation } from '../types/tab-strip-types';
 export const TAB_STRIP_COMBO_ANIMATION_DURATION_MS = 300;
 export const TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS = 2_000;
 
-export type TabStripComboButtonId = 'tab-search';
+type TabStripComboButtonId = 'tab-search';
 
-export interface TabStripComboAnimationFactors {
+interface TabStripComboAnimationFactors {
 	expansion: number;
 	opacity: number;
 	radius: number;
@@ -25,7 +25,7 @@ export interface TabStripComboButtonSnapshot {
 	hideTabSearchPending: boolean;
 }
 
-export interface TabStripComboButtonControllerOptions {
+interface TabStripComboButtonControllerOptions {
 	tabSearchPinned?: boolean;
 	richAnimations?: boolean;
 	onPinnedChange?: (button: TabStripComboButtonId, pinned: boolean) => void;

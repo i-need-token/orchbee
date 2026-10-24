@@ -12,7 +12,6 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { TerminalExitSpillStore } from '../TerminalExitSpillStore';
-import { TerminalExitPublicationLedger } from '../TerminalExitPublicationLedger';
 
 const temporaryDirectories: string[] = [];
 
@@ -55,7 +54,7 @@ describe('TerminalExitSpillStore', () => {
 		const reloaded = new TerminalExitSpillStore(filePath);
 		expect(await reloaded.load()).toEqual({ kind: 'ready' });
 		expect(reloaded.list()).toEqual([{ event: newest, reason: 'shutdown', state: 'pending' }]);
-		expect(await readFile(filePath, 'utf8')).toContain('"version":2');
+		expect(await readFile(filePath, 'utf8')).toContain('"version":1');
 		expect(await readdir(path.dirname(filePath))).toEqual(['terminal-exits-v1.json']);
 	});
 
@@ -64,12 +63,11 @@ describe('TerminalExitSpillStore', () => {
 		temporaryDirectories.push(directory);
 		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
 		await mkdir(path.dirname(filePath), { recursive: true });
-		const events = Array.from({ length: 4096 }, (_, index) => ({
+		const pending = Array.from({ length: 4096 }, (_, index) => ({
 			event: terminalExitFor(index, '1'),
 			reason: 'unknown-identity' as const,
-			state: 'pending' as const,
 		}));
-		await writeFile(filePath, JSON.stringify({ events, version: 1 }));
+		await writeFile(filePath, JSON.stringify({ pending, rejected: [], version: 1 }));
 		const store = new TerminalExitSpillStore(filePath);
 
 		expect(await store.load()).toEqual({ kind: 'ready' });
@@ -106,129 +104,30 @@ describe('TerminalExitSpillStore', () => {
 		expect(reloaded.listRejected()).toEqual([]);
 	});
 
-	it('drops legacy published records only when the loaded ledger confirms them', async () => {
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
-		temporaryDirectories.push(directory);
-		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
-		await mkdir(path.dirname(filePath), { recursive: true });
-		const event = terminalExit('10');
-		await writeFile(
-			filePath,
-			JSON.stringify({ events: [{ event, reason: 'queue-full', state: 'published' }], version: 1 }),
-		);
-
-		const ledger = new TerminalExitPublicationLedger(
-			path.join(directory, 'recovery', 'published.json'),
-		);
-		expect(await ledger.load()).toEqual({ kind: 'ready' });
-		expect(ledger.markPublished(event)).toBe(true);
-		const store = new TerminalExitSpillStore(filePath);
-		expect(await store.load(ledger)).toEqual({ kind: 'ready' });
-		expect(store.list()).toEqual([]);
-		expect(await readFile(filePath, 'utf8')).toContain('"version":2');
-
-		const reloaded = new TerminalExitSpillStore(filePath);
-		expect(await reloaded.load(ledger)).toEqual({ kind: 'ready' });
-		expect(reloaded.list()).toEqual([]);
-	});
-
-	it('fails closed for an older legacy published revision and keeps the v1 file unchanged', async () => {
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
-		temporaryDirectories.push(directory);
-		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
-		await mkdir(path.dirname(filePath), { recursive: true });
-		const recorded = terminalExit('10');
-		const older = terminalExit('9');
-		const legacy = JSON.stringify({
-			events: [{ event: older, reason: 'queue-full', state: 'published' }],
+	it.each([
+		'{not-json',
+		JSON.stringify({
+			events: [{ event: terminalExit('1'), reason: 'queue-full', state: 'published' }],
 			version: 1,
-		});
-		await writeFile(filePath, legacy);
+		}),
+		JSON.stringify({ pending: [], rejected: [], version: 2 }),
+	])(
+		'preserves invalid records and stays unavailable after a failed reload: %s',
+		async (invalid) => {
+			const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
+			temporaryDirectories.push(directory);
+			const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
+			const store = new TerminalExitSpillStore(filePath);
 
-		const ledger = new TerminalExitPublicationLedger(path.join(directory, 'published.json'));
-		expect(await ledger.load()).toEqual({ kind: 'ready' });
-		expect(ledger.markPublished(recorded)).toBe(true);
-		const store = new TerminalExitSpillStore(filePath);
-		expect(await store.load(ledger)).toEqual({ kind: 'unavailable', reason: 'invalid' });
-		expect(await readFile(filePath, 'utf8')).toBe(legacy);
-		expect(() => store.list()).toThrow('not loaded');
-
-		const exact = JSON.stringify({
-			events: [{ event: recorded, reason: 'queue-full', state: 'published' }],
-			version: 1,
-		});
-		await writeFile(filePath, exact);
-		expect(await store.load(ledger)).toEqual({ kind: 'ready' });
-		expect(store.list()).toEqual([]);
-		expect(await readFile(filePath, 'utf8')).toContain('"version":2');
-	});
-
-	it('fails closed for legacy published records without ledger evidence', async () => {
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
-		temporaryDirectories.push(directory);
-		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
-		await mkdir(path.dirname(filePath), { recursive: true });
-		const event = terminalExit('7');
-		await writeFile(
-			filePath,
-			JSON.stringify({ events: [{ event, reason: 'queue-full', state: 'published' }], version: 1 }),
-		);
-
-		const store = new TerminalExitSpillStore(filePath);
-		expect(await store.load()).toEqual({ kind: 'unavailable', reason: 'invalid' });
-		expect(await readFile(filePath, 'utf8')).toContain('"version":1');
-	});
-
-	it('rejects an oversized legacy event array before migration', async () => {
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
-		temporaryDirectories.push(directory);
-		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
-		await mkdir(path.dirname(filePath), { recursive: true });
-		const events = Array.from({ length: 4097 }, (_, index) => ({
-			event: terminalExitFor(index, '1'),
-			reason: 'queue-full' as const,
-			state: 'pending' as const,
-		}));
-		await writeFile(filePath, JSON.stringify({ events, version: 1 }));
-
-		const store = new TerminalExitSpillStore(filePath);
-		expect(await store.load()).toEqual({ kind: 'unavailable', reason: 'invalid' });
-	});
-
-	it('stays unavailable after a failed reload of an already loaded instance', async () => {
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
-		temporaryDirectories.push(directory);
-		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
-		const store = new TerminalExitSpillStore(filePath);
-
-		expect(await store.load()).toEqual({ kind: 'ready' });
-		expect(store.admit(terminalExit('1'), 'queue-full')).toEqual({ kind: 'admitted' });
-		await writeFile(filePath, '{not-json');
-		expect(await store.load()).toEqual({ kind: 'unavailable', reason: 'invalid' });
-		expect(() => store.list()).toThrow('not loaded');
-		expect(() => store.listRejected()).toThrow('not loaded');
-	});
-
-	it('stays unavailable when legacy migration persistence fails', async () => {
-		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-terminal-exit-spill-'));
-		temporaryDirectories.push(directory);
-		const filePath = path.join(directory, 'recovery', 'terminal-exits-v1.json');
-		await mkdir(path.dirname(filePath), { recursive: true });
-		const event = terminalExit('4');
-		const ledger = new TerminalExitPublicationLedger(path.join(directory, 'published.json'));
-		expect(await ledger.load()).toEqual({ kind: 'ready' });
-		expect(ledger.markPublished(event)).toBe(true);
-		await writeFile(
-			filePath,
-			JSON.stringify({ events: [{ event, reason: 'queue-full', state: 'published' }], version: 1 }),
-		);
-		const randomToken = 'migration-collision';
-		await writeFile(`${filePath}.${randomToken}.tmp`, 'occupied');
-		const store = new TerminalExitSpillStore(filePath, () => randomToken);
-
-		expect(await store.load(ledger)).toEqual({ kind: 'unavailable', reason: 'read-failed' });
-		expect(() => store.list()).toThrow('not loaded');
-	});
+			expect(await store.load()).toEqual({ kind: 'ready' });
+			expect(store.admit(terminalExit('1'), 'queue-full')).toEqual({ kind: 'admitted' });
+			await writeFile(filePath, invalid);
+			expect(await store.load()).toEqual({ kind: 'unavailable', reason: 'invalid' });
+			expect(() => store.list()).toThrow('not loaded');
+			expect(() => store.listRejected()).toThrow('not loaded');
+			expect(await readFile(filePath, 'utf8')).toBe(invalid);
+		},
+	);
 });
 
 function terminalExit(finalRevision: string): TerminalExited {

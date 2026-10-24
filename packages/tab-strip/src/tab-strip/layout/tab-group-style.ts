@@ -38,7 +38,7 @@ export function getTabGroupTitleVisualCenteringOffset(
 		return 0;
 	return options.rtl ? -1 : 1;
 }
-export interface HorizontalTabGroupHeaderLayoutInput {
+interface HorizontalTabGroupHeaderLayoutInput {
 	title: string;
 	measuredTitleWidth: number;
 	attention?: boolean;
@@ -47,7 +47,7 @@ export interface HorizontalTabGroupHeaderLayoutInput {
 	standardTabWidth?: number;
 	tabOverlap?: number;
 }
-export interface HorizontalTabGroupHeaderLayout {
+interface HorizontalTabGroupHeaderLayout {
 	desiredWidth: number;
 	chipWidth: number;
 	chipHeight: number;
@@ -102,7 +102,7 @@ export function shouldHideTabGroupUnderline(
 ): boolean {
 	return leadingKind === 'header' && trailingKind === 'header';
 }
-export interface HorizontalTabGroupUnderlineInput {
+interface HorizontalTabGroupUnderlineInput {
 	leadingHeaderX: number;
 	trailingTabX: number;
 	trailingTabWidth: number;
@@ -126,7 +126,7 @@ export function calculateHorizontalTabGroupUnderlineBounds(
 		width: Math.max(0, trailingRight - x),
 	};
 }
-export interface MergeDraggedGroupUnderlineInput {
+interface MergeDraggedGroupUnderlineInput {
 	normal: Readonly<{
 		x: number;
 		width: number;

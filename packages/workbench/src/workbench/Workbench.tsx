@@ -55,7 +55,7 @@ import {
 } from './utils/workbench-shortcuts';
 import styles from './Workbench.module.css';
 
-export interface WorkbenchProps {
+interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentNotificationObserver?: WorkbenchAgentNotificationObserver | undefined;
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;

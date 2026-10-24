@@ -137,7 +137,7 @@ export interface DragState {
 	settling: boolean;
 }
 
-export interface DragVisualView {
+interface DragVisualView {
 	id: string;
 	kind: 'tab' | 'group';
 	tabIds?: readonly string[];
@@ -147,11 +147,11 @@ export interface DragVisualView {
 	height: number;
 }
 
-export interface PackedHorizontalDragView extends DragVisualView {
+interface PackedHorizontalDragView extends DragVisualView {
 	initialOffsetX: number;
 }
 
-export interface HorizontalDragPresentation {
+interface HorizontalDragPresentation {
 	readonly compactGroupHeaderDrag: boolean;
 	readonly left: number;
 	readonly sourceVisualId: string;

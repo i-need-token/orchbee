@@ -2,7 +2,7 @@ import { requireDefined } from '../../../../../utils/requireDefined';
 export const FIRST_STRONG_ISOLATE = '\u2068';
 export const POP_DIRECTIONAL_ISOLATE = '\u2069';
 export const ELLIPSIS = '\u2026';
-export interface FilenameLineLengths {
+interface FilenameLineLengths {
 	first: number;
 	second: number;
 }
@@ -59,7 +59,7 @@ export function elideFilenameWithLineLengths(
 	if (adjustedCutPoint || !isWholeString) result += POP_DIRECTIONAL_ISOLATE;
 	return result;
 }
-export interface FadeSize {
+interface FadeSize {
 	width: number;
 	height: number;
 }

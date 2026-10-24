@@ -1,8 +1,8 @@
 export { Workbench } from './Workbench';
-export type { WorkbenchProps } from './Workbench';
+
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { matchesWorkbenchProjectCreation } from './model/matchesWorkbenchProjectCreation';
-export type { CurrentDirectoryTerminalTarget } from './model/resolve-current-directory-terminal-target';
+
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export {
 	resolveTerminalMetadataObservation,
@@ -24,117 +24,51 @@ export type {
 	WorkbenchProjectWorktreeCapability,
 	WorkbenchProjectWorktreeAdoptionResult,
 	WorkbenchProjectWorktreeCreationResult,
-	WorkbenchProjectWorktreeDiscovery,
 	WorkbenchProjectWorktreeDiscoveryResult,
-	WorkbenchProjectExistingWorktree,
 	WorkbenchProjectWorktreeFailureCode,
-	WorkbenchProjectWorktreeInventory,
-	WorkbenchProjectWorktreeRepository,
 } from './types/workbench-project-worktree';
-export type {
-	WorkbenchRemoteTerminalCreationCapability,
-	WorkbenchRemoteTerminalCreationFailureReason,
-	WorkbenchRemoteTerminalCreationResult,
-} from './types/workbench-remote-terminal-creation';
-export type {
-	WorkbenchEnvironmentProjectConnectionCapability,
-	WorkbenchEnvironmentProjectConnectionState,
-	WorkbenchEnvironmentProjectConnectionStatus,
-} from './types/workbench-environment-project-connection';
+export type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
+export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
-	WorkbenchActiveTerminalCreationRoute,
-	WorkbenchActiveTerminalCreationRouteInput,
-	WorkbenchEnvironmentTerminalCreateInput,
-	WorkbenchPublishedTerminalIdentity,
-	WorkbenchProjectWorkspaceRuntimeOptions,
-	WorkbenchRuntimeTerminalCreateInput,
-	WorkbenchRuntimeTerminalCreateResult,
-	WorkbenchSharedDocumentApplyResult,
-	WorkbenchStandaloneTerminalPresentation,
-	WorkbenchTerminalSessionStopFailure,
 	WorkbenchTerminalSessionStopRequestResult,
 	WorkbenchTerminalSessionRestartStageResult,
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';
-export type {
-	RawTerminalMetadataObservation,
-	RawTerminalNaturalMetadataObservation,
-	WorkbenchTerminalCurrentDirectoryObservation,
-	WorkbenchTerminalMetadataObservation,
-} from './model/resolve-terminal-metadata-observation';
+
 export type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,
 } from './model/createWorkbenchPreviewTerminalPresentationComposition';
-export type {
-	WorkbenchActionCatalog,
-	WorkbenchProjectCreateInput,
-	WorkbenchResourceDirectoryInput,
-	WorkbenchResourceFolderAddInput,
-	WorkbenchProjectInput,
-	WorkbenchProjectRenameInput,
-	WorkbenchPanelPosition,
-	WorkbenchPanelPositionInput,
-	WorkbenchSearchOpenInput,
-	WorkbenchTabPosition,
-	WorkbenchTabPositionInput,
-	WorkbenchTerminalCreateInput,
-	WorkbenchWorkspaceCreateInput,
-	WorkbenchWorkspaceInput,
-	WorkbenchWorkspaceUpdateInput,
-} from './actions/workbench-action-ids';
+export type { WorkbenchPanelPosition, WorkbenchTabPosition } from './actions/workbench-action-ids';
 export { TERMINAL_ACTION_IDS } from './actions/terminal-action-contracts';
 export type {
 	WorkbenchTerminalActionCatalog,
-	WorkbenchTerminalActionId,
 	WorkbenchTerminalLinkActionInput,
 } from './actions/terminal-action-contracts';
 export type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 export type {
 	WorkbenchHostActionCallback,
-	WorkbenchHostActionResult,
 	WorkbenchNavigationPort,
 	WorkbenchNavigationTarget,
-	WorkbenchTerminalCreateCallback,
-	WorkbenchTerminalCreateRequest,
-	WorkbenchTerminalFontSizeChange,
 	WorkbenchTerminalFontSizeChangeCallback,
 } from './types/workbench-host-actions';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 export type {
 	WorkbenchAgentEventObservation,
 	WorkbenchAgentNotificationObserver,
-	WorkbenchAgentNotificationRequest,
 } from './types/workbench-agent-notification';
+export type { WorkbenchShortcutBindings, WorkbenchShortcutId } from './utils/workbench-shortcuts';
 export type {
-	WorkbenchShortcutBinding,
-	WorkbenchShortcutBindings,
-	WorkbenchShortcutId,
-} from './utils/workbench-shortcuts';
-export type {
-	WorkbenchTerminalActionContextCapture,
-	WorkbenchTerminalActionContextCaptureRequest,
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalBroadcastInputReadiness,
 	WorkbenchTerminalBroadcastInputResult,
 	WorkbenchTerminalBroadcastInputSink,
-	WorkbenchTerminalBroadcastKeyModifiers,
 	WorkbenchTerminalPresentation,
-	WorkbenchTerminalPresentationMode,
-	WorkbenchTerminalPresentationReadiness,
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
 } from './types/workbench-terminal-surface';
-export type { WorkbenchSearchFilter } from './types/workbench-search';
-export type {
-	WorkbenchSearchProvider,
-	WorkbenchSearchProviderArgumentOption,
-	WorkbenchSearchProviderArgumentPicker,
-	WorkbenchSearchProviderContext,
-	WorkbenchSearchProviderResult,
-	WorkbenchSearchProviderResultInvocation,
-	WorkbenchSearchProviderSection,
-} from './types/workbench-search-provider';
+
+export type { WorkbenchSearchProvider } from './types/workbench-search-provider';

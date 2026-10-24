@@ -12,4 +12,3 @@ export {
 	type AgentNotificationMode as AgentNotificationModeValue,
 	type TerminalCompletionReminderMode as TerminalCompletionReminderModeValue,
 } from './terminal-feedback-preferences';
-export { readLegacyFeedbackPreferencePatch } from './terminal-feedback-preferences-storage';

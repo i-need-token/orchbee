@@ -4,8 +4,8 @@ import { CanonicalUint64TextSchema } from './control';
 import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 import { AttachmentIdSchema, TerminalIdSchema } from './identifiers';
 
-export const MAXIMUM_PROCESS_SAMPLE_ROWS = 64;
-export const MAXIMUM_PROCESS_TEXT_UTF16_UNITS = 4096;
+const MAXIMUM_PROCESS_SAMPLE_ROWS = 64;
+const MAXIMUM_PROCESS_TEXT_UTF16_UNITS = 4096;
 
 const pid = z.number().int().min(1).max(0xffff_ffff);
 const text = z
@@ -42,6 +42,3 @@ export const TerminalProcessInfoSchema = z.strictObject({
 			'Process PIDs must be strictly increasing',
 		),
 });
-
-export type ReadProcessInfo = z.infer<typeof ReadProcessInfoSchema>;
-export type TerminalProcessInfo = z.infer<typeof TerminalProcessInfoSchema>;

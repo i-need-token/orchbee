@@ -16,7 +16,7 @@ const absolutePath = (value: string) =>
 	/^(?:\/|(?:\\\\\?\\)?[A-Za-z]:[/\\])/u.test(value) && !value.includes('\0');
 
 // Git observation text is not a registered Directory path and has no 4096-byte lexical cap.
-export const WorktreeEntrySchema = z
+const WorktreeEntrySchema = z
 	.strictObject({
 		worktreePath: textSchema.nullish().transform((value) => value ?? null),
 		worktreePathBytesHex: hexSchema.nullish().transform((value) => value ?? null),
@@ -75,7 +75,7 @@ export const WorkbenchWorktreeListReadSchema = z
 	})
 	.readonly();
 
-export const WorkbenchWorktreeListOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchWorktreeListOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('found'),
@@ -135,8 +135,3 @@ export const WorkbenchWorktreeListResultSchema = z
 		outcome: WorkbenchWorktreeListOutcomeSchema,
 	})
 	.readonly();
-
-export type WorktreeEntry = z.infer<typeof WorktreeEntrySchema>;
-export type WorkbenchWorktreeListRead = z.infer<typeof WorkbenchWorktreeListReadSchema>;
-export type WorkbenchWorktreeListOutcome = z.infer<typeof WorkbenchWorktreeListOutcomeSchema>;
-export type WorkbenchWorktreeListResult = z.infer<typeof WorkbenchWorktreeListResultSchema>;

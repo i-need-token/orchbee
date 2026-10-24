@@ -1,11 +1,11 @@
 # Project and Workspace Platform Effects
 
-| Field             | Value                                                                                                                                                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Current model, browser preview, native existing-Folder selection, local shared-document persistence, and the accepted managed-Worktree creation and existing-Worktree adoption contracts are owned; launch and cross-device effects remain future |
-| Owner             | Workbench product maintainers and platform application owners                                                                                                                                                                                     |
-| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                                                                              |
-| Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                                                                                  |
+| Field             | Value                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Retained as future GUI planning input under native runtime topology. Current Desktop capabilities remain running; future deletion, launch and cross-device effects require separate admission. |
+| Owner             | Workbench product maintainers and platform application owners                                                                                                                                  |
+| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                           |
+| Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                               |
 
 Simplified Chinese review translation:
 [project-workspace-experience.zh-CN.md](project-workspace-experience.zh-CN.md). English remains
@@ -18,8 +18,7 @@ Panel, and terminal-presentation composition. The browser preview supports synth
 without filesystem or Git effects. Those implemented facts are maintained by the current authority
 and are not repeated here.
 
-Platform applications may replace only capability boundaries such as Folder acquisition and
-normalized Directory observation. They do not take ownership of the Workbench product model.
+The next phase follows [native runtime topology](../platform/native-runtime-topology.md): Server owns canonical Workbench state and authorization; Worker owns filesystem, Git and terminal effects; Desktop retains native pickers and Client platform adapters; Web owns interaction and presentation. The TypeScript model is the current implementation, not a requirement to retain canonical state ownership in the future.
 
 ## Native Folder acquisition
 
@@ -39,11 +38,7 @@ and evidence live in
 - One renderer owns at most one request, and renderer retirement revokes late completion.
 - Add Folder rechecks the current Project and exact duplicate paths before committing.
 
-The current slice normalizes an absolute path, follows the selected target for directory and
-read/traverse checks while preserving selected symbolic-link spelling, and performs no filesystem
-mutation requiring compensation. New Folder remains future work and must separately define target
-path policy, races, rollback, and recovery. Ongoing removable-location availability is also outside
-the point-in-time selection claim.
+The owning Desktop documentation defines current Folder admission and creation. The next phase preserves path validation, cancellation, failure and recovery semantics while reconnecting them to Server/Worker ownership. Ongoing external filesystem observation and removable-location availability still require explicit contracts and evidence.
 
 ## Git Worktree effects
 

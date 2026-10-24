@@ -41,7 +41,7 @@ Regrouping or dissolving the source group cannot invalidate source execution ide
 
 ## Compensation and recovery
 
-The operation journal's strict version `2` stores `sourceWorkspaceId`, `sourceResourceScopeId` and `sourceTerminalContextId` independently of grouping. Exact version `1` records migrate their Project ID to a resource scope; absent source Workspace/context remain explicitly null rather than guessed. The existing journal filename remains stable. Malformed or duplicate records are unavailable, never reset.
+The strict version `1` operation journal records explicit `sourceWorkspaceId`, `sourceResourceScopeId` and `sourceTerminalContextId` independently of grouping. Historical Project-only shapes are rejected without synthesizing missing identities. The journal filename stays stable; invalid or duplicate records are unavailable and their original bytes remain unchanged.
 
 A `git-created` or `retained` result is never automatically deleted because canonical commit failed, the source moved/closed, or the renderer retired. Main persists `retained` and returns `worktree-retained`; the user can choose the existing Worktree later. Startup clears already committed targets independent of grouping and retains observed created targets. Retained records do not block other Worktree operations. Adoption clears the corresponding retained receipt after canonical commit.
 

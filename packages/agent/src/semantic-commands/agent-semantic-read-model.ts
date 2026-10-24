@@ -1,4 +1,4 @@
-import type { AgentRuntimeSnapshot, AgentSessionSnapshot } from '../model';
+import type { AgentSessionSnapshot } from '../model';
 import { projectAgentSession } from '../projection';
 import type {
 	AgentFreshnessMeaning,
@@ -54,13 +54,6 @@ export function matchingAgentWaitConditions(
 		}
 		return session.observation.freshness === 'fresh' && status === condition;
 	});
-}
-
-export function findAgentSession(
-	snapshot: AgentRuntimeSnapshot,
-	sessionId: AgentSessionSnapshot['sessionId'],
-): AgentSessionSnapshot | null {
-	return snapshot.sessions.find((session) => session.sessionId === sessionId) ?? null;
 }
 
 function statusBasis(session: AgentSessionSnapshot): AgentStatusBasis {

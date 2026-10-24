@@ -75,5 +75,3 @@ export const WindowTitleResultSchema = z
 		]),
 	})
 	.readonly();
-export type WindowTitleRequest = z.infer<typeof WindowTitleRequestSchema>;
-export type WindowTitleResult = z.infer<typeof WindowTitleResultSchema>;

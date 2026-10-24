@@ -13,7 +13,7 @@
 
 ```text
 WorkbenchSharedDocument
-├── version: 3
+├── version: 1
 ├── revision: canonical unsigned decimal text
 ├── projectWorkspace
 │   ├── identity sequences, ordered optional Projects and independent launch-resource scopes
@@ -58,7 +58,7 @@ Schema 为兼容文档保留 Environment placement。Placement 标识资源命�
 
 ```text
 WorkbenchClientView
-├── version: 2
+├── version: 1
 ├── active Workspace-only location and expanded Projects
 └── terminalContexts[]
     ├── active/selected Tabs, selection anchor, recent Group, and collapsed Groups
@@ -101,11 +101,11 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 
 ## 兼容性和应用程序集成
 
-`WorkbenchSharedDocument` version `3` 把有序 Project 分组与有序 Workspace、不可变启动资源命名空间分离。严格历史 v2 DTO 先验证完整旧图，包括 scope 内 Directory/配置引用、重复 ID、上下文归属和终端拓扑。迁移使用各旧 Project ID 作为资源命名空间，复制全部 Directory/配置（含未使用条目），保留 Workspace/context 身份、顺序、修订和持久意图，然后再次验证完整 v3 图。原始资源 ID 可以在不同命名空间合法重复。分配跳过已占用 ID，包括与新序列命名相似的历史 ID。
+`WorkbenchSharedDocument` version `1` 把有序 Project 分组与有序 Workspace、不可变启动资源命名空间分离。严格解析验证完整当前图，包括 scope 内 Directory/配置引用、重复 ID、上下文归属和终端拓扑。资源 ID 可在不同命名空间重复；分配跳过所有已占用 ID。
 
-Version `1` 先通过严格历史 DTO 增加本地 Directory placement，再执行已验证的 v2 迁移。历史上省略的 Tab `customTitle` 仍默认为 `null`。部分、无效、未知版本或开发期不受支持的拓扑绝不变成空白替代状态。应用拥有迁移持久化。
+只接受当前完整形状；Tab `customTitle` 必须显式存在且可为 `null`。部分、无效、未知版本和开发期历史拓扑被拒绝，不执行迁移或生成空白替代状态。
 
-Client View version `2` 使用不含 Project 身份的 `workspaceId`。严格 v1 迁移要求历史 `projectId` 字段，验证视图图结构，然后只移除该依赖分组的选择字段。针对 v3 的协调会在移动或解散后保留相同 Workspace。仅分组改变的共享发布保留 live context、Tab model 和 Panel store 对象、本地焦点/放大/子终端选择及终端 attachment。
+Client View version `1` 使用不含 Project 身份的 `workspaceId`，只校验当前视图图结构。协调在移动或解散后保留相同 Workspace。仅分组改变的共享发布保留 live context、Tab model、Panel store 对象、本地焦点/放大/子终端选择及终端 attachment。
 
 只有共享更改才会推进应用拥有的 revision 并进入其 durability barrier。`subscribeDocument(...)` 与
 `subscribeClientView(...)` 比较各自拥有的 projection 并独立通知，因此仅 client 的更改不能调度 shared
@@ -117,7 +117,7 @@ ordering 与 broadcast。
 | 声明                                                       | 证据                                                                                                                                                                                                                                                       | 限制                                       |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | 严格的共享文档保留每个二叉关系                             | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                                                                                                                                                                                                           | 生成的边界：八个选项卡，每个选项卡四个面板 |
-| 历史 v1/v2 migration 精确且单向                            | 严格 parser、字段保持与 Desktop file-authority test                                                                                                                                                                                                        | 仅严格历史 version 1 与 2                  |
+| 仅接受当前完整形状                                         | 严格解析、无效图拒绝与 Desktop 文件权威测试                                                                                                                                                                                                                | 不迁移历史记录                             |
 | Client View 是隔离的，协调是幂等的                         | 双视图示例、陈旧参考回归和固定种子属性                                                                                                                                                                                                                     | 仅内存中查看合约                           |
 | 水合会保留持久的终端意图                                   | provision/retain/close/stop/stopped 运行时往返                                                                                                                                                                                                             | Host 绑定是否存在仍由应用负责              |
 | 自定义标题会持久保留，自然元数据保持瞬态                   | 标题覆盖/reset 与共享文档水合场景                                                                                                                                                                                                                          | 重命名 Presentation 由适配器负责           |
@@ -128,4 +128,4 @@ ordering 与 broadcast。
 | 预览状态无法声明共享持久性                                 | 确定性拒绝测试                                                                                                                                                                                                                                             | 预览仍然是内存中的合成                     |
 | 应用停止先持久提交再关闭，且可批量重试                     | [Stop 生命周期测试](../src/workbench/model/__tests__/terminal-session-stop.unit.test.ts)和[文档运行时测试](../src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts)                                                                       | 受控运行时夹具；不声明 OS 终止保证         |
 
-纯文档/视图投影及严格单向 v1/v2 到 v3 迁移使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。
+纯文档/视图投影及严格当前形状准入使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。

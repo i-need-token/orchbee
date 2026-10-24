@@ -36,7 +36,7 @@ const correlation = {
 	requestId: WorkbenchRequestIdSchema,
 	siteId: SiteIdSchema,
 };
-export const SemanticEventKindSchema = z.enum([
+const SemanticEventKindSchema = z.enum([
 	'workspace.created',
 	'workspace.updated',
 	'workspace.metadata_updated',
@@ -66,7 +66,7 @@ export const SemanticEventKindSchema = z.enum([
 	'pane.scroll_changed',
 	'layout.updated',
 ]);
-export const SemanticEventCursorSchema = z
+const SemanticEventCursorSchema = z
 	.strictObject({ epoch: WorkbenchRequestIdSchema, sequence: WorkbenchRevisionSchema })
 	.readonly();
 const eventPosition = z.discriminatedUnion('kind', [
@@ -80,7 +80,7 @@ const eventPosition = z.discriminatedUnion('kind', [
 		sequence: WorkbenchRevisionSchema.refine((value) => value !== '0'),
 	}),
 ]);
-export const SemanticPaneSchema = z
+const SemanticPaneSchema = z
 	.strictObject({
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		tabId: WorkbenchTabIdSchema,
@@ -170,7 +170,7 @@ const eventData = z.discriminatedUnion('kind', [
 		observation: ClientViewportObservationSchema,
 	}),
 ]);
-export const SemanticEventSchema = z
+const SemanticEventSchema = z
 	.strictObject({
 		workspaceId: WorkbenchWorkspaceIdSchema.nullable(),
 		position: eventPosition,
@@ -303,7 +303,7 @@ const matchValue = z
 	.string()
 	.min(1)
 	.refine((value) => encoder.encode(value).byteLength <= 4096 && !value.includes('\0'));
-export const SemanticEventFilterSchema = z
+const SemanticEventFilterSchema = z
 	.discriminatedUnion('kind', [
 		z.strictObject({ kind: z.literal('event'), event: SemanticEventKindSchema, scope, condition }),
 		z.strictObject({
@@ -459,7 +459,3 @@ export const SemanticEventsResultSchema = z
 		});
 	})
 	.readonly();
-export type SemanticEvent = z.infer<typeof SemanticEventSchema>;
-export type SemanticEventFilter = z.infer<typeof SemanticEventFilterSchema>;
-export type SemanticEventsRequest = z.infer<typeof SemanticEventsRequestSchema>;
-export type SemanticEventsResult = z.infer<typeof SemanticEventsResultSchema>;

@@ -78,11 +78,11 @@ export interface WorkbenchProjectInput {
 	readonly projectId: string;
 }
 
-export interface WorkbenchProjectCreateInput {
+interface WorkbenchProjectCreateInput {
 	readonly path: string;
 }
 
-export interface WorkbenchResourceFolderAddInput {
+interface WorkbenchResourceFolderAddInput {
 	readonly resourceScopeId: string;
 	readonly path: string;
 }
@@ -91,46 +91,46 @@ export interface WorkbenchWorkspaceInput {
 	readonly workspaceId: string;
 }
 
-export interface WorkbenchWorkspaceActivationInput extends WorkbenchWorkspaceInput {
+interface WorkbenchWorkspaceActivationInput extends WorkbenchWorkspaceInput {
 	readonly creationReceipt?: WorkbenchProjectCreationReceipt | undefined;
 }
 
-export type WorkbenchWorkspaceCreateInput = void | {
+type WorkbenchWorkspaceCreateInput = void | {
 	readonly resourceScopeId: string;
 	readonly projectId: string | null;
 	readonly directoryId: string;
 };
 
-export interface WorkbenchWorkspaceProjectInput extends WorkbenchWorkspaceInput {
+interface WorkbenchWorkspaceProjectInput extends WorkbenchWorkspaceInput {
 	readonly projectId: string | null;
 }
-export interface WorkbenchWorkspaceProjectCreateInput extends WorkbenchWorkspaceInput {
+interface WorkbenchWorkspaceProjectCreateInput extends WorkbenchWorkspaceInput {
 	readonly name: string;
 }
 
-export interface WorkbenchResourceDirectoryInput {
+interface WorkbenchResourceDirectoryInput {
 	readonly resourceScopeId: string;
 	readonly directoryId: string;
 }
 
-export interface WorkbenchProjectRenameInput extends WorkbenchProjectInput {
+interface WorkbenchProjectRenameInput extends WorkbenchProjectInput {
 	readonly name: string;
 }
 
-export interface WorkbenchProjectReorderInput extends WorkbenchProjectInput {
+interface WorkbenchProjectReorderInput extends WorkbenchProjectInput {
 	readonly beforeProjectId: string | null;
 }
 
-export interface WorkbenchWorkspaceUpdateInput extends WorkbenchWorkspaceInput {
+interface WorkbenchWorkspaceUpdateInput extends WorkbenchWorkspaceInput {
 	readonly name: string;
 	readonly primaryDirectoryId: string;
 }
 
-export interface WorkbenchWorkspaceReorderInput extends WorkbenchWorkspaceInput {
+interface WorkbenchWorkspaceReorderInput extends WorkbenchWorkspaceInput {
 	readonly beforeWorkspaceId: string | null;
 }
 
-export interface WorkbenchTabStripOrientationInput {
+interface WorkbenchTabStripOrientationInput {
 	readonly orientation: TabStripOrientation;
 }
 

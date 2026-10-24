@@ -21,11 +21,11 @@ import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 const INPUT_AUTHORITY_HEADER_BYTES = IDENTIFIER_BYTE_LENGTH + 8;
 export const WRITE_INPUT_HEADER_BYTES = INPUT_AUTHORITY_HEADER_BYTES;
 export const KEY_INPUT_HEADER_BYTES = 40;
-export const TEXT_INPUT_HEADER_BYTES = 28;
-export const PASTE_INPUT_HEADER_BYTES = 32;
+const TEXT_INPUT_HEADER_BYTES = 28;
+const PASTE_INPUT_HEADER_BYTES = 32;
 export const PASTE_AUTO_INPUT_HEADER_BYTES = 32;
-export const MOUSE_INPUT_BYTES = 40;
-export const FOCUS_INPUT_BYTES = 28;
+const MOUSE_INPUT_BYTES = 40;
+const FOCUS_INPUT_BYTES = 28;
 
 const MAX_UNICODE_CODEPOINT = 0x10_ffff;
 const MAX_FLOAT32 = 3.4028234663852886e38;
@@ -275,7 +275,7 @@ const modifierNames = [
 	'shiftRight',
 ] as const;
 
-export const TerminalModifiersSchema = z
+const TerminalModifiersSchema = z
 	.strictObject({
 		alt: z.boolean(),
 		altRight: z.boolean(),
@@ -341,7 +341,7 @@ const boundedKeyTextSchema = z.string().superRefine((value, context) => {
 	}
 });
 
-export const WriteInputSchema = z.strictObject({
+const WriteInputSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	bytes: z
 		.instanceof(Uint8Array)
@@ -390,7 +390,7 @@ export const PasteInputSchema = z.strictObject({
 	bracketed: z.boolean(),
 });
 
-export const PasteAutoInputSchema = z.strictObject({
+const PasteAutoInputSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	capabilityRevision: capabilityRevisionSchema,
 	content: z
@@ -453,14 +453,13 @@ export type KeyInput = z.infer<typeof KeyInputSchema>;
 export type MouseAction = (typeof MouseAction)[keyof typeof MouseAction];
 export type MouseButton = (typeof MouseButton)[keyof typeof MouseButton];
 export type MouseInput = z.infer<typeof MouseInputSchema>;
-export type PasteAutoInput = z.infer<typeof PasteAutoInputSchema>;
+type PasteAutoInput = z.infer<typeof PasteAutoInputSchema>;
 export type PasteInput = z.infer<typeof PasteInputSchema>;
 export type TerminalKeyCode = (typeof TerminalKeyCode)[number];
 export type TerminalModifiers = z.infer<typeof TerminalModifiersSchema>;
 export type TextInput = z.infer<typeof TextInputSchema>;
-export type WriteInput = z.infer<typeof WriteInputSchema>;
 
-export interface DecodedWriteInput {
+interface DecodedWriteInput {
 	readonly attachmentId: AttachmentId;
 	readonly bytes: Uint8Array;
 	readonly capabilityRevision: CanonicalUint64Text;

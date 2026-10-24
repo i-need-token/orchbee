@@ -90,7 +90,7 @@ export function shouldReorderDraggedTabs(input: {
 		(input.initialMove && !input.tabsConsecutive)
 	);
 }
-export interface DragGroupCalculationInput {
+interface DragGroupCalculationInput {
 	containsGroupHeader: boolean;
 	hasSelectedUnpinnedTab: boolean;
 	leftGroup: TabGroupId | null;

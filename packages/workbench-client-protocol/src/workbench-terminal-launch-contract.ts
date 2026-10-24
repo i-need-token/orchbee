@@ -185,11 +185,11 @@ export const WorkbenchTerminalGeometrySchema = z
 	})
 	.readonly();
 
-export const WorkbenchTerminalUnavailableReasonSchema = z.enum([
+const WorkbenchTerminalUnavailableReasonSchema = z.enum([
 	'terminal-runtime-unavailable',
 	'server-busy',
 ]);
-export { WorkbenchTerminalFailureReasonSchema };
+
 export const WorkbenchTerminalOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({ kind: z.literal('started'), geometry: WorkbenchTerminalGeometrySchema })

@@ -1,13 +1,13 @@
 import type { WorkbenchDirectory } from './project-workspace-state';
 
-export type TerminalCwdSource =
+type TerminalCwdSource =
 	| 'explicit-directory'
 	| 'project-primary-directory'
 	| 'split-terminal'
 	| 'system'
 	| 'workspace-primary-directory';
 
-export interface ResolveTerminalCwdInput {
+interface ResolveTerminalCwdInput {
 	readonly directories: readonly WorkbenchDirectory[];
 	readonly explicitDirectoryId?: string | undefined;
 	readonly projectPrimaryDirectoryId?: string | undefined;

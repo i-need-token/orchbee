@@ -37,7 +37,7 @@ orchbee:<owner>:<record>:v<schema>
 - `orchbee` is the fixed product namespace.
 - `<owner>` is the kebab-case workspace or feature owner.
 - `<record>` is a kebab-case persisted concept, not a component implementation name.
-- `<schema>` is a positive integer. Start at `v1` and increment it whenever the stored representation or validation contract is not backward compatible.
+- `<schema>` is a positive integer. During the current unpublished phase, retain only the current shape at `v1`; incompatible changes after release require an explicit version and data-lifecycle decision.
 - Use colons only as segment separators. Do not add environment, locale, user-provided data, timestamps, or opaque identifiers without an explicit partitioning requirement.
 
 ```text
@@ -47,7 +47,7 @@ orchbee:Editor:panelWidth:v1        # invalid casing
 orchbee:editor:panel-width:latest   # version is not an integer
 ```
 
-Treat a version change as a data migration decision. Either read and migrate the previous version deliberately or ignore it and use the documented default. Never silently reinterpret an old payload under an unchanged key.
+Before release, retain no old-key readers or migration. Strict validation must reject development leftovers outside the current shape, using the owner's documented defaults and issue reporting. If an old `:v1` shape would still pass current validation, change the `<record>` name to prevent accidental reuse; do not automatically delete old data. Never silently reinterpret an old payload under an unchanged key.
 
 ## Value contract
 

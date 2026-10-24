@@ -14,21 +14,20 @@ LAN 服务、令牌交换、Cookie 身份验证、设置屏幕、登录屏幕以
 
 ## 路由树
 
-| 路径                                                           | 解析                                                       |
-| -------------------------------------------------------------- | ---------------------------------------------------------- |
-| `/`                                                            | 协调后 Client View 的当前规范路由                          |
-| `/terminal`                                                    | 首个独立终端 Tab 或空独立上下文                            |
-| `/terminal/tabs`                                               | 首个独立 Tab 或 `/terminal`                                |
-| `/terminal/tabs/$tabId`                                        | 精确独立终端 Tab                                           |
-| `/workspaces/$workspaceId`                                     | 首个 Tab 或空 Workspace 上下文                             |
-| `/workspaces/$workspaceId/tabs`                                | 首个 Tab 或空 Workspace 路由                               |
-| `/workspaces/$workspaceId/tabs/$tabId`                         | 精确 Workspace 和 Tab，与分组独立                          |
-| `/projects`                                                    | 全局顺序首个 Workspace（含未分组），否则独立终端           |
-| `/projects/$projectId`                                         | 当前首个成员 Workspace 及其首个 Tab                        |
-| `/projects/$projectId/workspaces`                              | 相同的当前成员解析                                         |
-| `/projects/$projectId/workspaces/$workspaceId[/tabs[/$tabId]]` | 旧链接；解析稳定 Workspace/Tab，再替换为 `/workspaces/...` |
+| 路径                                   | 解析                                             |
+| -------------------------------------- | ------------------------------------------------ |
+| `/`                                    | 协调后 Client View 的当前规范路由                |
+| `/terminal`                            | 首个独立终端 Tab 或空独立上下文                  |
+| `/terminal/tabs`                       | 首个独立 Tab 或 `/terminal`                      |
+| `/terminal/tabs/$tabId`                | 精确独立终端 Tab                                 |
+| `/workspaces/$workspaceId`             | 首个 Tab 或空 Workspace 上下文                   |
+| `/workspaces/$workspaceId/tabs`        | 首个 Tab 或空 Workspace 路由                     |
+| `/workspaces/$workspaceId/tabs/$tabId` | 精确 Workspace 和 Tab，与分组独立                |
+| `/projects`                            | 全局顺序首个 Workspace（含未分组），否则独立终端 |
+| `/projects/$projectId`                 | 当前首个成员 Workspace 及其首个 Tab              |
+| `/projects/$projectId/workspaces`      | 相同的当前成员解析                               |
 
-带 Project 的 Workspace 旧链接在工作区移动或原组解散后仍可用。Project 路径段是历史上下文，不是身份或权限。只指向组的链接仍要求当前 Project 存在。显式 Workspace 或 Tab 缺失时在输入地址显示不可用，绝不选择另一个实体。空组没有终端路由。
+Workspace 链接只使用稳定 Workspace/Tab 身份。旧的 Project 限定 Workspace 路径不在路由树中。只指向组的链接仍要求当前 Project；显式 Workspace 或 Tab 身份缺失时，在输入地址显示不可用，绝不选择另一实体。空组没有终端路由。
 
 不完整路由按权威顺序解析，再把历史项替换为最深可用规范路由。参数是稳定 ID，按单一路径段编码且只解码一次。查询参数与片段不选择对象。`/settings` 与 `/login` 仍不属于当前路由树。
 

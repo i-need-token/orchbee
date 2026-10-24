@@ -28,17 +28,12 @@ The store returns exactly one state:
 | State         | Meaning                                                                       |
 | ------------- | ----------------------------------------------------------------------------- |
 | `missing`     | The new shared-document path does not exist.                                  |
-| `available`   | The complete file parses as one canonical version-3 shared document.          |
+| `available`   | The complete file parses as one canonical version-1 shared document.          |
 | `unavailable` | The path is unreadable, non-file, invalid UTF-8/JSON, or an invalid document. |
 
-The current filename is `workbench-shared-document-v2.json`. `load()` first reads only that path.
-If it exists, valid or invalid, it is the sole authority and Desktop never falls back to v1. If it
-is missing, Desktop may read exact `workbench-shared-document-v1.json` once through Workbench's
-historical v1 parser, add local placement to every Directory, and atomically write the validated v3
-document. The v1 file remains byte-for-byte untouched. Missing v1 remains `missing`; invalid or
-unreadable v1 is `unavailable` and is never repaired. There is no reverse migration.
+The current filename is `workbench-shared-document-v1.json`. `load()` reads only that path and strictly validates the current version-1 graph. Missing data is `missing`; invalid or unreadable data is `unavailable` and remains untouched. Old files, historical DTOs and fallback migrations are not admitted.
 
-The established filename stays unchanged. A valid v2 payload is strictly migrated to v3 in memory, retaining its revision, terminal graph and scoped resources; the next successful canonical commit writes v3. The v1 fallback also completes the strict v2-to-v3 migration before writing. Malformed old graphs remain unavailable and are never reset. Project grouping does not define Directory or remote terminal authority.
+The current graph requires complete resource namespaces, Directory placement and explicit Tab `customTitle`. Old v1 shapes missing these fields cannot be mistaken for current records. Project grouping does not define Directory or remote terminal authority.
 
 `commit(expectedRevision, document)` is serialized with every operation on the store instance and
 applies these rules:
@@ -139,7 +134,7 @@ the shared document and cannot become another page's navigation authority.
 | Only exact-next CAS changes the stored revision                     | [Revision decision tests][decision-tests] and [file-store tests][store-tests]            | Missing, stale, non-next and large revisions; concurrent writers       |
 | Disposed queued work is suppressed before storage                   | [Session queue tests][queue-tests]                                                       | Controlled disconnect before/after admission; accepted work may finish |
 | Invalid/current unavailable state is never overwritten              | [File-store tests][store-tests]                                                          | Selected corruption and filesystem failures                            |
-| v1 migration is one-way and the current filename is authoritative   | [File-store tests][store-tests] and [document migration tests][document-tests]           | Strict v1/v2 inputs and selected rename failures                       |
+| Current file and current shape are the sole authority               | [File-store tests][store-tests] and [document tests][document-tests]                     | Strict parsing, invalid-input preservation and selected write failures |
 | Client View-only transitions do not write shared state              | [Document runtime tests][runtime-tests] and [renderer coordinator tests][renderer-tests] | Each Client View remains client-local                                  |
 | Renderer receives only the declared document capability             | [Session broker tests][broker-tests] and [preload tests][preload-tests]                  | Electron structured clone is trusted                                   |
 | Main-owned mutations share the renderer proposal queue              | [Session queue tests][queue-tests] and [Worktree runtime tests][worktree-tests]          | Controlled in-process commit and failure traces                        |
@@ -151,7 +146,7 @@ the shared document and cannot become another page's navigation authority.
 The store and session queue each have one in-process serialization owner. Revision decisions,
 competing commits, disconnect before/after admission, and queue draining are checked directly by
 the implementation tests above. This boundary has no exhaustive TLA+ safety or progress claim;
-completion traces assume awaited operations settle. File tests cover selected migration and write
+completion traces assume awaited operations settle. File tests cover selected strict-admission and write
 failures, not general filesystem durability. Multi-client arbitration, publication, disconnect,
 and quiescing evidence belongs to the [session coordinator](multi-client-session-coordinator.md).
 

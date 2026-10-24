@@ -39,7 +39,7 @@ export type NewProjectFolderCommand =
 	| { readonly kind: 'open-project'; readonly path: string; readonly requestId: string }
 	| { readonly kind: 'acknowledge'; readonly requestId: string };
 
-export interface NewProjectFolderTransition {
+interface NewProjectFolderTransition {
 	readonly state: NewProjectFolderState;
 	readonly commands: readonly NewProjectFolderCommand[];
 }

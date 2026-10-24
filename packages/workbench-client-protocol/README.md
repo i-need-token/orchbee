@@ -1,5 +1,7 @@
 # @orchbee/workbench-client-protocol
 
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+
 ## Project and Workspace organization
 
 The matched-cohort projection uses global Directory, Project and Workspace registries. Project is

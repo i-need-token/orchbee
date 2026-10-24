@@ -1,5 +1,7 @@
 # @orchbee/workbench
 
+私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
+
 Orchbee 应用程序的共享产品语义 React shell。
 
 ## 适用范围

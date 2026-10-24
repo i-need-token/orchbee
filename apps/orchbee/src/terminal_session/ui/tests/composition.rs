@@ -123,8 +123,6 @@ fn open_loaded_settings(ui: &mut NativeUi) {
             source: "composition-test".into(),
             values: UserPreferencesValues::default(),
             claimed: Default::default(),
-            desktop_imported: false,
-            desktop_main_imported: false,
         },
     ));
     assert_eq!(

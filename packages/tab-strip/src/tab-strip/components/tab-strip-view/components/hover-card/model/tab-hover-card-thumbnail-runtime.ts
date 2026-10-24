@@ -17,7 +17,7 @@ export interface HoverCardThumbnailVisual<Image> {
 	image: Image | null;
 }
 
-export interface HoverCardThumbnailTarget<Image> {
+interface HoverCardThumbnailTarget<Image> {
 	id: string;
 	source: HoverCardThumbnailSource<Image> | null;
 	previewsEnabled: boolean;

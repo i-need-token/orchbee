@@ -1,4 +1,4 @@
-export interface TabStripObserver {
+interface TabStripObserver {
 	onTabAdded?(index: number): void;
 	onTabMoved?(fromIndex: number, toIndex: number): void;
 	onTabRemoved?(index: number): void;

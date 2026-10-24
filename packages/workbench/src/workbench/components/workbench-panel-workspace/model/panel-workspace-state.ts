@@ -52,7 +52,7 @@ export interface PanelWorkspaceState {
 	readonly tabs: readonly TabPanelWorkspace[];
 }
 
-export interface PanelWorkspaceTabInput {
+interface PanelWorkspaceTabInput {
 	readonly cwd?: string | null | undefined;
 	readonly id: string;
 	readonly presentation?: TerminalPresentationCreation | undefined;
@@ -91,12 +91,12 @@ type TerminalPresentationRemoval =
 
 type PanelWorkspaceCommand = WorkbenchTerminalPresentationCommand;
 
-export interface PanelWorkspaceInitialization {
+interface PanelWorkspaceInitialization {
 	readonly commands: readonly PanelWorkspaceCommand[];
 	readonly state: PanelWorkspaceState;
 }
 
-export interface PanelMoveTarget {
+interface PanelMoveTarget {
 	readonly direction: PanelSplitDirection;
 	readonly targetPanelId: string;
 }

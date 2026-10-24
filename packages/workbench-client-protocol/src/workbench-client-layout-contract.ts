@@ -13,7 +13,7 @@ import {
 
 export const WORKBENCH_MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES = 1024 * 1024;
 const cell = z.number().int().min(0).max(65535);
-export const ClientCellRectSchema = z
+const ClientCellRectSchema = z
 	.strictObject({
 		x: cell,
 		y: cell,
@@ -55,7 +55,7 @@ export const ClientLayoutAdjustmentSchema = z
 	})
 	.readonly();
 
-export const ClientPanelAreaSchema = z
+const ClientPanelAreaSchema = z
 	.strictObject({
 		panelId: WorkbenchPanelIdSchema,
 		unzoomed: ClientCellRectSchema.nullable(),
@@ -63,7 +63,7 @@ export const ClientPanelAreaSchema = z
 		displayed: ClientCellRectSchema.nullable(),
 	})
 	.readonly();
-export const ClientSplitAreaSchema = z
+const ClientSplitAreaSchema = z
 	.strictObject({
 		splitId: WorkbenchSplitIdSchema,
 		firstSlotId: WorkbenchPanelSlotIdSchema,
@@ -74,7 +74,7 @@ export const ClientSplitAreaSchema = z
 		divider: ClientCellRectSchema.nullable(),
 	})
 	.readonly();
-export const ClientPanelNeighborsSchema = z
+const ClientPanelNeighborsSchema = z
 	.strictObject({
 		left: WorkbenchPanelIdSchema.nullable(),
 		right: WorkbenchPanelIdSchema.nullable(),
@@ -260,10 +260,3 @@ export const ClientPanelLayoutSchema = z
 			reject();
 	})
 	.readonly();
-
-export type ClientCellRect = z.infer<typeof ClientCellRectSchema>;
-export type ClientPanelDirection = z.infer<typeof ClientPanelDirectionSchema>;
-export type ClientPanelArea = z.infer<typeof ClientPanelAreaSchema>;
-export type ClientSplitArea = z.infer<typeof ClientSplitAreaSchema>;
-export type ClientPanelNeighbors = z.infer<typeof ClientPanelNeighborsSchema>;
-export type ClientPanelLayout = z.infer<typeof ClientPanelLayoutSchema>;

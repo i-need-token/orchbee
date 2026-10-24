@@ -15,13 +15,9 @@ export const DESKTOP_AGENT_INTEGRATION_IDS = [
 
 export const DesktopAgentIntegrationIdSchema = z.enum(DESKTOP_AGENT_INTEGRATION_IDS);
 
-export const DesktopAgentIntegrationAvailabilitySchema = z.enum([
-	'available',
-	'not-found',
-	'unknown',
-]);
+const DesktopAgentIntegrationAvailabilitySchema = z.enum(['available', 'not-found', 'unknown']);
 
-export const DesktopAgentIntegrationStateSchema = z.enum([
+const DesktopAgentIntegrationStateSchema = z.enum([
 	'conflict',
 	'disabled',
 	'enabled',
@@ -30,16 +26,16 @@ export const DesktopAgentIntegrationStateSchema = z.enum([
 	'unknown',
 ]);
 
-export const DesktopAgentIntegrationManagementModeSchema = z.enum(['managed-local', 'manual-only']);
+const DesktopAgentIntegrationManagementModeSchema = z.enum(['managed-local', 'manual-only']);
 
-export const DesktopAgentIntegrationIssueSchema = z.enum([
+const DesktopAgentIntegrationIssueSchema = z.enum([
 	'inspection-failed',
 	'manual-action-required',
 	'unsupported-platform',
 	'unsupported-version',
 ]);
 
-export const DesktopAgentIntegrationSnapshotItemSchema = z.strictObject({
+const DesktopAgentIntegrationSnapshotItemSchema = z.strictObject({
 	availability: DesktopAgentIntegrationAvailabilitySchema,
 	integrationId: DesktopAgentIntegrationIdSchema,
 	issue: DesktopAgentIntegrationIssueSchema.nullable(),
@@ -100,7 +96,7 @@ export const DesktopAgentIntegrationManagementRendererCommandSchema = z.discrimi
 	}),
 ]);
 
-export const DesktopAgentIntegrationManagementFailureCodeSchema = z.enum([
+const DesktopAgentIntegrationManagementFailureCodeSchema = z.enum([
 	'agent-unavailable',
 	'busy',
 	'conflict',
@@ -146,7 +142,7 @@ export type DesktopAgentIntegrationAvailability = z.infer<
 	typeof DesktopAgentIntegrationAvailabilitySchema
 >;
 export type DesktopAgentIntegrationId = z.infer<typeof DesktopAgentIntegrationIdSchema>;
-export type DesktopAgentIntegrationIssue = z.infer<typeof DesktopAgentIntegrationIssueSchema>;
+
 export type DesktopAgentIntegrationManagementFailureCode = z.infer<
 	typeof DesktopAgentIntegrationManagementFailureCodeSchema
 >;

@@ -49,7 +49,7 @@ export const DesktopProjectWorktreeRendererCommandSchema = z.discriminatedUnion(
 	}),
 ]);
 
-export const DesktopProjectWorktreeFailureCodeSchema = z.enum([
+const DesktopProjectWorktreeFailureCodeSchema = z.enum([
 	'base-not-found',
 	'branch-already-exists',
 	'busy',
@@ -69,12 +69,12 @@ export const DesktopProjectWorktreeFailureCodeSchema = z.enum([
 	'worktree-not-found',
 ]);
 
-export const DesktopProjectExistingWorktreeSchema = z.strictObject({
+const DesktopProjectExistingWorktreeSchema = z.strictObject({
 	label: z.string().min(1).max(512),
 	worktreeId: identifierSchema,
 });
 
-export const DesktopProjectWorktreeInventorySchema = z.discriminatedUnion('kind', [
+const DesktopProjectWorktreeInventorySchema = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('available'),
 		worktrees: z.array(DesktopProjectExistingWorktreeSchema).max(10_000),
@@ -82,7 +82,7 @@ export const DesktopProjectWorktreeInventorySchema = z.discriminatedUnion('kind'
 	z.strictObject({ kind: z.literal('unavailable') }),
 ]);
 
-export const DesktopProjectWorktreeRepositorySchema = z.strictObject({
+const DesktopProjectWorktreeRepositorySchema = z.strictObject({
 	defaultBaseRef: gitValueSchema,
 	label: z.string().min(1).max(512),
 	localBaseRefs: z.array(gitValueSchema).max(10_000),
@@ -92,17 +92,17 @@ export const DesktopProjectWorktreeRepositorySchema = z.strictObject({
 	worktreeInventory: DesktopProjectWorktreeInventorySchema,
 });
 
-export const DesktopProjectWorktreeDiscoverySchema = z.strictObject({
+const DesktopProjectWorktreeDiscoverySchema = z.strictObject({
 	managedRoot: managedPathSchema,
 	repositories: z.array(DesktopProjectWorktreeRepositorySchema).max(256),
 });
 
-export const DesktopProjectWorktreeCreationResultSchema = z.strictObject({
+const DesktopProjectWorktreeCreationResultSchema = z.strictObject({
 	directoryId: identifierSchema,
 	workspaceId: identifierSchema.nullable(),
 });
 
-export const DesktopProjectWorktreeAdoptionResultSchema = z.strictObject({
+const DesktopProjectWorktreeAdoptionResultSchema = z.strictObject({
 	directoryId: identifierSchema,
 	workspaceId: identifierSchema,
 });
@@ -141,8 +141,5 @@ export type DesktopProjectWorktreeDiscovery = z.infer<typeof DesktopProjectWorkt
 export type DesktopProjectWorktreeFailureCode = z.infer<
 	typeof DesktopProjectWorktreeFailureCodeSchema
 >;
-export type DesktopProjectWorktreeMainEvent = z.infer<typeof DesktopProjectWorktreeMainEventSchema>;
-export type DesktopProjectWorktreeRendererCommand = z.infer<
-	typeof DesktopProjectWorktreeRendererCommandSchema
->;
+
 export type DesktopProjectWorktreeRequestId = z.infer<typeof DesktopProjectWorktreeRequestIdSchema>;

@@ -17,12 +17,12 @@ export const TabCollectionAnimationDirection = {
 export type TabCollectionAnimationDirection =
 	(typeof TabCollectionAnimationDirection)[keyof typeof TabCollectionAnimationDirection];
 
-export interface SourceLayoutInfo {
+interface SourceLayoutInfo {
 	animationAxis?: TabCollectionAnimationAxis;
 	animationDirection?: TabCollectionAnimationDirection;
 }
 
-export interface TabCollectionAnimatingLayoutDelegate {
+interface TabCollectionAnimatingLayoutDelegate {
 	isDragging?(): boolean;
 	isViewDragging?(id: string): boolean;
 	shouldSnapToTarget?(id: string): boolean;

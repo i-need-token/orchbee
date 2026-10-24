@@ -164,7 +164,7 @@ Human Client 与 Worker 通信边界保持分离，并且只能随具体 consume
 
 | Package                                                    | 创建时机与职责                                                                                                                                                                   |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/remote-client-protocol`                          | 已由接受的人类 Browser 鉴权切片创建。当前负责个人访问令牌交换与签名 Cookie session 建立契约；更广泛的生产 transport、协商与授权仍为保留决策。                                    |
+| `packages/remote-client-protocol`                          | 已退役：独立 TS 认证契约没有消费者。目标认证与会话建立归原生 Server，按 native runtime topology 提案定义后续 Web 契约。                                                          |
 | `schemas/client-server` 与 `crates/client-server-protocol` | 已有的实验性 OBCS Create/Start 意图与结果契约，服务于本机终端纵向链路。本机准入独立存在；它不是完整的实时终端或生产远程 Client 协议。                                            |
 | `crates/capability-node-protocol`                          | 已有的实验性 OBCN 已授权终端 Launch/Start 值与编解码器，用于 Server-Worker 集成。不提供登记或通用调度器；确切现行权威由所属指南维护。                                            |
 | 未来远程扩展                                               | 只增加已接受远程 Client 或具体远程 Worker 能力所需的契约。生产身份、登记、能力声明、进度、取消、数据传输与兼容性必须针对该 consumer 定义；已有本机编解码器不会隐含提供这些能力。 |

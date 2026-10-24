@@ -8,8 +8,7 @@ import {
 	type TerminalAppearanceStorage,
 } from '../terminal-appearance-preferences-storage';
 
-const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v3';
-const LEGACY_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
+const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
 
 interface StorageFixture extends TerminalAppearanceStorage {
 	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
@@ -50,33 +49,24 @@ describe('terminal appearance preference storage', () => {
 		).toBeNull();
 	});
 
-	it('losslessly migrates a valid v1 record in memory without eagerly writing v3', () => {
-		const legacy = {
-			applicationTheme: 'dark',
-			backgroundOpacityPercent: 80,
-			customBackground: '#abcdef',
-			customForeground: '#123456',
-			fontFamily: 'Legacy Mono',
-			fontSize: 16,
-			terminalDisplayTheme: 'custom',
-		};
-		const storage = createStorage(null, {
-			[LEGACY_STORAGE_KEY]: JSON.stringify(legacy),
-		});
-
+	it('rejects the old incomplete appearance record without rewriting it', () => {
+		const storage = createStorage(
+			JSON.stringify({
+				applicationTheme: 'dark',
+				backgroundOpacityPercent: 80,
+				customBackground: '#abcdef',
+				customForeground: '#123456',
+				fontFamily: 'Example Mono',
+				fontSize: 16,
+				terminalDisplayTheme: 'custom',
+			}),
+		);
 		expect(readTerminalAppearancePreferences(storage)).toEqual({
-			issue: null,
-			preferences: {
-				...legacy,
-				fontLigatures: true,
-				fontWeight: 400,
-				fontWeightBold: 700,
-				terminalPadding: 0,
-			},
+			issue: 'invalid-record',
+			preferences: DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 		});
-		expect(storage.getItem).toHaveBeenNthCalledWith(1, EXPECTED_STORAGE_KEY);
-		expect(storage.getItem).toHaveBeenNthCalledWith(2, 'orchbee:web:terminal-appearance:v2');
-		expect(storage.getItem).toHaveBeenNthCalledWith(3, LEGACY_STORAGE_KEY);
+		expect(storage.getItem).toHaveBeenCalledOnce();
+		expect(storage.getItem).toHaveBeenCalledWith(EXPECTED_STORAGE_KEY);
 		expect(storage.setItem).not.toHaveBeenCalled();
 	});
 

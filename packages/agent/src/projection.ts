@@ -29,7 +29,7 @@ export const AgentSemanticStatusSchema = z.discriminatedUnion('kind', [
 
 export type AgentSemanticStatus = z.infer<typeof AgentSemanticStatusSchema>;
 
-export interface AgentSessionPresentation {
+interface AgentSessionPresentation {
 	readonly executionLocation: AgentExecutionLocation;
 	readonly observation: AgentObservation;
 	readonly presentationAttachments: readonly AgentPresentationAttachment[];
@@ -47,7 +47,7 @@ export interface AgentAggregatePresentation {
 	readonly status: AgentSemanticStatus;
 }
 
-export interface AgentLocationPresentation extends AgentAggregatePresentation {
+interface AgentLocationPresentation extends AgentAggregatePresentation {
 	readonly location: AgentPresentationAttachment;
 }
 
@@ -127,12 +127,6 @@ export function projectAgentSessionGroup(
 	sessions: readonly AgentSessionSnapshot[],
 ): AgentAggregatePresentation | null {
 	return sessions.length === 0 ? null : projectAggregate(sessions);
-}
-
-export function aggregateAgentSessions(
-	sessions: readonly AgentSessionSnapshot[],
-): AgentSemanticStatus {
-	return resolveAggregate(sessions).status;
 }
 
 interface AgentAggregateResolution {

@@ -17,7 +17,7 @@ const text = (maximum: number) =>
 				![...value].some((ch) => ch !== ' ' && /\p{White_Space}/u.test(ch))
 			);
 		});
-export const NotificationSchema = z.strictObject({
+const NotificationSchema = z.strictObject({
 	title: text(80),
 	body: text(240).nullable(),
 	position: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable(),
@@ -58,5 +58,3 @@ export const NotificationResultSchema = z
 		]),
 	})
 	.readonly();
-export type NotificationRequest = z.infer<typeof NotificationRequestSchema>;
-export type NotificationResult = z.infer<typeof NotificationResultSchema>;

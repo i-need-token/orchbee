@@ -5,7 +5,7 @@ import {
 import type { Rect } from '../../../../../../../utils/rectRight';
 import { LAYOUT_CONSTANTS } from '../../../../../../../layout/layout-constants';
 
-export interface VerticalBottomContainerPresentation {
+interface VerticalBottomContainerPresentation {
 	collapsedStyling: boolean;
 	orientation: TabStripOrientation;
 	crossAxisAlignment: 'start' | 'stretch';

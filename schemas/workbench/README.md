@@ -29,11 +29,7 @@ Workbench-document, all-Workspace or all-device values. Browser preview origins 
 Desktop development identities are distinct scopes unless composition explicitly selects the same
 configuration. A Settings adapter never derives its write scope from a navigation change.
 
-A patch omits untouched keys; `null` resets an explicitly named key to the canonical default. Reset
-is a user claim, so delayed legacy migration cannot resurrect a value. Desktop Main and renderer
-imports have separate `part` identities and completion markers: Main may import only launch profiles
-and scrollback, while renderer may import only the other common fields. Both imports fill unclaimed
-keys exactly once. Existing native explicit leaves and later user edits take precedence.
+A patch omits untouched keys; `null` resets and claims an explicitly named key at its canonical default. Requests admit only `read` and source-bound `update`; Desktop Main/renderer imports, `part` identities and completion markers are outside the current contract. Native explicit initial values and later user edits remain with the same storage authority.
 
 The launch catalog preserves literal argument order, unique profile identities and membership of
 the selected default. Only `system-default` may have a null localized name. Names must be canonical

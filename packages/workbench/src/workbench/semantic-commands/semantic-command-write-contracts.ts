@@ -35,6 +35,3 @@ export const WORKBENCH_TERMINAL_CREATE_OPERATION = Object.freeze({
 	retry: 'same-request-while-retained',
 	schemaVersion: 1,
 } as const);
-
-export type WorkbenchTerminalCreateInput = z.infer<typeof WorkbenchTerminalCreateInputSchema>;
-export type WorkbenchTerminalCreateOutput = z.infer<typeof WorkbenchTerminalCreateOutputSchema>;

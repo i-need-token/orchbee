@@ -60,8 +60,6 @@ function createPreferencesChannel(): ReturnType<typeof createTestChannel> {
 						source: 'missing',
 						values: DEFAULT_USER_PREFERENCES,
 						claimed: [],
-						desktopImported: true,
-						desktopMainImported: true,
 					},
 				},
 			}),

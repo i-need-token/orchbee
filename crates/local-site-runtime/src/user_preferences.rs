@@ -18,8 +18,8 @@ mod storage;
 mod tests;
 
 use orchbee_workbench_protocol::{
-    DesktopPreferencesPart, MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure,
-    UserPreferencesPatch, UserPreferencesRequest, UserPreferencesResponse, UserPreferencesSnapshot,
+    MAXIMUM_USER_PREFERENCES_BYTES, PreferenceKey, PreferencesFailure, UserPreferencesPatch,
+    UserPreferencesRequest, UserPreferencesResponse, UserPreferencesSnapshot,
     UserPreferencesValues,
 };
 use serde::{Deserialize, Serialize};
@@ -47,8 +47,6 @@ struct Record {
     values: UserPreferencesValues,
     #[serde(deserialize_with = "unique_claimed_keys")]
     claimed: BTreeSet<PreferenceKey>,
-    desktop_imported: bool,
-    desktop_main_imported: bool,
 }
 
 fn unique_claimed_keys<'de, D: serde::Deserializer<'de>>(
@@ -102,7 +100,7 @@ impl UserPreferencesStore {
                 if bytes.len() > MAXIMUM_USER_PREFERENCES_BYTES {
                     return Err(PreferencesFailure::InvalidSource);
                 }
-                let mut record: Record =
+                let record: Record =
                     serde_json::from_slice(bytes).map_err(|_| PreferencesFailure::InvalidSource)?;
                 if record.version != 1 {
                     return Err(PreferencesFailure::InvalidSource);
@@ -113,10 +111,6 @@ impl UserPreferencesStore {
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
                 launch_admission::validate(&record.values.launch_profiles)
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
-                if !record.claimed.contains(&PreferenceKey::ApplicationTheme) {
-                    record.values.application_theme =
-                        UserPreferencesValues::default().application_theme;
-                }
                 Ok((record, source_token(Some(bytes))))
             }
             None => {
@@ -124,8 +118,6 @@ impl UserPreferencesStore {
                     version: 1,
                     values: UserPreferencesValues::default(),
                     claimed: BTreeSet::new(),
-                    desktop_imported: false,
-                    desktop_main_imported: false,
                 };
                 let (imported, source) = self.native_import()?;
                 record.values = imported
@@ -160,12 +152,11 @@ impl UserPreferencesStore {
                 .map_err(Into::into);
         }
         let changes = match request {
-            UserPreferencesRequest::Update { changes, .. }
-            | UserPreferencesRequest::ImportDesktop { changes, .. } => changes,
+            UserPreferencesRequest::Update { changes, .. } => changes,
             UserPreferencesRequest::Read {} => unreachable!("read handled before write admission"),
         };
         changes.apply(&UserPreferencesValues::default())?;
-        if matches!(request, UserPreferencesRequest::Update { .. }) && changes.is_empty() {
+        if changes.is_empty() {
             return Err(PreferencesFailure::InvalidChanges.into());
         }
         let mut writer = storage::Writer::acquire(&self.scope)?;
@@ -179,25 +170,6 @@ impl UserPreferencesStore {
                 }
                 candidate.values = changes.apply(&candidate.values)?;
                 candidate.claimed.extend(changes.keys());
-            }
-            UserPreferencesRequest::ImportDesktop { part, changes } => {
-                if changes.keys().any(|key| !part.admits(key)) {
-                    return Err(PreferencesFailure::InvalidChanges.into());
-                }
-                let imported = match part {
-                    DesktopPreferencesPart::Main => candidate.desktop_main_imported,
-                    DesktopPreferencesPart::Renderer => candidate.desktop_imported,
-                };
-                if imported {
-                    return Ok((snapshot(&previous, previous_source), false));
-                }
-                let changes = changes.excluding(&candidate.claimed);
-                candidate.values = changes.apply(&candidate.values)?;
-                candidate.claimed.extend(changes.keys());
-                match part {
-                    DesktopPreferencesPart::Main => candidate.desktop_main_imported = true,
-                    DesktopPreferencesPart::Renderer => candidate.desktop_imported = true,
-                }
             }
             UserPreferencesRequest::Read {} => unreachable!("read handled before write admission"),
         }
@@ -230,7 +202,5 @@ fn snapshot(record: &Record, source: String) -> UserPreferencesSnapshot {
         source,
         values: record.values.clone(),
         claimed: record.claimed.clone(),
-        desktop_imported: record.desktop_imported,
-        desktop_main_imported: record.desktop_main_imported,
     }
 }

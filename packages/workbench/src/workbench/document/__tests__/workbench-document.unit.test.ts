@@ -12,7 +12,6 @@ import {
 	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchClientView,
 	createWorkbenchSharedDocument,
-	migrateWorkbenchSharedDocumentVersion1,
 	parseWorkbenchClientView,
 	parseWorkbenchSharedDocument,
 	reconcileWorkbenchClientView,
@@ -155,67 +154,14 @@ describe('Workbench shared document and Client View', () => {
 		);
 
 		expect(parsedDocumentJson(document)).toEqual(document);
-		expect(
-			parseWorkbenchSharedDocument(JSON.parse(serializedWithoutCustomTitles)).terminalContexts[0]
-				?.tabCollection.tabs[0]?.customTitle,
-		).toBeNull();
+		expect(() => parseWorkbenchSharedDocument(JSON.parse(serializedWithoutCustomTitles))).toThrow();
 		expect(serialized).not.toContain('activeTabId');
 		expect(serialized).not.toContain('activeLocation');
 		expect(serialized).not.toContain('focusedPanelId');
 		expect(serialized).not.toContain('weight');
 		expect(serialized).not.toContain('currentCwd');
 		expect(serialized).not.toContain('terminalId');
-		expect(document).toMatchObject({ revision: '0', version: 3 });
-	});
-
-	it('migrates one strict historical v1 document to local placement without changing its source', () => {
-		const current = createWorkbenchSharedDocument(inputWithTabs());
-		const historical = {
-			...current,
-			projectWorkspace: {
-				nextTerminalContextSequence: current.projectWorkspace.nextTerminalContextSequence,
-				nextWorkspaceSequence: current.projectWorkspace.nextWorkspaceSequence,
-				standaloneTerminalContextId: current.projectWorkspace.standaloneTerminalContextId,
-				nextProjectSequence: 2,
-				projects: [
-					{
-						directories: [
-							{
-								available: true,
-								git: null,
-								id: 'directory-1',
-								kind: 'folder',
-								name: 'orchbee',
-								path: '/projects/orchbee',
-								source: 'selected',
-							},
-						],
-						id: 'project-1',
-						launchConfigurations: [],
-						name: 'orchbee',
-						primaryDirectoryId: 'directory-1',
-						workspaces: [],
-					},
-				],
-			},
-			version: 1 as const,
-		};
-		const before = JSON.stringify(historical);
-
-		const migrated = migrateWorkbenchSharedDocumentVersion1(historical);
-
-		expect(migrated.version).toBe(3);
-		expect(migrated.projectWorkspace.resourceScopes[0]?.directories[0]?.placement).toEqual({
-			kind: 'local',
-		});
-		expect(JSON.stringify(historical)).toBe(before);
-		expect(parseWorkbenchSharedDocument(historical)).toEqual(migrated);
-		expect(() =>
-			migrateWorkbenchSharedDocumentVersion1({
-				...historical,
-				projectWorkspace: { ...historical.projectWorkspace, unexpected: true },
-			}),
-		).toThrow(/unexpected/u);
+		expect(document).toMatchObject({ revision: '0', version: 1 });
 	});
 
 	it('derives a complete default Client View without changing the shared document', () => {
@@ -357,7 +303,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(
 			WorkbenchSharedDocumentSchema.safeParse({
 				...input,
-				version: 3,
+				version: 1,
 				terminalContexts: [
 					{
 						...terminalContext,
@@ -383,7 +329,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(
 			WorkbenchSharedDocumentSchema.safeParse({
 				...input,
-				version: 3,
+				version: 1,
 				terminalContexts: [
 					{
 						...terminalContext,

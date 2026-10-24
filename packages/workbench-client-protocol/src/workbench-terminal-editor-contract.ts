@@ -11,7 +11,7 @@ import {
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
 
-export const WORKBENCH_MAXIMUM_TERMINAL_EDITOR_BYTES = 8 * 1024;
+const WORKBENCH_MAXIMUM_TERMINAL_EDITOR_BYTES = 8 * 1024;
 const encoder = new TextEncoder();
 const bounded = (value: unknown) =>
 	encoder.encode(JSON.stringify(value)).byteLength <= WORKBENCH_MAXIMUM_TERMINAL_EDITOR_BYTES;
@@ -94,6 +94,3 @@ export const TerminalEditorResultSchema = z
 	})
 	.refine(bounded)
 	.readonly();
-export type ScrollbackEditorSpec = z.infer<typeof ScrollbackEditorSpecSchema>;
-export type TerminalEditorRequest = z.infer<typeof TerminalEditorRequestSchema>;
-export type TerminalEditorResult = z.infer<typeof TerminalEditorResultSchema>;

@@ -6,17 +6,17 @@ import {
 	type TabAlertColorRole,
 } from '../../tab-button/components/alert-indicator-button/model/alert-indicator-button';
 import { findImageDimensions } from './filename-elider';
-export interface HoverCardTitleData {
+interface HoverCardTitleData {
 	text: string;
 	isFilename: boolean;
 }
 const HOVER_CARD_GROUP_MAX_TABS = 5;
-export interface GroupHoverCardData {
+interface GroupHoverCardData {
 	title: HoverCardTitleData;
 	tabTitles: readonly HoverCardTitleData[];
 	excessText: string;
 }
-export type HoverCardFooterRow =
+type HoverCardFooterRow =
 	| Readonly<{
 			kind: 'alert';
 			text: string;

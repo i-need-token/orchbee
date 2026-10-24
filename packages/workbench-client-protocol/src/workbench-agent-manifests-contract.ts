@@ -4,10 +4,7 @@ import {
 	AgentManifestMaintenanceSchema,
 	AgentManifestsOperationSchema,
 } from './workbench-agent-manifest-update-contract';
-export {
-	AgentManifestsOperationSchema,
-	AgentManifestActivationSchema,
-} from './workbench-agent-manifest-update-contract';
+
 import { AgentDetectionManifestSchema } from './workbench-panel-agent-contract';
 import {
 	SiteIdSchema,
@@ -40,7 +37,7 @@ const summary = z
 		(m) => m.manifest.source !== 'remote-cache' || m.version === m.manifest.cachedRemoteVersion,
 	)
 	.readonly();
-export const AgentManifestsSnapshotSchema = z
+const AgentManifestsSnapshotSchema = z
 	.strictObject({
 		revision,
 		engineVersion: z.literal(3),
@@ -59,7 +56,7 @@ export const AgentManifestsSnapshotSchema = z
 			.readonly(),
 	})
 	.readonly();
-export const AgentManifestsActionSchema = z.discriminatedUnion('kind', [
+const AgentManifestsActionSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('current') }),
 	z.strictObject({ kind: z.literal('reload'), operationId: WorkbenchRequestIdSchema }),
 	z.strictObject({ kind: z.literal('update'), operationId: WorkbenchRequestIdSchema }),
@@ -91,5 +88,3 @@ export const AgentManifestsResultSchema = z
 		]),
 	})
 	.readonly();
-export type AgentManifestsRequest = z.infer<typeof AgentManifestsRequestSchema>;
-export type AgentManifestsResult = z.infer<typeof AgentManifestsResultSchema>;

@@ -7,7 +7,7 @@ interface PanelResizeKeyInput {
 	readonly metaKey: boolean;
 }
 
-export interface PanelResizeKeyResolution {
+interface PanelResizeKeyResolution {
 	readonly adjustment: PanelResizeAdjustment;
 	readonly multiplier: PanelResizeMultiplier;
 }

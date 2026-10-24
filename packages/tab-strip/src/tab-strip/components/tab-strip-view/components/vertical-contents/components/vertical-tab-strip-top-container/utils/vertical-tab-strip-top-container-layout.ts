@@ -9,7 +9,7 @@ interface VerticalTopContainerChildLayout {
 	bounds: Rect;
 }
 
-export interface VerticalTopContainerLayoutInput {
+interface VerticalTopContainerLayoutInput {
 	availableWidth: number;
 	parentAvailableWidth?: number;
 	widthIsBounded?: boolean;
@@ -23,7 +23,7 @@ export interface VerticalTopContainerLayoutInput {
 	comboButtonSize?: number;
 }
 
-export interface VerticalTopContainerLayout {
+interface VerticalTopContainerLayout {
 	hostSize: Size;
 	orientation: TabStripOrientation;
 	wrappedDueToOverflow: boolean;

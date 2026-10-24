@@ -19,17 +19,10 @@ import {
 } from './workbench-events-contract';
 import {
 	WorkbenchCommandOutcomeSchema,
-	type WorkbenchRejectionReasonSchema,
-	type WorkbenchCommandUnavailableReasonSchema,
 	WorkbenchSnapshotUnavailableReasonSchema,
 	WorkbenchWorkspaceListSchema,
 } from './workbench-command-outcome-contract';
-export {
-	WorkbenchCommandOutcomeSchema,
-	WorkbenchRejectionReasonSchema,
-	WorkbenchCommandUnavailableReasonSchema,
-	WorkbenchSnapshotUnavailableReasonSchema,
-} from './workbench-command-outcome-contract';
+
 import {
 	TerminalEditorRequestSchema,
 	TerminalEditorResultSchema,
@@ -110,16 +103,8 @@ import {
 	normalizeWorkbenchTerminalLaunch,
 	WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES,
 	WorkbenchTerminalGeometrySchema,
-	type WorkbenchTerminalUnavailableReasonSchema,
-	type WorkbenchTerminalFailureReasonSchema,
-	type WorkbenchTerminalOutcomeSchema,
 } from './workbench-terminal-launch-contract';
-export {
-	WorkbenchTerminalGeometrySchema,
-	WorkbenchTerminalUnavailableReasonSchema,
-	WorkbenchTerminalFailureReasonSchema,
-	WorkbenchTerminalOutcomeSchema,
-} from './workbench-terminal-launch-contract';
+export { WorkbenchTerminalGeometrySchema } from './workbench-terminal-launch-contract';
 import {
 	WorkbenchWorktreeRequestSchema,
 	WorkbenchWorktreeResultSchema,
@@ -174,12 +159,12 @@ const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES = 48 * 1024;
 
 // Match Rust's Unicode whitespace check while preserving exact accepted text.
 const WorkspaceLabelSchema = WorkbenchLabelSchema.refine((value) => /\P{White_Space}/u.test(value));
-export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
+const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
-export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
+const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
 
-export const WorkbenchTabMoveDirectionSchema = z.enum(['previous', 'next', 'first', 'last']);
-export const WorkbenchPanelSplitDirectionSchema = z.enum(['above', 'below', 'left', 'right']);
+const WorkbenchTabMoveDirectionSchema = z.enum(['previous', 'next', 'first', 'last']);
+const WorkbenchPanelSplitDirectionSchema = z.enum(['above', 'below', 'left', 'right']);
 
 const WorkbenchTabIdSetSchema = z
 	.array(WorkbenchTabIdSchema)
@@ -188,14 +173,14 @@ const WorkbenchTabIdSetSchema = z
 	.refine((ids) => new Set(ids).size === ids.length)
 	.readonly();
 
-export const WorkbenchPanelTerminalTargetSchema = z.discriminatedUnion('kind', [
+const WorkbenchPanelTerminalTargetSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('child'), label: WorkbenchLabelSchema }).readonly(),
 	z
 		.strictObject({ kind: z.literal('unbound'), presentationId: TerminalPresentationIdSchema })
 		.readonly(),
 ]);
 
-export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
+const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('tab.create-layout'),
@@ -594,7 +579,7 @@ const correlation = {
 	requestId: WorkbenchRequestIdSchema,
 };
 
-export const WorkbenchCommandSchema = z
+const WorkbenchCommandSchema = z
 	.strictObject({
 		kind: z.literal('workbench.command'),
 		...correlation,
@@ -604,7 +589,7 @@ export const WorkbenchCommandSchema = z
 	})
 	.readonly();
 
-export const WorkbenchPublicationReadIntentSchema = z
+const WorkbenchPublicationReadIntentSchema = z
 	.strictObject({
 		kind: z.literal('workbench.publication.read'),
 		...correlation,
@@ -684,7 +669,7 @@ export const WorkbenchRequestSchema = z
 
 const deniedSchema = z.strictObject({ kind: z.literal('denied') }).readonly();
 
-export const WorkbenchSnapshotOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchSnapshotOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('available'), snapshot: WorkbenchSnapshotSchema }).readonly(),
 	deniedSchema,
 	z
@@ -695,14 +680,14 @@ export const WorkbenchSnapshotOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 ]);
 
-export const WorkbenchCommandResultSchema = z
+const WorkbenchCommandResultSchema = z
 	.strictObject({
 		kind: z.literal('workbench.command.result'),
 		...correlation,
 		outcome: WorkbenchCommandOutcomeSchema,
 	})
 	.readonly();
-export const WorkbenchSnapshotResultSchema = z
+const WorkbenchSnapshotResultSchema = z
 	.strictObject({
 		kind: z.literal('workbench.snapshot.result'),
 		...correlation,
@@ -710,14 +695,11 @@ export const WorkbenchSnapshotResultSchema = z
 	})
 	.readonly();
 
-export const WorkbenchPublicationUnavailableReasonSchema = z.enum(['service-unavailable']);
+const WorkbenchPublicationUnavailableReasonSchema = z.enum(['service-unavailable']);
 
-export const WorkbenchPublicationDocumentSchema = z.union([
-	WorkbenchSnapshotSchema,
-	WorkbenchDeltaSchema,
-]);
+const WorkbenchPublicationDocumentSchema = z.union([WorkbenchSnapshotSchema, WorkbenchDeltaSchema]);
 
-export const WorkbenchPublicationOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchPublicationOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('current'), revision: WorkbenchRevisionSchema }).readonly(),
 	z
 		.strictObject({
@@ -738,7 +720,7 @@ export const WorkbenchPublicationOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 ]);
 
-export const WorkbenchPublicationResultSchema = z
+const WorkbenchPublicationResultSchema = z
 	.strictObject({
 		kind: z.literal('workbench.publication.result'),
 		...correlation,
@@ -845,37 +827,14 @@ export const WorkbenchResponseSchema = z
 		}
 	});
 
-export type WorkbenchTerminalGeometry = z.infer<typeof WorkbenchTerminalGeometrySchema>;
-export type WorkbenchAction = z.infer<typeof WorkbenchActionSchema>;
 export type WorkbenchTabMoveDirection = z.infer<typeof WorkbenchTabMoveDirectionSchema>;
-export type WorkbenchPanelSplitDirection = z.infer<typeof WorkbenchPanelSplitDirectionSchema>;
-export type WorkbenchPanelTerminalTarget = z.infer<typeof WorkbenchPanelTerminalTargetSchema>;
+
 export type WorkbenchCommand = z.infer<typeof WorkbenchCommandSchema>;
-export type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
-export type WorkbenchCommandOutcome = z.infer<typeof WorkbenchCommandOutcomeSchema>;
+type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
+
 export type WorkbenchCommandResult = z.infer<typeof WorkbenchCommandResultSchema>;
-export type WorkbenchSnapshotOutcome = z.infer<typeof WorkbenchSnapshotOutcomeSchema>;
-export type WorkbenchSnapshotResult = z.infer<typeof WorkbenchSnapshotResultSchema>;
-export type WorkbenchPublicationReadIntent = z.infer<typeof WorkbenchPublicationReadIntentSchema>;
-export type WorkbenchPublicationDocument = z.infer<typeof WorkbenchPublicationDocumentSchema>;
-export type WorkbenchPublicationOutcome = z.infer<typeof WorkbenchPublicationOutcomeSchema>;
-export type WorkbenchPublicationResult = z.infer<typeof WorkbenchPublicationResultSchema>;
-export type WorkbenchPublicationUnavailableReason = z.infer<
-	typeof WorkbenchPublicationUnavailableReasonSchema
->;
-export type WorkbenchResponse = z.infer<typeof WorkbenchResponseSchema>;
-export type WorkbenchRejectionReason = z.infer<typeof WorkbenchRejectionReasonSchema>;
-export type WorkbenchCommandUnavailableReason = z.infer<
-	typeof WorkbenchCommandUnavailableReasonSchema
->;
-export type WorkbenchSnapshotUnavailableReason = z.infer<
-	typeof WorkbenchSnapshotUnavailableReasonSchema
->;
-export type WorkbenchTerminalUnavailableReason = z.infer<
-	typeof WorkbenchTerminalUnavailableReasonSchema
->;
-export type WorkbenchTerminalFailureReason = z.infer<typeof WorkbenchTerminalFailureReasonSchema>;
-export type WorkbenchTerminalOutcome = z.infer<typeof WorkbenchTerminalOutcomeSchema>;
+
+type WorkbenchResponse = z.infer<typeof WorkbenchResponseSchema>;
 
 export function parseWorkbenchRequest(input: unknown): WorkbenchRequest {
 	return WorkbenchRequestSchema.parse(input);

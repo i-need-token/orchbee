@@ -10,10 +10,6 @@ function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
 	return <ContextMenuPrimitive.Root data-slot='context-menu' {...props} />;
 }
 
-function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
-	return <ContextMenuPrimitive.Portal data-slot='context-menu-portal' {...props} />;
-}
-
 function ContextMenuTrigger({ className, ...props }: ContextMenuPrimitive.Trigger.Props) {
 	return (
 		<ContextMenuPrimitive.Trigger
@@ -171,38 +167,6 @@ function ContextMenuCheckboxItem({
 	);
 }
 
-function ContextMenuRadioGroup({ ...props }: ContextMenuPrimitive.RadioGroup.Props) {
-	return <ContextMenuPrimitive.RadioGroup data-slot='context-menu-radio-group' {...props} />;
-}
-
-function ContextMenuRadioItem({
-	className,
-	children,
-	inset,
-	...props
-}: ContextMenuPrimitive.RadioItem.Props & {
-	inset?: boolean;
-}) {
-	return (
-		<ContextMenuPrimitive.RadioItem
-			data-slot='context-menu-radio-item'
-			data-inset={inset}
-			className={cn(
-				"relative flex cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-inset:pl-7 data-disabled:pointer-events-none data-disabled:opacity-50 [&_[data-icon]]:text-muted-foreground focus:[&_[data-icon]]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
-				className,
-			)}
-			{...props}
-		>
-			<span className='pointer-events-none absolute right-2'>
-				<ContextMenuPrimitive.RadioItemIndicator>
-					<CheckIcon />
-				</ContextMenuPrimitive.RadioItemIndicator>
-			</span>
-			{children}
-		</ContextMenuPrimitive.RadioItem>
-	);
-}
-
 function ContextMenuSeparator({ className, ...props }: ContextMenuPrimitive.Separator.Props) {
 	return (
 		<ContextMenuPrimitive.Separator
@@ -232,14 +196,11 @@ export {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuCheckboxItem,
-	ContextMenuRadioItem,
 	ContextMenuLabel,
 	ContextMenuSeparator,
 	ContextMenuShortcut,
 	ContextMenuGroup,
-	ContextMenuPortal,
 	ContextMenuSub,
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
-	ContextMenuRadioGroup,
 };

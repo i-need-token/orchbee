@@ -88,7 +88,7 @@ type WorkbenchTerminalTargetResult =
 			readonly reason: 'project-not-found' | 'workspace-not-found';
 	  };
 
-export interface WorkbenchProjectWorkspaceRuntimeOptions {
+interface WorkbenchProjectWorkspaceRuntimeOptions {
 	readonly initialClientView?: WorkbenchClientView | undefined;
 	readonly initialDocument?: WorkbenchSharedDocument | undefined;
 	readonly standaloneCwd: string;
@@ -97,7 +97,7 @@ export interface WorkbenchProjectWorkspaceRuntimeOptions {
 	readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
 }
 
-export interface WorkbenchStandaloneTerminalPresentation {
+interface WorkbenchStandaloneTerminalPresentation {
 	readonly cwd: string;
 	readonly presentationId: TerminalPresentationId;
 	readonly title: string;
@@ -107,11 +107,11 @@ export type WorkbenchTerminalPresentationEventResult =
 	| { readonly kind: 'applied' | 'unchanged' }
 	| { readonly kind: 'rejected'; readonly reason: string };
 
-export type WorkbenchSharedDocumentApplyResult =
+type WorkbenchSharedDocumentApplyResult =
 	| { readonly kind: 'applied'; readonly clientView: WorkbenchClientView }
 	| { readonly kind: 'unchanged' };
 
-export type WorkbenchRuntimeTerminalCreateInput = TabStripNewTabRequest & {
+type WorkbenchRuntimeTerminalCreateInput = TabStripNewTabRequest & {
 	readonly title: string;
 } & (
 		| {
@@ -136,7 +136,7 @@ export type WorkbenchRuntimeTerminalCreateResult =
 				| 'terminal-target-stale';
 	  };
 
-export interface WorkbenchActiveTerminalCreationRouteInput {
+interface WorkbenchActiveTerminalCreationRouteInput {
 	readonly directoryId?: string | undefined;
 	readonly placement: {
 		readonly groupId: string | null;
@@ -144,7 +144,7 @@ export interface WorkbenchActiveTerminalCreationRouteInput {
 	};
 }
 
-export type WorkbenchActiveTerminalCreationRoute =
+type WorkbenchActiveTerminalCreationRoute =
 	| { readonly kind: 'local'; readonly location: WorkbenchLocationRef }
 	| {
 			readonly kind: 'remote';
@@ -159,7 +159,7 @@ export type WorkbenchActiveTerminalCreationRoute =
 				| 'workspace-not-found';
 	  };
 
-export interface WorkbenchPublishedTerminalIdentity {
+interface WorkbenchPublishedTerminalIdentity {
 	readonly panelId: string;
 	readonly presentationId: string;
 	readonly tabId: string;
@@ -167,7 +167,7 @@ export interface WorkbenchPublishedTerminalIdentity {
 	readonly workspaceId: string;
 }
 
-export interface WorkbenchEnvironmentTerminalCreateInput {
+interface WorkbenchEnvironmentTerminalCreateInput {
 	readonly environmentId: string;
 	readonly fallbackTitle: string;
 	readonly placement: {
@@ -177,7 +177,7 @@ export interface WorkbenchEnvironmentTerminalCreateInput {
 	readonly workspaceId: string;
 }
 
-export interface WorkbenchTerminalSessionStopFailure {
+interface WorkbenchTerminalSessionStopFailure {
 	readonly failure: TerminalPresentationFailure;
 	readonly presentationId: TerminalPresentationId;
 }

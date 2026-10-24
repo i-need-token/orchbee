@@ -12,8 +12,8 @@ import {
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_NATIVE_SETTINGS_REQUEST_BYTES = MAXIMUM_USER_PREFERENCES_BYTES;
-export const NativeSettingsSourceSchema = UserPreferencesSourceSchema;
-export const NativeSettingsChangesSchema = UserPreferencesPatchSchema.refine(
+const NativeSettingsSourceSchema = UserPreferencesSourceSchema;
+const NativeSettingsChangesSchema = UserPreferencesPatchSchema.refine(
 	(changes) => Object.keys(changes).length > 0,
 );
 const correlation = {
@@ -64,5 +64,3 @@ export const NativeSettingsResultSchema = z
 		]),
 	})
 	.readonly();
-export type NativeSettingsRequest = z.infer<typeof NativeSettingsRequestSchema>;
-export type NativeSettingsResult = z.infer<typeof NativeSettingsResultSchema>;

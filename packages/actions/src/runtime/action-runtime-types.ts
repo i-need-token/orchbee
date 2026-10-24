@@ -1,5 +1,5 @@
 export type ActionExecutionId = string;
-export type ActionScopeId = string;
+type ActionScopeId = string;
 
 export interface ActionDisposable {
 	dispose(): void;
@@ -12,7 +12,7 @@ export interface ActionMessageDescriptor {
 	readonly values?: Readonly<Record<string, boolean | number | string>> | undefined;
 }
 
-export interface ActionCategory {
+interface ActionCategory {
 	readonly id: string;
 	readonly title: ActionMessageDescriptor;
 }
@@ -93,7 +93,7 @@ export type ActionResult<Output = unknown> =
 	| { readonly kind: 'failed'; readonly failure: ActionFailure }
 	| { readonly kind: 'unsupported' };
 
-export interface ActionFailure {
+interface ActionFailure {
 	readonly code: string;
 	readonly details?: unknown;
 }
@@ -120,9 +120,9 @@ export interface ActionProgress {
 }
 
 export type ActionConcurrency = 'parallel' | 'reject-duplicate' | 'replace-latest' | 'serialize';
-export type ActionExecutionMode = 'background' | 'external-job' | 'foreground';
+type ActionExecutionMode = 'background' | 'external-job' | 'foreground';
 
-export interface ActionExecutionPolicy<Input> {
+interface ActionExecutionPolicy<Input> {
 	readonly concurrency: ActionConcurrency;
 	readonly concurrencyKey: (input: Input, context: ActionAvailabilityContext) => string;
 	readonly mode: ActionExecutionMode;
@@ -135,7 +135,7 @@ export interface ActionExecutionContext extends ActionInvocation {
 	reportProgress(progress: ActionProgress): void;
 }
 
-export interface ActionHandler<Input, Output> {
+interface ActionHandler<Input, Output> {
 	execute(
 		context: ActionExecutionContext,
 		input: Input,
@@ -157,11 +157,6 @@ export interface ActionDefinition<Input, Output> extends ActionDescriptor {
 		| undefined;
 	readonly handler: ActionHandler<Input, Output>;
 	readonly input: ActionInputValidation<Input>;
-}
-
-export interface ActionRegistration<Input = unknown, Output = unknown> {
-	readonly definition: ActionDefinition<Input, Output>;
-	readonly scope: ActionScope;
 }
 
 type ActionExecutionState =

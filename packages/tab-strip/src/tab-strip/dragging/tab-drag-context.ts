@@ -2,7 +2,7 @@ import type { Rect } from '../utils/rectRight';
 import type { TabGroupId } from '../model/tab-types';
 import type { TabModel } from '../model/tab-model';
 import type { DragPoint } from './dragging-tabs-session';
-export interface TabDragPositioningDelegateBase {
+interface TabDragPositioningDelegateBase {
 	updateAnimationTarget(tabSlotId: string, targetBounds: Readonly<Rect>): void;
 	isDragSessionActive(): boolean;
 	isAnimatingDragEnd(): boolean;

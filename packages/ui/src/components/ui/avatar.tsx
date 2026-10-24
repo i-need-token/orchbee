@@ -23,16 +23,6 @@ function Avatar({
 	);
 }
 
-function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
-	return (
-		<AvatarPrimitive.Image
-			data-slot='avatar-image'
-			className={cn('aspect-square size-full rounded-full object-cover', className)}
-			{...props}
-		/>
-	);
-}
-
 function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props) {
 	return (
 		<AvatarPrimitive.Fallback
@@ -88,4 +78,4 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<'div'>) 
 	);
 }
 
-export { Avatar, AvatarImage, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarBadge };
+export { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarBadge };

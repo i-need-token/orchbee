@@ -27,11 +27,11 @@ import {
 /// (4096 member entries at their longest legal status spelling). The Rust
 /// protocol asserts equality against the constructed worst document.
 export const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES = 1_000_007;
-export const WORKBENCH_MAXIMUM_WORKSPACE_CLOSE_MEMBERS = 4096;
+const WORKBENCH_MAXIMUM_WORKSPACE_CLOSE_MEMBERS = 4096;
 
 /// A member entry carries only its own terminal disposition; the close
 /// revision lives solely in the scope-level status.
-export const WorkbenchWorkspaceCloseMemberStatusSchema = z.discriminatedUnion('kind', [
+const WorkbenchWorkspaceCloseMemberStatusSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('closing'), phase: WorkbenchTabClosePhaseSchema }).readonly(),
 	z
 		.strictObject({
@@ -56,7 +56,7 @@ export const WorkbenchWorkspaceCloseMemberStatusSchema = z.discriminatedUnion('k
 		.readonly(),
 ]);
 
-export const WorkbenchWorkspaceCloseMemberSchema = z
+const WorkbenchWorkspaceCloseMemberSchema = z
 	.strictObject({
 		tabId: WorkbenchTabIdSchema,
 		panelId: WorkbenchPanelIdSchema,
@@ -65,7 +65,7 @@ export const WorkbenchWorkspaceCloseMemberSchema = z
 	})
 	.readonly();
 
-export const WorkbenchWorkspaceCloseCountsSchema = z
+const WorkbenchWorkspaceCloseCountsSchema = z
 	.strictObject({
 		closing: z.number().int().min(0).max(4_294_967_295),
 		cleanupBlocked: z.number().int().min(0).max(4_294_967_295),
@@ -94,7 +94,7 @@ export const WorkbenchWorkspaceCloseReadSchema = z
 	.strictObject({ kind: z.literal('workbench.workspace-close.read'), ...correlation, ...scope })
 	.readonly();
 
-export const WorkbenchWorkspaceCloseReadOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchWorkspaceCloseReadOutcomeSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('not-closing') }).readonly(),
 	deniedSchema,
 	unavailableSchema,
@@ -133,7 +133,7 @@ export const WorkbenchWorkspaceCloseResumeSchema = z
 	})
 	.readonly();
 
-export const WorkbenchWorkspaceCloseResumeOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkbenchWorkspaceCloseResumeOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('resumed'),
@@ -165,23 +165,3 @@ export const WorkbenchWorkspaceCloseResumeResultSchema = z
 		outcome: WorkbenchWorkspaceCloseResumeOutcomeSchema,
 	})
 	.readonly();
-
-export type WorkbenchWorkspaceCloseMemberStatus = z.infer<
-	typeof WorkbenchWorkspaceCloseMemberStatusSchema
->;
-export type WorkbenchWorkspaceCloseMember = z.infer<typeof WorkbenchWorkspaceCloseMemberSchema>;
-export type WorkbenchWorkspaceCloseCounts = z.infer<typeof WorkbenchWorkspaceCloseCountsSchema>;
-export type WorkbenchWorkspaceCloseRead = z.infer<typeof WorkbenchWorkspaceCloseReadSchema>;
-export type WorkbenchWorkspaceCloseReadOutcome = z.infer<
-	typeof WorkbenchWorkspaceCloseReadOutcomeSchema
->;
-export type WorkbenchWorkspaceCloseReadResult = z.infer<
-	typeof WorkbenchWorkspaceCloseReadResultSchema
->;
-export type WorkbenchWorkspaceCloseResume = z.infer<typeof WorkbenchWorkspaceCloseResumeSchema>;
-export type WorkbenchWorkspaceCloseResumeOutcome = z.infer<
-	typeof WorkbenchWorkspaceCloseResumeOutcomeSchema
->;
-export type WorkbenchWorkspaceCloseResumeResult = z.infer<
-	typeof WorkbenchWorkspaceCloseResumeResultSchema
->;

@@ -9,7 +9,6 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shared.conflict': '设置已在别处更改，草稿已保留。请先载入当前值，再继续编辑。',
 	'terminal.settings.shared.unknown': '保存结果未知。请先读取当前设置，再判断是否需要另一次编辑。',
 	'terminal.settings.shared.host': '设置已保存，但终端服务尚未应用；新终端可能仍使用之前的默认值。',
-	'terminal.settings.shared.legacy': '无法导入已有的桌面设置，原数据已保留以便恢复。',
 	'terminal.settings.shared.refresh': '重载设置并放弃草稿',
 	'terminal.settings.shared.reloadDraft': '载入当前值',
 	'terminal.settings.shared.reset': '重置共享设置',

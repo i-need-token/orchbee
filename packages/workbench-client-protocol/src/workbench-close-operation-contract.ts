@@ -55,5 +55,3 @@ export const CloseOperationResultSchema = z
 		]),
 	})
 	.readonly();
-export type CloseOperationRead = z.infer<typeof CloseOperationReadSchema>;
-export type CloseOperationResult = z.infer<typeof CloseOperationResultSchema>;

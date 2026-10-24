@@ -81,7 +81,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		);
 
 		expect(first.terminalBindingStorePath).toBe(
-			path.posix.resolve('/private/recovery/bindings-v3.json'),
+			path.posix.resolve('/private/recovery/bindings-v1.json'),
 		);
 		expect(first.terminalArchiveDirectory).toBe(
 			path.posix.resolve('/private/recovery/terminal-archives-v1'),
@@ -96,9 +96,6 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.posix.resolve('/private/recovery/terminal-exit-publications-v1.json'),
 		);
 		expect(first.workbenchDocumentStorePath).toBe(
-			path.posix.resolve('/private/recovery/workbench-shared-document-v2.json'),
-		);
-		expect(first.workbenchDocumentLegacyStorePath).toBe(
 			path.posix.resolve('/private/recovery/workbench-shared-document-v1.json'),
 		);
 		expect(first.windowStateStorePath).toBe(
@@ -137,17 +134,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.executable).toBe('/bin/sh');
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
 		expect(configuration.terminalBindingStorePath).toBe(
-			path.posix.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v3.json'),
+			path.posix.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v1.json'),
 		);
 		expect(configuration.terminalArchiveDirectory).toBe(
 			path.posix.resolve('/users/orchbee/.config/orchbee/terminal-recovery/terminal-archives-v1'),
 		);
 		expect(configuration.workbenchDocumentStorePath).toBe(
-			path.posix.resolve(
-				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v2.json',
-			),
-		);
-		expect(configuration.workbenchDocumentLegacyStorePath).toBe(
 			path.posix.resolve(
 				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v1.json',
 			),

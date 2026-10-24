@@ -13,4 +13,3 @@ export {
 	type TerminalCompletionReminderModeValue,
 	type TerminalNotificationPermission,
 } from './model';
-export { readLegacyFeedbackPreferencePatch } from './model';

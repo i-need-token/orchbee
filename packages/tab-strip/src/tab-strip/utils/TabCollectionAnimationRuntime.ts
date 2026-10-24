@@ -17,7 +17,7 @@ export interface LiveTabSlot {
 	pinned: boolean | null;
 }
 
-export interface TabCollectionAnimationSyncResult {
+interface TabCollectionAnimationSyncResult {
 	changed: boolean;
 	startProgress: number;
 	frame: AnimatedLayoutFrame;

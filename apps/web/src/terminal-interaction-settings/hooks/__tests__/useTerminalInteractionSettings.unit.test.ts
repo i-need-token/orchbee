@@ -32,7 +32,7 @@ describe('useTerminalInteractionSettings', () => {
 
 		const controller = new TerminalInteractionSettingsController({
 			getItem: (key) =>
-				key === 'orchbee:web:terminal-interaction:v2'
+				key === 'orchbee:web:terminal-interaction:v1'
 					? JSON.stringify({ copyOnSelect: false, trimTrailingBlankRowsForAgents: true })
 					: null,
 			setItem: () => undefined,

@@ -4,7 +4,7 @@ import type * as React from 'react';
 import { DEFAULT_ORCHBEE_LOCALE, type OrchbeeLocale } from '../locale';
 import { getOrchbeeMessages } from '../runtime';
 
-export interface OrchbeeI18nProviderProps {
+interface OrchbeeI18nProviderProps {
 	readonly children?: React.ReactNode;
 	readonly locale: OrchbeeLocale;
 }

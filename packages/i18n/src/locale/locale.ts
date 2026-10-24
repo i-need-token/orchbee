@@ -2,7 +2,7 @@ export const ORCHBEE_LOCALES = ['en-US', 'zh-CN'] as const;
 export const DEFAULT_ORCHBEE_LOCALE = 'en-US';
 
 export type OrchbeeLocale = (typeof ORCHBEE_LOCALES)[number];
-export type OrchbeeTextDirection = 'ltr' | 'rtl';
+type OrchbeeTextDirection = 'ltr' | 'rtl';
 
 const SIMPLIFIED_CHINESE_REGIONS = new Set(['CN', 'SG']);
 const TRADITIONAL_CHINESE_REGIONS = new Set(['HK', 'MO', 'TW']);

@@ -1,5 +1,7 @@
 # @orchbee/keyboard-shortcuts
 
+Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
+
 Pure keyboard-chord mechanics shared by Orchbee product owners.
 
 The package normalizes a single physical `KeyboardEvent.code` plus an exact modifier set, maps the

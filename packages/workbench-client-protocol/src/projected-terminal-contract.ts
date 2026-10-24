@@ -71,7 +71,7 @@ const ProjectedTerminalImagePreviewMediaTypeSchema = z.enum([
 	'image/bmp',
 ]);
 
-export const ProjectedTerminalOutcomeSchema = z
+const ProjectedTerminalOutcomeSchema = z
 	.discriminatedUnion('kind', [
 		z.strictObject({ event: TerminalExitedSchema, kind: z.literal('exited') }),
 		z.strictObject({ event: TerminalFailedSchema, kind: z.literal('failed') }),
@@ -296,7 +296,7 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 ]);
 
 export type ProjectedAttachmentBootstrap = z.infer<typeof ProjectedAttachmentBootstrapSchema>;
-export type ProjectedTerminalOutcome = z.infer<typeof ProjectedTerminalOutcomeSchema>;
+
 export type ProjectedTerminalCommand = z.infer<typeof ProjectedTerminalCommandSchema>;
 export type ProjectedTerminalEvent = z.infer<typeof ProjectedTerminalEventSchema>;
 export type ProjectedTerminalFailure = z.infer<typeof ProjectedTerminalFailureSchema>;

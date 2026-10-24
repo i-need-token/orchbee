@@ -11,7 +11,7 @@ The application is private and experimentally versioned. It installs an executab
 - [Desktop](../desktop/README.md) owns product topology, recovery policy, presentation, and platform effects.
 - [Worker](../orchbee-worker/README.md) owns its unshipped Server-first local broker connection and coupled peer liveness; it owns no terminal semantics.
 
-The accepted [Desktop update-continuity proposal](../../proposals/terminal-host/desktop-terminal-host-update-continuity.md) records future implementation design; it is not current runtime authority.
+The [native runtime topology proposal](../../proposals/platform/native-runtime-topology.md#desktop-main-target-disposition) assigns Host lifetime to Worker and supersedes the former Desktop update-continuity design; the target proposal does not establish migration of the current Desktop runtime.
 
 The runtime contract is accepted, but acceptance does not claim that every current implementation path already conforms. A behavioral change is complete only when its affected contract claims have the required executable evidence.
 

@@ -33,7 +33,7 @@ const workspaceLaunchReceipt = {
 	presentationId: TerminalPresentationIdSchema,
 };
 
-export const WorkbenchRejectionReasonSchema = z.enum([
+const WorkbenchRejectionReasonSchema = z.enum([
 	'site-mismatch',
 	'revision-mismatch',
 	'project-unavailable',
@@ -59,7 +59,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'confirmation-required',
 ]);
 
-export const WorkbenchCommandUnavailableReasonSchema = z.enum([
+const WorkbenchCommandUnavailableReasonSchema = z.enum([
 	'request-ledger-full',
 	'no-compatible-worker',
 	'terminal-busy',

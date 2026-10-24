@@ -236,7 +236,7 @@ function validateLaunchEnvironment(
 }
 
 /** A Host operating system that defines environment-name identity. */
-export type EnvironmentTarget = 'posix' | 'windows';
+type EnvironmentTarget = 'posix' | 'windows';
 
 /**
  * Environment names are target-operating-system environment identifiers. Fold
@@ -529,7 +529,7 @@ export const ClearTerminalSchema = z.strictObject({
 	preservePrompt: z.boolean(),
 });
 export const ResetTerminalSchema = z.strictObject(terminalControlTargetShape);
-export const TerminalControlOperationSchema = z.enum(['clear', 'reset']);
+const TerminalControlOperationSchema = z.enum(['clear', 'reset']);
 
 export const FrameAppliedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
@@ -553,7 +553,7 @@ export const NeedSnapshotSchema = z.strictObject({
 	sequence: positiveCanonicalUint64TextSchema,
 });
 
-export const ProjectionDemandSchema = z.enum(['active', 'paused']);
+const ProjectionDemandSchema = z.enum(['active', 'paused']);
 
 const projectionDemandShape = {
 	attachmentId: AttachmentIdSchema,
@@ -570,11 +570,11 @@ export const ProjectionBlockedSchema = z.strictObject({
 	revision: CanonicalUint64TextSchema,
 });
 
-export const RowWindowPurposeSchema = z.enum(['buffer', 'search', 'viewport']);
+const RowWindowPurposeSchema = z.enum(['buffer', 'search', 'viewport']);
 
-export const RowRevisionPolicySchema = z.enum(['current-view', 'exact']);
+const RowRevisionPolicySchema = z.enum(['current-view', 'exact']);
 
-export const RowWindowOriginSchema = z.discriminatedUnion('kind', [
+const RowWindowOriginSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('absolute'), row: CanonicalUint64TextSchema }),
 	z.strictObject({ kind: z.literal('oldest'), offset: uint32Schema }),
 	z.strictObject({
@@ -622,7 +622,7 @@ export const RowsAppliedSchema = z.strictObject({
 	revision: CanonicalUint64TextSchema,
 });
 
-export const HistoryDemandSchema = z.enum(['following-bottom', 'viewing-history']);
+const HistoryDemandSchema = z.enum(['following-bottom', 'viewing-history']);
 
 const historyDemandShape = {
 	attachmentId: AttachmentIdSchema,
@@ -709,7 +709,7 @@ export const SelectionPointSchema = z.strictObject({
 	row: CanonicalUint64TextSchema,
 });
 
-export const SelectionViewportPointSchema = z.strictObject({
+const SelectionViewportPointSchema = z.strictObject({
 	column: z
 		.number()
 		.int()
@@ -800,7 +800,7 @@ export const SelectionChangedSchema = z.discriminatedUnion('state', [
 	}),
 ]);
 
-export const SelectionExportFormatSchema = z.literal('plain');
+const SelectionExportFormatSchema = z.literal('plain');
 
 export const SelectionExportSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
@@ -850,7 +850,7 @@ export const ExitResultSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('unknown'), value: uint32Schema }),
 ]);
 
-export const RuntimeFailureKind = {
+const RuntimeFailureKind = {
 	editorDocument: 'editor-document',
 	processControl: 'process-control',
 	processObservation: 'process-observation',
@@ -861,7 +861,7 @@ export const RuntimeFailureKind = {
 	workerIntegrity: 'worker-integrity',
 } as const;
 
-export const RuntimeFailureStage = {
+const RuntimeFailureStage = {
 	admitTerminalReply: 'admit-terminal-reply',
 	applyResize: 'apply-resize',
 	containProcess: 'contain-process',
@@ -1027,7 +1027,7 @@ export const TerminalSummarySchema = z.discriminatedUnion('phase', [
 	}),
 ]);
 
-export const TerminalInventoryCursorSchema = z.strictObject({
+const TerminalInventoryCursorSchema = z.strictObject({
 	inventoryGeneration: positiveCanonicalUint64TextSchema,
 	offset: CanonicalUint64TextSchema,
 });
@@ -1105,12 +1105,6 @@ export const TerminalControlAcceptedSchema = z.strictObject({
 	terminalId: TerminalIdSchema,
 });
 
-export const TerminalStartedSchema = z.strictObject({
-	creationId: CreationIdSchema,
-	hostEpoch: HostEpochSchema,
-	terminalId: TerminalIdSchema,
-});
-
 export const TerminalStartAcceptedSchema = z.strictObject({
 	geometry: TerminalGeometrySchema,
 	identity: TerminalIdentitySchema,
@@ -1142,21 +1136,6 @@ export const TerminalDefaultsAcceptedSchema = z.strictObject({
 export const UpdateTerminalConfigurationSchema = z.strictObject({
 	configuration: TerminalConfigurationSchema,
 	terminalId: TerminalIdSchema,
-});
-
-export const TerminalConfigurationAcceptedSchema = z.strictObject({
-	configuration: TerminalConfigurationSchema,
-	configurationRevision: CanonicalUint64TextSchema,
-	generation: positiveCanonicalUint64TextSchema,
-	historyRowsEvicted: CanonicalUint64TextSchema,
-	revision: CanonicalUint64TextSchema,
-	terminalId: TerminalIdSchema,
-});
-
-export const ProtocolRejectedSchema = z.strictObject({
-	client: ProtocolVersionSchema,
-	host: ProtocolVersionSchema,
-	reason: z.literal('version-mismatch'),
 });
 
 // Cross-language contract: search for `typed-failure-wire-limit` before
@@ -1217,88 +1196,66 @@ export const HelloAcceptedSchema = z.strictObject({
 		.max(PROTOCOL_LIMITS.maxOptionalFeatures),
 });
 
-export type Hello = z.infer<typeof HelloSchema>;
 export type HelloAccepted = z.infer<typeof HelloAcceptedSchema>;
-export type ApplyTerminalTheme = z.infer<typeof ApplyTerminalThemeSchema>;
+
 export type AttachmentAcknowledged = z.infer<typeof AttachmentAcknowledgedSchema>;
 export type AttachmentCapabilities = z.infer<typeof AttachmentCapabilitiesSchema>;
-export type AttachTerminal = z.infer<typeof AttachTerminalSchema>;
+
 export type CanonicalUint64Text = z.infer<typeof CanonicalUint64TextSchema>;
 export type ClearTerminal = z.infer<typeof ClearTerminalSchema>;
-export type ClaimResizeLease = z.infer<typeof ClaimResizeLeaseSchema>;
-export type CreateTerminal = z.infer<typeof CreateTerminalSchema>;
+
 export type TerminalEnvironmentOverlay = z.infer<typeof TerminalEnvironmentOverlaySchema>;
-export type DetachTerminal = z.infer<typeof DetachTerminalSchema>;
+
 export type ExitResult = z.infer<typeof ExitResultSchema>;
-export type FailureContainment = z.infer<typeof FailureContainmentSchema>;
+
 export type FrameApplied = z.infer<typeof FrameAppliedSchema>;
 export type NeedSnapshot = z.infer<typeof NeedSnapshotSchema>;
-export type InputAccepted = z.infer<typeof InputAcceptedSchema>;
 
-export type UpdateAttachmentInputCapability = z.infer<typeof UpdateAttachmentInputCapabilitySchema>;
-export type ListTerminals = z.infer<typeof ListTerminalsSchema>;
-export type ProtocolRejected = z.infer<typeof ProtocolRejectedSchema>;
-export type ProjectionBlocked = z.infer<typeof ProjectionBlockedSchema>;
 export type ProjectionDemand = z.infer<typeof ProjectionDemandSchema>;
-export type ProjectionDemandAccepted = z.infer<typeof ProjectionDemandAcceptedSchema>;
+
 export type ReadRows = z.infer<typeof ReadRowsSchema>;
 export type ResizeTerminal = z.infer<typeof ResizeTerminalSchema>;
-export type ResizeAccepted = z.infer<typeof ResizeAcceptedSchema>;
-export type ResizeLeaseChanged = z.infer<typeof ResizeLeaseChangedSchema>;
+
 export type ResetTerminal = z.infer<typeof ResetTerminalSchema>;
 export type SetProjectionDemand = z.infer<typeof SetProjectionDemandSchema>;
-export type SetTerminalDefaults = z.infer<typeof SetTerminalDefaultsSchema>;
-export type StartTerminal = z.infer<typeof StartTerminalSchema>;
+
 export type HistoryChanged = z.infer<typeof HistoryChangedSchema>;
-export type HistoryDemand = z.infer<typeof HistoryDemandSchema>;
-export type HistoryDemandAccepted = z.infer<typeof HistoryDemandAcceptedSchema>;
+
 export type HistoryObserved = z.infer<typeof HistoryObservedSchema>;
 export type TerminalBell = z.infer<typeof TerminalBellSchema>;
 export type TerminalApplicationSignal = z.infer<typeof TerminalApplicationSignalSchema>;
 export type TerminalMetadataChanged = z.infer<typeof TerminalMetadataChangedSchema>;
 export type TerminalClipboardWriteRequest = z.infer<typeof TerminalClipboardWriteRequestSchema>;
-export type RowWindowOrigin = z.infer<typeof RowWindowOriginSchema>;
-export type RowWindowPurpose = z.infer<typeof RowWindowPurposeSchema>;
+
 export type RowRevisionPolicy = z.infer<typeof RowRevisionPolicySchema>;
 export type RowsApplied = z.infer<typeof RowsAppliedSchema>;
 export type SelectionChanged = z.infer<typeof SelectionChangedSchema>;
 export type SelectionCommand = z.infer<typeof SelectionCommandSchema>;
-export type SelectionExport = z.infer<typeof SelectionExportSchema>;
+
 export type SelectionExportCancel = z.infer<typeof SelectionExportCancelSchema>;
-export type SelectionExportChunkApplied = z.infer<typeof SelectionExportChunkAppliedSchema>;
-export type SelectionExportFinished = z.infer<typeof SelectionExportFinishedSchema>;
-export type SelectionExportFormat = z.infer<typeof SelectionExportFormatSchema>;
-export type SelectionExportStarted = z.infer<typeof SelectionExportStartedSchema>;
+
 export type SelectionGesture = z.infer<typeof SelectionGestureSchema>;
 export type SelectionPoint = z.infer<typeof SelectionPointSchema>;
 export type SelectionViewportPoint = z.infer<typeof SelectionViewportPointSchema>;
 export type SetHistoryDemand = z.infer<typeof SetHistoryDemandSchema>;
-export type TerminalAcknowledged = z.infer<typeof TerminalAcknowledgedSchema>;
+
 export type TerminalExited = z.infer<typeof TerminalExitedSchema>;
 export type TerminalFailed = z.infer<typeof TerminalFailedSchema>;
 export type TerminalGeometry = z.infer<typeof TerminalGeometrySchema>;
 export type TerminalIdentity = z.infer<typeof TerminalIdentitySchema>;
 export type TerminalLaunch = z.infer<typeof TerminalLaunchSchema>;
 export type TerminalConfiguration = z.infer<typeof TerminalConfigurationSchema>;
-export type TerminalConfigurationAccepted = z.infer<typeof TerminalConfigurationAcceptedSchema>;
-export type TerminalControlAccepted = z.infer<typeof TerminalControlAcceptedSchema>;
-export type TerminalControlOperation = z.infer<typeof TerminalControlOperationSchema>;
-export type TerminalDefaultsAccepted = z.infer<typeof TerminalDefaultsAcceptedSchema>;
+
 export type TerminalProfile = z.infer<typeof TerminalProfileSchema>;
 export type TerminalList = z.infer<typeof TerminalListSchema>;
 export type TerminalInventoryCursor = z.infer<typeof TerminalInventoryCursorSchema>;
-export type TerminalStarted = z.infer<typeof TerminalStartedSchema>;
-export type TerminalStartAccepted = z.infer<typeof TerminalStartAcceptedSchema>;
+
 export type TerminalSummary = z.infer<typeof TerminalSummarySchema>;
-export type TerminalTarget = z.infer<typeof TerminalTargetSchema>;
-export type TerminalTheme = z.infer<typeof TerminalThemeSchema>;
-export type TerminalThemeResult = z.infer<typeof TerminalThemeResultSchema>;
+
 export type TerminalThemeState = z.infer<typeof TerminalThemeStateSchema>;
 export type TypedFailure = z.infer<typeof TypedFailureSchema>;
 export type ProcessObservation = z.infer<typeof ProcessObservationSchema>;
 export type RuntimeFailure = z.infer<typeof RuntimeFailureSchema>;
-export type RuntimeCleanupFailure = z.infer<typeof RuntimeCleanupFailureSchema>;
-export type UpdateTerminalConfiguration = z.infer<typeof UpdateTerminalConfigurationSchema>;
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 

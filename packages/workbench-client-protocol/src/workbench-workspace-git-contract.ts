@@ -6,7 +6,7 @@ import {
 	WorkbenchRevisionSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
-export const GitDivergenceSchema = z
+const GitDivergenceSchema = z
 	.strictObject({
 		ahead: z.number().int().min(0).max(4294967295),
 		behind: z.number().int().min(0).max(4294967295),
@@ -21,7 +21,7 @@ const identity = {
 export const WorkspaceGitRequestSchema = z
 	.strictObject({ ...identity, kind: z.literal('workbench.workspace-git') })
 	.readonly();
-export const WorkspaceGitOutcomeSchema = z.discriminatedUnion('kind', [
+const WorkspaceGitOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('observed'),
@@ -58,6 +58,3 @@ export const WorkspaceGitResultSchema = z
 		outcome: WorkspaceGitOutcomeSchema,
 	})
 	.readonly();
-export type WorkspaceGitRequest = z.infer<typeof WorkspaceGitRequestSchema>;
-export type WorkspaceGitResult = z.infer<typeof WorkspaceGitResultSchema>;
-export type GitDivergence = z.infer<typeof GitDivergenceSchema>;
