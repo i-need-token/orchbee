@@ -25,6 +25,8 @@
 
 原始路径继续受 4,096 UTF-8 字节的准入上限约束。完成准入和祖先句柄固定后，MoveFile 和私有 ReplaceFile 接收经词法规范化为扩展形式的普通盘符路径；已有逐字盘符路径保持原样。回执和恢复记录中的逻辑路径保留原始拼写。长路径文件系统证据覆盖普通、混合分隔符和逐字路径拼写下的发布冲突、元数据流及备份恢复。
 
+打开的后代条目可能使原子目录 MoveFile 在发布前暂时返回 ACCESS_DENIED。仅此目录失败允许进行 1、5、10 毫秒的三次准入等待，期间始终固定同一组祖先句柄。每次尝试仍使用不可覆盖原语；新到达的目标返回冲突，持续拒绝返回失败。文件移动及其他错误不等待。受控原生句柄测试覆盖句柄释放、目标抢占、持续拒绝及源字节保持不变；提供方工作流本身不会重放。
+
 Windows 托管 Claude Code、Codex、Grok 和 GitHub Copilot hooks、OpenCode、Kilo、Pi、OMP JavaScript 模块、Gemini/Qwen 扩展以及 Cursor JSON 会话 Hook。其他 provider
 在其 Windows hook 执行路径获得支持前保持 `manual-only`。检查与变更共享平台准入规则。
 

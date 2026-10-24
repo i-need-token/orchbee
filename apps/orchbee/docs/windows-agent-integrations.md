@@ -26,6 +26,8 @@ for ownership, version direction, plans, receipts, and residuals.
 
 Original paths retain the 4,096 UTF-8 byte admission bound. After admission and ancestor pinning, MoveFile and the private ReplaceFile receive ordinary drive paths lexically normalized into extended form; existing verbatim drive paths pass unchanged. Logical paths in receipts and recovery records retain their original spelling. Long-path filesystem evidence covers publication conflicts, metadata streams and backup restoration under ordinary, mixed-separator and verbatim spellings.
 
+An open descendant can temporarily make an atomic directory MoveFile return ACCESS_DENIED before publication. Only that directory failure permits three admission waits of 1, 5 and 10 milliseconds while the same ancestor handles remain pinned. Every attempt still uses no-replace; an arriving target returns conflict, and persistent denial returns failure. File moves and other errors do not wait. Controlled native-handle tests cover release, a competing arrival, persistent denial and unchanged source bytes; the provider workflow itself is never replayed.
+
 Windows manages Claude Code, Codex, Grok and GitHub Copilot hooks, the OpenCode, Kilo, Pi and OMP JavaScript modules, Gemini/Qwen extensions, and Cursor JSON session hooks.
 The other provider rows retain `manual-only` until their Windows hook execution path
 is supported. Inspection and mutation share the same platform admission policy.

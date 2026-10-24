@@ -5,12 +5,18 @@ use std::{
     io::{self, Read, Write},
     os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Component, Path, PathBuf, Prefix},
+    time::Duration,
 };
 
 const REPARSE: u32 = 0x400;
 const OPEN_REPARSE: u32 = 0x0020_0000;
 const BACKUP_SEMANTICS: u32 = 0x0200_0000;
 const FILE_LIMIT: u64 = 512 * 1024;
+const DIRECTORY_MOVE_DELAYS: [Duration; 3] = [
+    Duration::from_millis(1),
+    Duration::from_millis(5),
+    Duration::from_millis(10),
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FsStep {
@@ -250,21 +256,43 @@ fn win32_path(path: &Path) -> Option<String> {
 }
 
 fn move_no_replace(source: &Path, target: &Path) -> FsStep {
+    move_no_replace_with_wait(source, target, std::thread::sleep)
+}
+
+fn move_no_replace_with_wait(
+    source: &Path,
+    target: &Path,
+    mut wait: impl FnMut(Duration),
+) -> FsStep {
     let (Ok(_source), Ok(_target)) = (pin_parent(source), pin_parent(target)) else {
         return FsStep::Failed;
     };
+    let directory = fs::symlink_metadata(source)
+        .is_ok_and(|metadata| metadata.is_dir() && metadata.file_attributes() & REPARSE == 0);
     let (Some(source), Some(target)) = (win32_path(source), win32_path(target)) else {
         return FsStep::Failed;
     };
-    match winsafe::MoveFile(&source, &target) {
-        Ok(()) => FsStep::Done,
-        Err(error)
-            if error == winsafe::co::ERROR::ALREADY_EXISTS
-                || error == winsafe::co::ERROR::FILE_EXISTS =>
-        {
-            FsStep::Conflict
+    let mut delays = DIRECTORY_MOVE_DELAYS.into_iter();
+    loop {
+        match winsafe::MoveFile(&source, &target) {
+            Ok(()) => return FsStep::Done,
+            Err(error)
+                if error == winsafe::co::ERROR::ALREADY_EXISTS
+                    || error == winsafe::co::ERROR::FILE_EXISTS =>
+            {
+                return FsStep::Conflict;
+            }
+            Err(error) if directory && error == winsafe::co::ERROR::ACCESS_DENIED => {
+                // An open descendant can briefly deny an atomic directory move.
+                // Nothing was published: keep the ancestor pins and allow only
+                // bounded admission waits, always using the no-replace primitive.
+                let Some(delay) = delays.next() else {
+                    return FsStep::Failed;
+                };
+                wait(delay);
+            }
+            Err(_) => return FsStep::Failed,
         }
-        Err(_) => FsStep::Failed,
     }
 }
 
@@ -402,3 +430,7 @@ fn remove_entry(
     // replacement junction at this last component.
     fs::remove_dir(path)
 }
+
+#[cfg(test)]
+#[path = "files_windows/tests.rs"]
+mod tests;
