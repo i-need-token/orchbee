@@ -46,42 +46,92 @@ fn short_kernel_wait_limit_retains_a_real_same_user_connection() {
 
 #[test]
 fn bounded_namespace_observation_never_connects_or_invents_absence() {
-    use std::ffi::OsStr;
     let path = endpoint();
     let listener = LocalListener::bind(&path).unwrap();
     let deadline = Instant::now() + Duration::from_secs(5);
+    assert!(endpoint_exists(&path).unwrap());
     assert_eq!(endpoint_exists_before(&path, deadline).unwrap(), Some(true));
+    let different_case = path.to_str().unwrap().replace("orchbee", "ORCHBEE");
+    assert!(endpoint_exists(Path::new(&different_case)).unwrap());
+    for suffix in [".", "-other"] {
+        let different_name = format!("{}{suffix}", path.display());
+        assert!(!endpoint_exists(Path::new(&different_name)).unwrap());
+    }
     assert_eq!(listener.readiness().unwrap(), Readiness::Pending);
     let client = LocalStream::connect(&path).unwrap();
+    assert!(endpoint_exists(&path).unwrap());
     let (server, ()) = listener.accept().unwrap();
     drop((client, server, listener));
+    assert!(!endpoint_exists(&path).unwrap());
     assert_eq!(
         endpoint_exists_before(&path, deadline).unwrap(),
         Some(false)
     );
     assert_eq!(endpoint_exists_before(&path, Instant::now()).unwrap(), None);
-    let names = || [Ok("other".into()), Ok("TARGET".into())].into_iter();
-    assert_eq!(
-        observe_pipe_names(OsStr::new("target"), names(), deadline, 1).unwrap(),
-        None
-    );
-    assert_eq!(
-        observe_pipe_names(OsStr::new("target"), names(), deadline, 2).unwrap(),
-        Some(true)
-    );
-    assert_eq!(
-        observe_pipe_names(OsStr::new("missing"), names(), deadline, 3).unwrap(),
-        Some(false)
-    );
-    assert!(
-        observe_pipe_names(
-            OsStr::new("target"),
-            [Err(io::ErrorKind::PermissionDenied.into())].into_iter(),
-            deadline,
-            2
-        )
-        .is_err()
-    );
+    for invalid in [
+        r"\\.\pipe\*",
+        r"\\.\pipe\orchbee?",
+        r"\\remote\pipe\orchbee",
+    ] {
+        assert_eq!(
+            endpoint_exists(Path::new(invalid)).unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            endpoint_exists_before(Path::new(invalid), Instant::now())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidInput
+        );
+    }
+}
+
+#[test]
+fn retained_listeners_remain_observable_during_unrelated_pipe_churn() {
+    let stop = AtomicBool::new(false);
+    let result = thread::scope(|scope| {
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                scope.spawn(|| -> io::Result<()> {
+                    for _ in 0..1024 {
+                        if stop.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let listeners: io::Result<Vec<_>> =
+                            (0..32).map(|_| LocalListener::bind(endpoint())).collect();
+                        drop(listeners?);
+                    }
+                    Ok(())
+                })
+            })
+            .collect();
+        let result = (|| -> io::Result<()> {
+            for _ in 0..512 {
+                let path = endpoint();
+                let listener = LocalListener::bind(&path)?;
+                if !endpoint_exists(&path)?
+                    || endpoint_exists_before(&path, Instant::now() + Duration::from_secs(5))?
+                        != Some(true)
+                {
+                    return Err(io::Error::other(format!(
+                        "retained listener was absent from namespace observation: {path:?}"
+                    )));
+                }
+                if listener.readiness()? != Readiness::Pending {
+                    return Err(io::Error::other(
+                        "namespace observation opened the listener",
+                    ));
+                }
+            }
+            Ok(())
+        })();
+        stop.store(true, Ordering::Relaxed);
+        for worker in workers {
+            worker.join().unwrap()?;
+        }
+        result
+    });
+    result.unwrap();
 }
 
 #[test]

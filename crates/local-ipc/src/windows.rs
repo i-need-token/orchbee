@@ -551,18 +551,17 @@ mod tests;
 /// Observes the local pipe namespace without opening or authenticating a peer.
 /// Presence is advisory; connect/admit is the only readiness authority.
 pub fn endpoint_exists(path: &Path) -> io::Result<bool> {
-    pipe_name(path)?;
-    let name = path.file_name().ok_or(io::ErrorKind::InvalidInput)?;
-    for entry in std::fs::read_dir(r"\\.\pipe\")? {
-        if entry?
-            .file_name()
-            .to_string_lossy()
-            .eq_ignore_ascii_case(&name.to_string_lossy())
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    let name = pipe_name(path)?
+        .to_str()
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    // Enumerating every pipe can skip a retained listener when unrelated names
+    // change between batches. Validation excludes wildcards from this exact query.
+    // The extended prefix preserves literal names, including trailing periods.
+    let query = name.replacen(r"\\.\", r"\\?\", 1);
+    let (_search, found) =
+        winsafe::HFINDFILE::FindFirstFile(&query, &mut winsafe::WIN32_FIND_DATA::default())
+            .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))?;
+    Ok(found)
 }
 
 /// Read-only name observation; `None` never claims absence after a budget limit.
@@ -571,30 +570,9 @@ pub fn endpoint_exists_before(path: &Path, deadline: Instant) -> io::Result<Opti
     if Instant::now() >= deadline {
         return Ok(None);
     }
-    let name = path.file_name().ok_or(io::ErrorKind::InvalidInput)?;
-    let names = std::fs::read_dir(r"\\.\pipe\")?.map(|entry| entry.map(|entry| entry.file_name()));
-    observe_pipe_names(name, names, deadline, 2048)
-}
-
-fn observe_pipe_names(
-    name: &std::ffi::OsStr,
-    mut names: impl Iterator<Item = io::Result<std::ffi::OsString>>,
-    deadline: Instant,
-    limit: usize,
-) -> io::Result<Option<bool>> {
-    for _ in 0..limit {
-        if Instant::now() >= deadline {
-            return Ok(None);
-        }
-        let Some(entry) = names.next() else {
-            return Ok(Some(false));
-        };
-        if entry?
-            .to_string_lossy()
-            .eq_ignore_ascii_case(&name.to_string_lossy())
-        {
-            return Ok(Some(true));
-        }
+    let found = endpoint_exists(path)?;
+    if Instant::now() >= deadline {
+        return Ok(None);
     }
-    Ok(None)
+    Ok(Some(found))
 }

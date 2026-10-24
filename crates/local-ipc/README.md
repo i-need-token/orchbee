@@ -53,14 +53,17 @@ handles, partial records, read-ahead duplication, blocked writes, and clone canc
 It is an explicit adversarial read, not independent review. Native evidence must pass
 before this transport is claimed as delivered.
 
-`endpoint_exists_before` observes the Windows pipe namespace without connecting.
-It validates the requested name, scans at most 2048 entries and checks the caller's
-monotonic deadline before each entry. `Some(true)` means a name was seen;
-`Some(false)` requires completed enumeration; `None` means the budget ended before
-absence could be established. These are separate-instant name facts, never peer
-identity or health. OS enumeration failures stay errors; filesystem stalls remain
-outside the cooperative budget. Tests retain an actual listener through inspection
-and check deadline/entry-budget exhaustion without manufacturing absence.
+`endpoint_exists` observes one validated local pipe name with an exact `FindFirstFile`
+query, without connecting. Wildcards and remote names are rejected; the extended
+namespace prefix preserves literal names, including trailing periods. It does not walk
+the live list of all pipes: unrelated creation/deletion during that enumeration can
+skip a listener that remains open. `endpoint_exists_before` checks the caller's
+monotonic deadline before and after the same single query. `Some(true)` means the name
+was seen; `Some(false)` means that exact query found no match; `None` means the deadline
+expired. These are separate-instant name facts, never peer identity or health. OS
+query failures preserve their error codes; kernel stalls remain outside the cooperative
+budget. Native tests retain listeners while unrelated pipes churn, verify no connection
+is consumed, and cover case-insensitive names, busy listeners, invalid names and expiry.
 
 `ChildInputWriter::pipe` pairs a nonblocking parent writer with blocking child stdin;
 `ChildOutputReader::pipe` provides the reverse direction. The terminal stream relay
