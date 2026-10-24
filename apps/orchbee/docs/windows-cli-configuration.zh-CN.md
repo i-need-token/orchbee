@@ -22,7 +22,7 @@ channel = "stable"
 manifest_check = true
 ```
 
-只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。已知仅属于 Herdr 的顶层配置族 `onboarding`、`server`、`advanced`、`experimental` 和 `remote` 会标记为不支持，而不是普通未知字段。已知不支持的嵌套字段包括 `terminal.kitty_graphics`、`update.version_check`、仅属于 Herdr 的呈现和剪贴板设置、自定义声音路径，以及不存在对应 Orchbee 动作的按键动作。识别这些字段绝不会启用插件、安装 Provider 或运行配置命令。Orchbee 不会自动读取 Herdr 配置文件。
+只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。未知配置段、字段和动作会警告并忽略；加载配置绝不会启用插件、安装 Provider 或运行配置命令。
 
 `terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。已记录的 `ORCHBEE_RESUME_AGENTS_ON_RESTORE` 环境覆盖仍采用严格策略：除精确的 `true` 或 `false` 外均为致命错误，不能被文件回退隐藏。
 
@@ -38,95 +38,12 @@ manifest_check = true
 支持浅色（`light`）、深色（`dark`）和系统（`system`）；系统是通用默认值。在原生 TUI 中，
 系统模式跟随宿主默认背景，并在缺少宿主背景观测时使用终端原生对比度。Windows TOML `[theme] name` 是单独的旧命名主题
 迁移输入，接受 `terminal-native`、`one-light` 或 `one-dark`；离线默认 TOML 将注册表默认值保留为
-注释示例 `# name = "terminal-native"`，只有在共享偏好记录不存在且显式取消注释后才会迁移。无效名称或类型给出警告并让该字段回退；旧 TOML 设置仍不支持
-`theme.custom`。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、
-共享重载及回退。Herdr 导入保留现有转换排除项；在候选文件中显式选择主题。
+注释示例 `# name = "terminal-native"`，只有在共享偏好记录不存在且显式取消注释后才会迁移。无效名称或类型给出警告并让该字段回退；未知主题字段会警告并忽略。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、
+共享重载及回退。
 
 `config check` v14 为已准入的 Windows user-config details 增加必需 `themeName`；
 致命错误形状不变，1–13 版保持封闭。Session 配置 v9 为成功快照增加必需 `themeName`，
 1–8 版保持封闭。目录 v142 发布这些扩展，不增加 schema 或命令路径。
-
-## Herdr 配置导入
-
-Windows `orchbee config import-herdr [--input-file <source>] [--output-file <destination>]
-[--dry-run] [--format text|json]` 把一个 Herdr 文件转换为新的 Orchbee 候选配置。省略
-`--input-file` 时选择 `%APPDATA%\herdr\config.toml`；省略 `--output-file` 时选择 Orchbee
-读取的文件，即 `ORCHBEE_CONFIG_FILE`，否则为 `%APPDATA%\Orchbee\config.toml`，该文件必须尚不存在。
-它不连接 Session、不执行命令、不重载运行中的 Client。拒绝 `--machine` 和 `--session`。
-文件参数单次使用，绝不代表 stdin，拒绝 `-`。
-相对参数使用一次捕获的调用者目录，波浪线使用现有 Windows 主目录适配器。解析后的普通
-本地 Windows 路径拒绝 UNC/设备路径、备用数据流、设备名、点路径段、尾点/空格及空叶名。
-源相对设置使用已解析源参数的父目录，与目标位置无关。
-
-共享 Windows 设置 owner 用一个普通、非 reparse、单硬链接的源文件句柄接纳快照，读取期间
-不共享写入/删除。解码前限制为 64 KiB，再严格解析 UTF-8 TOML。源不可读、过大、非 UTF-8
-或语法错误均致命。`APPDATA` 和 `ORCHBEE_CONFIG_FILE` 只用于选择省略参数的默认值，
-`ORCHBEE_RESUME_AGENTS_ON_RESTORE` 绝不影响导入。只有声明的文件参数和波浪线展开
-能够使用目录上下文或 Windows 主目录变量。
-
-### 转换模型
-
-主操作准备不可变的稀疏候选配置与有界字段报告。未指定的设置仍未指定，不冻结任一产品的
-默认值。现有叶字段/profile 接纳规则决定有效值及安全默认。非法普通叶字段、prefix 和
-profile 省略并报告；非法已知动作写为空绑定数组，仅禁用该动作。不支持的命令和值不会
-进入候选配置。选定的兼容性参考是 Windows 上的 Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`，具体为其配置模型、按键、侧栏和通知表示。
-这是配置子集转换，不对 Herdr 完整运行时行为作出兼容声明。
-
-| 显式源字段                                                  | 候选行为                                                                                                                         |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `terminal.default_shell`、`terminal.shell_mode`             | 使用现有 Windows 字面 Shell 接纳规则                                                                                             |
-| `terminal.new_cwd`、`worktrees.directory`                   | 保留策略，将相对/波浪线路径按源上下文固定为绝对路径                                                                              |
-| `session.resume_agents_on_restore`                          | 保留显式有效布尔值                                                                                                               |
-| `ui.window_title`、`ui.sidebar.agents`、`ui.sidebar.spaces` | 保留兼容的显式标题/profile 字段，包括显式空 rows                                                                                 |
-| `keys.prefix` 与当前内置动作注册表                          | 保留接纳的绑定；`zoom` 优先于 `fullscreen`；注册表顺序决定冲突并禁用落败动作                                                     |
-| `ui.toast.delivery` 或旧 `ui.toast.enabled`                 | 显式 `delivery` 即使非法也优先；有效的 `herdr` 变为 `orchbee`，同时设置 `delivery` 和 `agent_delivery`；缺席时保留 Orchbee 默认  |
-| `ui.toast.delay_seconds`、`ui.toast.overlay.position`       | 保留接纳的延迟和位置                                                                                                             |
-| `ui.sound.enabled`、`ui.sound.agents`                       | 保留显式布尔值及 `default`/`on`/`off`；`open_code` 映射为 `opencode`，`github_copilot` 为 `copilot`，`agy` 仍为 `agy`            |
-| 其他字段                                                    | 报告并省略，包括全部 Herdr 更新策略、onboarding/theme/server/advanced/experimental/remote、图形、自定义声音路径及自定义/插件命令 |
-
-报告携带字段身份、目标字段、封闭处置及规范原因，不携带被拒绝的值或命令文本。先排序和
-去重，再进行有界字段呈现，最多显示 128 条及精确省略计数。仅 dry-run JSON 携带
-`candidateToml`，作为明确请求的预览数据；text/stderr 不回显配置值。普通成功回执只报告
-候选字节大小和目标位置。在访问任何目标前，准备阶段输出以一个换行结尾的 UTF-8 TOML，
-拒绝超过 64 KiB 的输出，并按目标上下文重新接纳候选，验证预期有效子集。兼容契约省略的
-源值不能因为序列化而被启用。
-
-### 文件工作流与恢复
-
-| 阶段       | 提交和失败边界                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------ |
-| 解析与获取 | 完整语法、路径接纳和一次源快照；失败不创建任何内容                                               |
-| 准备       | 完成转换、报告、大小及往返校验；失败不创建任何内容                                               |
-| 预览       | 返回准备好的候选/报告，不探测、锁定或创建目标                                                    |
-| 创建       | 固定所有现有父目录祖先，防止路径重定向；末级父目录必须私有；独占新建普通单硬链接叶文件并保护权限 |
-| 写入与同步 | 保留祖先与独占叶句柄直到关闭；只写一次并同步；只有完整同步成功才允许 `created` 成功              |
-| 报告       | 返回一个准备好的回执；stdout 交付失败不撤销已知文件提交，也不授权重放                            |
-
-目标父目录必须已存在；导入不创建目录、备份、临时文件或运行时状态。目标已存在或其他
-创建者抢先创建时拒绝，绝不覆盖。先创建后写入是可恢复操作，不是原子文件系统事务：
-创建之后的权限/写入/flush 失败报告确切新文件及 `recoveryRequired: true`，不删除可能
-被其他 owner 替换的路径。创建前失败报告 `created: false`，无恢复残留。进程硬崩溃
-可能留下空、部分或完整新文件且没有回执，应检查显式选择的目标。不编辑源或现有配置，
-不自动重试。通过 `ORCHBEE_CONFIG_FILE` 试用候选，回到原配置选择即可回退。调用方拥有
-交付的候选文件和明确报告的恢复残留。
-
-内嵌 schema 目录 v148 包含此命令。
-封闭的 `orchbee.config.import-herdr` v1 回执区分 `preview`、`created`、`failed`，携带
-源/目标、字段报告、候选大小、创建/恢复事实及带类型的失败阶段/原因。退出 0 表示预览或
-已同步创建，退出 1 表示已知本地失败，非法语法在获取前退出 2。中断进程沿用平台信号
-退出行为，不输出伪造成功回执。
-
-### 导入正确性
-
-| 声明                                               | 可执行证据                                                 | 边界                                                                         |
-| -------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 稀疏转换保留受支持显式子集，仅禁用非法动作         | 源码导出的确定性向量、稳定生成分区和候选往返测试           | 固定配置子集和 64 KiB 边界；信任 TOML 解析器及现有叶字段接纳                 |
-| 预览无目标或运行时副作用；非法准备绝不创建目标     | 拒绝能力的工作流测试及真实 Windows CLI 进程                | 无需物理终端或 Provider 交互                                                 |
-| 并发导入不覆盖已有目标；只有完整同步输出才报告成功 | 写入故障切点和受控 Windows 双创建者轨迹                    | 两个调用与目标缺席/部分/完整抽象；Windows 独占创建/共享/ACL API 为适配器假设 |
-| 公开语法、回执、本地化报告和发现入口一致           | 语法、封闭 schema、text/JSON、帮助、补全和离线 schema 测试 | 机器输出与 locale 无关；text 转义不可信身份                                  |
-
-运行 `cargo test --locked -p orchbee -p orchbee-local-site-runtime --all-targets --all-features` 及适用根门禁。受控来源/预览/writer 测试检查保留、预览无效果、独占创建、创建前准备、既有目标不变及完整 flush 后才成功。它们不证明任意 Windows ACL 行为、断电持久性、回执交付或无界 Herdr 一致性。不另设导入 TLA 模型或全称 Lean 定理。
 
 ## 创建策略
 
@@ -220,8 +137,7 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 有界共享设置读取器在 Client 启动前接纳 `[keys]`。每个 Client 在在线发布前持有不可变绑定快照；
 编辑文件或重置在下一个 Client 或显式在线重载后生效。Client 将已实现的语义动作映射到默认注册表。
 用户覆盖替换该动作的默认绑定，并取代冲突的默认按键。无效的显式动作仍保留为显式禁用覆盖，
-不会静默恢复内置默认；其他动作及同一动作里的有效候选仍可使用。未知动作会警告并忽略，已知仅
-属于 Herdr 的动作会报告为不支持。多个显式动作占用同一按键时，固定动作注册表顺序选择第一项并
+不会静默恢复内置默认；其他动作及同一动作里的有效候选仍可使用。未知动作会警告并忽略。多个显式动作占用同一按键时，固定动作注册表顺序选择第一项并
 报告后续冲突。诊断不保留原始按键或命令。
 
 `prefix` 接受一个按键。动作值接受字符串或最多 16 个候选；空字符串或空数组保留为显式禁用覆盖，并发出有界警告。
@@ -231,11 +147,10 @@ Agent 列表计算，`focus_agent` 默认未绑定。
 裸编辑键及 Ctrl+C/D/Z 被拒绝。捕获与模式先于直达分发；粘贴及释放事件不触发绑定。
 双前缀优先发送规范 C0，否则发送原始字节，不再硬编码回退为 Ctrl+B。
 
-`copy_mode` 进入[键盘复制模式](native-keyboard-copy.zh-CN.md)，默认 `prefix+U`（大写 U）。它可以使用相同的安全直达组合键，也可以用空数组禁用入口。模式内移动键保持固定。Herdr 导入把明确提供的有效 `keys.copy_mode` 转换为该原生动作；旧 reader 将其报告为未支持。
+`copy_mode` 进入[键盘复制模式](native-keyboard-copy.zh-CN.md)，默认 `prefix+U`（大写 U）。它可以使用相同的安全直达组合键，也可以用空数组禁用入口。模式内移动键保持固定。
 
 `new_worktree` 与 `open_worktree` 进入 [Worktree 打开流程](native-worktrees.zh-CN.md)，默认
-为 `prefix+W` 与 `prefix+O`。安全直达组合键、禁用和显式 Herdr 按键导入沿用相同注册表。
-`remove_worktree` 仍未支持。
+为 `prefix+W` 与 `prefix+O`。安全直达组合键和禁用沿用相同注册表。
 
 `menu` 打开[原生动作菜单](native-action-menus.zh-CN.md)，默认 `prefix+f2`。
 同样支持安全直达组合键及显式禁用。Machines 保留 `prefix+M`。
@@ -249,7 +164,7 @@ Esc 退出。待定期间额外调整键被消费，不排队。使用这些新�
 
 解析后的注册表同时提供分发、帮助行和主要实时提示。帮助会省略没有有效绑定的动作；需要会话的
 动作即使当前未连接 Orchbee 会话，只要有有效绑定，帮助仍会保留该行并提示连接会话。现有原生
-默认值仅为没有显式覆盖的动作保留；未支持的 Herdr 字段发出警告且不改变有效注册表。
+默认值仅为没有显式覆盖的动作保留；未知字段发出警告且不改变有效注册表。
 自定义命令配置无效时禁用已配置命令，不执行部分或未经验证的命令。导航模式映射、按序
 Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
@@ -286,7 +201,7 @@ Windows `config check` v13 保留 `keyPrefix`、`keyOverrides` 并增加有界�
 示例让新建 Tab 取代默认的下一 Tab 快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主
 TUI 使用。CLI 终端流 attach 保留独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在
 `src/client/attach.rs` 同样使用固定转义，
-因此可配置 attach 不是对齐要求。全量键位导入仍是独立切片。
+因此可配置 attach 不是对齐要求。
 
 功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4
 以及 kitty F1–F24。修饰符事件尾部保留按下、重复和释放；无效事件或无法表示的
@@ -360,7 +275,7 @@ Client 独立配置策略仍待补全。
 
 ## 自定义通知配置
 
-`ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system，用于手动 CLI 通知；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.overlay.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
+`ui.toast.delivery` 接受 off（默认）、orchbee、terminal 或 system，用于手动 CLI 通知。`ui.toast.overlay.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
 
 通用 Agent 提醒模式与声音确认后覆盖旧自动通知字段；手动通知投递与逐 Agent 声音覆盖保持独立归属。
 

@@ -10,10 +10,12 @@ fn worktree_entry_chords_admit_overrides_and_disabling_without_admitting_removal
             let keys = read(&format!("{action}={binding}")).unwrap();
             assert!(keys.overrides.iter().any(|item| item.action == action));
         }
-        assert!(!is_herdr_only_action(action));
         assert!(read(&format!("{action}='w'")).is_err());
     }
-    assert!(is_herdr_only_action("remove_worktree"));
+    assert_eq!(
+        read("remove_worktree='prefix+X'").unwrap_err().reason,
+        "unknown-key"
+    );
 }
 
 #[test]
@@ -27,7 +29,6 @@ fn copy_mode_admits_safe_entry_chords_and_explicit_disabling() {
         let keys = read(source).unwrap();
         assert!(keys.overrides.iter().any(|item| item.action == "copy_mode"));
     }
-    assert!(!is_herdr_only_action("copy_mode"));
     assert!(read("copy_mode='u'").is_err());
 }
 

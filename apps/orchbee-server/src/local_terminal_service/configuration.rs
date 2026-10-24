@@ -316,9 +316,6 @@ fn protocol_diagnostics(
                     WindowsSettingsDiagnosticDisposition::Ignored => {
                         ConfigurationDiagnosticDisposition::Ignored
                     }
-                    WindowsSettingsDiagnosticDisposition::Unsupported => {
-                        ConfigurationDiagnosticDisposition::Unsupported
-                    }
                 },
             })
             .collect(),

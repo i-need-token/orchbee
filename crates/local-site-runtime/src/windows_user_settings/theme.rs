@@ -49,8 +49,8 @@ pub(super) fn admit(
     {
         diagnostics.push(
             super::diagnostics::unknown_field("theme", key),
-            "unsupported-herdr",
-            Disposition::Unsupported,
+            "unknown-key",
+            Disposition::Ignored,
         );
     }
     let Some(value) = table.get("name") else {

@@ -9,8 +9,6 @@ mod help_arguments;
 mod help_options;
 pub(crate) use help::{HelpDetails, HelpText};
 #[cfg(windows)]
-mod config_import;
-#[cfg(windows)]
 mod config_reset;
 mod details;
 #[cfg(windows)]
@@ -3209,10 +3207,6 @@ impl Locale {
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
             (Self::ZhCn, CommandPath::ApiSchema) => HELP_API_SCHEMA_ZH,
-            #[cfg(windows)]
-            (Self::EnUs, CommandPath::ConfigImportHerdr) => HELP_CONFIG_IMPORT_EN,
-            #[cfg(windows)]
-            (Self::ZhCn, CommandPath::ConfigImportHerdr) => HELP_CONFIG_IMPORT_ZH,
             (Self::EnUs, CommandPath::ConfigResetKeys) => HELP_CONFIG_RESET_KEYS_EN,
             (Self::ZhCn, CommandPath::ConfigResetKeys) => HELP_CONFIG_RESET_KEYS_ZH,
             #[cfg(windows)]
@@ -3873,12 +3867,12 @@ const HELP_API_SCHEMA_ZH: crate::localization::HelpDetails = crate::localization
 const HELP_CONFIG_CHECK_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config check [--format text|json]",
-        "Run the five local checks (runtime-base, runtime-directory, cohort, locale,\nsockets) and report pass/warning/fail/not-applicable. Exit 0 when no check\nfails, including when user-config has admitted field warnings; exit 1 on a\nfatal check. Windows user-config reads APPDATA/Orchbee/config.toml or the\nabsolute ORCHBEE_CONFIG_FILE override. Unreadable, oversized, non-UTF-8 or\ninvalid TOML and an invalid supported environment override are fatal. Unknown\nor Herdr-only fields warn and are ignored; an invalid supported leaf warns and\nuses its safe default. A bad key binding disables only that explicit action.\nSupported settings include terminal defaults/cwd, worktree root, restore policy,\nupdate policy, keys, title, notifications and both sidebar profiles.\nORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false overrides the file. JSON v13 adds\nbounded diagnostics and their exact omitted count; versions 1-12 stay closed.\nserver reload-config atomically publishes admitted settings and diagnostics;\nrestore changes require restart. Explicit creation arguments override admitted\nsettings. A missing default file uses defaults; a missing explicit file fails.",
+        "Run the five local checks (runtime-base, runtime-directory, cohort, locale,\nsockets) and report pass/warning/fail/not-applicable. Exit 0 when no check\nfails, including when user-config has admitted field warnings; exit 1 on a\nfatal check. Windows user-config reads APPDATA/Orchbee/config.toml or the\nabsolute ORCHBEE_CONFIG_FILE override. Unreadable, oversized, non-UTF-8 or\ninvalid TOML and an invalid supported environment override are fatal. Unknown\nfields warn and are ignored; an invalid supported leaf warns and uses its safe\ndefault. A bad key binding disables only that explicit action.\nSupported settings include terminal defaults/cwd, worktree root, restore policy,\nupdate policy, keys, title, notifications and both sidebar profiles.\nORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false overrides the file. JSON v13 adds\nbounded diagnostics and their exact omitted count; versions 1-12 stay closed.\nserver reload-config atomically publishes admitted settings and diagnostics;\nrestore changes require restart. Explicit creation arguments override admitted\nsettings. A missing default file uses defaults; a missing explicit file fails.",
     );
 const HELP_CONFIG_CHECK_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config check [--format text|json]",
-        "运行五项本地检查（runtime-base、runtime-directory、cohort、locale、\nsockets），逐项报告 pass/warning/fail/not-applicable。只要没有检查失败就退出 0，包括 user-config 仅含已接纳字段警告时；致命检查退出 1。Windows\nuser-config 读取 APPDATA/Orchbee/config.toml 或 ORCHBEE_CONFIG_FILE 指定的绝对文件。文件不可读、过大、非 UTF-8、TOML 无效或已支持的环境覆盖无效均为致命错误。未知或仅属于 Herdr 的字段会警告并忽略；已支持叶字段无效时会警告并使用其安全默认值。错误快捷键只禁用对应的显式动作。支持的设置包括终端默认值/cwd、worktree 根目录、恢复和更新策略、按键、标题、通知与两种侧栏 profile。ORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false\n覆盖文件。JSON v13 增加有界诊断及精确省略数；版本 1-12 保持封闭。\nserver reload-config 原子发布已接纳设置和诊断；恢复策略变化需要重启。显式创建参数覆盖已接纳设置。默认文件不存在时使用默认值；显式文件不存在则失败。",
+        "运行五项本地检查（runtime-base、runtime-directory、cohort、locale、\nsockets），逐项报告 pass/warning/fail/not-applicable。只要没有检查失败就退出 0，包括 user-config 仅含已接纳字段警告时；致命检查退出 1。Windows\nuser-config 读取 APPDATA/Orchbee/config.toml 或 ORCHBEE_CONFIG_FILE 指定的绝对文件。文件不可读、过大、非 UTF-8、TOML 无效或已支持的环境覆盖无效均为致命错误。未知字段会警告并忽略；已支持叶字段无效时会警告并使用其安全默认值。错误快捷键只禁用对应的显式动作。支持的设置包括终端默认值/cwd、worktree 根目录、恢复和更新策略、按键、标题、通知与两种侧栏 profile。ORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false\n覆盖文件。JSON v13 增加有界诊断及精确省略数；版本 1-12 保持封闭。\nserver reload-config 原子发布已接纳设置和诊断；恢复策略变化需要重启。显式创建参数覆盖已接纳设置。默认文件不存在时使用默认值；显式文件不存在则失败。",
     );
 
 // ---- text presentation labels --------------------------------------------
@@ -5012,20 +5006,6 @@ const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
         "Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口无关。使用完整终端 ID 或 @terminal:0x<hex>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
-    );
-
-#[cfg(windows)]
-const HELP_CONFIG_IMPORT_EN: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee config import-herdr [--input-file <path>] [--output-file <path>] [--dry-run] [--format text|json]",
-        "Convert supported explicit Herdr settings into a new Orchbee file (Windows).\n--input-file defaults to %APPDATA%\\herdr\\config.toml and --output-file to the\nfile Orchbee reads (ORCHBEE_CONFIG_FILE, else %APPDATA%\\Orchbee\\config.toml),\nwhich must not exist yet. Relative paths use the caller directory;\n~ uses the current home. Directories inside the source use its parent.\nRead one regular UTF-8 TOML source, at most 64 KiB. Skip unsupported fields\nand report invalid fields without displaying their values. Existing targets\nare never overwritten. Creation requires an existing private local parent.\n--dry-run opens no destination; JSON preview alone includes candidateToml.\nA failed write retains the newly created file and reports recoveryRequired.\nInspect it before recovery; no deletion or retry is performed. A crash can\nleave a new file without a receipt. Select the new file with ORCHBEE_CONFIG_FILE\nfor a new Client; select the old file to roll back. No session discovery, launch,\nor reload; --session and --machine are rejected. Exit 0 on preview/creation,\n1 on failure, 2 on usage error.",
-    );
-
-#[cfg(windows)]
-const HELP_CONFIG_IMPORT_ZH: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee config import-herdr [--input-file <path>] [--output-file <path>] [--dry-run] [--format text|json]",
-        "将 herdr 支持的显式设置转换为 Orchbee 新文件（Windows）。--input-file 默认为 %APPDATA%\\herdr\\config.toml，--output-file 默认为 Orchbee 读取的文件（ORCHBEE_CONFIG_FILE，否则为 %APPDATA%\\Orchbee\\config.toml），该文件必须尚不存在。相对路径以调用目录为基准；~ 使用当前用户主目录。来源中的目录以来源父目录为基准。仅读取一份普通 UTF-8 TOML 来源，最多 64 KiB。跳过不支持的字段；报告无效字段，不显示其值。绝不覆盖已有目标。创建要求已有的私有本地父目录。\n--dry-run 不打开目标；只有 JSON 预览包含 candidateToml。写入失败会保留本次新建的文件并报告 recoveryRequired。恢复前检查该文件；不删除或重试。崩溃可能留下没有回执的新文件。用 ORCHBEE_CONFIG_FILE 为新 Client 选择新文件；选择旧文件即可回退。不查找、启动或重载会话；拒绝 --session 和 --machine。预览或创建成功退出 0，失败退出 1，用法错误退出 2。",
     );
 
 const HELP_WORKSPACE_MOVE_BLOCK_EN: crate::localization::HelpDetails =

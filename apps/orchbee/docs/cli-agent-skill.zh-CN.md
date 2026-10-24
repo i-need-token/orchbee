@@ -132,7 +132,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 
 ## 更多能力
 
-元数据报告、Agent 视图筛选、关注／确认、终端选择／复制／链接／图形、布局导出／应用、通知、配置命令、清单维护、配置重载／导入／重置、更新和 channel 选择均可通过帮助发现。部分能力仅支持 Windows；准入与效果细节由已安装语法规定。`channel set` 保存选择并发起更新，因此应同时检查保存的设置和更新结果。
+元数据报告、Agent 视图筛选、关注／确认、终端选择／复制／链接／图形、布局导出／应用、通知、配置命令、清单维护、配置重载／重置、更新和 channel 选择均可通过帮助发现。部分能力仅支持 Windows；准入与效果细节由已安装语法规定。`channel set` 保存选择并发起更新，因此应同时检查保存的设置和更新结果。
 
 详细行为与维护契约见[原生 CLI 参考](native-cli-query.zh-CN.md)和[应用 README](../README.zh-CN.md)。可执行能力发现以已安装构建的帮助和 Schema 为准。
 

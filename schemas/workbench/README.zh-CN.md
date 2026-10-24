@@ -596,7 +596,7 @@ Server 负责原子分配和发布；物理成员创建仍是独立的保留命�
 
 ## Site 配置发布
 
-`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json) 负责封闭的结构形状与码点数量上限；共享语料检查结构边界与 UTF-8 语义边界，独立 Rust/TypeScript 绑定另行执行所述 UTF-8 字节上限。快照版本 0 表示启动基线，正版本表示显式发布。每个成功快照都包含必需且封闭的 `diagnostics` 记录；它至多含 128 个条目，按 Unicode 标量值将 `(field, reason)` 严格升序排列且二元组不重复，`omittedCount` 范围为 0–65536。每个非空 field 不含控制字符且至多 256 个 UTF-8 字节；每个 reason 是至多 64 字节的小写 ASCII kebab token；disposition 只能是 `defaulted`、`disabled`、`ignored` 或 `unsupported`。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 Site 标识必须匹配，成功结果必须对应请求动作。
+`workbench.configuration`（OBWP 类型 39）携带 `current` 或 `reload`；`workbench.configuration.result`（类型 40）携带封闭的 current/reloaded/failed 结果。每帧上限 256 KiB。[配置 schema](v1/workbench-configuration.schema.json) 负责封闭的结构形状与码点数量上限；共享语料检查结构边界与 UTF-8 语义边界，独立 Rust/TypeScript 绑定另行执行所述 UTF-8 字节上限。快照版本 0 表示启动基线，正版本表示显式发布。每个成功快照都包含必需且封闭的 `diagnostics` 记录；它至多含 128 个条目，按 Unicode 标量值将 `(field, reason)` 严格升序排列且二元组不重复，`omittedCount` 范围为 0–65536。每个非空 field 不含控制字符且至多 256 个 UTF-8 字节；每个 reason 是至多 64 字节的小写 ASCII kebab token；disposition 只能是 `defaulted`、`disabled` 或 `ignored`。仅含键位的规范配置上限 64 KiB；重启字段不可重复；可选失败诊断为必需但可空的成对字段（128 个 UTF-8 字节、无控制字符，仅载入失败允许）。请求和 Site 标识必须匹配，成功结果必须对应请求动作。
 
 [Windows 配置归属契约](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md#在线配置重载) 负责授权、冻结路径、候选校验、发布、Client 应用和关闭。发布不表示所有 Client 已确认。已提交重载丢失响应仍为未知，不自动重试。不新增 Desktop 命令；匹配的私有版本整套交付，不迁移持久化格式。
 

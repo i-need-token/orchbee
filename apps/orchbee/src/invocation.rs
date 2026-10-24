@@ -46,8 +46,6 @@ mod panel_relocation;
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
 pub(crate) use creation::{CreationCommand, CreationDirectory, CreationKind};
-#[cfg(windows)]
-pub(crate) mod config_import;
 mod schema_export;
 mod terminal_output;
 #[cfg(windows)]
@@ -572,8 +570,6 @@ pub(crate) enum CommandPath {
     ConfigCheck,
     ConfigResetKeys,
     #[cfg(windows)]
-    ConfigImportHerdr,
-    #[cfg(windows)]
     ChannelShow,
     #[cfg(windows)]
     ChannelSet,
@@ -763,8 +759,6 @@ impl CommandPath {
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
             Self::ConfigResetKeys => "config reset-keys",
-            #[cfg(windows)]
-            Self::ConfigImportHerdr => "config import-herdr",
             #[cfg(windows)]
             Self::ChannelShow => "channel show",
             #[cfg(windows)]
@@ -1645,11 +1639,6 @@ pub(crate) enum Request {
     ConfigResetKeys {
         format: OutputFormat,
     },
-    #[cfg(windows)]
-    ConfigImport {
-        command: config_import::Command,
-        format: OutputFormat,
-    },
     /// Read or reload the running Site's configuration; never activates a Site.
     WindowTitle {
         title: Option<orchbee_workbench_protocol::WindowTitle>,
@@ -2016,10 +2005,6 @@ enum Token {
 
 #[derive(Default)]
 struct Options {
-    #[cfg(windows)]
-    import_input_file: Option<String>,
-    #[cfg(windows)]
-    import_output_file: Option<String>,
     dry_run: bool,
     #[cfg(windows)]
     events: events::Options,
@@ -2165,10 +2150,6 @@ struct Options {
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
     "--after",
-    #[cfg(windows)]
-    "--input-file",
-    #[cfg(windows)]
-    "--output-file",
     #[cfg(windows)]
     "--event",
     #[cfg(windows)]
@@ -2827,16 +2808,6 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         ));
     }
     #[cfg(windows)]
-    if matches!(&request, Request::ConfigImport { .. }) && site.is_some() {
-        return Err(usage_with(
-            UsageReason::UnexpectedOption {
-                context: UsageContext::Path("config import-herdr"),
-                option: "--session",
-            },
-            envelope,
-        ));
-    }
-    #[cfg(windows)]
     if let Request::NamedSession { command, .. } = &request
         && let Some(name) = command.name()
     {
@@ -2934,10 +2905,6 @@ fn apply_value_flag(
         return Ok(());
     }
     let slot = match option {
-        #[cfg(windows)]
-        "--input-file" => &mut options.import_input_file,
-        #[cfg(windows)]
-        "--output-file" => &mut options.import_output_file,
         "--spec" => &mut options.agent_view_spec,
         "--presentation" => &mut options.report_presentation,
         "--agent" => &mut options.panel_metadata.agent,
@@ -4567,8 +4534,6 @@ fn resolve_words(
             })
         }
         #[cfg(windows)]
-        ["config", "import-herdr"] => config_import::request(options, envelope),
-        #[cfg(windows)]
         ["channel", "show"] => {
             reject_filters(options, UsageContext::Path("channel show"), envelope)?;
             Ok(Request::ChannelShow {
@@ -5287,12 +5252,6 @@ fn resolve_words(
             extra,
             envelope,
         )),
-        #[cfg(windows)]
-        ["config", "import-herdr", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("config import-herdr"),
-            extra,
-            envelope,
-        )),
         ["config", "check", extra, ..] => Err(unexpected_argument(
             UsageContext::Path("config check"),
             extra,
@@ -5456,8 +5415,6 @@ fn mutation(command: MutationCommand, options: &Options) -> Request {
 #[derive(Clone, Copy)]
 struct Scope {
     #[cfg(windows)]
-    config_import: bool,
-    #[cfg(windows)]
     graphics: bool,
     #[cfg(windows)]
     events: bool,
@@ -5613,8 +5570,6 @@ struct Scope {
 }
 
 const NO_OPTIONS: Scope = Scope {
-    #[cfg(windows)]
-    config_import: false,
     #[cfg(windows)]
     graphics: false,
     #[cfg(windows)]
@@ -6077,20 +6032,7 @@ fn business_options(options: &Options) -> bool {
 /// The first named option present but outside `scope`, in the fixed `Options`
 /// declaration order — deterministic without any argv-order state.
 fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
-    #[cfg(windows)]
-    if !scope.config_import {
-        if options.import_input_file.is_some() {
-            return Some("--input-file");
-        }
-        if options.import_output_file.is_some() {
-            return Some("--output-file");
-        }
-    }
-    #[cfg(windows)]
-    let import = scope.config_import;
-    #[cfg(not(windows))]
-    let import = false;
-    if options.dry_run && !scope.dry_run && !import {
+    if options.dry_run && !scope.dry_run {
         return Some("--dry-run");
     }
     if options.link_offset.is_some() && !scope.link_offset {

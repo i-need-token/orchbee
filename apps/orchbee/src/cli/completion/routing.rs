@@ -36,8 +36,7 @@ ORCHBEE_REMOTE_COMMANDS
                     elif [[ -z ${word#*=} ]]; then done=1; fi
                 fi ;;
 "#,
-    r#"    if ((seen_local_session)) && [[ $family:$sub == config:import-herdr ]]; then done=1; fi
-    if ((seen_local_session)) && [[ -n $session_target && $local_session != "$session_target" ]]; then done=1; fi
+    r#"    if ((seen_local_session)) && [[ -n $session_target && $local_session != "$session_target" ]]; then done=1; fi
     local routing_path=""
     if [[ -n $leaf ]]; then routing_path=$leaf
     elif [[ -n $sub ]]; then routing_path="$family:$sub"
@@ -46,12 +45,11 @@ ORCHBEE_REMOTE_COMMANDS
 "#,
     r#"    if ((!done && !ended && !dead)) && [[ -z $value && $cur != *=* && $state != help ]]; then
         candidates="$candidates --help"
-        if ((!seen_machine && !seen_local_session)) && [[ $family:$sub != config:import-herdr ]]; then candidates="$candidates --session"; fi
+        if ((!seen_machine && !seen_local_session)); then candidates="$candidates --session"; fi
         if ((!seen_machine && !seen_local_session && !seen_format && !seen_mouse && !${#seen_flags[@]})) && [[ $state == verb ]]; then candidates="$candidates --machine"; fi
     fi
     local routing_candidate routing_filtered="" routing_candidate_path
     for routing_candidate in __ORCHBEE_CANDIDATE_WORDS__; do
-        if ((seen_local_session)) && [[ $family == config && $state == sub && $routing_candidate == import-herdr ]]; then continue; fi
         if ((seen_machine)) && [[ $routing_candidate != -* && $state != help && -z $value ]]; then
             routing_candidate_path="$routing_path:$routing_candidate"
             [[ -z $routing_path ]] && routing_candidate_path=$routing_candidate
@@ -98,8 +96,7 @@ const FISH: [&str; 5] = [
                     else if test -z (string sub -s 11 -- $word); set done 1; end
                 end
 "#,
-    r#"    if test $seen_local_session -eq 1; and test "$family:$sub" = config:import-herdr; set done 1; end
-    if test $seen_local_session -eq 1; and test -n "$session_target"; and test "$local_session" != "$session_target"; set done 1; end
+    r#"    if test $seen_local_session -eq 1; and test -n "$session_target"; and test "$local_session" != "$session_target"; set done 1; end
     set -l routing_path ''
     if test -n "$leaf"; set routing_path $leaf
     else if test -n "$sub"; set routing_path "$family:$sub"
@@ -108,12 +105,11 @@ const FISH: [&str; 5] = [
 "#,
     r#"    if test $done -eq 0 -a $ended -eq 0 -a $dead -eq 0; and test -z "$value"; and not string match -q -- '*=*' "$cur"; and test "$state" != help
         set -a candidates --help
-        if test $seen_local_session -eq 0 -a $seen_machine -eq 0; and test "$family:$sub" != config:import-herdr; set -a candidates --session; end
+        if test $seen_local_session -eq 0 -a $seen_machine -eq 0; set -a candidates --session; end
         if test $seen_local_session -eq 0 -a $seen_machine -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0; and test (count $seen_flags) -eq 0; and test "$state" = verb; set -a candidates --machine; end
     end
     set -l routing_filtered
     for candidate in $candidates
-        if test $seen_local_session -eq 1; and test "$family" = config; and test "$state" = sub; and test "$candidate" = import-herdr; continue; end
         if test $seen_machine -eq 1; and not string match -q -- '-*' "$candidate"; and test "$state" != help; and test -z "$value"
             set -l candidate_path "$routing_path:$candidate"
             if test -z "$routing_path"; set candidate_path $candidate; end

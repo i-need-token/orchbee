@@ -22,7 +22,7 @@ channel = "stable"
 manifest_check = true
 ```
 
-Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. The known Herdr-only top-level families `onboarding`, `server`, `advanced`, `experimental` and `remote` are identified as unsupported instead of being treated as generic unknown fields. Known unsupported nested fields include `terminal.kitty_graphics`, `update.version_check`, Herdr-only presentation and clipboard settings, custom sound paths, and key actions that have no Orchbee action. Recognition never enables a plugin, installs a provider or runs a configured command. Orchbee does not automatically read a Herdr configuration file.
+Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. Unknown sections, fields and actions warn and are ignored; loading configuration never enables a plugin, installs a provider or runs a configured command.
 
 `terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. An invalid path falls back only that leaf. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back. The documented `ORCHBEE_RESUME_AGENTS_ON_RESTORE` environment override remains strict: anything other than exact `true` or `false` is fatal and cannot be hidden by file fallback.
 
@@ -41,110 +41,13 @@ terminal-native contrast when no host background is observed. Windows TOML `[the
 named-theme migration input: it accepts `terminal-native`, `one-light` or `one-dark`,
 and the offline default TOML keeps the registry default as the commented example
 `# name = "terminal-native"`, which migrates only when explicitly uncommented with no shared preference record. Invalid names or
-types warn and default this field; `theme.custom` remains unsupported by this legacy
-setting. See [native themes](native-themes.md) for polarity, color capabilities,
-all chrome consumers, shared reload and rollback. Herdr import keeps its existing
-conversion exclusions; select a theme explicitly in the candidate file.
+types warn and default this field; unknown theme fields warn and are ignored. See [native themes](native-themes.md) for polarity, color capabilities,
+all chrome consumers, shared reload and rollback.
 
 `config check` v14 adds required `themeName` to admitted Windows user-config details;
 its fatal shapes remain unchanged and versions 1–13 stay closed. Session configuration
 v9 adds required `themeName` to successful snapshots; versions 1–8 stay closed.
 Catalog v142 publishes these extensions without adding schemas or command paths.
-
-## Herdr configuration import
-
-Windows `orchbee config import-herdr [--input-file <source>] [--output-file <destination>]
-[--dry-run] [--format text|json]` converts one Herdr file into a new Orchbee candidate. An omitted
-`--input-file` selects `%APPDATA%\herdr\config.toml`; an omitted `--output-file` selects the file
-Orchbee reads, `ORCHBEE_CONFIG_FILE` or else `%APPDATA%\Orchbee\config.toml`, which must not exist
-yet. It does not connect to a Session, execute commands, or reload running Clients. `--machine` and
-`--session` are rejected. File operands are single-use and never mean stdin; `-` is refused.
-Relative operands use
-one captured caller directory, and tilde uses the existing Windows home adapter. The resolved
-ordinary local Windows paths reject UNC/device paths, alternate streams, device names, dot
-components, trailing dots/spaces and empty leaves. Source-relative settings use the resolved
-source operand's parent, independently of the destination.
-
-The shared Windows settings owner admits one regular, non-reparse, single-link source handle
-with write/delete sharing disabled. It caps acquisition before decoding at 64 KiB and parses
-strict UTF-8 TOML. An unreadable, oversized, non-UTF-8 or syntactically invalid source is fatal.
-`APPDATA` and `ORCHBEE_CONFIG_FILE` only select an omitted operand's default, and
-`ORCHBEE_RESUME_AGENTS_ON_RESTORE` never influences the import. Only the declared file operands
-and tilde expansion can use directory context or Windows home variables.
-
-### Conversion model
-
-The principal operation prepares an immutable, sparse candidate and a bounded field report.
-Unspecified settings remain unspecified; import does not freeze either product's defaults.
-Existing leaf/profile admission determines valid values and safe defaults. Invalid ordinary
-leaves, prefix and profiles are omitted and reported; an invalid known action is emitted as an
-empty binding array so only that action is disabled. Unsupported commands and values never
-reach the candidate. The selected compatibility reference is Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34` on Windows, specifically its configuration model,
-keybinding, sidebar and notification representations. This is a configuration subset conversion,
-not a claim about complete Herdr runtime behavior.
-
-| Explicit source fields                                      | Candidate behavior                                                                                                                                                    |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `terminal.default_shell`, `terminal.shell_mode`             | Existing Windows literal shell admission                                                                                                                              |
-| `terminal.new_cwd`, `worktrees.directory`                   | Preserve policies; freeze relative/tilde paths against the source context as absolute paths                                                                           |
-| `session.resume_agents_on_restore`                          | Preserve the explicit valid boolean                                                                                                                                   |
-| `ui.window_title`, `ui.sidebar.agents`, `ui.sidebar.spaces` | Preserve compatible explicit title/profile fields, including explicitly empty rows                                                                                    |
-| `keys.prefix` and current built-in action registry          | Preserve admitted bindings; `zoom` wins over `fullscreen`; registry order resolves conflicts and disables losing actions                                              |
-| `ui.toast.delivery` or legacy `ui.toast.enabled`            | Explicit `delivery` wins even when invalid; valid `herdr` becomes `orchbee` and sets both `delivery` and `agent_delivery`; absent input preserves Orchbee's defaults  |
-| `ui.toast.delay_seconds`, `ui.toast.overlay.position`       | Preserve admitted delay and position                                                                                                                                  |
-| `ui.sound.enabled`, `ui.sound.agents`                       | Preserve explicit boolean and `default`/`on`/`off`; `open_code` maps to `opencode`, `github_copilot` to `copilot`, and `agy` stays `agy`                              |
-| Other fields                                                | Report and omit; this includes all Herdr update policy, onboarding/theme/server/advanced/experimental/remote, graphics, custom sound paths and custom/plugin commands |
-
-Reports carry field identities, target fields, closed dispositions and canonical reasons, never
-rejected values or command text. They are sorted and deduplicated before bounded field rendering,
-with at most 128 visible entries and an exact omitted count. Only dry-run JSON includes
-`candidateToml`, the explicitly requested preview payload; text/stderr do not echo configuration
-values. A normal successful receipt reports the candidate's byte size and destination instead.
-Before any destination access, preparation emits UTF-8 TOML with one trailing newline, rejects
-an output over 64 KiB, and readmits the candidate at the destination context to verify the
-intended effective subset. Source values omitted by the compatibility contract cannot become
-active through output serialization.
-
-### File workflow and recovery
-
-| Phase                 | Commit and failure boundary                                                                                                                                                      |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Parse and acquire     | Complete grammar, path admission and one source snapshot; failure creates nothing                                                                                                |
-| Prepare               | Complete transformation, report, size and round-trip validation; failure creates nothing                                                                                         |
-| Preview               | Return the prepared candidate/report without probing, locking or creating the destination                                                                                        |
-| Create                | Pin every existing parent-directory ancestor against redirection; require a private final parent; exclusively create a new ordinary single-link leaf and protect its permissions |
-| Write and synchronize | Keep the pins and exclusive leaf handle until close; write once and synchronize; only full successful synchronization permits `created` success                                  |
-| Report                | Return one prepared receipt; failed stdout delivery does not undo a known file commit or authorize replay                                                                        |
-
-The destination parent must already exist; import creates no directories, backups, temporary
-files or runtime state. An existing destination or a competing creator refuses without
-overwriting it. Creation-before-write is intentionally recoverable rather than an atomic
-filesystem transaction: after creation, permission/write/flush failure reports the exact new
-file and `recoveryRequired: true`, without deleting a pathname that another owner could replace.
-Before creation, failure reports `created: false` and no recovery residue. A hard process crash
-can leave an empty, partial or complete new file without a receipt; inspect the explicitly chosen
-destination. Nothing edits the source or an existing configuration. There is no automatic retry.
-Try the candidate through `ORCHBEE_CONFIG_FILE`; return to the original selection to roll back.
-The caller owns the delivered candidate and any explicitly reported recovery residue.
-
-The embedded schema catalog v148 includes this command.
-The closed `orchbee.config.import-herdr` v1 receipt distinguishes `preview`, `created` and
-`failed`, carries source/destination, field report, candidate size, creation/recovery facts and
-typed failure stage/reason. Exit 0 means preview or synchronized creation, exit 1 is a known
-local failure, and malformed grammar exits 2 before acquisition. An interrupted process follows
-its platform signal exit behavior and never prints a fabricated success receipt.
-
-### Import correctness
-
-| Claim                                                                                                    | Executable evidence                                                                              | Limits                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Sparse conversion preserves the supported explicit subset and disables only invalid actions              | Deterministic source-derived vectors, stable generated partitions and candidate round-trip tests | Pinned supported configuration subset and 64 KiB bounds; TOML parser and existing leaf admission are trusted                    |
-| Preview has no destination or runtime effects; invalid preparation never creates a target                | Denied-capability workflow tests and real Windows CLI processes                                  | No physical terminal or provider interaction is needed                                                                          |
-| Concurrent imports never overwrite an existing target; only synchronized complete output reports success | Writer fault cuts and controlled two-creator Windows traces                                      | Two invocations and absent/partial/complete target abstraction; Windows exclusive-create/share/ACL APIs are adapter assumptions |
-| Public grammar, receipt, localized report and discovery agree                                            | Grammar, closed schema, text/JSON, help, completion and offline schema tests                     | Machine output is locale-neutral; text escapes untrusted identities                                                             |
-
-Run `cargo test --locked -p orchbee -p orchbee-local-site-runtime --all-targets --all-features` and the applicable root gate. Controlled source/preview/writer tests check preservation, no preview effect, exclusive creation, preparation before creation, untouched existing targets and success only after full flush. They do not prove arbitrary Windows ACL behavior, power-loss durability, receipt delivery or unbounded Herdr parity. No separate import TLA model or universal Lean theorem is selected.
 
 ## Creation policy
 
@@ -291,8 +194,7 @@ immutable binding snapshot until publication; file edits/reset affect the next C
 semantic actions against its default registry. User overrides replace that action's defaults and
 conflicting default chords. An invalid explicit action remains an explicit disabled override, so its
 built-in default cannot silently return; other actions and valid alternatives in the same action remain
-available. Unknown actions are ignored with a warning, and known Herdr-only actions are reported as
-unsupported. When explicit actions claim the same chord, the fixed action-registry order selects the
+available. Unknown actions are ignored with a warning. When explicit actions claim the same chord, the fixed action-registry order selects the
 first and reports the later conflict. Diagnostics never retain the original binding or command.
 
 `prefix` accepts one chord. Action values accept a string or at most 16 alternatives. An empty
@@ -304,11 +206,10 @@ printable keys, bare editing keys and Ctrl+C/D/Z are refused. Capture and mode o
 direct dispatch; paste and releases never invoke bindings. Double prefix forwards canonical C0
 where available, otherwise original bytes, without a hardcoded Ctrl+B fallback.
 
-`copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed. Herdr import maps an explicitly supplied valid `keys.copy_mode` to this native action; older readers report it as unsupported.
+`copy_mode` enters [keyboard copy mode](native-keyboard-copy.md), default `prefix+U` (capital U). It can use the same safe direct chords or an empty array to disable entry. In-mode motions remain fixed.
 
 `new_worktree` and `open_worktree` enter [Worktree launch](native-worktrees.md), default
-`prefix+W` and `prefix+O`. Safe direct chords, disabling and explicit Herdr key import use
-the same registry. `remove_worktree` remains unsupported.
+`prefix+W` and `prefix+O`. Safe direct chords and disabling use the same registry.
 
 `menu` opens the [native action menu](native-action-menus.md), default `prefix+f2`.
 The same safe direct chords and explicit disabling apply. Machines keeps `prefix+M`.
@@ -324,7 +225,7 @@ keys before using an older reader. Other existing profiles retain their defaults
 The resolved registry supplies dispatch, help rows and principal live hints. Help omits actions with
 no effective binding; a bound action that requires a session stays listed with a connection hint when
 no session is available. Existing native defaults remain for actions without an explicit override;
-unsupported Herdr fields warn without changing the effective registry. Invalid custom-command configuration disables
+unknown fields warn without changing the effective registry. Invalid custom-command configuration disables
 configured commands rather than executing a partial or unvalidated command. Navigation-mode mappings,
 ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
@@ -363,7 +264,7 @@ shortcut discovery shows the actual unshifted gesture (`Ctrl+a`). The example le
 the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to the main
 TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape;
 pinned Herdr `e0507237` also uses a fixed escape in `src/client/attach.rs`, so configurable attach
-is not a parity requirement. Complete keymap import remains a separate slice.
+is not a parity requirement.
 
 Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
 F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or
@@ -451,7 +352,7 @@ Launch preparation failure records the existing known pre-handoff failure, retai
 
 ## Custom-notification configuration
 
-`ui.toast.delivery` accepts off (default), orchbee/herdr, terminal or system for manual CLI notifications; legacy `ui.toast.enabled` supplies off/card only when delivery is absent. `ui.toast.overlay.position` selects the four-corner default. Before common preferences are confirmed, automatic physical-Agent notifications use the separate `ui.toast.agent_delivery` (orchbee by default) and `ui.toast.delay_seconds` (one second by default, 0–3600). `[ui.sound] enabled` is false by default and, with `[ui.sound.agents]`, controls only automatic built-in cues; it does not change explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
+`ui.toast.delivery` accepts off (default), orchbee, terminal or system for manual CLI notifications. `ui.toast.overlay.position` selects the four-corner default. Before common preferences are confirmed, automatic physical-Agent notifications use the separate `ui.toast.agent_delivery` (orchbee by default) and `ui.toast.delay_seconds` (one second by default, 0–3600). `[ui.sound] enabled` is false by default and, with `[ui.sound.agents]`, controls only automatic built-in cues; it does not change explicit `notification show` sound. Clipboard policy remains independent. Startup is Client-local; explicit Session reload publishes the complete bounded notification profile alongside keys, and Clients validate both before applying either. `server config`/reload v7 carry the 16 KiB `notificationProfile`, `config check` v12 exposes manual and automatic policy, and configuration failure v9 adds the automatic delay/sound diagnostics. Earlier public versions remain closed. See the complete [automatic notification contract](windows-notifications.md#automatic-physical-agent-notifications).
 
 Common Agent reminder mode and sound, once confirmed, override those legacy automatic leaves;
 manual notification delivery and per-Agent sound overrides retain their separate ownership.

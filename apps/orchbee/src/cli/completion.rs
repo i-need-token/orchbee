@@ -196,15 +196,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
-    (
-        "config",
-        &[
-            "check",
-            "reset-keys",
-            #[cfg(windows)]
-            "import-herdr",
-        ],
-    ),
+    ("config", &["check", "reset-keys"]),
     #[cfg(windows)]
     ("channel", &["show", "set"]),
     #[cfg(windows)]
@@ -343,10 +335,6 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
 /// order the state machine records them.
 const BUSINESS_FLAGS: &[&str] = &[
-    #[cfg(windows)]
-    "--input-file",
-    #[cfg(windows)]
-    "--output-file",
     "--dry-run",
     #[cfg(windows)]
     "--event",
@@ -523,11 +511,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("client:status", &[]),
     ("server:status", &[]),
-    #[cfg(windows)]
-    (
-        "config:import-herdr",
-        &["--input-file", "--output-file", "--dry-run"],
-    ),
     #[cfg(windows)]
     (
         "panel:graphics:set",
@@ -1685,15 +1668,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     #[cfg(not(windows))]
     ("layout", &["set-split-ratio"]),
     ("launch-profile", &["create", "delete", "get", "list"]),
-    (
-        "config",
-        &[
-            "check",
-            "reset-keys",
-            #[cfg(windows)]
-            "import-herdr",
-        ],
-    ),
+    ("config", &["check", "reset-keys"]),
     #[cfg(windows)]
     ("channel", &["show", "set"]),
     #[cfg(windows)]
@@ -1929,11 +1904,7 @@ const COPY_MOTION_VALUES: &[&str] = &[
 
 fn flag_bit(flag: &str) -> &'static str {
     match flag {
-        #[cfg(windows)]
-        "--input-file" => "seen_import_input",
-        #[cfg(windows)]
-        "--output-file" => "seen_import_output",
-        "--dry-run" => "seen_import_dry_run",
+        "--dry-run" => "seen_dry_run",
         "--remote-session" => "seen_remote_session",
         "--json" => "seen_json",
         "--format" => "seen_format",
@@ -2119,9 +2090,7 @@ pub(super) fn help_flags(path: crate::invocation::CommandPath) -> Vec<&'static s
         command_flags(&path.as_str().replace(' ', ":")).to_vec()
     };
     #[cfg(windows)]
-    if path != CommandPath::ConfigImportHerdr {
-        flags.extend(GLOBAL_FLAGS);
-    }
+    flags.extend(GLOBAL_FLAGS);
     let accepts_format =
         grammar::accepts_format(&path.as_str().split_whitespace().collect::<Vec<_>>());
     if accepts_format {

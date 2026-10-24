@@ -660,11 +660,6 @@ const HELP_PATHS: &[HelpPath] = &[
         &["config", "reset-keys"],
         HelpTopic::Command(CommandPath::ConfigResetKeys),
     ),
-    #[cfg(windows)]
-    HelpPath::new(
-        &["config", "import-herdr"],
-        HelpTopic::Command(CommandPath::ConfigImportHerdr),
-    ),
     HelpPath::new(
         &["server", "start"],
         HelpTopic::Command(CommandPath::SiteStart),

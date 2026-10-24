@@ -68,8 +68,6 @@ pub(crate) use terminal_clear::run as clear_terminal;
 pub(crate) use terminal_editor::run as edit_terminal_scrollback;
 pub(crate) mod config;
 #[cfg(windows)]
-pub(crate) mod config_import;
-#[cfg(windows)]
 pub(crate) mod config_reset;
 #[cfg(windows)]
 mod configuration;

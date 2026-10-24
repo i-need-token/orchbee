@@ -15,10 +15,10 @@ fn manual_and_automatic_defaults_remain_independent() {
 
 #[test]
 fn notification_profile_roundtrips_deliveries_delay_position_and_agent_sound() {
-    for delivery in ["off", "orchbee", "herdr", "terminal", "system"] {
-        for agent_delivery in ["off", "orchbee", "herdr", "terminal", "system"] {
+    for delivery in ["off", "orchbee", "terminal", "system"] {
+        for agent_delivery in ["off", "orchbee", "terminal", "system"] {
             let text = format!(
-                "[ui.toast]\nenabled=true\ndelivery='{delivery}'\nagent_delivery='{agent_delivery}'\ndelay_seconds=3600\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'"
+                "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='{agent_delivery}'\ndelay_seconds=3600\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'"
             );
             let policy = WindowsNotificationSettings::from_profile(&text).unwrap();
             assert_eq!(policy.position(), "top-left");
@@ -26,34 +26,14 @@ fn notification_profile_roundtrips_deliveries_delay_position_and_agent_sound() {
             assert!(policy.sound_enabled);
             assert_eq!(policy.agent_sound("codex"), WindowsAgentSoundSetting::Off);
             assert_eq!(policy.agent_sound("pi"), WindowsAgentSoundSetting::On);
-            assert_eq!(
-                policy.delivery.as_str(),
-                if delivery == "herdr" {
-                    "orchbee"
-                } else {
-                    delivery
-                }
-            );
-            assert_eq!(
-                policy.agent_delivery.as_str(),
-                if agent_delivery == "herdr" {
-                    "orchbee"
-                } else {
-                    agent_delivery
-                }
-            );
+            assert_eq!(policy.delivery.as_str(), delivery);
+            assert_eq!(policy.agent_delivery.as_str(), agent_delivery);
             assert_eq!(
                 WindowsNotificationSettings::from_profile(&policy.profile()).unwrap(),
                 policy
             );
         }
     }
-    assert_eq!(
-        WindowsNotificationSettings::from_profile("[ui.toast]\nenabled=true")
-            .unwrap()
-            .delivery,
-        WindowsNotificationDelivery::Tui
-    );
 }
 
 #[test]
@@ -62,6 +42,10 @@ fn notification_profile_rejects_unknown_types_bounds_and_agent_ids() {
         "[ui.toast]\ndelivery=1",
         "[ui.toast]\ndelivery='bad'",
         "[ui.toast]\nagent_delivery='bad'",
+        "[ui.toast]\ndelivery='herdr'",
+        "[ui.toast]\nagent_delivery='herdr'",
+        "[ui.toast]\nenabled=true",
+        "[ui.toast.unknown]\nposition='top-left'",
         "[ui.toast]\ndelay_seconds=-1",
         "[ui.toast]\ndelay_seconds=3601",
         "[ui.toast]\nunknown=true",
@@ -91,15 +75,5 @@ fn notification_profile_rejects_unknown_types_bounds_and_agent_ids() {
             &"x".repeat(MAXIMUM_NOTIFICATION_PROFILE_BYTES + 1)
         )
         .is_err()
-    );
-}
-
-#[test]
-fn canonical_profile_uses_overlay_and_rejects_the_retired_section() {
-    let profile = WindowsNotificationSettings::default().profile();
-    assert!(profile.contains("[ui.toast.overlay]"));
-    assert!(!profile.contains("herdr"));
-    assert!(
-        WindowsNotificationSettings::from_profile("[ui.toast.herdr]\nposition='top-left'").is_err()
     );
 }

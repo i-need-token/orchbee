@@ -132,7 +132,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 
 ## Further capabilities
 
-Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal selection/copy/links/graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload/import/reset, update and channel selection. Some are Windows-only; the installed grammar owns admission and effect details. `channel set` saves its selection and starts an update attempt, so inspect both the saved setting and update result.
+Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal selection/copy/links/graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload/reset, update and channel selection. Some are Windows-only; the installed grammar owns admission and effect details. `channel set` saves its selection and starts an update attempt, so inspect both the saved setting and update result.
 
 Detailed behavior and maintenance contracts are indexed in [the native CLI reference](native-cli-query.md) and [the application README](../README.md). Prefer the installed build's help and schemas for executable discovery.
 

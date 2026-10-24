@@ -48,37 +48,6 @@ pub(super) const ACTIONS: &[&str] = &[
     "toggle_sidebar",
 ];
 
-const HERDR_ONLY_ACTIONS: &[&str] = &[
-    "settings",
-    "remove_worktree",
-    "close_workspace",
-    "goto",
-    "navigate_workspace_up",
-    "navigate_workspace_down",
-    "navigate_pane_left",
-    "navigate_pane_down",
-    "navigate_pane_up",
-    "navigate_pane_right",
-    "open_notification_target",
-    "remote_image_paste",
-    "switch_workspace",
-    "rename_pane",
-    "edit_scrollback",
-    "clear_pane",
-    "swap_pane_left",
-    "swap_pane_down",
-    "swap_pane_up",
-    "swap_pane_right",
-    "cycle_pane_next",
-    "cycle_pane_previous",
-    "last_pane",
-    "indexed",
-];
-
-pub(super) fn is_herdr_only_action(action: &str) -> bool {
-    HERDR_ONLY_ACTIONS.contains(&action)
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsKeyChord {
     pub key: String,
@@ -163,19 +132,10 @@ impl WindowsKeySettings {
         for key in table.keys().filter(|key| {
             !windows_user_config_has_child("keys", key) && !ACTIONS.contains(&key.as_str())
         }) {
-            let unsupported = HERDR_ONLY_ACTIONS.contains(&key.as_str());
             diagnostics.push(
                 unknown_field("keys", key),
-                if unsupported {
-                    "unsupported-herdr"
-                } else {
-                    "unknown-key"
-                },
-                if unsupported {
-                    WindowsSettingsDiagnosticDisposition::Unsupported
-                } else {
-                    WindowsSettingsDiagnosticDisposition::Ignored
-                },
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
             );
         }
         for action in ACTIONS {

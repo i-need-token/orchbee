@@ -653,7 +653,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     fixture.write("");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(true)).unwrap();
-    for delivery in ["herdr", "terminal", "system", "off"] {
+    for delivery in ["orchbee", "terminal", "system", "off"] {
         fixture.write(&format!(
             "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'"
         ));
@@ -666,14 +666,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
             &snapshot.notification_profile,
         )
         .unwrap();
-        assert_eq!(
-            parsed.delivery.as_str(),
-            if delivery == "herdr" {
-                "orchbee"
-            } else {
-                delivery
-            }
-        );
+        assert_eq!(parsed.delivery.as_str(), delivery);
         assert_eq!(parsed.agent_delivery.as_str(), "terminal");
         assert_eq!(parsed.delay_seconds, 7);
         assert!(parsed.sound_enabled);

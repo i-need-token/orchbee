@@ -446,7 +446,6 @@ impl Locale {
                     "Include ended Agent sessions.",
                     "包含已结束的 Agent 会话。",
                 ),
-                "--input-file" => ("<path>", "Source configuration file.", "来源配置文件。"),
                 "--insert-index" => (
                     "<n>",
                     "Zero-based insertion position.",
@@ -530,11 +529,6 @@ impl Locale {
                     "<path>",
                     "Also write the prepared document to this file.",
                     "同时将生成的文档写入此文件。",
-                ),
-                "--output-file" => (
-                    "<path>",
-                    "Destination configuration file.",
-                    "目标配置文件。",
                 ),
                 "--panel" => (
                     "<target>",

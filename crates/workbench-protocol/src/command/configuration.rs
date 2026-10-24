@@ -40,7 +40,6 @@ pub enum ConfigurationDiagnosticDisposition {
     Defaulted,
     Disabled,
     Ignored,
-    Unsupported,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

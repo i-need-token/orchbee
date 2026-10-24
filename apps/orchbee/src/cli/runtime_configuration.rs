@@ -156,7 +156,6 @@ fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) ->
                                     orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Defaulted => "defaulted",
                                     orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Disabled => "disabled",
                                     orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Ignored => "ignored",
-                                    orchbee_workbench_protocol::ConfigurationDiagnosticDisposition::Unsupported => "unsupported",
                                 },
                             ));
                         }

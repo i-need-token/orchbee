@@ -51,7 +51,7 @@
 					"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
 				},
 				"disposition": {
-					"enum": ["defaulted", "disabled", "ignored", "unsupported"]
+					"enum": ["defaulted", "disabled", "ignored"]
 				}
 			}
 		},

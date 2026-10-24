@@ -161,19 +161,13 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
     WindowsUserConfigOption {
         path: "ui.toast.delivery",
         default: "off",
-        choices: "off, orchbee, terminal, system (legacy alias: herdr)",
+        choices: "off, orchbee, terminal, system",
         description: "Delivery for explicit CLI notifications.",
-    },
-    WindowsUserConfigOption {
-        path: "ui.toast.enabled",
-        default: "unset",
-        choices: "true, false",
-        description: "Legacy boolean alias for `delivery`; used only when `delivery` is absent.",
     },
     WindowsUserConfigOption {
         path: "ui.toast.agent_delivery",
         default: "orchbee",
-        choices: "off, orchbee, terminal, system (legacy alias: herdr)",
+        choices: "off, orchbee, terminal, system",
         description: "Delivery for automatic Agent notifications.",
     },
     WindowsUserConfigOption {

@@ -1046,8 +1046,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::Update,
         CommandPath::ConfigCheck,
         CommandPath::ConfigResetKeys,
-        #[cfg(windows)]
-        CommandPath::ConfigImportHerdr,
         CommandPath::LaunchProfileCreate,
         CommandPath::LaunchProfileDelete,
         CommandPath::LaunchProfileGet,
@@ -1260,8 +1258,6 @@ fn fixed_outputs_are_far_below_the_bound() {
         "accept-directory",
         "check",
         "reset-keys",
-        #[cfg(windows)]
-        "import-herdr",
         "close",
         "close-resume",
         "close-status",

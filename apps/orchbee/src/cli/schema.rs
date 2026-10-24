@@ -55,10 +55,6 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.run.json"),
     ),
     (
-        "orchbee.config.import-herdr",
-        include_str!("schemas/orchbee.config.import-herdr.json"),
-    ),
-    (
         "orchbee.panel.graphics",
         include_str!("schemas/orchbee.panel.graphics.json"),
     ),
@@ -679,8 +675,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog version 153 includes resolved executable creation receipts.
-        "version": 153,
+        "version": 154,
         "source": embedded_source(),
         "result": result,
     });

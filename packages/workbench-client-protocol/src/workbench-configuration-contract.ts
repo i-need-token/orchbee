@@ -37,7 +37,7 @@ export const ConfigurationDiagnosticSchema = z
 			.string()
 			.max(64)
 			.regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u),
-		disposition: z.enum(['defaulted', 'disabled', 'ignored', 'unsupported']),
+		disposition: z.enum(['defaulted', 'disabled', 'ignored']),
 	})
 	.readonly();
 export const ConfigurationDiagnosticsSchema = z

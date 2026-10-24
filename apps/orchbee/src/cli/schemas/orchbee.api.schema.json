@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 153
+			"const": 154
 		},
 		"source": {
 			"type": "object",
@@ -103,7 +103,6 @@
 						"orchbee.client.view",
 						"orchbee.command",
 						"orchbee.config.check",
-						"orchbee.config.import-herdr",
 						"orchbee.config.reset-keys",
 						"orchbee.creation.result",
 						"orchbee.events.stream",
@@ -243,7 +242,6 @@
 				"orchbee.client.view",
 				"orchbee.command",
 				"orchbee.config.check",
-				"orchbee.config.import-herdr",
 				"orchbee.config.reset-keys",
 				"orchbee.creation.result",
 				"orchbee.events.stream",

@@ -20,7 +20,7 @@ Herdr 参照为 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，尤其是 `server/h
 
 ## 自定义通知投递配置
 
-Windows `[ui.toast] delivery` 选择 `off`（默认）、`orchbee`（`herdr` 为导入别名）、`terminal` 或 `system`。`[ui.toast.overlay] position` 用既有四个 CLI 位置名称选择默认角落。CLI 省略位置时使用各接收 Client 的配置，显式位置优先。启动使用 Client 配置；显式 Session 配置发布将有界规范通知配置与键位一起应用，致命来源错误或畸形私有发布同时保留旧策略。其他 Agent/剪贴板/声音偏好不属于本批自定义通知范围。
+Windows `[ui.toast] delivery` 选择 `off`（默认）、`orchbee`、`terminal` 或 `system`。`[ui.toast.overlay] position` 用既有四个 CLI 位置名称选择默认角落。CLI 省略位置时使用各接收 Client 的配置，显式位置优先。启动使用 Client 配置；显式 Session 配置发布将有界规范通知配置与键位一起应用，致命来源错误或畸形私有发布同时保留旧策略。其他 Agent/剪贴板/声音偏好不属于本批自定义通知范围。
 
 Off 关闭视觉提示，显式请求的自定义声音仍独立生效。没有 Client 时，Server 的 off 策略返回 `disabled`，否则返回 `no-foreground-client`。连接中的 Client 即使使用 off，也可以将传输接纳报告为 `shown`。策略变化丢弃未投递效果和卡片，不重放此前消息。
 
@@ -48,7 +48,7 @@ enabled = false                  # 自动 Agent 声音；默认值
 codex = "off"                    # default、on 或 off
 ```
 
-`agent_delivery` 接受 `off`、`orchbee`（导入别名 `herdr`）、`terminal` 或 `system`。
+`agent_delivery` 接受 `off`、`orchbee`、`terminal` 或 `system`。
 它不会改变既有 `delivery` 默认值，也不改变 `notification show` 的显式声音。
 `[ui.sound]` 只管理自动声音。全局 `enabled = false` 是硬关闭；启用声音后，按 Agent
 配置的 `off` 会静音对应检测标签，`default` 或 `on` 允许内置提示音。没有 Agent 默认静音。
@@ -100,4 +100,4 @@ Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-规范位置键为 `ui.toast.overlay.position`。已移除的 `ui.toast.herdr.position` 作为未知输入处理，不提供兼容别名或自动迁移。显式 Herdr 导入将竞品源配置节转换为规范键。生成的配置与 Session profile 使用规范配置节；profile 发布与回滚要求同一 cohort。
+规范位置键为 `ui.toast.overlay.position`。生成的配置与 Session profile 使用规范配置节；profile 发布与回滚要求同一 cohort。

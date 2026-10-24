@@ -291,9 +291,9 @@
 									"disposition": "disabled"
 								},
 								{
-									"field": "theme.name",
-									"reason": "unsupported-herdr",
-									"disposition": "unsupported"
+									"field": "theme.custom",
+									"reason": "unknown-key",
+									"disposition": "ignored"
 								}
 							],
 							"omittedCount": 3
@@ -1191,7 +1191,7 @@
 								{
 									"field": "keys.help",
 									"reason": "invalid-binding",
-									"disposition": "preserved"
+									"disposition": "unsupported"
 								}
 							],
 							"omittedCount": 0

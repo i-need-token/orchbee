@@ -196,23 +196,22 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 的配置观察器接收。共享偏好独立每秒观察一次，设置关闭期间也继续观察。
 两种发布都不代表所有已连接客户端已经确认应用。
 
-| 已准入的原生配置或客户端状态                                                                                                  | 实际应用策略                                                                                 |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `keys.prefix`、已实现动作的覆盖、`keys.commands`                                                                              | 完整准入的重载同时更新派发和对应帮助／提示，清除待处理前缀；仅加载配置不执行其中命令         |
-| `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`；`ui.sidebar.spaces.rows`、`row_gap` 及其已准入的 token／规则字段        | 完整重载改变现有侧栏投影；布局和交互仍由侧栏所有者负责                                       |
-| `ui.window_title`                                                                                                             | 重载后实时标题订阅使用已准入模板；外层宿主标题交付仍是一项能力                               |
-| `ui.toast.delivery`、旧 `enabled`、`agent_delivery`、`delay_seconds`、`herdr.position`；`ui.sound.enabled`、`ui.sound.agents` | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
-| 旧 `theme.name`                                                                                                               | 仅一次填充尚未声明的共享外观；后续 TOML 重载不能覆盖已确认的通用偏好                         |
-| `terminal.default_shell`、`terminal.shell_mode`                                                                               | 重载仅改变后续启动准备；已确认的共享启动配置优先，Windows 通用配置拒绝登录 Shell             |
-| `terminal.focus_new_panel`                                                                                                    | 重启原生 Client 后应用分屏焦点偏好，默认为 true                                              |
-| `terminal.new_cwd`、`worktrees.directory`                                                                                     | Windows CLI 在下一次相关创建调用中读取；不移动现有进程                                       |
-| `session.resume_agents_on_restore`                                                                                            | 仅启动时生效；重载报告 `restartRequired`，不重做恢复                                         |
-| `update.manifest_check`                                                                                                       | 重载更新既有规则检查调度器；自动检查仍遵循受管发布／能力限制                                 |
-| `update.channel`                                                                                                              | 后续发布／更新操作消费；不改变当前 TUI 颜色，也不重启 TUI                                    |
-| 指针捕获（`--mouse off`、默认前缀 `m`）、侧栏可见性／宽度                                                                     | 立即生效的客户端本地交互状态；这些动作不持久化共享偏好                                       |
+| 已准入的原生配置或客户端状态                                                                                           | 实际应用策略                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `keys.prefix`、已实现动作的覆盖、`keys.commands`                                                                       | 完整准入的重载同时更新派发和对应帮助／提示，清除待处理前缀；仅加载配置不执行其中命令         |
+| `ui.sidebar.agents.rows`、`rows_by_agent`、`row_gap`；`ui.sidebar.spaces.rows`、`row_gap` 及其已准入的 token／规则字段 | 完整重载改变现有侧栏投影；布局和交互仍由侧栏所有者负责                                       |
+| `ui.window_title`                                                                                                      | 重载后实时标题订阅使用已准入模板；外层宿主标题交付仍是一项能力                               |
+| `ui.toast.delivery`、`agent_delivery`、`delay_seconds`、`overlay.position`；`ui.sound.enabled`、`ui.sound.agents`      | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
+| 旧 `theme.name`                                                                                                        | 仅一次填充尚未声明的共享外观；后续 TOML 重载不能覆盖已确认的通用偏好                         |
+| `terminal.default_shell`、`terminal.shell_mode`                                                                        | 重载仅改变后续启动准备；已确认的共享启动配置优先，Windows 通用配置拒绝登录 Shell             |
+| `terminal.focus_new_panel`                                                                                             | 重启原生 Client 后应用分屏焦点偏好，默认为 true                                              |
+| `terminal.new_cwd`、`worktrees.directory`                                                                              | Windows CLI 在下一次相关创建调用中读取；不移动现有进程                                       |
+| `session.resume_agents_on_restore`                                                                                     | 仅启动时生效；重载报告 `restartRequired`，不重做恢复                                         |
+| `update.manifest_check`                                                                                                | 重载更新既有规则检查调度器；自动检查仍遵循受管发布／能力限制                                 |
+| `update.channel`                                                                                                       | 后续发布／更新操作消费；不改变当前 TUI 颜色，也不重启 TUI                                    |
+| 指针捕获（`--mouse off`、默认前缀 `m`）、侧栏可见性／宽度                                                              | 立即生效的客户端本地交互状态；这些动作不持久化共享偏好                                       |
 
-`ui.mouse_capture`、`ui.mouse_scroll_lines`、Herdr 侧栏宽度字段和其他已识别但
-不支持的键仍报告为不支持；加载它们不会改变客户端行为。字体、像素尺寸、
+未知配置键会警告并忽略；加载它们不会改变客户端行为。字体、像素尺寸、
 透明度和实体 Option 键处理由外层宿主拥有。剪贴板、终端／操作系统通知与声音
 需要宿主支持，TUI 不能因值已保存就承诺交付。外观预览不会引起新的宿主模式、
 重启、进程启动或伪造的命令完成事件。

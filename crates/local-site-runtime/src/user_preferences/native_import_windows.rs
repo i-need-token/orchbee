@@ -44,10 +44,7 @@ pub(super) fn read(
             .get("toast")
             .and_then(|toast| toast.get("agent_delivery"))
             .and_then(toml::Value::as_str)
-            && matches!(
-                delivery,
-                "off" | "orchbee" | "system" | "terminal" | "herdr"
-            )
+            && matches!(delivery, "off" | "orchbee" | "system" | "terminal")
         {
             fields.insert(
                 "agentNotificationMode".into(),

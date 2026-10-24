@@ -216,8 +216,6 @@ impl Locale {
             CommandPath::ApiSchema => &[Argument::Schema],
             CommandPath::ConfigCheck => &[],
             CommandPath::ConfigResetKeys => &[],
-            #[cfg(windows)]
-            CommandPath::ConfigImportHerdr => &[],
             CommandPath::SiteStart => &[],
             #[cfg(windows)]
             CommandPath::SessionList => &[],

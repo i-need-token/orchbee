@@ -152,7 +152,7 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         crate::localization::Locale::EnUs,
     );
     let published: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(published["version"], 153, "runtime catalog emitter version");
+    assert_eq!(published["version"], 154, "runtime catalog emitter version");
     let validator = jsonschema::validator_for(&catalog).unwrap();
     validator.validate(&published).unwrap();
     let mut stale = published;
@@ -699,9 +699,9 @@ fn configuration_v13_admits_bounded_warnings_without_widening_v12() {
     let mut warning = pass.clone();
     warning["status"] = json!("warning");
     warning["details"]["diagnostics"] = json!([{
-        "field":"theme.name",
-        "reason":"unsupported-herdr",
-        "disposition":"unsupported"
+        "field":"theme.custom",
+        "reason":"unknown-key",
+        "disposition":"ignored"
     }]);
     assert!(validator.is_valid(&warning));
     let mut invalid_field = warning.clone();

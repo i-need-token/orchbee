@@ -36,17 +36,18 @@ fn named_theme_admission_is_exact_and_preserves_other_fields_on_fallback() {
         assert_eq!(load.notifications.delivery.as_str(), "terminal");
         assert_eq!(load.diagnostics.items()[0].field, "theme.name");
     }
-    let unsupported = parse(
+    let unknown = parse(
         "[theme]\nname='one-light'\ncustom={fg='#fff'}",
         Path::new(r"C:\config.toml"),
         &|_| None,
     )
     .unwrap();
-    assert_eq!(unsupported.theme, WindowsThemeName::OneLight);
-    assert_eq!(unsupported.diagnostics.items()[0].field, "theme.custom");
+    assert_eq!(unknown.theme, WindowsThemeName::OneLight);
+    assert_eq!(unknown.diagnostics.items()[0].field, "theme.custom");
+    assert_eq!(unknown.diagnostics.items()[0].reason, "unknown-key");
     assert_eq!(
-        unsupported.diagnostics.items()[0].disposition,
-        WindowsSettingsDiagnosticDisposition::Unsupported
+        unknown.diagnostics.items()[0].disposition,
+        WindowsSettingsDiagnosticDisposition::Ignored
     );
     let wrong_table = parse(
         "theme=42\n[ui]\nwindow_title='test'",
@@ -535,17 +536,13 @@ fn window_title_settings_default_empty_invalid_syntax_and_strict_type() {
 }
 
 #[test]
-fn herdr_only_fields_and_partial_key_failures_are_bounded_warnings() {
+fn unknown_fields_and_partial_key_failures_are_bounded_warnings() {
     let admitted = parse(
-        "onboarding=false\n[theme]\nname='one-light'\n[terminal]\nkitty_graphics=true\n[keys]\nhelp=['prefix+?', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[ui]\nsidebar_width=24\nunknown_presentation=true\n[ui.sound]\ndone_path='done.mp3'",
+        "onboarding=false\n[server]\naddress='DO-NOT-ECHO'\n[advanced]\n[experimental]\nenabled=true\n[remote]\nenabled=true\n[theme]\nname='one-light'\ncustom={}\n[terminal]\nkitty_graphics=true\n[update]\nversion_check=false\n[keys]\nhelp=['prefix+?', 'ctrl+c', 'f1']\nnew_tab='prefix+n'\nnavigate_pane_left='h'\nindexed=true\n[ui]\nsidebar_width=24\nunknown_presentation=true\n[ui.toast]\nenabled=true\nclipboard=true\n[ui.sound]\ndone_path='done.mp3'",
         Path::new(r"C:\config.toml"),
         &|_| None,
     )
     .unwrap();
-    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
-        diagnostic.field == "onboarding"
-            && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Unsupported
-    }));
     assert_eq!(admitted.settings.theme, WindowsThemeName::OneLight);
     assert!(
         admitted
@@ -555,22 +552,35 @@ fn herdr_only_fields_and_partial_key_failures_are_bounded_warnings() {
             .all(|diagnostic| { diagnostic.field != "theme.name" })
     );
     for field in [
+        "onboarding",
+        "server",
+        "advanced",
+        "experimental",
+        "remote",
+        "theme.custom",
+        "terminal.kitty_graphics",
+        "update.version_check",
         "keys.indexed",
         "keys.navigate_pane_left",
         "ui.sidebar_width",
         "ui.sound.done_path",
+        "ui.toast.enabled",
+        "ui.toast.clipboard",
+        "ui.unknown_presentation",
     ] {
-        assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
-            diagnostic.field == field
-                && diagnostic.reason == "unsupported-herdr"
-                && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Unsupported
-        }));
+        assert!(
+            admitted.diagnostics.items().iter().any(|diagnostic| {
+                diagnostic.field == field
+                    && diagnostic.reason == "unknown-key"
+                    && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Ignored
+            }),
+            "{field}"
+        );
     }
-    assert!(admitted.diagnostics.items().iter().any(|diagnostic| {
-        diagnostic.field == "ui.unknown_presentation"
-            && diagnostic.reason == "unknown-key"
-            && diagnostic.disposition == WindowsSettingsDiagnosticDisposition::Ignored
-    }));
+    assert_eq!(
+        admitted.notifications.delivery,
+        WindowsNotificationDelivery::Off
+    );
     let help = admitted
         .keys
         .overrides
@@ -675,9 +685,9 @@ fn every_registered_action_can_be_explicitly_disabled() {
 }
 
 #[test]
-fn invalid_explicit_notification_delivery_beats_legacy_enabled_and_defaults_off() {
+fn invalid_explicit_notification_delivery_defaults_off() {
     let admitted = parse(
-        "[ui.toast]\nenabled=true\ndelivery='invalid'",
+        "[ui.toast]\ndelivery='invalid'",
         Path::new(r"C:\config.toml"),
         &|_| None,
     )

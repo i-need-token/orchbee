@@ -1,14 +1,7 @@
 //! Shared Windows user settings: fatal source boundaries, field-local admission, and explicit repair.
 mod agent_sidebar;
 mod diagnostics;
-mod herdr_import;
 use diagnostics::{DiagnosticsCollector, unknown_field};
-pub use herdr_import::{
-    PreparedWindowsHerdrImport, WindowsHerdrImportDisposition, WindowsHerdrImportEntry,
-    WindowsHerdrImportReport, WindowsHerdrImportWriteFailure, normalize_windows_herdr_file_operand,
-    prepare_windows_herdr_import, read_windows_herdr_source, valid_windows_herdr_file_operand,
-    write_windows_herdr_import,
-};
 mod sidebar_tokens;
 mod space_sidebar;
 pub use sidebar_tokens::WindowsSidebarTokenStyle;
@@ -59,36 +52,6 @@ use std::{
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowsWindowTitleTemplate};
 
 const LIMIT: u64 = 64 * 1024;
-const HERDR_ONLY_UI_FIELDS: &[&str] = &[
-    "sidebar_width",
-    "sidebar_min_width",
-    "sidebar_max_width",
-    "sidebar_start_collapsed",
-    "sidebar_collapsed_mode",
-    "mobile_width_threshold",
-    "mouse_capture",
-    "copy_on_select",
-    "host_cursor",
-    "right_click_passthrough_modifier",
-    "redraw_on_focus_gained",
-    "mouse_scroll_lines",
-    "confirm_close",
-    "prompt_new_tab_name",
-    "prompt_new_workspace_name",
-    "pane_borders",
-    "pane_outer_borders",
-    "pane_scrollbars",
-    "pane_gaps",
-    "show_agent_labels_on_pane_borders",
-    "hide_tab_bar_when_single_tab",
-    "tab_bar_position",
-    "tab_bar_right",
-    "tab_bar_right_separator",
-    "agent_panel_sort",
-    "agent_panel_scope",
-    "status_indicators",
-    "accent",
-];
 mod channel;
 pub use channel::set_windows_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -384,16 +347,8 @@ fn parse(
             {
                 diagnostics.push(
                     unknown_field("ui", key),
-                    if HERDR_ONLY_UI_FIELDS.contains(&key.as_str()) {
-                        "unsupported-herdr"
-                    } else {
-                        "unknown-key"
-                    },
-                    if HERDR_ONLY_UI_FIELDS.contains(&key.as_str()) {
-                        WindowsSettingsDiagnosticDisposition::Unsupported
-                    } else {
-                        WindowsSettingsDiagnosticDisposition::Ignored
-                    },
+                    "unknown-key",
+                    WindowsSettingsDiagnosticDisposition::Ignored,
                 );
             }
             if table.contains_key("toast") || table.contains_key("sound") {
@@ -469,13 +424,6 @@ fn parse(
             settings.theme = theme::admit(&value, &mut diagnostics);
             continue;
         }
-        if matches!(
-            section.as_str(),
-            "onboarding" | "server" | "advanced" | "experimental" | "remote"
-        ) {
-            record_unsupported_fields(&section, &value, &mut diagnostics);
-            continue;
-        }
         let Some(table) = value.as_table() else {
             let field = match section.as_str() {
                 "terminal" => "terminal",
@@ -514,35 +462,6 @@ fn parse(
         settings,
         diagnostics: diagnostics.finish(),
     })
-}
-
-fn record_unsupported_fields(
-    section: &str,
-    value: &toml::Value,
-    diagnostics: &mut DiagnosticsCollector,
-) {
-    let Some(table) = value.as_table() else {
-        diagnostics.push(
-            section,
-            "unsupported-herdr",
-            WindowsSettingsDiagnosticDisposition::Unsupported,
-        );
-        return;
-    };
-    if table.is_empty() {
-        diagnostics.push(
-            section,
-            "unsupported-herdr",
-            WindowsSettingsDiagnosticDisposition::Unsupported,
-        );
-    }
-    for key in table.keys() {
-        diagnostics.push(
-            unknown_field(section, key),
-            "unsupported-herdr",
-            WindowsSettingsDiagnosticDisposition::Unsupported,
-        );
-    }
 }
 
 fn parse_agent_sidebar(
@@ -600,19 +519,10 @@ fn parse_terminal(
         .keys()
         .filter(|key| !windows_user_config_has_child("terminal", key))
     {
-        let unsupported = key == "kitty_graphics";
         diagnostics.push(
             unknown_field("terminal", key),
-            if unsupported {
-                "unsupported-herdr"
-            } else {
-                "unknown-key"
-            },
-            if unsupported {
-                WindowsSettingsDiagnosticDisposition::Unsupported
-            } else {
-                WindowsSettingsDiagnosticDisposition::Ignored
-            },
+            "unknown-key",
+            WindowsSettingsDiagnosticDisposition::Ignored,
         );
     }
     if let Some(value) = table.get("focus_new_panel") {
@@ -695,19 +605,10 @@ fn parse_update(
         .keys()
         .filter(|key| !windows_user_config_has_child("update", key))
     {
-        let unsupported = key == "version_check";
         diagnostics.push(
             unknown_field("update", key),
-            if unsupported {
-                "unsupported-herdr"
-            } else {
-                "unknown-key"
-            },
-            if unsupported {
-                WindowsSettingsDiagnosticDisposition::Unsupported
-            } else {
-                WindowsSettingsDiagnosticDisposition::Ignored
-            },
+            "unknown-key",
+            WindowsSettingsDiagnosticDisposition::Ignored,
         );
     }
     if let Some(value) = table.get("channel") {

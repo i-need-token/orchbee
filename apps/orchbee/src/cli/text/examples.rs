@@ -285,14 +285,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ApiSchema => &["orchbee.status"],
         CommandPath::ConfigCheck => &[],
         CommandPath::ConfigResetKeys => &[],
-        #[cfg(windows)]
-        CommandPath::ConfigImportHerdr => &[
-            "--input-file",
-            "herdr.toml",
-            "--output-file",
-            "orchbee.toml",
-            "--dry-run",
-        ],
         CommandPath::SiteStart => &[],
         #[cfg(windows)]
         CommandPath::SessionList => &[],

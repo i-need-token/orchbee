@@ -65,11 +65,7 @@ pub(super) fn build() -> serde_json::Value {
             ["server", verb, ..] => !matches!(*verb, "start" | "diagnose"),
             _ => false,
         });
-        command["globalFlags"] = json!(if words == json!(["config", "import-herdr"]) {
-            &[]
-        } else {
-            global_flags
-        });
+        command["globalFlags"] = json!(global_flags);
         command["format"] = json!(accepts_format(
             &words
                 .as_array()

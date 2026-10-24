@@ -101,31 +101,11 @@ impl WindowsNotificationSettings {
             .keys()
             .filter(|key| !windows_user_config_has_child("ui.toast", key))
         {
-            let unsupported = key == "clipboard";
             diagnostics.push(
                 unknown_field("ui.toast", key),
-                if unsupported {
-                    "unsupported-herdr"
-                } else {
-                    "unknown-key"
-                },
-                if unsupported {
-                    WindowsSettingsDiagnosticDisposition::Unsupported
-                } else {
-                    WindowsSettingsDiagnosticDisposition::Ignored
-                },
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
             );
-        }
-        if let Some(enabled) = table.get("enabled") {
-            match enabled.as_bool() {
-                Some(true) => self.delivery = WindowsNotificationDelivery::Tui,
-                Some(false) => self.delivery = WindowsNotificationDelivery::Off,
-                None => diagnostics.push(
-                    "ui.toast.enabled",
-                    "wrong-type",
-                    WindowsSettingsDiagnosticDisposition::Defaulted,
-                ),
-            }
         }
         if let Some(delivery) = table.get("delivery") {
             match parse_delivery(delivery, toast_error) {
@@ -225,19 +205,10 @@ impl WindowsNotificationSettings {
             .keys()
             .filter(|key| !windows_user_config_has_child("ui.sound", key))
         {
-            let unsupported = matches!(key.as_str(), "path" | "done_path" | "request_path");
             diagnostics.push(
                 unknown_field("ui.sound", key),
-                if unsupported {
-                    "unsupported-herdr"
-                } else {
-                    "unknown-key"
-                },
-                if unsupported {
-                    WindowsSettingsDiagnosticDisposition::Unsupported
-                } else {
-                    WindowsSettingsDiagnosticDisposition::Ignored
-                },
+                "unknown-key",
+                WindowsSettingsDiagnosticDisposition::Ignored,
             );
         }
         if let Some(enabled) = table.get("enabled") {
@@ -311,13 +282,6 @@ impl WindowsNotificationSettings {
             .any(|key| !windows_user_config_has_child("ui.toast", key))
         {
             return Err(toast_error("unknown-key"));
-        }
-        if let Some(enabled) = table.get("enabled") {
-            self.delivery = if enabled.as_bool().ok_or(toast_error("wrong-type"))? {
-                WindowsNotificationDelivery::Tui
-            } else {
-                WindowsNotificationDelivery::Off
-            };
         }
         if let Some(delivery) = table.get("delivery") {
             self.delivery = parse_delivery(delivery, toast_error)?;
@@ -396,7 +360,7 @@ fn parse_delivery(
 ) -> Result<WindowsNotificationDelivery, WindowsSettingsError> {
     Ok(match value.as_str().ok_or(error("wrong-type"))? {
         "off" => WindowsNotificationDelivery::Off,
-        "orchbee" | "herdr" => WindowsNotificationDelivery::Tui,
+        "orchbee" => WindowsNotificationDelivery::Tui,
         "terminal" => WindowsNotificationDelivery::Terminal,
         "system" => WindowsNotificationDelivery::System,
         _ => return Err(error("invalid-mode")),

@@ -8,7 +8,7 @@ use super::WindowsSettingsError;
 pub const MAXIMUM_WINDOWS_SETTINGS_DIAGNOSTICS: usize = 128;
 const MAXIMUM_DIAGNOSTIC_FIELD_BYTES: usize = 256;
 
-/// The effective treatment applied to one invalid, unknown, or unsupported field.
+/// The effective treatment applied to one invalid or unknown field.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum WindowsSettingsDiagnosticDisposition {
     /// The field's documented safe default was used.
@@ -17,8 +17,6 @@ pub enum WindowsSettingsDiagnosticDisposition {
     Disabled,
     /// The field is unknown and has no effect.
     Ignored,
-    /// The field is recognized from the pinned Herdr configuration but is not implemented.
-    Unsupported,
 }
 
 impl WindowsSettingsDiagnosticDisposition {
@@ -28,7 +26,6 @@ impl WindowsSettingsDiagnosticDisposition {
             Self::Defaulted => "defaulted",
             Self::Disabled => "disabled",
             Self::Ignored => "ignored",
-            Self::Unsupported => "unsupported",
         }
     }
 }

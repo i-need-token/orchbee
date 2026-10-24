@@ -375,6 +375,10 @@ fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), 
             "Unknown command \"workbench\". Run 'orchbee --help'.\n",
         ),
         (
+            &["config", "import-herdr"],
+            "Unknown command \"import-herdr\" for 'orchbee config'. Run 'orchbee config --help'.\n",
+        ),
+        (
             &["--help", "--version"],
             "'--version' is not valid in this position. Run 'orchbee --help'.\n",
         ),
@@ -384,7 +388,13 @@ fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), 
         ),
     ];
     for (arguments, stderr) in cases {
-        let output = run(arguments.iter().copied(), "en_US.UTF-8")?;
+        let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .args(*arguments)
+            .env("LC_ALL", "en_US.UTF-8")
+            .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
+            .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
+            .env("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid")
+            .output()?;
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
         assert!(output.stdout.is_empty(), "{arguments:?}");
         assert_eq!(String::from_utf8(output.stderr)?, *stderr, "{arguments:?}");
@@ -468,8 +478,6 @@ check --session 1 orchbee workspace create --s
 check --session 0 orchbee --session work workspace create --s
 check --format 0 orchbee --session work --session other workspace list --f
 check --format 0 orchbee --session .. workspace list --f
-check --session 0 orchbee config import-herdr --s
-check --format 0 orchbee --session work config import-herdr --f
 check --format 0 orchbee --session work session attach other --f
 check --format 1 orchbee update --f
 check client 0 orchbee update c

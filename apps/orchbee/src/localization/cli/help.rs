@@ -625,10 +625,6 @@ impl Locale {
             HelpTopic::Command(CommandPath::ConfigResetKeys) => {
                 ("Restore default keyboard shortcuts.", "恢复默认快捷键。")
             }
-            #[cfg(windows)]
-            HelpTopic::Command(CommandPath::ConfigImportHerdr) => {
-                ("Import settings from Herdr.", "从 Herdr 导入设置。")
-            }
             HelpTopic::Command(CommandPath::SiteStart) => (
                 "Ensure a local terminal session is running.",
                 "确保本地终端会话已启动。",

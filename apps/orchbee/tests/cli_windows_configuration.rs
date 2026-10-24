@@ -583,8 +583,26 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
         (
             "[theme.custom]\ntext='#ffffff'",
             "theme.custom",
-            "unsupported-herdr",
-            "unsupported",
+            "unknown-key",
+            "ignored",
+        ),
+        (
+            "[ui.toast]\nenabled=true",
+            "ui.toast.enabled",
+            "unknown-key",
+            "ignored",
+        ),
+        (
+            "[ui.toast]\ndelivery='herdr'",
+            "ui.toast.delivery",
+            "invalid-mode",
+            "defaulted",
+        ),
+        (
+            "[ui.toast]\nagent_delivery='herdr'",
+            "ui.toast.agent_delivery",
+            "invalid-mode",
+            "defaulted",
         ),
         (
             "[terminal]\nnew_cwd=1",
@@ -1183,7 +1201,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[ui.toast]\ndelivery='herdr'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'",
+        "[ui.toast]\ndelivery='orchbee'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));

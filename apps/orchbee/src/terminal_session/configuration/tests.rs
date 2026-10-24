@@ -906,7 +906,7 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
     };
     let mut view = ClientView::new(100);
     let mut next = snapshot(1, "[keys]\nprefix='ctrl+a'");
-    next.notification_profile = "[ui.toast]\ndelivery='herdr'".into();
+    next.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
     watcher.shared.0.lock().unwrap().snapshot = Some(next);
     assert!(watcher.tick(&mut view));
     assert!(view.notifications.card_delivery());
