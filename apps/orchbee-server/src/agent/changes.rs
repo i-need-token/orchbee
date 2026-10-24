@@ -31,7 +31,7 @@ pub struct AgentRuntimeChangeSession {
 pub struct AgentRuntimeChange {
     pub revision: u64,
     pub session: AgentRuntimeChangeSession,
-    /// `AgentObservationTransitionKind` — one of the fourteen event types.
+    /// `AgentObservationTransitionKind` — one shared observation event type.
     pub transition: &'static str,
 }
 

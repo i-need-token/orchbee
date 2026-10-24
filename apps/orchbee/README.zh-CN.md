@@ -534,32 +534,18 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 关闭后的 `EIO` 是正常 hangup，并且 linked public binary 不包含 `/dev/tty` 或 `tput` fallback token。
 这些进程见证描述 Unix 适配器。Windows 适配器及其独立的 Console、ConPTY 证据见上文。
 
-## 已连接单终端 TUI 细化
+## 原生终端投影
 
-已接受的本地终端里程碑让私有 TUI 成为 `LocalClient` 的实际消费者：`run_connected` 接收已准入
-Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
-事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 与 macOS 启动在完成有界 Session 激活后，进入同一个已准备好的 shell。
+`run_connected` 接收已准入的 `LocalClient` 并启动 Native Workbench 会话。shell 拥有终端模式与绘制；
+会话拥有 mailbox、连接 task 与已准入输入。`terminal_projection` 校验终端 frame 并产生精确反馈。
+Terminal Host 保持 VT 与 history 权威。
 
-以下记录保留仅供测试使用的私有 Create/Attach 适配器。其实现位于
-[`terminal_session/tests/legacy.rs`](src/terminal_session/tests/legacy.rs)，服务于现有的
-[Session 回归测试](src/terminal_session/tests.rs) 和
-[Unix 进程／PTY 见证](src/tui_shell/tests/connected.rs)。Standalone 启动使用 native
-Tab Session；对应的[传输回归测试](src/terminal_session/connection/native/tests.rs) 验证生产后端。
-
-| 字段   | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | Shell 已有输入和生命周期端口，但不能显示或控制保留终端。接入一个 Session，同时保留及时退出、有界队列、精确反馈和终端生命周期。                                                                                                                                                                                                                                                                                                                                                                            |
-| 输入   | 已准入 LocalClient、可选默认 Shell cwd 或已接受 create 引用、继承终端的 geometry 和原始输入、不可信 OBCS/OBSR 响应，以及终止信号。                                                                                                                                                                                                                                                                                                                                                                        |
-| 数据   | 一个拥有连接的 task、八条排队 command（每条 input 最多 4,096 byte）、一个 response slot、一个待发 frame feedback、一个有界文本投影、新 request ID 和一个 controller sequence。只有 Host 拥有 VT 和 history。获取已有终端也提交初始 panel geometry；input 与后续 resize 共用同一递增 sequence。                                                                                                                                                                                                            |
-| 输出   | Create/attach 和显式 acquire、按序准入的原始输入和 geometry、文本／style／cursor 呈现、精确 applied feedback 或 NeedSnapshot、本地化连接中／只读／blocked／失败状态，以及仅针对 Session 的清理。                                                                                                                                                                                                                                                                                                          |
-| 不变量 | UI 线程不执行 Server I/O。Task 串行交换且不重试副作用。队列已满的输入被明确判定为未提交。Unknown outcome 关闭 task 并丢弃未发送 command。没有 task 超过其 TUI owner 的生命周期。                                                                                                                                                                                                                                                                                                                          |
-| 模型   | Opening -> 按需执行 standalone snapshot selection -> 已附着 controller 或只读 viewer -> polling -> 收到 record -> 原子文本投影提交 -> draw -> feedback -> polling。控制意图与单一 projection flight 分开排队。关闭会 shutdown 已准入 socket 并 join task；Server 拥有按代次划分的 detach cleanup。                                                                                                                                                                                                        |
-| 决策   | Snapshot 替换全部行且不回退已提交 revision（包括 projection reset 后）；delta 要求精确 attachment、epoch、sequence、generation、base revision、screen 和 geometry。无效内容请求新 snapshot 且不应用任何行。错误 envelope 或 scope 让 Session 退役。ProjectionBlocked 清除呈现，直到更高 revision 的 snapshot。没有自动提升 controller、reconnect 或 unknown input 重放。                                                                                                                                  |
-| 依赖   | 既有 OBCS 和 Rust Terminal Protocol binding、有界 channel、POSIX socket shutdown、已准入 descriptor、现有 Ratatui renderer 和本地化文案。不增加三方依赖、直连 Host 路径或 VT 模拟器。                                                                                                                                                                                                                                                                                                                     |
-| 所有权 | `terminal_session` 拥有连接 task 和输入准入；`terminal_projection` 拥有 Client 文本状态和反馈；Terminal Protocol binding 拥有有界 OBTF 文本解码；shell 拥有 mode 与 draw 顺序。                                                                                                                                                                                                                                                                                                                           |
-| 验证   | Canonical OBTF fixture、畸形／边界分区、确定性的 snapshot/delta 和队列／退役轨迹、render buffer 断言，以及真实进程／PTY 见证。[Session 生命周期测试](src/terminal_session/tests.rs) 和[保留适配器的背压测试](src/terminal_session/tests/legacy/connection/backpressure/tests.rs) 映射 transport 退役及 projection/control 顺序；其有限边界不是性能保证。                                                                                                                                                  |
-| 限制   | 投影文本 cell 和基本 style/cursor；排除 graphics、hyperlink 激活、history、selection、terminal interaction-mode negotiation、cursor shape 对齐和完整 Workbench 行为。不支持的 cell width 使用替代字形。缺失或无效的继承 cell/pixel geometry 会在 Create 或初始 attach 前拒绝，或经恢复边界结束活动 TUI；绝不编造 pixel size。Optional extension 内容保持 opaque，文本 decoder 不保留它们。投影按共享文本分配计数，在提交前拒绝超过 36 MiB 的保留文本。显示 cell 中的控制字符绝不成为终端 escape command。 |
-| 审查   | 检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消。原 authority-model 超时问题已解决；启动链路另有独立审查与 Linux 进程证据。                                                                                                                                                                                                                                                                                                                                                                   |
+[Session 生命周期回归](src/terminal_session/tests.rs) 覆盖 Drop 中断与 join、未知输入结果退役及只读输入拒绝。
+[Native 传输回归](src/terminal_session/connection/native/tests.rs) 与
+[mailbox 轨迹](src/terminal_session/mailbox/tests.rs) 覆盖有界准入、projection/feedback 顺序及退役。
+[Linux 公开启动／PTY 见证](tests/local_startup_process.rs) 与
+[原生指针见证](tests/local_startup_process/native_pointer.rs) 覆盖保留 shell、resize、指针路由及终端模式恢复。
+其有限 deadline 是测试边界，不是性能保证。
 
 `terminal_text` 拥有禁止显示的 Unicode 标量规则：Unicode 控制字符及 U+2028/U+2029。
 终端单元格渲染将该规则与既有宽度检查一起使用，后端最终的 `Print` 还会独立地把禁止标量替换为
