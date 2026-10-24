@@ -121,7 +121,7 @@ async function inspectManagedClineInstall(
 		CLINE_PLUGIN_NAME,
 	]) {
 		const directState = await pathState(path.join(pluginRoot, directName));
-		if (directState === 'present') return 'conflict';
+		if (directState === 'present' || directState === 'symlink') return 'conflict';
 		if (directState === 'unknown') return 'unknown';
 	}
 
@@ -143,6 +143,7 @@ async function inspectManagedClineInstall(
 		);
 		if (entryState === 'missing') continue;
 		if (entryState === 'unknown') return 'unknown';
+		if (entryState === 'symlink') return 'conflict';
 		const packageState = await inspectManagedClinePackage(candidateRoot);
 		if (packageState === 'conflict') return 'conflict';
 		if (packageState === 'unknown') return 'unknown';
@@ -161,6 +162,11 @@ async function isManagedClinePackage(packageRoot: string): Promise<boolean> {
 type ManagedClinePackageState = 'conflict' | 'current' | 'unknown' | 'update-required';
 
 async function inspectManagedClinePackage(packageRoot: string): Promise<ManagedClinePackageState> {
+	try {
+		if (!(await lstat(packageRoot)).isDirectory()) return 'conflict';
+	} catch {
+		return 'unknown';
+	}
 	const value = await readJsonRecord(path.join(packageRoot, 'package.json'));
 	if (value === null) return 'conflict';
 	if (value['name'] !== CLINE_PLUGIN_NAME) return 'conflict';
@@ -177,6 +183,7 @@ async function inspectManagedClinePackage(packageRoot: string): Promise<ManagedC
 async function readJsonRecord(filePath: string): Promise<Record<string, unknown> | null> {
 	let handle: Awaited<ReturnType<typeof open>> | undefined;
 	try {
+		if (!(await lstat(filePath)).isFile()) return null;
 		handle = await open(filePath, 'r');
 		const metadata = await handle.stat();
 		if (!metadata.isFile() || metadata.size > MAX_MANIFEST_BYTES) return null;
@@ -192,12 +199,11 @@ async function readJsonRecord(filePath: string): Promise<Record<string, unknown>
 	}
 }
 
-type PathState = 'missing' | 'present' | 'unknown';
+type PathState = 'missing' | 'present' | 'symlink' | 'unknown';
 
 async function pathState(filePath: string): Promise<PathState> {
 	try {
-		await lstat(filePath);
-		return 'present';
+		return (await lstat(filePath)).isSymbolicLink() ? 'symlink' : 'present';
 	} catch (error: unknown) {
 		return isFileNotFoundError(error) ? 'missing' : 'unknown';
 	}

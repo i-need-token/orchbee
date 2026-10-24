@@ -165,7 +165,7 @@ pub(super) fn activation_disabled(bytes: &[u8]) -> bool {
     )
 }
 pub(super) fn list_state(bytes: &[u8], local: State, expected_version: &str) -> State {
-    if matches!(local, State::Conflict | State::StaleSide | State::Unknown) {
+    if matches!(local, State::Conflict | State::Unknown) {
         return local;
     }
     let found = match inventory(bytes) {

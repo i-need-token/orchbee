@@ -1293,8 +1293,12 @@ Doctor recomputes installed bytes before comparing with the current sidecar iden
 A self-consistent different payload is an asset-root `update-required`, carrying
 `detail.payloadSha256` and `detail.expectedPayloadSha256`. Recorded enabled hooks
 then use the existing update summary and explicit `agent integration enable --provider <id>`
-command. Contract mismatches and unreadable bytes remain uninspectable, and a corrupt
-installed tree remains inconsistent. Diagnosis neither repairs setup nor deletes old directories.
+command. A safely identified non-current guarded or Cline contract also requires reinstall;
+guarded files must still match their declared fingerprints. Non-current capsule metadata
+requires a matching actual digest, required runtime files and named Orchbee package marker
+before it can be diagnosed as outdated. Unknown ownership, unsafe paths, unreadable bytes
+and corrupt installed trees retain their protected outcomes. Only the strict current source
+is ready for mutation. Diagnosis neither repairs setup nor deletes old directories.
 
 ### Windows Agent diagnostic refinement
 

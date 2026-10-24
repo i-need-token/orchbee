@@ -2,8 +2,8 @@
 //! module is the private owner of the accepted contract: the canonical
 //! adapter semantics are ported verbatim from
 //! `apps/desktop/src/main/agent-integration-management`, with the accepted
-//! divergences (ambient-PATH resolution, no-replace publication, the
-//! stale-side direction split, and the bounded process-group runner).
+//! divergences (ambient-PATH resolution, no-replace publication, and the
+//! bounded process-group runner).
 //!
 //! The payload source is the native cohort's `agent-observation-adapters`
 //! sidecar — declared by the schema-2 manifest, admitted lazily here, and

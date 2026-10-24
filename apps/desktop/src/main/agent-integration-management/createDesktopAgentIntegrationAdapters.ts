@@ -17,7 +17,7 @@ import { CodexAgentIntegrationAdapter } from './CodexAgentIntegrationAdapter';
 import {
 	FileAgentObservationAdapterCapsule,
 	type AgentObservationAdapterCapsule,
-} from './file-agent-observation-adapter-capsule';
+} from './FileAgentObservationAdapterCapsule';
 import { GuardedLocalAgentIntegrationAdapter } from './GuardedLocalAgentIntegrationAdapter';
 import { commandAttempt, runCommandSequence } from './agent-integration-command-operations';
 import {

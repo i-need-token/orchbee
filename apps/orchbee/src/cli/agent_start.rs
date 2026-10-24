@@ -161,7 +161,7 @@ fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
     }
     let reason = match (item.availability, item.state) {
         (Availability::NotFound, _) => "provider-not-found",
-        (_, State::Conflict | State::StaleSide) => "integration-blocked",
+        (_, State::Conflict) => "integration-blocked",
         (_, State::NotInstalled | State::Disabled | State::UpdateRequired) => {
             "integration-not-enabled"
         }

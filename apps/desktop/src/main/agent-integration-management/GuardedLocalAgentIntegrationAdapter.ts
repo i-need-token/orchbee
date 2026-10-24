@@ -325,7 +325,7 @@ function parseDirectoryMarker(
 		return null;
 	}
 	const contractVersion = Number(value['contractVersion']);
-	if (contractVersion < 1 || contractVersion > ENTRY_CONTRACT_VERSION) return null;
+	if (contractVersion < 1) return null;
 	const files = value['files'];
 	if (!Array.isArray(files) || files.length > MAX_ENTRY_FILES) return null;
 	const parsedFiles: DirectoryMarkerFile[] = [];

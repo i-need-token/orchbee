@@ -118,8 +118,8 @@
 		{
 			"id": "cline.inspect.contract-version-4",
 			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-contract", "cline-direction-split"],
+			"class": "shared",
+			"covers": ["update-required", "non-current-contract"],
 			"dims": {
 				"installCount": 1,
 				"contractVersion": 4
@@ -148,21 +148,17 @@
 			},
 			"expect": {
 				"snapshot": {
-					"state": "stale-side",
+					"state": "update-required",
 					"issue": null,
 					"availability": "available",
 					"managementMode": "managed-local"
-				},
-				"desktopCanonical": {
-					"state": "update-required",
-					"issue": null
-				},
-				"cli": {
-					"note": "contractVersion >3 → CLI stale-side (registered direction split §4.3-cline/§3.2); canonical spec maps ANY positive int ≠3 to update-required — an older Desktop would downgrade the newer contract on explicit enable."
 				}
 			},
-			"anchors": ["cline-adapter:170-174", "design:complete53§4.3-cline,§3.2"],
-			"notes": "The Cline future-contract rejection case — explicitly refused, never falls through to uninstall."
+			"anchors": [
+				"ORC-179: verified non-current ownership requires reinstall",
+				"cline-adapter:170-174"
+			],
+			"notes": "A safely identified owned non-current contract requires explicit reinstall, regardless of its numeric ordering."
 		},
 		{
 			"id": "cline.inspect.contract-version-zero",
@@ -204,7 +200,7 @@
 				}
 			},
 			"anchors": ["cline-adapter:172-174"],
-			"notes": "contractVersion 0/negative/non-integer → conflict (not update-required, not stale-side)."
+			"notes": "Zero, negative and non-integer contracts cannot establish managed ownership."
 		},
 		{
 			"id": "cline.inspect.contract-version-string",
@@ -360,7 +356,7 @@
 					{
 						"path": ".cline/plugins/_installed/local/b/package/package.json",
 						"kind": "file",
-						"contentJson": "@cline.package.contract1"
+						"contentJson": "@cline.package.noncurrent"
 					},
 					{
 						"path": ".cline/plugins/_installed/local/b/package/cline/orchbee-agent-observation.js",
@@ -578,7 +574,7 @@
 			"covers": ["enable", "update-required"],
 			"dims": {
 				"state": "update-required",
-				"contractVersion": 1,
+				"contractVersion": 3,
 				"sourceReady": true
 			},
 			"given": {
@@ -593,7 +589,7 @@
 					{
 						"path": ".cline/plugins/_installed/local/bundle-old/package/package.json",
 						"kind": "file",
-						"contentJson": "@cline.package.contract1"
+						"contentJson": "@cline.package.noncurrent"
 					},
 					{
 						"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js",
@@ -774,15 +770,15 @@
 				}
 			},
 			"anchors": ["cline-adapter:66-67", "capsule-adapter:31-35"],
-			"notes": "Gate order: capsule.prepare() → bundle package check → install scan → exe resolve. Bundle manifest invalid (contractVersion≠3) also fails here."
+			"notes": "Source admission still requires the current complete capsule and current bundle package contract."
 		},
 		{
-			"id": "cline.enable.future-contract-stale-side",
+			"id": "cline.enable.noncurrent-contract-4",
 			"operation": "enable",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-contract", "cline-direction-split", "refusal"],
+			"class": "shared",
+			"covers": ["enable", "update-required", "non-current-contract"],
 			"dims": {
-				"state": "stale-side",
+				"state": "update-required",
 				"contractVersion": 4
 			},
 			"given": {
@@ -805,31 +801,39 @@
 						"content": "// owned"
 					}
 				],
-				"commands": []
+				"commands": [
+					{
+						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
+					},
+					{
+						"argv": ["plugin", "install", "${BUNDLE}", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
+					}
+				]
 			},
 			"expect": {
-				"snapshot": {
-					"state": "stale-side"
-				},
-				"attempt": "stale-side",
-				"planCommands": [],
-				"mustNotMutate": true,
-				"desktopCanonical": {
-					"state": "update-required",
-					"attempt": "attempted",
-					"planCommands": [
-						["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
-						["plugin", "install", "${BUNDLE}", "--json"]
-					]
-				},
+				"attempt": "attempted",
+				"planCommands": [
+					["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
+					["plugin", "install", "${BUNDLE}", "--json"]
+				],
 				"cli": {
-					"exit": 3,
-					"verdict": "stale-side",
-					"frontier": "pre-effect"
+					"exit": 0,
+					"frontier": "post-effect"
 				}
 			},
-			"anchors": ["cline-adapter:170-174", "design:complete53§4.3-cline"],
-			"notes": "Canonical Desktop would emit uninstall+install — a downgrade of the newer contract. CLI refuses. Same for disable."
+			"anchors": [
+				"ORC-179: verified non-current ownership requires reinstall",
+				"cline-adapter:170-174"
+			],
+			"notes": "An explicit action may reinstall or remove a safely identified non-current owned package; unknown or malformed ownership remains refused."
 		},
 		{
 			"id": "cline.disable.enabled",
@@ -917,7 +921,7 @@
 			"covers": ["disable", "update-required"],
 			"dims": {
 				"state": "update-required",
-				"contractVersion": 1
+				"contractVersion": 3
 			},
 			"given": {
 				"managementMode": "managed-local",
@@ -931,7 +935,7 @@
 					{
 						"path": ".cline/plugins/_installed/local/bundle-old/package/package.json",
 						"kind": "file",
-						"contentJson": "@cline.package.contract1"
+						"contentJson": "@cline.package.noncurrent"
 					},
 					{
 						"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js",
@@ -996,12 +1000,12 @@
 			"notes": "Bare-directory direct name is equally a conflict trigger."
 		},
 		{
-			"id": "cline.mutation.future-contract-stale-side-disable",
+			"id": "cline.disable.noncurrent-contract-4",
 			"operation": "disable",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-contract", "cline-direction-split", "refusal"],
+			"class": "shared",
+			"covers": ["disable", "update-required", "non-current-contract"],
 			"dims": {
-				"state": "stale-side",
+				"state": "update-required",
 				"contractVersion": 4
 			},
 			"given": {
@@ -1024,28 +1028,29 @@
 						"content": "// owned"
 					}
 				],
-				"commands": []
+				"commands": [
+					{
+						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
+					}
+				]
 			},
 			"expect": {
-				"snapshot": {
-					"state": "stale-side"
-				},
-				"attempt": "stale-side",
-				"planCommands": [],
-				"mustNotMutate": true,
-				"desktopCanonical": {
-					"state": "update-required",
-					"attempt": "attempted",
-					"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]]
-				},
+				"attempt": "attempted",
+				"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]],
 				"cli": {
-					"exit": 3,
-					"verdict": "stale-side",
-					"frontier": "pre-effect"
+					"exit": 0,
+					"frontier": "post-effect"
 				}
 			},
-			"anchors": ["cline-adapter:170-174", "design:complete53§3.2"],
-			"notes": "Disable of a newer contract must ALSO refuse — Desktop would uninstall it."
+			"anchors": [
+				"ORC-179: verified non-current ownership requires reinstall",
+				"cline-adapter:170-174"
+			],
+			"notes": "An explicit action may reinstall or remove a safely identified non-current owned package; unknown or malformed ownership remains refused."
 		}
 	]
 }

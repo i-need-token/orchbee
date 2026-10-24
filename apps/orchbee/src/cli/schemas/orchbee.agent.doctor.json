@@ -672,8 +672,7 @@
 						"unsafe-file-kind",
 						"symlink-uninspected",
 						"budget-exhausted",
-						"not-inspected",
-						"contract-version-unrecognized"
+						"not-inspected"
 					]
 				},
 				"detail": {
@@ -943,8 +942,7 @@
 						"unsafe-file-kind",
 						"symlink-uninspected",
 						"budget-exhausted",
-						"not-inspected",
-						"contract-version-unrecognized"
+						"not-inspected"
 					]
 				},
 				"detail": {

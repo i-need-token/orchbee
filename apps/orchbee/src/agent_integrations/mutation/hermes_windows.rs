@@ -61,10 +61,7 @@ pub(super) fn update(
         return Attempt::Failed(FailureCode::VerificationFailed);
     };
     if (enable && checked.state != State::Enabled)
-        || matches!(
-            checked.state,
-            State::Conflict | State::StaleSide | State::Unknown
-        )
+        || matches!(checked.state, State::Conflict | State::Unknown)
     {
         return Attempt::Conflict;
     }

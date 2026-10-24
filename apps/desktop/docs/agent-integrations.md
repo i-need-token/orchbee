@@ -42,6 +42,12 @@ package semver does not order identities. Application-bundle and checkout roots
 are no longer recognized as managed installations. Symlinks and foreign or modified
 entries remain conflicts. There is no automatic migration or directory cleanup.
 
+Only contract 1 is current. A positive non-current guarded or Cline contract is
+`update-required` after its Orchbee ownership marker is verified; guarded directories
+also require every actual file fingerprint to match. Numeric ordering grants no
+special status. Reinstall/removal still requires an explicit action, and symlinked
+Cline packages or manifests do not establish ownership.
+
 Provider-local entries stay self-contained or catch a missing Capsule before
 provider code reports an error. Persisted hooks preserve their runtime/script
 guards and bounded output policy. Cline trusts one official local installation
@@ -53,14 +59,14 @@ boundary are authoritative in the [adapter guide](../resources/agent-observation
 
 ## State and transaction
 
-| State             | Meaning                                                                        |
-| ----------------- | ------------------------------------------------------------------------------ |
-| `enabled`         | Exact Orchbee integration is present and enabled                               |
-| `disabled`        | Exact Orchbee integration is present but disabled                              |
-| `not-installed`   | No exact Orchbee integration occupies the managed entry                        |
-| `update-required` | An outdated content identity or dependency-missing entry needs explicit repair |
-| `conflict`        | A different file or source occupies an Orchbee-owned name or target            |
-| `unknown`         | Inspection could not establish an exact state                                  |
+| State             | Meaning                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `enabled`         | Exact Orchbee integration is present and enabled                                                           |
+| `disabled`        | Exact Orchbee integration is present but disabled                                                          |
+| `not-installed`   | No exact Orchbee integration occupies the managed entry                                                    |
+| `update-required` | An outdated content identity, non-current owned contract or dependency-missing entry needs explicit repair |
+| `conflict`        | A different file or source occupies an Orchbee-owned name or target                                        |
+| `unknown`         | Inspection could not establish an exact state                                                              |
 
 One process-wide controller serializes mutation. An explicit request follows this order:
 

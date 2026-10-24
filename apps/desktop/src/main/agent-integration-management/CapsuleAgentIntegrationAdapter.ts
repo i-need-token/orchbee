@@ -8,7 +8,7 @@ import type {
 	AgentIntegrationAdapter,
 	AgentIntegrationMutationAttempt,
 } from './agent-integration-adapter';
-import type { AgentObservationAdapterCapsule } from './file-agent-observation-adapter-capsule';
+import type { AgentObservationAdapterCapsule } from './FileAgentObservationAdapterCapsule';
 
 /** Ensures the stable payload exists only as part of an explicit enable. */
 export class CapsuleAgentIntegrationAdapter implements AgentIntegrationAdapter {

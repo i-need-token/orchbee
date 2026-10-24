@@ -21,7 +21,7 @@ invalid-value diagnostic list the complete `--provider` set.
 Before admission, the CLI inspects this machine's managed integration for the kind, bounded by
 the start deadline and at most 10000 ms. A missing executable refuses with `provider-not-found`;
 a `not-installed`, `disabled` or `update-required` integration, or an unpublished adapter capsule,
-refuses with `integration-not-enabled`; `conflict` or `stale-side` refuses with
+refuses with `integration-not-enabled`; `conflict` refuses with
 `integration-blocked`. These are `check-failed` (exit 1) with no reservation or input, and the
 diagnostic names `agent integration enable` or `agent integration explain`. The preflight never
 enables an integration, because that edits the provider's own configuration. Kinds without a

@@ -73,7 +73,6 @@
 									"enum": [
 										"agent-unavailable",
 										"conflict",
-										"stale-side",
 										"manual-action-required",
 										"inspection-failed",
 										"capsule-unavailable",
@@ -202,7 +201,6 @@
 											"enum": [
 												"agent-unavailable",
 												"conflict",
-												"stale-side",
 												"manual-action-required",
 												"inspection-failed",
 												"capsule-unavailable",
@@ -300,15 +298,7 @@
 					"enum": ["managed-local", "manual-only"]
 				},
 				"state": {
-					"enum": [
-						"conflict",
-						"disabled",
-						"enabled",
-						"not-installed",
-						"stale-side",
-						"update-required",
-						"unknown"
-					]
+					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
 				},
 				"issue": {
 					"enum": [
@@ -396,15 +386,7 @@
 					"enum": ["managed-local", "manual-only"]
 				},
 				"state": {
-					"enum": [
-						"conflict",
-						"disabled",
-						"enabled",
-						"not-installed",
-						"stale-side",
-						"update-required",
-						"unknown"
-					]
+					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
 				},
 				"issue": {
 					"enum": [

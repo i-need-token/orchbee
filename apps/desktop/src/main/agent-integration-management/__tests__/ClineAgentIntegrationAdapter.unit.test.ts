@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -78,41 +78,6 @@ describe('ClineAgentIntegrationAdapter', () => {
 				'// user-owned',
 				'utf8',
 			);
-			const adapter = new ClineAgentIntegrationAdapter({
-				commandRunner: new RecordingRunner(),
-				homeDirectory,
-				managementMode: 'managed-local',
-				resourceRoot,
-			});
-			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'conflict' });
-			await expect(adapter.enable()).resolves.toEqual({ kind: 'conflict' });
-		} finally {
-			await rm(root, { force: true, recursive: true });
-		}
-	});
-
-	it('classifies an older owned contract as update-required and replaces it only on enable', async () => {
-		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-cline-integration-'));
-		try {
-			const homeDirectory = path.join(root, 'home');
-			const resourceRoot = path.join(root, 'resources');
-			await writeManagedPackage(path.join(resourceRoot, 'bundle'));
-			const installedPackage = path.join(
-				homeDirectory,
-				'.cline',
-				'plugins',
-				'_installed',
-				'local',
-				'bundle-old',
-				'package',
-			);
-			await writeManagedPackage(installedPackage, 1);
-			await mkdir(path.join(installedPackage, 'cline'), { recursive: true });
-			await writeFile(
-				path.join(installedPackage, 'cline', 'orchbee-agent-observation.js'),
-				'export default {};',
-				'utf8',
-			);
 			const runner = new RecordingRunner();
 			const adapter = new ClineAgentIntegrationAdapter({
 				commandRunner: runner,
@@ -120,18 +85,82 @@ describe('ClineAgentIntegrationAdapter', () => {
 				managementMode: 'managed-local',
 				resourceRoot,
 			});
-
-			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
+			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'conflict' });
+			await expect(adapter.enable()).resolves.toEqual({ kind: 'conflict' });
+			await rm(path.join(pluginRoot, 'orchbee-agent-observation.js'));
+			const installedPackage = path.join(
+				pluginRoot,
+				'_installed',
+				'local',
+				'bundle-old',
+				'package',
+			);
+			await mkdir(path.join(installedPackage, 'cline'), { recursive: true });
+			await writeFile(
+				path.join(installedPackage, 'cline', 'orchbee-agent-observation.js'),
+				'// owned',
+			);
+			const external = path.join(root, 'external-package');
+			await writeManagedPackage(external, 3);
+			await symlink(
+				path.join(external, 'package.json'),
+				path.join(installedPackage, 'package.json'),
+			);
+			const before = await readFile(path.join(external, 'package.json'));
+			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'conflict' });
+			await expect(adapter.enable()).resolves.toEqual({ kind: 'conflict' });
+			await expect(adapter.disable()).resolves.toEqual({ kind: 'conflict' });
+			expect(await readFile(path.join(external, 'package.json'))).toEqual(before);
 			expect(runner.commands).toEqual([]);
-			await expect(adapter.enable()).resolves.toEqual({ kind: 'attempted' });
-			expect(runner.commands).toEqual([
-				['plugin', 'uninstall', 'orchbee-agent-observation', '--json'],
-				['plugin', 'install', path.join(resourceRoot, 'bundle'), '--json'],
-			]);
 		} finally {
 			await rm(root, { force: true, recursive: true });
 		}
 	});
+
+	it.each([2, 3, 4])(
+		'reinstalls a non-current owned contract %i only on explicit enable',
+		async (contractVersion) => {
+			const root = await mkdtemp(path.join(tmpdir(), 'orchbee-cline-integration-'));
+			try {
+				const homeDirectory = path.join(root, 'home');
+				const resourceRoot = path.join(root, 'resources');
+				await writeManagedPackage(path.join(resourceRoot, 'bundle'));
+				const installedPackage = path.join(
+					homeDirectory,
+					'.cline',
+					'plugins',
+					'_installed',
+					'local',
+					'bundle-old',
+					'package',
+				);
+				await writeManagedPackage(installedPackage, contractVersion);
+				await mkdir(path.join(installedPackage, 'cline'), { recursive: true });
+				await writeFile(
+					path.join(installedPackage, 'cline', 'orchbee-agent-observation.js'),
+					'export default {};',
+					'utf8',
+				);
+				const runner = new RecordingRunner();
+				const adapter = new ClineAgentIntegrationAdapter({
+					commandRunner: runner,
+					homeDirectory,
+					managementMode: 'managed-local',
+					resourceRoot,
+				});
+
+				await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
+				expect(runner.commands).toEqual([]);
+				await expect(adapter.enable()).resolves.toEqual({ kind: 'attempted' });
+				expect(runner.commands).toEqual([
+					['plugin', 'uninstall', 'orchbee-agent-observation', '--json'],
+					['plugin', 'install', path.join(resourceRoot, 'bundle'), '--json'],
+				]);
+			} finally {
+				await rm(root, { force: true, recursive: true });
+			}
+		},
+	);
 });
 
 async function writeManagedPackage(packageRoot: string, contractVersion = 1): Promise<void> {

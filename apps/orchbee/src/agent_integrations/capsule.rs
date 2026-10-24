@@ -1,6 +1,6 @@
 //! The content-addressed adapter payload capsule — a Rust port of
 //! `apps/desktop/src/main/agent-integration-management/
-//! file-agent-observation-adapter-capsule.ts`. Digest parity is contractual:
+//! FileAgentObservationAdapterCapsule.ts`. Digest parity is contractual:
 //! the canonical sha256 is computed over `JSON.stringify` of the sorted
 //! payload entry array with the exact member order `{kind,path,sha256,size}`
 //! for files and `{kind,path}` for directories, so the field order and the

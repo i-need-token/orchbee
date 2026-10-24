@@ -568,7 +568,7 @@ fn guarded_marker_parse() {
             r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":{version},"files":[{files}]}}"#
         )
     };
-    // Valid marker — numeric `3.0` accepted like JS `=== 3`.
+    // Valid marker — numeric `1.0` accepted like JS `=== 1`.
     let valid_sha = "a".repeat(64);
     let MarkerParse::Valid {
         contract_version,
@@ -586,11 +586,14 @@ fn guarded_marker_parse() {
     };
     assert_eq!(contract_version, 1);
     assert_eq!(files.len(), 1);
-    // A newer contract version reports the declared number — the doctor
-    // build is the stale side, never "broken".
+    // A non-current marker remains inspectable; the filesystem probe must
+    // still verify its ownership and every declared file fingerprint.
     assert_eq!(
         probes::parse_guarded_marker(&marker("4", "").into_bytes(), "gemini"),
-        MarkerParse::UnrecognizedVersion(4)
+        MarkerParse::Valid {
+            contract_version: 4,
+            files: vec![]
+        }
     );
     // Wrong integration id → name-mismatch.
     assert_eq!(
@@ -649,16 +652,20 @@ fn guarded_probe_through_filesystem() {
     let payload = b"payload-bytes";
     std::fs::write(target.join("index.js"), payload).expect("write payload");
     let sha = probes::hex_digest(payload);
-    let marker = format!(
-        r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":1,"files":[{{"path":"index.js","sha256":"{sha}"}}]}}"#
-    );
-    std::fs::write(target.join(probes::GUARDED_MARKER_NAME), marker).expect("write marker");
-    let mut budget = Budget::new();
-    let probe = probe_guarded(provider("gemini"), &home, &mut budget);
-    assert_eq!(
-        verdict(&probe),
-        (HookState::Present, HookReason::MarkerConsistent)
-    );
+    for contract_version in [1, 2, 3, 4] {
+        let marker = format!(
+            r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":{contract_version},"files":[{{"path":"index.js","sha256":"{sha}"}}]}}"#
+        );
+        std::fs::write(target.join(probes::GUARDED_MARKER_NAME), marker).expect("write marker");
+        let mut budget = Budget::new();
+        let probe = probe_guarded(provider("gemini"), &home, &mut budget);
+        let expected = if contract_version == 1 {
+            (HookState::Present, HookReason::MarkerConsistent)
+        } else {
+            (HookState::UpdateRequired, HookReason::MarkerMismatch)
+        };
+        assert_eq!(verdict(&probe), expected);
+    }
     // Marker declaring a payload that differs → contradiction.
     std::fs::write(target.join("index.js"), b"different").expect("rewrite payload");
     let mut budget = Budget::new();
@@ -692,11 +699,11 @@ fn cline_package_versions() {
     );
     assert_eq!(
         probes::parse_cline_package(&package("orchbee-agent-observation", "2").into_bytes()),
-        ClinePackage::UnrecognizedVersion
+        ClinePackage::UpdateRequired
     );
     assert_eq!(
         probes::parse_cline_package(&package("orchbee-agent-observation", "4").into_bytes()),
-        ClinePackage::UnrecognizedVersion
+        ClinePackage::UpdateRequired
     );
     for bytes in [
         b"{}".as_slice(),
@@ -715,6 +722,33 @@ fn cline_package_versions() {
             "{bytes:?}"
         );
     }
+    let home = scratch("cline-owned");
+    let installed = home.join(".cline/plugins/_installed/local/owned/package");
+    std::fs::create_dir_all(installed.join("cline")).unwrap();
+    std::fs::write(installed.join(probes::CLINE_ENTRY_PATH), b"// owned").unwrap();
+    for contract_version in [1, 2, 3, 4] {
+        std::fs::write(
+            installed.join("package.json"),
+            package("orchbee-agent-observation", &contract_version.to_string()),
+        )
+        .unwrap();
+        let mut budget = Budget::new();
+        let probe = probe_cline(provider("cline"), &home, &mut budget);
+        let expected = if contract_version == 1 {
+            (HookState::Present, HookReason::MarkerConsistent)
+        } else {
+            (HookState::UpdateRequired, HookReason::MarkerMismatch)
+        };
+        assert_eq!(verdict(&probe), expected);
+    }
+    let external = home.join("external-package");
+    std::fs::rename(&installed, &external).unwrap();
+    std::os::unix::fs::symlink(&external, &installed).unwrap();
+    let mut budget = Budget::new();
+    assert_eq!(
+        verdict(&probe_cline(provider("cline"), &home, &mut budget)),
+        (HookState::Unknown, HookReason::SymlinkUninspected)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -768,26 +802,30 @@ fn capsule_manifest_shape_and_version() {
         format!(r#"{{"contractVersion":{contract},"payloadSha256":"{sha}"}}"#)
     };
     let scan = probes::scan_capsule_manifest(manifest(1, &digest).as_bytes()).unwrap();
-    assert!(scan.valid_shape && !scan.version_mismatch);
+    assert!(scan.inspectable_identity && scan.current);
     assert_eq!(
         scan.declared_payload_sha256.as_deref(),
         Some(digest.as_str())
     );
     let scan = probes::scan_capsule_manifest(manifest(2, &digest).as_bytes()).unwrap();
-    assert!(scan.version_mismatch && !scan.valid_shape);
+    assert!(scan.inspectable_identity && !scan.current);
     for bytes in [
         br#"{"contractVersion":1}"#.as_slice(),
         br#"{"contractVersion":1,"payloadSha256":"bad","extra":true}"#.as_slice(),
     ] {
         let scan = probes::scan_capsule_manifest(bytes).unwrap();
-        assert!(!scan.valid_shape && !scan.version_mismatch);
+        assert!(!scan.inspectable_identity && !scan.current);
     }
     assert!(
         !probes::scan_capsule_manifest(manifest(1, "not-hex").as_bytes())
             .unwrap()
-            .valid_shape
+            .inspectable_identity
     );
     assert!(probes::scan_capsule_manifest(b"[1,2]").is_none());
+    let metadata =
+        serde_json::json!({"contractVersion": 1, "payloadSha256": digest, "retired": true});
+    let scan = probes::scan_capsule_manifest(metadata.to_string().as_bytes()).unwrap();
+    assert!(scan.inspectable_identity && !scan.current);
 }
 
 #[test]
@@ -842,11 +880,61 @@ fn supplied_root_probe_states() {
     let mut budget = Budget::new();
     let outcome = probe_root(root.as_os_str().as_bytes(), &mut budget);
     assert_eq!(outcome.state, RootState::Consistent);
+    // Non-current metadata requires both matching bytes and recognizable
+    // Orchbee payload ownership before a reinstall can be suggested.
+    std::fs::create_dir_all(root.join("bundle/scripts")).unwrap();
+    std::fs::write(
+        root.join("bundle/package.json"),
+        br#"{"name":"orchbee-agent-observation","orchbeeAgentObservation":{"contractVersion":3}}"#,
+    )
+    .unwrap();
+    for file in [
+        "forward-hook.mjs",
+        "hook-sanitizers.mjs",
+        "observation-transport.mjs",
+    ] {
+        std::fs::write(root.join("bundle/scripts").join(file), b"// owned").unwrap();
+    }
+    let mut budget = Budget::new();
+    let CapsuleWalk::Entries(mut entries) = fs::capsule_walk(&root, &mut budget) else {
+        panic!("owned capsule must walk")
+    };
+    let digest = probes::capsule_payload_digest(&mut entries);
+    for contract_version in [2, 3, 4] {
+        let manifest = serde_json::json!({"contractVersion": contract_version, "payloadSha256": digest, "retired": true});
+        std::fs::write(
+            root.join(probes::CAPSULE_MANIFEST_NAME),
+            manifest.to_string(),
+        )
+        .unwrap();
+        let mut budget = Budget::new();
+        assert_eq!(
+            probe_root(root.as_os_str().as_bytes(), &mut budget).state,
+            RootState::UpdateRequired
+        );
+    }
     // A tampered payload → inconsistent (proven contradiction).
     std::fs::write(root.join("payload.bin"), b"tampered").expect("tamper");
     let mut budget = Budget::new();
     let outcome = probe_root(root.as_os_str().as_bytes(), &mut budget);
     assert_eq!(outcome.state, RootState::Inconsistent);
+    // Even a refreshed, self-consistent digest does not establish foreign ownership.
+    std::fs::write(root.join("bundle/package.json"), br#"{"name":"foreign"}"#).unwrap();
+    let mut budget = Budget::new();
+    let CapsuleWalk::Entries(mut entries) = fs::capsule_walk(&root, &mut budget) else {
+        panic!("foreign capsule must walk")
+    };
+    let manifest = serde_json::json!({"contractVersion": 3, "payloadSha256": probes::capsule_payload_digest(&mut entries)});
+    std::fs::write(
+        root.join(probes::CAPSULE_MANIFEST_NAME),
+        manifest.to_string(),
+    )
+    .unwrap();
+    let mut budget = Budget::new();
+    assert_eq!(
+        probe_root(root.as_os_str().as_bytes(), &mut budget).state,
+        RootState::Inconsistent
+    );
     // Missing root → absent.
     let mut budget = Budget::new();
     let outcome = probe_root(b"/definitely/not/present", &mut budget);
@@ -936,7 +1024,6 @@ fn emitted_vocabularies_are_closed() {
         "symlink-uninspected",
         "budget-exhausted",
         "not-inspected",
-        "contract-version-unrecognized",
         "recorded-root-uninspectable",
     ];
     let mut emitted: Vec<&str> = Vec::new();
@@ -965,7 +1052,6 @@ fn emitted_vocabularies_are_closed() {
         HookReason::SymlinkUninspected,
         HookReason::BudgetExhausted,
         HookReason::NotInspected,
-        HookReason::ContractVersionUnrecognized,
         HookReason::RecordedRootUninspectable,
     ] {
         emitted.push(variant.as_str());

@@ -11,7 +11,7 @@ for ownership, payload identity, plans, receipts, and residuals.
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem        | Windows users need to install, inspect, and remove the observation integration from the same CLI that launches their terminals.                                                                                                                                                                               |
 | Inputs         | Provider ID, optional capsule source, native user profile, PATH, and Codex configuration root are untrusted paths. Empty CODEX_HOME uses the profile default; an invalid nonempty override never falls back.                                                                                                  |
-| Data and owner | The provider owns its configuration. Orchbee owns only its content-addressed capsule and explicitly marked integration entries. Foreign or newer entries remain untouched.                                                                                                                                    |
+| Data and owner | The provider owns its configuration. Orchbee owns only its content-addressed capsule and explicitly marked integration entries. Foreign, modified or uninspectable entries remain untouched.                                                                                                                  |
 | Outputs        | Existing integration snapshots, plans, mutation receipts, typed refusals, and retained residual paths. Provider exit alone does not invent an inspected state.                                                                                                                                                |
 | Workflow       | Admit platform and budget → prepare the capsule for enable → inspect provider ownership → run the provider vector → report observation or uncertainty. Cancellation stops subsequent effects and terminates the owned command tree.                                                                           |
 | Publication    | Stage beside the target; copy regular entries only; validate the capsule; publish using atomic no-replace MoveFile. An occupied destination is a conflict. Backups use the same primitive.                                                                                                                    |
@@ -61,15 +61,15 @@ action remains outside this cooperative teardown claim.
 
 ## Maintenance filtering
 
-Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflict and newer entries are not replaced.
+Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflicting and uninspectable entries are not replaced.
 
-Filtered lists use v4 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflict/newer entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v3. Both current versions admit all 20 canonical providers; v1/v2 retain their original collection and inspection bounds. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
+Filtered lists use v6 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflicting entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v5. Both current versions admit all 20 canonical providers; v1/v2 retain their original collection and inspection bounds. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
 
 ## Claude exec hooks
 
 Claude Code is also managed on Windows with the current capsule. Its hook declaration uses the provider's `command` plus `args` exec form: Node receives the plugin script path as a literal argument, including spaces, apostrophes, Unicode, dollar signs and backticks. A fixed dynamic-import guard ignores a removed script; the existing bounded sanitizer and Windows pipe/console transport remain the only observation path. No Bash or PowerShell launcher is required. Node must remain on the provider PATH; if it is absent, Claude reports its non-blocking spawn diagnostic, and no observation is produced. This replaces the old Claude-only promise of silent success without Node. Other providers retain their own launch contracts. The [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) defines argument substitution.
 
-Enable, disable and repair reuse the existing user-scoped plugin commands and bounded Windows process owner. Old owned capsules require explicit repair; current enabled entries are no-ops, and foreign/newer entries remain refused. Isolated provider-command and shipped-hook witnesses cover onboarding and sanitized delivery. They do not establish authenticated Claude task completion. The shared portable hook declaration changes, but this work adds no macOS/Linux workflow or runtime validation.
+Enable, disable and repair reuse the existing user-scoped plugin commands and bounded Windows process owner. Old owned capsules require explicit repair; current enabled entries are no-ops, and foreign or modified entries remain refused. Isolated provider-command and shipped-hook witnesses cover onboarding and sanitized delivery. They do not establish authenticated Claude task completion. The shared portable hook declaration changes, but this work adds no macOS/Linux workflow or runtime validation.
 
 ## Copilot command compatibility
 
@@ -102,9 +102,9 @@ The capsule supplies Grok's command-only hook as a fixed Node bootstrap encoded 
 
 Windows installs the guarded OpenCode bootstrap as `plugins/orchbee-agent-observation.js`. The provider's directory loader scans .js/.ts, so direct Node loading of the previous .mjs target did not establish automatic discovery. The capsule source stays .mjs. A shared Windows path owner resolves nonempty absolute XDG_CONFIG_HOME/opencode, otherwise USERPROFILE/.config/opencode, for integration and doctor. Invalid explicit roots never fall back.
 
-Inspection combines the current .js and obsolete .mjs targets. Foreign, newer or unreadable entries block mutation; an owned obsolete entry requires repair. Enable publishes/verifies the current entry before reinspecting and removing the obsolete owned entry. Failure or cancellation preserves committed effects and reports their receipts; it never deletes a usable current entry as compensation. Disable applies the same guards to both targets. Explain reports the guarded write/removal from its existing inspection, without another read. Doctor checks the discovered .js entry; old-only installations are absent there and require repair in the integration query. Existing bounds and no-replace primitives remain. An isolated official OpenCode 1.18.30 debug-config witness confirms automatic discovery; authentication and paid Agent tasks are outside this evidence.
+Inspection combines the current .js and obsolete .mjs targets. Foreign, modified or unreadable entries block mutation; an owned obsolete entry requires repair. Enable publishes/verifies the current entry before reinspecting and removing the obsolete owned entry. Failure or cancellation preserves committed effects and reports their receipts; it never deletes a usable current entry as compensation. Disable applies the same guards to both targets. Explain reports the guarded write/removal from its existing inspection, without another read. Doctor checks the discovered .js entry; old-only installations are absent there and require repair in the integration query. Existing bounds and no-replace primitives remain. An isolated official OpenCode 1.18.30 debug-config witness confirms automatic discovery; authentication and paid Agent tasks are outside this evidence.
 
-Windows regular-module inspection validates the entire fixed bootstrap against its decoded absolute file URL, then classifies the exact capsule root and payload-relative suffix. Old owned modules can be repaired; unrecognized entry contracts refuse replacement; edited bodies and foreign roots remain conflicts. The 16 KiB reader never imports the referenced module. This applies to the existing OpenCode, Kilo, Pi and OMP module owner; Unix inspection is unchanged.
+Windows regular-module inspection validates the entire fixed bootstrap against its decoded absolute file URL, then classifies the exact capsule root and payload-relative suffix. Old owned modules can be repaired; malformed or unverifiable entries refuse replacement; edited bodies and foreign roots remain conflicts. The 16 KiB reader never imports the referenced module. This applies to the existing OpenCode, Kilo, Pi and OMP module owner; Unix inspection is unchanged.
 
 ## Kilo Windows integration and shared event model
 
@@ -120,7 +120,7 @@ References: [Kilo plugin API](https://github.com/Kilo-Org/kilocode/blob/cb67014f
 
 Windows manages self-contained Gemini and Qwen extension directories using the existing guarded publication and removal workflow. Gemini resolves an absolute nonempty GEMINI_CLI_HOME as a home parent and installs under .gemini/extensions/orchbee-agent-observation; Qwen resolves QWEN_HOME as the configuration root and installs under extensions/orchbee-agent-observation. Missing overrides use USERPROFILE/.gemini and USERPROFILE/.qwen respectively. Invalid explicit roots refuse without fallback. Doctor shares these paths. Global/project activation policies and already-running sessions remain provider-owned; the local artifact state does not establish effective delivery.
 
-After proving the directory marker and complete file fingerprint, Windows also requires the exact extension name and declared provider version metadata. Unrecognized entry contracts remain refused; missing metadata is unknown and modified or foreign content conflicts. Existing cancellation, backup restoration, committed-prefix receipts and residual ownership remain. Enable copies the source and shared scripts into one self-contained directory; disable removes only a reverified owned directory.
+After proving the directory marker and complete file fingerprint, Windows also requires the exact extension name and declared provider version metadata. Positive non-current owned contracts require reinstall; missing metadata is unknown and modified or foreign content conflicts. Existing cancellation, backup restoration, committed-prefix receipts and residual ownership remain. Enable copies the source and shared scripts into one self-contained directory; disable removes only a reverified owned directory.
 
 The capsule uses a fixed Node command that reads the provider-hydrated ORCHBEE_AGENT_EXTENSION_ROOT environment value. User paths never enter shell source. Gemini recursively hydrates its hooks/hooks.json; Qwen recursively hydrates inline hooks in qwen-extension.json, so Qwen has no duplicate external hooks file. The guard imports the joined forward-hook.mjs, preserving existing input bounds and event semantics. Node is required; missing roots/scripts or invalid input are silent. Source contracts are [Gemini extension loading](https://github.com/google-gemini/gemini-cli/blob/20f707577424c0c60cde3470b1495f228773e307/packages/cli/src/config/extension-manager.ts) and [Qwen extension loading](https://github.com/QwenLM/qwen-code/blob/c3a4058a0c7207de7b421e9da0622a9ec890dbad/packages/core/src/extension/extensionManager.ts). Controlled PowerShell 5.1/7 and cmd witnesses exercise the shipped commands with raw JSON stdin and a private Windows observation pipe; no authenticated provider task is implied.
 
@@ -158,8 +158,7 @@ launcher plus single `PreInvocation` handler must prove ownership. Other named b
 raw JSON; commands copied under another name are not owned. Optional boolean `enabled` defaults to
 true. Explicit false reports disabled; malformed flags or edited owned content refuse mutation.
 Enable writes the current enabled block; disable removes an active owned block. An already-disabled
-block retains the existing no-op behavior. Source/version guards still prevent foreign replacement
-or downgrade. Doctor reports the disabled fact with the separately inspected capsule root.
+block retains the existing no-op behavior. Source ownership guards still prevent replacement of foreign or modified entries. Doctor reports the disabled fact with the separately inspected capsule root.
 
 The encoded PowerShell command returns `{}` and observes only valid `conversationId` as
 `session-identified`; a supplied event name must be `PreInvocation`. It never forwards transcript
@@ -171,7 +170,7 @@ and [native installation](https://antigravity.google/docs/cli/install/).
 
 ## Cursor Windows JSON hooks
 
-Windows JSON hook onboarding owns only its exact generated command entries. It preserves unrelated raw JSON values, rejects duplicate members in edited objects, and refuses malformed, changed, foreign or newer entries. Cursor uses version-1 `hooks.json` in nonempty absolute CURSOR_CONFIG_DIR, otherwise USERPROFILE/.cursor; its adapter reports session identity only. The fixed PowerShell EncodedCommand launcher decodes the capsule path as data, invokes the bounded Node observation runtime and returns an empty JSON object. It cannot approve or modify Agent work.
+Windows JSON hook onboarding owns only its exact generated command entries. It preserves unrelated raw JSON values, rejects duplicate members in edited objects, and refuses malformed, changed or foreign entries. Cursor uses version-1 `hooks.json` in nonempty absolute CURSOR_CONFIG_DIR, otherwise USERPROFILE/.cursor; its adapter reports session identity only. The fixed PowerShell EncodedCommand launcher decodes the capsule path as data, invokes the bounded Node observation runtime and returns an empty JSON object. It cannot approve or modify Agent work.
 
 Configuration replacement compares the original bytes before and after moving them aside, publishes without replacing an arrival, verifies the result and removes only the unchanged backup. Read handles deny in-place writes during this frontier. Cancellation, deadline or conflict keeps unrestored backups and uncertain stages in the mutation receipt. This optimistic workflow is not global filesystem CAS or crash-atomic replacement: the target may briefly be absent, and an abrupt process loss can leave sibling recovery files. It does not protect against a malicious same-user rename/delete actor. User configuration policies remain provider-owned.
 
@@ -212,7 +211,7 @@ The configuration owner manages exactly two `[[hooks]]` rules: `SessionStart` an
 `SessionEnd`, each with only event, fixed encoded command and timeout 10 seconds.
 Inline hook arrays are also supported. Full command round-trip, exact fields and
 one common capsule root prove ownership. Missing owned rules require repair;
-duplicated, modified, misplaced, mixed-root, foreign or newer entries refuse.
+duplicated, modified, misplaced, mixed-root or foreign entries refuse.
 Other rules and settings retain their TOML values, comments and formatting through
 a syntax-preserving editor. Newline spelling can normalize. The existing bounded
 Windows publication, metadata preservation, recovery and residual rules apply to
@@ -285,7 +284,7 @@ Windows manages six exact command groups: SessionStart, UserPromptSubmit,
 PreToolUse, PostToolUse, PermissionRequest and Stop. Each uses timeout 10 seconds
 and the fixed encoded launcher returning `{}` without a decision or context.
 The complete set must reference one owned capsule root. Missing entries require
-repair; duplicate, modified, misplaced, mixed-root, foreign and newer entries
+repair; duplicate, modified, misplaced, mixed-root or foreign entries
 refuse. Other settings/groups retain their raw values. The existing multi-event
 owner now serves Mastracode's flat map and Devin's nested groups; publication,
 metadata preservation, cancellation and recovery rules remain shared.
@@ -320,8 +319,8 @@ HERMES_HOME, so inspection and activation select the same profile.
 
 Orchbee owns only plugins/orchbee-agent-observation/**init**.py and plugin.yaml.
 The manifest is JSON, a YAML subset; each entire generated file proves its capsule
-root. Foreign/edited/newer members refuse. One missing member or independently
-proven old/current members require repair, including interrupted two-file updates.
+root. Foreign or edited members refuse. One missing member or independently
+proven outdated/current identities require repair, including interrupted two-file updates.
 Enable publishes the entry then manifest through the shared bounded Windows file
 publication primitive, preserving metadata and recoverable preimages. It then
 runs Hermes's own plugins enable command and verifies plugins list --json. Disable
@@ -351,6 +350,6 @@ and [native Windows](https://hermes-agent.nousresearch.com/docs/user-guide/windo
 
 The Capsule contract is 1 and its identity is `payloadSha256`, with the exact manifest and canonical digest rules in the [adapter guide](../../desktop/resources/agent-observation-adapters/README.md#packaged-payload-identity). CLI capsule objects expose that digest; the directory is `~/.orchbee/agent-observation-adapters/<payloadSha256>`. No semver ceiling, special legacy root or automatic migration is retained. Any final payload-byte change produces a different identity, including documentation and formatting.
 
-Doctor checks installed bytes against their own manifest and the current sidecar identity. A self-consistent older identity is `update-required`, while corruption, contract mismatch and unreadable paths retain their distinct outcomes. Explicit repair uses `orchbee agent integration enable --provider codex` (select the provider). Conflicting or uninspectable entries still require manual review. Existing directories remain untouched; disable follows the existing provider-entry removal rules. Rollback selects a complete retained cohort.
+Doctor checks installed bytes against their own manifest and the current sidecar identity. A self-consistent older identity is `update-required`. Non-current capsule metadata also requires reinstall only after verifying the actual digest, required runtime files and named Orchbee package marker. Corrupt, unsafe or unreadable inputs retain their protected outcomes; this read-only diagnosis never admits a non-current source as ready. Explicit repair uses `orchbee agent integration enable --provider codex` (select the provider). Conflicting or uninspectable entries still require manual review. Existing directories remain untouched; disable follows the existing provider-entry removal rules. Rollback selects a complete retained cohort.
 
 The Windows public doctor witness copies the executable, current sidecar and installed tree into an isolated profile, changes runtime and documentation bytes, refreshes the source manifest with Desktop's digest implementation, and checks for the update state and localized reinstall command without modifying the installed tree. The Unicode digest vector distinguishes UTF-16 path order from UTF-8 byte order.

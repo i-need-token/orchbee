@@ -2,7 +2,7 @@
 //! `agent-integration-state-parsers.ts`, `CodexAgentIntegrationAdapter.ts`,
 //! `ClineAgentIntegrationAdapter.ts`, and `GuardedLocalAgentIntegrationAdapter.ts`.
 //! Resource identity is a payload digest, with no ordering between siblings.
-//! Unrecognized owned entry contracts retain the CLI's `stale-side` refusal.
+//! Safely verified non-current owned contracts require explicit reinstall.
 
 use std::{
     fs,
@@ -707,8 +707,7 @@ fn io_invalid(message: &'static str) -> std::io::Error {
 }
 
 /// cline — `~/.cline/plugins` scan: direct-name conflicts, then
-/// `_installed/local/*/package` markers. Canonical's
-/// current contract and unrecognized owned contracts are distinct.
+/// `_installed/local/*/package` ownership markers.
 pub(crate) fn inspect_cline(home: &Path) -> State {
     let plugin_root = home.join(".cline").join("plugins");
     for direct_name in [
@@ -717,7 +716,7 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
         CLINE_PLUGIN_NAME.to_owned(),
     ] {
         match path_state(&plugin_root.join(&direct_name)) {
-            PathState::Present => return State::Conflict,
+            PathState::Present | PathState::Symlink => return State::Conflict,
             PathState::Unknown => return State::Unknown,
             PathState::Missing => {}
         }
@@ -738,7 +737,7 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
         return State::Unknown;
     }
     let mut exact = 0usize;
-    let mut newer = 0usize;
+    let mut outdated = 0usize;
     for entry in entries {
         if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
             continue;
@@ -747,19 +746,20 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
         match path_state(&candidate_root.join("cline/orchbee-agent-observation.js")) {
             PathState::Missing => continue,
             PathState::Unknown => return State::Unknown,
+            PathState::Symlink => return State::Conflict,
             PathState::Present => {}
         }
         match cline_package_state(&candidate_root) {
             ClinePackage::Conflict => return State::Conflict,
-            ClinePackage::Newer => newer += 1,
+            ClinePackage::UpdateRequired => outdated += 1,
             ClinePackage::Current => exact += 1,
         }
     }
-    if exact + newer > 1 {
+    if exact + outdated > 1 {
         return State::Conflict;
     }
-    if newer == 1 {
-        return State::StaleSide;
+    if outdated == 1 {
+        return State::UpdateRequired;
     }
     if exact == 1 {
         State::Enabled
@@ -771,16 +771,19 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
 pub(crate) enum ClinePackage {
     Conflict,
     Current,
-    Newer,
+    UpdateRequired,
 }
 
 /// The installed `package/package.json` contract: name must be the plugin
-/// name; `orchbeeAgentObservation.contractVersion`==1 current, a larger
-/// positive integer stale-side, otherwise conflict. Also used on the
+/// name; `orchbeeAgentObservation.contractVersion`==1 current, another
+/// positive safe integer requires reinstall, otherwise conflict. Also used on the
 /// capsule's `bundle/package.json` as the source-readiness check.
 pub(crate) fn cline_package_state(package_root: &Path) -> ClinePackage {
+    if !fs::symlink_metadata(package_root).is_ok_and(|metadata| metadata.is_dir()) {
+        return ClinePackage::Conflict;
+    }
     let Some(value) =
-        read_json_record_follow(&package_root.join("package.json"), MAX_CLINE_MANIFEST_BYTES)
+        read_json_record(&package_root.join("package.json"), MAX_CLINE_MANIFEST_BYTES)
     else {
         return ClinePackage::Conflict;
     };
@@ -788,15 +791,12 @@ pub(crate) fn cline_package_state(package_root: &Path) -> ClinePackage {
         return ClinePackage::Conflict;
     }
     let marker = value.get("orchbeeAgentObservation");
-    let contract = marker.and_then(|marker| marker.get("contractVersion"));
+    let contract = marker
+        .and_then(|marker| marker.get("contractVersion"))
+        .and_then(parse_contract_version);
     match contract {
-        Some(Value::Number(version)) if version.as_u64() == Some(CLINE_CONTRACT_VERSION) => {
-            ClinePackage::Current
-        }
-        Some(Value::Number(version)) => match version.as_u64() {
-            Some(v) if v > CLINE_CONTRACT_VERSION => ClinePackage::Newer,
-            _ => ClinePackage::Conflict,
-        },
+        Some(CLINE_CONTRACT_VERSION) => ClinePackage::Current,
+        Some(_) => ClinePackage::UpdateRequired,
         _ => ClinePackage::Conflict,
     }
 }
@@ -804,30 +804,20 @@ pub(crate) fn cline_package_state(package_root: &Path) -> ClinePackage {
 enum PathState {
     Missing,
     Present,
+    Symlink,
     Unknown,
 }
 
 fn path_state(path: &Path) -> PathState {
     match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => PathState::Symlink,
         Ok(_) => PathState::Present,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => PathState::Missing,
         Err(_) => PathState::Unknown,
     }
 }
 
-/// Canonical `readJsonRecord` — open+stat (follows symlinks), bounded, object
-/// JSON only.
-fn read_json_record_follow(path: &Path, maximum: u64) -> Option<Value> {
-    match bounded_file_follow(path, maximum) {
-        Ok(Some(bytes)) => match serde_json::from_slice::<Value>(&bytes).ok()? {
-            Value::Object(_) => serde_json::from_slice::<Value>(&bytes).ok(),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-/// The lstat-disciplined variant for guarded markers — a symlinked marker is
+/// The lstat-disciplined read for ownership markers — a symlinked marker is
 /// foreign content, not a readable record.
 fn read_json_record(path: &Path, maximum: u64) -> Option<Value> {
     match bounded_file(path, maximum) {
@@ -839,14 +829,12 @@ fn read_json_record(path: &Path, maximum: u64) -> Option<Value> {
     }
 }
 
-/// Guarded-entry target states (the canonical `TargetState` vocabulary plus
-/// the newer-sibling member).
+/// Guarded-entry target states after ownership inspection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TargetState {
     Conflict,
     Current,
     Missing,
-    Newer,
     Unknown,
     UpdateRequired,
 }
@@ -857,7 +845,6 @@ impl TargetState {
             Self::Conflict => "conflict",
             Self::Current => "current",
             Self::Missing => "missing",
-            Self::Newer => "newer",
             Self::Unknown => "unknown",
             Self::UpdateRequired => "update-required",
         }
@@ -1038,9 +1025,8 @@ fn resource_root_for_source(source_path: &Path, relative_source: &Path) -> Optio
 
 /// The extension-directory marker check: `.orchbee-agent-observation.json`
 /// pins the entry to this integration id plus a sorted file-digest list.
-/// Registered divergence: canonical rejects contractVersion>1 at marker
-/// parse (→ conflict); the CLI keeps the parsed marker so a newer owned
-/// contract classifies `newer`/`stale-side` instead of unverifiable.
+/// A non-current contract requires reinstall only after the marker's ownership
+/// and every actual file fingerprint agree.
 pub(crate) fn inspect_owned_directory(root: &Path, integration_id: IntegrationId) -> TargetState {
     let Some(value) = read_json_record(&root.join(DIRECTORY_MARKER_NAME), MAX_MARKER_BYTES) else {
         return TargetState::Conflict;
@@ -1057,7 +1043,7 @@ pub(crate) fn inspect_owned_directory(root: &Path, integration_id: IntegrationId
     if marker.contract_version == ENTRY_CONTRACT_VERSION {
         TargetState::Current
     } else {
-        TargetState::Newer
+        TargetState::UpdateRequired
     }
 }
 
@@ -1072,13 +1058,9 @@ fn parse_directory_marker(value: &Value, integration_id: IntegrationId) -> Optio
     {
         return None;
     }
-    // Canonical: `Number.isSafeInteger` + `1..=ENTRY_CONTRACT_VERSION`. The
-    // CLI keeps any positive integer so a NEWER owned contract classifies
-    // `newer` (stale-side) — never silently downgraded.
-    let contract_version = value.get("contractVersion").and_then(Value::as_u64)?;
-    if contract_version < 1 {
-        return None;
-    }
+    let contract_version = value
+        .get("contractVersion")
+        .and_then(parse_contract_version)?;
     let files = value.get("files")?.as_array()?;
     if files.len() > MAX_ENTRY_FILES {
         return None;
@@ -1101,6 +1083,12 @@ fn parse_directory_marker(value: &Value, integration_id: IntegrationId) -> Optio
         contract_version,
         files: parsed,
     })
+}
+
+fn parse_contract_version(value: &Value) -> Option<u64> {
+    let number = value.as_f64()?;
+    (number.fract() == 0.0 && (1.0..=9_007_199_254_740_991.0).contains(&number))
+        .then_some(number as u64)
 }
 
 pub(crate) fn fingerprint_directory(root: &Path) -> Option<Vec<(String, String)>> {

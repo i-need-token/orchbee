@@ -324,12 +324,6 @@
 				"contractVersion": 1
 			}
 		},
-		"cline.package.contract1": {
-			"name": "${PLUGIN_NAME}",
-			"orchbeeAgentObservation": {
-				"contractVersion": 1
-			}
-		},
 		"cline.package.contract4": {
 			"name": "${PLUGIN_NAME}",
 			"orchbeeAgentObservation": {
@@ -359,6 +353,12 @@
 		},
 		"guarded.bootstrap.opencode": "// orchbee-agent-observation-bootstrap-v1:opencode\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/opencode/orchbee-agent-observation.mjs\";\nexport async function OrchbeeAgentObservation(...arguments_) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\treturn typeof loaded.OrchbeeAgentObservation === 'function'\n\t\t\t? await loaded.OrchbeeAgentObservation(...arguments_)\n\t\t\t: {};\n\t} catch {\n\t\treturn {};\n\t}\n}\n",
 		"guarded.bootstrap.pi": "// orchbee-agent-observation-bootstrap-v1:pi\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/pi/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n",
-		"guarded.bootstrap.omp": "// orchbee-agent-observation-bootstrap-v1:omp\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/omp/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n"
+		"guarded.bootstrap.omp": "// orchbee-agent-observation-bootstrap-v1:omp\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/omp/orchbee-agent-observation.cjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n",
+		"cline.package.noncurrent": {
+			"name": "${PLUGIN_NAME}",
+			"orchbeeAgentObservation": {
+				"contractVersion": 3
+			}
+		}
 	}
 }

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { FileAgentObservationAdapterCapsule } from '../file-agent-observation-adapter-capsule';
+import { FileAgentObservationAdapterCapsule } from '../FileAgentObservationAdapterCapsule';
 
 describe('FileAgentObservationAdapterCapsule', () => {
 	let temporaryRoot: string | undefined;
@@ -83,12 +83,22 @@ describe('FileAgentObservationAdapterCapsule', () => {
 		await expect(lstat(rootPath)).rejects.toMatchObject({ code: 'ENOENT' });
 	});
 
-	it('rejects payload drift and extra entries against the embedded digest', async () => {
+	it('rejects non-current sources and installed payload drift', async () => {
 		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
 		const sourcePath = path.join(temporaryRoot, 'application-resources');
 		const payloadSha256 = await writeSourceCapsule(sourcePath);
 		const rootPath = path.join(temporaryRoot, 'user-data', payloadSha256);
 		const capsule = new FileAgentObservationAdapterCapsule({ rootPath, sourcePath });
+		for (const contractVersion of [2, 3, 4]) {
+			await writeFile(
+				path.join(sourcePath, 'capsule.json'),
+				JSON.stringify({ contractVersion, payloadSha256 }),
+			);
+			expect(FileAgentObservationAdapterCapsule.readPayloadIdentity(sourcePath)).toBeNull();
+			await expect(capsule.prepare()).resolves.toBe(false);
+			await expect(lstat(rootPath)).rejects.toMatchObject({ code: 'ENOENT' });
+		}
+		await writeCapsuleManifest(sourcePath);
 		await expect(capsule.prepare()).resolves.toBe(true);
 		await writeFile(path.join(rootPath, 'unexpected.txt'), 'drift\n');
 

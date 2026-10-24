@@ -357,15 +357,7 @@
 					"enum": ["managed-local", "manual-only"]
 				},
 				"state": {
-					"enum": [
-						"conflict",
-						"disabled",
-						"enabled",
-						"not-installed",
-						"stale-side",
-						"update-required",
-						"unknown"
-					]
+					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
 				},
 				"issue": {
 					"enum": [
@@ -442,15 +434,7 @@
 					"enum": ["managed-local", "manual-only"]
 				},
 				"state": {
-					"enum": [
-						"conflict",
-						"disabled",
-						"enabled",
-						"not-installed",
-						"stale-side",
-						"update-required",
-						"unknown"
-					]
+					"enum": ["conflict", "disabled", "enabled", "not-installed", "update-required", "unknown"]
 				},
 				"issue": {
 					"enum": [

@@ -318,5 +318,8 @@ bytes and uninspectable reads retain their distinct existing outcomes. Integrati
 CLI documents expose `capsule.payloadSha256`. Reinstall explicitly with
 `orchbee agent integration enable --provider codex` (select the relevant provider).
 Old directories are retained; disable removes provider entries under their existing
-ownership guards and does not sweep capsules. There is no compatibility reader,
+ownership guards and does not sweep capsules. Non-current capsule metadata is
+diagnosed as outdated only after verifying its actual digest, required runtime
+files and named Orchbee package marker. This read-only diagnosis never admits a
+non-current source as ready or authorizes replacing unknown files. There is no
 automatic migration or background cleanup.

@@ -188,7 +188,7 @@ impl Prepared {
                     .collect();
                 let blocked: Vec<_> = items
                     .iter()
-                    .filter(|item| matches!(item.state, State::Conflict | State::StaleSide))
+                    .filter(|item| item.state == State::Conflict)
                     .map(|item| item.integration_id.provider())
                     .collect();
                 if outdated_only {
@@ -463,7 +463,7 @@ pub(crate) fn mutation_status(report: &MutationReport) -> u8 {
                 };
             }
             match refusal {
-                Refusal::Conflict | Refusal::StaleSide => 3,
+                Refusal::Conflict => 3,
                 Refusal::ManualActionRequired
                 | Refusal::AgentUnavailable
                 | Refusal::CapsuleUnavailable => 4,
@@ -566,7 +566,7 @@ fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale)
                 enable.get_or_insert(id);
                 1
             }
-            (_, State::Conflict | State::StaleSide | State::Unknown) => {
+            (_, State::Conflict | State::Unknown) => {
                 explain.get_or_insert(id);
                 2
             }

@@ -6,14 +6,14 @@
 	"scope": "Cross-provider shared filesystem publish/recovery + effect-frontier failure criteria. Provider classification and argv are Input64's remit; cohort staging producers are Capacity47's. This pack covers ONLY the shared fs-effect machine.",
 	"authority": {
 		"primary": "delivery/provider-cli-onboarding-complete53.txt sha256 abaeaa2fdecab667b5a5ff0e012e11d3ac8df5e592a68f4eef0d553747155915 (sections cited per case as '53§…')",
-		"overrides": "local-resume-02/onboarding-review-disposition-root55.txt (cited '55…'); local-resume-02/onboarding-accepted-root56.txt (cited '56…'). Precedence: 56 > 55 > 53."
+		"overrides": "local-resume-02/onboarding-review-disposition-root55.txt (cited '55…'); local-resume-02/onboarding-accepted-root56.txt (cited '56…'). Precedence: 56 > 55 > 53. ORC-179 supersedes numeric-version direction classifications for safely verified owned integration entries."
 	},
 	"vocabulary": {
 		"exit": {
 			"0": "completed / no-op",
 			"1": "inspect engine failure (CheckFailed)",
 			"2": "usage",
-			"3": "conflict / stale-side / unknown-content refusal — BEFORE any effect",
+			"3": "conflict / unknown-content refusal — BEFORE any effect",
 			"4": "manual-action-required / agent-unavailable / sidecar-absent / known-interactive-pre-spawn — before any effect",
 			"6": "incompatible (version-gate rejection incl. cohort manifest != 2 and v2-on-old-reader)",
 			"7": "declared deadline reached BEFORE any possible integration mutation (55: maps to 7)",
@@ -29,13 +29,13 @@
 			"foreign",
 			"unknown",
 			"unverifiable",
-			"wrong-type"
+			"wrong-type",
+			"orchbee-modified"
 		],
 		"verdict": [
 			"applied",
 			"no-op",
 			"conflict",
-			"stale-side",
 			"failed",
 			"verification-failed",
 			"manual-action-required",
@@ -1453,17 +1453,17 @@
 			]
 		},
 		{
-			"id": "guard.newer-version-stale-side",
+			"id": "guard.noncurrent-marker-mismatch-refused",
 			"area": "guard",
-			"summary": "Entry owned by a NEWER payload version: enable AND disable both refuse stale-side -> 3 pre-effect; CLI never initiates downward motion.",
+			"summary": "A non-current owned marker cannot authorize mutation when the actual file fingerprint differs; enable refuses before effects and preserves the edited file.",
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
 					{
 						"path": "$TARGET",
-						"kind": "file",
-						"bytes": "newer-version-content",
-						"ownership": "orchbee-newer"
+						"kind": "dir",
+						"bytes": "modified-owned-content",
+						"ownership": "orchbee-modified"
 					}
 				]
 			},
@@ -1472,21 +1472,24 @@
 			},
 			"inject": null,
 			"expect": {
-				"verdict": "stale-side",
+				"verdict": "conflict",
 				"exit": 3,
 				"frontier": "pre-effect",
 				"determinate": true,
 				"attempted": ["preflight-inspect"],
 				"preserved": [
 					{
-						"path": "$TARGET",
-						"bytes": "newer-version-content"
+						"path": "$HOME/.gemini/extensions/orchbee-agent-observation/extension.js",
+						"bytes": "modified-owned-content"
 					}
 				],
-				"forbidden": ["downward mutation", "disable allowed through on newer content"],
+				"forbidden": ["target bytes overwritten", "occupant moved or removed"],
 				"allowedNext": []
 			},
-			"authority": ["53§3.2 asymmetric version policy", "53§3.3"]
+			"authority": [
+				"ORC-179: non-current ownership requires matching actual file fingerprints",
+				"53§3.3"
+			]
 		},
 		{
 			"id": "budget.deadline-before-first-mutation",

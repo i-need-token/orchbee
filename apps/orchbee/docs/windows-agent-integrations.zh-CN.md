@@ -10,7 +10,7 @@
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题       | Windows 用户需要通过启动终端的同一个 CLI 安装、检查和移除观测集成。                                                                                                                                                        |
 | 输入       | Provider ID、可选 capsule 来源、原生用户目录、PATH 和 Codex 配置根均是不可信路径。空 CODEX_HOME 使用用户目录默认值；非空无效覆盖值不得回退。                                                                               |
-| 数据与归属 | Provider 拥有其配置。Orchbee 仅拥有内容寻址的 capsule 和明确标记的集成条目。外来或更新版本条目保持不变。                                                                                                                   |
+| 数据与归属 | Provider 拥有其配置。Orchbee 仅拥有内容寻址的 capsule 和明确标记的集成条目。外来、被修改或无法检查的条目保持不变。                                                                                                         |
 | 输出       | 现有集成快照、计划、变更回执、类型化拒绝和保留残留路径。不能仅根据 provider 退出就虚构检查状态。                                                                                                                           |
 | 流程       | 校验平台与预算 → 为 enable 准备 capsule → 检查 provider 归属 → 执行 provider 操作序列 → 报告观测或不确定性。取消停止后续副作用并终止自有命令树。                                                                           |
 | 发布       | 在目标旁暂存；仅复制普通条目；校验 capsule；使用原子的不可覆盖 MoveFile 发布。目标被占用即冲突。备份使用相同原语。                                                                                                         |
@@ -33,7 +33,7 @@ Windows 托管 Claude Code、Codex、Grok 和 GitHub Copilot hooks、OpenCode、
 OpenCode 使用 ESM 入口；Pi/OMP 安装的 CommonJS 引导模块动态导入 capsule 的 **ESM**
 入口，再调用具名注册函数。若导入其 CommonJS 包装器并查找同名导出，会静默跳过注册。
 模块细化在当前载荷 中保持既有引导行为。确定性的引导
-文件字节与 file URL 仍为归属证明：被修改、外来或指向更新版本的条目会被拒绝；旧的自有条目可以修复。
+文件字节与 file URL 仍为归属证明：被修改或外来的条目会被拒绝；同一受管父目录下的其他身份需要显式修复。
 Windows doctor 从完整的 `bundle/<provider>/<entry>` 后缀推导 capsule 根目录，
 健康的已安装模块因此对照其 capsule manifest 检查，不再误查 bundle 目录。
 这是离线文件检查，不证明实时连接可用。
@@ -56,15 +56,15 @@ threading 以及 implement/interface 过程宏。过程宏复用现有 syn/quote
 
 ## 维护筛选
 
-Windows `agent integration list --outdated-only` 只执行一次原有有界本地检查，仅显示 update-required 条目，包括需要修复的自有安装。它不安装、不下载。`agent integration enable --provider <id>` 仍是显式且受保护的更新／修复操作；冲突及更新版本条目不会被替换。
+Windows `agent integration list --outdated-only` 只执行一次原有有界本地检查，仅显示 update-required 条目，包括需要修复的自有安装。它不安装、不下载。`agent integration enable --provider <id>` 仍是显式且受保护的更新／修复操作；冲突及无法安全检查的条目不会被替换。
 
-筛选列表使用 v4，包含 outdatedOnly true、inspectedCount、表示检查未知的 unresolvedProviderIds，以及表示冲突／更新版本的 blockedProviderIds。Complete 在筛选前根据全部所选检查计算；空列表不能隐藏检查失败。文本包含这些计数和相同筛选条目。默认列表使用 v3。两个当前版本均接纳全部 20 个规范提供方；v1/v2 保留原有集合与检查计数边界。此参数不新增非 Windows 运行时；原有 40 秒期限、取消、用户目录隔离及仅本地归属保持不变。详细已安装版本报告及其余 provider 的 Windows hook 支持仍是独立义务。
+筛选列表使用 v6，包含 outdatedOnly true、inspectedCount、表示检查未知的 unresolvedProviderIds，以及表示冲突条目的 blockedProviderIds。Complete 在筛选前根据全部所选检查计算；空列表不能隐藏检查失败。文本包含这些计数和相同筛选条目。默认列表使用 v5。两个当前版本均接纳全部 20 个规范提供方；v1/v2 保留原有集合与检查计数边界。此参数不新增非 Windows 运行时；原有 40 秒期限、取消、用户目录隔离及仅本地归属保持不变。详细已安装版本报告及其余 provider 的 Windows hook 支持仍是独立义务。
 
 ## Claude exec hooks
 
 Windows 也可使用 当前 capsule 托管 Claude Code。Hook 声明使用 provider 的 `command` 加 `args` exec 形式：Node 将插件脚本路径作为原样参数接收，包括空格、单引号、Unicode、美元符和反引号。固定动态导入保护会忽略已删除的脚本；既有有界清洗器及 Windows 管道／控制台传输仍是唯一观察路径。不需要 Bash 或 PowerShell 启动器。Node 必须保留在 provider PATH 中；缺失时 Claude 报告其非阻塞启动诊断，不产生观察。这替代原先仅 Claude 无 Node 时仍静默成功的承诺。其他 provider 保留各自启动契约。[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) 定义参数替换。
 
-启用、禁用和修复复用既有用户作用域插件命令及有界 Windows 进程所有者。旧版自有 capsule 需要显式修复；当前已启用条目为空操作，外部／更新版本条目仍拒绝。隔离 provider 命令及已发布 hook 见证覆盖配置和清洗后回传，不证明已认证 Claude 任务完成。共享可移植 hook 声明会变化，但本工作不增加 macOS/Linux 工作流或运行时验证。
+启用、禁用和修复复用既有用户作用域插件命令及有界 Windows 进程所有者。旧版自有 capsule 需要显式修复；当前已启用条目为空操作，外部或被修改的条目仍拒绝。隔离 provider 命令及已发布 hook 见证覆盖配置和清洗后回传，不证明已认证 Claude 任务完成。共享可移植 hook 声明会变化，但本工作不增加 macOS/Linux 工作流或运行时验证。
 
 ## Copilot 命令兼容
 
@@ -72,7 +72,7 @@ Windows 对齐已用官方 Copilot CLI 1.0.88 验证的插件契约：`plugin li
 
 当前 Capsule 使用 Copilot 的 Node exec hook 形式。固定导入保护将 provider 的 COPILOT_PLUGIN_ROOT 环境变量作为路径读取，不进行 Shell 展开，并保留既有 PascalCase 事件输入契约。根目录或脚本缺失静默处理；Node 仍为前提。[插件参考](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference) 和 [hook 参考](https://docs.github.com/en/copilot/reference/hooks-reference) 拥有上游语义。既有本地变更期限、Job Object 回收、不可变发布、回执和无内容观察规则保持不变。受控安装和 hook 回传不证明已认证 Agent 任务完成。
 
-即使 marketplace 根目录是旧版自有 capsule，Claude 或 Copilot 报告的更新插件版本仍会阻止 Windows 修复。版本数据缺失不能授权替换。
+提供方包版本仍是必需的清单元数据，不用于排序 capsule 身份。元数据缺失为无法检查；受管来源摘要不同需要修复。
 
 ## Windows TOML 和 Grok 本地状态
 
@@ -96,7 +96,7 @@ Windows 将受保护的 OpenCode 引导安装为 `plugins/orchbee-agent-observat
 
 检查合并当前 .js 和废弃 .mjs 目标。外来、较新或不可读条目阻止变更；自有废弃条目要求修复。启用先发布并验证当前入口，再重新检查并移除废弃的自有入口。失败或取消保留已提交效果并报告回执，不以补偿为由删除可用的新入口。禁用对两个目标使用相同保护。Explain 从既有检查中报告受保护写入／移除，不再次读取。Doctor 检查可被发现的 .js 入口；仅有旧安装时在此报告缺失，集成查询则要求修复。既有上限及 no-replace 原语不变。隔离的官方 OpenCode 1.18.30 debug-config 用例确认自动发现；此证据不包括认证及付费 Agent 任务。
 
-Windows 普通模块检查按解码后的绝对 file URL 验证完整固定引导，再分类精确的 capsule 根目录及载荷相对后缀。旧的自有模块可以修复；较不认识的入口契约拒绝替换；修改过的代码及外来根目录仍为冲突。16 KiB 读取器不导入引用模块。此规则适用于既有 OpenCode、Kilo、Pi 和 OMP 模块所有者；Unix 检查不变。
+Windows 普通模块检查按解码后的绝对 file URL 验证完整固定引导，再分类精确的 capsule 根目录及载荷相对后缀。旧的自有模块可以修复；归属不明的入口拒绝替换；修改过的代码及外来根目录仍为冲突。16 KiB 读取器不导入引用模块。此规则适用于既有 OpenCode、Kilo、Pi 和 OMP 模块所有者；Unix 检查不变。
 
 ## Kilo Windows 集成与共享事件模型
 
@@ -112,7 +112,7 @@ Kilo 是 Windows 原生托管集成，沿用 OpenCode 的受保护模块归属�
 
 Windows 使用现有受保护发布和删除流程管理自包含 Gemini、Qwen 扩展目录。Gemini 将非空绝对 GEMINI_CLI_HOME 解析为主目录父级，安装到其下 .gemini/extensions/orchbee-agent-observation；Qwen 将 QWEN_HOME 解析为配置根目录，安装到其下 extensions/orchbee-agent-observation。未设置覆盖值时分别使用 USERPROFILE/.gemini 和 USERPROFILE/.qwen。显式根目录无效时拒绝且不回退。Doctor 共用这些路径。全局/项目激活策略和已运行会话仍由提供方拥有；本地文件状态不证明实际送达。
 
-证明目录标记和完整文件指纹后，Windows 还要求准确扩展名称和提供方声明的版本元数据。不认识的入口契约仍拒绝修改；元数据缺失为 unknown，修改过或外来内容为 conflict。现有取消、备份恢复、已提交前缀回执和残余归属不变。启用将源码和共享脚本复制为一个自包含目录；禁用仅删除重新验证过归属的目录。
+证明目录标记和完整文件指纹后，Windows 还要求准确扩展名称和提供方声明的版本元数据。正整数的非当前自有契约需要重装；元数据缺失为 unknown，修改过或外来内容为 conflict。现有取消、备份恢复、已提交前缀回执和残余归属不变。启用将源码和共享脚本复制为一个自包含目录；禁用仅删除重新验证过归属的目录。
 
 当前 Capsule 使用固定 Node 命令，读取提供方替换后的 ORCHBEE_AGENT_EXTENSION_ROOT 环境值。用户路径不进入 Shell 源码。Gemini 递归替换 hooks/hooks.json；Qwen 递归替换 qwen-extension.json 中的内联 hooks，因此 Qwen 不保留重复的外部 hooks 文件。保护入口导入拼接的 forward-hook.mjs，保留现有输入边界和事件语义。Node 是前提；根目录/脚本缺失或非法输入静默处理。源码契约见 [Gemini 扩展加载](https://github.com/google-gemini/gemini-cli/blob/20f707577424c0c60cde3470b1495f228773e307/packages/cli/src/config/extension-manager.ts) 与 [Qwen 扩展加载](https://github.com/QwenLM/qwen-code/blob/c3a4058a0c7207de7b421e9da0622a9ec890dbad/packages/core/src/extension/extensionManager.ts)。受控 PowerShell 5.1/7 和 cmd 见证使用原始 JSON stdin 和 Windows 私有观察管道执行交付命令；不代表已完成认证提供方任务。
 
@@ -146,7 +146,7 @@ Qoder 使用相同的 Windows 发布流程，但 JSON 形状不同。provider `q
 `PreInvocation` 处理器证明归属。其他命名块保留为不透明的原始 JSON；复制到其他名称下的命令不归
 此集成拥有。可选布尔 `enabled` 默认为 true。显式 false 报告禁用；格式错误的标志或修改过的自有
 内容拒绝变更。启用写入当前已启用块；禁用移除活动的自有块。已禁用块保持既有无操作行为。
-来源／版本保护仍防止外来替换和降级。Doctor 报告禁用事实，并单独给出检查后的 capsule 根目录。
+来源归属保护仍阻止替换外来或被修改的条目。Doctor 报告禁用事实，并单独给出检查后的 capsule 根目录。
 
 编码 PowerShell 命令返回 `{}`，只将有效的 `conversationId` 观察为 `session-identified`；
 提供事件名称时必须为 `PreInvocation`。不转发转录路径、内容或权限，也不从重复模型调用推断空闲或
@@ -157,7 +157,7 @@ Qoder 使用相同的 Windows 发布流程，但 JSON 形状不同。provider `q
 
 ## Cursor Windows JSON Hook
 
-Windows JSON Hook 接入只管理与生成结果完全一致的命令条目，保留其他原始 JSON 值，拒绝被编辑对象中的重复成员，以及格式错误、被修改、外来或更新版本的条目。Cursor 在非空绝对路径 CURSOR_CONFIG_DIR 下使用版本 1 的 `hooks.json`，否则使用 USERPROFILE/.cursor；其适配器仅上报会话身份。固定 PowerShell EncodedCommand 启动器将 capsule 路径作为数据解码，调用有界 Node 观测运行时并返回空 JSON 对象，不批准或修改 Agent 工作。
+Windows JSON Hook 接入只管理与生成结果完全一致的命令条目，保留其他原始 JSON 值，拒绝被编辑对象中的重复成员，以及格式错误、被修改或外来的条目。Cursor 在非空绝对路径 CURSOR_CONFIG_DIR 下使用版本 1 的 `hooks.json`，否则使用 USERPROFILE/.cursor；其适配器仅上报会话身份。固定 PowerShell EncodedCommand 启动器将 capsule 路径作为数据解码，调用有界 Node 观测运行时并返回空 JSON 对象，不批准或修改 Agent 工作。
 
 配置替换在移开原文件前后比较原始字节，以不覆盖方式发布，验证结果后仅删除未改变的备份。此阶段的读取句柄拒绝原地写入。取消、超时或冲突会在变更回执中保留未恢复备份和状态不确定的暂存目录。这是乐观更新流程，不是全局文件系统 CAS 或崩溃原子替换：目标可能短暂不存在，进程突然退出可能留下同级恢复文件；不防御同一用户的恶意重命名或删除行为。用户配置策略仍由 provider 管理。
 
@@ -169,7 +169,7 @@ Cursor 支持原生 Windows 的 `agent` 可执行文件。[Hook 参考](https://
 
 ## Mastracode Windows 生命周期 Hook
 
-原生管理器编辑 `USERPROFILE/.mastracode/hooks.json`，根对象将事件映射到扁平命令数组。保留外来条目与不透明值。每个选定事件只拥有一个生成命令，`timeout: 10000` 的单位为毫秒。全部自有命令必须指向同一 capsule 根；重复、修改或错放的命令均冲突。其余归属精确但缺少条目的集合需要修复。版本和根目录归属仍决定修复与拒绝降级。禁用仅移除已证明自有的条目。共享有界发布保留 Windows 元数据。Doctor 记录根目录，检查根后将不完整集合报告为 update-required。项目 Hook 仍由 provider 管理。
+原生管理器编辑 `USERPROFILE/.mastracode/hooks.json`，根对象将事件映射到扁平命令数组。保留外来条目与不透明值。每个选定事件只拥有一个生成命令，`timeout: 10000` 的单位为毫秒。全部自有命令必须指向同一 capsule 根；重复、修改或错放的命令均冲突。其余归属精确但缺少条目的集合需要修复。准确的根目录归属决定修复与拒绝。禁用仅移除已证明自有的条目。共享有界发布保留 Windows 元数据。Doctor 记录根目录，检查根后将不完整集合报告为 update-required。项目 Hook 仍由 provider 管理。
 
 SessionStart 仅识别会话，不推断空闲；SessionEnd 结束会话。AgentStart 以 `run_id` 标识运行。AgentEnd 是唯一终止信号：complete 表示成功，aborted 表示取消，error 表示失败；suspended 不发事件，保留待处理提示。工具事件提供活动，权限请求／结果事件建立和解除提示，不作权限决定。子 Agent 事件以 `tool_call_id` 标识子会话。拒绝无效标识与未知原因；内容、工具参数、路径及结果不离开清洗器。
 
@@ -197,7 +197,7 @@ Kimi 使用当前原生 Windows `kimi` 命令，配置路径为非空绝对路�
 配置所有者仅管理两条 `[[hooks]]` 规则：`SessionStart` 和
 `SessionEnd`，各自只有 event、固定编码命令和 10 秒 timeout。
 也支持内联 hook 数组。完整命令往返、精确字段以及同一胶囊根证明所有权。
-缺少部分自有规则需要修复；重复、修改、错误事件、混合根、外来或更新版本拒绝。
+缺少部分自有规则需要修复；重复、修改、错误事件、混合根或外来条目拒绝。
 语法保真编辑器保留其他规则及设置的 TOML 值、注释和格式。
 换行符写法可能规范化。JSON 与 TOML 共用既有有界 Windows 发布、
 元数据保留、恢复和残留规则；路径选择与离线 doctor 共享。
@@ -262,8 +262,7 @@ Devin 使用文档规定的 Windows 用户配置，即非空绝对路径
 Windows 管理六个精确命令组：SessionStart、UserPromptSubmit、
 PreToolUse、PostToolUse、PermissionRequest 和 Stop。各自超时 10 秒，
 固定编码启动器返回 `{}`，不提供决策或上下文。完整集合必须引用同一个
-自有胶囊根。缺少条目需要修复；重复、修改、错误位置、混合根、外来或更新
-版本拒绝。其他设置／组保留原始值。既有多事件所有者现在服务 Mastracode
+自有胶囊根。缺少条目需要修复；重复、修改、错误位置、混合根或外来条目拒绝。其他设置／组保留原始值。既有多事件所有者现在服务 Mastracode
 扁平映射和 Devin 嵌套组；发布、元数据保留、取消和恢复规则继续共享。
 
 仅精确事件名与有效 session_id 发出 session-identified。重复身份保留轮次
@@ -291,8 +290,7 @@ Hermes 持有配置及插件激活。Windows 优先解析去除首尾空白后�
 HERMES_HOME，确保检查和激活选择同一配置档。
 
 Orchbee 仅持有 plugins/orchbee-agent-observation/**init**.py 和 plugin.yaml。
-清单使用 YAML 子集 JSON；每个完整生成文件证明其胶囊根。外来、修改或更新
-版本成员拒绝。单个成员缺失，或分别证明为旧／当前版本的成员需要修复，包括
+清单使用 YAML 子集 JSON；每个完整生成文件证明其胶囊根。外来或被修改的成员拒绝。单个成员缺失，或分别证明为过期／当前身份的成员需要修复，包括
 中断的双文件更新。启用通过共享有界 Windows 文件发布原语先发布入口，再发布
 清单，保留元数据和可恢复原像；之后运行 Hermes 自身的 plugins enable，并通过
 plugins list --json 验证。停用运行 plugins disable，保留两个文件。Python 缓存、
@@ -321,7 +319,7 @@ CLI Capsule 对象暴露该摘要，目录为 `~/.orchbee/agent-observation-adap
 不保留 semver 上限、特定旧根目录或自动迁移。最终载荷任何字节变化（包括文档和格式）均产生新身份。
 
 Doctor 核对安装字节与自身清单，并与当前 sidecar 身份比较。自身一致但身份过期的载荷报告
-`update-required`；损坏、契约失配和不可读路径保留各自结果。显式修复使用
+`update-required`。非当前 capsule 元数据只有在实际摘要、必需运行时文件及带准确名称的 Orchbee 包标记均验证后才提示重装。损坏、不安全或不可读输入保留受保护的结果；这一只读诊断不将非当前来源准入为就绪。显式修复使用
 `orchbee agent integration enable --provider codex`（选择实际提供方）。冲突或无法检查的入口
 仍需人工复核。已有目录保持不变；disable 沿用既有提供方入口删除规则。回滚选择完整且保留的 cohort。
 

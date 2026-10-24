@@ -1,7 +1,6 @@
 //! Closed vocabularies for the Agent integration surface. The canonical
 //! contract is `packages/desktop-client-protocol/src/
-//! desktop-agent-integration-management-contract.ts`; this port adds the
-//! CLI-local member `stale-side` for an unrecognized owned entry contract.
+//! desktop-agent-integration-management-contract.ts`.
 //! Kilo extends the native registry with
 //! Windows-only managed onboarding; Desktop management keeps its own registry.
 
@@ -104,11 +103,6 @@ pub(crate) enum State {
     Disabled,
     Enabled,
     NotInstalled,
-    /// The CLI-local member: the installed entry declares an unrecognized
-    /// contract, so compatible ownership cannot be proven and
-    /// both enable and disable refuse. Canonical surfaces classify the same
-    /// shape `update-required`; the divergence is registered.
-    StaleSide,
     UpdateRequired,
     Unknown,
 }
@@ -121,7 +115,6 @@ impl State {
             Self::Disabled => "disabled",
             Self::Enabled => "enabled",
             Self::NotInstalled => "not-installed",
-            Self::StaleSide => "stale-side",
             Self::UpdateRequired => "update-required",
             Self::Unknown => "unknown",
         }

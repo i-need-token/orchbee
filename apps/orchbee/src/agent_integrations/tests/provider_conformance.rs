@@ -1,5 +1,5 @@
 //! Report64 `provider-conformance64` conformance harness — replays the
-//! frozen 244-case corpus (ten providers, inspect/enable/disable) against
+//! current 221-case corpus (ten providers, inspect/enable/disable) against
 //! the real `inspect_full`/`mutate` paths under an isolated HOME, scripted
 //! command queue, and materialized capsules. `expect.commands` pins the
 //! exact argv sequence (read slots first, then the mutation tail — a
@@ -648,7 +648,7 @@ fn script_commands(
 
 /// The canonical attempt vocabulary for a finished report — the fixture's
 /// `expect.attempt` space maps verdicts onto `attempted`/`conflict`/
-/// `failed`/`manual-action-required`/`stale-side`.
+/// `failed`/`manual-action-required`.
 fn attempt_word(report: &mutation::MutationReport) -> &'static str {
     match report.verdict {
         Verdict::Completed => "attempted",
@@ -656,7 +656,6 @@ fn attempt_word(report: &mutation::MutationReport) -> &'static str {
         Verdict::Unknown => "unknown",
         Verdict::Refused(refusal) => match refusal {
             mutation::Refusal::Conflict => "conflict",
-            mutation::Refusal::StaleSide => "stale-side",
             mutation::Refusal::ManualActionRequired => "manual-action-required",
             _ => "failed",
         },

@@ -147,7 +147,7 @@ fn ownership_bytes(ownership: &str, label: &str) -> Vec<u8> {
     match ownership {
         "orchbee-exact" => [b"ORCHBEE:exact:", label.as_bytes()].concat(),
         "orchbee-legacy" => [b"ORCHBEE:legacy:", label.as_bytes()].concat(),
-        "orchbee-newer" => [b"ORCHBEE:newer:", label.as_bytes()].concat(),
+        "orchbee-modified" => [b"ORCHBEE:modified:", label.as_bytes()].concat(),
         _ => label.as_bytes().to_vec(),
     }
 }
@@ -158,8 +158,8 @@ fn classify_bytes(bytes: &[u8]) -> &'static str {
         "orchbee-exact"
     } else if bytes.starts_with(b"ORCHBEE:legacy:") {
         "orchbee-legacy"
-    } else if bytes.starts_with(b"ORCHBEE:newer:") {
-        "orchbee-newer"
+    } else if bytes.starts_with(b"ORCHBEE:modified:") {
+        "orchbee-modified"
     } else {
         "foreign"
     }
@@ -657,7 +657,6 @@ fn report_outcome(report: &mutation::MutationReport) -> Outcome {
         }
         Verdict::Failed(FailureCode::VerificationFailed) => "verification-failed",
         Verdict::Refused(Refusal::Deadline) => "timed-out",
-        Verdict::Refused(Refusal::StaleSide) => "stale-side",
         Verdict::Refused(Refusal::ManualActionRequired)
         | Verdict::Refused(Refusal::CapsuleUnavailable)
         | Verdict::Refused(Refusal::AgentUnavailable) => "manual-action-required",
@@ -1110,7 +1109,7 @@ fn provider_for(case: &Case) -> IntegrationId {
             } else if case.inject["kind"].as_str() == Some("read 2 of 2 fails") {
                 // The partial re-inspection needs a two-slot read set.
                 IntegrationId::ClaudeCode
-            } else if case.id == "guard.newer-version-stale-side" {
+            } else if case.id == "guard.noncurrent-marker-mismatch-refused" {
                 IntegrationId::Gemini
             } else {
                 IntegrationId::Grok
@@ -1130,16 +1129,16 @@ fn materialize_provider_target(dirs: &Dirs, id: IntegrationId, entries: &[Value]
         }
         let target = dirs.home.join(target_relative(id));
         match ownership {
-            "orchbee-newer" => {
+            "orchbee-modified" => {
                 fs::create_dir_all(&target).unwrap();
-                fs::write(target.join("extension.js"), b"newer-version-content").unwrap();
+                fs::write(target.join("extension.js"), b"original-owned-content").unwrap();
                 let files_list = inspect::fingerprint_directory(&target)
                     .unwrap_or_default()
                     .into_iter()
                     .map(|(path, sha256)| serde_json::json!({ "path": path, "sha256": sha256 }))
                     .collect::<Vec<_>>();
                 let marker = serde_json::json!({
-                    "contractVersion": 4,
+                    "contractVersion": 3,
                     "files": files_list,
                     "integrationId": id.as_str(),
                     "kind": "guarded-extension",
@@ -1149,6 +1148,7 @@ fn materialize_provider_target(dirs: &Dirs, id: IntegrationId, entries: &[Value]
                     marker.to_string(),
                 )
                 .unwrap();
+                fs::write(target.join("extension.js"), b"modified-owned-content").unwrap();
             }
             "foreign" | "unknown" | "unverifiable" => {
                 if let Some(parent) = target.parent() {
@@ -1521,7 +1521,7 @@ fn assert_preserved(
                     actual == declared.as_bytes()
                         || actual == ownership_bytes("orchbee-exact", declared)
                         || actual == ownership_bytes("orchbee-legacy", declared)
-                        || actual == ownership_bytes("orchbee-newer", declared)
+                        || actual == ownership_bytes("orchbee-modified", declared)
                 }
                 None => owners
                     .get(path)
@@ -1545,7 +1545,7 @@ fn assert_preserved(
                     actual == declared.as_bytes()
                         || actual == ownership_bytes("orchbee-exact", declared)
                         || actual == ownership_bytes("orchbee-legacy", declared)
-                        || actual == ownership_bytes("orchbee-newer", declared)
+                        || actual == ownership_bytes("orchbee-modified", declared)
                 })
                 .unwrap_or(true)
         };
@@ -1625,8 +1625,6 @@ fn assert_forbidden(case: &Case, outcome: &Outcome, dirs: &Dirs, witnessed: &[&'
         "target moved despite exhaustion",
         "target 'repaired' by deleting possibly-foreign bytes",
         "target left absent",
-        "downward mutation",
-        "disable allowed through on newer content",
         "unlink attempted",
         "fallback removal on unverifiable content",
         "state 'repaired' into a known shape",

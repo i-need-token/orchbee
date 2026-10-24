@@ -766,18 +766,11 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
         }
         read => return read_uninspectable(read),
     };
-    let (_contract_version, declared) = match probes::parse_guarded_marker(&bytes, provider.id) {
+    let (contract_version, declared) = match probes::parse_guarded_marker(&bytes, provider.id) {
         MarkerParse::Valid {
             contract_version,
             files,
         } => (contract_version, files),
-        MarkerParse::UnrecognizedVersion(version) => {
-            return HookProbe::Final {
-                state: HookState::Unknown,
-                reason: HookReason::ContractVersionUnrecognized,
-                detail: Map::from_iter([("declaredContractVersion".to_owned(), json!(version))]),
-            };
-        }
         MarkerParse::NameMismatch => {
             return final_verdict(HookState::Conflict, HookReason::NameMismatch);
         }
@@ -808,7 +801,18 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
     if !probes::fingerprint_matches(&mut computed, &declared) {
         return final_verdict(HookState::Conflict, HookReason::MarkerMismatch);
     }
-    final_verdict(HookState::Present, HookReason::MarkerConsistent)
+    if contract_version == probes::SUPPORTED_CONTRACT_VERSION {
+        final_verdict(HookState::Present, HookReason::MarkerConsistent)
+    } else {
+        HookProbe::Final {
+            state: HookState::UpdateRequired,
+            reason: HookReason::MarkerMismatch,
+            detail: Map::from_iter([(
+                "declaredContractVersion".to_owned(),
+                json!(contract_version),
+            )]),
+        }
+    }
 }
 
 /// A bootstrap module file (`opencode`, `pi`, `omp`): marker + exact
@@ -952,6 +956,7 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
         }
     };
     let mut current = 0usize;
+    let mut outdated = 0usize;
     for entry in entries {
         if entry.kind == ListKind::Symlink {
             return final_verdict(HookState::Unknown, HookReason::SymlinkUninspected);
@@ -963,6 +968,20 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
         if !fs::path_admitted(&package) {
             return target_too_long(&package);
         }
+        match fs::lstat(&package) {
+            Lstat::Entry {
+                kind: EntryKind::Directory,
+                ..
+            } => {}
+            Lstat::Symlink => {
+                return final_verdict(HookState::Unknown, HookReason::SymlinkUninspected);
+            }
+            Lstat::Absent => continue,
+            Lstat::Unreadable => return final_verdict(HookState::Unknown, HookReason::Unreadable),
+            Lstat::Entry { .. } => {
+                return final_verdict(HookState::Conflict, HookReason::ForeignContent);
+            }
+        }
         // The managed payload's entry file decides whether this install
         // belongs to the integration at all.
         match fs::lstat(&package.join(probes::CLINE_ENTRY_PATH)) {
@@ -973,7 +992,13 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
             Lstat::Unreadable => {
                 return final_verdict(HookState::Unknown, HookReason::Unreadable);
             }
-            Lstat::Entry { .. } => {}
+            Lstat::Entry {
+                kind: EntryKind::Regular,
+                ..
+            } => {}
+            Lstat::Entry { .. } => {
+                return final_verdict(HookState::Conflict, HookReason::ForeignContent);
+            }
         }
         let manifest = package.join("package.json");
         if !fs::path_admitted(&manifest) {
@@ -990,17 +1015,16 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
         };
         match probes::parse_cline_package(&bytes) {
             ClinePackage::Current => current += 1,
-            ClinePackage::UnrecognizedVersion => {
-                return final_verdict(HookState::Unknown, HookReason::ContractVersionUnrecognized);
-            }
+            ClinePackage::UpdateRequired => outdated += 1,
             ClinePackage::Conflict => {
                 return final_verdict(HookState::Conflict, HookReason::MarkerMismatch);
             }
         }
     }
-    match current {
-        1 => final_verdict(HookState::Present, HookReason::MarkerConsistent),
-        0 => final_verdict(HookState::Absent, HookReason::NoManagedInstall),
+    match (current, outdated) {
+        (1, 0) => final_verdict(HookState::Present, HookReason::MarkerConsistent),
+        (0, 1) => final_verdict(HookState::UpdateRequired, HookReason::MarkerMismatch),
+        (0, 0) => final_verdict(HookState::Absent, HookReason::NoManagedInstall),
         _ => final_verdict(HookState::Conflict, HookReason::Malformed),
     }
 }
@@ -1149,15 +1173,7 @@ fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
     if let Some(version) = scan.declared_contract_version {
         detail.insert("declaredContractVersion".to_owned(), json!(version));
     }
-    if scan.version_mismatch {
-        // A differently-versioned capsule format cannot be evaluated by
-        // this build — uninspectable, never broken.
-        return RootOutcome {
-            state: RootState::Unreadable,
-            detail,
-        };
-    }
-    if !scan.valid_shape {
+    if !scan.inspectable_identity {
         return RootOutcome {
             state: RootState::Inconsistent,
             detail,
@@ -1197,12 +1213,51 @@ fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
     let consistent = scan.declared_payload_sha256.as_deref() == Some(digest.as_str());
     detail.insert("payloadSha256".to_owned(), json!(digest));
     RootOutcome {
-        state: if consistent {
+        state: if !consistent {
+            RootState::Inconsistent
+        } else if scan.current {
             RootState::Consistent
         } else {
-            RootState::Inconsistent
+            noncurrent_capsule_state(&path, &entries, budget)
         },
         detail,
+    }
+}
+
+/// Read-only outdated diagnosis requires recognizable Orchbee payload ownership
+/// as well as a matching actual digest. It never admits this source for mutation.
+#[cfg(any(target_os = "linux", windows))]
+fn noncurrent_capsule_state(
+    path: &Path,
+    entries: &[probes::CapsuleEntry],
+    budget: &mut Budget,
+) -> RootState {
+    for required in [
+        "bundle/package.json",
+        "bundle/scripts/forward-hook.mjs",
+        "bundle/scripts/hook-sanitizers.mjs",
+        "bundle/scripts/observation-transport.mjs",
+    ] {
+        if !entries
+            .iter()
+            .any(|entry| !entry.directory && entry.path == required)
+        {
+            return RootState::Inconsistent;
+        }
+    }
+    let manifest = path.join("bundle/package.json");
+    if !fs::path_admitted(&manifest) {
+        return RootState::PathTooLong;
+    }
+    match fs::read_regular(&manifest, CLINE_MANIFEST_BYTES, budget) {
+        FileRead::Bytes(bytes) => match probes::parse_cline_package(&bytes) {
+            ClinePackage::Current | ClinePackage::UpdateRequired => RootState::UpdateRequired,
+            ClinePackage::Conflict => RootState::Inconsistent,
+        },
+        FileRead::Absent | FileRead::Unreadable => RootState::Unreadable,
+        FileRead::Symlink | FileRead::UnsafeKind => RootState::Unsafe,
+        FileRead::OverLimit => RootState::NotInspected,
+        FileRead::BudgetExhausted => RootState::BudgetExhausted,
     }
 }
 

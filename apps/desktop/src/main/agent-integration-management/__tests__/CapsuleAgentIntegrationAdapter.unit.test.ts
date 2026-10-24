@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { CapsuleAgentIntegrationAdapter } from '../CapsuleAgentIntegrationAdapter';
-import type { AgentObservationAdapterCapsule } from '../file-agent-observation-adapter-capsule';
+import type { AgentObservationAdapterCapsule } from '../FileAgentObservationAdapterCapsule';
 import type { AgentIntegrationAdapter } from '../agent-integration-adapter';
 
 describe('CapsuleAgentIntegrationAdapter', () => {

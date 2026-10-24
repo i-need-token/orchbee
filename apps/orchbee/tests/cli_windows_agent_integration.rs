@@ -1073,9 +1073,9 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
         set_version(Value::from("0.4.2"), 1);
         assert_eq!(inspect("explain")["result"]["state"], "enabled");
         set_version(Value::from("9.0.0"), 2);
-        assert_eq!(inspect("explain")["result"]["state"], "stale-side");
-        fixture.provider_document("enable", provider, 3);
-        fixture.provider_document("disable", provider, 3);
+        assert_eq!(inspect("explain")["result"]["state"], "update-required");
+        inspect("enable");
+        assert_eq!(fs::read(&manifest_path).unwrap(), original_manifest);
         set_version(Value::Null, 1);
         assert_eq!(inspect("explain")["result"]["state"], "unknown");
         fixture.provider_document("enable", provider, 9);

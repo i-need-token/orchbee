@@ -75,7 +75,6 @@
 								"disabled",
 								"enabled",
 								"not-installed",
-								"stale-side",
 								"update-required",
 								"unknown"
 							]
@@ -182,7 +181,6 @@
 										"disabled",
 										"enabled",
 										"not-installed",
-										"stale-side",
 										"update-required",
 										"unknown"
 									]
@@ -270,7 +268,7 @@
 					"type": ["boolean", "null"]
 				},
 				"targetState": {
-					"enum": ["conflict", "current", "update-required", "missing", "newer", "unknown"]
+					"enum": ["conflict", "current", "update-required", "missing", "unknown"]
 				},
 				"sourceReady": {
 					"type": "boolean"
@@ -344,7 +342,7 @@
 					"type": ["boolean", "null"]
 				},
 				"targetState": {
-					"enum": ["conflict", "current", "update-required", "missing", "newer", "unknown"]
+					"enum": ["conflict", "current", "update-required", "missing", "unknown"]
 				},
 				"sourceReady": {
 					"type": "boolean"

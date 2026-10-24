@@ -107,8 +107,8 @@
 		{
 			"id": "gemini.inspect.marker-contract-4",
 			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-contract"],
+			"class": "shared",
+			"covers": ["update-required", "non-current-contract"],
 			"dims": {
 				"target": "dir, marker contractVersion=4"
 			},
@@ -132,20 +132,17 @@
 			},
 			"expect": {
 				"snapshot": {
-					"state": "stale-side",
+					"state": "update-required",
 					"issue": null,
 					"availability": "available",
 					"managementMode": "managed-local"
-				},
-				"desktopCanonical": {
-					"state": "conflict",
-					"issue": null
-				},
-				"cli": {
-					"note": "marker contractVersion >3 parses as null on canonical → conflict; CLI maps a recognizable-but-newer guarded-extension marker to stale-side (§3.2). Both refuse mutation; only the surfaced state differs."
 				}
 			},
-			"anchors": ["guarded-adapter:357", "design:complete53§3.2"]
+			"anchors": [
+				"ORC-179: verified non-current ownership requires reinstall",
+				"guarded-adapter:357"
+			],
+			"notes": "The integration id, marker shape and actual file fingerprints establish ownership before a non-current contract requires reinstall."
 		},
 		{
 			"id": "gemini.inspect.marker-wrong-integration",

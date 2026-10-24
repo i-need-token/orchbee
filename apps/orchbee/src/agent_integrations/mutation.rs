@@ -147,9 +147,6 @@ enum Attempt {
 pub(crate) enum Refusal {
     AgentUnavailable,
     Conflict,
-    /// The installed entry declares an unrecognized contract — the CLI
-    /// refuses motion in either direction.
-    StaleSide,
     /// The provider is `manual-only` on this platform — the CLI names the
     /// manual path instead of attempting effects.
     ManualActionRequired,
@@ -165,7 +162,6 @@ impl Refusal {
         match self {
             Self::AgentUnavailable => "agent-unavailable",
             Self::Conflict => "conflict",
-            Self::StaleSide => "stale-side",
             Self::ManualActionRequired => "manual-action-required",
             Self::InspectionFailed => "inspection-failed",
             Self::CapsuleUnavailable => "capsule-unavailable",
@@ -411,7 +407,6 @@ pub(crate) fn mutate(
     // Controller pre-gates, in canonical order.
     let refused = match (direction, &initial) {
         _ if initial.state == State::Conflict => Some(Refusal::Conflict),
-        _ if initial.state == State::StaleSide => Some(Refusal::StaleSide),
         _ if initial.state == State::Unknown => Some(Refusal::InspectionFailed),
         (Direction::Enable, item) if item.availability != Availability::Available => {
             Some(Refusal::AgentUnavailable)
@@ -1216,7 +1211,7 @@ fn enable_vector(
             match inspection.state {
                 State::Enabled => Attempt::Attempted,
                 State::Conflict => Attempt::Conflict,
-                State::Unknown | State::StaleSide => Attempt::Failed(FailureCode::OperationFailed),
+                State::Unknown => Attempt::Failed(FailureCode::OperationFailed),
                 _ => {
                     let mut commands: Vec<Vec<String>> = Vec::new();
                     if inspection.plugin_present {
@@ -1525,7 +1520,7 @@ fn disable_vector(
             };
             match inspection.state {
                 State::Conflict => Attempt::Conflict,
-                State::Unknown | State::StaleSide => Attempt::Failed(FailureCode::OperationFailed),
+                State::Unknown => Attempt::Failed(FailureCode::OperationFailed),
                 _ => {
                     let mut commands: Vec<Vec<String>> = Vec::new();
                     if inspection.plugin_present {
@@ -2128,7 +2123,7 @@ pub(crate) fn plan_enable(
     // The same pre-gates as `mutate` — a refused vector emits no plan.
     if matches!(
         initial.state,
-        State::Conflict | State::StaleSide | State::Unknown | State::Enabled
+        State::Conflict | State::Unknown | State::Enabled
     ) || initial.management_mode == ManagementMode::ManualOnly
         || initial.availability != Availability::Available
     {
@@ -2270,7 +2265,7 @@ pub(crate) fn plan_enable(
                 return steps;
             };
             match inspection.state {
-                State::Enabled | State::Conflict | State::Unknown | State::StaleSide => {}
+                State::Enabled | State::Conflict | State::Unknown => {}
                 _ => {
                     #[cfg(windows)]
                     if let Some(target) = codex_windows::missing_default_home(context.home) {
@@ -2380,7 +2375,7 @@ pub(crate) fn plan_enable(
                 return steps;
             }
             match initial.state {
-                State::Enabled | State::Conflict | State::Unknown | State::StaleSide => {}
+                State::Enabled | State::Conflict | State::Unknown => {}
                 state => {
                     if state == State::UpdateRequired {
                         steps.push(command(

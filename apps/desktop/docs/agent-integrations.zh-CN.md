@@ -38,6 +38,10 @@ Copilot CLI、Cline、Qwen Code。每个 entry 只投影 availability、manageme
 不再将应用 bundle 和检出资源根识别为托管安装。符号链接、外来或修改过的入口继续报告冲突。
 不执行自动迁移或目录清理。
 
+只有契约 1 是当前契约。Guarded 或 Cline 的其他正整数契约在 Orchbee 归属标记验证后
+报告 `update-required`；受保护目录还必须逐一核对实际文件指纹。数字大小不赋予特殊状态。
+重装或移除仍需显式操作；符号链接形式的 Cline 包或清单不能证明归属。
+
 Provider-local 入口保持自包含，或在提供方代码报错前捕获 Capsule 缺失。
 持久化 hook 保留运行时／脚本保护及有界输出策略。Cline 信任官方本地布局中唯一且
 带准确 Orchbee 标记的安装。Desktop 不执行后台更新；其 Windows 注册表仍为 `manual-only`。
@@ -47,14 +51,14 @@ Provider-local 入口保持自包含，或在提供方代码报错前捕获 Caps
 
 ## 状态与 transaction
 
-| 状态              | 含义                                                 |
-| ----------------- | ---------------------------------------------------- |
-| `enabled`         | 准确的 Orchbee 集成已存在且开启                      |
-| `disabled`        | 准确的 Orchbee 集成已存在但关闭                      |
-| `not-installed`   | 受管 entry 中没有准确的 Orchbee 集成                 |
-| `update-required` | 内容身份过期或依赖缺失的入口需要显式修复             |
-| `conflict`        | 不同文件或 source 占用了 Orchbee 拥有的名称或 target |
-| `unknown`         | 检查无法建立准确状态                                 |
+| 状态              | 含义                                                     |
+| ----------------- | -------------------------------------------------------- |
+| `enabled`         | 准确的 Orchbee 集成已存在且开启                          |
+| `disabled`        | 准确的 Orchbee 集成已存在但关闭                          |
+| `not-installed`   | 受管 entry 中没有准确的 Orchbee 集成                     |
+| `update-required` | 内容身份过期、非当前自有契约或依赖缺失的入口需要显式修复 |
+| `conflict`        | 不同文件或 source 占用了 Orchbee 拥有的名称或 target     |
+| `unknown`         | 检查无法建立准确状态                                     |
 
 一个 process-wide controller 串行执行 mutation。显式请求按以下顺序运行：
 

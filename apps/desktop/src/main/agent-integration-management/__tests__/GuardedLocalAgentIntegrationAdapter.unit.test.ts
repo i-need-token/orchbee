@@ -129,6 +129,27 @@ describe('GuardedLocalAgentIntegrationAdapter', () => {
 				true,
 			);
 			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'enabled' });
+			const markerPath = path.join(targetPath, '.orchbee-agent-observation.json');
+			const currentMarker = await readFile(markerPath, 'utf8');
+			for (const contractVersion of [2, 3, 4]) {
+				await writeFile(
+					markerPath,
+					currentMarker.replace('"contractVersion":1', `"contractVersion":${contractVersion}`),
+				);
+				await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
+				await expect(adapter.enable()).resolves.toEqual({ kind: 'attempted' });
+				expect(await readFile(markerPath, 'utf8')).toBe(currentMarker);
+			}
+			await writeFile(
+				markerPath,
+				currentMarker.replace('"contractVersion":1', '"contractVersion":3'),
+			);
+			await appendFile(path.join(targetPath, 'extension.json'), '\n// user edit');
+			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'conflict' });
+			await expect(adapter.enable()).resolves.toEqual({ kind: 'conflict' });
+			await expect(adapter.disable()).resolves.toEqual({ kind: 'conflict' });
+			await writeFile(path.join(targetPath, 'extension.json'), '{"name":"orchbee"}');
+			await writeFile(markerPath, currentMarker);
 			await rm(capsuleRoot, { force: true, recursive: true });
 			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
 			await expect(adapter.disable()).resolves.toEqual({ kind: 'attempted' });

@@ -1060,8 +1060,11 @@ Capsule 清单使用契约 1，严格包含 `contractVersion` 和 `payloadSha256
 Doctor 重新计算安装字节后才与当前 sidecar 身份比较。自身一致但摘要不同的 asset root
 报告 `update-required`，携带 `detail.payloadSha256` 和 `detail.expectedPayloadSha256`。
 引用该根且已启用的 hook 随后使用已有更新摘要，给出显式
-`agent integration enable --provider <id>` 命令。契约失配和不可读字节保持为无法检查，
-损坏的安装树保持不一致。诊断不修复接入，也不删除旧目录。
+`agent integration enable --provider <id>` 命令。可安全确认归属的非当前 Guarded 或 Cline
+契约同样需要重装；受保护文件仍须符合声明的指纹。非当前 capsule 元数据必须先核对实际摘要、
+必需运行时文件及带准确名称的 Orchbee 包标记，才能诊断为过期。未知归属、不安全路径、
+不可读字节及损坏安装树保留受保护的结果。只有严格的当前来源可以就绪并参与变更。
+诊断不修复接入，也不删除旧目录。
 
 ### Windows Agent 诊断细化
 

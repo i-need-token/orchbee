@@ -17,7 +17,7 @@ orchbee agent start alpha --provider codex --panel <id> --timeout 30000 --format
 
 准入前，CLI 在启动期限内（至多 10000 毫秒）检查本机该 kind 的托管集成。缺少可执行文件时以
 `provider-not-found` 拒绝；集成为 `not-installed`、`disabled` 或 `update-required`，或适配器
-capsule 未发布时，以 `integration-not-enabled` 拒绝；`conflict` 或 `stale-side` 以
+capsule 未发布时，以 `integration-not-enabled` 拒绝；`conflict` 以
 `integration-blocked` 拒绝。这些均为 `check-failed`（退出码 1），不预留名称也不发送输入，
 诊断指出 `agent integration enable` 或 `agent integration explain`。预检绝不启用集成，因为那会
 修改提供方自己的配置。没有托管集成的 kind、仅手动管理、`unknown` 状态以及因预算截断的检查，

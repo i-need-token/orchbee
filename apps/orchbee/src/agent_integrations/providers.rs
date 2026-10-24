@@ -367,9 +367,6 @@ fn combine_guarded_targets(current: TargetState, obsolete: Option<TargetState>) 
     let Some(obsolete) = obsolete else {
         return current;
     };
-    if current == Newer || obsolete == Newer {
-        return Newer;
-    }
     if current == Conflict || obsolete == Conflict {
         return Conflict;
     }
@@ -495,9 +492,7 @@ pub(crate) fn inspect_full(
         Kind::Cli(CliKind::Hermes) => {
             #[cfg(windows)]
             let state = match super::hermes_windows::local(context.home, &options) {
-                Some(local) if matches!(local.state, State::Conflict | State::StaleSide) => {
-                    local.state
-                }
+                Some(local) if local.state == State::Conflict => local.state,
                 Some(local) => match read_slot(
                     executable.as_deref().expect("gated above"),
                     &["plugins", "list", "--json"],
@@ -629,7 +624,6 @@ pub(crate) fn inspect_full(
                 TargetState::UpdateRequired => State::UpdateRequired,
                 TargetState::Current if !source_ready => State::UpdateRequired,
                 TargetState::Current => State::Enabled,
-                TargetState::Newer => State::StaleSide,
                 TargetState::Conflict => State::Conflict,
                 TargetState::Unknown => State::Unknown,
             };

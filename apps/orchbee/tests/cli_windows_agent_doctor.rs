@@ -301,6 +301,35 @@ fn codex_installation_disabled_and_corrupt_capsule_facts_do_not_claim_delivery()
         );
     }
     fs::write(explicit.join("config.toml"), config(&assets, true)).unwrap();
+    let manifest_path = assets.join("capsule.json");
+    let current_manifest = fs::read(&manifest_path).unwrap();
+    for contract_version in [2, 3, 4] {
+        let mut manifest: Value = serde_json::from_slice(&current_manifest).unwrap();
+        manifest["contractVersion"] = contract_version.into();
+        manifest["retired"] = true.into();
+        fs::write(&manifest_path, manifest.to_string()).unwrap();
+        let document = fixture.document(Some(&explicit));
+        assert_eq!(
+            document["result"]["asset"]["roots"][0]["state"], "update-required",
+            "{document}"
+        );
+        assert_eq!(
+            document["result"]["providers"][0]["hook"]["state"], "update-required",
+            "{document}"
+        );
+        let output = fixture.run(
+            &["agent", "doctor", "--provider", "codex"],
+            "zh-CN",
+            Some(&explicit),
+        );
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8(output.stdout)
+                .unwrap()
+                .contains("orchbee agent integration enable --provider codex")
+        );
+    }
+    fs::write(&manifest_path, current_manifest).unwrap();
     fs::write(assets.join("bundle/scripts/forward-hook.mjs"), "corrupt").unwrap();
     let document = fixture.document(Some(&explicit));
     assert_eq!(
@@ -356,7 +385,7 @@ fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
         let output = Command::new("node.exe")
             .args(["--experimental-strip-types", "--input-type=module", "--eval",
                 "import {pathToFileURL} from 'node:url'; const {FileAgentObservationAdapterCapsule:C}=await import(pathToFileURL(process.argv[1]).href); process.stdout.write(await C.computePayloadDigest(process.argv[2]));"])
-            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../desktop/src/main/agent-integration-management/file-agent-observation-adapter-capsule.ts"))
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../desktop/src/main/agent-integration-management/FileAgentObservationAdapterCapsule.ts"))
             .arg(&current)
             .creation_flags(0x0800_0000)
             .output().unwrap();
