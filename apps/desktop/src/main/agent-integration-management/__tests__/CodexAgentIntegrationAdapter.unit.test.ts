@@ -13,7 +13,7 @@ import type {
 const stableRoot =
 	'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const outdatedRoot =
-	'/Applications/Orchbee Local.app/Contents/Resources/agent-observation-adapters';
+	'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
 describe('CodexAgentIntegrationAdapter', () => {
 	it('inspects a broken exact outdated marketplace without invoking the failing Codex inventory', async () => {
@@ -64,6 +64,13 @@ describe('CodexAgentIntegrationAdapter', () => {
 			[configuration(stableRoot, false), 'disabled'],
 			['', 'not-installed'],
 			[configuration('/third-party/marketplace', true), 'conflict'],
+			[
+				configuration(
+					'/Applications/Orchbee Local.app/Contents/Resources/agent-observation-adapters',
+					true,
+				),
+				'conflict',
+			],
 			[
 				`${configuration(stableRoot, true)}\n[marketplaces.orchbee-local]\nsource_type = "local"\nsource = ${JSON.stringify(stableRoot)}\n`,
 				'conflict',
