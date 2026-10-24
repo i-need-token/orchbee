@@ -25,6 +25,7 @@
 ## Key Docs Index
 
 - **Architecture**: `docs/ARCHITECTURE.md` — system architecture, dependency direction, data flow
+- **Glossary**: `docs/GLOSSARY.md` — product concepts, canonical names, identity boundaries, and localized terminology
 - **Cross-client Interface Design**: `docs/INTERFACE-DESIGN.md` — shared GUI/TUI semantics, shortcut transfer, visual roles, interaction patterns, and paired delivery
 - **Applications**: `docs/APPLICATIONS.md` — runnable workspace placement, shape, and lifecycle
 - **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — semantic module design, source-tree visibility, entry points, composition, and cycles

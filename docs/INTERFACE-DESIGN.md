@@ -17,13 +17,13 @@ CLI grammar and output remain governed by [`cli/command-surface.md`](cli/command
 
 ## Responsibility boundaries
 
-| Responsibility                                                                   | Authority                                        | Adapter responsibility                                                                                  |
-| -------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| Entity identity, relationships, lifecycle, and durable state                     | Owning domain capability and its public contract | Project the authoritative state; never infer identity or lifecycle from labels, colors, or row position |
-| Operation meaning, target, eligibility, validation, and outcomes                 | Feature that owns the semantic result            | Invoke the operation through its supported boundary and present its result                              |
-| Product terminology, information priority, action grouping, and default mnemonic | Owning feature's common experience contract      | Localize and render the same meaning using the Client's interaction vocabulary                          |
-| Focus, hover, navigation highlight, open overlays, and scroll position           | Narrowest Client interaction owner               | Keep local unless an existing contract explicitly gives the value a shared scope                        |
-| Theme values, typography, geometry, glyphs, and input decoding                   | Respective theme and Client adapter owners       | Implement the shared roles within platform and host capabilities                                        |
+| Responsibility                                                                   | Authority                                                                                                   | Adapter responsibility                                                                                  |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Entity identity, relationships, lifecycle, and durable state                     | Owning domain capability and its public contract                                                            | Project the authoritative state; never infer identity or lifecycle from labels, colors, or row position |
+| Operation meaning, target, eligibility, validation, and outcomes                 | Feature that owns the semantic result                                                                       | Invoke the operation through its supported boundary and present its result                              |
+| Product terminology, information priority, action grouping, and default mnemonic | [Glossary](GLOSSARY.md) for cross-workspace terms; owning feature's common experience contract for the rest | Localize and render the same meaning using the Client's interaction vocabulary                          |
+| Focus, hover, navigation highlight, open overlays, and scroll position           | Narrowest Client interaction owner                                                                          | Keep local unless an existing contract explicitly gives the value a shared scope                        |
+| Theme values, typography, geometry, glyphs, and input decoding                   | Respective theme and Client adapter owners                                                                  | Implement the shared roles within platform and host capabilities                                        |
 
 Shared data does not make every view state shared. Distinguish a domain's current object from a
 Client's displayed context, keyboard focus, and provisional selection. Declare persistence and

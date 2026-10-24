@@ -15,9 +15,11 @@ apps/*（Rust）                 -> crates/*   -> 外部依赖
 
 ## 产品运行时模块
 
+产品角色与身份边界使用[术语表](GLOSSARY.md)。
+
 ```mermaid
 flowchart TB
- Native["apps/orchbee<br/>native CLI / TUI"] <-->|"local Client protocol"| Server["apps/orchbee-server<br/>local Site and Workbench authority"]
+ Native["apps/orchbee<br/>native CLI / TUI"] <-->|"local Client protocol"| Server["apps/orchbee-server<br/>local Session and Workbench authority"]
  Server <-->|"Worker protocol"| Worker["apps/orchbee-worker<br/>terminal execution coordination"]
  Worker <-->|"terminal protocol / private IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
  Web["apps/web<br/>shared renderer and in-memory Preview"] -. "composes" .-> Workbench["@orchbee/workbench<br/>Project / Workspace / Tab / Panel"]
