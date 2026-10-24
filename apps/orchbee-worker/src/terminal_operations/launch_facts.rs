@@ -19,6 +19,13 @@ use crate::{
     worker_identity::fresh_identity,
 };
 
+/// Captured Windows shell policy; editor launches keep their literal argument list.
+#[cfg(windows)]
+pub(super) struct WindowsShellLaunch<'a> {
+    pub(super) editor_launch: bool,
+    pub(super) settings: &'a orchbee_local_site_runtime::WindowsShellSettings,
+}
+
 pub(super) fn resolve(
     explicit_cwd: Option<&AbsoluteCwd>,
     selection: Option<&orchbee_capability_node_protocol::LaunchSelection>,
@@ -26,8 +33,7 @@ pub(super) fn resolve(
     plugin_environment: Option<&orchbee_capability_node_protocol::PluginTerminalEnvironment>,
     defaults: Option<&orchbee_local_site_runtime::UserTerminalLaunchDefaults>,
     host_colors: orchbee_local_site_runtime::UserTerminalColors,
-    #[cfg(windows)] editor_launch: bool,
-    #[cfg(windows)] shell: &orchbee_local_site_runtime::WindowsShellSettings,
+    #[cfg(windows)] shell: WindowsShellLaunch<'_>,
 ) -> Result<ResolvedTerminalLaunchFacts, Box<dyn Error>> {
     if plugin_environment.is_some() && (!cfg!(windows) || selection.is_none()) {
         return Err(io::Error::new(
@@ -50,14 +56,14 @@ pub(super) fn resolve(
                 Some(launch) => launch.clone(),
                 None => resolve_default_interactive_launch(
                     #[cfg(windows)]
-                    shell,
+                    shell.settings,
                 )?,
             };
             (launch.executable, launch.arguments)
         }
     };
     #[cfg(windows)]
-    let arguments = if editor_launch {
+    let arguments = if shell.editor_launch {
         arguments
     } else {
         powershell::interactive_arguments(&executable, arguments)

@@ -54,8 +54,10 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             plugin.as_ref(),
             defaults.as_ref(),
             orchbee_local_site_runtime::UserTerminalColors::LIGHT,
-            false,
-            &snapshot,
+            WindowsShellLaunch {
+                editor_launch: false,
+                settings: &snapshot,
+            },
         )?;
         let n = NonZeroU64::MIN;
         let authorization = TerminalOperationAuthorization::new(

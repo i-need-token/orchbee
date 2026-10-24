@@ -424,18 +424,14 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
             row("Child report", "child"),
         )]),
     });
+    let theme = crate::tui_theme::Theme::terminal_native();
+    let expected = format!(
+        "{} Child report · branch=child [2/2]",
+        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked)
+    );
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let text = paint(
-            &ui,
-            120,
-            40,
-            locale,
-            &crate::tui_theme::Theme::terminal_native(),
-        );
-        assert!(
-            text.contains("! Child report · branch=child [2/2]"),
-            "{text}"
-        );
+        let text = paint(&ui, 120, 40, locale, &theme);
+        assert!(text.contains(&expected), "{text}");
         assert!(!text.contains("Primary report"));
     }
 }

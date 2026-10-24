@@ -629,9 +629,10 @@ fn prepare(
                     defaults.as_ref(),
                     host_colors,
                     #[cfg(windows)]
-                    launch.editor_source().is_some(),
-                    #[cfg(windows)]
-                    shell,
+                    launch_facts::WindowsShellLaunch {
+                        editor_launch: launch.editor_source().is_some(),
+                        settings: shell,
+                    },
                 )?,
                 correlation,
                 site_runtime,
