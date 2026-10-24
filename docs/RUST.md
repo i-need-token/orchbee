@@ -58,17 +58,30 @@ real `crates/*` library when a second consumer appears.
 - Every member inherits `edition`, `rust-version`, and workspace lints from the root manifest.
 - Commit the one root `Cargo.lock` and use `--locked` in required verification and release
   commands. Nested lockfiles are forbidden.
-- Declare a dependency in `[workspace.dependencies]` when more than one member intentionally shares
-  its version or features. A member still opts into that dependency explicitly with `workspace = true`.
-- Registry dependencies are resolved by the committed lockfile. Git dependencies pin an immutable
+- Declare every third-party dependency used by at least two distinct members in
+  `[workspace.dependencies]`, with its version and base features. Members inherit it with
+  `workspace = true` and may append features. Count normal, development, build, and target-specific
+  declarations by package identity, including renamed dependencies and inactive targets.
+- Write ordinary version requirements, such as `"1.0.151"`; use an exact `=` requirement only with
+  an adjacent comment explaining why. Registry dependencies are resolved by the committed lockfile.
+  Git dependencies pin an immutable
   revision. Path dependencies stay inside this repository; machine-local paths and sibling
   checkouts are forbidden.
-- Keep default features only when their complete behavior belongs in the product. Declare the
-  features actually used, and treat feature expansion as a dependency and binary-size change.
+- Every third-party declaration sets `default-features = false`, directly or through workspace
+  inheritance. List required features explicitly, including any required default behavior such as
+  regex Unicode support, and treat feature expansion as a dependency and binary-size change.
 - A `build.rs` requires a concrete build-time responsibility. It writes only to Cargo's `OUT_DIR`,
   declares every rerun input, performs no network access, and never edits tracked source.
 - Keep `target/` and generated build output untracked. Generated protocol bindings identify their
   source and are checked for staleness by their owning contract.
+
+`pnpm lint:rust` enforces shared third-party workspace inheritance and disabled default features
+before Clippy. The runner reuses locked Cargo metadata for package identity, dependency kind,
+target, and effective features, and reads manifest keys to verify inheritance and unused workspace
+declarations. Repository path dependencies and nonmember third-party manifests are outside these
+two checks. Version-requirement rationale and whether the selected features preserve behavior
+remain review obligations. Real positive and negative Cargo fixtures live in
+[`scripts/run-rust-workspace.test.mjs`](../scripts/run-rust-workspace.test.mjs).
 
 ## Dependency admission
 
@@ -278,12 +291,12 @@ The `reason` requirement is a review obligation: `clippy::allow_attributes_witho
 enabled, and enabling it is a lint policy change that must fix every existing exception in the
 same change.
 
-| Concern                          | Evidence and limits                                                                                                                                                                                      |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Toolchain and Cargo execution    | The root runner checks the compiler pin and locked Cargo metadata, then invokes the selected workspace task.                                                                                             |
-| Compiler and lint diagnostics    | Members inherit workspace lints; rustfmt checks formatting and Clippy denies enabled warnings. This does not prove all source-policy obligations.                                                        |
-| Manifest and architecture policy | Review member registration, lint inheritance, dependency direction, version and feature sharing, nested workspaces, and path boundaries. Cargo metadata alone does not check these repository contracts. |
-| Semantic safety and test value   | Review checked construction, invariant proofs, cancellation, shutdown, and claim-mapped evidence; compilation and a test-file count cannot judge them.                                                   |
+| Concern                          | Evidence and limits                                                                                                                                                                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Toolchain and Cargo execution    | The root runner checks the compiler pin and locked Cargo metadata, then invokes the selected workspace task.                                                                                                                        |
+| Compiler and lint diagnostics    | Members inherit workspace lints; rustfmt checks formatting and Clippy denies enabled warnings. This does not prove all source-policy obligations.                                                                                   |
+| Manifest and architecture policy | The lint runner checks shared third-party workspace inheritance and disabled default features. Review member registration, dependency direction, exact-version rationale, feature behavior, nested workspaces, and path boundaries. |
+| Semantic safety and test value   | Review checked construction, invariant proofs, cancellation, shutdown, and claim-mapped evidence; compilation and a test-file count cannot judge them.                                                                              |
 
 ## Cross-language contracts
 
@@ -354,8 +367,9 @@ contracts that compilation cannot establish.
 
 The root pnpm gate invokes `scripts/run-rust-workspace.mjs` for every Cargo member. The test task
 runs target tests and then library documentation tests separately; `--all-targets` does not include
-doctests. `pnpm test:rust-runner` exercises that boundary, source-module filenames, and the authored
-unsafe-code policy with isolated Cargo fixtures, including failures that must make the runner fail.
+doctests. `pnpm test:rust-runner` exercises that boundary, dependency inheritance and defaults,
+source-module filenames, and the authored unsafe-code policy with isolated Cargo fixtures,
+including failures that must make the runner fail.
 
 | Repository task     | Cargo evidence                                                                                                                     |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

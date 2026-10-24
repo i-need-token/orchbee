@@ -96,6 +96,169 @@ function runTask(root, task) {
 	return run(root, process.execPath, ['scripts/run-rust-workspace.mjs', task, '--verbose']);
 }
 
+function admitDependencyFixture(root) {
+	const manifest = join(root, 'Cargo.toml');
+	writeFileSync(
+		manifest,
+		readFileSync(manifest, 'utf8')
+			.replace('members = ["fixture"]', 'members = ["fixture", "peer"]')
+			.replace(
+				'exclude = ["third-party/process-wrap"]',
+				'exclude = ["third-party/process-wrap", "vendor/runner-shared"]',
+			)
+			.replace(
+				'[patch.crates-io]',
+				'[patch.crates-io]\nrunner-shared = { path = "vendor/runner-shared" }',
+			)
+			.replace(
+				'[workspace.dependencies]',
+				'[workspace.dependencies]\nrunner-shared = { version = "1.0.0", default-features = false }',
+			),
+	);
+	for (const directory of ['peer/src', 'vendor/runner-shared/src'])
+		mkdirSync(join(root, directory), { recursive: true });
+	writeFileSync(
+		join(root, 'vendor/runner-shared/Cargo.toml'),
+		'[package]\nname = "runner-shared"\nversion = "1.0.0"\nedition = "2024"\n[features]\ndefault = []\nextra = []\n',
+	);
+	writeFileSync(join(root, 'vendor/runner-shared/src/lib.rs'), 'pub fn shared() {}\n');
+	writeFileSync(join(root, 'peer/src/lib.rs'), 'pub fn peer() {}\n');
+	writeFileSync(
+		join(root, 'peer/Cargo.toml'),
+		`[package]
+name = "runner-peer"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+[lints]
+workspace = true
+[dependencies]
+runner-shared.workspace = true
+`,
+	);
+	const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
+	assert.equal(lock.status, 0, lock.output);
+}
+
+for (const [scope, declaration, inherited] of [
+	[
+		'normal',
+		'[dependencies]\nalias = { package = "runner-shared", version = "1.0.0", default-features = false } # workspace = true',
+		'[dependencies]\n"runner-shared" = { workspace = true, features = ["extra"] }',
+	],
+	[
+		'development',
+		'["dev-dependencies".alias]\npackage = "runner-shared"\nversion = "1.0.0"\ndefault-features = false',
+		'[dev-dependencies.runner-shared]\nworkspace = true',
+	],
+	[
+		'build',
+		'[build-dependencies]\nalias.package = "runner-shared"\nalias.version = "1.0.0"\nalias.default-features = false',
+		'[build-dependencies]\nrunner-shared.workspace = true',
+	],
+	[
+		'inactive target',
+		`[target.'cfg(target_os="none")'.dependencies]\nalias = { package = "runner-shared", version = "1.0.0", default-features = false }`,
+		`[target.'cfg(target_os="none")'.dependencies]\nrunner-shared.workspace = true`,
+	],
+]) {
+	test(`the Rust lint gate requires workspace inheritance for a shared ${scope} dependency`, () => {
+		withFixture((root) => {
+			admitDependencyFixture(root);
+			const manifest = join(root, 'fixture/Cargo.toml');
+			const source = `${readFileSync(manifest, 'utf8')}
+[package.metadata.policy]
+example = '''
+[dependencies]
+alias.workspace = true
+'''
+`;
+			writeFileSync(manifest, `${source}\n${declaration}\n`);
+			const rejected = runTask(root, 'lint');
+			assert.notEqual(rejected.status, 0, rejected.output);
+			assert.match(rejected.output, /fixture\/Cargo\.toml.*alias/u);
+			assert.match(rejected.output, /inherit with workspace = true/u);
+			assert.match(rejected.output, /docs\/RUST\.md#manifests-dependencies-and-generated-state/u);
+			writeFileSync(manifest, `${source}\n${inherited}\n`);
+			const accepted = runTask(root, 'lint');
+			assert.equal(accepted.status, 0, accepted.output);
+		});
+	});
+}
+
+test('the Rust lint gate rejects enabled defaults in root and member dependency declarations', () => {
+	withFixture((root) => {
+		admitDependencyFixture(root);
+		const rootManifest = join(root, 'Cargo.toml');
+		const source = readFileSync(rootManifest, 'utf8');
+		for (const defaults of ['', ', default-features = true']) {
+			writeFileSync(
+				rootManifest,
+				source.replace(
+					'runner-shared = { version = "1.0.0", default-features = false }',
+					`runner-shared = { version = "1.0.0"${defaults} }`,
+				),
+			);
+			const rejected = runTask(root, 'lint');
+			assert.notEqual(rejected.status, 0, rejected.output);
+			assert.match(rejected.output, /Cargo\.toml \[workspace\.dependencies\] runner-shared/u);
+			assert.match(rejected.output, /default-features = false/u);
+		}
+		writeFileSync(rootManifest, source);
+		const memberManifest = join(root, 'fixture/Cargo.toml');
+		const member = readFileSync(memberManifest, 'utf8');
+		for (const declaration of [
+			'runner-shared = { workspace = true, default-features = true }',
+			'runner-shared = "1.0.0"',
+		]) {
+			writeFileSync(memberManifest, `${member}\n[dependencies]\n${declaration}\n`);
+			const rejected = runTask(root, 'lint');
+			assert.notEqual(rejected.status, 0, rejected.output);
+			assert.match(rejected.output, /fixture\/Cargo\.toml.*must disable default features/u);
+		}
+		writeFileSync(
+			memberManifest,
+			`${member}\n[dependencies]\nrunner-shared.workspace = true\nrunner-peer = { path = "../peer" }\n`,
+		);
+		const accepted = runTask(root, 'lint');
+		assert.equal(accepted.status, 0, accepted.output);
+	});
+});
+
+test('the Rust lint gate counts distinct consumers and checks unused workspace defaults', () => {
+	withFixture((root) => {
+		admitDependencyFixture(root);
+		const peer = join(root, 'peer/Cargo.toml');
+		writeFileSync(peer, readFileSync(peer, 'utf8').replace('runner-shared.workspace = true', ''));
+		const member = join(root, 'fixture/Cargo.toml');
+		writeFileSync(
+			member,
+			`${readFileSync(member, 'utf8')}
+[dependencies]
+runner-shared = { version = "1.0.0", default-features = false }
+[dev-dependencies]
+runner-shared = { version = "1.0.0", default-features = false }
+`,
+		);
+		const accepted = runTask(root, 'lint');
+		assert.equal(accepted.status, 0, accepted.output);
+		const manifest = join(root, 'Cargo.toml');
+		writeFileSync(
+			manifest,
+			readFileSync(manifest, 'utf8').replace(
+				'[workspace.dependencies]',
+				'[workspace.dependencies]\nunused = "1.0.0"',
+			),
+		);
+		const rejected = runTask(root, 'lint');
+		assert.notEqual(rejected.status, 0, rejected.output);
+		assert.match(
+			rejected.output,
+			/\[workspace\.dependencies\] unused must declare default-features = false/u,
+		);
+	});
+});
+
 function admitWindowsConsoleException(root) {
 	const rootManifest = join(root, 'Cargo.toml');
 	writeFileSync(

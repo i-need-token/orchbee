@@ -526,8 +526,8 @@
 			"zhCnSha256": "bbde161f1686eab54cd888880b7e5875a2a6ad5851edf4aad77a7b04768bc6a4"
 		},
 		"docs/LINTING.md": {
-			"englishSha256": "2cb3ec7d538e846e0fcd30176abebb575105a160f205275e8ba8d94cffc558cb",
-			"zhCnSha256": "d8f46e9ba295c5c0f5ca63feca6340569880635c0a1aab87616143471c4964ca"
+			"englishSha256": "46f7477b2aba0e11084dda1398a5bcd1968bedb6847956d441e6470d31c10e61",
+			"zhCnSha256": "fc6e1f11f3412a63461b172147d8fd3306d240ec564542a1337147a6597beca2"
 		},
 		"docs/MODELING-AND-CORRECTNESS.md": {
 			"englishSha256": "22eafcea1ab6bf0e709f06efb03495044c3f11d93c8fdd7af9965903d67d1152",
@@ -550,8 +550,8 @@
 			"zhCnSha256": "fdc03e8b6406a04fef47fc8c217c5147b4dd1f3ab92dc5fd545a58800150a660"
 		},
 		"docs/RUST.md": {
-			"englishSha256": "45db8047abe39c0773cdda0a94850aab61d01493a23f6208f78efc2e6b2e02fa",
-			"zhCnSha256": "a7aa2abc063e542225ff5918ef6d9175c5746725ac7fee872b669cdc2810eaf4"
+			"englishSha256": "a742a0f106306fac64343a9c916d0477888a93241c1538564dfc1c31631a606b",
+			"zhCnSha256": "7640b99561c297c70eea7d9b85841444475274a685ee714887842f3a11b54af0"
 		},
 		"docs/TESTING.md": {
 			"englishSha256": "fc72c5bbed088145644f118d2938b6c19b6ce5a177bbb4ac82ef9cec71fc50e7",

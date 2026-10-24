@@ -51,16 +51,26 @@ consumer 后，才把它移到共享边界。
 
 - 每个 member 从根清单继承 `edition`、`rust-version` 和 workspace lint。
 - 提交唯一的根 `Cargo.lock`，并在必需验证和发布命令中使用 `--locked`。禁止嵌套 lockfile。
-- 多个 member 有意共享 dependency version 或 feature 时，在 `[workspace.dependencies]` 中声明。
-  member 仍需通过 `workspace = true` 显式选择该 dependency。
-- Registry dependency 由已提交 lockfile 解析。Git dependency 固定不可变 revision。Path
+- 至少被两个不同 member 使用的每项第三方 dependency，都在 `[workspace.dependencies]` 中
+  声明 version 与基础 feature。Member 通过 `workspace = true` 继承，并可追加 feature。
+  按 package identity 统计普通、开发、构建与 target 专用声明，包含重命名 dependency 和非活动 target。
+- Version requirement 使用普通形式，例如 `"1.0.151"`；仅在旁边有注释解释原因时才使用精确的
+  `=` requirement。Registry dependency 由已提交 lockfile 解析。Git dependency 固定不可变 revision。Path
   dependency 必须位于本仓库内；禁止机器本地路径和同级 checkout。
-- 只有完整 default feature 行为都属于产品时才保留它。显式声明实际使用的 feature，并把
-  feature 扩张视为 dependency 和 binary-size 变更。
+- 每个第三方声明直接或通过 workspace 继承设置 `default-features = false`。显式列出所需
+  feature，包括确实需要的默认行为，例如 regex Unicode 支持，并把 feature 扩张视为
+  dependency 和 binary-size 变更。
 - `build.rs` 必须有具体的构建期职责。它只写入 Cargo `OUT_DIR`，声明每个 rerun input，不访问
   网络，也绝不编辑已跟踪源码。
 - `target/` 和生成的构建输出保持未跟踪。生成的 protocol binding 标明其来源，并由所属契约
   检查是否陈旧。
+
+`pnpm lint:rust` 在 Clippy 前强制检查共享第三方依赖的 workspace 继承与默认 feature 关闭。
+Runner 复用锁定的 Cargo metadata 获取 package identity、dependency kind、target 与有效 feature，
+并读取清单 key 来检查继承和未使用的 workspace 声明。这两项检查不覆盖仓库 path dependency
+和非 member 的第三方清单。Version requirement 的原因以及所选 feature 是否保留行为仍须评审。
+真实 Cargo 正反夹具位于
+[`scripts/run-rust-workspace.test.mjs`](../../scripts/run-rust-workspace.test.mjs)。
 
 ## 依赖准入
 
@@ -237,12 +247,12 @@ Workspace 还拒绝 `clippy::wildcard_imports`，使普通生产模块导入保�
 `clippy::allow_attributes_without_reason` 未启用，启用它属于 lint 策略变更，且必须在同一变更中
 修复每个现有例外。
 
-| 关注点              | 证据与限制                                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 工具链与 Cargo 执行 | 根 runner 检查编译器固定版本和 locked Cargo metadata，再执行所选 workspace task。                                          |
-| 编译器与 lint 诊断  | 成员继承 workspace lint；rustfmt 检查格式，Clippy 拒绝已启用的告警。这不证明全部源码策略义务。                             |
-| 清单与架构策略      | 评审成员注册、lint 继承、依赖方向、版本与 feature 共享、嵌套 workspace 和路径边界。Cargo metadata 本身不检查这些仓库契约。 |
-| 语义安全与测试价值  | 评审受检构造、不变量证明、取消、关闭和对应主张的证据；编译与测试文件数量无法判断它们。                                     |
+| 关注点              | 证据与限制                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 工具链与 Cargo 执行 | 根 runner 检查编译器固定版本和 locked Cargo metadata，再执行所选 workspace task。                                                                   |
+| 编译器与 lint 诊断  | 成员继承 workspace lint；rustfmt 检查格式，Clippy 拒绝已启用的告警。这不证明全部源码策略义务。                                                      |
+| 清单与架构策略      | Lint runner 检查共享第三方依赖的 workspace 继承与默认 feature 关闭。评审成员注册、依赖方向、精确版本原因、feature 行为、嵌套 workspace 和路径边界。 |
+| 语义安全与测试价值  | 评审受检构造、不变量证明、取消、关闭和对应主张的证据；编译与测试文件数量无法判断它们。                                                              |
 
 ## 跨语言契约
 
@@ -303,7 +313,8 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 
 根 pnpm 门禁调用 `scripts/run-rust-workspace.mjs` 验证每个 Cargo member。测试任务分别运行
 各 target 测试和库文档测试；`--all-targets` 不包含 doctest。`pnpm test:rust-runner` 使用隔离的
-Cargo fixture 验证该边界、源模块文件名及自有 unsafe 代码策略，包括必须导致 runner 失败的情况。
+Cargo fixture 验证该边界、依赖继承与默认 feature、源模块文件名及自有 unsafe 代码策略，
+包括必须导致 runner 失败的情况。
 
 | 仓库任务            | Cargo 证据                                                                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |

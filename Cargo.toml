@@ -27,25 +27,30 @@ rust-version = "1.97.0"
 process-wrap = { path = "third-party/process-wrap" }
 
 [workspace.dependencies]
-win32console = { version = "=0.1.5", default-features = false }
-base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
-getrandom = { version = "=0.3.4", default-features = false }
-serde = { version = "=1.0.229", default-features = false, features = ["std", "derive"] }
-sha2 = "0.10.9"
-rustix = { version = "1.1.4", default-features = false, features = ["std"] }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.3.4", default-features = false }
+jsonschema = { version = "0.53.0", default-features = false }
 nix = { version = "0.31.3", default-features = false }
-winsafe = { version = "=0.0.29", default-features = false }
-winapi-util = { version = "=0.1.11", default-features = false }
-process-wrap = { version = "=10.0.1", default-features = false, features = [
+process-wrap = { version = "10.0.1", default-features = false, features = [
 	"std",
 	"job-object",
 	"creation-flags",
 ] }
-windows = { version = "=0.62.2", default-features = false, features = [
+regex = { version = "1.13.1", default-features = false, features = ["std", "unicode", "perf"] }
+rustix = { version = "1.1.4", default-features = false, features = ["std"] }
+serde = { version = "1.0.229", default-features = false, features = ["std", "derive"] }
+serde_json = { version = "1.0.151", default-features = false, features = ["std"] }
+sha2 = { version = "0.10.9", default-features = false, features = ["std"] }
+toml = { version = "1.1.6", default-features = false, features = ["std", "parse", "serde"] }
+toml_edit = { version = "0.25.15", default-features = false, features = ["parse", "display"] }
+win32console = { version = "0.1.5", default-features = false }
+winapi-util = { version = "0.1.11", default-features = false }
+windows = { version = "0.62.2", default-features = false, features = [
 	"Win32_Foundation",
 	"Win32_System_Console",
 	"Win32_System_Threading",
 ] }
+winsafe = { version = "0.0.29", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

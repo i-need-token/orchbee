@@ -81,6 +81,7 @@ if (task === 'lint') {
 	const workspacePackages = metadata.packages.filter((entry) =>
 		metadata.workspace_members.includes(entry.id),
 	);
+	enforceDependencyPolicy(workspacePackages);
 	enforceAuthoredUnsafePolicy(workspacePackages);
 	const legacyModules = workspacePackages
 		.flatMap((entry) => legacySourceModules(join(dirname(entry.manifest_path), 'src')))
@@ -152,6 +153,187 @@ function legacySourceModules(directory) {
 		if (entry.isDirectory()) return legacySourceModules(path);
 		return entry.name === 'mod.rs' ? [path] : [];
 	});
+}
+
+function enforceDependencyPolicy(workspacePackages) {
+	const rootDeclarations = dependencyDeclarations(
+		readFileSync(join(repositoryRoot, 'Cargo.toml'), 'utf8'),
+		true,
+	);
+	for (const declaration of rootDeclarations.values()) {
+		if (!declaration.fields.has('path') && declaration.fields.get('default-features') !== 'false') {
+			throw new Error(
+				`Cargo.toml [workspace.dependencies] ${declaration.name} must declare default-features = false and list required features; see docs/RUST.md#manifests-dependencies-and-generated-state`,
+			);
+		}
+	}
+	const consumers = new Map();
+	for (const entry of workspacePackages) {
+		for (const dependency of entry.dependencies) {
+			if (dependency.source === null) continue;
+			const members = consumers.get(dependency.name) ?? new Set();
+			members.add(entry.id);
+			consumers.set(dependency.name, members);
+		}
+	}
+	for (const entry of workspacePackages) {
+		const declarations = dependencyDeclarations(readFileSync(entry.manifest_path, 'utf8'), false);
+		for (const dependency of entry.dependencies) {
+			if (dependency.source === null) continue;
+			const kind = dependency.kind === null ? 'dependencies' : `${dependency.kind}-dependencies`;
+			const name = dependency.rename ?? dependency.name;
+			const location = `${relativeManifest(entry.manifest_path)} [${kind}] ${name}${dependency.target === null ? '' : ` (${dependency.target})`}`;
+			const declaration = declarations.get(dependencyDeclarationKey(kind, dependency.target, name));
+			if (declaration === undefined) {
+				throw new Error(
+					`Cannot locate ${location}; use a Cargo dependency table, dotted key, or inline table; see docs/RUST.md#manifests-dependencies-and-generated-state`,
+				);
+			}
+			if (dependency.uses_default_features !== false) {
+				throw new Error(
+					`${location} must disable default features with default-features = false, directly or through workspace inheritance; see docs/RUST.md#manifests-dependencies-and-generated-state`,
+				);
+			}
+			if (
+				consumers.get(dependency.name).size > 1 &&
+				declaration.fields.get('workspace') !== 'true'
+			) {
+				throw new Error(
+					`${location} shares third-party package ${dependency.name} across workspace members; declare it in [workspace.dependencies] and inherit with workspace = true; see docs/RUST.md#manifests-dependencies-and-generated-state`,
+				);
+			}
+		}
+	}
+}
+
+function dependencyDeclarationKey(kind, target, name) {
+	return JSON.stringify([kind, tomlPolicyTokens(target ?? '').join(''), name]);
+}
+
+function dependencyDeclarations(manifest, workspace) {
+	const declarations = new Map();
+	const tokens = tomlPolicyTokens(manifest);
+	let index = 0;
+	let table = [];
+	const key = () => {
+		const parts = [tomlPolicyKey(tokens[index++])];
+		while (tokens[index] === '.') {
+			index += 1;
+			parts.push(tomlPolicyKey(tokens[index++]));
+		}
+		return parts;
+	};
+	const record = (path, fieldValue) => {
+		let start = 1;
+		let target = null;
+		if (workspace) {
+			if (path[0] !== 'workspace' || path[1] !== 'dependencies') return;
+			start = 2;
+		} else if (path[0] === 'target') {
+			target = path[1];
+			start = 3;
+		}
+		const kind = path[start - 1];
+		if (!['dependencies', 'dev-dependencies', 'build-dependencies'].includes(kind)) return;
+		const name = path[start];
+		if (name === undefined) return;
+		const identity = dependencyDeclarationKey(kind, target, name);
+		const declaration = declarations.get(identity) ?? { name, fields: new Map() };
+		if (path.length === start + 2) declaration.fields.set(path[start + 1], fieldValue);
+		declarations.set(identity, declaration);
+	};
+	const value = (path) => {
+		record(path, undefined);
+		if (tokens[index] === '{') {
+			index += 1;
+			while (index < tokens.length && tokens[index] !== '}') {
+				if (tokens[index] === '\n' || tokens[index] === ',') {
+					index += 1;
+					continue;
+				}
+				const child = key();
+				index += 1;
+				value([...path, ...child]);
+			}
+			index += 1;
+			return;
+		}
+		const begin = index;
+		let depth = 0;
+		while (index < tokens.length) {
+			const token = tokens[index];
+			if (depth === 0 && ['\n', ',', '}'].includes(token)) break;
+			if (token === '[' || token === '{') depth += 1;
+			if (token === ']' || token === '}') depth -= 1;
+			index += 1;
+		}
+		record(path, index === begin + 1 ? tokens[begin] : undefined);
+	};
+	// Cargo has already validated TOML. Retain declaration keys and policy flags rather
+	// than inferring inheritance from metadata, which flattens workspace references.
+	while (index < tokens.length) {
+		if (tokens[index] === '\n') index += 1;
+		else if (tokens[index] === '[') {
+			index += 1;
+			const arrayTable = tokens[index] === '[';
+			if (arrayTable) index += 1;
+			table = key();
+			index += arrayTable ? 2 : 1;
+		} else {
+			const path = [...table, ...key()];
+			index += 1;
+			value(path);
+		}
+	}
+	return declarations;
+}
+
+function tomlPolicyKey(token) {
+	if (token.startsWith("'")) return token.slice(1, -1);
+	if (!token.startsWith('"')) return token;
+	const escapes = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', e: '\u001b' };
+	return token.slice(1, -1).replace(/\\(u[\da-f]{4}|U[\da-f]{8}|.)/giu, (_, escaped) => {
+		if (escaped.startsWith('u') || escaped.startsWith('U'))
+			return String.fromCodePoint(Number.parseInt(escaped.slice(1), 16));
+		return escapes[escaped] ?? escaped;
+	});
+}
+
+function tomlPolicyTokens(source) {
+	const tokens = [];
+	let index = 0;
+	while (index < source.length) {
+		const character = source[index];
+		if (character === '#') {
+			const end = source.indexOf('\n', index);
+			index = end === -1 ? source.length : end;
+		} else if (character === '\n') {
+			tokens.push(character);
+			index += 1;
+		} else if (/\s/u.test(character)) index += 1;
+		else if (character === '"' || character === "'") {
+			const begin = index;
+			const multiline = source.startsWith(character.repeat(3), index);
+			index += multiline ? 3 : 1;
+			while (index < source.length) {
+				if (character === '"' && source[index] === '\\') index += 2;
+				else if (source.startsWith(character.repeat(multiline ? 3 : 1), index)) {
+					index += multiline ? 3 : 1;
+					if (multiline) while (source[index] === character) index += 1;
+					break;
+				} else index += 1;
+			}
+			tokens.push(source.slice(begin, index));
+		} else if ('[].{}=,'.includes(character)) {
+			tokens.push(character);
+			index += 1;
+		} else {
+			const begin = index++;
+			while (index < source.length && !/[\s#'"[\].{}=,]/u.test(source[index])) index += 1;
+			tokens.push(source.slice(begin, index));
+		}
+	}
+	return tokens;
 }
 
 function enforceAuthoredUnsafePolicy(workspacePackages) {
