@@ -495,7 +495,7 @@ fn bridge_dispatches_hook_envelope_into_the_read_path_runtime() {
         "correlationId": "correlation-0000000000000001",
         "eventId": "event-0000000000000001",
         "kind": "correlation",
-        "version": 3,
+        "version": 1,
     })
     .to_string();
     service
@@ -517,7 +517,7 @@ fn bridge_dispatches_hook_envelope_into_the_read_path_runtime() {
             "turnKey": null,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
     .to_string();
     assert!(matches!(
@@ -628,7 +628,7 @@ fn a_panicked_fold_permanently_poisons_the_single_state_cell() {
         "correlationId": "correlation-0000000000000001",
         "eventId": "event-0000000000000001",
         "kind": "correlation",
-        "version": 3,
+        "version": 1,
     })
     .to_string();
     service
@@ -650,7 +650,7 @@ fn a_panicked_fold_permanently_poisons_the_single_state_cell() {
             "turnKey": null,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
     .to_string();
     assert!(matches!(
@@ -838,7 +838,7 @@ mod native_leaf {
         format!(
             "{{\"correlationId\":\"correlation-{correlation:016}\",\
              \"eventId\":\"event-{event:016}\",\
-             \"kind\":\"correlation\",\"version\":3}}"
+             \"kind\":\"correlation\",\"version\":1}}"
         )
     }
 
@@ -868,7 +868,7 @@ mod native_leaf {
                 "turnKey": null,
                 "version": 1,
             },
-            "version": 3,
+            "version": 1,
         })
         .to_string()
         .into_bytes()
@@ -899,7 +899,7 @@ mod native_leaf {
                 "turnKey": null,
                 "version": 1,
             },
-            "version": 3,
+            "version": 1,
         })
         .to_string()
         .into_bytes()
@@ -936,7 +936,7 @@ mod native_leaf {
             HostTerminalId::from_bytes([0x21; 16]).unwrap(),
         );
         let p1 = TerminalPresentationId::parse(&"aa".repeat(16)).unwrap();
-        let h1 = "{\"correlationId\":\"correlation-0000000000000001\",            \"eventId\":\"event-0000000000000001\",            \"kind\":\"correlation\",\"version\":3}";
+        let h1 = "{\"correlationId\":\"correlation-0000000000000001\",            \"eventId\":\"event-0000000000000001\",            \"kind\":\"correlation\",\"version\":1}";
         let ev1 = json!({
             "adapterId": "codex",
             "correlations": [{
@@ -953,7 +953,7 @@ mod native_leaf {
                 "turnKey": null,
                 "version": 1,
             },
-            "version": 3,
+            "version": 1,
         })
         .to_string()
         .into_bytes();
@@ -1031,7 +1031,7 @@ mod native_leaf {
         // session; Get still finds it ended, List filters on
         // include_ended, and reconcile-removal flips navigable without
         // erasing history.
-        let h7 = "{\"correlationId\":\"correlation-0000000000000007\",            \"eventId\":\"event-0000000000000007\",            \"kind\":\"correlation\",\"version\":3}";
+        let h7 = "{\"correlationId\":\"correlation-0000000000000007\",            \"eventId\":\"event-0000000000000007\",            \"kind\":\"correlation\",\"version\":1}";
         let routed = service
             .native_apply_event(event(carrier, 2, host1, h7), t0)
             .unwrap();
@@ -1052,7 +1052,7 @@ mod native_leaf {
                 "turnKey": null,
                 "version": 1,
             },
-            "version": 3,
+            "version": 1,
         })
         .to_string()
         .into_bytes();
@@ -1747,7 +1747,7 @@ mod native_leaf {
                     "turnKey": null,
                     "version": 1,
                 },
-                "version": 3,
+                "version": 1,
             })
             .to_string()
             .into_bytes();

@@ -88,12 +88,12 @@ describe('DesktopApplication', () => {
 
 		harness.hostEnvelopeListener?.(
 			terminalApplicationSignalEnvelope(
-				'{"integrationId":"claude-code","kind":"launch","version":3}',
+				'{"integrationId":"claude-code","kind":"launch","version":1}',
 			),
 		);
 		harness.hostEnvelopeListener?.(
 			terminalApplicationSignalEnvelope(
-				'{"command":"claude --prompt secret","integrationId":"claude-code","kind":"launch","version":3}',
+				'{"command":"claude --prompt secret","integrationId":"claude-code","kind":"launch","version":1}',
 				'2',
 			),
 		);
