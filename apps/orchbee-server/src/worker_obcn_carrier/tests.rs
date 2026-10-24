@@ -3024,3 +3024,48 @@ fn transient_clear_carrier_refuses_wrong_operation_and_request_viewer_attachment
     }
     Ok(())
 }
+
+/// A refused acknowledgement retires the Worker carrier, so every Agent read
+/// loses its Worker after the first Host-color report.
+#[test]
+fn host_colors_acknowledgement_keeps_the_worker_carrier() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        HostDefaultColors, TerminalControlAction as Action, TerminalControlOutcome as Outcome,
+        TerminalControlRequest, TerminalControlResult,
+    };
+    let request = TerminalControlRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        viewer_id: OperationId::from_bytes([2; 16])?,
+        controller_id: OperationId::from_bytes([3; 16])?,
+        action: Action::HostColors {
+            sequence: NonZeroU64::MIN,
+            colors: HostDefaultColors::new(0x00d0_d0d0, 0x0010_1010)?,
+        },
+    };
+    let accepted = TerminalControlResult {
+        request_id: request.request_id,
+        viewer_id: request.viewer_id,
+        controller_id: request.controller_id,
+        outcome: Outcome::HostColorsAccepted,
+    };
+    assert!(matches!(
+        super::validate_response(
+            &WorkerOperationRequest::Control(request.clone()),
+            CapabilityNodeMessage::TerminalControlResult(accepted),
+        ),
+        Ok(WorkerOperationResult::Control(TerminalControlResult {
+            outcome: Outcome::HostColorsAccepted,
+            ..
+        }))
+    ));
+    assert_post_delivery_failure(
+        WorkerOperationRequest::Control(request),
+        CapabilityNodeMessage::TerminalControlResult(TerminalControlResult {
+            outcome: Outcome::InputAccepted,
+            ..accepted
+        }),
+        WorkerResponseFailure::WrongResultKind,
+    )
+}

@@ -1339,6 +1339,59 @@ fn semantic_paste_accepts_only_its_own_receipt_without_replaying_unknown_input()
     Ok(())
 }
 
+/// Refusing the acknowledgement retires the session, so the Pane shows an unknown outcome.
+#[test]
+fn host_colors_acknowledgement_keeps_the_session() -> TestResult {
+    use orchbee_client_server_protocol::{
+        ControllerId, TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
+        TerminalControlResult, TerminalRgb, ViewerId,
+    };
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 49)?;
+        let ClientMessage::TerminalControl(request) =
+            read_client_message(&mut stream).map_err(io::Error::other)?
+        else {
+            panic!("host colors request")
+        };
+        assert!(matches!(
+            request.action(),
+            TerminalControlAction::HostColors { .. }
+        ));
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalControlResult(TerminalControlResult::new(
+                request.request_id().clone(),
+                TerminalControlOutcome::HostColorsAccepted {},
+            )),
+        )
+        .map_err(io::Error::other)
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let result = client.submit_terminal_control_cancellable(
+        TerminalControlRequest::new(
+            RequestId::parse(FIRST_REQUEST_ID)?,
+            TerminalControlAction::HostColors {
+                attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+                controller_id: ControllerId::parse(SECOND_REQUEST_ID)?,
+                sequence: std::num::NonZeroU64::MIN,
+                foreground: TerminalRgb::new(0x00d0_d0d0)?,
+                background: TerminalRgb::new(0x0010_1010)?,
+            },
+        ),
+        Some(Instant::now() + Duration::from_secs(2)),
+        None,
+    );
+    assert!(matches!(
+        result?.outcome(),
+        TerminalControlOutcome::HostColorsAccepted {}
+    ));
+    assert!(client.generation().is_some());
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
 #[test]
 fn operation_clock_clones_share_the_injected_monotonic_source() -> TestResult {
     let server = FakeServer::start(|mut stream| {

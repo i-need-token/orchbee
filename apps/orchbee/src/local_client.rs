@@ -493,6 +493,10 @@ impl LocalClient {
                 TerminalControlOutcome::Acquired { .. },
             )
             | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {})
+            | (
+                TerminalControlAction::HostColors { .. },
+                TerminalControlOutcome::HostColorsAccepted {},
+            )
             | (TerminalControlAction::Clear { .. }, TerminalControlOutcome::Cleared { .. })
             | (TerminalControlAction::Paste { .. }, TerminalControlOutcome::Pasted { .. }) => true,
             (

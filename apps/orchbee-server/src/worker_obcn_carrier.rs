@@ -1357,6 +1357,7 @@ fn validate_response(
                 | (Action::Acquire | Action::Takeover { .. }, Outcome::Acquired)
                 | (Action::Release, Outcome::Released)
                 | (Action::Input { .. }, Outcome::InputAccepted)
+                | (Action::HostColors { .. }, Outcome::HostColorsAccepted)
                 | (Action::Clear, Outcome::Cleared { .. } | Outcome::ClearOutcomeUnknown) => true,
                 (Action::Resize { geometry, .. }, Outcome::Resized(actual)) => *geometry == actual,
                 (Action::Paste { content, .. }, Outcome::Pasted { accepted_bytes }) => content
