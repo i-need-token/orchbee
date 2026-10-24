@@ -55,10 +55,6 @@ export type AgentObservationEvent =
 			readonly type: 'turn-activity-changed';
 	  })
 	| (AgentSessionEventBase & {
-			readonly activity: AgentActivity | null;
-			readonly type: 'limited-activity-observed';
-	  })
-	| (AgentSessionEventBase & {
 			readonly request: AgentAttentionRequest;
 			readonly type: 'attention-requested';
 	  })

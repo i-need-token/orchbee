@@ -61,10 +61,6 @@
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
-		"packages/semantic-command-protocol": {
-			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
-		},
 		"packages/terminal": {
 			"entry": ["src/projected/projected-terminal.ts!", "src/**/*.unit.test.{ts,tsx}"],
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]

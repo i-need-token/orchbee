@@ -1447,19 +1447,6 @@ impl NativeSessionState {
         self.pane_record(pane).map(PaneRecord::pane_ref)
     }
 
-    /// Legacy tests name panes by attachment anchor; resolve the live
-    /// incarnation of the FIRST record carrying that anchor — the panel axis
-    /// is ignored, so this is a weak claim that cannot distinguish sibling
-    /// panes or stale incarnations. Departing records still resolve — settle
-    /// paths (cleanup, superseded events) operate on them.
-    #[cfg(test)]
-    pub(super) fn pane_ref_for_anchor(&self, anchor: &AttachmentKey) -> Option<PaneRef> {
-        self.panes
-            .iter()
-            .find(|record| record.key.anchor() == anchor)
-            .map(PaneRecord::pane_ref)
-    }
-
     /// The logical pane key an anchor resolves to: the live record's key, or
     /// the key installation would mint on the tab's first leaf panel — used to
     /// phrase expectations in `PaneKey` terms before the pane exists.
@@ -1486,16 +1473,6 @@ impl NativeSessionState {
     pub(super) fn focus_record(&self) -> Option<&PaneRecord> {
         let desired = self.desired.as_ref()?;
         self.pane_record(desired).filter(|record| !record.departing)
-    }
-
-    /// Mutable access to the focus pane's record — legacy tests mutate
-    /// attachment frame fields directly to build adversarial states.
-    #[cfg(test)]
-    pub(super) fn focus_record_mut(&mut self) -> Option<&mut PaneRecord> {
-        let desired = self.desired.clone()?;
-        self.panes
-            .iter_mut()
-            .find(|record| record.key == desired && !record.departing)
     }
 
     /// The focus pane's accepted frame as a `(anchor, frame)` pair — the shape

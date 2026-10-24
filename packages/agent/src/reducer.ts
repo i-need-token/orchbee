@@ -82,8 +82,6 @@ export function transitionAgentRuntime(
 			return startTurn(snapshot, index, session, event);
 		case 'turn-activity-changed':
 			return changeTurnActivity(snapshot, index, session, event);
-		case 'limited-activity-observed':
-			return observeLimitedActivity(snapshot, index, session, event);
 		case 'attention-requested':
 			return requestAttention(snapshot, index, session, event);
 		case 'attention-resolved':
@@ -197,24 +195,6 @@ function startTurn(
 			phase: event.phase,
 			turnId: event.turnId,
 		},
-	});
-}
-
-function observeLimitedActivity(
-	snapshot: AgentRuntimeSnapshot,
-	index: number,
-	session: AgentSessionSnapshot,
-	event: Extract<AgentObservationEvent, { readonly type: 'limited-activity-observed' }>,
-): AgentTransition {
-	const unavailable = requireLiveCapability(snapshot, session, 'activity');
-	if (unavailable !== null) return unavailable;
-	if (session.observation.source !== 'terminal') {
-		return rejected(snapshot, 'source-capability-exceeded');
-	}
-	return replaceSession(snapshot, index, {
-		...session,
-		activityHint: event.activity,
-		observation: advanceObservation(session, event.sequence),
 	});
 }
 

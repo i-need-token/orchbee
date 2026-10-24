@@ -314,24 +314,12 @@ impl AgentRuntimeSnapshot {
 /// feeds) and union-member residue keys (`activity`/`phase`/`turnId` on
 /// `unknown`/`idle` turns, which are forbidden in any form).
 ///
-/// `Other` marks a present value whose JSON type the field's schema cannot
-/// read; only the private fixture decoder can produce it. Keys whose schema
-/// requires a non-nullable value keep plain raw fields — a missing key is
-/// unrepresentable there and remains the decoder's documented obligation.
+/// Required non-nullable keys keep plain raw fields; the fixture decoder maps
+/// mistyped nullable contents to invalid values of the corresponding raw type.
 #[derive(Clone, Debug)]
 pub enum RawPresence<T> {
     Absent,
     Null,
-    /// Unrepresentable present value — only the private fixture decoder can
-    /// produce it; no production ingress constructs it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "fixture-decoder-only variant; no production ingress constructs it"
-        )
-    )]
-    Other,
     Value(T),
 }
 
@@ -370,7 +358,7 @@ pub struct RawAttentionRequest {
     pub action_path: String,
     pub kind: String,
     pub request_id: String,
-    /// Required-nullable key: `Absent`/`Other` fail candidate validation.
+    /// Required-nullable key: `Absent` fails candidate validation.
     pub turn_id: RawPresence<String>,
 }
 
@@ -511,7 +499,7 @@ impl AgentSessionSnapshot {
             activity_hint: match &raw.activity_hint {
                 RawPresence::Value(activity) => Some(AgentActivity::parse(activity)?),
                 RawPresence::Null => None,
-                RawPresence::Absent | RawPresence::Other => {
+                RawPresence::Absent => {
                     return Err(AgentModelError("missing required activityHint"));
                 }
             },
@@ -532,7 +520,7 @@ impl AgentSessionSnapshot {
                     turn_id: OpaqueId::new(&outcome.turn_id)?,
                 }),
                 RawPresence::Null => None,
-                RawPresence::Absent | RawPresence::Other => {
+                RawPresence::Absent => {
                     return Err(AgentModelError("missing required lastOutcome"));
                 }
             },
@@ -547,7 +535,7 @@ impl AgentSessionSnapshot {
             parent_session_id: match &raw.parent_session_id {
                 RawPresence::Value(id) => Some(OpaqueId::new(id)?),
                 RawPresence::Null => None,
-                RawPresence::Absent | RawPresence::Other => {
+                RawPresence::Absent => {
                     return Err(AgentModelError("missing required parentSessionId"));
                 }
             },
@@ -564,7 +552,7 @@ impl AgentSessionSnapshot {
                         turn_id: match &request.turn_id {
                             RawPresence::Value(turn_id) => Some(OpaqueId::new(turn_id)?),
                             RawPresence::Null => None,
-                            RawPresence::Absent | RawPresence::Other => {
+                            RawPresence::Absent => {
                                 return Err(AgentModelError("missing required request turnId"));
                             }
                         },
@@ -601,7 +589,7 @@ impl AgentSessionSnapshot {
                     activity: match &raw.turn.activity {
                         RawPresence::Value(activity) => Some(AgentActivity::parse(activity)?),
                         RawPresence::Null => None,
-                        RawPresence::Absent | RawPresence::Other => {
+                        RawPresence::Absent => {
                             return Err(AgentModelError("active turn requires an activity"));
                         }
                     },

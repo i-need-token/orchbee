@@ -168,7 +168,7 @@ value is `plain`. HTML and raw VT are rejected by both language decoders and are
 capabilities. Export chunks remain bounded raw bytes because framing is binary; consumers decode
 the admitted plain-text bytes as UTF-8 before a platform clipboard effect.
 
-OBPB format `0.0.2` has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted or Gateway bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
+OBPB format `0.0.2` has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted external bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
 
 `materializeTerminalProjectionFrame` is a post-validation local composition helper. It creates one bounded snapshot from matching decoded OBPB snapshots and OBRW render sources, rebases the selected rows, and can suppress the live cursor. Missing rows or mismatched Host epoch, generation, revision, theme revision, or geometry fail closed. The result carries no extensions and is only a render projection; it does not restore VT, process, PTY, selection, or command state. Callers must still use the strict decoders for untrusted bytes.
 

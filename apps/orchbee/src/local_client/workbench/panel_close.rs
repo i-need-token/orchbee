@@ -1,10 +1,9 @@
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
-    SiteId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandUnavailableReason, WorkbenchPanelId, WorkbenchRejectionReason,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchWireError, read_workbench_response,
-    write_workbench_request,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason,
+    WorkbenchPanelId, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchWireError, read_workbench_response, write_workbench_request,
 };
 use std::{fmt, io, time::Instant};
 
@@ -301,10 +300,6 @@ pub(crate) enum WorkbenchPanelCloseFailure {
         expected: WorkbenchRequestId,
         received: WorkbenchRequestId,
     },
-    SiteMismatch {
-        expected: SiteId,
-        received: SiteId,
-    },
     TerminalContextMismatch {
         expected: WorkbenchTerminalContextId,
         received: WorkbenchTerminalContextId,
@@ -336,9 +331,6 @@ impl fmt::Display for WorkbenchPanelCloseFailure {
                 f,
                 "expected Workbench request {expected} but received {received}"
             ),
-            Self::SiteMismatch { expected, received } => {
-                write!(f, "expected Site {expected} but received {received}")
-            }
             Self::TerminalContextMismatch { expected, received } => write!(
                 f,
                 "expected terminal context {expected} but received {received}"
@@ -364,7 +356,6 @@ impl std::error::Error for WorkbenchPanelCloseFailure {
             Self::UnexpectedResponse
             | Self::ActionIncompatible
             | Self::CorrelationMismatch { .. }
-            | Self::SiteMismatch { .. }
             | Self::TerminalContextMismatch { .. }
             | Self::TabMismatch { .. }
             | Self::PanelMismatch { .. }

@@ -145,9 +145,7 @@ fn recovery_rejects_foreign_target_without_adopting_its_operation() -> TestResul
     assert!(spin_with_draw(&mut session, |session| session
         .task
         .is_none()));
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     let (retained, canonical) = native.uncertain_close_identity().unwrap();
     assert_eq!(retained.request_id(), &wire_id);
     assert_eq!(retained.target().tab_id().as_str(), ID);
@@ -245,9 +243,7 @@ fn early_not_closing_preserves_uncertain_identity_until_explicit_read_resolves_i
         "early NotClosing remains inconclusive"
     );
     assert!(session.task.is_some());
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     let (retained, canonical) = native
         .uncertain_close_identity()
         .expect("inconclusive Read cannot erase the submitted identity");
@@ -258,9 +254,7 @@ fn early_not_closing_preserves_uncertain_identity_until_explicit_read_resolves_i
         session,
         NativeCloseStatusKind::CleanupBlocked
     )));
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     assert!(
         native.uncertain_close_identity().is_none(),
         "only validated canonical status resolves local uncertainty"

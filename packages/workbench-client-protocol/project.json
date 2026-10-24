@@ -5,7 +5,7 @@
 	"stability": "experimental",
 	"responsibility": "Strict transport-neutral Workbench page-client contracts, independent TypeScript bindings for bounded Workbench projections and command requests/results, pure delta refinement, terminal projection control, and projected terminal attachment streams.",
 	"nonGoals": [
-		"Owning Electron, Browser, Gateway, network, authentication, IPC, transport lifecycle, renderer, or UI implementations.",
+		"Owning Electron, Browser, network, authentication, IPC, transport lifecycle, renderer, or UI implementations.",
 		"Owning current Workbench document persistence or transitions, legacy TerminalPresentation behavior, PTY, VT, terminal process, persistence, or product-interface rendering.",
 		"Providing application-lifetime control, network framing, compatibility aliases, or arbitrary message transport."
 	]

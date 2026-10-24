@@ -4,8 +4,7 @@ use super::{
 };
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchTabCloseResume,
-    WorkbenchTabCloseResumeOutcome,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
 };
 use std::time::Instant;
 
@@ -13,10 +12,7 @@ use std::time::Instant;
 pub(crate) enum WorkbenchTabCloseResumeSubmission {
     DefinitelyNotSubmitted(WorkbenchTabCloseNotSubmitted),
     Returned(WorkbenchTabCloseResumeOutcome),
-    OutcomeUnknown {
-        request_id: WorkbenchRequestId,
-        reason: WorkbenchTabCloseFailure,
-    },
+    OutcomeUnknown,
 }
 
 impl LocalClient {
@@ -32,21 +28,15 @@ impl LocalClient {
             Err(CloseExchangeError::NotSubmitted(reason)) => {
                 return WorkbenchTabCloseResumeSubmission::DefinitelyNotSubmitted(reason);
             }
-            Err(CloseExchangeError::Failed(reason)) => {
-                return WorkbenchTabCloseResumeSubmission::OutcomeUnknown {
-                    request_id: request.request_id,
-                    reason,
-                };
+            Err(CloseExchangeError::Failed(_)) => {
+                return WorkbenchTabCloseResumeSubmission::OutcomeUnknown;
             }
         };
         match validate_resume_result(&request, response) {
             Ok(outcome) => WorkbenchTabCloseResumeSubmission::Returned(outcome),
-            Err(reason) => {
+            Err(_) => {
                 self.connection.take();
-                WorkbenchTabCloseResumeSubmission::OutcomeUnknown {
-                    request_id: request.request_id,
-                    reason,
-                }
+                WorkbenchTabCloseResumeSubmission::OutcomeUnknown
             }
         }
     }

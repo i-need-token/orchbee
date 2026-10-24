@@ -17,16 +17,11 @@ use crate::{
     terminal_input::{TerminalInputPort, TerminalInputUnavailable},
 };
 use orchbee_client_server_protocol::Geometry;
-#[cfg(test)]
-use orchbee_client_server_protocol::{RequestId, WorkingDirectory};
 use std::{
     io,
     sync::Arc,
     thread::{self, JoinHandle},
 };
-
-#[cfg(test)]
-use tests::legacy::{LegacyIntent, LegacySession};
 
 mod agent_attention;
 mod agent_board;
@@ -136,12 +131,6 @@ pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 #[derive(Clone, Debug)]
 pub(crate) enum TerminalIntent {
     Standalone,
-    #[cfg(test)]
-    Create {
-        cwd: Option<WorkingDirectory>,
-    },
-    #[cfg(test)]
-    Attach(RequestId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -165,34 +154,23 @@ pub(crate) enum ContextNavigationAdmission {
 }
 
 pub(crate) enum TerminalSessionView<'a> {
-    #[cfg(test)]
-    Legacy {
-        projection: Option<&'a TerminalProjection>,
-        status: TerminalStatus,
-    },
     Native(NativeSessionView<'a>),
 }
 
 enum SessionBackend {
     Native(Box<ui::NativeUi>),
-    #[cfg(test)]
-    Legacy(Box<LegacySession>),
 }
 
 impl SessionBackend {
     fn native_mut(&mut self) -> Option<&mut ui::NativeUi> {
         match self {
             Self::Native(native) => Some(native),
-            #[cfg(test)]
-            Self::Legacy(_) => None,
         }
     }
 }
 
 enum SessionTask {
     Native(JoinHandle<connection::NativeWorkerExit>),
-    #[cfg(test)]
-    Legacy(JoinHandle<()>),
 }
 
 pub(crate) struct TerminalSession {
@@ -262,8 +240,6 @@ impl TerminalSession {
     pub(crate) fn next_poll_delay(&self) -> Option<std::time::Duration> {
         match &self.backend {
             SessionBackend::Native(native) => native.next_poll_delay(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         }
     }
 
@@ -271,8 +247,6 @@ impl TerminalSession {
     pub(crate) fn retained_frame_bank(&self) -> Option<RetainedFrameBank> {
         match &self.backend {
             SessionBackend::Native(native) => Some(native.retained_frame_bank()),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         }
     }
 
@@ -391,8 +365,6 @@ impl TerminalSession {
             SessionBackend::Native(native) => {
                 Some((self.origin.clone()?, native.configuration_clock()))
             }
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         }
     }
 
@@ -450,22 +422,6 @@ impl TerminalSession {
                     recovery_shutdown: None,
                 })
             }
-            #[cfg(test)]
-            TerminalIntent::Create { cwd } => Self::start_legacy(
-                client,
-                shutdown,
-                LegacyIntent::Create { cwd },
-                geometry,
-                identity_seed,
-            ),
-            #[cfg(test)]
-            TerminalIntent::Attach(request_id) => Self::start_legacy(
-                client,
-                shutdown,
-                LegacyIntent::Attach(request_id),
-                geometry,
-                identity_seed,
-            ),
         }
     }
 
@@ -478,11 +434,6 @@ impl TerminalSession {
     pub(crate) fn view(&self) -> TerminalSessionView<'_> {
         match &self.backend {
             SessionBackend::Native(native) => TerminalSessionView::Native(native.view()),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => TerminalSessionView::Legacy {
-                projection: legacy.projection.as_ref(),
-                status: legacy.status(),
-            },
         }
     }
 
@@ -493,16 +444,12 @@ impl TerminalSession {
     ) -> bool {
         match &mut self.backend {
             SessionBackend::Native(native) => native.prepare_draw(viewport, allow_defer),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
     pub(crate) fn status(&self) -> TerminalStatus {
         match &self.backend {
             SessionBackend::Native(native) => native.status(),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.status(),
         }
     }
 
@@ -510,8 +457,6 @@ impl TerminalSession {
     pub(crate) fn projection(&self) -> Option<&TerminalProjection> {
         match &self.backend {
             SessionBackend::Native(native) => native.projection(),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.projection.as_ref(),
         }
     }
 
@@ -530,8 +475,6 @@ impl TerminalSession {
             .is_some_and(startup_preference::Writer::take_failure);
         let changed = match &mut self.backend {
             SessionBackend::Native(native) => native.tick_with_client_capture(client_capture),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.tick(&self.shutdown),
         };
         #[cfg(windows)]
         let changed = if position_failed {
@@ -550,7 +493,6 @@ impl TerminalSession {
     pub(crate) fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
         match &mut self.backend {
             SessionBackend::Native(native) => native.rename_input_context(),
-            SessionBackend::Legacy(_) => None,
         }
     }
 
@@ -695,8 +637,6 @@ impl TerminalSession {
                         .install(message, std::time::Instant::now());
                 }
             }
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => {}
         }
         match (&mut self.client_control, &mut self.backend) {
             (Some(control), SessionBackend::Native(native)) => {
@@ -762,8 +702,6 @@ impl TerminalSession {
                     control.after_draw(native);
                 }
             }
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.after_draw(),
         }
         self.finalize_native_retirement();
     }
@@ -849,40 +787,22 @@ impl TerminalSession {
                 Err(_) => {
                     takeover_return = match &self.backend {
                         SessionBackend::Native(native) => native.takeover_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => None,
                     };
                     workspace_close_return = match &self.backend {
                         SessionBackend::Native(native) => native.workspace_close_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => None,
                     };
                     let evidence = match &self.backend {
                         SessionBackend::Native(native) => native.close_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => state::CloseWorkerReturn::Missing {
-                            queued: None,
-                            deposited: None,
-                        },
                     };
                     let renamed = match &self.backend {
                         SessionBackend::Native(native) => native.rename_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => None,
                     };
                     let setup = match &self.backend {
                         SessionBackend::Native(native) => native.setup_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => None,
                     };
                     (None, None, None, evidence, renamed, setup)
                 }
             },
-            #[cfg(test)]
-            Some(task @ SessionTask::Legacy(_)) => {
-                self.task = Some(task);
-                return;
-            }
             None => return,
         };
         let Some(native) = self.backend.native_mut() else {
@@ -960,8 +880,6 @@ impl TerminalSession {
     ) {
         match &mut self.backend {
             SessionBackend::Native(native) => native.observe_panes(panes),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => {}
         }
         self.finalize_native_retirement();
     }
@@ -972,16 +890,12 @@ impl TerminalInputPort for TerminalSession {
     fn copy_picker_identifier(&mut self, text: String) -> bool {
         match &mut self.backend {
             SessionBackend::Native(native) => native.copy_picker_identifier(text),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
         match &self.backend {
             SessionBackend::Native(native) => native.capture_claims(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => crate::tui_composition::NativeCaptureClaims::default(),
         }
     }
 
@@ -991,8 +905,6 @@ impl TerminalInputPort for TerminalSession {
     ) -> Option<NativeCaptureContext> {
         match &self.backend {
             SessionBackend::Native(native) => native.capture_context(owner),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         }
     }
 
@@ -1289,8 +1201,6 @@ impl TerminalInputPort for TerminalSession {
     ) -> bool {
         match &mut self.backend {
             SessionBackend::Native(native) => native.edit_rename_draft(token, edit),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
@@ -1306,8 +1216,6 @@ impl TerminalInputPort for TerminalSession {
     ) -> Option<SessionActionDisposition> {
         let disposition = match &mut self.backend {
             SessionBackend::Native(native) => Some(native.submit_rename_draft(token)),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         };
         self.finalize_native_retirement();
         disposition
@@ -1371,16 +1279,12 @@ impl TerminalInputPort for TerminalSession {
     ) -> bool {
         match &mut self.backend {
             SessionBackend::Native(native) => native.capture_agent_board_key(episode, &key),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
     fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
         match &mut self.backend {
             SessionBackend::Native(native) => native.agent_board_select(target),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
@@ -1420,8 +1324,6 @@ impl TerminalInputPort for TerminalSession {
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         let accepted = match &mut self.backend {
             SessionBackend::Native(native) => native.forward(input),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.forward(input).is_ok(),
         };
         self.finalize_native_retirement();
         accepted.then_some(()).ok_or(TerminalInputUnavailable)
@@ -1436,8 +1338,6 @@ impl TerminalInputPort for TerminalSession {
     fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
         match &mut self.backend {
             SessionBackend::Native(native) => native.pointer_probe(),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.pointer_probe(),
         }
     }
 
@@ -1445,8 +1345,6 @@ impl TerminalInputPort for TerminalSession {
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         match &self.backend {
             SessionBackend::Native(native) => native.navigator_catalog(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         }
     }
 
@@ -1484,8 +1382,6 @@ impl TerminalInputPort for TerminalSession {
     ) -> crate::terminal_input::PointerSelectionAdmission {
         match &mut self.backend {
             SessionBackend::Native(native) => native.pointer_selection(key, intent),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => crate::terminal_input::PointerSelectionAdmission::Rejected,
         }
     }
 
@@ -1512,8 +1408,6 @@ impl TerminalInputPort for TerminalSession {
     ) -> bool {
         match &self.backend {
             SessionBackend::Native(native) => native.divider_projection_current(target, viewport),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
@@ -1606,16 +1500,12 @@ impl TerminalInputPort for TerminalSession {
     ) -> crate::terminal_input::PointerLinkAdmission {
         match &mut self.backend {
             SessionBackend::Native(native) => native.pointer_link(source, cell),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => crate::terminal_input::PointerLinkAdmission::Rejected,
         }
     }
 
     fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
         let consumed = match &mut self.backend {
             SessionBackend::Native(native) => native.history_key(event),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         };
         self.finalize_native_retirement();
         consumed
@@ -1625,8 +1515,6 @@ impl TerminalInputPort for TerminalSession {
     fn copy_mode_active(&self) -> bool {
         match &self.backend {
             SessionBackend::Native(native) => native.copy_mode_active(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         }
     }
 
@@ -1687,8 +1575,6 @@ impl TerminalInputPort for TerminalSession {
     fn history_wheel(&mut self, key: &state::PaneRef, up: bool) -> bool {
         let consumed = match &mut self.backend {
             SessionBackend::Native(native) => native.history_wheel(key, up),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
         };
         self.finalize_native_retirement();
         consumed
@@ -1768,8 +1654,6 @@ impl TerminalInputPort for TerminalSession {
         }
         let disposition = match &mut self.backend {
             SessionBackend::Native(native) => Some(native.apply_client_action(action)),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
         };
         self.finalize_native_retirement();
         disposition
@@ -1778,8 +1662,6 @@ impl TerminalInputPort for TerminalSession {
     fn observe_geometry(&mut self, geometry: Geometry) {
         match &mut self.backend {
             SessionBackend::Native(native) => native.observe_geometry(geometry),
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.resize(geometry),
         }
         self.finalize_native_retirement();
     }
@@ -1811,15 +1693,9 @@ impl Drop for TerminalSession {
                 // but a retired-already session still owes the lane close.
                 native.release_agent_lane();
             }
-            #[cfg(test)]
-            SessionBackend::Legacy(legacy) => legacy.retire(legacy.status, &self.shutdown),
         }
         self.finalize_native_retirement();
         let _closed = self.shutdown.close();
-        #[cfg(test)]
-        if let Some(SessionTask::Legacy(task)) = self.task.take() {
-            let _joined = task.join();
-        }
     }
 }
 

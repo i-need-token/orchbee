@@ -160,27 +160,9 @@ pub(crate) enum NativeClass {
     Discard,
 }
 
-/// The fold's internal result: class + scalar-W ACK data value + the
-/// owned effect batch. The service consumes the effects inside
-/// `with_state` and surfaces only `NativeOutcome` — an already-applied
-/// batch is never returned for duplicate replay.
+/// Effects consumed by the service inside the same AgentState fold.
+/// The committed carrier owns the production watermark.
 pub(crate) struct NativeTransition {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "fold classification; only test seams read it — the drain fold consumes effects"
-        )
-    )]
-    pub(crate) class: NativeClass,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "scalar-W ACK data value; ACK writer is the future caller outside the cell"
-        )
-    )]
-    pub(crate) ack_w: Option<u64>,
     pub(crate) effects: Vec<NativeObservationEffect>,
 }
 
@@ -323,16 +305,12 @@ impl NativeObservation {
         let Some((current, w)) = self.carrier else {
             self.counts.bump(NativeClass::Discard);
             return NativeTransition {
-                class: NativeClass::Discard,
-                ack_w: None,
                 effects: Vec::new(),
             };
         };
         if current != event.carrier {
             self.counts.bump(NativeClass::Discard);
             return NativeTransition {
-                class: NativeClass::Discard,
-                ack_w: None,
                 effects: Vec::new(),
             };
         }
@@ -340,27 +318,19 @@ impl NativeObservation {
         if seq <= w {
             self.counts.bump(NativeClass::Dedup);
             return NativeTransition {
-                class: NativeClass::Dedup,
-                ack_w: Some(w),
                 effects: Vec::new(),
             };
         }
         if seq - w > 1 {
             self.counts.bump(NativeClass::Hole);
             return NativeTransition {
-                class: NativeClass::Hole,
-                ack_w: Some(w),
                 effects: Vec::new(),
             };
         }
         let (class, effects) = self.classify(event, now);
         self.carrier = Some((current, seq));
         self.counts.bump(class);
-        NativeTransition {
-            class,
-            ack_w: Some(seq),
-            effects,
-        }
+        NativeTransition { effects }
     }
 
     fn classify(
@@ -428,7 +398,7 @@ impl NativeObservation {
 
     /// Gap cover on the current carrier — wire-side structural validity
     /// (positive lo<=hi) is re-asserted defensively. A fully-covered gap
-    /// (`hi<=W`) is a dedup-equivalent noop ACK, never Hole. Covering
+    /// (`hi<=W`) is a dedup-equivalent no-op, never Hole. Covering
     /// advances W only; already-held classified records are not purged
     /// and unclassified covered sequences become accounted-gap.
     pub(crate) fn apply_gap(
@@ -442,24 +412,18 @@ impl NativeObservation {
         let Some((current, w)) = self.carrier else {
             self.counts.bump(NativeClass::Discard);
             return NativeTransition {
-                class: NativeClass::Discard,
-                ack_w: None,
                 effects: Vec::new(),
             };
         };
         if current != *carrier || lo == 0 || lo > hi {
             self.counts.bump(NativeClass::Discard);
             return NativeTransition {
-                class: NativeClass::Discard,
-                ack_w: None,
                 effects: Vec::new(),
             };
         }
         if hi <= w {
             self.counts.bump(NativeClass::Dedup);
             return NativeTransition {
-                class: NativeClass::Dedup,
-                ack_w: Some(w),
                 effects: Vec::new(),
             };
         }
@@ -467,16 +431,12 @@ impl NativeObservation {
         if lo.max(w + 1) != w + 1 {
             self.counts.bump(NativeClass::Hole);
             return NativeTransition {
-                class: NativeClass::Hole,
-                ack_w: Some(w),
                 effects: Vec::new(),
             };
         }
         self.carrier = Some((current, hi));
         self.counts.bump(NativeClass::Gap);
         NativeTransition {
-            class: NativeClass::Gap,
-            ack_w: Some(hi),
             effects: Vec::new(),
         }
     }
@@ -595,13 +555,6 @@ impl NativeObservation {
         self.held_bytes = held_bytes;
         self.counts.bump_by(NativeClass::Routed, routed);
         Ok(effects)
-    }
-
-    /// Test-only observability of the held count — the sweep/cap arms
-    /// assert through it instead of introspecting private state.
-    #[cfg(test)]
-    pub(crate) fn held_count(&self) -> usize {
-        self.records.len()
     }
 
     /// The one live carrier tuple: the full identity plus its scalar `W`.

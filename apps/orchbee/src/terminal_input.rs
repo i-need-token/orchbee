@@ -8,8 +8,6 @@ use crate::terminal_session::{
 use crate::tui_composition::{NativeCaptureClaims, NativeCaptureOwner};
 use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
-#[cfg(test)]
-use orchbee_workbench_protocol::WorkbenchPanelId;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
 #[cfg(windows)]
@@ -234,34 +232,6 @@ impl PointerProbe {
     pub(crate) fn context_index(&self, location: &NativeContextLocation) -> Option<usize> {
         self.contexts.iter().position(|entry| entry == location)
     }
-}
-
-/// Test-only pane identities for the `Legacy` session backend: it owns one
-/// attached terminal with no workbench membership, so its hit region and
-/// probe agree on a fixed sentinel pair instead of real tab/panel ids.
-#[cfg(test)]
-pub(crate) fn legacy_pane_tab() -> WorkbenchTabId {
-    WorkbenchTabId::parse("0000000000000000000000000000000a").expect("sentinel identity")
-}
-
-#[cfg(test)]
-pub(crate) fn legacy_pane_panel() -> WorkbenchPanelId {
-    WorkbenchPanelId::parse("0000000000000000000000000000000b").expect("sentinel identity")
-}
-
-/// The sentinel pane's exact incarnation — fixed `(generation 0,
-/// incarnation 0)` so the legacy backend's probe and the renderer's hit
-/// region agree bit for bit.
-#[cfg(test)]
-pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
-    use crate::terminal_session::state::{AttachmentKey, PaneKey, PaneRef};
-    PaneRef::new(
-        PaneKey::new(
-            AttachmentKey::new(0, legacy_pane_tab()),
-            legacy_pane_panel(),
-        ),
-        0,
-    )
 }
 
 pub(crate) trait TerminalInputPort {

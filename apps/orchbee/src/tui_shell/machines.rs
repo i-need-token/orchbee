@@ -722,7 +722,7 @@ impl Manager {
         picker.error = None;
         picker.cancel_selection();
         self.selection_scope = None;
-        picker.invalidate();
+
         next.view.resize(dimensions.columns);
         let old_view = std::mem::replace(view, next.view);
         view.settle_pointer_released(old_view.pointer_released());

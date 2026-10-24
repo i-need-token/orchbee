@@ -342,31 +342,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                 );
             }
         }
-        #[cfg(test)]
-        Some(TerminalSessionView::Legacy { projection, status }) => {
-            sidebar_status = locale.terminal_status(*status).to_owned();
-            status_text = sidebar_status.clone();
-            if tier != ViewportTier::TooSmall {
-                render_unavailable_workbench(
-                    frame,
-                    &areas,
-                    text,
-                    text.workbench_title,
-                    tier,
-                    theme,
-                );
-                render_legacy_terminal(
-                    frame,
-                    areas.panel,
-                    view,
-                    locale,
-                    *projection,
-                    *status,
-                    theme,
-                    hits,
-                );
-            }
-        }
         Some(TerminalSessionView::Native(native)) => {
             let phase_status = locale.native_phase_status(native);
             let close = native.close_status();
@@ -582,10 +557,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     theme,
                     hits,
                 ),
-                #[cfg(test)]
-                Some(TerminalSessionView::Legacy { .. }) => {
-                    render_unavailable_workbench_navigator(frame, overlay_area(&areas), text, theme)
-                }
                 None => {
                     render_unavailable_workbench_navigator(frame, overlay_area(&areas), text, theme)
                 }
@@ -1363,45 +1334,6 @@ fn render_unavailable_workbench(
                 .alignment(Alignment::Center)
                 .wrap(Wrap { trim: true }),
             content_area,
-        );
-    }
-}
-
-#[cfg(test)]
-#[expect(clippy::too_many_arguments)]
-fn render_legacy_terminal(
-    frame: &mut Frame<'_>,
-    panel: Rect,
-    view: &ClientView,
-    locale: Locale,
-    projection: Option<&crate::terminal_projection::TerminalProjection>,
-    status: TerminalStatus,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) {
-    let area = terminal_area(panel, true);
-    frame.render_widget(Clear, area);
-    if let Some(terminal) =
-        projection.and_then(crate::terminal_projection::TerminalProjection::frame)
-    {
-        terminal_cells::render(frame, area, terminal, view.overlay().is_none(), theme);
-        // The legacy session owns one terminal and no workbench: its pane
-        // records the fixed sentinel incarnation the probe resolves
-        // identically.
-        hits.record(
-            HitLayer::Foreground,
-            area,
-            HitTarget::Pane {
-                pane: crate::terminal_input::legacy_pane_ref(),
-                content: area,
-            },
-        );
-    } else {
-        frame.render_widget(
-            Paragraph::new(locale.terminal_status(status))
-                .style(theme.style(Role::TextSecondary))
-                .wrap(Wrap { trim: true }),
-            area,
         );
     }
 }
@@ -2522,8 +2454,6 @@ fn status_overlay_visible(
                 let visible = visible || native.duplicate_progress().is_some();
                 visible
             }
-            #[cfg(test)]
-            TerminalSessionView::Legacy { .. } => false,
         })
 }
 

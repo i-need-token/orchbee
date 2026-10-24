@@ -146,7 +146,7 @@ impl Picker {
         }
         self.sidebar_width = next;
         self.spaces.reveal();
-        self.invalidate();
+
         true
     }
     /// Demand follows the actual height/width tier, not the sidebar intent alone.
@@ -166,7 +166,6 @@ impl Picker {
         if self.agent_sidebar.settings.as_ref() != &settings {
             self.agent_sidebar.settings = std::sync::Arc::new(settings);
             self.spaces.reset();
-            self.invalidate();
         }
     }
     pub(crate) fn sidebar_settings(
@@ -225,7 +224,7 @@ impl Picker {
         self.cancel_sidebar_scroll();
         self.request = Some(selected.clone());
         self.error = None;
-        self.invalidate();
+
         true
     }
     pub(crate) fn activate_sidebar_selection(&mut self, selected: &Selection) -> bool {

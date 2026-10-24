@@ -2348,3 +2348,28 @@ fn terminal_id(value: u128) -> TerminalId {
 fn id(value: u128) -> String {
     format!("{value:032x}")
 }
+
+impl NativeSessionState {
+    /// Single-pane fixtures resolve their attachment anchor; resolve the live
+    /// incarnation of the FIRST record carrying that anchor — the panel axis
+    /// is ignored, so this is a weak claim that cannot distinguish sibling
+    /// panes or stale incarnations. Departing records still resolve — settle
+    /// paths (cleanup, superseded events) operate on them.
+    pub(in crate::terminal_session) fn pane_ref_for_anchor(
+        &self,
+        anchor: &AttachmentKey,
+    ) -> Option<PaneRef> {
+        self.panes
+            .iter()
+            .find(|record| record.key.anchor() == anchor)
+            .map(PaneRecord::pane_ref)
+    }
+    /// Mutable access to the focus pane's record — fixtures mutate
+    /// attachment frame fields directly to build adversarial states.
+    pub(in crate::terminal_session) fn focus_record_mut(&mut self) -> Option<&mut PaneRecord> {
+        let desired = self.desired.clone()?;
+        self.panes
+            .iter_mut()
+            .find(|record| record.key == desired && !record.departing)
+    }
+}

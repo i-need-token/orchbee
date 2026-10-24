@@ -1,4 +1,4 @@
-//! Pure-leaf coverage of the staged native observation reducer:
+//! Pure-leaf coverage of the native observation reducer:
 //! carrier admit/retire fencing, scalar-W sequence and gap semantics,
 //! typed duplicate/conflict, expiry sweeps, held caps, the typed
 //! payload bound, and complete-snapshot reconcile atomicity. The
@@ -16,7 +16,6 @@ use orchbee_workbench_protocol::TerminalPresentationId;
 
 use super::{
     Binding, CarrierIdentity, NativeClass, NativeEvent, NativeObservation, NativeObservationEffect,
-    NativeTransition,
 };
 
 fn leaf() -> NativeObservation {
@@ -67,7 +66,7 @@ fn event(
     NativeEvent::new(carrier, NonZeroU64::new(sequence).unwrap(), host, raw).unwrap()
 }
 
-fn class_of(transition: &NativeTransition) -> (NativeClass, Option<u64>) {
+fn class_of(transition: &ObservedTransition) -> (NativeClass, Option<u64>) {
     (transition.class, transition.ack_w)
 }
 
@@ -90,7 +89,7 @@ fn carrier_admit_retire_and_stale_fencing() {
     let new = carrier_id(1, 2);
 
     // Events with no current carrier are discarded without an ACK.
-    let outcome = leaf.apply_event(event(old, 1, host(1), hint_json(1, 1)), t0);
+    let outcome = leaf.apply_event_observed(event(old, 1, host(1), hint_json(1, 1)), t0);
     assert_eq!(class_of(&outcome), (NativeClass::Discard, None));
 
     leaf.admit_carrier(old, t0).unwrap();
@@ -99,7 +98,7 @@ fn carrier_admit_retire_and_stale_fencing() {
 
     leaf.reconcile_complete_bindings(&[binding(1, old)], t0)
         .unwrap();
-    let held = leaf.apply_event(event(old, 1, host(2), hint_json(2, 2)), t0);
+    let held = leaf.apply_event_observed(event(old, 1, host(2), hint_json(2, 2)), t0);
     assert_eq!(held.class, NativeClass::Held);
     assert_eq!(leaf.held_count(), 1);
 
@@ -124,11 +123,11 @@ fn carrier_admit_retire_and_stale_fencing() {
     // discarded without minting an ACK.
     leaf.admit_carrier(new, t0).unwrap();
     assert!(leaf.retire_carrier(&old, t0).is_empty());
-    let stale = leaf.apply_event(event(old, 2, host(1), hint_json(3, 3)), t0);
+    let stale = leaf.apply_event_observed(event(old, 2, host(1), hint_json(3, 3)), t0);
     assert_eq!(class_of(&stale), (NativeClass::Discard, None));
     leaf.reconcile_complete_bindings(&[binding(1, new)], t0)
         .unwrap();
-    let routed = leaf.apply_event(event(new, 1, host(1), hint_json(4, 4)), t0);
+    let routed = leaf.apply_event_observed(event(new, 1, host(1), hint_json(4, 4)), t0);
     assert_eq!(class_of(&routed), (NativeClass::Routed, Some(1)));
     assert_eq!(effect_kinds(&routed.effects), vec!["route"]);
 }
@@ -141,7 +140,7 @@ fn typed_duplicate_conflict_and_invalid_consume_sequence() {
     let host = host(1);
     leaf.admit_carrier(carrier, t0).unwrap();
 
-    let first = leaf.apply_event(event(carrier, 1, host, hint_json(1, 1)), t0);
+    let first = leaf.apply_event_observed(event(carrier, 1, host, hint_json(1, 1)), t0);
     assert_eq!(first.class, NativeClass::Held);
 
     // Same semantic hint, reordered members -> Duplicate, never
@@ -149,24 +148,24 @@ fn typed_duplicate_conflict_and_invalid_consume_sequence() {
     let reordered = "{\"version\":3,\"kind\":\"correlation\",\
         \"eventId\":\"event-0000000000000001\",\
         \"correlationId\":\"correlation-0000000000000001\"}";
-    let duplicate = leaf.apply_event(event(carrier, 2, host, reordered), t0);
+    let duplicate = leaf.apply_event_observed(event(carrier, 2, host, reordered), t0);
     assert_eq!(class_of(&duplicate), (NativeClass::Duplicate, Some(2)));
     assert_eq!(leaf.held_count(), 1);
 
     // Same correlation identity, different event identity -> Conflict.
-    let conflict = leaf.apply_event(event(carrier, 3, host, hint_json(1, 9)), t0);
+    let conflict = leaf.apply_event_observed(event(carrier, 3, host, hint_json(1, 9)), t0);
     assert_eq!(class_of(&conflict), (NativeClass::Conflict, Some(3)));
     assert_eq!(leaf.held_count(), 1);
 
     // Invalid JSON still consumes the sequence and commits W.
-    let invalid = leaf.apply_event(event(carrier, 4, host, "not json"), t0);
+    let invalid = leaf.apply_event_observed(event(carrier, 4, host, "not json"), t0);
     assert_eq!(class_of(&invalid), (NativeClass::Invalid, Some(4)));
     assert_eq!(leaf.held_count(), 1);
 
     // A schema-invalid hint (wrong kind) is likewise consumed.
     let wrong_kind = "{\"correlationId\":\"correlation-0000000000000005\",\"eventId\":\"event-0000000000000005\",\
          \"kind\":\"other\",\"version\":3}";
-    let schema_invalid = leaf.apply_event(event(carrier, 5, host, wrong_kind), t0);
+    let schema_invalid = leaf.apply_event_observed(event(carrier, 5, host, wrong_kind), t0);
     assert_eq!(class_of(&schema_invalid), (NativeClass::Invalid, Some(5)));
 }
 
@@ -176,7 +175,7 @@ fn expiry_sweeps_at_every_entry_head() {
     let t0 = Instant::now();
     let carrier = carrier_id(1, 1);
     leaf.admit_carrier(carrier, t0).unwrap();
-    let held = leaf.apply_event(event(carrier, 1, host(1), hint_json(1, 1)), t0);
+    let held = leaf.apply_event_observed(event(carrier, 1, host(1), hint_json(1, 1)), t0);
     assert_eq!(held.class, NativeClass::Held);
     assert_eq!(leaf.held_count(), 1);
 
@@ -196,7 +195,7 @@ fn expiry_sweeps_at_every_entry_head() {
 
     // An earlier-than-origin timestamp saturates instead of expiring
     // everything: a record stamped at t0 is NOT expired when swept at t0.
-    let fresh = leaf.apply_event(event(carrier, 2, host(2), hint_json(2, 2)), t0);
+    let fresh = leaf.apply_event_observed(event(carrier, 2, host(2), hint_json(2, 2)), t0);
     assert_eq!(fresh.class, NativeClass::Held);
     leaf.sweep_expired(t0);
     assert_eq!(leaf.held_count(), 1);
@@ -211,7 +210,7 @@ fn held_cap_and_typed_payload_bound() {
     leaf.admit_carrier(carrier, t0).unwrap();
 
     for sequence in 1..=1024u64 {
-        let outcome = leaf.apply_event(
+        let outcome = leaf.apply_event_observed(
             event(carrier, sequence, host, hint_json(sequence + 100, sequence)),
             t0,
         );
@@ -221,7 +220,7 @@ fn held_cap_and_typed_payload_bound() {
 
     // The cap rejects the NEWEST record and still consumes the
     // sequence: W commits, no record is evicted to make room.
-    let overflow = leaf.apply_event(event(carrier, 1025, host, hint_json(2000, 2000)), t0);
+    let overflow = leaf.apply_event_observed(event(carrier, 1025, host, hint_json(2000, 2000)), t0);
     assert_eq!(class_of(&overflow), (NativeClass::Full, Some(1025)));
     assert_eq!(leaf.held_count(), 1024);
 
@@ -258,47 +257,47 @@ fn scalar_w_sequence_and_gap_semantics() {
     leaf.admit_carrier(carrier, t0).unwrap();
 
     // A hole does not move W and ACKs the current W.
-    let hole = leaf.apply_event(event(carrier, 5, host, hint_json(10, 10)), t0);
+    let hole = leaf.apply_event_observed(event(carrier, 5, host, hint_json(10, 10)), t0);
     assert_eq!(class_of(&hole), (NativeClass::Hole, Some(0)));
 
     // The contiguous prefix commits in order.
-    let first = leaf.apply_event(event(carrier, 1, host, hint_json(11, 11)), t0);
+    let first = leaf.apply_event_observed(event(carrier, 1, host, hint_json(11, 11)), t0);
     assert_eq!(class_of(&first), (NativeClass::Held, Some(1)));
-    let second = leaf.apply_event(event(carrier, 2, host, hint_json(12, 12)), t0);
+    let second = leaf.apply_event_observed(event(carrier, 2, host, hint_json(12, 12)), t0);
     assert_eq!(class_of(&second), (NativeClass::Held, Some(2)));
 
     // Replay of a committed sequence dedups against W.
-    let dedup = leaf.apply_event(event(carrier, 1, host, hint_json(11, 11)), t0);
+    let dedup = leaf.apply_event_observed(event(carrier, 1, host, hint_json(11, 11)), t0);
     assert_eq!(class_of(&dedup), (NativeClass::Dedup, Some(2)));
 
     // Gap [3,5] fills the pending hole contiguously and ACKs hi.
-    let covered = leaf.apply_gap(&carrier, 3, 5, t0);
+    let covered = leaf.apply_gap_observed(&carrier, 3, 5, t0);
     assert_eq!(class_of(&covered), (NativeClass::Gap, Some(5)));
 
     // A fully-covered gap is a dedup-equivalent noop ACK, never Hole.
-    let noop = leaf.apply_gap(&carrier, 1, 5, t0);
+    let noop = leaf.apply_gap_observed(&carrier, 1, 5, t0);
     assert_eq!(class_of(&noop), (NativeClass::Dedup, Some(5)));
 
     // A gap that cannot clip to W+1 is a hole ACKing the current W.
-    let clipped_hole = leaf.apply_gap(&carrier, 7, 9, t0);
+    let clipped_hole = leaf.apply_gap_observed(&carrier, 7, 9, t0);
     assert_eq!(class_of(&clipped_hole), (NativeClass::Hole, Some(5)));
 
     // Stale carrier: discard without minting an ACK.
-    let stale_gap = leaf.apply_gap(&stale, 1, 3, t0);
+    let stale_gap = leaf.apply_gap_observed(&stale, 1, 3, t0);
     assert_eq!(class_of(&stale_gap), (NativeClass::Discard, None));
 
     // Malformed gap shapes (lo>hi, lo==0) are discarded with no ACK.
-    let malformed = leaf.apply_gap(&carrier, 9, 6, t0);
+    let malformed = leaf.apply_gap_observed(&carrier, 9, 6, t0);
     assert_eq!(class_of(&malformed), (NativeClass::Discard, None));
-    let zero_lo = leaf.apply_gap(&carrier, 0, 9, t0);
+    let zero_lo = leaf.apply_gap_observed(&carrier, 0, 9, t0);
     assert_eq!(class_of(&zero_lo), (NativeClass::Discard, None));
 
     // Cover through u64::MAX: contiguous, overflow-safe.
-    let max_cover = leaf.apply_gap(&carrier, 6, u64::MAX, t0);
+    let max_cover = leaf.apply_gap_observed(&carrier, 6, u64::MAX, t0);
     assert_eq!(class_of(&max_cover), (NativeClass::Gap, Some(u64::MAX)));
 
     // Beyond the maximum sequence there is nothing left to deliver.
-    let after_max = leaf.apply_gap(&carrier, 1, u64::MAX, t0);
+    let after_max = leaf.apply_gap_observed(&carrier, 1, u64::MAX, t0);
     assert_eq!(class_of(&after_max), (NativeClass::Dedup, Some(u64::MAX)));
 }
 
@@ -338,7 +337,7 @@ fn reconcile_snapshot_atomicity_removal_and_rebind() {
         }
         _ => panic!("expected a register effect"),
     }
-    let routed = leaf.apply_event(event(carrier, 1, host(1), hint_json(30, 30)), t0);
+    let routed = leaf.apply_event_observed(event(carrier, 1, host(1), hint_json(30, 30)), t0);
     assert_eq!(class_of(&routed), (NativeClass::Routed, Some(1)));
     match &routed.effects[0] {
         NativeObservationEffect::RouteHint {
@@ -370,7 +369,7 @@ fn reconcile_snapshot_atomicity_removal_and_rebind() {
     let removed = leaf.reconcile_complete_bindings(&[], t0).unwrap();
     assert_eq!(effect_kinds(&removed), vec!["retire"]);
     assert!(leaf.bindings().is_empty());
-    let held_again = leaf.apply_event(event(carrier, 2, host(1), hint_json(31, 31)), t0);
+    let held_again = leaf.apply_event_observed(event(carrier, 2, host(1), hint_json(31, 31)), t0);
     assert_eq!(held_again.class, NativeClass::Held);
     assert_eq!(leaf.held_count(), 1);
 
@@ -379,7 +378,7 @@ fn reconcile_snapshot_atomicity_removal_and_rebind() {
     // admission order; the never-rebound old identity's record stays
     // held (a shared presentation string never purges another
     // identity's records).
-    let new_held = leaf.apply_event(event(carrier, 3, host(7), hint_json(33, 33)), t0);
+    let new_held = leaf.apply_event_observed(event(carrier, 3, host(7), hint_json(33, 33)), t0);
     assert_eq!(new_held.class, NativeClass::Held);
     let rebound = leaf
         .reconcile_complete_bindings(
@@ -410,7 +409,7 @@ fn reconcile_snapshot_atomicity_removal_and_rebind() {
     let foreign = [binding(9, carrier_id(9, 3))];
     let retired = leaf.reconcile_complete_bindings(&foreign, t0).unwrap();
     assert_eq!(effect_kinds(&retired), vec!["retire"]);
-    let unrouted = leaf.apply_event(event(carrier, 4, host(7), hint_json(34, 34)), t0);
+    let unrouted = leaf.apply_event_observed(event(carrier, 4, host(7), hint_json(34, 34)), t0);
     assert_eq!(class_of(&unrouted), (NativeClass::Held, Some(4)));
 
     // Oversized snapshot with unique presentations AND identities:
@@ -479,7 +478,7 @@ fn current_carrier_mirrors_the_canonical_tuple() {
 
     leaf.reconcile_complete_bindings(&[binding(1, carrier)], t0)
         .unwrap();
-    let routed = leaf.apply_event(event(carrier, 1, host(1), hint_json(1, 1)), t0);
+    let routed = leaf.apply_event_observed(event(carrier, 1, host(1), hint_json(1, 1)), t0);
     assert_eq!(routed.class, NativeClass::Routed);
     assert_eq!(leaf.current_carrier(), Some((carrier, 1)));
 
@@ -508,4 +507,72 @@ fn envelope_body(correlation: u64, event: u64) -> Vec<u8> {
     })
     .to_string()
     .into_bytes()
+}
+
+/// Tests observe committed counters and watermark, rather than a second production result payload.
+pub(crate) struct ObservedTransition {
+    pub(crate) class: NativeClass,
+    pub(crate) ack_w: Option<u64>,
+    pub(crate) effects: Vec<NativeObservationEffect>,
+}
+
+impl NativeObservation {
+    pub(crate) fn apply_event_observed(
+        &mut self,
+        event: NativeEvent,
+        now: Instant,
+    ) -> ObservedTransition {
+        let before = self.counts.buckets;
+        let transition = self.apply_event(event, now);
+        self.observed_transition(before, transition)
+    }
+    pub(crate) fn apply_gap_observed(
+        &mut self,
+        carrier: &CarrierIdentity,
+        lo: u64,
+        hi: u64,
+        now: Instant,
+    ) -> ObservedTransition {
+        let before = self.counts.buckets;
+        let transition = self.apply_gap(carrier, lo, hi, now);
+        self.observed_transition(before, transition)
+    }
+    fn observed_transition(
+        &self,
+        before: [u64; 12],
+        transition: super::NativeTransition,
+    ) -> ObservedTransition {
+        let class = [
+            NativeClass::Held,
+            NativeClass::Routed,
+            NativeClass::Full,
+            NativeClass::Duplicate,
+            NativeClass::Conflict,
+            NativeClass::Invalid,
+            NativeClass::Dedup,
+            NativeClass::Hole,
+            NativeClass::Gap,
+            NativeClass::Discard,
+        ]
+        .into_iter()
+        .find(|class| self.counts.buckets[*class as usize] > before[*class as usize])
+        .expect("one event or gap increments one classification counter");
+        ObservedTransition {
+            class,
+            ack_w: if class == NativeClass::Discard {
+                None
+            } else {
+                self.current_carrier().map(|(_, watermark)| watermark)
+            },
+            effects: transition.effects,
+        }
+    }
+}
+
+impl NativeObservation {
+    /// Test-only observability of the held count — the sweep/cap arms
+    /// assert through it instead of introspecting private state.
+    pub(crate) fn held_count(&self) -> usize {
+        self.records.len()
+    }
 }

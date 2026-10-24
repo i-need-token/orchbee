@@ -429,7 +429,7 @@ fn resume_checks_every_echo_on_denied_and_retires_impossible_generations() -> Te
             read_response(WorkbenchTabCloseReadOutcome::Denied {}),
             true
         )?,
-        WorkbenchTabCloseResumeSubmission::OutcomeUnknown { .. }
+        WorkbenchTabCloseResumeSubmission::OutcomeUnknown
     ));
     for field in 0..5 {
         let WorkbenchResponse::TabCloseResume(mut result) =
@@ -447,7 +447,7 @@ fn resume_checks_every_echo_on_denied_and_retires_impossible_generations() -> Te
         }
         assert!(matches!(
             submit_resume_response(1, WorkbenchResponse::TabCloseResume(result), true)?,
-            WorkbenchTabCloseResumeSubmission::OutcomeUnknown { .. }
+            WorkbenchTabCloseResumeSubmission::OutcomeUnknown
         ));
     }
     for (expected, outcome) in [
@@ -484,7 +484,7 @@ fn resume_checks_every_echo_on_denied_and_retires_impossible_generations() -> Te
     ] {
         assert!(matches!(
             submit_resume_response(expected, resume_response(outcome), true)?,
-            WorkbenchTabCloseResumeSubmission::OutcomeUnknown { .. }
+            WorkbenchTabCloseResumeSubmission::OutcomeUnknown
         ));
     }
     Ok(())

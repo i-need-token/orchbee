@@ -291,7 +291,7 @@ impl Picker {
                     .all(|r| matches!(r.agent_status, Some("no-agents" | "agents-no-matches")))
             {
                 self.open = false;
-                self.invalidate();
+
                 return true;
             }
             self.error = Some(
@@ -313,7 +313,7 @@ impl Picker {
         let index = match intent.target {
             NavigationTarget::Index(index) if usize::from(index) >= rows.len() => {
                 self.open = false;
-                self.invalidate();
+
                 return true;
             }
             NavigationTarget::Index(index) => usize::from(index),
@@ -326,7 +326,6 @@ impl Picker {
         };
         if current == Some(index) {
             self.open = false;
-            self.invalidate();
         } else {
             self.request = Some(rows[index].selection());
         }

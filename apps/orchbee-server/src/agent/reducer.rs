@@ -39,30 +39,6 @@ pub enum AgentTransitionRejection {
     TurnNotFound,
 }
 
-impl AgentTransitionRejection {
-    #[cfg(test)]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::CapabilityNotDeclared => "capability-not-declared",
-            Self::CapacityExceeded => "capacity-exceeded",
-            Self::GenerationMismatch => "generation-mismatch",
-            Self::IdentityConflict => "identity-conflict",
-            Self::InvalidEvent => "invalid-event",
-            Self::InvalidParent => "invalid-parent",
-            Self::PresentationGenerationMismatch => "presentation-generation-mismatch",
-            Self::PresentationNotFound => "presentation-not-found",
-            Self::RequestConflict => "request-conflict",
-            Self::RequestNotFound => "request-not-found",
-            Self::RuntimeDisposed => "runtime-disposed",
-            Self::SessionEnded => "session-ended",
-            Self::SessionNotFound => "session-not-found",
-            Self::SourceCapabilityExceeded => "source-capability-exceeded",
-            Self::TurnConflict => "turn-conflict",
-            Self::TurnNotFound => "turn-not-found",
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum AgentTransition {
     Applied {
@@ -70,7 +46,7 @@ pub enum AgentTransition {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical transition payload; test accessors/future consumers only"
+                reason = "shared reducer result validated by cross-language conformance"
             )
         )]
         semantic_events: Vec<AgentSemanticEvent>,
@@ -81,7 +57,7 @@ pub enum AgentTransition {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical transition payload; test accessors/future consumers only"
+                reason = "shared reducer result validated by cross-language conformance"
             )
         )]
         snapshot: Arc<AgentRuntimeSnapshot>,
@@ -91,7 +67,7 @@ pub enum AgentTransition {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical transition payload; test accessors/future consumers only"
+                reason = "shared reducer result validated by cross-language conformance"
             )
         )]
         reason: AgentTransitionRejection,
@@ -99,7 +75,7 @@ pub enum AgentTransition {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical transition payload; test accessors/future consumers only"
+                reason = "shared reducer result validated by cross-language conformance"
             )
         )]
         snapshot: Arc<AgentRuntimeSnapshot>,
@@ -107,30 +83,11 @@ pub enum AgentTransition {
 }
 
 impl AgentTransition {
-    #[cfg(test)]
-    pub fn snapshot(&self) -> &AgentRuntimeSnapshot {
-        match self {
-            Self::Applied { snapshot, .. }
-            | Self::Unchanged { snapshot }
-            | Self::Rejected { snapshot, .. } => snapshot,
-        }
-    }
-
     pub fn kind(&self) -> &'static str {
         match self {
             Self::Applied { .. } => "applied",
             Self::Unchanged { .. } => "unchanged",
             Self::Rejected { .. } => "rejected",
-        }
-    }
-
-    #[cfg(test)]
-    pub fn semantic_events(&self) -> &[AgentSemanticEvent] {
-        match self {
-            Self::Applied {
-                semantic_events, ..
-            } => semantic_events,
-            Self::Unchanged { .. } | Self::Rejected { .. } => &[],
         }
     }
 }
@@ -183,9 +140,6 @@ pub fn transition_agent_runtime(
             turn_id,
             ..
         } => change_turn_activity(snapshot, index, session, activity, phase, turn_id, sequence),
-        AgentObservationEvent::LimitedActivityObserved { activity, .. } => {
-            observe_limited_activity(snapshot, index, session, activity, sequence)
-        }
         AgentObservationEvent::AttentionRequested {
             event_id, request, ..
         } => request_attention(snapshot, index, session, event_id, request, sequence),
@@ -378,26 +332,6 @@ fn start_turn(
         phase: RawPresence::Value(phase.to_string()),
         turn_id: RawPresence::Value(turn_id.to_string()),
     };
-    replace_session(snapshot, index, candidate, Vec::new())
-}
-
-fn observe_limited_activity(
-    snapshot: &Arc<AgentRuntimeSnapshot>,
-    index: usize,
-    session: &AgentSessionSnapshot,
-    activity: &RawPresence<String>,
-    sequence: f64,
-) -> AgentTransition {
-    if let Some(unavailable) = require_live_capability(snapshot, session, AgentCapability::Activity)
-    {
-        return unavailable;
-    }
-    if session.observation.source != AgentObservationSource::Terminal {
-        return rejected(snapshot, AgentTransitionRejection::SourceCapabilityExceeded);
-    }
-    let mut candidate = session.to_raw();
-    candidate.activity_hint = activity.clone();
-    candidate.observation = advance_observation(session, sequence);
     replace_session(snapshot, index, candidate, Vec::new())
 }
 

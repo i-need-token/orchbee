@@ -188,7 +188,7 @@ fn observe_close(
                     (json!({"kind":"returned","outcome":outcome}), status)
                 }
                 Tab::DefinitelyNotSubmitted(_) => (json!({"kind":"not-submitted"}), 4),
-                Tab::OutcomeUnknown { .. } => (json!({"kind":"outcome-unknown"}), 8),
+                Tab::OutcomeUnknown => (json!({"kind":"outcome-unknown"}), 8),
             }
         }
     };

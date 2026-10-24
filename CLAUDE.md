@@ -79,8 +79,6 @@ crates/         # Reusable Rust libraries admitted for real cross-crate consumer
 packages/       # Shared JavaScript and TypeScript libraries, guides, and local references
 docs/           # Repository-wide standards and cross-workspace architecture contracts
 proposals/      # Future design under review; never current authority
-research/       # Time-bounded investigations; never an authoritative source
-prompts/        # Task specifications for AI-driven work
 schemas/        # Machine-readable repository contract schemas
 ```
 

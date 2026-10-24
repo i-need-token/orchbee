@@ -2489,7 +2489,7 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
     use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
     use ratatui::layout::Rect;
 
-    let pane = crate::terminal_input::legacy_pane_ref();
+    let pane = pane_ref();
     let source = dispatcher_link_source(pane.clone());
     let mut port = ModalLinkPort {
         probe: PointerProbe {
@@ -2699,4 +2699,19 @@ fn delivered_console_motion_survives_an_unavailable_vt_query_without_rearming_ca
         dispatcher.pointer_observability(PointerCaptureRequest::Release),
         MotionObservability::ButtonOnly
     );
+}
+
+fn pane_ref() -> crate::terminal_session::state::PaneRef {
+    use crate::terminal_session::state::{AttachmentKey, PaneKey, PaneRef};
+    use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
+    PaneRef::new(
+        PaneKey::new(
+            AttachmentKey::new(
+                0,
+                WorkbenchTabId::parse("0000000000000000000000000000000a").unwrap(),
+            ),
+            WorkbenchPanelId::parse("0000000000000000000000000000000b").unwrap(),
+        ),
+        0,
+    )
 }

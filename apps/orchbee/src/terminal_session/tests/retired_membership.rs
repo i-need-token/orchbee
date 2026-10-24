@@ -158,9 +158,7 @@ fn arm_uncommitted_panel_close(
         );
     })?;
     session.after_close_draw(receipt);
-    let TerminalSessionView::Native(view) = session.view() else {
-        return Err(io::Error::other("the panel-close gate needs the native view").into());
-    };
+    let TerminalSessionView::Native(view) = session.view();
     assert_eq!(view.phase(), NativeDisplayPhase::Ready);
     assert!(
         view.panel_close_confirmation().is_some(),
@@ -543,9 +541,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
             .is_none()));
         received.recv_timeout(Duration::from_secs(2))?;
     }
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     let view = native.view();
     assert_eq!(
         view.phase(),

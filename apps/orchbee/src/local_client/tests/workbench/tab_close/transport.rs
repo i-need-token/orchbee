@@ -64,20 +64,18 @@ fn require_not_submitted(submission: Submission) -> WorkbenchTabCloseNotSubmitte
     }
 }
 
-fn require_failure(submission: Submission) -> WorkbenchTabCloseFailure {
+fn require_failure(submission: Submission, check_reason: impl FnOnce(WorkbenchTabCloseFailure)) {
     let (request_id, reason) = match submission {
         Submission::Command(WorkbenchTabCloseSubmission::OutcomeUnknown { request_id, reason })
-        | Submission::Resume(WorkbenchTabCloseResumeSubmission::OutcomeUnknown {
-            request_id,
-            reason,
-        })
         | Submission::Read(Err(WorkbenchTabCloseReadError::Failed { request_id, reason })) => {
             (request_id, reason)
         }
+        // Resume exposes uncertainty only; Command and Read additionally expose diagnostics.
+        Submission::Resume(WorkbenchTabCloseResumeSubmission::OutcomeUnknown) => return,
         _ => panic!("effectful exchanges must remain unknown and status Reads must remain failed"),
     };
     assert_eq!(request_id.as_str(), FIRST_REQUEST_ID);
-    reason
+    check_reason(reason);
 }
 
 #[test]
@@ -136,9 +134,11 @@ fn close_family_partial_handoff_expires_and_retires_without_replay() -> TestResu
             Box::new(clock),
             IoChunkLimits::new(usize::MAX, 1),
         )?;
-        assert!(
-            matches!(require_failure(family.submit(&mut client,deadline)),WorkbenchTabCloseFailure::Write(error) if error.kind()==io::ErrorKind::TimedOut)
-        );
+        require_failure(family.submit(&mut client, deadline), |reason| {
+            assert!(
+                matches!(reason, WorkbenchTabCloseFailure::Write(error) if error.kind() == io::ErrorKind::TimedOut)
+            );
+        });
         assert_eq!(client.generation(), None);
         assert!(matches!(
             require_not_submitted(family.submit(&mut client, deadline)),
@@ -185,9 +185,11 @@ fn close_family_complete_response_cannot_extend_caller_or_exchange_deadline() ->
                 Box::new(clock),
                 IoChunkLimits::UNBOUNDED,
             )?;
-            assert!(
-                matches!(require_failure(family.submit(&mut client,deadline)),WorkbenchTabCloseFailure::ResponseDeadline(error) if error.kind()==io::ErrorKind::TimedOut)
-            );
+            require_failure(family.submit(&mut client, deadline), |reason| {
+                assert!(
+                    matches!(reason, WorkbenchTabCloseFailure::ResponseDeadline(error) if error.kind() == io::ErrorKind::TimedOut)
+                );
+            });
             assert_eq!(client.generation(), None);
             drop(client);
             server.finish()?;
@@ -280,13 +282,12 @@ fn close_family_direction_size_duplicate_and_generation_corruption_retire() -> T
             })?;
             let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
             let deadline = client.operation_clock().now() + SERVER_GUARD_TIMEOUT;
-            assert!(
-                matches!(
-                    require_failure(family.submit(&mut client, deadline)),
-                    WorkbenchTabCloseFailure::Response(_)
-                ),
-                "{family:?} {corruption:?}"
-            );
+            require_failure(family.submit(&mut client, deadline), |reason| {
+                assert!(
+                    matches!(reason, WorkbenchTabCloseFailure::Response(_)),
+                    "{family:?} {corruption:?}"
+                );
+            });
             assert_eq!(client.generation(), None);
             drop(client);
             server.finish()?;

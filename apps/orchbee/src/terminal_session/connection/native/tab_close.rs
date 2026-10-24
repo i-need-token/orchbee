@@ -165,7 +165,7 @@ impl NativeExecutor {
                     WorkbenchTabCloseResumeSubmission::Returned(outcome) => {
                         CloseResult::Resume(outcome)
                     }
-                    WorkbenchTabCloseResumeSubmission::OutcomeUnknown { .. } => {
+                    WorkbenchTabCloseResumeSubmission::OutcomeUnknown => {
                         return Ok((CloseResult::Ambiguous, Some(CarrierFailure::OutcomeUnknown)));
                     }
                 }

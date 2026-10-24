@@ -1,6 +1,5 @@
-//! Canonical Agent observation model — bounded Rust port of the frozen
-//! TypeScript `packages/agent` sources (base commit
-//! `0d4b685a1b7db9405ca94908385e0534ddd41dc9`).
+//! Canonical Agent observation model — bounded Rust mirror of the current
+//! TypeScript `packages/agent` contract, checked by the shared conformance corpus.
 //!
 //! The production surface includes canonical state, admitted observation
 //! transitions, projections and bounded change reads. Test-only seeding and

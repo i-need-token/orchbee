@@ -582,7 +582,7 @@ const VECTORS = [
 	{
 		id: 'v20-capability-and-source-gating',
 		purpose:
-			'Attention kinds require exact capabilities (unclassified accepts any attention capability); limited activity requires terminal source; source-constrained capabilities are enforced at observation.',
+			'Attention kinds require exact capabilities (unclassified accepts any attention capability); source-constrained capabilities are enforced at observation.',
 		covers: ['capability', 'rejection', 'activityHint', 'source-rules'],
 		sourceRefs: ['packages/agent/src/reducer.ts:203-219,652-711'],
 		assumptions: [],
@@ -598,7 +598,6 @@ const VECTORS = [
 				turnId: 'turn-b',
 			}),
 			obs('sess-c', 7, { capabilities: ['activity'] }),
-			ev('sess-c', 0, 8, 'limited-activity-observed', { activity: 'command' }),
 			obs('sess-d', 9, {
 				capabilities: ['activity'],
 				observation: {
@@ -609,7 +608,6 @@ const VECTORS = [
 					source: 'terminal',
 				},
 			}),
-			ev('sess-d', 0, 10, 'limited-activity-observed', { activity: 'command' }),
 			obs('sess-e', 11, {
 				capabilities: ['turnLifecycle'],
 				observation: {

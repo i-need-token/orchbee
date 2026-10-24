@@ -540,7 +540,7 @@ device-scoped notification command。
    failure 可以产生 permission-gated、hidden-attachment notification attempt。Activity 与 Unified
    Search 仍是后续分别治理的界面。
 7. 已完成：Agent runtime 保留有界、去内容化的 canonical change journal；Desktop 公开签名且可感知
-   丢失的长轮询，TypeScript CLI 与内嵌 Skill 公开 reset-and-resnapshot 工作流，且不声明 restart 连续性。
+   丢失的长轮询。原生 Server 与 Client 所属模块维护 CLI/TUI 的 reset-and-resnapshot 工作流，且不声明 restart 连续性。
 8. 只有作为分别授权的 consequential 切片，才考虑 provider-native Answer、Approve、resume、durable
    history、offline remote relay、mobile push 与 cross-device delivery。
 
@@ -690,7 +690,7 @@ Consequential 与 Modeled 切片：
 5. Retention 由 application runtime 拥有，因此可跨 renderer unmount 保留；但不声明跨 Desktop 或未来
    Hub restart 的连续性、replay、cursor validity 或 retained change。Coordinator generation 继续作为
    restart fence。
-6. 第一个 consumer 是既有 semantic-command boundary 与 TypeScript CLI。本切片不增加 Agent control、
+6. 当前 consumer 是 Desktop 与原生 Server/Client 的 observation 界面。本切片不增加 Agent control、
    provider capability、screen 或 process heuristic、terminal output access、remote relay、persistence、
    telemetry 或 operating-system effect。
 7. Deterministic journal 与 operation test 必须通过受控完成顺序覆盖 ordered batching、

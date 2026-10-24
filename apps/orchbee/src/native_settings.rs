@@ -831,20 +831,7 @@ impl Editor {
             _ => None,
         }
     }
-    #[cfg(test)]
-    pub(crate) fn draw(&mut self, token: Token) {
-        if self.view().is_none_or(|view| view.token() != token) {
-            return;
-        }
-        self.presentation.presented();
-        self.surface_presented = true;
-        if let State::Draft(draft) = &mut self.state {
-            draft.drawn = true;
-            // Compatibility for unit and dispatcher fixtures. A following selection is guaranteed
-            // to be revealed; manually scrolled views require concrete SettingsDraw evidence.
-            draft.activation_ready = draft.follow_selection;
-        }
-    }
+
     pub(crate) fn presented(&mut self, draw: SettingsDraw) {
         if self.view().is_none_or(|view| view.token() != draw.token()) {
             return;

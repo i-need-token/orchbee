@@ -315,7 +315,7 @@ The headed Canvas 2D witnesses `terminal-parity/FS-19-local-file-links` and
 synthetic validated PNG bytes. They observe relative-path resolution, modifier activation, a 300 ms
 hover dwell, cancellation when the target changes, rejection of the first request's late completion,
 and the production anchored pointer-transparent card for the second target. They do not invoke an
-operating-system application, read a real file, automate Finder, or grant Browser/Gateway authority.
+operating-system application, read a real file, automate Finder, or grant Browser authority.
 
 ## Packed metadata transition
 

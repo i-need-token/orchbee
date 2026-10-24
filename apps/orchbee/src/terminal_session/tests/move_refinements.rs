@@ -195,9 +195,7 @@ fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_
         session.task.is_none(),
         "the outer tick must join the worker before returning"
     );
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     let (pending, failure) = native
         .move_retirement_for_test()
         .expect("outer join discarded PendingMoveCommit");

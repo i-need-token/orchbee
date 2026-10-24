@@ -152,8 +152,7 @@ The navigation port exposes a read-only `isActive` predicate for the currently a
 The packaged `orchbee:` origin and an Electron user-agent token select the Desktop adapter. The
 user-agent check is only adapter discovery for loopback development; it is not an authorization
 boundary. Desktop capabilities still arrive exclusively through the validated sandboxed bootstrap
-ports. The existing explicit Gateway development marker remains limited to the local Gateway
-development path until shared-Web serving and authentication replace it.
+ports. Unsupported explicit runtime markers are rejected.
 
 ## Ownership boundaries
 

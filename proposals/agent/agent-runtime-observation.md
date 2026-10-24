@@ -597,7 +597,7 @@ Selected correctness evidence:
    attention, success, and failure can produce permission-gated, hidden-attachment notification
    attempts. Activity and Unified Search remain later separately governed surfaces.
 7. Completed: the Agent runtime retains a bounded, content-free canonical change journal; Desktop
-   exposes signed, loss-aware long polling, and the TypeScript CLI plus bundled Skill expose its
+   exposes signed, loss-aware long polling. Native Server and Client owners maintain the CLI/TUI
    reset-and-resnapshot workflow without claiming restart continuity.
 8. Consider provider-native Answer, Approve, resume, durable history, offline remote relay, mobile
    push, and cross-device delivery only as separately authorized consequential slices.
@@ -770,7 +770,7 @@ consequential and modeled slice accepts the following narrower contract:
 5. Retention survives renderer unmount because the application runtime owns it, but no continuity,
    replay, cursor validity, or retained changes are claimed across Desktop or future Hub restart.
    The coordinator generation remains the restart fence.
-6. The first consumer is the existing semantic-command boundary and TypeScript CLI. This slice adds
+6. The current consumers are the Desktop and native Server/Client observation surfaces. This slice adds
    no Agent control, provider capability, screen or process heuristic, terminal output access,
    remote relay, persistence, telemetry, or operating-system effect.
 7. Deterministic journal and operation tests with controlled completion orders must cover ordered batching,

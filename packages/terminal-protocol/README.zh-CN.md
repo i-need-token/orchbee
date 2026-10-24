@@ -130,7 +130,7 @@ kind `25` 的 `ClaimResizeLease` 携带一个附件标识，并返回其完整�
 
 `SelectionExport` 和 `SelectionExportStarted` 保留显式格式字段，唯一合法值为 `plain`。TypeScript 与 Zig 解码器都会拒绝 HTML 和原始 VT，它们不是产品线协议能力。由于帧格式是二进制的，导出分块仍为有界原始字节；执行平台剪贴板效果前，消费者须将获准的纯文本字节解码为 UTF-8。
 
-OBPB 格式 `0.0.2` 有两个故意分开的入口点。 `decodeTerminalProjectionBuffer` 和 `decodeTerminalRowWindow` 完全验证不受信任或网关字节。 `viewTerminalProjectionBuffer` 和 `viewTerminalRowWindow` 仅针对不可变的、功能范围的本地 Terminal Host 传输跳过每单元重新扫描。结构视图函数不是更快的通用解码器。
+OBPB 格式 `0.0.2` 有两个故意分开的入口点。 `decodeTerminalProjectionBuffer` 和 `decodeTerminalRowWindow` 完全验证不受信任的外部字节。 `viewTerminalProjectionBuffer` 和 `viewTerminalRowWindow` 仅针对不可变的、功能范围的本地 Terminal Host 传输跳过每单元重新扫描。结构视图函数不是更快的通用解码器。
 
 `materializeTerminalProjectionFrame` 是一个在校验后使用的本地组合 helper。它从元数据匹配的已解码 OBPB snapshot 与 OBRW render source 中创建一个有界 snapshot，对所选行重新设定基准，并可隐藏 live cursor。缺行，或 Host epoch、generation、revision、theme revision、geometry 不匹配时都会失败关闭。结果不携带 extension，且仅是 render projection；它不会恢复 VT、process、PTY、selection 或 command state。调用方仍须对不受信任字节使用严格 decoder。
 

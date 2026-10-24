@@ -1484,3 +1484,32 @@ fn episode_oracle_keeps_provisional_accept_cancel_and_undrawn_acceptance_replaya
         assert_eq!(replay(&trace), Ok(()), "{trace:?}");
     }
 }
+
+impl Editor {
+    pub(crate) fn draw(&mut self, token: Token) {
+        let draw = match &self.state {
+            State::Draft(draft) => match &draft.browse {
+                BrowseMode::Picker(picker) => SettingsDraw::picker(
+                    token,
+                    if draft.follow_selection {
+                        picker.cursor
+                    } else {
+                        picker.viewport
+                    },
+                    draft.visible_rows.max(1),
+                ),
+                _ => SettingsDraw {
+                    token,
+                    rows: Some((draft.viewport, draft.visible_rows.max(1))),
+                    painted: if draft.follow_selection {
+                        draft.row.mask()
+                    } else {
+                        0
+                    },
+                },
+            },
+            _ => SettingsDraw::surface(token),
+        };
+        self.presented(draw);
+    }
+}

@@ -2752,3 +2752,10 @@ fn id(value: u128) -> String {
 fn geometry(columns: u16) -> Geometry {
     Geometry::new(columns, 24, 8, 16).unwrap()
 }
+
+impl PollKey {
+    /// The poll's attachment anchor for single-pane assertions.
+    pub(in crate::terminal_session) const fn attachment(&self) -> &AttachmentKey {
+        self.key.anchor()
+    }
+}

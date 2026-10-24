@@ -103,7 +103,7 @@ never terminal-text inference; the Server owns names, while `agent integration` 
 only the invoking user's local provider configuration. Each command's effects, budgets,
 and release boundaries are specified in its section. CLI commands need no TTY; the
 interactive TUI has separate terminal admission requirements. The native CLI remains
-a native development surface; the old Desktop TypeScript CLI has retired.
+a native development surface.
 
 Authority: this record owns the public grammar, result envelopes, failure matrix,
 budgets, exchange state machines and output effects implemented under `src/invocation.rs`

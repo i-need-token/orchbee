@@ -1,4 +1,4 @@
-//! The fourteen `AgentObservationEvent` kinds and the four `AgentSemanticEvent`
+//! The thirteen `AgentObservationEvent` kinds and the four `AgentSemanticEvent`
 //! kinds. Event fields mirror the schema-less TypeScript union: raw strings and
 //! `f64` numbers so every reducer guard stays reachable in source order.
 
@@ -13,7 +13,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -32,7 +32,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -48,7 +48,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -57,20 +57,6 @@ pub enum AgentObservationEvent {
         sequence: f64,
         session_id: String,
         turn_id: String,
-    },
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "canonical model variant; no production ingress emits it yet"
-        )
-    )]
-    LimitedActivityObserved {
-        activity: RawPresence<String>,
-        event_id: String,
-        generation: f64,
-        sequence: f64,
-        session_id: String,
     },
     AttentionRequested {
         event_id: String,
@@ -99,7 +85,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -111,7 +97,7 @@ pub enum AgentObservationEvent {
         not(test),
         expect(
             dead_code,
-            reason = "canonical model variant; no production ingress emits it yet"
+            reason = "Desktop produces this shared variant; Server retains cross-language conformance"
         )
     )]
     ObservationBecameStale {
@@ -124,7 +110,7 @@ pub enum AgentObservationEvent {
         not(test),
         expect(
             dead_code,
-            reason = "canonical model variant; no production ingress emits it yet"
+            reason = "Desktop produces this shared variant; Server retains cross-language conformance"
         )
     )]
     ObservationReconnected {
@@ -144,7 +130,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -157,7 +143,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -173,7 +159,7 @@ pub enum AgentObservationEvent {
             not(test),
             expect(
                 dead_code,
-                reason = "canonical audit payload; journal/remote consumers only"
+                reason = "shared event provenance validated by conformance; Server does not read this field"
             )
         )]
         event_id: String,
@@ -192,27 +178,6 @@ pub enum AgentObservationEvent {
 }
 
 impl AgentObservationEvent {
-    /// Every observation event carries its own `eventId` provenance.
-    #[cfg(test)]
-    pub fn event_id(&self) -> &str {
-        match self {
-            Self::SessionObserved { event_id, .. }
-            | Self::TurnStarted { event_id, .. }
-            | Self::TurnActivityChanged { event_id, .. }
-            | Self::LimitedActivityObserved { event_id, .. }
-            | Self::AttentionRequested { event_id, .. }
-            | Self::AttentionResolved { event_id, .. }
-            | Self::TurnFinished { event_id, .. }
-            | Self::SessionIdleObserved { event_id, .. }
-            | Self::ObservationBecameStale { event_id, .. }
-            | Self::ObservationReconnected { event_id, .. }
-            | Self::PresentationAttached { event_id, .. }
-            | Self::PresentationVisibilityChanged { event_id, .. }
-            | Self::PresentationDetached { event_id, .. }
-            | Self::SessionEnded { event_id, .. } => event_id,
-        }
-    }
-
     /// `generation`, `sequence`, `sessionId` for the shared dispatch preamble.
     /// `session-observed` carries its ordered identity inside `observation` and
     /// returns `None` here because it bypasses that preamble entirely.
@@ -226,12 +191,6 @@ impl AgentObservationEvent {
                 ..
             }
             | Self::TurnActivityChanged {
-                generation,
-                sequence,
-                session_id,
-                ..
-            }
-            | Self::LimitedActivityObserved {
                 generation,
                 sequence,
                 session_id,
@@ -306,7 +265,6 @@ impl AgentObservationEvent {
             Self::SessionObserved { .. } => "session-observed",
             Self::TurnStarted { .. } => "turn-started",
             Self::TurnActivityChanged { .. } => "turn-activity-changed",
-            Self::LimitedActivityObserved { .. } => "limited-activity-observed",
             Self::AttentionRequested { .. } => "attention-requested",
             Self::AttentionResolved { .. } => "attention-resolved",
             Self::TurnFinished { .. } => "turn-finished",
@@ -327,7 +285,7 @@ pub enum AgentSemanticEvent {
         not(test),
         expect(
             dead_code,
-            reason = "canonical semantic record; journal/remote consumers only"
+            reason = "shared reducer output validated by conformance; Server reads the resulting snapshot"
         )
     )]
     AttentionRequested {
@@ -339,7 +297,7 @@ pub enum AgentSemanticEvent {
         not(test),
         expect(
             dead_code,
-            reason = "canonical semantic record; journal/remote consumers only"
+            reason = "shared reducer output validated by conformance; Server reads the resulting snapshot"
         )
     )]
     AttentionResolved {
@@ -351,7 +309,7 @@ pub enum AgentSemanticEvent {
         not(test),
         expect(
             dead_code,
-            reason = "canonical semantic record; journal/remote consumers only"
+            reason = "shared reducer output validated by conformance; Server reads the resulting snapshot"
         )
     )]
     TurnOutcome {
@@ -364,7 +322,7 @@ pub enum AgentSemanticEvent {
         not(test),
         expect(
             dead_code,
-            reason = "canonical semantic record; journal/remote consumers only"
+            reason = "shared reducer output validated by conformance; Server reads the resulting snapshot"
         )
     )]
     SessionEnded {

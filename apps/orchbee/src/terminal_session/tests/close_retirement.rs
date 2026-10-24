@@ -100,9 +100,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     assert!(spin_with_draw(&mut session, |session| session.status()
         == TerminalStatus::Controlling));
     session.apply_client_action(ClientAction::RequestCloseTab);
-    let TerminalSessionView::Native(view) = session.view() else {
-        unreachable!()
-    };
+    let TerminalSessionView::Native(view) = session.view();
     let token = view.close_confirmation().unwrap().token();
     session.after_close_draw(NativeDrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
@@ -113,9 +111,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         .task
         .is_none()));
     assert!(saw_close.load(Ordering::SeqCst));
-    let TerminalSessionView::Native(view) = session.view() else {
-        unreachable!()
-    };
+    let TerminalSessionView::Native(view) = session.view();
     let status = view
         .close_status()
         .expect("missing worker return cannot erase the possibly submitted Close");
@@ -123,9 +119,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     assert!(status.unavailable());
     assert!(!status.resumable());
     let submitted = wire_id_receiver.recv_timeout(Duration::from_secs(1))?;
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     let (retained, canonical) = native
         .uncertain_close_identity()
         .expect("retain original uncertain exchange identity");

@@ -9,6 +9,6 @@
 		"Owning Electron lifecycle, product recovery or update policy, presentation, renderer behavior, or platform UI effects.",
 		"Owning concurrent independent brokers, same-user application isolation, or multi-tenant authorization.",
 		"Providing durable PTY migration or recovery across Host-process or operating-system crashes.",
-		"Owning release assembly, signing, application package verification, network listeners, remote authentication, encryption, or sharing gateway behavior."
+		"Owning release assembly, signing, application package verification, network listeners, remote authentication, encryption, or remote sharing behavior."
 	]
 }

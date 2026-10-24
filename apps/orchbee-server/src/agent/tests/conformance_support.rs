@@ -144,7 +144,7 @@ fn presence_json<T, F: Fn(&T) -> Value>(presence: &RawPresence<T>, map: F) -> Op
     match presence {
         RawPresence::Absent => None,
         RawPresence::Null => Some(Value::Null),
-        RawPresence::Other => Some(json!("__malformed-presence__")),
+
         RawPresence::Value(value) => Some(map(value)),
     }
 }

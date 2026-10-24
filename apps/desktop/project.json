@@ -7,7 +7,7 @@
 	"nonGoals": [
 		"Defining Project, Workspace, Workbench, Tab, Panel, Agent, or product-session semantics; Desktop composes their owning package APIs.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
-		"Owning Browser access, remote Project enrollment, POSIX SSH Environment runtimes, or the retired TypeScript CLI semantic endpoint.",
+		"Owning Browser access, remote Project enrollment, or remote execution runtimes.",
 		"Owning a second Workbench product UI separate from apps/web.",
 		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation.",
 		"Automatically merging stale document revisions, repairing invalid persisted documents, persisting Client View, or activating Desktop updates."

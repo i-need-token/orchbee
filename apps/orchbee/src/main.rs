@@ -30,13 +30,6 @@ mod invocation;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod local_activation;
 #[cfg(any(unix, windows))]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the accepted private foundations are staged before TUI and activation integration"
-    )
-)]
 mod local_client;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod local_startup;

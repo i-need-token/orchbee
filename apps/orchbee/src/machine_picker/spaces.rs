@@ -118,7 +118,6 @@ impl Picker {
         if self.spaces.settings.as_ref() != &settings {
             self.spaces.settings = std::sync::Arc::new(settings);
             self.spaces.reset();
-            self.invalidate();
         }
     }
     pub(crate) fn observe_spaces(
@@ -404,7 +403,7 @@ impl Picker {
         self.cancel_sidebar_scroll();
         self.request = Some(selected.clone());
         self.error = None;
-        self.invalidate();
+
         true
     }
 }

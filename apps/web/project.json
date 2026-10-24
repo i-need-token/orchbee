@@ -7,7 +7,7 @@
 	"nonGoals": [
 		"Owning cross-application reusable UI primitives; app-owned product experience compositions remain here.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",
-		"Owning authoritative PTY processes, Gateway listeners, token verification, session signing, remote session synchronization, or deployment services.",
+		"Owning authoritative PTY processes, network listeners, token verification, session signing, remote session synchronization, or deployment services.",
 		"Owning canonical Agent transitions, provider adapters, provider setup, Agent persistence, or notification policy.",
 		"Owning Electron Main, preload, Node, or native desktop privileged capability implementations."
 	]

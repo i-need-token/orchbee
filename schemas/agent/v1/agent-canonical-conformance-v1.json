@@ -3,21 +3,21 @@
 	"formatVersion": 1,
 	"generatedBy": "packages/agent conformance/generate-corpus.mjs",
 	"provenance": {
-		"baseCommit": "0d4b685a1b7db9405ca94908385e0534ddd41dc9",
+		"baseCommit": "30430368cc8abc21399be6a779a05ff215b5320e",
 		"executedImplementation": "@orchbee/agent dist build of the fingerprinted sources",
 		"note": "expectations are produced by the authoritative TypeScript reducer/journal/projection, not hand-written; parity evidence, not public schema authority",
 		"sourceFingerprints": [
 			{
 				"path": "AgentRuntime.ts",
-				"sha256": "6ea242beaf237ea1f7134e3d6a0ba5cd28eabeb1cf39e7df74e080b8b08a2d5a"
+				"sha256": "a72986259d398d1f99b38c44b53ece3535ac5eec7c2501492ffb3664ee19049b"
 			},
 			{
 				"path": "__tests__/AgentRuntime.unit.test.ts",
-				"sha256": "7e01ac9ed745ebb0c320bc41067a9748e534655770bb5549c3423a0970981b50"
+				"sha256": "20ba32843d96addd1324381c35568387cee8d0e2c750a0cdfd6257f8131745a2"
 			},
 			{
 				"path": "__tests__/agent-runtime.unit.test.ts",
-				"sha256": "f9dc7340f53cbfc69cdaad6a891c2c755c49c472cc2afffa275e81238af0eea0"
+				"sha256": "6479c6d77e50c68a1f91f7f7fb1d368162db9a3088836871733cfacd71574266"
 			},
 			{
 				"path": "__tests__/canonical-boundary.unit.test.ts",
@@ -33,7 +33,7 @@
 			},
 			{
 				"path": "__tests__/changes.unit.test.ts",
-				"sha256": "516dc26ce99f008ff3cce2a4f6a2ccd77d1ace8d0c9d56d324636c8209d52017"
+				"sha256": "f2275ba3678beedad553cc84378380649d4eb598349effb19a30a37a0abec67e"
 			},
 			{
 				"path": "__tests__/projection.unit.test.ts",
@@ -45,11 +45,11 @@
 			},
 			{
 				"path": "changes.ts",
-				"sha256": "6418bb2189f8fbd61e406c2d3594ecd6ccd6ea6aabf161b237d4970a663212b0"
+				"sha256": "24289746ce79c13e0118ca1b4b7f896c7cc941d548d85859f1790ae5431c00e5"
 			},
 			{
 				"path": "events.ts",
-				"sha256": "99f9d7eff3faf1e4e26e0f134d8847dd484b6f8c898997f9feba3c93d15e2789"
+				"sha256": "26de93e0e60877bb7560da3c979dfb850a3bed60c6bfac2cbd8ec15164e8284b"
 			},
 			{
 				"path": "index.ts",
@@ -65,7 +65,7 @@
 			},
 			{
 				"path": "reducer.ts",
-				"sha256": "da4b628f63adbc38afb2d34bddcbe72a0d4f9638baaac97d1ddddef9774bf185"
+				"sha256": "eea36191a1bb56131944053c0e4c133c0c068554c1c8305ba44e942627957b87"
 			},
 			{
 				"path": "semantic-commands/__tests__/agent-semantic-read-model.unit.test.ts",
@@ -4627,18 +4627,8 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-87",
-						"generation": 0,
-						"sequence": 8,
-						"sessionId": "sess-c",
-						"type": "limited-activity-observed",
-						"activity": "command"
-					}
-				},
-				{
-					"event": {
 						"capabilities": ["activity"],
-						"eventId": "evt-88",
+						"eventId": "evt-87",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-d"
 						},
@@ -4658,18 +4648,8 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-89",
-						"generation": 0,
-						"sequence": 10,
-						"sessionId": "sess-d",
-						"type": "limited-activity-observed",
-						"activity": "command"
-					}
-				},
-				{
-					"event": {
 						"capabilities": ["turnLifecycle"],
-						"eventId": "evt-90",
+						"eventId": "evt-88",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-e"
 						},
@@ -4690,7 +4670,7 @@
 				{
 					"event": {
 						"capabilities": ["turnLifecycle"],
-						"eventId": "evt-91",
+						"eventId": "evt-89",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-f"
 						},
@@ -4943,17 +4923,17 @@
 							"freshness": "fresh",
 							"freshnessMeaning": "current-observation",
 							"generation": 0,
-							"sequence": 10,
+							"sequence": 9,
 							"source": "terminal",
 							"status": {
-								"activityHint": "command",
+								"activityHint": null,
 								"kind": "unknown"
 							},
-							"statusBasis": "limited-activity-hint"
+							"statusBasis": "unobserved-turn-state"
 						},
 						"matchedWaitConditions": ["unknown", "fresh"],
 						"snapshot": {
-							"activityHint": "command",
+							"activityHint": null,
 							"capabilities": ["activity"],
 							"executionLocation": {
 								"executionLocationId": "exec-sess-d"
@@ -4964,7 +4944,7 @@
 								"fidelity": "basic",
 								"freshness": "fresh",
 								"generation": 0,
-								"sequence": 10,
+								"sequence": 9,
 								"source": "terminal"
 							},
 							"parentSessionId": null,
@@ -4977,7 +4957,7 @@
 							}
 						},
 						"status": {
-							"activityHint": "command",
+							"activityHint": null,
 							"kind": "unknown"
 						},
 						"summary": {
@@ -4989,7 +4969,7 @@
 								"fidelity": "basic",
 								"freshness": "fresh",
 								"generation": 0,
-								"sequence": 10,
+								"sequence": 9,
 								"source": "terminal"
 							},
 							"parentSessionId": null,
@@ -4998,7 +4978,7 @@
 							"providerId": "claude-code",
 							"sessionId": "sess-d",
 							"status": {
-								"activityHint": "command",
+								"activityHint": null,
 								"kind": "unknown"
 							}
 						}
@@ -5075,34 +5055,21 @@
 					},
 					{
 						"eventIndex": 7,
-						"kind": "rejected",
-						"revision": 5,
-						"semanticEvents": [],
-						"reason": "source-capability-exceeded"
-					},
-					{
-						"eventIndex": 8,
 						"kind": "applied",
 						"revision": 6,
 						"semanticEvents": []
 					},
 					{
-						"eventIndex": 9,
-						"kind": "applied",
-						"revision": 7,
-						"semanticEvents": []
-					},
-					{
-						"eventIndex": 10,
+						"eventIndex": 8,
 						"kind": "rejected",
-						"revision": 7,
+						"revision": 6,
 						"semanticEvents": [],
 						"reason": "source-capability-exceeded"
 					},
 					{
-						"eventIndex": 11,
+						"eventIndex": 9,
 						"kind": "rejected",
-						"revision": 7,
+						"revision": 6,
 						"semanticEvents": [],
 						"reason": "source-capability-exceeded"
 					}
@@ -5117,7 +5084,7 @@
 				"step 12 rejected source-capability-exceeded (heuristic source forbids all capabilities)"
 			],
 			"id": "v20-capability-and-source-gating",
-			"purpose": "Attention kinds require exact capabilities (unclassified accepts any attention capability); limited activity requires terminal source; source-constrained capabilities are enforced at observation.",
+			"purpose": "Attention kinds require exact capabilities (unclassified accepts any attention capability); source-constrained capabilities are enforced at observation.",
 			"sourceRefs": ["packages/agent/src/reducer.ts:203-219,652-711"]
 		},
 		{
@@ -5136,7 +5103,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-92",
+						"eventId": "evt-90",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-parent"
 						},
@@ -5166,7 +5133,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-93",
+						"eventId": "evt-91",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-child"
 						},
@@ -5196,7 +5163,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-94",
+						"eventId": "evt-92",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-orphan"
 						},
@@ -5225,7 +5192,7 @@
 							"activity",
 							"progress"
 						],
-						"eventId": "evt-95",
+						"eventId": "evt-93",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-nocap"
 						},
@@ -5474,7 +5441,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-96",
+						"eventId": "evt-94",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-a"
 						},
@@ -5511,7 +5478,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-97",
+						"eventId": "evt-95",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-b"
 						},
@@ -5538,7 +5505,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-98",
+						"eventId": "evt-96",
 						"generation": 0,
 						"sequence": 3,
 						"sessionId": "sess-a",
@@ -5553,7 +5520,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-99",
+						"eventId": "evt-97",
 						"generation": 0,
 						"sequence": 4,
 						"sessionId": "sess-a",
@@ -5568,7 +5535,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-100",
+						"eventId": "evt-98",
 						"generation": 0,
 						"sequence": 5,
 						"sessionId": "sess-a",
@@ -5580,7 +5547,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-101",
+						"eventId": "evt-99",
 						"generation": 0,
 						"sequence": 6,
 						"sessionId": "sess-a",
@@ -5592,7 +5559,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-102",
+						"eventId": "evt-100",
 						"generation": 0,
 						"sequence": 7,
 						"sessionId": "sess-a",
@@ -5603,7 +5570,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-103",
+						"eventId": "evt-101",
 						"generation": 0,
 						"sequence": 8,
 						"sessionId": "sess-a",
@@ -5802,7 +5769,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-104",
+						"eventId": "evt-102",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-a"
 						},
@@ -5832,7 +5799,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-105",
+						"eventId": "evt-103",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-b"
 						},
@@ -5852,7 +5819,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-106",
+						"eventId": "evt-104",
 						"generation": 0,
 						"sequence": 3,
 						"sessionId": "sess-a",
@@ -5864,7 +5831,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-107",
+						"eventId": "evt-105",
 						"generation": 0,
 						"sequence": 4,
 						"sessionId": "sess-a",
@@ -5876,7 +5843,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-108",
+						"eventId": "evt-106",
 						"generation": 0,
 						"sequence": 5,
 						"sessionId": "sess-a",
@@ -5891,7 +5858,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-109",
+						"eventId": "evt-107",
 						"generation": 0,
 						"sequence": 6,
 						"sessionId": "sess-a",
@@ -6326,7 +6293,7 @@
 						"revision": 5,
 						"semanticEvents": [
 							{
-								"eventId": "evt-108",
+								"eventId": "evt-106",
 								"request": {
 									"actionPath": "navigate-only",
 									"kind": "question",
@@ -6344,7 +6311,7 @@
 						"revision": 6,
 						"semanticEvents": [
 							{
-								"eventId": "evt-109",
+								"eventId": "evt-107",
 								"requestId": "req-1",
 								"sessionId": "sess-a",
 								"type": "attention-resolved"
@@ -6376,7 +6343,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-110",
+						"eventId": "evt-108",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -6396,7 +6363,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-111",
+						"eventId": "evt-109",
 						"generation": 0,
 						"sequence": 2,
 						"sessionId": "sess-main",
@@ -18794,7 +18761,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-113",
+						"eventId": "evt-111",
 						"executionLocation": {
 							"executionLocationId": "exec-s:a"
 						},
@@ -18824,7 +18791,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-114",
+						"eventId": "evt-112",
 						"executionLocation": {
 							"executionLocationId": "exec-s:_"
 						},
@@ -18854,7 +18821,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-115",
+						"eventId": "evt-113",
 						"executionLocation": {
 							"executionLocationId": "exec-s:Z"
 						},
@@ -18884,7 +18851,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-116",
+						"eventId": "evt-114",
 						"executionLocation": {
 							"executionLocationId": "exec-s::"
 						},
@@ -18914,7 +18881,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-117",
+						"eventId": "evt-115",
 						"executionLocation": {
 							"executionLocationId": "exec-s:-"
 						},
@@ -18944,7 +18911,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-118",
+						"eventId": "evt-116",
 						"executionLocation": {
 							"executionLocationId": "exec-s:9"
 						},
@@ -18974,7 +18941,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-119",
+						"eventId": "evt-117",
 						"executionLocation": {
 							"executionLocationId": "exec-s:z"
 						},
@@ -19031,7 +18998,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-120",
+						"eventId": "evt-118",
 						"generation": 0,
 						"sequence": 8,
 						"sessionId": "s:a",
@@ -19046,7 +19013,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-121",
+						"eventId": "evt-119",
 						"generation": 0,
 						"sequence": 9,
 						"sessionId": "s:a",
@@ -19061,7 +19028,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-122",
+						"eventId": "evt-120",
 						"generation": 0,
 						"sequence": 10,
 						"sessionId": "s:a",
@@ -19832,7 +19799,7 @@
 						"revision": 8,
 						"semanticEvents": [
 							{
-								"eventId": "evt-120",
+								"eventId": "evt-118",
 								"request": {
 									"actionPath": "navigate-only",
 									"kind": "unclassified",
@@ -19850,7 +19817,7 @@
 						"revision": 9,
 						"semanticEvents": [
 							{
-								"eventId": "evt-121",
+								"eventId": "evt-119",
 								"request": {
 									"actionPath": "navigate-only",
 									"kind": "unclassified",
@@ -19868,7 +19835,7 @@
 						"revision": 10,
 						"semanticEvents": [
 							{
-								"eventId": "evt-122",
+								"eventId": "evt-120",
 								"request": {
 									"actionPath": "navigate-only",
 									"kind": "unclassified",
@@ -19911,7 +19878,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-123",
+						"eventId": "evt-121",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-attn"
 						},
@@ -19938,7 +19905,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-124",
+						"eventId": "evt-122",
 						"generation": 0,
 						"sequence": 2,
 						"sessionId": "sess-attn",
@@ -19953,7 +19920,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-125",
+						"eventId": "evt-123",
 						"generation": 0,
 						"sequence": 3,
 						"sessionId": "sess-attn",
@@ -19978,7 +19945,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-126",
+						"eventId": "evt-124",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-work"
 						},
@@ -20005,7 +19972,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-127",
+						"eventId": "evt-125",
 						"generation": 0,
 						"sequence": 5,
 						"sessionId": "sess-work",
@@ -20027,7 +19994,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-128",
+						"eventId": "evt-126",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-idle"
 						},
@@ -20047,7 +20014,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-129",
+						"eventId": "evt-127",
 						"generation": 0,
 						"sequence": 7,
 						"sessionId": "sess-idle",
@@ -20066,7 +20033,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-130",
+						"eventId": "evt-128",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-dead"
 						},
@@ -20086,7 +20053,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-131",
+						"eventId": "evt-129",
 						"generation": 0,
 						"sequence": 9,
 						"sessionId": "sess-dead",
@@ -20538,7 +20505,7 @@
 						"revision": 2,
 						"semanticEvents": [
 							{
-								"eventId": "evt-124",
+								"eventId": "evt-122",
 								"request": {
 									"actionPath": "navigate-only",
 									"kind": "question",
@@ -20556,7 +20523,7 @@
 						"revision": 3,
 						"semanticEvents": [
 							{
-								"eventId": "evt-125",
+								"eventId": "evt-123",
 								"request": {
 									"actionPath": "navigate-only",
 									"kind": "approval",
@@ -20604,7 +20571,7 @@
 						"revision": 9,
 						"semanticEvents": [
 							{
-								"eventId": "evt-131",
+								"eventId": "evt-129",
 								"sessionId": "sess-dead",
 								"type": "session-ended"
 							}
@@ -20638,7 +20605,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-132",
+						"eventId": "evt-130",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -20665,7 +20632,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-133",
+						"eventId": "evt-131",
 						"generation": 0,
 						"sequence": 2,
 						"sessionId": "sess-main",
@@ -20674,7 +20641,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-134",
+						"eventId": "evt-132",
 						"generation": 0,
 						"sequence": 3,
 						"sessionId": "sess-main",
@@ -20689,7 +20656,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-135",
+						"eventId": "evt-133",
 						"generation": 0,
 						"sequence": 4,
 						"sessionId": "sess-main",
@@ -20711,7 +20678,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-136",
+						"eventId": "evt-134",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -20738,7 +20705,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-137",
+						"eventId": "evt-135",
 						"generation": 0,
 						"sequence": 6,
 						"sessionId": "sess-main",
@@ -20759,7 +20726,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-138",
+						"eventId": "evt-136",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -20796,7 +20763,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-139",
+						"eventId": "evt-137",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -20939,7 +20906,7 @@
 						"revision": 2,
 						"semanticEvents": [
 							{
-								"eventId": "evt-133",
+								"eventId": "evt-131",
 								"sessionId": "sess-main",
 								"type": "session-ended"
 							}
@@ -21004,7 +20971,7 @@
 				{
 					"event": {
 						"capabilities": ["turnLifecycle"],
-						"eventId": "evt-140",
+						"eventId": "evt-138",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -21026,7 +20993,7 @@
 					"event": {
 						"activityHint": null,
 						"capabilities": ["turnLifecycle"],
-						"eventId": "evt-141",
+						"eventId": "evt-139",
 						"generation": 1,
 						"lastOutcome": null,
 						"pendingRequests": [
@@ -21060,7 +21027,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-142",
+						"eventId": "evt-140",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-dead"
 						},
@@ -21080,7 +21047,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-143",
+						"eventId": "evt-141",
 						"generation": 0,
 						"sequence": 4,
 						"sessionId": "sess-dead",
@@ -21100,7 +21067,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-144",
+						"eventId": "evt-142",
 						"generation": 1,
 						"lastOutcome": null,
 						"pendingRequests": [],
@@ -21298,7 +21265,7 @@
 						"revision": 3,
 						"semanticEvents": [
 							{
-								"eventId": "evt-143",
+								"eventId": "evt-141",
 								"sessionId": "sess-dead",
 								"type": "session-ended"
 							}
@@ -21338,7 +21305,7 @@
 							"subagents",
 							"progress"
 						],
-						"eventId": "evt-145",
+						"eventId": "evt-143",
 						"executionLocation": {
 							"executionLocationId": "exec-sess-main"
 						},
@@ -21358,7 +21325,7 @@
 				},
 				{
 					"event": {
-						"eventId": "evt-146",
+						"eventId": "evt-144",
 						"generation": 0,
 						"sequence": 2,
 						"sessionId": "sess-main",

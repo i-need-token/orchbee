@@ -5,8 +5,7 @@
 
 ## 状态与激活边界
 
-`apps/orchbee-server` 拥有对 `packages/agent` 在基提交
-`0d4b685a1b7db9405ca94908385e0534ddd41dc9` 所定义确定性语义的忠实 Rust 实现。
+`apps/orchbee-server` 拥有对 `packages/agent` 当前确定性语义的忠实 Rust 实现；执行语料记录源文件指纹。
 该模块由 `main.rs` 在 `#[cfg(any(unix, windows))]` 下注册：规范运行时存在于 **Server 二进制
 crate** 内部，绝不进入库。一致性测试在同一二进制目标中只运行一份；`lib.rs`
 既不声明也不导出 Agent 模块。不存在公开 API、新 crate 或第二份规范状态。
@@ -46,6 +45,7 @@ crate** 内部，绝不进入库。一致性测试在同一二进制目标中只
 `environment_overlay_for` overlay 缝（生产 overlay 由 Worker 侧依据已校验的
 site runtime 生成，而非此处）、聚合/位置/wait 投影，以及全部一致性线束。
 生产构建不含种子标志、环境变量、wire 回放或第二条状态路径。
+生产 native fold 只返回 effect。分类与 watermark 断言由测试所属模块读取已提交的 counter 与 carrier 状态。Desktop 仍生产 stale/reconnected observation，因此共享 reducer 保留这些变体；event 溯源与 transition payload 继续接受 conformance 校验。
 
 初始运行时是真的空：revision `0`、会话列表为空、`get`/`explain` 报告 `not-found`；
 只有当所属监听器停止服务并调用 `AgentService::shutdown`——在同一把锁下销毁规范
@@ -66,8 +66,8 @@ poison——不存在任何 `into_inner`/`clear_poison`——部分变更永不�
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/agent.rs`                               | 模块声明与 `pub(crate)` 生产再导出；语料/测试辅助在各模块内保持门控                                                                                                                                        |
 | `src/agent/model.rs`                         | 规范值类型、身份校验、UTF-16 排序、快照不变量；原始构造与校验即生产准入路径                                                                                                                                |
-| `src/agent/events.rs`                        | 十四种观察事件与四种语义事件；`#[cfg(test)]` `event_id` 溯源访问器                                                                                                                                         |
-| `src/agent/reducer.rs`                       | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；`#[cfg(test)]` transition 访问器                                                                                            |
+| `src/agent/events.rs`                        | 十三种观察事件与四种语义事件；溯源访问器位于 `src/agent/tests.rs`                                                                                                                                          |
+| `src/agent/reducer.rs`                       | `transition_agent_runtime` 按类守卫、unchanged/rejected/applied、语义事件顺序；transition 断言访问器位于 `src/agent/tests.rs`                                                                              |
 | `src/agent/changes.rs`                       | 变更记录、保留 512 条且连续的生产追加；生产 `read_agent_runtime_changes` 分页类别                                                                                                                          |
 | `src/agent/runtime.rs`                       | `AgentRuntime`——生产：空快照构造、`snapshot`、`dispose`、`is_disposed`、`dispatch`、`rejected`；`#[cfg(test)]`：seed；生产变更读取                                                                         |
 | `src/agent/projection.rs`                    | 语义状态、摘要与解释投影；`#[cfg(test)]` 聚合/位置投影与 wait 条件匹配                                                                                                                                     |
@@ -127,27 +127,21 @@ applied 剩余成本是一次会话向量复制，在 512 会话上限时低于 
 然后恰好调用一次该请求的必需快照 provider（在任何 `AgentState` 锁之外、panic
 catch 之下），释放所有守卫后再投影与映射。`execute_prepared` 是生产入口：
 `local_terminal_service/agent_drain_read.rs` 是调用方自有的 provider，它在
-provider 自身的终态 fold 全程持有外层 registry -> coordinator 守卫。旧式
-`execute` 测试缝为夹具保留原始快照克隆——逐字保留，并非新鲜度证明。provider 拒绝或 panic 都映射到该操作的关联
+provider 自身的终态 fold 全程持有外层 registry -> coordinator 守卫。
+`src/agent_service/tests.rs` 中的 `execute` 夹具辅助方法通过同一个执行器提供原始快照，
+不作生产新鲜度声明。provider 拒绝或 panic 都映射到该操作的关联
 `runtime-unavailable` 臂——绝不是 `AgentReadFault`，也绝不是捏造或 last-good
 快照。`list` 保持规范 UTF-16 存储序，遵守有界 `limit` 与 `include_ended`，铸造并
 校验不透明的按启动期游标（`cursor-invalid`/`cursor-stale`）；`get`/`explain` 对
 缺失会话回答 `not-found`；策略拒绝时全部操作报告 `read-denied`，销毁后报告
 `runtime-unavailable`。
 
-边界说明：仅有门控面或缺席远端消费者的规范携带负载逐字保留——删除或收窄它们
-会破坏已接受的 TypeScript 对等模型。按 docs/RUST.md 的 lint 政策，它们携带
-逐项 `#[cfg_attr(not(test), expect(dead_code, reason = "..."))]` 例外——每条
-注明规范不变量与缺席的生产消费者，且 `expect` 在真实读取者出现时自动失效：
-仅语料构造的事件变体（`LimitedActivityObserved`、`ObservationBecameStale`、
-`ObservationReconnected`、`RawPresence::Other`）、仅被门控 trace/读取路径消费的
-事件 `event_id` 字段、`AgentSemanticEvent` 负载、`AgentTransition` 负载、
-`NativeTransition` 的 `class`/`ack_w`（仅被仅测试逐事件服务缝读取）、fold 结果
-的诊断字段（`FinalFence::BarrierUnmet`/`Rejected`）、变更馈送投影字段
-（`AgentRuntimeChange`/`AgentRuntimeChangeSession`）、为仅测试 overlay 缝保留的
-ingress `socket_path`、`RegistrationFact::binding`，以及 drain exchange 的 `Lost`
-负载。`agent.rs` 的重导出在二进制的生产代码或测试代码中都有真实消费者，
-不需要未使用导入抑制。无模块级抑制、无虚假使用、无常量表、无变体收窄。
+有应用生产者的共享 event 与 transition payload 继续保留。Desktop 生产
+`ObservationBecameStale` 与 `ObservationReconnected`；溯源 `event_id` 字段、
+`AgentSemanticEvent` payload 及 `AgentTransition` 结果继续接受 conformance 校验。
+其逐项 `#[cfg_attr(not(test), expect(dead_code, reason = "..."))]` 例外注明现有生产者
+与校验用途。语料断言访问器位于测试所属模块。native fold 只返回 effect；测试观察
+分类 counter 与已提交的 carrier watermark。生产中不再保留无生产者的事件或仅供夹具使用的原始变体。
 
 ## 会话命名侧表
 
@@ -336,11 +330,12 @@ provider UI 就绪、纯进程会话发现或持久名称恢复。
 - 日志输入校验返回 `Result<_, AgentChangeReadError>`；TypeScript 对非法私有输入抛出
   `ZodError` 映射为该定型错误。
 - 严格对象 presence 在私有原始边界保留：`RawPresence` 区分 `Absent`、`Null`、
-  `Value` 与畸形 `Other`，使必需可空键（活跃 turn 的 `activity`、attention 请求的
+  `Value`，使必需可空键（活跃 turn 的 `activity`、attention 请求的
   `turnId`、`activityHint`、`lastOutcome`、`parentSessionId`）保持 TypeScript 对
   "键缺失"与"显式 `null`"的区分，且 `unknown`/`idle` turn 拒绝任何残余键——包括
   值为 `null` 的键。必需且不可空的字段在定型域保持裸字段；表达其缺失是私有夹具
-  解码器的职责，未来的公共 ingress 是独立分层，拥有自己的畸形输入策略。
+  解码器的职责，未来的公共 ingress 是独立分层，拥有自己的畸形输入策略。夹具中的错误类型值映射为对应 raw type 的非法内容，
+  保持拒绝语义，且无需生产专用的畸形值变体。
 - 确定性：模块内不存在环境时间、随机性、IO 或全局状态；freshness 转换是显式事件
   输入。
 
@@ -519,7 +514,7 @@ names 家族还接受 `{kind:"presentation", presentationId}`。解析、分配�
 
 ## 原生有界变更读取
 
-原生 `agent.session.changes` 家族将现有 canonical 日志提供给 Client 提示状态、等待及增量观察。日志保留 512 个已应用转换，不引入第二份事件存储或 Agent 写入者。每条记录包含 revision、十四种 canonical 转换之一，以及日志的精确会话投影（生命周期、观察、父会话、待处理数量、provider、会话 ID 和语义状态）。附件与执行位置需要一致的会话读取，不编造历史字段。
+原生 `agent.session.changes` 家族将现有 canonical 日志提供给 Client 提示状态、等待及增量观察。日志保留 512 个已应用转换，不引入第二份事件存储或 Agent 写入者。每条记录包含 revision、十三种 canonical 转换之一，以及日志的精确会话投影（生命周期、观察、父会话、待处理数量、provider、会话 ID 和语义状态）。附件与执行位置需要一致的会话读取，不编造历史字段。
 
 读取准入先于在 Agent 单元外执行恰好一次调用者拥有的 drain 准备。拒绝读取不运行该 provider。准备失败或 panic 返回关联的 runtime-unavailable。准备成功后，在 Agent 单元内一起读取日志与头部 revision；可以包含更晚的 canonical 事件。已释放或毒化的运行时拒绝读取。Agent 锁内不执行 I/O。
 

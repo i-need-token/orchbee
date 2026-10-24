@@ -15,7 +15,7 @@ use orchbee_agent_observation_protocol::{
 
 use std::sync::Mutex;
 
-use super::{AgentFoldUnavailable, AgentPolicy, AgentService, PreparedUnavailable};
+use super::{AgentFoldUnavailable, AgentPolicy, AgentReadFault, AgentService, PreparedUnavailable};
 use crate::local_client_service::tests::agent_harness;
 
 fn request_id(seed: u8) -> ObapRequestId {
@@ -2242,5 +2242,56 @@ mod native_leaf {
             assert!(fenced(&service, carrier, 0).is_err());
             assert!(service.native_held_count().is_err());
         }
+    }
+}
+
+impl AgentService {
+    pub(crate) fn execute(
+        &self,
+        request: AgentReadRequest,
+    ) -> Result<AgentReadResult, AgentReadFault> {
+        self.execute_prepared(request, || match self.snapshot() {
+            Ok(Some(snapshot)) => Ok(snapshot),
+            Ok(None) | Err(_) => Err(PreparedUnavailable),
+        })
+    }
+}
+
+use crate::agent::native_observation::{CarrierIdentity, NativeClass, NativeEvent};
+use std::time::Instant;
+pub(crate) struct NativeOutcome {
+    class: NativeClass,
+    ack_w: Option<u64>,
+}
+impl AgentService {
+    pub(crate) fn native_apply_event(
+        &self,
+        event: NativeEvent,
+        now: Instant,
+    ) -> Result<NativeOutcome, AgentFoldUnavailable> {
+        self.with_state(|state| {
+            let transition = state.native.apply_event_observed(event, now);
+            state.apply_native_effects(transition.effects, now);
+            NativeOutcome {
+                class: transition.class,
+                ack_w: transition.ack_w,
+            }
+        })
+    }
+    pub(crate) fn native_apply_gap(
+        &self,
+        carrier: CarrierIdentity,
+        lo: u64,
+        hi: u64,
+        now: Instant,
+    ) -> Result<NativeOutcome, AgentFoldUnavailable> {
+        self.with_state(|state| {
+            let transition = state.native.apply_gap_observed(&carrier, lo, hi, now);
+            state.apply_native_effects(transition.effects, now);
+            NativeOutcome {
+                class: transition.class,
+                ack_w: transition.ack_w,
+            }
+        })
     }
 }

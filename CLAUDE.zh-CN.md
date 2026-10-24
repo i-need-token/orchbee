@@ -79,8 +79,6 @@ crates/         # 为真实跨 crate 使用方准入的可复用 Rust 库
 packages/       # 共享 JavaScript 和 TypeScript 库、指南和包本地参考
 docs/           # 仓库级规范和跨工作区架构契约
 proposals/      # 审查中的未来设计；绝不是当前权威来源
-research/       # 有时间边界的研究；绝不是权威来源
-prompts/        # AI 驱动工作的任务规范
 schemas/        # 机器可读的仓库契约 Schema
 ```
 

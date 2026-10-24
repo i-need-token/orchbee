@@ -1503,7 +1503,7 @@ fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_owners
         ),
     ] {
         let mut port = Port::new(MenuAction::Help);
-        let pane = crate::terminal_input::legacy_pane_ref();
+        let pane = super::pane_ref();
         port.probe.panes.push(PointerPane {
             record: pane.clone(),
             attached: true,
@@ -1708,7 +1708,7 @@ fn global_menu_respects_existing_pane_selection_pending_link_and_wheel_owners() 
     use crate::terminal_input::{PointerFrameFacts, PointerTab};
     use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
     for owner in ["pane", "selection", "pending", "link", "wheel"] {
-        let pane = crate::terminal_input::legacy_pane_ref();
+        let pane = super::pane_ref();
         let mut port = Port::new(MenuAction::Help);
         port.probe = PointerProbe {
             focus: (owner != "pending").then_some(pane.clone()),
@@ -1829,7 +1829,7 @@ fn lost_menu_release_cannot_swallow_a_later_program_owned_right_release() {
     use crate::terminal_input::{PointerFrameFacts, PointerTab};
     use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
     for lost_focus in [false, true] {
-        let pane = crate::terminal_input::legacy_pane_ref();
+        let pane = super::pane_ref();
         let mut port = Port::new(MenuAction::Help);
         port.probe = PointerProbe {
             focus: Some(pane.clone()),

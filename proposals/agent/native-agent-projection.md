@@ -101,7 +101,7 @@ The TUI consumes the projection as a peer renderer; it owns presentation only.
 
 - Presentation attachment identity must be reconciled when the canonical model moves to Rust: the TypeScript model admits opaque strings up to 256 characters while the native `TerminalPresentationId` is 32 lowercase hexadecimal characters. The Server-owned projection should emit native presentation identities so every Client maps attachments without a per-renderer correlation rule.
 - The `orchbee.agent.v1` channel name on the terminal-effect wire and the `orchbee.agent.v3;` APC prefix are ingress transport details, not Client-facing observation contracts; naming the Client family must not inherit either.
-- Current TypeScript packages (`@orchbee/agent` contracts, `semantic-command-protocol`) remain current authority for their existing consumers until the accepted migration switches each consumer; they do not silently become the Rust wire contract. A language-neutral schema with cross-language conformance evidence is required before the first Rust producer and consumer.
+- Current TypeScript packages (`@orchbee/agent` contracts) remain current authority for their existing consumers until the accepted migration switches each consumer; they do not silently become the Rust wire contract. A language-neutral schema with cross-language conformance evidence is required before the first Rust producer and consumer.
 - Server restart fencing, remote-Client reachability, and the Server-side journal are owned by the Server migration slice; this proposal consumes their outcome without deciding it.
 
 ## Reserved decisions
@@ -111,7 +111,7 @@ The TUI consumes the projection as a peer renderer; it owns presentation only.
 - Whether Agent ever enters the mutation domain; this document proposes reads only.
 - The canonical attachment-to-native-presentation identity contract and any migration of stored identity formats.
 - Journal retention, cursor signing, and reset semantics across Server restart; the 512/100 bounds are accepted for the TypeScript journal and are the reference point, not an automatic wire commitment.
-- Remote Client delivery and Gateway admission of the family.
+- Remote Client delivery and Server network admission of the family.
 
 ## Evidence obligations for any accepted slice
 

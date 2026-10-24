@@ -115,10 +115,7 @@ impl TerminalProjection {
     pub(crate) fn take_frame(&mut self) -> Option<TerminalTextFrame> {
         self.frame.take().map(Arc::unwrap_or_clone)
     }
-    #[cfg(test)]
-    pub(crate) const fn blocked(&self) -> bool {
-        self.frame.is_none()
-    }
+
     pub(crate) fn clear_frame(&mut self) {
         self.frame = None;
     }

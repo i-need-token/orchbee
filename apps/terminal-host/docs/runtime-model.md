@@ -151,7 +151,7 @@ The Host does not own:
 
 - Project, Workspace, Workbench, Tab, Panel, agent, or product-session models;
 - concurrent independent brokers, same-user application isolation, or authorization policy;
-- TCP, HTTP, WebSocket, TLS, remote authentication, or sharing gateways;
+- TCP, HTTP, WebSocket, TLS, remote authentication, or remote sharing services;
 - product recovery choices, update timing, UI, rendering, platform clipboard contents or effects,
   external navigation, or localized product copy;
 - search queries or match ranking; clients search bounded text-detail rows;

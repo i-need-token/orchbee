@@ -137,15 +137,14 @@ conflict or revision gap fails closed. Downgrade makes PTY Actions unavailable s
 history, search, selection, and copy remain local output interactions. Upgrade carries no queued
 input and grants only future input stamped with the new revision.
 
-Feature failures retain their semantic operation and retryability across both Electron and Gateway
-transports. A Host response additionally retains its exact correlation ID, while client-owned copy
+Feature failures retain their semantic operation and retryability across application transports. A Host response additionally retains its exact correlation ID, while client-owned copy
 and link effects retain their request sequence. These values identify consequences and diagnostics;
 they never authorize automatic replay of input or another user effect.
 
 Local filesystem effects are an optional attachment capability, absent by default. When present,
 `link-open` carries a discriminated URL or file target instead of granting a generic opener. URL
 targets retain the shared scheme policy; file targets are meaningful only to the owning local
-Desktop broker. Browser, Gateway, archived, and source-neutral attachments do not acquire local
+Desktop broker. Browser, archived, and source-neutral attachments do not acquire local
 application-launch or filesystem-read authority from terminal text.
 
 Image preview is a separate request-bound flow. A capable renderer may request one detected local
@@ -166,13 +165,13 @@ settles, and leaves the shared control transport and unrelated requests availabl
 transferred port, conflicting identity, or duplicate open remains invalid control traffic and retires
 the affected control transport.
 
-It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Current shared-document and legacy TerminalPresentation semantics remain with `@orchbee/workbench` until their accepted migration; the additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
+It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. Current shared-document and legacy TerminalPresentation semantics remain with `@orchbee/workbench` until their accepted migration; the additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.
 
 Each client-session bootstrap carries `terminalHostName`, supplied by the application runtime that
 owns the projected terminal machine. The shared Web client uses that trusted value to validate OSC
-7 current-directory metadata; it never substitutes the Browser URL hostname, Gateway peer name, or
+7 current-directory metadata; it never substitutes the Browser URL hostname, transport peer name, or
 renderer input. Projected frames carry the complete nullable natural title and current-directory
 observation. The protocol transports those values without selecting Tab-title precedence,
 persistence, or URI trust policy; `@orchbee/workbench` owns those decisions.

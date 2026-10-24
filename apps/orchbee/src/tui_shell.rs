@@ -923,7 +923,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     if mode(ModeRequest::WindowTitle(None)).is_err() {
                         view.window_title_unavailable();
                     }
-                    view.machines.invalidate();
+
                     // This new surface has not participated in the old surface's controller tick.
                     surface.active().client_control_tick(
                         &mut view,
@@ -1248,7 +1248,6 @@ fn render_machine_surface(
 ) {
     // The preview's persistent status owns this tail until the gesture ends.
     if preview_painted || capture_owner == Some(crate::tui_composition::CaptureOwner::Copy) {
-        view.machines.invalidate();
     } else {
         view.machines
             .render(frame, chrome.locale, chrome.theme, hits);
@@ -1300,7 +1299,6 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     if changed {
         #[cfg(windows)]
         {
-            view.machines.invalidate();
             view.machines.cancel_sidebar_scroll();
         }
         terminal_input.invalidate_close_display();
@@ -1464,10 +1462,6 @@ pub(crate) fn active_pane_area(
     let content = crate::tui_layout::terminal_area(areas.panel, framed);
     let native = match session {
         Some(TerminalSessionView::Native(native)) => native,
-        #[cfg(test)]
-        Some(TerminalSessionView::Legacy { .. }) => {
-            return (!content.is_empty()).then_some(content);
-        }
         None => return (!content.is_empty()).then_some(content),
     };
     let tab = native

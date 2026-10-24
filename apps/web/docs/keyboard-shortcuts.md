@@ -545,10 +545,10 @@ older record, and an invalid migration source never falls through to the next ol
 because either fallback would hide data corruption. Rolling back restores the latest record that
 the older build understands; edits made only in v21 are intentionally unavailable to it.
 
-Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
-own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
+Browser Preview and Electron each create and dispose one controller against their own origin-local
+storage. Electron passes the controller's narrow binding source through
 `ProjectedTerminalSurfaceCapability`. Event handlers read the current table at dispatch time, so a
-change does not remount Workbench, replace an attachment, or reopen a Host or Gateway connection.
+change does not remount Workbench, replace an attachment, or reopen a Host connection.
 
 ## Claims and evidence
 

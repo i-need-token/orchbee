@@ -1757,3 +1757,124 @@ fn agent_read_names_family_result_retires_the_session() -> TestResult {
     server.finish()?;
     Ok(())
 }
+
+use super::{LocalClientOrigin, REQUEST_TOTAL_TIMEOUT, SystemMonotonicClock};
+use orchbee_client_server_protocol::{
+    TerminalControlRequest, TerminalControlResult, TerminalViewerRequest, TerminalViewerResult,
+};
+use std::path::Path;
+impl LocalClient {
+    pub(crate) fn connect(endpoint: &Path, cohort: &str) -> Result<Self, LocalClientConnectError> {
+        Self::connect_with_request_timeout(endpoint, cohort, REQUEST_TOTAL_TIMEOUT)
+    }
+
+    fn connect_with_request_timeout(
+        endpoint: &Path,
+        cohort: &str,
+        request_timeout: Duration,
+    ) -> Result<Self, LocalClientConnectError> {
+        Self::connect_with_submission_runtime(
+            endpoint,
+            cohort,
+            request_timeout,
+            Box::new(SystemMonotonicClock),
+            IoChunkLimits::UNBOUNDED,
+        )
+    }
+
+    fn connect_with_submission_runtime(
+        endpoint: &Path,
+        cohort: &str,
+        request_timeout: Duration,
+        clock: Box<dyn MonotonicClock>,
+        io_chunk_limits: IoChunkLimits,
+    ) -> Result<Self, LocalClientConnectError> {
+        let connection = ClientSessionConnection::connect(endpoint, cohort)
+            .map_err(LocalClientConnectError::Admission)?;
+        Self::from_connection(
+            connection,
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+            LocalClientOrigin {
+                endpoint: endpoint.to_path_buf(),
+                cohort: cohort.to_owned(),
+                #[cfg(windows)]
+                tunnel: None,
+            },
+            request_timeout,
+            clock,
+            io_chunk_limits,
+        )
+    }
+
+    pub(crate) fn submit_terminal_create(
+        &mut self,
+        request: TerminalCreateRequest,
+    ) -> Result<TerminalCreateResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let result = self.exchange(ClientMessage::TerminalCreate(request), &request_id)?;
+        let ServerMessage::TerminalCreateResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::Create,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn submit_terminal_start(
+        &mut self,
+        request: TerminalStartRequest,
+    ) -> Result<TerminalStartResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let result = self.exchange(ClientMessage::TerminalStart(request), &request_id)?;
+        let ServerMessage::TerminalStartResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::Start,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn submit_terminal_viewer(
+        &mut self,
+        request: TerminalViewerRequest,
+    ) -> Result<TerminalViewerResult, SubmissionError> {
+        self.submit_terminal_viewer_with_deadline(request, None)
+    }
+
+    pub(crate) fn submit_terminal_control(
+        &mut self,
+        request: TerminalControlRequest,
+    ) -> Result<TerminalControlResult, SubmissionError> {
+        self.submit_terminal_control_with_deadline(request, None)
+    }
+}
+
+use super::result_kind;

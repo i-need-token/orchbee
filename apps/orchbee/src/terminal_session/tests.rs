@@ -3,7 +3,6 @@ mod close_interaction;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod close_recovery;
 mod close_retirement;
-pub(super) mod legacy;
 mod move_refinements;
 mod rename_interaction;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -18,9 +17,9 @@ use crate::{
     tui_render::render_terminal_shell,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, ServerMessage, TerminalControlAction, TerminalControlOutcome,
-    TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerResult,
-    ViewerId, read_client_message, write_server_message,
+    ClientMessage, HostEpoch, RequestId, ServerMessage, TerminalControlAction,
+    TerminalControlOutcome, TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerResult, ViewerId, read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::LocalStream as UnixStream;
@@ -112,39 +111,6 @@ fn admit(stream: &mut UnixStream) -> io::Result<()> {
     .map_err(io::Error::other)
 }
 
-fn attach_outcome() -> io::Result<TerminalViewerOutcome> {
-    Ok(TerminalViewerOutcome::Attached {
-        attachment_id: ViewerId::parse(ID).map_err(io::Error::other)?,
-        host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
-        host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(ID)
-            .map_err(io::Error::other)?,
-    })
-}
-
-fn attached_viewer_id() -> io::Result<ViewerId> {
-    let TerminalViewerOutcome::Attached { attachment_id, .. } = attach_outcome()? else {
-        return Err(io::Error::other(
-            "attach fixture did not contain a ViewerId",
-        ));
-    };
-    Ok(attachment_id)
-}
-
-fn attach(stream: &mut UnixStream) -> io::Result<()> {
-    let ClientMessage::TerminalViewer(request) =
-        read_client_message(stream).map_err(io::Error::other)?
-    else {
-        return Err(io::Error::other("expected viewer"));
-    };
-    write_server_message(
-        stream,
-        &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-            request.request_id().clone(),
-            attach_outcome()?,
-        )),
-    )
-    .map_err(io::Error::other)
-}
 fn respond_with_snapshot(
     stream: &mut UnixStream,
     outcome: WorkbenchSnapshotOutcome,
@@ -554,13 +520,6 @@ fn spin_with_draw(
     true
 }
 
-fn legacy_status(session: &TerminalSession) -> Option<TerminalStatus> {
-    match &session.backend {
-        SessionBackend::Legacy(legacy) => Some(legacy.status),
-        SessionBackend::Native(_) => None,
-    }
-}
-
 fn native_client(server: &FakeServer) -> Result<LocalClient, Box<dyn std::error::Error>> {
     let mut client = LocalClient::connect(server.endpoint(), "test-cohort")?;
     client.set_submission_deadline(Some(Instant::now() + Duration::from_secs(5)));
@@ -670,12 +629,7 @@ fn assert_ready_prefix_session(
     expected_position: usize,
     expected_status: TerminalStatus,
 ) {
-    let native = match session.view() {
-        TerminalSessionView::Native(native) => native,
-        TerminalSessionView::Legacy { .. } => {
-            panic!("prefix display lost native session state\n{rendered}")
-        }
-    };
+    let TerminalSessionView::Native(native) = session.view();
     assert_eq!(
         native.phase(),
         NativeDisplayPhase::Ready,
@@ -1336,9 +1290,7 @@ fn run_taken_forward_expiry_ui_first() -> TestResult {
         });
         assert!(!session.tick());
     });
-    let TerminalSessionView::Native(view) = session.view() else {
-        panic!("standalone Session must retain its native view");
-    };
+    let TerminalSessionView::Native(view) = session.view();
     assert_eq!(view.phase(), NativeDisplayPhase::Creating);
     assert_eq!(view.retirement(), None);
     assert_eq!(mailbox.is_closed(), None);
@@ -1532,17 +1484,13 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
     assert!(session.tick());
     assert_eq!(clock_phase.load(Ordering::SeqCst), 3);
     assert_eq!(mailbox.is_closed(), Some(CarrierFailure::Deadline));
-    let TerminalSessionView::Native(view) = session.view() else {
-        panic!("standalone Session must retain its native view");
-    };
+    let TerminalSessionView::Native(view) = session.view();
     assert_eq!(view.phase(), NativeDisplayPhase::Retired);
     assert_eq!(
         view.retirement(),
         Some(NativeDisplayRetirement::Unavailable)
     );
-    let SessionBackend::Native(native) = &session.backend else {
-        panic!("standalone Session must retain its native UI state");
-    };
+    let SessionBackend::Native(native) = &session.backend;
     assert!(native.committed_target_retained_for_test());
 
     drop(session);
@@ -1666,9 +1614,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
         1,
         "session must release its mailbox after finalization"
     );
-    let SessionBackend::Native(native) = &session.backend else {
-        panic!("standalone Session must retain its native UI state");
-    };
+    let SessionBackend::Native(native) = &session.backend;
     assert!(native.committed_target_retained_for_test());
     assert_eq!(native.latest_geometry_for_test(), Some(geometry));
     let later_geometry = Geometry::new(
@@ -1678,9 +1624,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
         geometry.cell_pixel_height(),
     )?;
     session.observe_geometry(later_geometry);
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     assert_eq!(
         native.latest_geometry_for_test(),
         Some(geometry),
@@ -1794,9 +1738,7 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
         Some(SessionActionDisposition::KeepNavigator)
     );
     assert!(session.task.is_none());
-    let SessionBackend::Native(native) = &session.backend else {
-        panic!("standalone Session must retain its native UI state");
-    };
+    let SessionBackend::Native(native) = &session.backend;
     assert!(native.committed_target_retained_for_test());
     assert_eq!(native.view().phase(), NativeDisplayPhase::Retired);
     assert_eq!(
@@ -1811,22 +1753,26 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
 
 #[test]
 fn drop_interrupts_an_inflight_exchange_and_joins_its_owner() -> TestResult {
+    let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(1);
     let server = FakeServer::start(move |mut stream| {
-        admit(&mut stream)?;
-        attach(&mut stream)?;
-        let _acquire = read_client_message(&mut stream).map_err(io::Error::other)?;
+        serve_native_controlling_frame(&mut stream, geometry)?;
+        accept_native_frame_feedback(&mut stream)?;
+        let ClientMessage::TerminalViewer(poll) =
+            read_client_message(&mut stream).map_err(io::Error::other)?
+        else {
+            return Err(io::Error::other("expected ordinary Poll"));
+        };
+        assert!(matches!(poll.action(), TerminalViewerAction::Poll { .. }));
         sent.send(()).map_err(io::Error::other)?;
         let mut bytes = Vec::new();
         stream.read_to_end(&mut bytes)?;
         assert!(bytes.is_empty());
         Ok(())
     })?;
-    let session = TerminalSession::start(
-        LocalClient::connect(server.endpoint(), "test-cohort")?,
-        TerminalIntent::Attach(RequestId::parse(ID)?),
-        geometry()?,
-    )?;
+    let (mut session, _) = native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
     received.recv_timeout(Duration::from_secs(1))?;
     let start = Instant::now();
     drop(session);
@@ -1836,10 +1782,10 @@ fn drop_interrupts_an_inflight_exchange_and_joins_its_owner() -> TestResult {
 }
 #[test]
 fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
-    let server = FakeServer::start(|mut stream| {
-        admit(&mut stream)?;
-        attach(&mut stream)?;
-        acquire(&mut stream, &attached_viewer_id()?)?;
+    let geometry = fixture_geometry()?;
+    let server = FakeServer::start(move |mut stream| {
+        serve_native_controlling_frame(&mut stream, geometry)?;
+        accept_native_frame_feedback(&mut stream)?;
         loop {
             match read_client_message(&mut stream).map_err(io::Error::other)? {
                 ClientMessage::TerminalViewer(request) => write_server_message(
@@ -1851,169 +1797,25 @@ fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
                 )
                 .map_err(io::Error::other)?,
                 ClientMessage::TerminalControl(request) => {
-                    if let TerminalControlAction::Resize {
-                        attachment_id,
-                        geometry,
-                        ..
-                    } = request.action()
-                    {
-                        assert_eq!(attachment_id, &attached_viewer_id()?);
-                        write_server_message(
-                            &mut stream,
-                            &ServerMessage::TerminalControlResult(TerminalControlResult::new(
-                                request.request_id().clone(),
-                                TerminalControlOutcome::Resized {
-                                    geometry: *geometry,
-                                },
-                            )),
-                        )
-                        .map_err(io::Error::other)?;
-                        continue;
-                    }
                     assert!(
-                        matches!(request.action(), TerminalControlAction::Input {attachment_id, bytes,..} if attachment_id == &attached_viewer_id()? && bytes.as_bytes()==b"do-once")
+                        matches!(request.action(), TerminalControlAction::Input { attachment_id, bytes, .. }
+                        if attachment_id == &binding_viewer_id()? && bytes.as_bytes() == b"do-once")
                     );
+                    // Dropping the peer loses this admitted Input's reply.
                     return Ok(());
                 }
                 _ => return Err(io::Error::other("unexpected request")),
             }
         }
     })?;
-    let mut session = TerminalSession::start(
-        LocalClient::connect(server.endpoint(), "test-cohort")?,
-        TerminalIntent::Attach(RequestId::parse(ID)?),
-        geometry()?,
-    )?;
-    spin(&mut session, |session| {
-        legacy_status(session) == Some(TerminalStatus::Controlling)
-    });
-    assert_eq!(session.status(), TerminalStatus::Blocked);
+    let (mut session, _) = native_session_with_identity(native_client(&server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
     session.forward(b"do-once").map_err(|_| "input")?;
-    spin(&mut session, |s| {
-        s.status() == TerminalStatus::OutcomeUnknown
+    spin(&mut session, |session| {
+        session.status() == TerminalStatus::OutcomeUnknown
     });
     assert!(session.forward(b"do-once").is_err());
-    drop(session);
-    server.finish()?;
-    Ok(())
-}
-#[test]
-fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResult {
-    let (shutdown, _peer) = UnixStream::pair()?;
-    let (commands, _receiver) = mpsc::sync_channel(8);
-    let mut session = TerminalSession {
-        #[cfg(windows)]
-        position_writer: None,
-        #[cfg(windows)]
-        position_startup: None,
-        #[cfg(windows)]
-        configuration: None,
-        #[cfg(windows)]
-        notifications: None,
-        #[cfg(windows)]
-        window_title: None,
-        #[cfg(windows)]
-        client_control: None,
-        backend: SessionBackend::Legacy(Box::new(LegacySession {
-            commands: Some(commands),
-            events: None,
-            status: TerminalStatus::Controlling,
-            projection: None,
-            feedback: None,
-            poll_pending: true,
-            geometry: geometry()?,
-        })),
-        task: None,
-        shutdown: crate::local_client::tests::server::shutdown_handle(shutdown),
-        retirement_redraw_pending: false,
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-        origin: None,
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-        recovery_shutdown: None,
-    };
-    for _ in 0..8 {
-        assert!(session.forward(&[255; 4096]).is_ok());
-    }
-    assert!(session.forward(b"not-submitted").is_err());
-    if let SessionBackend::Legacy(legacy) = &mut session.backend {
-        legacy.retire(TerminalStatus::OutcomeUnknown, &session.shutdown);
-    }
-    assert!(session.forward(b"not-submitted").is_err());
-    Ok(())
-}
-
-#[test]
-fn create_uses_default_intent_and_a_busy_controller_stays_read_only() -> TestResult {
-    use orchbee_client_server_protocol::{
-        ControlRejectedReason, CreateAcceptedState, CreateOutcome, StartMode, TerminalCreateResult,
-    };
-    let server = FakeServer::start(|mut stream| {
-        admit(&mut stream)?;
-        let ClientMessage::TerminalCreate(request) =
-            read_client_message(&mut stream).map_err(io::Error::other)?
-        else {
-            return Err(io::Error::other("expected Create"));
-        };
-        assert!(request.worker_constraint().is_none());
-        assert!(request.cwd().is_none());
-        let StartMode::Immediate { geometry } = request.start_mode() else {
-            return Err(io::Error::other("expected immediate"));
-        };
-        write_server_message(
-            &mut stream,
-            &ServerMessage::TerminalCreateResult(TerminalCreateResult::new(
-                request.request_id().clone(),
-                CreateOutcome::Accepted {
-                    state: CreateAcceptedState::Started {
-                        geometry: *geometry,
-                    },
-                },
-            )),
-        )
-        .map_err(io::Error::other)?;
-        attach(&mut stream)?;
-        let ClientMessage::TerminalControl(request) =
-            read_client_message(&mut stream).map_err(io::Error::other)?
-        else {
-            return Err(io::Error::other("expected acquire"));
-        };
-        write_server_message(
-            &mut stream,
-            &ServerMessage::TerminalControlResult(TerminalControlResult::new(
-                request.request_id().clone(),
-                TerminalControlOutcome::Rejected {
-                    reason: ControlRejectedReason::ControllerBusy,
-                },
-            )),
-        )
-        .map_err(io::Error::other)?;
-        loop {
-            match read_client_message(&mut stream) {
-                Ok(ClientMessage::TerminalViewer(request)) => {
-                    let _result = write_server_message(
-                        &mut stream,
-                        &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-                            request.request_id().clone(),
-                            TerminalViewerOutcome::Empty {},
-                        )),
-                    );
-                }
-                Err(_) => return Ok(()),
-                _ => return Err(io::Error::other("read-only Client submitted control")),
-            }
-        }
-    })?;
-    let mut session = TerminalSession::start(
-        LocalClient::connect(server.endpoint(), "test-cohort")?,
-        TerminalIntent::Create { cwd: None },
-        geometry()?,
-    )?;
-    spin(&mut session, |session| {
-        legacy_status(session) == Some(TerminalStatus::ReadOnly)
-    });
-    assert_eq!(session.status(), TerminalStatus::Blocked);
-    assert!(session.forward(b"never submitted").is_err());
-    session.observe_geometry(Geometry::new(100, 30, 8, 16)?);
     drop(session);
     server.finish()?;
     Ok(())
@@ -2364,7 +2166,6 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             let status = session.status();
             let phase = match session.view() {
                 TerminalSessionView::Native(view) => Some(view.phase()),
-                TerminalSessionView::Legacy { .. } => None,
             };
             drop(session);
             return Err(format!(
@@ -2383,6 +2184,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             "{rendered}"
         );
         if !controlling {
+            assert!(session.forward(b"never submitted").is_err());
             assert!(
                 rendered.contains("standalone · Ready · view only"),
                 "{rendered}"
@@ -2499,9 +2301,7 @@ fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> Test
         session.status() == TerminalStatus::OutcomeUnknown
     });
     assert!(!session.startup_draw_ready());
-    let SessionBackend::Native(native) = &mut session.backend else {
-        panic!("standalone Session must retain its native UI state");
-    };
+    let SessionBackend::Native(native) = &mut session.backend;
     native.close(CarrierFailure::Protocol);
     assert_eq!(
         native.view().retirement(),

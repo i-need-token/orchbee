@@ -611,12 +611,6 @@ impl PollKey {
     pub(super) const fn pane(&self) -> &PaneKey {
         self.key.pane()
     }
-
-    /// The poll's attachment anchor — legacy tests key expectations by it.
-    #[cfg(test)]
-    pub(super) const fn attachment(&self) -> &AttachmentKey {
-        self.key.anchor()
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

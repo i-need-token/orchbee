@@ -38,25 +38,13 @@ use orchbee_workbench_protocol::{
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
 
-// The typed split transport is admitted before a product shortcut is reserved; keep its
-// contract compiled and tested without presenting it as a UI action yet.
-#[allow(dead_code)]
-pub(crate) mod panel_split;
-// The typed leaf-close transport is admitted the same way: compiled and tested before any
-// product shortcut presents it.
-#[allow(dead_code)]
+pub(crate) mod label_rename;
+pub(crate) mod launch_profile;
 pub(crate) mod panel_close;
-// The typed leaf-move transport is admitted the same way: compiled and tested before any
-// product shortcut presents it.
-#[allow(dead_code)]
+pub(crate) mod panel_input;
 pub(crate) mod panel_placement;
 pub(crate) mod panel_relocate;
-// The typed launch-profile transport is admitted the same way: compiled and tested before the
-// CLI launch-profile surface consumes it.
-pub(crate) mod label_rename;
-#[allow(dead_code)]
-pub(crate) mod launch_profile;
-pub(crate) mod panel_input;
+pub(crate) mod panel_split;
 #[cfg(windows)]
 pub(crate) mod split_ratio;
 mod tab_close;
@@ -91,13 +79,6 @@ pub(crate) use workspace_close::{
 };
 
 impl LocalClient {
-    pub(crate) fn submit_workbench_snapshot_read(
-        &mut self,
-        request: SnapshotReadIntent,
-    ) -> Result<WorkbenchSnapshotResult, SnapshotReadError> {
-        self.submit_workbench_snapshot_read_with_deadline(request, None, None)
-    }
-
     pub(crate) fn submit_workbench_snapshot_read_before(
         &mut self,
         request: SnapshotReadIntent,
@@ -195,13 +176,6 @@ impl LocalClient {
             );
         }
         Ok(result)
-    }
-
-    pub(crate) fn submit_workbench_publication_read(
-        &mut self,
-        request: PublicationReadIntent,
-    ) -> Result<WorkbenchPublicationResult, PublicationReadError> {
-        self.submit_workbench_publication_read_with_deadline(request, None)
     }
 
     pub(crate) fn submit_workbench_publication_read_before(
@@ -1131,3 +1105,6 @@ impl std::error::Error for PublicationReadFailure {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

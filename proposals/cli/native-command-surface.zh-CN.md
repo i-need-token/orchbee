@@ -6,7 +6,7 @@
 | 负责人   | 产品命令体验，以及 Rust `orchbee` Client、Server 语义命令边界、TUI、打包与发行集成的维护者                                                                                                                                                                                                                                                 |
 | 当前权威 | [`apps/orchbee/README.md`](../../apps/orchbee/README.zh-CN.md) 负责已交付原生 CLI/TUI 行为；TypeScript entry 已退役。                                                                                                                                                                                                                      |
 | 父设计   | [`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有可执行程序拓扑和进程职责；本提案拥有公开 Rust 命令面                                                                                                                                                                                                      |
-| 决策权威 | 产品决策人已接受替换并删除 `apps/cli`；一个公共 Rust `orchbee` 同时承载 CLI 与 TUI；同级 Client 的 TUI 模型与首版全屏交互 contract；下文 resource-first command family；human 与 versioned machine output；有界输入与 at-most-once mutation 规则；一个公共打包入口；以及已接受的裸本机激活和用户 service 界面                              |
+| 决策权威 | 产品决策人已接受一个公共 Rust `orchbee` 同时承载 CLI 与 TUI；同级 Client 的 TUI 模型与首版全屏交互 contract；下文 resource-first command family；human 与 versioned machine output；有界输入与 at-most-once mutation 规则；一个公共打包入口；以及已接受的裸本机激活和用户 service 界面                                                     |
 | 退出条件 | 交付剩余已接受的原生命令 slice 与发布边界，然后退役本提案。旧源代码删除独立于新打包获得授权。                                                                                                                                                                                                                                              |
 
 英文规范原文：
@@ -223,7 +223,7 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
 | 范围       | 把 `apps/orchbee` 添加为 experimental Rust Cargo application，并产出尚未发布的 `orchbee` binary。唯一准入的 argument vector 是 empty、确切 `--help` 与确切 `--version`。Empty argument 选择 TUI route；由于 TUI composition 不属于本切片，该 route 报告本地化的 development-unavailable result。Help 以及 unavailable/usage diagnostic 同时提供 `en-US` 与 `zh-CN`；version line 与 locale 无关。添加可重复的 release-profile baseline measurement。                                      |
 | 非目标     | 不准入 TUI renderer、Workbench command、Server 或 Worker discovery、activation、IPC、network、authentication、persistence、terminal access、child-process supervision、shell completion、Skill、业务命令、package-manager artifact、Desktop packaging change、public-entry cutover、compatibility alias、当前 CLI migration 或 deletion。                                                                                                                                                 |
 | 主张       | Parsing 精确且无 side effect。Help 与 version 成功完成，且不会初始化 TUI 或 backend capability。Empty argument 只会到达显式 unavailable TUI presentation。任何其他、额外或非 Unicode argument 都会在产生 effect 前成为 usage failure。Help 只写 stdout；unavailable 与 usage diagnostic 只写 stderr；version 向 stdout 写入一行 `orchbee <version>`。每条 authored human message 都具备两种 locale。                                                                                      |
-| 边界       | `apps/orchbee` 只拥有自己的 process entry、invocation decision、locale projection 与 development presentation。除了 Rust standard library 外，它没有 runtime dependency，也不授予 Server、Worker、Host、filesystem 或 process capability。Phase 3A 被接受时 `apps/cli` 及其 Desktop launcher 仍然存在；另行接受的源代码退役现在取代了该共存状态。新 binary 是 Cargo verification input，但不是 release 或 packaging input。                                                               |
+| 边界       | `apps/orchbee` 只拥有自己的 process entry、invocation decision、locale projection 与 development presentation。除了 Rust standard library 外，它没有 runtime dependency，也不授予 Server、Worker、Host、filesystem 或 process capability。新 binary 是 Cargo verification input，但不是 release 或 packaging input。                                                                                                                                                                      |
 | 证据       | Table-driven parser 与 locale test 覆盖每个准入 vector、额外 argument、受支持平台上的非 Unicode input、locale precedence 与 fallback。Process test 在两种 locale 下断言 exit status 与确切 stdout/stderr。Cargo dependency metadata 与 source review 证明不存在 backend/TUI/process dependency。Release measurement 记录 artifact byte、重复 warm `--version` latency，以及 host 可以提供时的 peak resident memory。仍需通过根 format、lint、build、test、project 与 documentation gate。 |
 | 交付与回滚 | 先记录这个已接受切片，再添加 application contract 与 source，接入现有 Cargo workspace，收集 baseline，最后收敛 documentation 与 gate。该 application 是增量且尚未发布的，不拥有 durable state，也不改变任何当前 process。回滚只需移除 application member 与其已接受切片记录，不需要 data migration 或 compatibility handling。                                                                                                                                                            |
 
@@ -243,8 +243,7 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
 
 ## 迁移与回滚
 
-1. 旧 `apps/cli`、其 launcher、注入 variable 与 embedded Skill 已按另行接受的明确终止决定退役。
-   未来 installed consumer 应按原生 cohort 盘点。
+1. 未来 installed consumer 应按原生 cohort 盘点。
 2. 选择第一批一次性 Rust command，并记录其确切 grammar、schema、activation policy、identity、bound
    与排除的 legacy capability。
 3. 独立于 TUI rendering 和 backend engine 实现 Rust CLI core，再加入 TUI composition，且不得

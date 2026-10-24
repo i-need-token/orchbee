@@ -4,10 +4,8 @@
 //! runtime per call instead of owning a second one — mints and verifies
 //! boot-scoped opaque list cursors, and executes the OBAP
 //! list/get/explain first-read. Read projection never mutates
-//! canonical state: every request runs its required snapshot provider —
-//! the legacy path clones one consistent snapshot under the lock, the
-//! prepared path receives one cloned by the caller's own
-//! authorized fold — releases every guard, then projects and maps.
+//! canonical state: every eligible request receives the snapshot cloned by its
+//! authorized preparation fold, releases every guard, then projects and maps.
 //! Runtime disposal is the single unavailability authority — shutdown
 //! disposes the runtime under the same lock so surviving connections
 //! observe `runtime-unavailable` rather than fabricated state.
@@ -42,20 +40,9 @@ use std::time::{Duration, Instant};
 use orchbee_capability_node_protocol::{AgentDrainEntry, AgentDrainReply};
 
 use crate::agent::AgentModelError;
-#[cfg(test)]
-use crate::agent::native_observation::NativeClass;
 use crate::agent::native_observation::{
     Binding, CarrierIdentity, NativeEvent, NativeObservation, NativeObservationEffect,
 };
-
-/// The service-facing result of one leaf transition — effects already
-/// consumed under the guard; `ack_w` stays a data value (the real ACK
-/// write is the future caller's, outside the cell).
-#[cfg(test)]
-pub(crate) struct NativeOutcome {
-    pub(crate) class: NativeClass,
-    pub(crate) ack_w: Option<u64>,
-}
 
 /// One validated domain fact lifted from a typed drain page. Private on
 /// purpose: the only construction route is `drain_facts`, so an
@@ -372,21 +359,6 @@ impl AgentService {
     /// unpoisons.
     pub(crate) fn shutdown(&self) {
         let _ = self.with_state(|state| state.runtime.dispose());
-    }
-
-    /// Executes one validated OBAP request through the legacy provider —
-    /// the existing raw canonical snapshot fold. The production OBAP
-    /// arm supplies the drain pump provider through `execute_prepared`,
-    /// so this legacy provider remains only for test-side fixture reads.
-    #[cfg(test)]
-    pub(crate) fn execute(
-        &self,
-        request: AgentReadRequest,
-    ) -> Result<AgentReadResult, AgentReadFault> {
-        self.execute_prepared(request, || match self.snapshot() {
-            Ok(Some(snapshot)) => Ok(snapshot),
-            Ok(None) | Err(_) => Err(PreparedUnavailable),
-        })
     }
 
     /// The one request executor every read entry shares. Order is
@@ -850,47 +822,6 @@ impl AgentService {
         self.with_state(|state| {
             let effects = state.native.retire_carrier(&carrier, now);
             state.apply_native_effects(effects, now);
-        })
-    }
-
-    /// Test-only single-event seam; the production drain page fold
-    /// applies events through `native_apply_drain_page`, not here. The returned `NativeOutcome` carries the
-    /// classification plus the scalar-W ACK data value; any
-    /// `RouteHint` effect is already consumed inside the fold, so the
-    /// caller owns only the ACK write.
-    #[cfg(test)]
-    pub(crate) fn native_apply_event(
-        &self,
-        event: NativeEvent,
-        now: Instant,
-    ) -> Result<NativeOutcome, AgentFoldUnavailable> {
-        self.with_state(|state| {
-            let transition = state.native.apply_event(event, now);
-            state.apply_native_effects(transition.effects, now);
-            NativeOutcome {
-                class: transition.class,
-                ack_w: transition.ack_w,
-            }
-        })
-    }
-
-    /// Test-only single-gap seam; production gaps apply inside the
-    /// `native_apply_drain_page` fold.
-    #[cfg(test)]
-    pub(crate) fn native_apply_gap(
-        &self,
-        carrier: CarrierIdentity,
-        lo: u64,
-        hi: u64,
-        now: Instant,
-    ) -> Result<NativeOutcome, AgentFoldUnavailable> {
-        self.with_state(|state| {
-            let transition = state.native.apply_gap(&carrier, lo, hi, now);
-            state.apply_native_effects(transition.effects, now);
-            NativeOutcome {
-                class: transition.class,
-                ack_w: transition.ack_w,
-            }
         })
     }
 

@@ -69,7 +69,6 @@ pub enum AgentChangeTransition {
     SessionObserved,
     TurnStarted,
     TurnActivityChanged,
-    LimitedActivityObserved,
     AttentionRequested,
     AttentionResolved,
     TurnFinished,

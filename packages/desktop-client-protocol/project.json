@@ -5,7 +5,7 @@
 	"stability": "experimental",
 	"responsibility": "Strict data contracts for the sandboxed Electron Desktop renderer bootstrap, fixed ten-port capability ordering and security attestation, provider-neutral Agent observations, bounded local Agent-integration inventory and explicit management results, application-lifetime control, local Project Folder acquisition, managed Project Worktree discovery and creation, device-local terminal-launch profiles, terminal-default-settings control, and bounded clipboard reads.",
 	"nonGoals": [
-		"Owning Electron Main, preload, renderer, Gateway, network, authentication, or transport lifecycle implementations.",
+		"Owning Electron Main, preload, renderer, network, authentication, or transport lifecycle implementations.",
 		"Owning shared Workbench client-session, canonical Agent transitions, provider payloads or correlation capabilities, terminal projection, projected attachment, Workbench document, TerminalPresentation, PTY, VT, terminal process, or product-interface semantics.",
 		"Providing generic IPC, arbitrary Electron channels, compatibility aliases, or a protocol for ordinary Browser clients."
 	]

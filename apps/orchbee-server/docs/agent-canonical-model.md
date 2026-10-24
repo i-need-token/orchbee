@@ -7,8 +7,7 @@ mapping between the authoritative TypeScript model and its Rust mirror.
 ## Status and activation boundary
 
 `apps/orchbee-server` owns a faithful Rust implementation of the deterministic semantics
-currently defined by `packages/agent` at base commit
-`0d4b685a1b7db9405ca94908385e0534ddd41dc9`. The module is registered from `main.rs` under
+currently defined by `packages/agent`; the executed corpus records source fingerprints. The module is registered from `main.rs` under
 `#[cfg(any(unix, windows))]`: the canonical runtime lives inside the **Server binary crate**, never in
 the library. Its conformance suites run once in that same binary target; `lib.rs`
 neither declares nor exports the Agent module. No public API, new crate, or second
@@ -52,7 +51,10 @@ seams (`native_apply_event`, `native_apply_gap`, `native_reconcile_bindings`,
 Worker-side from the validated site runtime), aggregate/location/wait projections,
 and all conformance harnesses.
 Production builds contain no
-seeding flag, environment variable, wire replay, or second state path.
+seeding flag, environment variable, wire replay, or second state path. Native fold classification
+and watermark assertions observe committed counters and carrier state in the test owner; production
+returns only effects. Desktop still produces stale/reconnected observations, so the shared reducer
+retains those variants; event provenance and transition payloads remain conformance-checked.
 
 The initial runtime is genuinely empty: revision `0`, an empty session list, `get`/`explain`
 report `not-found`, and `runtime-unavailable` is observed only after the owning listener
@@ -74,8 +76,8 @@ failure is never confused with a rejected payload or an empty overlay.
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/agent.rs`                               | Module declarations and the `pub(crate)` production re-exports; corpus/test-only helpers stay gated inside each module                                                                                                                                                              |
 | `src/agent/model.rs`                         | Canonical value types, identity validation, UTF-16 ordering, snapshot invariants; raw construction and validation are the production admission path                                                                                                                                 |
-| `src/agent/events.rs`                        | The fourteen observation event kinds and the four semantic event kinds; `#[cfg(test)]` `event_id` provenance accessor                                                                                                                                                               |
-| `src/agent/reducer.rs`                       | `transition_agent_runtime` per-kind guards, unchanged/rejected/applied, semantic event order; `#[cfg(test)]` transition accessors                                                                                                                                                   |
+| `src/agent/events.rs`                        | The thirteen observation event kinds and the four semantic event kinds; provenance accessors live in `src/agent/tests.rs`                                                                                                                                                           |
+| `src/agent/reducer.rs`                       | `transition_agent_runtime` per-kind guards, unchanged/rejected/applied, semantic event order; transition assertion accessors live in `src/agent/tests.rs`                                                                                                                           |
 | `src/agent/changes.rs`                       | Change records, production append with retention 512 and contiguity; production `read_agent_runtime_changes` paging kinds                                                                                                                                                           |
 | `src/agent/runtime.rs`                       | `AgentRuntime` — production: empty-snapshot construction, `snapshot`, `dispose`, `is_disposed`, `dispatch`, `rejected`; `#[cfg(test)]`: seed; production change reads                                                                                                               |
 | `src/agent/projection.rs`                    | Semantic status, summary, and explanation projections; `#[cfg(test)]` aggregate/location presentations and wait-condition matching                                                                                                                                                  |
@@ -140,8 +142,8 @@ required snapshot provider exactly once — outside any `AgentState` lock and un
 panic catch — releases every guard, then projects and maps. `execute_prepared` is the
 production entry: `local_terminal_service/agent_drain_read.rs` is the caller-owned
 provider, and it holds its outer registry -> coordinator guards through the provider's
-own final fold. The legacy `execute` test seam keeps the raw snapshot clone for
-fixtures — preserved verbatim and not a freshness proof.
+own final fold. The `execute` fixture helper in `src/agent_service/tests.rs` supplies a raw snapshot
+through that same executor; it makes no production freshness claim.
 A declined or panicked provider maps to the
 requesting operation's correlated `runtime-unavailable` arm — never an
 `AgentReadFault`, never a fabricated or last-good snapshot. `list` preserves canonical
@@ -150,23 +152,13 @@ opaque boot-scoped cursors (`cursor-invalid`/`cursor-stale`); `get`/`explain` an
 `not-found` for absent sessions; every operation reports `read-denied` under a denied
 policy and `runtime-unavailable` after disposal.
 
-Boundary note: canonical carried payloads whose only readers are the gated surfaces
-or absent remote consumers stay verbatim — removing or narrowing them would break
-the accepted TypeScript-parity model. Per the docs/RUST.md lint policy they carry
-item-scoped `#[cfg_attr(not(test), expect(dead_code, reason = "..."))]` exceptions —
-each names the canonical invariant and the absent production consumer, and `expect`
-self-falsifies the moment a real reader lands: corpus-only event constructors
-(`LimitedActivityObserved`, `ObservationBecameStale`, `ObservationReconnected`,
-`RawPresence::Other`), event `event_id` fields consumed only by the gated trace/read
-paths, `AgentSemanticEvent` payloads, `AgentTransition` payloads,
-`NativeTransition`'s `class`/`ack_w` (read only by the test-only per-event service
-seams), the fold outcomes' diagnostic fields (`FinalFence::BarrierUnmet`/`Rejected`),
-the change-feed projection fields (`AgentRuntimeChange`/`AgentRuntimeChangeSession`),
-the ingress `socket_path` kept for the test-only overlay seam,
-`RegistrationFact::binding`, and the drain exchange's `Lost` payload. The
-`agent.rs` re-exports have real consumers in the binary's production or test code
-and need no unused-import suppression. No module-wide suppression, no fake use,
-no const tables, no variant narrowing.
+Shared event and transition payloads remain where applications produce the contract. Desktop
+produces `ObservationBecameStale` and `ObservationReconnected`; provenance `event_id` fields,
+`AgentSemanticEvent` payloads, and `AgentTransition` results remain conformance-checked. Their
+item-scoped `#[cfg_attr(not(test), expect(dead_code, reason = "..."))]` exceptions name that
+existing producer and validation purpose. Corpus assertion accessors live in the test owner.
+The native fold returns only effects; tests observe classification counters and the committed
+carrier watermark. No unproduced event or fixture-only raw variant remains in production.
 
 ## Session names sidecar
 
@@ -397,14 +389,15 @@ authority. Each claim is exercised by the durable corpus and/or the named bounda
 - Journal input validation returns `Result<_, AgentChangeReadError>`; the TypeScript
   `ZodError` throw on malformed private input maps to that typed error.
 - Strict-object presence is preserved at the private raw boundary: `RawPresence`
-  distinguishes `Absent`, `Null`, `Value`, and malformed `Other`, so required-nullable
+  distinguishes `Absent`, `Null`, and `Value`, so required-nullable
   keys (active-turn `activity`, attention-request `turnId`, `activityHint`,
   `lastOutcome`, `parentSessionId`) keep the TypeScript distinction between a missing
   key and an explicit `null`, and `unknown`/`idle` turns reject any residue key —
   including keys whose value is `null`. Fields that are required and non-nullable stay
   bare in the typed domain; representing their absence is the private fixture decoder's
   responsibility, and any future public ingress is a separate layer with its own
-  malformed-input policy.
+  malformed-input policy. Mistyped fixture values map to invalid contents of the corresponding
+  raw type, preserving rejection without a production-only malformed-value variant.
 - Determinism: no ambient time, randomness, IO, or global state exists anywhere in the
   module; freshness transitions are explicit event inputs.
 
@@ -633,7 +626,7 @@ The names family additionally accepts `{kind:"presentation", presentationId}`. R
 
 ## Native bounded change reads
 
-The native `agent.session.changes` family exposes the existing canonical journal to Client attention, waits and incremental observation. The journal retains 512 applied transitions; no second event store or Agent writer is introduced. Each record carries its revision, one of the fourteen canonical transition kinds, and the journal's exact session projection (lifecycle, observation, parent, pending count, provider, session ID and semantic status). Attachments and execution location require a coherent session read, not invented history fields.
+The native `agent.session.changes` family exposes the existing canonical journal to Client attention, waits and incremental observation. The journal retains 512 applied transitions; no second event store or Agent writer is introduced. Each record carries its revision, one of the thirteen canonical transition kinds, and the journal's exact session projection (lifecycle, observation, parent, pending count, provider, session ID and semantic status). Attachments and execution location require a coherent session read, not invented history fields.
 
 Read admission precedes exactly one caller-owned drain preparation outside the Agent cell. Denial never runs that provider. Failure or panic yields correlated runtime-unavailable. After successful preparation, read the journal and head revision together under the Agent cell; later canonical events may be included. Disposal or poison refuses the read. No I/O occurs under the Agent lock.
 

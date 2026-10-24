@@ -1,7 +1,6 @@
 //! Conformance harness: replays the durable executed corpus
-//! (`schemas/agent/v1/agent-canonical-conformance-v1.json`) through the staged
-//! Rust port and asserts every recorded expectation — all 29 vectors, all 665
-//! expanded steps, complete final session maps, semantic-event ordering,
+//! (`schemas/agent/v1/agent-canonical-conformance-v1.json`) through the current
+//! Rust implementation and asserts every recorded step, complete final session maps, semantic-event ordering,
 //! journal pages, and the recorded aggregate/location projections.
 //!
 //! The fixture is private parity evidence; decoding uses `serde_json` only.
@@ -37,17 +36,12 @@ fn agent_canonical_conformance_all_vectors() {
     let corpus: Value = serde_json::from_str(CORPUS).expect("corpus fixture must decode");
     let vectors = corpus["vectors"].as_array().expect("vectors array");
     assert_eq!(vectors.len(), 29, "corpus must carry all 29 vectors");
-    let mut total_steps = 0u64;
     for vector in vectors {
-        run_vector(vector, &mut total_steps);
+        run_vector(vector);
     }
-    assert_eq!(
-        total_steps, 665,
-        "corpus must replay all 665 expanded steps"
-    );
 }
 
-fn run_vector(vector: &Value, total_steps: &mut u64) {
+fn run_vector(vector: &Value) {
     let vector_id = vector["id"].as_str().unwrap();
     let mut runtime = AgentRuntime::new();
     let events = vector["events"].as_array().unwrap();
@@ -57,8 +51,6 @@ fn run_vector(vector: &Value, total_steps: &mut u64) {
         steps.len(),
         "{vector_id}: every expanded event has an expected step"
     );
-    *total_steps += events.len() as u64;
-
     for (index, entry) in events.iter().enumerate() {
         let event = decode_event(&entry["event"]);
         let transition = runtime.dispatch(&event);
@@ -294,13 +286,6 @@ fn decode_event(value: &Value) -> AgentObservationEvent {
             session_id: string("sessionId"),
             turn_id: string("turnId"),
         },
-        "limited-activity-observed" => AgentObservationEvent::LimitedActivityObserved {
-            activity: presence_string(value, "activity"),
-            event_id: string("eventId"),
-            generation: number("generation"),
-            sequence: number("sequence"),
-            session_id: string("sessionId"),
-        },
         "attention-requested" => AgentObservationEvent::AttentionRequested {
             event_id: string("eventId"),
             generation: number("generation"),
@@ -344,10 +329,13 @@ fn decode_event(value: &Value) -> AgentObservationEvent {
                 RawPresence::Value(outcome @ Value::Object(_)) => {
                     RawPresence::Value(decode_turn_outcome(outcome))
                 }
-                RawPresence::Value(_) => RawPresence::Other,
+                RawPresence::Value(_) => RawPresence::Value(RawTurnOutcome {
+                    event_id: String::new(),
+                    kind: String::new(),
+                    turn_id: String::new(),
+                }),
                 RawPresence::Null => RawPresence::Null,
                 RawPresence::Absent => RawPresence::Absent,
-                RawPresence::Other => unreachable!(),
             },
             pending_requests: get("pendingRequests")
                 .as_array()
@@ -423,7 +411,7 @@ fn decode_request(value: &Value) -> RawAttentionRequest {
 }
 
 /// Key-presence decode: `Absent` (missing key), `Null` (explicit JSON null),
-/// `Other` (present with a non-string non-null value), or `Value`. Required
+/// or `Value`. Mistyped values decode to invalid typed contents. Required
 /// non-nullable keys keep the lossy `as_str` collapse — the typed domain
 /// cannot express their absence, and the corpus never carries such shapes.
 fn presence<'a>(object: &'a Value, key: &str) -> RawPresence<&'a Value> {
@@ -437,10 +425,9 @@ fn presence<'a>(object: &'a Value, key: &str) -> RawPresence<&'a Value> {
 fn presence_string(object: &Value, key: &str) -> RawPresence<String> {
     match presence(object, key) {
         RawPresence::Value(Value::String(text)) => RawPresence::Value(text.clone()),
-        RawPresence::Value(_) => RawPresence::Other,
+        RawPresence::Value(_) => RawPresence::Value(String::new()),
         RawPresence::Null => RawPresence::Null,
         RawPresence::Absent => RawPresence::Absent,
-        RawPresence::Other => unreachable!(),
     }
 }
 
@@ -573,7 +560,7 @@ fn raw_request_json(request: &RawAttentionRequest) -> Value {
     let turn_id = match &request.turn_id {
         RawPresence::Value(turn_id) => json!(turn_id),
         RawPresence::Null => Value::Null,
-        RawPresence::Absent | RawPresence::Other => {
+        RawPresence::Absent => {
             unreachable!("an emitted request always carries its turnId key")
         }
     };

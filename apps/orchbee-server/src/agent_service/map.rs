@@ -427,7 +427,6 @@ pub(super) fn runtime_change(
             "session-observed" => T::SessionObserved,
             "turn-started" => T::TurnStarted,
             "turn-activity-changed" => T::TurnActivityChanged,
-            "limited-activity-observed" => T::LimitedActivityObserved,
             "attention-requested" => T::AttentionRequested,
             "attention-resolved" => T::AttentionResolved,
             "turn-finished" => T::TurnFinished,

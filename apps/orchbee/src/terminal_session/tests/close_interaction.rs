@@ -571,7 +571,6 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let token = match session.view() {
             TerminalSessionView::Native(native) => native.close_confirmation().unwrap().token(),
-            TerminalSessionView::Legacy { .. } => unreachable!(),
         };
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
         assert_complete_close_frame(&buffer, &hits, token, locale, &view);
@@ -609,7 +608,6 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let next = match session.view() {
             TerminalSessionView::Native(native) => native.close_confirmation().unwrap().token(),
-            TerminalSessionView::Legacy { .. } => unreachable!(),
         };
         assert_ne!(next, token);
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
@@ -681,7 +679,6 @@ fn nondecision_packets_swallowed_and_unpresentable_redraw_suspends_prompt() -> T
     let _ = draw_close(&mut session, &view, Locale::EnUs, 120, 32)?;
     let token = match session.view() {
         TerminalSessionView::Native(view) => view.close_confirmation().unwrap().token(),
-        TerminalSessionView::Legacy { .. } => unreachable!(),
     };
     // Geometry loss suspends an admitted prompt. The hidden owner still fences
     // ordinary decisions, but cannot submit until the same token paints again.
@@ -774,9 +771,7 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
                     .replace(' ', "")
             )
         );
-        let TerminalSessionView::Native(native) = session.view() else {
-            unreachable!()
-        };
+        let TerminalSessionView::Native(native) = session.view();
         let status = native
             .close_status()
             .expect("Resume refusal retains the known status");

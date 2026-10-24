@@ -100,7 +100,7 @@ TUI 作为对等 renderer 消费该投影；它只拥有呈现。
 
 - canonical 模型迁入 Rust 时必须调和 presentation attachment 标识：TypeScript 模型允许至多 256 字符的 opaque 字符串，而原生 `TerminalPresentationId` 为 32 位小写十六进制。Server 拥有的投影应发出原生 presentation 标识，使每个 Client 无需 per-renderer 关联规则即可映射 attachment。
 - 终端 effect wire 上的 `orchbee.agent.v1` 通道名与 `orchbee.agent.v3;` APC 前缀是 ingress 传输细节，不是面向 Client 的观测契约；Client 族命名不得继承其中任何一个。
-- 当前 TypeScript package（`@orchbee/agent` 契约、`semantic-command-protocol`）在已接受迁移逐个切换消费者之前仍是其现有消费者的当前权威；它们不会静默变成 Rust wire 契约。首个 Rust 生产者与消费者之前必须有语言中立 schema 与跨语言符合性证据。
+- 当前 TypeScript package（`@orchbee/agent` 契约）在已接受迁移逐个切换消费者之前仍是其现有消费者的当前权威；它们不会静默变成 Rust wire 契约。首个 Rust 生产者与消费者之前必须有语言中立 schema 与跨语言符合性证据。
 - Server 重启 fencing、remote-Client 可达性与 Server 侧 journal 由 Server 迁移切片拥有；本提案消费其结果而不替其决策。
 
 ## 保留决策
@@ -110,7 +110,7 @@ TUI 作为对等 renderer 消费该投影；它只拥有呈现。
 - Agent 是否进入 mutation 域；本文仅提出读取。
 - canonical attachment 到原生 presentation 的标识契约，以及任何已存标识格式的迁移。
 - 跨 Server 重启的 journal 保留、cursor 签名与 reset 语义；512/100 边界是 TypeScript journal 的已接受值，是参考点而非自动的 wire 承诺。
-- 该族的 remote Client 交付与 Gateway 准入。
+- 该族的 remote Client 交付与 Server 网络准入。
 
 ## 任何已接受切片的证据义务
 

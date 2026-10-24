@@ -18,7 +18,6 @@ export const AgentObservationTransitionKindSchema = z.enum(
 		'session-observed',
 		'turn-started',
 		'turn-activity-changed',
-		'limited-activity-observed',
 		'attention-requested',
 		'attention-resolved',
 		'turn-finished',

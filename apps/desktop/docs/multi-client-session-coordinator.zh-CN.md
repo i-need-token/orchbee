@@ -4,7 +4,7 @@
 
 不依赖传输方式的协调器支持多个独立页面会话，共享一份可恢复的 Workbench 文档和一组终端进程。
 每个已注册页面拥有私有 Client View 和终端视口状态。当前 Desktop 组合提供 Electron `MessagePort`
-适配器。Browser Preview 是独立的内存应用，没有通向 Desktop 的 Gateway 连接。
+适配器。Browser Preview 是独立的内存应用，没有通向 Desktop 的连接。
 Electron Main、preload 和 Terminal Host 是适配器或权威所有者，不是页面客户端。
 
 Desktop Main 拥有一个 `DesktopClientSessionCoordinator`。它串行处理共享文档提案，持久保存一条规范修订链，为整个应用只协调一次持久终端意图，并向每个活动的 `ClientSession` 发布有序的文档与终端观察事件。该基础层提供 Electron `MessagePort` 适配器和不依赖传输方式的协调器核心。它不会打开网络监听器、认证远程对等端、持久保存 Client View、合并并发语义 Action、增加应用包依赖，也不会向普通客户端开放应用生命周期控制。
@@ -247,7 +247,7 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 
 恢复操作配置检查两个全新的附件身份、候选项在绘制前丢失、帧就绪但晋升前丢失、冻结帧保留、仅当候选项仍然存活时才晋升，以及预算耗尽。已经获得帧但随后不可用的候选项会被封存，不能替换冻结投影。Selection 与 Find 是两个独立的原子调用标识；它们可以任意排序，也可发生在 Host 交接、Host 完成、客户端交付、传输丢失和重试之间的任意位置。打开 Find 时只快照该附件已经收到的最新 Host 选择。因此，仍在等待中的选择会产生未预填的 Find 操作，而不会查询超时或稍后静默重新绑定。交给已断开附件的操作结果未知，会封存该附件，而且绝不会复制到重试身份；用户可以在恢复后显式创建新调用，但那不是对旧身份的重放。
 
-该跨边界模型抽象同一个仍存活连接内的有序交付。当前 Desktop 细化使用 MessagePort 和 Host 流；抽象连接不构成 Browser Gateway 已实现的证据。它不假设延迟上界、最终重连、断开后的交付、跨连接丢失的恰好一次执行、浏览器调度时长、Terminal Host 内部实现，也不声称每种传输实现都存在细化证明。现有的确定性客户端、Broker、Service、HostConnection 和恢复控制器测试负责这种细化。TLC 通过只代表有界安全证据与进程内响应屏障进展，不表示故障网络最终一定恢复。
+该跨边界模型抽象同一个仍存活连接内的有序交付。当前 Desktop 细化使用 MessagePort 和 Host 流；抽象连接不构成 Browser ingress 已实现的证据。它不假设延迟上界、最终重连、断开后的交付、跨连接丢失的恰好一次执行、浏览器调度时长、Terminal Host 内部实现，也不声称每种传输实现都存在细化证明。现有的确定性客户端、Broker、Service、HostConnection 和恢复控制器测试负责这种细化。TLC 通过只代表有界安全证据与进程内响应屏障进展，不表示故障网络最终一定恢复。
 
 ### 时钟边界和故障检测
 

@@ -77,15 +77,18 @@ describe('Agent runtime changes', () => {
 
 	it('requires an explicit reset instead of silently crossing retained history', () => {
 		const runtime = new AgentRuntime();
-		runtime.dispatch(terminalObserved());
+		runtime.dispatch({
+			...terminalObserved(),
+			capabilities: ['turnLifecycle'],
+			observation: { ...terminalObserved().observation, fidelity: 'rich', source: 'hook' },
+		});
 		for (let sequence = 2; sequence <= 513; sequence += 1) {
 			runtime.dispatch({
-				activity: sequence % 2 === 0 ? 'command' : 'thinking',
 				eventId: AgentEventIdSchema.parse(`event-change-${sequence}`),
 				generation: 0,
 				sequence,
 				sessionId: AgentSessionIdSchema.parse('session-retention'),
-				type: 'limited-activity-observed',
+				type: 'session-idle-observed',
 			});
 		}
 

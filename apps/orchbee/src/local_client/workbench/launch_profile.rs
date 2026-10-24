@@ -225,12 +225,6 @@ impl LocalClient {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkbenchLaunchProfileCreateRequest(WorkbenchCommand);
 
-impl WorkbenchLaunchProfileCreateRequest {
-    pub(crate) const fn request_id(&self) -> &WorkbenchRequestId {
-        &self.0.request_id
-    }
-}
-
 impl TryFrom<WorkbenchCommand> for WorkbenchLaunchProfileCreateRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
@@ -244,12 +238,6 @@ impl TryFrom<WorkbenchCommand> for WorkbenchLaunchProfileCreateRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkbenchLaunchProfileDeleteRequest(WorkbenchCommand);
-
-impl WorkbenchLaunchProfileDeleteRequest {
-    pub(crate) const fn request_id(&self) -> &WorkbenchRequestId {
-        &self.0.request_id
-    }
-}
 
 impl TryFrom<WorkbenchCommand> for WorkbenchLaunchProfileDeleteRequest {
     type Error = WorkbenchCommand;

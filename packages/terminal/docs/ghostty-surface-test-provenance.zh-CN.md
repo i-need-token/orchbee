@@ -142,7 +142,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 
 头部 Canvas 2D 见证了 `terminal-parity/FS-05-file-links` 和 `terminal-parity/FS-06-url-policy` 通过生产投影表面、工作台操作和浏览器效果提供生成固定的合成主机行窗口。他们观察普通的白名单检测以及悬停、上下文和直接激活；自动FTP文字；不支持显式 OSC 8 元数据；显式文件元数据；和检测到的路径。文件和不受支持的目标不会产生外部影响。这些见证人控制浏览器组成和策略行为；它们不会调用操作系统 URL 处理程序、解析 OSC 字节、声明文件系统存在或添加文件打开权限。
 
-有界面 Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会用 fake local opener 与合成且已验证的 PNG bytes 启用该可选 capability。它们观察 relative-path resolution、modifier activation、300 ms hover dwell、target 变化时的 cancellation、拒绝第一个 request 的迟到 completion，以及第二个 target 对应的生产锚定 pointer-transparent card。它们不会调用操作系统应用、读取真实文件、自动操作 Finder，也不会授予 Browser/Gateway 权限。
+有界面 Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会用 fake local opener 与合成且已验证的 PNG bytes 启用该可选 capability。它们观察 relative-path resolution、modifier activation、300 ms hover dwell、target 变化时的 cancellation、拒绝第一个 request 的迟到 completion，以及第二个 target 对应的生产锚定 pointer-transparent card。它们不会调用操作系统应用、读取真实文件、自动操作 Finder，也不会授予 Browser 权限。
 
 ## 打包元数据转换
 

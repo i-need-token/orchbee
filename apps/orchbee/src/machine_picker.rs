@@ -652,7 +652,6 @@ impl Picker {
                     .position(|row| row.selection() == s)
             })
             .unwrap_or(0);
-        self.invalidate();
     }
     pub(crate) fn observe_local(&mut self, contexts: Vec<Context>) -> bool {
         if self.local_contexts.as_ref() == contexts {
@@ -719,7 +718,6 @@ impl Picker {
         self.selected = 0;
         self.top = 0;
         self.error = None;
-        self.invalidate();
     }
     fn toggle_mode(&mut self) {
         self.set_mode(match self.mode {
@@ -812,7 +810,6 @@ impl Picker {
             .iter()
             .position(|r| r.choice == self.current)
             .unwrap_or(0);
-        self.invalidate();
     }
     fn begin_selection(&mut self, origin: SelectionOrigin) -> bool {
         self.cancel_selection();
@@ -840,10 +837,7 @@ impl Picker {
         self.selection_scope
             .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
     }
-    /// Centered-picker pointer authority is the successfully published frame
-    /// hit map. Callers may keep using this transition hook while they migrate;
-    /// there is no feature-local geometry to clear.
-    pub(crate) fn invalidate(&mut self) {}
+
     /// All keys, paste and malformed events are consumed by the caller while open.
     fn row_id(&self, index: usize) -> Option<&str> {
         let row = self.visible_rows().get(index)?;

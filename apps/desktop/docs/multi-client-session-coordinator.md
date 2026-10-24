@@ -5,7 +5,7 @@
 The transport-neutral coordinator supports independent page sessions over one recoverable shared
 Workbench document and one set of terminal processes. Each registered page owns its private Client
 View and terminal viewport state. The current Desktop composition supplies Electron's `MessagePort`
-adapter. Browser Preview is a separate in-memory application, with no Gateway connection to Desktop.
+adapter. Browser Preview is a separate in-memory application, without a connection to Desktop.
 Electron Main, preload, and the Terminal Host are adapters or authorities, not page clients.
 
 Desktop Main owns one `DesktopClientSessionCoordinator`. It serializes shared-document proposals,
@@ -389,7 +389,7 @@ new invocation after recovery, but that is not replay of the old identity.
 
 This cross-boundary model abstracts ordered delivery within one still-live connection. The current
 Desktop refinement uses MessagePorts and the Host stream; the abstract connection is not evidence
-of an implemented Browser Gateway. It does not assume a latency bound, eventual reconnect, delivery after
+of an implemented Browser ingress. It does not assume a latency bound, eventual reconnect, delivery after
 disconnect, exactly-once execution across a lost connection, browser scheduling time, Terminal Host
 internals, or a refinement proof from every transport implementation. The existing deterministic
 client, broker, service, HostConnection, and recovery-controller tests own that refinement.

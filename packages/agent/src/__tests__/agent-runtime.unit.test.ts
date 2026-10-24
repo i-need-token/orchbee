@@ -320,62 +320,6 @@ describe('Agent runtime transition', () => {
 		).toMatchObject({ kind: 'rejected', reason: 'capability-not-declared' });
 	});
 
-	it('retains terminal-scoped activity as a limited hint without inventing a Turn', () => {
-		const limitedSessionId = AgentSessionIdSchema.parse('session-limited');
-		let snapshot = apply(createAgentRuntimeSnapshot(), {
-			...observed(),
-			capabilities: ['activity'],
-			observation: {
-				fidelity: 'basic',
-				freshness: 'fresh',
-				generation: 0,
-				sequence: 1,
-				source: 'terminal',
-			},
-			sessionId: limitedSessionId,
-		});
-
-		const transition = transitionAgentRuntime(snapshot, {
-			activity: 'command',
-			eventId: eventId(2),
-			generation: 0,
-			sequence: 2,
-			sessionId: limitedSessionId,
-			type: 'limited-activity-observed',
-		});
-
-		expect(transition.kind).toBe('applied');
-		snapshot = transition.snapshot;
-		expect(snapshot.sessions[0]).toMatchObject({
-			activityHint: 'command',
-			turn: { kind: 'unknown' },
-		});
-		expect(projectAgentLocation(snapshot, 'presentation-1')).toMatchObject({
-			freshness: 'fresh',
-			status: { activityHint: 'command', kind: 'unknown' },
-		});
-		expect(transition.semanticEvents).toEqual([]);
-	});
-
-	it('rejects limited activity from a source without terminal-scoped authority', () => {
-		const snapshot = apply(createAgentRuntimeSnapshot(), observed());
-
-		expect(
-			transitionAgentRuntime(snapshot, {
-				activity: 'thinking',
-				eventId: eventId(2),
-				generation: 0,
-				sequence: 2,
-				sessionId,
-				type: 'limited-activity-observed',
-			}),
-		).toMatchObject({
-			kind: 'rejected',
-			reason: 'source-capability-exceeded',
-			snapshot,
-		});
-	});
-
 	it('requires the exact declared capability for a classified attention request', () => {
 		let snapshot = apply(createAgentRuntimeSnapshot(), {
 			...observed(),

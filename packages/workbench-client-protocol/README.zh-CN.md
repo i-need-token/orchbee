@@ -108,20 +108,20 @@ Resume 失败目标回显仅重复已提交身份，Denied 亦如此；不确认
 
 实时输入权限使用独立的 `attachment-input-capability-changed` 事件，其中包含 Host 已提交的完整附件能力状态与正数修订。传输层不能请求或合成该变更。客户端校验附件与终端标识，并且只应用精确重放，或精确下一修订且输入值已变化的事件；过时交付是惰性（inert）空操作；冲突或 revision 缺口按失败关闭（fail closed）处理。降级会同步禁用 PTY Action，而历史、搜索、选择与复制仍保持本地输出交互。升级不携带排队输入，只授予带新修订标记的未来输入。
 
-功能故障在 Electron 和 Gateway 传输中保留其语义操作和可重试性。 Host 响应还保留其确切的相关性 ID，而客户端拥有的复制和链接效果保留其请求序列。这些值确定后果和诊断；他们从不授权自动重放输入或其他用户效果。
+功能故障在应用传输中保留其语义操作和可重试性。 Host 响应还保留其确切的相关性 ID，而客户端拥有的复制和链接效果保留其请求序列。这些值确定后果和诊断；他们从不授权自动重放输入或其他用户效果。
 
-本地文件系统效果是一项可选的附件能力，默认不存在。启用时，`link-open` 携带有判别字段的 URL 或文件目标，而不是授予通用 opener。URL 目标继续遵循共享 scheme 策略；文件目标只对拥有该附件的本地 Desktop broker 有意义。Browser、Gateway、archive 与来源中立的附件不会因为终端文本而获得本地应用启动或文件系统读取权限。
+本地文件系统效果是一项可选的附件能力，默认不存在。启用时，`link-open` 携带有判别字段的 URL 或文件目标，而不是授予通用 opener。URL 目标继续遵循共享 scheme 策略；文件目标只对拥有该附件的本地 Desktop broker 有意义。Browser、archive 与来源中立的附件不会因为终端文本而获得本地应用启动或文件系统读取权限。
 
 图片预览是独立且绑定请求的流程。具备能力的 renderer 可以请求一个检测到的本地图片路径，并取消精确的请求序列。Desktop 只会返回精确有界的 `ArrayBuffer` 与一种已准入 raster media type，或不泄露文件细节的 unavailable 结果。协议把预览内容限制在 8 MiB，且不传输文件句柄、目录列表、cache key 或持久化指令。请求标识让 renderer 能在 hover replacement 或附件退役后拒绝迟到内容；它不授权重试或远程文件传输。
 
 附件流关闭后，Projection release 仍保持相关联。客户端会保留请求标识，直到 Main 返回 `terminal-projection-released` 或确切的类型化清理失败。成功确认不会传输任何端口；因此，迟到的清理结果只会结算其已释放请求，不会被误认为会使无关投影退役的未知消息。
 由于命令交付与异步 open 完成是独立调度的，相关联的 `terminal-projection-opened` 可能在客户端请求 release 后才到达。客户端只关闭被转移的 attachment 端口，保留已释放请求标识直到清理结算，并让共享控制传输与无关请求继续可用。缺失或多出的转移端口、冲突标识或重复 open 仍属于无效控制流量，并会退役受影响的控制传输。
 
-它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、Gateway、身份验证、PTY 或 VT 实现。当前 shared-document 与 legacy TerminalPresentation 语义在已接受 migration 前仍属于 `@orchbee/workbench`；增量 version-1 projection 语义来自语言中立 schema 权威。Terminal Host wire 语义仍属于 `@orchbee/terminal-protocol`。
+它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、身份验证、PTY 或 VT 实现。当前 shared-document 与 legacy TerminalPresentation 语义在已接受 migration 前仍属于 `@orchbee/workbench`；增量 version-1 projection 语义来自语言中立 schema 权威。Terminal Host wire 语义仍属于 `@orchbee/terminal-protocol`。
 
 应用程序在第一个可信边界处使用这些模式解析每个不可信的 IPC 或网络值。传输所有者仍然负责成帧、身份验证、二进制传输、背压和连接退役。
 
-每个客户端会话引导程序都带有 `terminalHostName`，由拥有投影终端计算机的应用程序运行时提供。共享的 Web 客户端使用该可信值来验证 OSC 7 当前目录元数据；它永远不会替换 Browser URL 主机名、Gateway 对等名称或渲染器输入。 Projected 帧携带完整的可为空的自然标题和当前目录观察。协议在不选择 Tab 标题优先级、持久性或 URI 信任策略的情况下传输这些值； `@orchbee/workbench` 拥有这些决定。
+每个客户端会话引导程序都带有 `terminalHostName`，由拥有投影终端计算机的应用程序运行时提供。共享的 Web 客户端使用该可信值来验证 OSC 7 当前目录元数据；它永远不会替换 Browser URL 主机名、传输对等名称或渲染器输入。 Projected 帧携带完整的可为空的自然标题和当前目录观察。协议在不选择 Tab 标题优先级、持久性或 URI 信任策略的情况下传输这些值； `@orchbee/workbench` 拥有这些决定。
 
 Projected 帧和行窗口事件接受精确的 `ArrayBuffer` 或有界的 `Uint8Array` 视图，因此进程内适配器可以保留经过验证的有效负载视图。帧的可见载荷受 `maxFrameBytes` 限制，行窗口的可见载荷受 `maxRowWindowBytes` 限制；视图无关的后备字节不计入该限制。在将视图结构化克隆到不太受信任的功能之前，传输所有者必须将其可见字节复制到精确大小的 `ArrayBuffer` 中；结构化克隆携带完整的后备缓冲区，包括视图之外的字节。接收方仍然遵守声明的字节偏移量和长度，而传输信任和终端协议验证仍然是独立的责任。
 

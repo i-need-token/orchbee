@@ -760,17 +760,13 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
         }
         input(&mut dispatcher, &mut session, &mut view, b"\r", now);
         assert!(spin_with_draw(&mut session, |session| {
-            let SessionBackend::Native(native) = &session.backend else {
-                unreachable!()
-            };
+            let SessionBackend::Native(native) = &session.backend;
             !server.commands.lock().unwrap().is_empty()
                 && (native.rename_receipts_for_test().0.is_none() || session.task.is_none())
         }));
         let command = server.commands.lock().unwrap()[0].clone();
         assert_eq!(command.expected_revision, WorkbenchRevision::new(1));
-        let SessionBackend::Native(native) = &session.backend else {
-            unreachable!()
-        };
+        let SessionBackend::Native(native) = &session.backend;
         let (_, known, uncertain) = native.rename_receipts_for_test();
         match response {
             RenameResponse::Unchanged | RenameResponse::TabUnavailable => {
@@ -829,9 +825,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
                 |session| matches!(session.view(), TerminalSessionView::Native(view) if view.phase() == NativeDisplayPhase::Ready)
             ));
             assert_eq!(server.snapshots.load(Ordering::SeqCst), 2);
-            let SessionBackend::Native(native) = &session.backend else {
-                unreachable!()
-            };
+            let SessionBackend::Native(native) = &session.backend;
             assert_eq!(
                 native
                     .rename_receipts_for_test()
@@ -881,9 +875,7 @@ fn renamed_removed_target_successor_finishes_setup_feedback_and_accepts_input() 
     );
     assert_eq!(server.snapshots.load(Ordering::SeqCst), 1);
     assert_eq!(server.commands.lock().unwrap().len(), 1);
-    let SessionBackend::Native(native) = &session.backend else {
-        unreachable!()
-    };
+    let SessionBackend::Native(native) = &session.backend;
     let (pending, known, unknown) = native.rename_receipts_for_test();
     assert!(pending.is_none() && unknown.is_none());
     assert_eq!(known.unwrap().revision(), WorkbenchRevision::new(2));

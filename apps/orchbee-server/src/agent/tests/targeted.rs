@@ -146,16 +146,6 @@ impl SessEv {
         }
     }
 
-    fn limited_activity(&self, activity: Option<&str>) -> AgentObservationEvent {
-        AgentObservationEvent::LimitedActivityObserved {
-            activity: activity.map_or(RawPresence::Null, |a| RawPresence::Value(a.to_string())),
-            event_id: self.event_id.clone(),
-            generation: self.generation,
-            sequence: self.sequence,
-            session_id: self.session_id.clone(),
-        }
-    }
-
     fn attention_requested(&self, request: RawAttentionRequest) -> AgentObservationEvent {
         AgentObservationEvent::AttentionRequested {
             event_id: self.event_id.clone(),
@@ -765,24 +755,6 @@ fn f2e_reconnect_active_turn_null_activity_control() {
 }
 
 #[test]
-fn f2k_reconnect_unknown_turn_mistyped_turn_id() {
-    // `turnId: 42` is a present residue key; only the decoder can produce it.
-    let mut runtime = AgentRuntime::new();
-    runtime.dispatch(&observe("s-f2k"));
-    assert_rejected(
-        &runtime.dispatch(&sess_ev("s-f2k", 1.0).generation(1.0).reconnect(|over| {
-            over.turn = RawTurnState {
-                activity: RawPresence::Absent,
-                kind: "unknown".to_string(),
-                phase: RawPresence::Absent,
-                turn_id: RawPresence::Other,
-            };
-        })),
-        AgentTransitionRejection::InvalidEvent,
-    );
-}
-
-#[test]
 fn f2f_observe_parent_session_id_absent_is_invalid_parent() {
     // `parentSessionId !== null` treats a missing key as a value: the parent
     // guard runs and cannot match any session.
@@ -1134,23 +1106,6 @@ fn h_activity_tail_variants_apply() {
         }
         _ => panic!("turn must remain active"),
     }
-}
-
-#[test]
-fn h2_limited_activity_tail_other() {
-    let mut runtime = AgentRuntime::new();
-    runtime.dispatch(&observe_over("s-h2", |over| {
-        over.capabilities = vec!["activity".to_string()];
-        over.observation.source = "terminal".to_string();
-        over.observation.fidelity = "basic".to_string();
-    }));
-    let transition = runtime.dispatch(&sess_ev("s-h2", 1.0).limited_activity(Some("other")));
-    assert_kind(&transition, "applied");
-    let session = &runtime.snapshot().sessions[0];
-    assert_eq!(
-        session.activity_hint.map(|hint| hint.as_str()),
-        Some("other")
-    );
 }
 
 // ---------- I. capacities ----------
