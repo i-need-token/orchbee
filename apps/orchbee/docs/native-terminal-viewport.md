@@ -309,6 +309,20 @@ selection, graphics, input or frame acknowledgement authority; fresh validated f
 through the existing projection path. Cross-machine and explicit-picker selection keep the
 [machine candidate handoff](machines.md#cross-machine-workspace-navigation).
 
+During Tab or Workspace navigation, `ui/navigation_draw.rs` retains the last flushed shell while
+the newly selected Tab is attaching without a live frame. The shell does not paint the temporary
+automatic Tab name or connection placeholder; the first staged live frame replaces the old shell
+in one draw. The previous hit map is invalidated and the existing first-frame input gate remains
+in force. Non-frame poll replies continue settling during this hold, without acknowledging any
+unpainted frame. Resize, capturing surfaces, notifications, stable unavailability and failures
+render normally; the existing attachment deadline bounds the wait.
+Once the first live frame is visible, its pending draw acknowledgement alone does not display a
+connection status footer.
+
+Automatic Tab titles can reuse their last observed title while the active Tab waits for a frame,
+under the same canonical binding and attached Host epoch. A fresh live title, including a cleared
+title, takes precedence; blocked or faulted projections do not regain an old title.
+
 The controlled witnesses are `machine_picker/tests/sidebar.rs`,
 `terminal_input/dispatcher/tests/action_menu/sidebar_prefix.rs`,
 `tui_shell/machines/tests/direct_navigation.rs`, `ui/direct_navigation/tests.rs` and

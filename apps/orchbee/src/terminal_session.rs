@@ -479,6 +479,18 @@ impl TerminalSession {
         }
     }
 
+    pub(crate) fn prepare_draw(
+        &mut self,
+        viewport: ratatui::layout::Rect,
+        allow_defer: bool,
+    ) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.prepare_draw(viewport, allow_defer),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
     pub(crate) fn status(&self) -> TerminalStatus {
         match &self.backend {
             SessionBackend::Native(native) => native.status(),

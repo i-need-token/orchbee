@@ -7,7 +7,7 @@ use crate::{
     tui_pointer::HitTarget,
 };
 use orchbee_workbench_protocol::*;
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 mod creation;
 mod overflow;
 mod states;
@@ -260,7 +260,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     hits.hit_target_at(0, 1),
                     Some(&HitTarget::NewWorkspaceButton)
                 );
-                // An expanded Project at rest shows only its bold name; disclosure is revealed.
+                // An expanded Project at rest keeps its secondary label; disclosure is revealed.
                 assert!((0..height).all(|y| (0..sidebar_width).all(|x| !matches!(
                     hits.hit_target_at(x, y),
                     Some(HitTarget::SidebarDisclosure(target)) if target == &project
@@ -282,8 +282,12 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     .unwrap();
                     assert_eq!(project_tracks.primary.x, 1);
                     assert_eq!(buffer[(project_tracks.primary.x, project_y)].symbol(), "R");
+                    assert_eq!(
+                        buffer[(project_tracks.primary.x, project_y)].fg,
+                        theme.color(Role::TextSecondary)
+                    );
                     assert!(
-                        buffer[(project_tracks.primary.x, project_y)]
+                        !buffer[(project_tracks.primary.x, project_y)]
                             .modifier
                             .contains(ratatui::style::Modifier::BOLD)
                     );

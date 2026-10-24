@@ -131,6 +131,24 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
             }
             assert!(!view.machines.sidebar_navigation_active());
             assert!(view.machines.request.is_none());
+            assert!(view.machines.focus_sidebar_target(&workspace));
+            let (focused, _, hits) = paint_navigation_buffers(&view, locale, &theme, 40, 20);
+            let y = sidebar_target_rows(&hits, 40, 20, &workspace)[0];
+            let tracks = layout::Tracks::resolve(
+                Rect::new(0, y, 40, 1),
+                0,
+                auxiliary_actions(&view.machines.sidebar_source(), &workspace),
+                layout::RowKind::for_target(&workspace),
+            )
+            .unwrap();
+            assert_eq!(
+                focused[(tracks.primary.x, y)].bg,
+                theme.color(Role::SurfaceSelection)
+            );
+            assert_eq!(
+                focused[(tracks.current.x, y)].symbol(),
+                theme.glyphs.active_marker
+            );
         }
     }
 }
@@ -304,6 +322,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                         .contains(Modifier::BOLD),
                     bold == Some(true)
                         || bold.is_none()
+                            && surface != Role::SurfaceCurrent
                             && theme.style(surface).add_modifier.contains(Modifier::BOLD)
                 );
                 sidebar_text::compose_lines(&mut lines, Some(surface), true, &theme);

@@ -3,7 +3,7 @@ use super::*;
 use crate::terminal_session::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 
 #[test]
-fn creation_preview_keeps_current_fill_and_identity_emphasis_separate_from_pending_copy() {
+fn creation_preview_keeps_current_fill_without_bolding_identity_or_pending_copy() {
     let site = SiteId::parse(&id(1)).unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
@@ -44,10 +44,7 @@ fn creation_preview_keeps_current_fill_and_identity_emphasis_separate_from_pendi
                     };
                     let label_x = (0..64).find(|x| buffer[(*x, 1)].symbol() == "P").unwrap();
                     assert_eq!(buffer[(label_x, 1)].bg, theme.color(surface));
-                    assert_eq!(
-                        buffer[(label_x, 1)].modifier.contains(Modifier::BOLD),
-                        current
-                    );
+                    assert!(!buffer[(label_x, 1)].modifier.contains(Modifier::BOLD));
                     assert_eq!(buffer[(0, 1)].bg, theme.color(surface));
                     assert_eq!(buffer[(63, 1)].bg, theme.color(surface));
                     let detail_x = label_x + u16::try_from(display_width("Preview · ")).unwrap();
@@ -296,10 +293,7 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                 let identity_x = (tracks.primary.x..tracks.primary.right())
                     .find(|x| buffer[(*x, y)].symbol() != " ")
                     .unwrap();
-                assert_eq!(
-                    buffer[(identity_x, y)].modifier.contains(Modifier::BOLD),
-                    !provisional
-                );
+                assert!(!buffer[(identity_x, y)].modifier.contains(Modifier::BOLD));
                 if provisional {
                     let y = rendered_text(&buffer)
                         .lines()

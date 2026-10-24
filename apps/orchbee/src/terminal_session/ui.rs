@@ -650,11 +650,22 @@ impl<'a> NativeSessionView<'a> {
                                 .and_then(crate::terminal_title::display)
                         })
                         .or_else(|| {
-                            (!inner.active() && self.retirement.is_none())
-                                .then(|| {
-                                    self.retained_frames.as_ref()?.title(inner.tab_id(), panel)
-                                })
-                                .flatten()
+                            (self.retirement.is_none()
+                                && (!inner.active()
+                                    || matches!(
+                                        self.pane_projection_status(panel.panel_id()),
+                                        NativeProjectionStatus::Empty
+                                            | NativeProjectionStatus::WaitingForFullFrame
+                                    )))
+                            .then(|| {
+                                self.retained_frames.as_ref()?.title(
+                                    inner.tab_id(),
+                                    panel,
+                                    self.pane_projection(panel.panel_id())
+                                        .map(TerminalProjection::epoch),
+                                )
+                            })
+                            .flatten()
                         })
                         .or_else(|| {
                             self.state
@@ -1312,6 +1323,7 @@ pub(super) struct NativeUi {
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
+    navigation_draw: navigation_draw::NavigationDraw,
     #[cfg(windows)]
     history_positions: history_positions::Coordinator,
     effects: super::terminal_effects::Queue,
@@ -1347,6 +1359,7 @@ mod independent_popup;
 mod input_capture;
 #[cfg(windows)]
 mod link_activation;
+mod navigation_draw;
 mod terminal_tail;
 
 impl NativeUi {
@@ -1448,6 +1461,7 @@ impl NativeUi {
             outer_focused: None,
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
+            navigation_draw: navigation_draw::NavigationDraw::default(),
             #[cfg(windows)]
             history_positions: history_positions::Coordinator::default(),
             effects: super::terminal_effects::Queue::default(),
@@ -1877,31 +1891,47 @@ impl NativeUi {
 
     pub(super) fn after_draw(&mut self) {
         // The shell calls this only after Backend::flush closed the frame.
+        self.remember_navigation_draw();
         #[cfg(windows)]
         self.remember_history_positions();
         if let Some(state) = &self.state {
             self.retained_frames.after_draw(state, &self.projections);
         }
         self.dispatch_effect_after_draw();
+        self.settle_pending_polls(true);
+    }
+
+    fn settle_pending_polls(&mut self, presented: bool) {
         if self.pending_draws.is_empty() {
             return;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return;
         };
-        // One completed draw settles every staged frame: each pane's poll
-        // keeps its own causal slot, so draining the queue deposits them all.
+        // Each pane's poll keeps its own causal slot. A held navigation frame
+        // settles only non-frame events; live pixels still require a completed draw.
         let pending_draws = std::mem::take(&mut self.pending_draws);
         for pending in pending_draws {
+            if !presented
+                && pending.frame.is_some()
+                && self
+                    .state
+                    .as_ref()
+                    .is_some_and(|state| state.pane_projected(pending.poll_key.pane_ref()))
+            {
+                self.pending_draws.push(pending);
+                continue;
+            }
             // The settlement claims this draw's proof: a frame that was never
             // staged into a live, non-departing leaf settles as `NoFeedback` —
             // the poll-time `FrameApplied` is never forwarded for a frame the
             // screen never showed.
             let settlement = match pending.frame {
                 Some(frame) => {
-                    let staged = self.state.as_mut().is_some_and(|state| {
-                        state.stage_drawn_frame(pending.poll_key.pane_ref(), frame)
-                    });
+                    let staged = presented
+                        && self.state.as_mut().is_some_and(|state| {
+                            state.stage_drawn_frame(pending.poll_key.pane_ref(), frame)
+                        });
                     if staged {
                         pending.settlement
                     } else {

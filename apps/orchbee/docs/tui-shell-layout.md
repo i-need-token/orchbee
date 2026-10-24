@@ -151,7 +151,7 @@ overflow ranges; fully visible lists leave them blank.
 
 Navigation rows keep a one-cell navigation marker at the list's left edge and no per-level
 indentation; the tree shape comes from shared columns. Project and Standalone headings start their
-bold label in the column after the marker. Workspace rows sit one blank cell further in, with a
+regular-weight secondary label in the column after the marker. Workspace rows sit one blank cell further in, with a
 one-cell leading operational state track and a one-cell gap, so Workspace names start four cells
 from the list's left edge. Agent rows place a two-cell tree connector (`├─`, or `╰─` for the last
 child; ASCII `|-` and `` `- ``) under the Workspace state track, then a one-cell gap, their own
@@ -172,7 +172,7 @@ one its folder, with a local home folder shortened to `~`. A configured continua
 only once one of its values is visible, so a context with neither branch nor folder shows one line
 and pending metadata never reserves a blank row. Branch
 and custom continuation rows align with the Workspace name, including when a configured
-first row omits the state icon. Project labels use bold primary text;
+first row omits the state icon. Project labels use regular-weight secondary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible Project
 create controls are revealed with the row's other controls, right-aligned, with no overflow-menu slot after them. At 52 columns
 and above they use a localized Create action; narrower sidebars use the fixed three-cell `[+]` icon
@@ -192,7 +192,7 @@ keep their existing owners. Agent rows carry no ordinal. The default Agent row i
 line over its provider in secondary text; its state glyph and the hover footer hint carry state.
 Project and Standalone groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
-under its heading. The default Workspace gap is one row. These external separators retain the chrome
+under its heading. The default Workspace gap is zero rows. These external separators retain the chrome
 background and an inert list-surface target; hover, press, current and navigation surfaces never
 include them. Only the gap between Agent siblings stays inside the following Agent row so its trunk continues.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
@@ -201,12 +201,13 @@ identity continuations, including their gutters and trailing space. It stops at 
 last line, excluding separators, Project headings and neighboring entries.
 Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across a noncurrent Workspace
 entry. Named palettes retain secondary metadata colors; host-relative text uses the surface's
-paired foreground. Explicit token colors and emphasis retain their authority. Default current names
-are bold, with no asterisk when the fill is distinct. When an identity token explicitly disables bold,
-the dedicated current marker preserves current identity without changing that token style; operational
+paired foreground. Explicit token colors and emphasis retain their authority. Current names keep
+their normal weight, with no asterisk when the current fill is distinct. When another interaction
+surface takes precedence or an identity token explicitly disables bold, the dedicated current
+marker preserves current identity without changing that token style; operational
 and unread markers remain in their own slots. Agent continuations and a collapsed current
 Project retain the same whole-row surface as their identity. When focus and
-current context coincide, the navigation surface takes precedence while bold identity or the current marker retains
+current context coincide, the navigation surface takes precedence while the current marker retains
 current-state evidence.
 Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) after
 one blank cell following the displayed first-line identity. Text measurement and painting reserve

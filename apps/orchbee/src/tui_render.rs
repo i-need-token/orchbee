@@ -2495,7 +2495,14 @@ fn status_overlay_visible(
     visible
         || session.is_some_and(|session| match session {
             TerminalSessionView::Native(native) => {
-                let visible = native.phase() != NativeDisplayPhase::Ready
+                // The first live frame is already visible while its draw acknowledgement
+                // settles. Do not flash a connection-only footer for that handoff.
+                let connecting_frame = matches!(
+                    native.phase(),
+                    NativeDisplayPhase::Starting | NativeDisplayPhase::Switching
+                ) && native.projection_status()
+                    == NativeProjectionStatus::FrameAvailable;
+                let visible = (native.phase() != NativeDisplayPhase::Ready && !connecting_frame)
                     || native
                         .focus_panel_id()
                         .and_then(|panel| native.terminal_end(panel))

@@ -154,7 +154,7 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
     },
     WindowsUserConfigOption {
         path: "ui.sidebar.spaces.row_gap",
-        default: "1",
+        default: "0",
         choices: "an unsigned 16-bit integer",
         description: "Vertical gap between Space sidebar rows.",
     },

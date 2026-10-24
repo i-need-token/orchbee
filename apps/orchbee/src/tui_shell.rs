@@ -1059,7 +1059,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     };
     #[cfg(windows)]
     surface.observe_client_viewport(view, terminal.get_frame().area());
-    #[cfg(windows)]
     let capture_owner = {
         let native_claims = match surface.view() {
             Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
@@ -1069,6 +1068,15 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         };
         crate::tui_composition::project_capture(client_capture_claims(view), native_claims)
     };
+    let allow_defer = capture_owner.is_none()
+        && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp)
+        && view.notifications.empty();
+    if surface.prepare_draw(terminal.get_frame().area(), allow_defer) {
+        // Pixels remain from the last successful frame, but its targets cannot authorize
+        // actions against the newly selected terminal. No draw receipt is minted here.
+        dispatcher.invalidate_hit_map(surface);
+        return Ok(false);
+    }
     let mut notification_painted = false;
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
@@ -1654,6 +1662,9 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         self.tick()
     }
     fn after_draw(&mut self) {}
+    fn prepare_draw(&mut self, _viewport: Rect, _allow_defer: bool) -> bool {
+        false
+    }
     fn deliver_terminal_effect(
         &mut self,
         _emit_bell: &mut dyn FnMut() -> io::Result<()>,
@@ -1790,6 +1801,9 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     }
     fn after_draw(&mut self) {
         self.after_draw()
+    }
+    fn prepare_draw(&mut self, viewport: Rect, allow_defer: bool) -> bool {
+        self.prepare_draw(viewport, allow_defer)
     }
     fn deliver_terminal_effect(
         &mut self,

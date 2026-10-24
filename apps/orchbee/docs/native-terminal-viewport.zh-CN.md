@@ -262,6 +262,16 @@ Host 终端或 epoch 不同、或终端身份未知的图像。保留图像不�
 或帧确认权威；新验证的帧通过既有投影路径接管。跨机器和显式选择器选择保留
 [机器候选交接](machines.zh-CN.md#跨机器工作区导航)。
 
+Tab 或 Workspace 导航期间，`ui/navigation_draw.rs` 会在新选中的 Tab 正在附着且尚无实时帧时，
+保留最后一次已提交的 shell 画面。shell 不绘制临时的自动 Tab 名称或连接占位内容；首个待绘制
+实时帧到达后，一次绘制替换旧画面。旧命中映射立即失效，已有首帧输入准入保持不变。
+保留画面期间继续完成非帧轮询回复，不确认任何尚未绘制的帧。尺寸变化、捕获界面、通知、
+稳定不可用状态和失败仍正常绘制；等待时限继续由已有附着截止时间约束。
+首个实时帧已经可见后，不会仅因绘制确认仍在完成中而显示连接状态底栏。
+
+当前 Tab 等待帧时，自动 Tab 标题可以复用上次观察到的标题，但必须匹配相同的规范绑定和
+已附着 Host epoch。新实时标题（包括明确清空的标题）优先；被阻塞或故障投影不会恢复旧标题。
+
 受控证据位于 `machine_picker/tests/sidebar.rs`、
 `terminal_input/dispatcher/tests/action_menu/sidebar_prefix.rs`、
 `tui_shell/machines/tests/direct_navigation.rs`、`ui/direct_navigation/tests.rs` 和

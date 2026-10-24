@@ -527,10 +527,10 @@ A Project's first Workspace sits directly under its heading.
 ```toml
 [ui.sidebar.spaces]
 rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
-row_gap = 1
+row_gap = 0
 ```
 
-Defaults are `[["state_icon", "workspace", "git_status"], ["location"]]`, gap 1.
+Defaults are `[["state_icon", "workspace", "git_status"], ["location"]]`, gap 0.
 `location` shows the branch, otherwise the Workspace folder with a local home folder shortened to
 `~`. An explicit `rows = []` keeps an identity/navigation row. The other builtin is
 `state_text`; `$name` reads Workspace reports and never replaces a builtin.

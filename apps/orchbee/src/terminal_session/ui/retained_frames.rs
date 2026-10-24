@@ -213,12 +213,20 @@ pub(super) struct RetainedView<'a> {
 }
 
 impl<'a> RetainedView<'a> {
-    /// A last observed title for an inactive tab, fenced by its canonical binding.
+    /// A last observed title, fenced by its canonical binding and the attached Host epoch.
     pub(super) fn title(
         &self,
         tab: &WorkbenchTabId,
         panel: &crate::terminal_session::NativePanel,
+        epoch: Option<&orchbee_terminal_protocol::HostEpoch>,
     ) -> Option<&'a str> {
+        if self
+            .state
+            .pane_by_panel(panel.panel_id())
+            .is_some_and(|record| record.fault().is_some())
+        {
+            return None;
+        }
         let member = self.state.selected_presentation(panel);
         self.frames
             .entries
@@ -231,6 +239,7 @@ impl<'a> RetainedView<'a> {
                     && &id.presentation == member.presentation_id()
                     && Some(&id.binding) == member.binding()
                     && id.remains_member(self.state)
+                    && epoch.is_none_or(|epoch| *epoch == pixels.frame.route.host_epoch)
             })?
             .frame
             .title

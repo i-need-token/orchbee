@@ -32,7 +32,7 @@ fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
 }
 
 /// Compose one row surface without inheriting the row painter's bold across supporting lines.
-/// Explicit token emphasis remains authoritative; current/pressed emphasis belongs to identity.
+/// Explicit token emphasis remains authoritative; pressed emphasis belongs to identity.
 pub(super) fn compose_lines(
     lines: &mut [Line<'static>],
     interaction: Option<Role>,
@@ -51,10 +51,13 @@ pub(super) fn compose_lines(
             span.style =
                 theme.content_on_surface(Role::SurfaceChrome, interaction, role, span.style);
             // Modifier-only surfaces can add bold to each span as well as the Line. Preserve
-            // authored span emphasis and primary identity fallbacks, without promoting metadata.
+            // authored span emphasis and interaction fallbacks, without promoting current names
+            // or metadata. Current context retains its fill, underline and independent marker.
             let identity_bold = index == 0
                 && matches!(role, None | Some(Role::TextPrimary))
-                && (emphasize_identity || span.style.add_modifier.contains(Modifier::BOLD));
+                && (emphasize_identity
+                    || interaction != Some(Role::SurfaceCurrent)
+                        && span.style.add_modifier.contains(Modifier::BOLD));
             if !explicitly_plain && (content_bold || identity_bold) {
                 span.style = span.style.add_modifier(Modifier::BOLD);
             } else {

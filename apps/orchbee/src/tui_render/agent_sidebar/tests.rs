@@ -1282,11 +1282,19 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             terminal.backend().buffer()[(5, y)].bg,
             theme.color(Role::SurfaceCurrent)
         );
-        assert!((0..30).any(|x| {
-            terminal.backend().buffer()[(x, y)]
+        let title_x = (0..30)
+            .find(|x| {
+                terminal.backend().buffer()[(*x, y)]
+                    .symbol()
+                    .chars()
+                    .any(char::is_alphanumeric)
+            })
+            .unwrap();
+        assert!(
+            !terminal.backend().buffer()[(title_x, y)]
                 .modifier
                 .contains(Modifier::BOLD)
-        }));
+        );
         let before_seen = view
             .machines
             .sidebar_navigation_rows()

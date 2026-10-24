@@ -426,10 +426,10 @@ Agent 的 `row_gap` 用于 Agent 行之前及相邻 Agent 行之间；Workspace 
 ```toml
 [ui.sidebar.spaces]
 rows = [["state_icon", "workspace"], [{ token = "branch", fg = "#8bc", rules = [{ starts_with = "worktree/", dim = true }] }, "git_status"], ["$issue"]]
-row_gap = 1
+row_gap = 0
 ```
 
-默认值为 `[["state_icon", "workspace", "git_status"], ["location"]]`，间隔 1。
+默认值为 `[["state_icon", "workspace", "git_status"], ["location"]]`，间隔 0。
 `location` 显示分支，否则显示 Workspace 文件夹，本机主目录缩写为 `~`。
 显式 `rows = []` 保留身份／导航行。另一个内置值是 `state_text`；
 `$name` 读取 Workspace 报告，不替代内置值。样式与首条匹配规则共用 Agent 接纳机制，

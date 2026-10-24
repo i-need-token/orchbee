@@ -6,8 +6,8 @@ use super::controls::{
     paint_pointer_target, paint_row_interaction, render_action, render_icon_action,
 };
 use super::{
-    Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Modifier, Paragraph, Rect,
-    Role, Span, Theme, display_width, sidebar_text, truncate_display,
+    Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Paragraph, Rect, Role, Span,
+    Theme, display_width, sidebar_text, truncate_display,
 };
 use crate::{
     machine_discovery::display_label,
@@ -736,7 +736,7 @@ fn render_creation(
     sidebar_text::compose_lines(
         &mut lines,
         winning_surface(PointerPresentation::Rest, false, preview.current),
-        preview.current,
+        false,
         theme,
     );
     frame.render_widget(Paragraph::new(lines), tracks.primary);
@@ -1106,8 +1106,8 @@ fn paint_tree_connector(
     }
 }
 
-/// A group heading: its bold name and complete identity suffix, then the member Workspace count
-/// in secondary text. Only the name truncates.
+/// A group heading uses secondary text for its name, complete identity suffix and Workspace count.
+/// Only the name truncates.
 fn group_heading(
     name: &str,
     suffix: &str,
@@ -1121,13 +1121,10 @@ fn group_heading(
         width.saturating_sub(display_width(suffix) + display_width(&count)),
         theme.glyphs.ellipsis,
     );
-    Line::from(vec![
-        Span::styled(
-            format!("{name}{suffix}"),
-            theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(count, theme.style(Role::TextSecondary)),
-    ])
+    Line::from(Span::styled(
+        format!("{name}{suffix}{count}"),
+        theme.style(Role::TextSecondary),
+    ))
 }
 
 /// Root Workspaces in the ungrouped section that the row at `index` opens.
@@ -1463,7 +1460,6 @@ pub(super) fn render(
                         label
                     }
                 );
-                // Group headings carry span-level bold, which row composition keeps as authored.
                 ProjectedSidebarLines::new(
                     vec![group_heading(
                         &display_label(&name),
@@ -1763,7 +1759,7 @@ pub(super) fn render(
         sidebar_text::compose_lines(
             &mut row_lines,
             interaction,
-            current || row_paint_pointer == PointerPresentation::Pressed,
+            row_paint_pointer == PointerPresentation::Pressed,
             theme,
         );
         frame.render_widget(
@@ -1779,6 +1775,7 @@ pub(super) fn render(
         let current_marker = current
             && close.is_none()
             && (current_ancestor
+                || interaction != Some(Role::SurfaceCurrent)
                 || current_identity == CurrentIdentityEmphasis::ExplicitPlain
                 || !collapsed_fill_marker.trim().is_empty());
         let unread_marker = unread && close.is_none();
