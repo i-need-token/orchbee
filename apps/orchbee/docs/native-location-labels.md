@@ -55,6 +55,8 @@ at accepted submission: the committed rename cannot invalidate its own retained 
 | Later snapshot                        | Validate Session and exact target ownership, then display actual canonical labels and members, including peer changes. |
 | Snapshot unavailable                  | Retain the known rename result; explicit `w` observes again without replaying the mutation.                            |
 | Definite refusal or queued retirement | Preserve exact NotApplied evidence and existing terminal identity.                                                     |
+| Stale refusal                         | Report a short not-renamed fact that fits Compact status, resynchronize once and offer a separate rename-again hint.   |
+| Rename after stale refusal            | Prefill the refused text once for the same owner; another owner keeps the canonical label.                             |
 | Ambiguous delivery                    | Retire the carrier with exact unknown evidence, without retry or a fabricated result.                                  |
 
 Snapshot installation uses the existing membership owner. Label changes alone neither detach nor

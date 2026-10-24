@@ -47,6 +47,8 @@ Project 菜单请求单独捕获完整目标 Project，以及发起方的 Sessio
 | 更晚 snapshot        | 验证 Session 和确切目标归属，显示实际 canonical 标签与成员，包括 peer 变化。     |
 | Snapshot 不可用      | 保留已知重命名结果；显式 `w` 再观察，不重放 mutation。                           |
 | 确定拒绝或排队时退役 | 保留确切 NotApplied 证据与已有终端身份。                                         |
+| 修订过期的拒绝       | 显示能放进紧凑状态栏的简短“未重命名”事实，同步一次，并单独提示“再次重命名”。     |
+| 过期拒绝后的重命名   | 同一对象只带回一次被拒绝的输入；其他对象仍显示规范名称。                         |
 | 交付存在歧义         | 以确切 unknown 证据退役 carrier，不重试或虚构结果。                              |
 
 Snapshot 安装使用既有成员 owner。仅标签变化不 detach 或重新 attach 终端；真实 peer 成员变化

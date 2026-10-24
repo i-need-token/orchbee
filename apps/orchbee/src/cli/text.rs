@@ -105,7 +105,8 @@ pub(super) fn help_options(path: CommandPath) -> Vec<&'static str> {
 
 /// The value placeholder the usage line spells after `flag`, so the option
 /// table and the usage never disagree. Bare closed sets such as
-/// `text|json` are shown as `<text|json>`.
+/// `text|json` are shown as `<text|json>`; a switch followed by an
+/// alternative separator (`--detach | --timeout <ms>`) takes no value.
 pub(super) fn usage_value(usage: &str, flag: &str) -> Option<String> {
     let mut offset = 0;
     while let Some(found) = usage[offset..].find(flag) {
@@ -126,7 +127,7 @@ pub(super) fn usage_value(usage: &str, flag: &str) -> Option<String> {
             .chars()
             .take_while(|c| !matches!(c, ' ' | ']' | ')' | '\n'))
             .collect();
-        return (!token.is_empty() && !token.starts_with(['-', '[', '(', '.']))
+        return (!token.is_empty() && !token.starts_with(['-', '[', '(', '.', '|']))
             .then(|| format!("<{token}>"));
     }
     None

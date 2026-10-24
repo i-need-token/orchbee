@@ -99,8 +99,11 @@ impl UiDriver {
                         );
                         self.state().prepare_refresh(operation.generation, *outcome)
                     }
-                    SetupResult::NotApplied | SetupResult::ConfirmationRequired => {
-                        assert!(self.state_mut().settle_setup_not_applied(&operation));
+                    result @ (SetupResult::NotApplied
+                    | SetupResult::Stale
+                    | SetupResult::ConfirmationRequired) => {
+                        let stale = matches!(result, SetupResult::Stale);
+                        assert!(self.state_mut().settle_setup_refusal(&operation, stale));
                         PreparedRefresh::DefiniteFailure {
                             generation: operation.generation,
                             baseline_revision: self.state().cache().revision(),

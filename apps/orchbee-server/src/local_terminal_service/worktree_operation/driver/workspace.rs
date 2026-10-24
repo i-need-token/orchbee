@@ -173,13 +173,13 @@ impl Driver<'_> {
                             workspace_id: workspace_id.clone(),
                             project_label: project_label(&checkout),
                         },
+                        // A Directory source groups only into an explicitly requested
+                        // Project; without one the new Workspace stays ungrouped.
                         None => match &self.plan.project_id {
                             Some(project_id) => WorkspacePlacement::Project {
                                 project_id: project_id.clone(),
                             },
-                            None => WorkspacePlacement::NewProject {
-                                label: project_label(&checkout),
-                            },
+                            None => WorkspacePlacement::Ungrouped {},
                         },
                     },
                     label,

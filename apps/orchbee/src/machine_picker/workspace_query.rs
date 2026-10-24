@@ -1,13 +1,15 @@
 //! Workspace-name filtering and its local editor; typing never becomes list shortcuts or effects.
 use super::{
     Control, Frame, KeyCode, Locale, Mode, Modifiers, Picker, PickerAction, PickerSource, Rect,
-    Selection, Theme, agents::AgentAction, picker_interaction,
+    Row, Selection, Theme, agents::AgentAction, picker_interaction,
 };
 use crate::{
-    terminal_text::{display_width, sanitize_terminal_text},
+    terminal_session::NativeContextLocation,
+    terminal_text::{display_width, sanitize_terminal_text, unique_identity_suffix},
     tui_pointer::{HitLayer, HitMapBuilder},
     tui_render::controls::{ActionKind, QueryField, render_query_field},
 };
+use orchbee_workbench_protocol::SiteId;
 
 impl Picker {
     pub(super) fn filter_workspaces(&mut self, selected: Option<Selection>) {
@@ -37,6 +39,27 @@ impl Picker {
                         .min(self.workspace_matches.len().saturating_sub(1))
                 });
             self.top = self.top.min(self.workspace_matches.len().saturating_sub(1));
+        }
+    }
+
+    /// Same-named Workspaces on one site carry the shortest unique ID suffix, as in
+    /// the Sidebar, so a search result names its exact target before it opens.
+    pub(super) fn workspace_identity_suffix(&self, row: &Row) -> String {
+        let Some((site, label, id)) = workspace_identity(row) else {
+            return String::new();
+        };
+        let peers = self
+            .workspace_rows
+            .iter()
+            .filter(|peer| peer.choice == row.choice)
+            .filter_map(workspace_identity)
+            .filter(|(peer_site, peer_label, _)| *peer_site == site && *peer_label == label)
+            .map(|(_, _, peer_id)| peer_id)
+            .collect::<Vec<_>>();
+        if peers.len() > 1 {
+            unique_identity_suffix(id, &peers)
+        } else {
+            String::new()
         }
     }
 
@@ -158,4 +181,16 @@ impl Picker {
         inner.y += 1;
         inner.height -= 1;
     }
+}
+
+fn workspace_identity(row: &Row) -> Option<(&SiteId, &str, &str)> {
+    let context = row.context.as_ref()?;
+    let NativeContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
+        return None;
+    };
+    Some((
+        &context.target.site_id,
+        context.workspace.as_deref()?,
+        workspace_id.as_str(),
+    ))
 }

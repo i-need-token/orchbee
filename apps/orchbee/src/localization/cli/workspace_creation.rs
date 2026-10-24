@@ -52,6 +52,16 @@ impl Locale {
                 Self::EnUs => format!("Workspace creation incomplete at stage {stage}.\n"),
                 Self::ZhCn => format!("工作区创建未完成，停在阶段 {stage}。\n"),
             });
+            // Name the exact directory a known directory refusal concerns.
+            if document["failure"]["details"]["reason"] == "directory-unavailable"
+                && let Some(path) = document["directory"]["path"].as_str()
+            {
+                let path = crate::cli::escape::quoted(path);
+                text.push_str(&match self {
+                    Self::EnUs => format!("Directory: {path}\n"),
+                    Self::ZhCn => format!("目录：{path}\n"),
+                });
+            }
         }
         if !document["focus"].is_null() {
             text.push_str(&self.cli_client_control(&document["focus"]));

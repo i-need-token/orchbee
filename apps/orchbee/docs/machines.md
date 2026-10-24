@@ -238,7 +238,10 @@ field's position does not move when the number of matches changes. Workspaces co
 navigation with fresh enabled remote observations; rows carry machine identity,
 Session ID and either a standalone context ID or a stable Workspace/context ID pair.
 Nullable Project membership is metadata, not part of selection identity. Labels
-and row positions never route a selection. Native protocol limits bound the list
+and row positions never route a selection. Same-named Workspaces on one Session carry the
+shortest unique ID suffix used by the Sidebar; as there, only the name truncates so the suffix
+stays visible. Before it opens, the selected result's details name its Project or Ungrouped, its
+identity and the tail of its observed directory. Native protocol limits bound the list
 to 1024 contexts per machine; project/workspace labels retain at most 80 safe
 scalars each. Display labels use the shared terminal-chrome sanitizer to remove complete
 escape sequences and forbidden control/format scalars, then stop at a whole grapheme within

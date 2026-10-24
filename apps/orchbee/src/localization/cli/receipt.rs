@@ -101,6 +101,17 @@ impl Locale {
                 Self::ZhCn => format!("下一步：orchbee terminal list --panel {}\n", escape(panel)),
             });
         }
+        // The resource stays committed; point at the launch inputs instead of a retry.
+        if result["terminal"]["outcome"] == "failed" {
+            text.push_str(match self {
+                Self::EnUs => {
+                    "Next: the terminal did not start. Check the executable or launch profile and its working directory, then close this Tab or Panel or create another.\n"
+                }
+                Self::ZhCn => {
+                    "下一步：终端未启动。请检查可执行文件或启动配置及其工作目录，然后关闭此标签页或面板，或另行创建。\n"
+                }
+            });
+        }
         text
     }
 

@@ -3001,6 +3001,16 @@ impl NativeSessionState {
         }
     }
 
+    /// A flight that adopted demand but read no snapshot returns it unread instead of
+    /// parking it. Stale evidence creates demand even when no hint was captured.
+    fn release_unread_publication_debt(&mut self, stale: bool) {
+        self.publication_debt = match self.publication_debt {
+            PublicationDebt::InFlight { .. } => PublicationDebt::Pending,
+            PublicationDebt::Clean | PublicationDebt::Parked if stale => PublicationDebt::Pending,
+            debt => debt,
+        };
+    }
+
     pub(super) fn start_pending_refresh(&mut self, generation: u64) -> bool {
         self.start_refresh(generation, RefreshSource::Explicit)
     }

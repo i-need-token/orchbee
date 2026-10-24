@@ -444,6 +444,56 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
     picker.observe_local(Vec::new());
     assert!(paint(&picker, Locale::EnUs, 80, 24).contains("No available workspaces"));
 }
+/// Same-named Workspaces stay distinguishable in search rows and details before opening.
+#[test]
+fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
+    let workspace = |n: u8, label: &str| Context {
+        target: NativeContextTarget {
+            site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 9)).unwrap(),
+            location: crate::terminal_session::NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
+                    "{n:032x}"
+                ))
+                .unwrap(),
+                terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                    &format!("{:032x}", u16::from(n) + 0x100),
+                )
+                .unwrap(),
+            },
+        },
+        project_id: None,
+        project: None,
+        workspace: Some(label.into()),
+    };
+    let mut grouped = workspace(0x1b, "cli-alpha");
+    grouped.project_id = Some(
+        orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 0x40)).unwrap(),
+    );
+    grouped.project = Some("demo".into());
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.observe_local(vec![
+        workspace(0x08, "cli-alpha"),
+        grouped,
+        workspace(0x30, "other"),
+    ]);
+    picker.show();
+    picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
+    assert_eq!(picker.mode, Mode::Workspaces);
+    let painted = paint(&picker, Locale::EnUs, 80, 24);
+    assert!(painted.contains("cli-alpha [00000008]"));
+    assert!(painted.contains("cli-alpha [0000001b]"));
+    assert!(painted.contains("other") && !painted.contains("other ["));
+    assert!(
+        painted.contains("Ungrouped"),
+        "the selected result names its grouping"
+    );
+    picker.key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+    let painted = paint(&picker, Locale::ZhCn, 80, 24);
+    assert!(painted.contains("demo") && !painted.contains("未分组"));
+}
 fn agent_row() -> crate::machine_agents::Row {
     crate::machine_agents::Row {
         seen: true,

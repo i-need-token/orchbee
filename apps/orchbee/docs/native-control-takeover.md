@@ -14,7 +14,8 @@ read-only. A stationary Client's control label can lag until that interaction. T
 line preserves the known read-only explanation and takeover key when input is blocked.
 Blocked input is discarded and never replayed. A later explicit gesture can transfer control back
 using the same Viewer. Repeating the gesture while still the actual controller preserves
-the verified current grant.
+the verified current grant. An ended terminal accepts no controller: the gesture submits nothing,
+and the status line keeps the retained exit fact and offers a new Tab instead of the takeover key.
 
 After a matching resize reply, the requester pauses and reactivates projection demand on
 that same Viewer, under the original operation deadline. Reactivation requests a full frame

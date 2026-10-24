@@ -433,3 +433,59 @@ fn recoverable_status_receipt_requires_the_complete_raw_fact() {
     assert_eq!(receipt, None);
     assert!(row(&terminal, narrow).trim().is_empty());
 }
+
+/// R-001: a stale rename refusal stays visible in the narrowest content status line beside a
+/// docked Compact sidebar; retrying is a separate hint on the effective rename binding.
+#[test]
+fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() {
+    use crate::terminal_session::{
+        NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target, NativeSetupStatus,
+    };
+    let theme = Theme::rgb_test_dark();
+    // Compact docks the sidebar only while content keeps 60 columns beside it.
+    let width = 60;
+    let view = ClientView::new(width);
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (target, action) in [
+            (Target::Workspace, ClientAction::RequestWorkspaceRename),
+            (Target::Project, ClientAction::RequestProjectRename),
+        ] {
+            let fact = locale.setup_status(NativeSetupStatus::LocationLabel {
+                target,
+                status: Status::Stale,
+            });
+            let (terminal, _) = paint_at_tier_with_locale(
+                &view,
+                width,
+                StatusContent {
+                    primary: fact,
+                    secondary_notice: None,
+                    recovery: false,
+                },
+                ViewportTier::Compact,
+                locale,
+                &theme,
+            );
+            assert!(row(&terminal, width).starts_with(fact), "{fact}");
+            let hint = super::action_hint(
+                &view,
+                super::StatusAction::RetryRename(target),
+                locale,
+                KeyLabelGlyphs::Unicode,
+            )
+            .unwrap();
+            assert_eq!(hint.label, locale.status().retry_rename);
+            assert_eq!(
+                hint.key,
+                super::effective_hint(
+                    &view,
+                    PrefixAction::Client(action),
+                    "",
+                    KeyLabelGlyphs::Unicode
+                )
+                .unwrap()
+                .key
+            );
+        }
+    }
+}

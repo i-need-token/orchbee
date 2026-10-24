@@ -731,3 +731,68 @@ fn targeted_project_rename_preserves_nonfirst_tab_panel_and_settles_changed_focu
         assert!(state.invariant_holds());
     }
 }
+/// DF-003: a peer change while a rename draft blocked refresh leaves captured publication
+/// demand that the setup flight adopts without reading a snapshot. A definite refusal
+/// returns that demand unread instead of parking it, so the next fair drain installs the
+/// peer revision; a stale refusal is itself demand and keeps the typed text for the owner.
+#[test]
+fn rename_refusal_returns_unread_publication_demand_and_stale_keeps_typed_text() {
+    for target in [Target::Project, Target::Workspace] {
+        for (stale, captured) in [(true, true), (true, false), (false, true)] {
+            let mut state = live(1, 1);
+            let operation = operation(&mut state, target, Some("Typed name"), 2);
+            if captured {
+                state.note_publication_hint();
+            }
+            state.begin_setup(operation.clone());
+            assert!(state.settle_setup_refusal(&operation, stale));
+            let prepared = PreparedRefresh::DefiniteFailure {
+                generation: 2,
+                baseline_revision: state.cache().revision(),
+            };
+            state.apply_prepared_refresh(prepared, Instant::now());
+            assert_eq!(
+                state.setup_status(),
+                Some(NativeSetupStatus::LocationLabel {
+                    target,
+                    status: if stale {
+                        Status::Stale
+                    } else {
+                        Status::NotApplied
+                    }
+                })
+            );
+            assert!(
+                state.publication_debt_pending(),
+                "refused demand is never parked"
+            );
+            assert!(state.invariant_holds());
+
+            assert!(state.start_publication_drain(3));
+            let mut peer = workspace_snapshot(2, 1);
+            set_label(&mut peer, target, "Peer name");
+            let prepared =
+                state.prepare_refresh(3, WorkbenchSnapshotOutcome::Available { snapshot: peer });
+            assert!(matches!(
+                state.apply_prepared_refresh(prepared, Instant::now()),
+                RefreshDecision::Continue
+            ));
+            assert_eq!(state.cache().revision(), WorkbenchRevision::new(2));
+            assert!(!state.publication_debt_pending());
+            assert!(state.invariant_holds());
+
+            let token = state
+                .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+                .unwrap();
+            assert_eq!(
+                state.setup_draft().unwrap().text(),
+                if stale { "Typed name" } else { "Peer name" }
+            );
+            state.cancel_setup_draft(token);
+            state
+                .open_setup_draft(NativeSetupIntent::RenameLocation(target))
+                .unwrap();
+            assert_eq!(state.setup_draft().unwrap().text(), "Peer name");
+        }
+    }
+}

@@ -29,6 +29,7 @@ pub(crate) struct StatusText {
     pub(crate) retry_close: &'static str,
     pub(crate) take_control: &'static str,
     pub(crate) configure_directory: &'static str,
+    pub(crate) retry_rename: &'static str,
     pub(crate) resize_coarse: &'static str,
     pub(crate) resize_fine: &'static str,
 }
@@ -59,6 +60,7 @@ const EN_US: StatusText = StatusText {
     retry_close: "retry Close",
     take_control: "take control",
     configure_directory: "configure directory",
+    retry_rename: "rename again",
     resize_coarse: "move 5%",
     resize_fine: "move 1%",
 };
@@ -89,6 +91,7 @@ const ZH_CN: StatusText = StatusText {
     retry_close: "重试关闭",
     take_control: "接管",
     configure_directory: "配置目录",
+    retry_rename: "再次重命名",
     resize_coarse: "移动 5%",
     resize_fine: "移动 1%",
 };

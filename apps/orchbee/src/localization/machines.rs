@@ -203,6 +203,8 @@ impl Locale {
             (Self::ZhCn, "agent-unknown") => "未知",
             (Self::EnUs, "standalone") => "Legacy workspace",
             (Self::ZhCn, "standalone") => "原有工作区",
+            (Self::EnUs, "ungrouped") => "Ungrouped",
+            (Self::ZhCn, "ungrouped") => "未分组",
             (Self::EnUs, "no-workspaces") => "No available workspaces.",
             (Self::ZhCn, "no-workspaces") => "暂无可用工作区。",
             (Self::EnUs, "hint") => {

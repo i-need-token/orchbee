@@ -48,6 +48,16 @@ impl Locale {
             (Self::ZhCn, Target::Project, Status::NotApplied) => "项目重命名未应用",
             (Self::EnUs, Target::Workspace, Status::NotApplied) => "Workspace rename not applied",
             (Self::ZhCn, Target::Workspace, Status::NotApplied) => "工作区重命名未应用",
+            // Any Workbench revision change refuses the rename, so the fact never claims that
+            // this label changed; it stays short enough for the Compact content status line.
+            (Self::EnUs, Target::Project, Status::Stale) => {
+                "Project not renamed · Workbench changed"
+            }
+            (Self::ZhCn, Target::Project, Status::Stale) => "项目未重命名 · 工作台已变化",
+            (Self::EnUs, Target::Workspace, Status::Stale) => {
+                "Workspace not renamed · Workbench changed"
+            }
+            (Self::ZhCn, Target::Workspace, Status::Stale) => "工作区未重命名 · 工作台已变化",
             (Self::EnUs, Target::Project, Status::Unchanged) => "Project label unchanged",
             (Self::ZhCn, Target::Project, Status::Unchanged) => "项目名称未更改",
             (Self::EnUs, Target::Workspace, Status::Unchanged) => "Workspace label unchanged",

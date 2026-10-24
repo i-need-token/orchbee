@@ -540,7 +540,10 @@ erase the demand. At the next stable point the UI captures that latch into canon
 state as bounded publication debt (`Clean`/`Pending`/`InFlight { late }`/`Parked`) exactly once.
 `Busy` or `Full` refresh admission leaves the debt pending for a later fair tick rather than
 dropping it; a definite admission failure parks the debt with no hot-loop retry until a new
-accepted hint or an explicit manual refresh re-arms it. Admission checks run in mailbox order —
+accepted hint or an explicit manual refresh re-arms it. A setup flight that adopted the debt but
+was definitely refused read no snapshot, so it returns the debt to `Pending` instead of parking
+it; a refusal proving the captured revision is stale creates `Pending` demand even without a hint.
+Admission checks run in mailbox order —
 `Full` first, then generation and serial exhaustion, then the phase-dependent `Busy` outcome — so
 an exhausted identity space retires the session even while a draft or switch would otherwise
 refuse the attempt. A hint arriving while a flight is live is captured against the debt itself,

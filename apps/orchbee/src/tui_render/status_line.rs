@@ -9,8 +9,9 @@ use crate::{
     },
     localization::Locale,
     terminal_session::{
-        NativeDisplayController, NativeDisplayPhase, NativeLocationLabelStatus, NativeSessionView,
-        NativeSetupStatus, TakeoverStatus, TerminalSessionView,
+        NativeDisplayController, NativeDisplayPhase, NativeLocationLabelStatus,
+        NativeLocationLabelTarget, NativeSessionView, NativeSetupStatus, TakeoverStatus,
+        TerminalSessionView,
     },
     terminal_text::{display_width, sanitize_terminal_text},
     tui_composition::CaptureOwner,
@@ -57,6 +58,7 @@ enum StatusAction {
     RetryClose,
     TakeControl,
     ConfigureDirectory,
+    RetryRename(NativeLocationLabelTarget),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -840,6 +842,13 @@ fn action_hint(
             PrefixAction::Client(ClientAction::RequestWorkspaceDirectory),
             copy.configure_directory,
         ),
+        StatusAction::RetryRename(target) => (
+            PrefixAction::Client(match target {
+                NativeLocationLabelTarget::Project => ClientAction::RequestProjectRename,
+                NativeLocationLabelTarget::Workspace => ClientAction::RequestWorkspaceRename,
+            }),
+            copy.retry_rename,
+        ),
     };
     effective_hint(view, action, label, glyphs)
 }
@@ -879,7 +888,9 @@ fn native_status_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
         return Vec::new();
     }
     if let Some((status, _)) = native.takeover_status() {
-        return if matches!(status, TakeoverStatus::Refused | TakeoverStatus::Lost) {
+        return if matches!(status, TakeoverStatus::Refused | TakeoverStatus::Lost)
+            && !focus_terminal_ended(native)
+        {
             vec![StatusAction::TakeControl]
         } else {
             Vec::new()
@@ -916,6 +927,12 @@ fn native_status_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
             vec![StatusAction::ConfigureDirectory]
         }
         Some(NativeSetupStatus::DirectoryAccepted) => vec![StatusAction::CreateTab],
+        // The refused text is retained for this owner; the retry stays a separate,
+        // droppable hint so the short refusal fact keeps priority.
+        Some(NativeSetupStatus::LocationLabel {
+            target,
+            status: NativeLocationLabelStatus::Stale,
+        }) => vec![StatusAction::RetryRename(target)],
         Some(NativeSetupStatus::LocationLabel {
             status: NativeLocationLabelStatus::CommittedNeedRefresh,
             ..
@@ -954,6 +971,10 @@ fn native_phase_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
         NativeDisplayPhase::Ready if native.active_position().is_none() => {
             vec![StatusAction::Exit]
         }
+        // An ended terminal keeps its output but accepts no controller.
+        NativeDisplayPhase::Ready if focus_terminal_ended(native) => {
+            vec![StatusAction::CreateTab]
+        }
         NativeDisplayPhase::Ready
             if native.controller() == Some(NativeDisplayController::ReadOnly) =>
         {
@@ -973,6 +994,12 @@ fn native_phase_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
         NativeDisplayPhase::Retired => vec![StatusAction::Exit],
         _ => Vec::new(),
     }
+}
+
+fn focus_terminal_ended(native: &NativeSessionView<'_>) -> bool {
+    native
+        .focus_panel_id()
+        .is_some_and(|panel| native.terminal_end(panel).is_some())
 }
 
 #[cfg(test)]

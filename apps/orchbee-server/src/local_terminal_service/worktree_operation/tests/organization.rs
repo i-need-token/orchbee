@@ -215,6 +215,53 @@ fn asynchronous_worktree_completion_uses_the_sources_current_project_and_regroup
 }
 
 #[test]
+fn directory_source_without_a_project_opens_an_ungrouped_workspace() {
+    let mut fixture = Fixture::new();
+    let before = snapshot(&fixture.service);
+    assert!(matches!(
+        fixture.apply(Action::Start {
+            operation_id: id(40),
+            project_id: None,
+            intent: WorktreeIntent::Open {
+                source: WorktreeSource::Directory {
+                    path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+                },
+                selector: WorktreeSelector::Path {
+                    path: WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap(),
+                },
+                label: None,
+                geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                trust_repository: false,
+            },
+        }),
+        Outcome::Available {
+            project_id: None,
+            ..
+        }
+    ));
+    fixture.finish_job(checkout(false));
+    fixture.finish_job(opened());
+    complete_one_shell(&mut fixture);
+    let Status::Opened {
+        workspace_id: created,
+        reused: false,
+        ..
+    } = fixture.settled()
+    else {
+        panic!("opened")
+    };
+    let after = snapshot(&fixture.service);
+    assert_eq!(
+        after.navigation.workspace(&created).unwrap().project_id,
+        None
+    );
+    assert_eq!(
+        after.navigation.projects, before.navigation.projects,
+        "no Project is inferred from the repository"
+    );
+}
+
+#[test]
 fn delayed_worktree_result_cannot_resurrect_a_closed_or_closing_source() {
     for publish_close in [false, true] {
         let mut fixture = Fixture::with_close_owner(false);

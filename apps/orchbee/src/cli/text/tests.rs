@@ -391,7 +391,7 @@ fn option_tables_and_usage_lines_agree_for_every_command() {
 
 #[test]
 fn option_values_follow_the_usage_line() {
-    let usage = "orchbee x [--cwd <abs|follow|home>] [--tab-label <text>] [--tab <t>] [--format text|json] [--plain|--ansi]";
+    let usage = "orchbee x [--cwd <abs|follow|home>] [--tab-label <text>] [--tab <t>] [--format text|json] [--plain|--ansi] [--detach | --timeout <ms>]";
     assert_eq!(
         super::usage_value(usage, "--cwd").as_deref(),
         Some("<abs|follow|home>")
@@ -402,6 +402,7 @@ fn option_values_follow_the_usage_line() {
         Some("<text|json>")
     );
     assert_eq!(super::usage_value(usage, "--plain"), None);
+    assert_eq!(super::usage_value(usage, "--detach"), None);
     assert!(!super::help_options(crate::invocation::CommandPath::ApiSchema).contains(&"--session"));
 }
 

@@ -280,5 +280,36 @@ pub(crate) fn truncate_display(text: &str, budget: usize, marker: &str) -> Strin
     truncated
 }
 
+/// Like [`truncate_display`], but keeps the end of `text` behind a leading `marker`, for
+/// values such as paths whose distinguishing part is last.
+pub(crate) fn truncate_display_start(text: &str, budget: usize, marker: &str) -> String {
+    if display_width(text) <= budget {
+        return text.to_owned();
+    }
+    let marker_width = display_width(marker);
+    if marker_width > budget {
+        return String::new();
+    }
+    let text_budget = budget - marker_width;
+    let span = Span::raw(text);
+    let graphemes = span
+        .styled_graphemes(Style::default())
+        .map(|grapheme| grapheme.symbol)
+        .collect::<Vec<_>>();
+    let mut used = 0_usize;
+    let mut start = graphemes.len();
+    while let Some(grapheme) = start.checked_sub(1).map(|index| graphemes[index]) {
+        let width = display_width(grapheme);
+        if used + width > text_budget {
+            break;
+        }
+        used += width;
+        start -= 1;
+    }
+    let mut truncated = marker.to_owned();
+    truncated.extend(graphemes[start..].iter().copied());
+    truncated
+}
+
 #[cfg(test)]
 mod tests;

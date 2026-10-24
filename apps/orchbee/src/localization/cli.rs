@@ -328,14 +328,19 @@ impl Locale {
                     .as_ref()
                     .and_then(|details| details.get("reason"))
                     .and_then(|value| value.as_str())
-                    .unwrap_or("");
-                match self {
-                    Self::EnUs => {
+                    .filter(|reason| !reason.is_empty());
+                // A refusal without a stable reason omits the parenthetical instead of printing `()`.
+                match (self, reason) {
+                    (Self::EnUs, Some(reason)) => {
                         format!("The local session rejected the command ({reason}); nothing was applied.\n")
                     }
-                    Self::ZhCn => {
+                    (Self::EnUs, None) => {
+                        "The local session rejected the command; nothing was applied.\n".to_owned()
+                    }
+                    (Self::ZhCn, Some(reason)) => {
                         format!("本地会话拒绝了该命令（{reason}）；未应用任何修改。\n")
                     }
+                    (Self::ZhCn, None) => "本地会话拒绝了该命令；未应用任何修改。\n".to_owned(),
                 }
             }
             FailureKind::OutcomeUnknown => match self {
@@ -1562,7 +1567,20 @@ impl Locale {
             .and_then(|details| details.get("stage"))
             .and_then(|value| value.as_str())
             .unwrap_or("");
+        let reason = failure
+            .details
+            .as_ref()
+            .and_then(|details| details.get("reason"))
+            .and_then(|value| value.as_str());
         match (self, stage) {
+            // A known directory cause is an input to check, not a transient Session fault.
+            (Self::EnUs, "command") if reason == Some("directory-unavailable") => {
+                "The working directory is unavailable: it may not exist or may not be accessible. Check the path; nothing was applied.\n"
+                    .to_owned()
+            }
+            (Self::ZhCn, "command") if reason == Some("directory-unavailable") => {
+                "工作目录不可用：目录可能不存在或无法访问。请检查路径；未应用任何修改。\n".to_owned()
+            }
             (Self::EnUs, "platform") => {
                 "This command is unavailable on this platform.\n".to_owned()
             }
@@ -1574,15 +1592,7 @@ impl Locale {
                 "The local session could not produce a snapshot right now.\n".to_owned()
             }
             (Self::ZhCn, "snapshot") => "本地会话当前无法产出快照。\n".to_owned(),
-            (_, "viewer") => self
-                .cli_viewer_unavailable(
-                    failure
-                        .details
-                        .as_ref()
-                        .and_then(|details| details.get("reason"))
-                        .and_then(|value| value.as_str()),
-                )
-                .to_owned(),
+            (_, "viewer") => self.cli_viewer_unavailable(reason).to_owned(),
             (Self::EnUs, "command") => {
                 "The local session could not execute the command right now; nothing was applied.\n"
                     .to_owned()

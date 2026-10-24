@@ -4,8 +4,23 @@ use super::{
     NativeContextLocation, NativeContextTabs, NativeLocationLabelStatus, NativeLocationLabelTarget,
     NativeSetupStatus, SetupOperation, WorkbenchAction, WorkbenchSetupCommit,
 };
-use orchbee_workbench_protocol::{Project, WorkbenchProjectId};
+use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId};
 use std::time::Instant;
+
+/// The exact owner a rename addresses.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum LabelOwner {
+    Project(WorkbenchProjectId),
+    Workspace(WorkbenchWorkspaceId),
+}
+
+/// Text from a rename refused as stale, offered once to the next rename of the same
+/// owner so a concurrent change never discards what the user typed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct RetainedLabel {
+    owner: LabelOwner,
+    label: String,
+}
 
 /// One drawn Project rename handoff, preserving the independent initiating context and focus.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -81,6 +96,48 @@ impl NativeSessionState {
     }
 }
 
+/// The current location's rename owner and its present label.
+pub(super) fn location_label_owner(
+    cache: &NativeContextTabs,
+    target: NativeLocationLabelTarget,
+) -> Option<(LabelOwner, String)> {
+    let label = location_label(cache, target)?.to_owned();
+    let NativeContextLocation::Workspace { workspace_id, .. } = cache.location() else {
+        return None;
+    };
+    let owner = match target {
+        NativeLocationLabelTarget::Project => LabelOwner::Project(
+            cache
+                .canonical_snapshot()
+                .navigation
+                .workspace(workspace_id)?
+                .project_id
+                .clone()?,
+        ),
+        NativeLocationLabelTarget::Workspace => LabelOwner::Workspace(workspace_id.clone()),
+    };
+    Some((owner, label))
+}
+
+impl NativeSessionState {
+    /// Takes retained rename text only for the same owner; another owner leaves it.
+    pub(super) fn take_retained_label(&mut self, owner: &LabelOwner) -> Option<String> {
+        if self
+            .setup
+            .retained_label
+            .as_ref()
+            .is_some_and(|retained| &retained.owner == owner)
+        {
+            self.setup
+                .retained_label
+                .take()
+                .map(|retained| retained.label)
+        } else {
+            None
+        }
+    }
+}
+
 pub(super) fn location_label(
     cache: &NativeContextTabs,
     target: NativeLocationLabelTarget,
@@ -105,6 +162,22 @@ pub(super) fn location_label(
     })
 }
 impl SetupOperation {
+    pub(super) fn retained_label(&self) -> Option<RetainedLabel> {
+        let (owner, label) = match &self.command.action {
+            WorkbenchAction::ProjectRename { project_id, label } => {
+                (LabelOwner::Project(project_id.clone()), label)
+            }
+            WorkbenchAction::WorkspaceRename {
+                workspace_id,
+                label,
+            } => (LabelOwner::Workspace(workspace_id.clone()), label),
+            _ => return None,
+        };
+        Some(RetainedLabel {
+            owner,
+            label: label.as_str().to_owned(),
+        })
+    }
     pub(super) fn location_label_target(&self) -> Option<NativeLocationLabelTarget> {
         match self.command.action {
             WorkbenchAction::ProjectRename { .. } => Some(NativeLocationLabelTarget::Project),

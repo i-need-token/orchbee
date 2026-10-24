@@ -19,7 +19,13 @@ impl NativeSessionView<'_> {
 }
 impl NativeUi {
     pub(super) fn request_takeover(&mut self) -> SessionActionDisposition {
-        if self.modal_owns_input() || self.focus_viewport_non_live() {
+        // An ended terminal accepts no controller; its retained exit fact stays visible
+        // instead of a refusal the Server would certainly return.
+        let view = self.view();
+        let ended = view
+            .focus_panel_id()
+            .is_some_and(|panel| view.terminal_end(panel).is_some());
+        if ended || self.modal_owns_input() || self.focus_viewport_non_live() {
             return SessionActionDisposition::KeepNavigator;
         }
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {

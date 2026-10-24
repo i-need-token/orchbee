@@ -342,6 +342,8 @@ impl Locale {
             (Self::ZhCn, NativeSetupStatus::NotApplied) => {
                 "工作区设置未应用 · 请检查目标及输入后再试"
             }
+            (Self::EnUs, NativeSetupStatus::Stale) => "Setup not applied · Workbench changed",
+            (Self::ZhCn, NativeSetupStatus::Stale) => "设置未应用 · 工作台已变化",
             (Self::EnUs, NativeSetupStatus::ProjectCreated) => {
                 "Project created · the committed Project is retained"
             }

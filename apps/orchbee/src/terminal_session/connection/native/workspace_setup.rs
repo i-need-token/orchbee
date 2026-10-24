@@ -70,6 +70,11 @@ impl NativeExecutor {
                         return Err(CarrierFailure::Protocol);
                     }
                     SetupResult::ConfirmationRequired
+                } else if matches!(&reason, WorkbenchSetupPrecommit::Rejected { revision, reason }
+                    if *reason == orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch
+                        || revision != &operation.command.expected_revision)
+                {
+                    SetupResult::Stale
                 } else {
                     SetupResult::NotApplied
                 }

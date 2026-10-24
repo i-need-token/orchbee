@@ -487,3 +487,66 @@ fn workspace_state_priority_uses_explicit_facts_without_acknowledgement() {
         );
     }
 }
+
+/// R-002: same-named long Workspaces keep their identity suffix in result rows and details by
+/// truncating only the name, and details show the distinguishing tail of each directory.
+#[test]
+fn long_duplicate_workspace_results_keep_identity_suffix_and_directory_tail() {
+    use crate::machine_spaces::{Checkpoint, Observation as Spaces, Row};
+    let long = "shared-long-workspace-name-used-for-reviewing-search-disambiguation-with-a-full-width-terminal-result";
+    let mut contexts = contexts(2);
+    for context in &mut contexts {
+        context.project_id = None;
+        context.project = None;
+        context.workspace = Some(crate::machine_discovery::display_label(long));
+    }
+    let checkpoint = std::sync::Arc::new(Checkpoint {
+        site_id: contexts[0].target.site_id.clone(),
+        revision: WorkbenchRevision::new(2),
+        metadata_revision: WorkbenchRevision::new(2),
+        git_requested: false,
+        projects: Vec::new().into(),
+        rows: contexts
+            .iter()
+            .zip(0_u8..)
+            .map(|(context, n)| Row {
+                target: context.target.clone(),
+                project_id: None,
+                label: context.workspace.clone(),
+                tokens: Default::default(),
+                directory: Some(Directory {
+                    directory_id: WorkbenchDirectoryId::parse(&format!("{:032x}", 10 + n)).unwrap(),
+                    worker_id: WorkerId::parse(&format!("{:032x}", 11)).unwrap(),
+                    path: WorkbenchDirectoryPath::parse(&format!(
+                        "C:/checkouts/{}review-{n}",
+                        "nested/".repeat(12)
+                    ))
+                    .unwrap(),
+                }),
+                git: None,
+                git_stale: false,
+            })
+            .collect(),
+    });
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.observe_local(contexts);
+    picker.observe_spaces(vec![(Choice::Local, Spaces::Ready(checkpoint))]);
+    picker.show();
+    picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
+    assert_eq!(picker.mode, Mode::Workspaces);
+    for (selected, other) in [(0, 1), (1, 0)] {
+        let painted = paint(&picker, Locale::EnUs, 80, 24);
+        let suffix = |n: u8| format!("[{:08x}]", 100 + n);
+        // The selected result repeats its suffix in details; the other result shows it once.
+        let rows = painted.rows.join("\n");
+        assert_eq!(painted.matches(&suffix(selected)).count(), 2, "{rows}");
+        assert_eq!(painted.matches(&suffix(other)).count(), 1, "{rows}");
+        assert!(painted.contains(&format!("review-{selected}")));
+        assert!(!painted.contains(&format!("review-{other}")));
+        assert!(painted.contains("Ungrouped"));
+        picker.key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+    }
+}

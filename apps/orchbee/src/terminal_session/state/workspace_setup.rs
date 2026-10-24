@@ -56,6 +56,7 @@ pub(super) struct SetupState {
     #[cfg(any(windows, test))]
     project_quick_entry: Option<quick::ProjectQuickEntry>,
     not_applied: Option<SetupOperation>,
+    retained_label: Option<labels::RetainedLabel>,
     uncertain: Option<SetupOperation>,
     status: Option<NativeSetupStatus>,
     deadlines: Option<OperationDeadlines>,
@@ -84,6 +85,8 @@ pub(in crate::terminal_session) enum SetupWorkerEvidence {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum SetupResult {
     NotApplied,
+    /// A definite refusal proving this session's baseline is behind the Server.
+    Stale,
     ConfirmationRequired,
     Committed {
         known: Box<SetupKnownCommit>,
@@ -486,6 +489,27 @@ impl NativeSessionState {
             NativeLocationLabelStatus::NotApplied,
             NativeSetupStatus::NotApplied,
         ));
+        true
+    }
+    /// Settles a definite Server refusal of this setup flight. The flight read no
+    /// snapshot, so publication demand it adopted returns unread; a stale refusal is
+    /// itself demand, keeps rename text for the same owner and names the concurrent change.
+    pub(in crate::terminal_session) fn settle_setup_refusal(
+        &mut self,
+        operation: &SetupOperation,
+        stale: bool,
+    ) -> bool {
+        if !self.settle_setup_not_applied(operation) {
+            return false;
+        }
+        if self.pending_refresh_generation() == Some(operation.generation) {
+            self.release_unread_publication_debt(stale);
+        }
+        if stale {
+            self.setup.retained_label = operation.retained_label();
+            self.setup.status =
+                Some(operation.status(NativeLocationLabelStatus::Stale, NativeSetupStatus::Stale));
+        }
         true
     }
     pub(super) fn setup_target_matches(&self, target: &NativeContextLocation) -> bool {

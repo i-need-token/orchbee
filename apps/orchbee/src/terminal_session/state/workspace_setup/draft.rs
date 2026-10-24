@@ -42,6 +42,8 @@ pub(crate) enum NativeSetupStatus {
         status: NativeLocationLabelStatus,
     },
     NotApplied,
+    /// Refused because the Workbench changed elsewhere; the session is resynchronizing.
+    Stale,
     ProjectCreated,
     WorkspaceCreated,
     DirectoryAccepted,
@@ -95,6 +97,8 @@ pub(crate) enum NativeLocationLabelTarget {
 pub(crate) enum NativeLocationLabelStatus {
     Unavailable,
     NotApplied,
+    /// Refused because the owner changed elsewhere; the typed text is kept for retry.
+    Stale,
     Unchanged,
     Renamed,
     CommittedNeedRefresh,
@@ -409,10 +413,12 @@ impl NativeSessionState {
                     return None;
                 }
                 project = Some(request.project_id().clone());
-                let editor = LineEditor::new(
-                    request.label().to_owned(),
-                    LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
-                );
+                let label = self
+                    .take_retained_label(&super::labels::LabelOwner::Project(
+                        request.project_id().clone(),
+                    ))
+                    .unwrap_or_else(|| request.label().to_owned());
+                let editor = LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH));
                 project_rename = Some(request);
                 (NativeSetupStage::ProjectRename, editor)
             }
@@ -424,13 +430,15 @@ impl NativeSessionState {
                 ),
             ),
             NativeSetupIntent::RenameLocation(target) => {
-                let Some(label) = super::labels::location_label(&self.cache, target) else {
+                let Some((owner, label)) = super::labels::location_label_owner(&self.cache, target)
+                else {
                     self.setup.status = Some(NativeSetupStatus::LocationLabel {
                         target,
                         status: NativeLocationLabelStatus::Unavailable,
                     });
                     return None;
                 };
+                let label = self.take_retained_label(&owner).unwrap_or(label);
                 (
                     match target {
                         NativeLocationLabelTarget::Project => NativeSetupStage::ProjectRename,
@@ -438,7 +446,7 @@ impl NativeSessionState {
                     },
                     // Prefill keeps the protocol-legal label byte-exact with
                     // the cursor at its end.
-                    LineEditor::new(label.to_owned(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+                    LineEditor::new(label, LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
                 )
             }
         };

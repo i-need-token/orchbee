@@ -8,7 +8,9 @@ use crate::{
     machine_discovery::{Context, Observation, display_label},
     machines::{Profile, ProfileId},
     terminal_session::{NativeContextTarget, NativeMemberTarget, NativeStartupTarget},
-    terminal_text::display_width,
+    terminal_text::{
+        display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
+    },
     tui_layout::ViewportTier,
     tui_pointer::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, ListScrollTarget,
@@ -1140,6 +1142,9 @@ impl Picker {
                 5 + u16::from(has_remote)
             } else if has_remote {
                 5
+            } else if self.mode == Mode::Workspaces {
+                // Grouping, the exact name and its directory have separate rows.
+                4
             } else {
                 3
             }
@@ -1173,6 +1178,7 @@ impl Picker {
             } else {
                 String::new()
             };
+            let mut identity_suffix = String::new();
             let name = if let Some(agent) = &row.agent {
                 // The name identifies the Agent; a distinct task title says what it is doing.
                 let identity = display_label(agent.display_name());
@@ -1191,12 +1197,13 @@ impl Picker {
                     },
                 )
             } else if let Some(context) = &row.context {
+                identity_suffix = self.workspace_identity_suffix(row);
                 format!(
                     "{prefix}{}",
                     context
                         .workspace
                         .as_deref()
-                        .unwrap_or(locale.machine_picker_text("standalone"))
+                        .unwrap_or(locale.machine_picker_text("standalone")),
                 )
             } else {
                 name.to_owned()
@@ -1243,6 +1250,17 @@ impl Picker {
                 .saturating_sub(status_width)
                 .saturating_sub(1);
             let primary_rect = Rect::new(rect.x + 2, rect.y, primary_width, 1);
+            // As in the Sidebar, the identity suffix is budgeted first and only the name truncates.
+            let name = if identity_suffix.is_empty() {
+                name
+            } else {
+                let budget =
+                    usize::from(primary_width).saturating_sub(display_width(&identity_suffix));
+                format!(
+                    "{}{identity_suffix}",
+                    truncate_display(&name, budget, theme.glyphs.ellipsis)
+                )
+            };
             let status_rect = Rect::new(primary_rect.right(), rect.y, status_width, 1);
             let current = row
                 .agent
@@ -1438,15 +1456,37 @@ impl Picker {
             } else if let Some(row) = self.visible_rows().get(self.selected)
                 && let Some(context) = &row.context
             {
-                if let Some(project) = &context.project {
-                    lines.push(project.clone());
+                match (&context.project, &context.workspace) {
+                    (Some(project), _) => lines.push(project.clone()),
+                    (None, Some(_)) => {
+                        lines.push(locale.machine_picker_text("ungrouped").to_owned());
+                    }
+                    (None, None) => {}
                 }
-                lines.push(
-                    context
-                        .workspace
-                        .clone()
-                        .unwrap_or_else(|| locale.machine_picker_text("standalone").to_owned()),
-                );
+                let width = usize::from(inner.width);
+                lines.push(match &context.workspace {
+                    Some(workspace) => {
+                        let suffix = self.workspace_identity_suffix(row);
+                        let budget = width.saturating_sub(display_width(&suffix));
+                        format!(
+                            "{}{suffix}",
+                            truncate_display(workspace, budget, theme.glyphs.ellipsis)
+                        )
+                    }
+                    None => locale.machine_picker_text("standalone").to_owned(),
+                });
+                // The directory explains which checkout a same-named result opens; its
+                // distinguishing tail survives truncation.
+                if let Some(directory) = self
+                    .space_checkpoint_row(row)
+                    .and_then(|checkpoint| checkpoint.directory.as_ref())
+                {
+                    lines.push(truncate_display_start(
+                        &sanitize_terminal_text(directory.path.as_str()),
+                        width,
+                        theme.glyphs.ellipsis,
+                    ));
+                }
             } else if let Some(Observation::Online(o)) = self
                 .visible_rows()
                 .get(self.selected)

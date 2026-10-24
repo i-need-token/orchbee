@@ -453,14 +453,16 @@ impl MailboxState {
         }
         let valid_result = match outcome {
             SetupResult::Committed { known, .. } => flight.known.as_ref() == Some(known.as_ref()),
-            SetupResult::NotApplied | SetupResult::ConfirmationRequired => flight.not_applied
+            SetupResult::NotApplied | SetupResult::Stale | SetupResult::ConfirmationRequired => {
+                flight.not_applied
                 && flight.known.is_none()
                 && (!matches!(outcome, SetupResult::ConfirmationRequired)
                     || flight.confirmation_required
                         && matches!(
                             operation.command.action,
                             orchbee_workbench_protocol::WorkbenchAction::ProjectDissolveIfIdle { .. }
-                        )),
+                        ))
+            }
         };
         if !valid_result {
             return false;

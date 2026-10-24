@@ -471,10 +471,13 @@ impl NativeUi {
                 }
                 changed
             }
-            result @ (SetupResult::NotApplied | SetupResult::ConfirmationRequired) => {
+            result @ (SetupResult::NotApplied
+            | SetupResult::Stale
+            | SetupResult::ConfirmationRequired) => {
                 let review_delete = matches!(result, SetupResult::ConfirmationRequired);
+                let stale = matches!(result, SetupResult::Stale);
                 let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
-                    if !state.settle_setup_not_applied(&operation) {
+                    if !state.settle_setup_refusal(&operation, stale) {
                         return Err(CarrierFailure::Protocol);
                     }
                     let prepared = super::super::state::PreparedRefresh::DefiniteFailure {
