@@ -15,7 +15,7 @@ export function useWorkbenchAgentAttention(
 	panelWorkspaceStore: PanelWorkspaceStore,
 	tabModel: TabModel,
 	root: React.RefObject<HTMLElement | null>,
-): WorkbenchAgentAttentionSnapshot {
+): WorkbenchAgentAttentionSnapshot & { readonly terminalEdited: (presentationId: string) => void } {
 	const attention = React.useMemo(() => new WorkbenchAgentAttention(source), [source]);
 	const snapshot = React.useSyncExternalStore(
 		attention.subscribe,
@@ -91,5 +91,5 @@ export function useWorkbenchAgentAttention(
 			document.removeEventListener('visibilitychange', schedule);
 		};
 	}, [attention, snapshot, panels, tabs, panelWorkspaceStore, tabModel, root]);
-	return snapshot;
+	return { ...snapshot, terminalEdited: attention.terminalEdited };
 }

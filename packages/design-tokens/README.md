@@ -81,4 +81,14 @@ pnpm generate:design-token-inventory
 pnpm generate:tailwind-token-compat
 ```
 
-The Agent attention, working and unread roles are separate: `--ob-sys-color-status-attention` uses theme-specific amber, `--ob-sys-color-status-working` uses theme-specific purple, and `--ob-sys-color-status-unread` uses theme-specific blue. Components combine them with distinct symbols and preserve their foregrounds on selected surfaces.
+Agent attention, working, idle, completed, failed and unread are separate roles. Attention and working use `--ob-sys-color-status-attention` and `--ob-sys-color-status-working`; idle, completed and failed use `--ob-sys-color-status-agent-idle`, `--ob-sys-color-status-agent-done` and `--ob-sys-color-status-agent-error`. Unread keeps `--ob-sys-color-status-unread` blue independently of status. Unknown retains the secondary icon color. Consumers preserve these foregrounds on selected surfaces.
+
+The registry owns the shared dark Agent palette below: neutral Working plus GrokNight outcome colors. Native One Dark status roles project the same values; light and terminal-native themes retain their contrast-aware adaptations. Working uses `--ob-sys-motion-duration-agent-breath` and `--ob-sys-motion-easing-agent-breath` for a two-second white-to-gray breathing solid circle; light themes use dark foreground for contrast. Attention alternates full and half intensity over `--ob-sys-motion-duration-agent-cycle` (one second). Reduced-motion consumers keep a static frame.
+
+| State     | Dark color |
+| --------- | ---------- |
+| Working   | `#E5E5E5`  |
+| Attention | `#E0AF68`  |
+| Completed | `#9ECE6A`  |
+| Failed    | `#F7768E`  |
+| Idle      | `#585858`  |

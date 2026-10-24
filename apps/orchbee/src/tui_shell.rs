@@ -657,8 +657,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         let (inputs, mode) = input_runtime;
         let measurements = inputs.measurements();
         #[cfg(windows)]
-        let mut machines =
-            matches!(surface, SurfaceSlot::Owned(_)).then(|| machines::Manager::new(&mut view));
+        let mut machines = matches!(surface, SurfaceSlot::Owned(_))
+            .then(|| machines::Manager::new(&mut view, wakeup.clone()));
         let terminal_input = surface.active();
         if let Some(id) = terminal.backend().graphics_probe_id() {
             dispatcher.activate_graphics_probe(id);
@@ -774,7 +774,13 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             redraw |= view.expire_notice(now);
             #[cfg(windows)]
             {
-                redraw |= view.machines.advance_working_motion(now);
+                let board_animates = match terminal_input.view() {
+                    Some(crate::terminal_session::TerminalSessionView::Native(native)) => native.agent_board().is_some_and(|board| {
+                        board.rows().iter().any(|row| matches!(row.status(), orchbee_agent_observation_protocol::AgentSemanticStatus::Working { .. } | orchbee_agent_observation_protocol::AgentSemanticStatus::NeedsAttention { .. }))
+                    }),
+                    _ => false,
+                };
+                redraw |= view.machines.advance_working_motion(now, board_animates);
             }
             redraw |= dispatcher.query_graphics(
                 (dimensions.columns, dimensions.rows),

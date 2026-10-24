@@ -38,17 +38,20 @@ Client 中编写或审查渲染代码前先阅读本标准。
 主题把下面的每个角色映射为一种具体样式。样式可以包含前景、背景或允许的修饰符。缺少任何角色
 的主题都是无效的。角色是稳定的名称；主题改变的是值。
 
-| 角色族    | 角色                                                                                           | 使用场景                                                                                                         |
-| --------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `text`    | `primary`、`secondary`、`disabled`、`inverse`                                                  | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                                               |
-| `accent`  | `action`、`destructive`、`focus`、`selection`、`link`                                          | 静止的主要动作、明确破坏性意图、获得焦点的框架或控件、临时或已勾选指示器、选区边界，以及可激活的引用             |
-| `status`  | `success`、`warning`、`error`、`info`、`pending`、`working`、`unread`                          | 只表达结果和状态含义；绝不用于装饰或层级                                                                         |
-| `frame`   | `focused`、`unfocused`、`divider`                                                              | pane 和覆盖层的边框以及分屏边界                                                                                  |
-| `surface` | `canvas`、`chrome`、`strip`、`overlay`、`hover`、`pressed`、`selection`、`current`、`inactive` | 终端画布、持久 chrome、标签栏、覆盖层、指针反馈、按下控件、临时或范围选择、持久当前上下文的背景，以及非活跃 pane |
-| `hint`    | `key`、`label`                                                                                 | 页脚和帮助中的按键字形及其动作标签                                                                               |
+| 角色族    | 角色                                                                                                      | 使用场景                                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `text`    | `primary`、`secondary`、`disabled`、`inverse`                                                             | 按信息优先级区分的内容与 chrome 文本；`inverse` 只用于已填充的表面                                                         |
+| `accent`  | `action`、`destructive`、`focus`、`selection`、`link`                                                     | 静止的主要动作、明确破坏性意图、获得焦点的框架或控件、临时或已勾选指示器、选区边界，以及可激活的引用                       |
+| `status`  | `success`、`warning`、`error`、`info`、`pending`、`working`、`idle`、`unread`                             | 只表达结果和状态含义；绝不用于装饰或层级                                                                                   |
+| `frame`   | `focused`、`unfocused`、`divider`、`guide`                                                                | pane 和覆盖层的边框、分屏边界及低对比度层级引导线                                                                          |
+| `surface` | `canvas`、`chrome`、`strip`、`overlay`、`hover`、`pressed`、`selection`、`current`、`related`、`inactive` | 终端画布、持久 chrome、标签栏、覆盖层、指针反馈、按下控件、临时或范围选择、持久当前上下文、关联祖先的背景，以及非活跃 pane |
+| `hint`    | `key`、`label`                                                                                            | 页脚和帮助中的按键字形及其动作标签                                                                                         |
 
 主题规则：
 
+- `frame-guide` 比区域分隔线更淡。`surface-related` 标识当前或临时选中条目的祖先，其填充弱于该
+  条目自身的表面；它不会转移焦点或选择，祖先自身的直接交互优先。未知宿主和低色彩主题可以使用
+  基础背景，通过层级和独立标记保留关联信息。
 - 每个原生 Client 都提供 `terminal-native` 主题，并在宿主明暗或色深未知时使用它。在显式用户
   设置选择其他主题之前，它是默认主题。
 - `terminal-native` 主题把文本和基础表面（`canvas`、`chrome`、`strip` 与 `overlay`）映射到终端

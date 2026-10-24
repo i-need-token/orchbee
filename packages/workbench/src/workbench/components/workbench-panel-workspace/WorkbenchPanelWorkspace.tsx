@@ -17,6 +17,7 @@ import type { WorkbenchTerminalFocusRequest } from '../../model/resolveWorkbench
 import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
+	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
@@ -28,6 +29,7 @@ interface WorkbenchPanelWorkspaceProps {
 }
 
 export function WorkbenchPanelWorkspace({
+	onTerminalEdit,
 	actionRuntime,
 	panelWorkspaceStore,
 	parentActionScope,
@@ -38,6 +40,7 @@ export function WorkbenchPanelWorkspace({
 	terminalSurface,
 }: WorkbenchPanelWorkspaceProps): ReactNode {
 	const view = useWorkbenchPanelWorkspace({
+		onTerminalEdit,
 		actionRuntime,
 		panelWorkspaceStore,
 		parentActionScope,

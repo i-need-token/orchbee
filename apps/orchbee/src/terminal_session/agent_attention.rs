@@ -64,6 +64,41 @@ pub(super) struct AgentAttention {
 }
 
 impl AgentAttention {
+    pub(super) fn terminal_edited(&mut self, pane: &PaintedPane) {
+        self.redraw |= self.state.edit_completed(&pane.presentation);
+        self.redraw |= self
+            .physical
+            .state
+            .edit_completed(|binding| pane.matches(binding));
+    }
+
+    #[cfg(windows)]
+    pub(super) fn session_completion_edited(
+        &self,
+        session: &orchbee_agent_observation_protocol::AgentSessionId,
+        generation: orchbee_agent_observation_protocol::AgentSafeInteger,
+        sequence: orchbee_agent_observation_protocol::AgentSafeInteger,
+    ) -> bool {
+        self.state.completion_edited(session, generation, sequence)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn edited_completions(
+        &self,
+    ) -> Vec<(
+        orchbee_agent_observation_protocol::AgentLaunchBinding,
+        orchbee_workbench_protocol::WorkbenchRevision,
+    )> {
+        self.physical.state.edited_completions()
+    }
+
+    #[cfg(windows)]
+    pub(super) fn completion_edited(&self, pane: &PaintedPane) -> bool {
+        self.physical
+            .state
+            .completion_edited(|binding| pane.matches(binding))
+    }
+
     pub(super) fn session_unread(
         &self,
         session: &orchbee_agent_observation_protocol::AgentSessionId,

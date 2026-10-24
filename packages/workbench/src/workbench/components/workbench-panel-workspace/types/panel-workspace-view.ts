@@ -95,6 +95,7 @@ export interface PendingPanelResize {
 }
 
 export interface WorkbenchPanelWorkspaceView {
+	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
 	readonly admitTerminalBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;

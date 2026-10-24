@@ -492,6 +492,7 @@ function FocusStoryTerminalSurface({
 	autoFocus,
 	focusRequest,
 	onPresentationReady,
+	onTerminalEdit,
 	presentation,
 	presentationMode,
 }: WorkbenchTerminalSurfaceProps) {
@@ -508,6 +509,7 @@ function FocusStoryTerminalSurface({
 		<textarea
 			aria-label={`Terminal input: ${presentation.title}`}
 			data-slot='storybook-terminal-input'
+			onInput={onTerminalEdit}
 			ref={inputReference}
 			style={{
 				background: '#10151d',
@@ -519,8 +521,7 @@ function FocusStoryTerminalSurface({
 				resize: 'none',
 				width: '100%',
 			}}
-			value={`${presentation.title}\n$ `}
-			readOnly
+			defaultValue={`${presentation.title}\n$ `}
 		/>
 	);
 }

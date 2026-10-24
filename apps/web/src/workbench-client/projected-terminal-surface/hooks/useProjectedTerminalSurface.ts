@@ -73,7 +73,11 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	Partial<
 		Pick<
 			WorkbenchTerminalSurfaceProps,
-			'bindBroadcastInputSink' | 'focusRequest' | 'onPresentationReady' | 'presentationMode'
+			| 'bindBroadcastInputSink'
+			| 'focusRequest'
+			| 'onPresentationReady'
+			| 'presentationMode'
+			| 'onTerminalEdit'
 		>
 	>;
 
@@ -89,6 +93,7 @@ export function useProjectedTerminalSurface(
 	const bindBroadcastInputSink = workbenchHost?.bindBroadcastInputSink;
 	const focusRequest = workbenchHost?.focusRequest ?? 0;
 	const onPresentationReady = workbenchHost?.onPresentationReady;
+	const onTerminalEdit = workbenchHost?.onTerminalEdit;
 	const presentationMode = workbenchHost?.presentationMode ?? 'active';
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const intl = useOrchbeeIntl();
@@ -139,6 +144,9 @@ export function useProjectedTerminalSurface(
 			if (presentationMode !== 'retained') onPresentationReady?.(readiness);
 		},
 	);
+	const reportTerminalEdit = useMemoizedFn(() => {
+		if (presentationMode === 'active') onTerminalEdit?.();
+	});
 
 	const settlePasteReview = useMemoizedFn((approved: boolean): void => {
 		const pending = pendingPasteDecision.current;
@@ -324,6 +332,7 @@ export function useProjectedTerminalSurface(
 						? undefined
 						: {
 								admitBellEffect,
+								onTerminalEdit: reportTerminalEdit,
 								bindContextProvider: bindActionContextProvider,
 								runtime: actionRuntime,
 								scope: actionScope,
@@ -393,6 +402,7 @@ export function useProjectedTerminalSurface(
 		presentation.presentationId,
 		reviewPaste,
 		reportPresentationReady,
+		reportTerminalEdit,
 		sessionEligible,
 		settlePasteReview,
 	]);

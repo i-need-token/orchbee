@@ -4,14 +4,13 @@ use crate::machine_picker::SidebarTarget;
 use ratatui::layout::Rect;
 
 const NAVIGATION_WIDTH: u16 = 1;
-/// Workspace and Agent rows sit one blank cell inside the column where group headings start.
-const TREE_INSET: u16 = 1;
 const DISCLOSURE_WIDTH: u16 = 1;
 const DISCLOSURE_GAP: u16 = 1;
-/// Agent rows open with a two-cell tree connector (`├─`/`╰─`) under their Workspace state.
-const BRANCH_WIDTH: u16 = 2;
-/// One blank cell separates the connector from the Agent state.
-const BRANCH_GAP: u16 = 1;
+/// A single vertical guide sits under the Workspace state, followed by one blank cell.
+const GUIDE_WIDTH: u16 = 1;
+const GUIDE_GAP: u16 = 1;
+/// A filled blank cell separates each Workspace or Agent surface edge from its state.
+const ROW_LEADING_PADDING: u16 = 1;
 const CURRENT_WIDTH: u16 = 1;
 const STATE_WIDTH: u16 = 1;
 const STATE_GAP: u16 = 1;
@@ -24,9 +23,9 @@ const COMPACT_MINIMUM: u16 = 28;
 pub(super) enum RowKind {
     /// A Project or ungrouped heading: identity starts at the list edge without a state slot.
     Group,
-    /// A Workspace: inset state, identity after it.
+    /// A Workspace: leading surface padding, then state and identity.
     Owner,
-    /// An Agent: tree connector under the Workspace state, a gap, then state and identity.
+    /// An Agent: vertical guide, a chrome gap, then padded state and identity.
     Agent,
 }
 
@@ -104,7 +103,7 @@ pub(super) struct Tracks {
     pub(super) content_y: u16,
     pub(super) navigation: Rect,
     pub(super) disclosure: Rect,
-    pub(super) branch: Rect,
+    pub(super) guide: Rect,
     pub(super) current: Rect,
     pub(super) state: Rect,
     pub(super) unread: Rect,
@@ -146,32 +145,25 @@ impl Tracks {
             band.height,
         );
         let content_y = band.y.saturating_add(leading_gap);
-        // The keyboard marker owns the list edge; every kind starts its content right after it.
-        let navigation = Rect::new(
-            band.x,
-            band.y,
-            NAVIGATION_WIDTH.min(band.width),
-            band.height,
-        );
-        let inset = if kind == RowKind::Group {
-            0
-        } else {
-            TREE_INSET
-        };
-        let branch = clipped_track(
+        // Workspace states and Agent guides align after row padding. Headings keep their marker slot.
+        let guide = clipped_track(
             band,
-            navigation.right().saturating_add(inset),
+            band.x.saturating_add(if kind == RowKind::Group {
+                NAVIGATION_WIDTH
+            } else {
+                ROW_LEADING_PADDING
+            }),
             if kind == RowKind::Agent {
-                BRANCH_WIDTH
+                GUIDE_WIDTH
             } else {
                 0
             },
         );
-        // A Workspace state shares the connector column. Headings reserve no state slot.
+        // A Workspace state shares the guide column. Headings reserve no state slot.
         let state = clipped_track(
             band,
-            branch.right().saturating_add(if kind == RowKind::Agent {
-                BRANCH_GAP
+            guide.right().saturating_add(if kind == RowKind::Agent {
+                GUIDE_GAP + ROW_LEADING_PADDING
             } else {
                 0
             }),
@@ -180,6 +172,16 @@ impl Tracks {
             } else {
                 STATE_WIDTH
             },
+        );
+        // The existing state-to-name gap carries keyboard focus without adding leading space.
+        let navigation = clipped_track(
+            band,
+            if kind == RowKind::Group {
+                band.x
+            } else {
+                state.right()
+            },
+            NAVIGATION_WIDTH,
         );
         let metadata_width = METADATA_GAP + CURRENT_WIDTH + UNREAD_WIDTH;
         let primary_right = auxiliary.x.checked_sub(metadata_width)?;
@@ -202,7 +204,7 @@ impl Tracks {
             content_y,
             navigation,
             disclosure,
-            branch,
+            guide,
             current,
             state,
             unread,
@@ -214,6 +216,16 @@ impl Tracks {
 
     pub(super) const fn density(self) -> Density {
         self.density
+    }
+
+    /// Agent surfaces include their leading padding but leave the guide and its gap on chrome.
+    pub(super) fn surface(self) -> Rect {
+        let x = if self.guide.is_empty() {
+            self.band.x
+        } else {
+            self.state.x.saturating_sub(ROW_LEADING_PADDING)
+        };
+        Rect::new(x, self.band.y, self.band.right() - x, self.band.height)
     }
 
     pub(super) fn text_width(self, has_disclosure: bool) -> u16 {

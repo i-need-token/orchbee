@@ -368,7 +368,15 @@ where
             u16::try_from(cells).unwrap_or(u16::MAX),
             1,
         );
-        paint_token(frame, rect, token, &pieces, theme, &mut interactions);
+        paint_token(
+            frame,
+            rect,
+            token,
+            &pieces,
+            theme,
+            working_frame,
+            &mut interactions,
+        );
         if !matches!(token.kind, Kind::Divider) {
             painted_end = used + cells;
         }
@@ -417,6 +425,7 @@ fn paint_token<C, P, R>(
     token: &Token,
     pieces: &[(String, Piece)],
     theme: &Theme,
+    working_frame: usize,
     interactions: &mut GroupInteractions<'_, C, P, R>,
 ) where
     P: FnMut(&C, usize, StripPart, Rect) -> ProjectedPointer,
@@ -464,7 +473,17 @@ fn paint_token<C, P, R>(
         _ => ProjectedPointer::Hovered,
     };
     let revealed = token.active() || pointer != ProjectedPointer::Rest;
-    let style = |piece: Piece| piece_style(token, piece, pointer, close_pointer, revealed, theme);
+    let style = |piece: Piece| {
+        piece_style(
+            token,
+            piece,
+            pointer,
+            close_pointer,
+            revealed,
+            theme,
+            working_frame,
+        )
+    };
     let mut x = rect.x;
     for (text, piece) in pieces {
         let text = match piece {
@@ -510,13 +529,13 @@ fn piece_style(
     close_pointer: ProjectedPointer,
     revealed: bool,
     theme: &Theme,
+    working_frame: usize,
 ) -> Style {
     let pointer_surface = match pointer {
         ProjectedPointer::Rest => None,
         ProjectedPointer::Hovered => Some(Role::SurfaceHover),
         ProjectedPointer::Pressed => Some(Role::SurfacePressed),
     };
-    let agent_role = token.agent.map(|agent| Theme::agent_role(agent.state));
     match &token.kind {
         Kind::Divider => theme.content_on_surface(
             Role::SurfaceStrip,
@@ -548,7 +567,12 @@ fn piece_style(
                         },
                     )
                 }
-                Piece::Glyph => (None, agent_role.map_or_else(Style::new, |r| theme.style(r))),
+                Piece::Glyph => (
+                    None,
+                    token.agent.map_or_else(Style::new, |agent| {
+                        theme.agent_style(agent.state, working_frame)
+                    }),
+                ),
                 Piece::Unread => (None, theme.style(Role::StatusUnread)),
                 Piece::Close if revealed => {
                     return match close_pointer {
@@ -589,7 +613,9 @@ fn piece_style(
                 Piece::Label => accent.add_modifier(Modifier::BOLD),
                 Piece::Arrow if pointer_surface.is_some() => theme.style(Role::TextPrimary),
                 Piece::Arrow => accent,
-                Piece::Glyph => agent_role.map_or_else(Style::new, |r| theme.style(r)),
+                Piece::Glyph => token.agent.map_or_else(Style::new, |agent| {
+                    theme.agent_style(agent.state, working_frame)
+                }),
                 Piece::Unread => theme.style(Role::StatusUnread),
                 Piece::Pad | Piece::Close => Style::new(),
             };

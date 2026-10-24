@@ -450,6 +450,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const actionRuntime = new ActionRuntime();
 		const actionScope = actionRuntime.createScope('test.workbench.terminal');
 		const admitBellEffect = vi.fn<(event: WorkbenchTerminalBellEffect) => boolean>(() => true);
+		const onTerminalEdit = vi.fn<() => void>();
 		let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
 		const disposeContextProvider = vi.fn<() => void>();
 		const bindContextProvider = vi.fn<
@@ -491,7 +492,13 @@ describe('startProjectedTerminalRenderer', () => {
 				undefined,
 				{ observeCompletion },
 				inputConfigurationSource,
-				{ admitBellEffect, bindContextProvider, runtime: actionRuntime, scope: actionScope },
+				{
+					admitBellEffect,
+					bindContextProvider,
+					onTerminalEdit,
+					runtime: actionRuntime,
+					scope: actionScope,
+				},
 				interactionConfigurationSource,
 				undefined,
 				observeImagePreview,
@@ -499,6 +506,40 @@ describe('startProjectedTerminalRenderer', () => {
 				trailingBlankRowsPresentationSource,
 			);
 			const broadcastReadinessChanged = vi.fn<() => void>();
+			const inputPort = vi.mocked(dependencies.createTerminal).mock.calls[0]?.[0].port;
+			if (inputPort === undefined) throw new Error('terminal input port missing');
+			await inputPort.send({
+				kind: 'focus-input',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					capabilityRevision: bootstrap.capabilityRevision,
+					focused: true,
+				},
+			});
+			expect(onTerminalEdit).not.toHaveBeenCalled();
+			await inputPort.send({
+				kind: 'text-input',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					capabilityRevision: bootstrap.capabilityRevision,
+					text: 'draft',
+				},
+			});
+			expect(onTerminalEdit).toHaveBeenCalledOnce();
+			vi.mocked(transport.send).mockImplementationOnce(() => {
+				throw new Error('input refused');
+			});
+			expect(() =>
+				inputPort.send({
+					kind: 'text-input',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						capabilityRevision: bootstrap.capabilityRevision,
+						text: 'rejected',
+					},
+				}),
+			).toThrow('input refused');
+			expect(onTerminalEdit).toHaveBeenCalledOnce();
 			const broadcastReadinessSubscription =
 				session.subscribeBroadcastInputReadiness?.(broadcastReadinessChanged);
 			expect(session.getBroadcastInputReadiness?.()).toEqual({

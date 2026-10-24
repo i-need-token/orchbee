@@ -342,7 +342,8 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
     let retained = Arc::new(std::sync::Mutex::new(Vec::with_capacity(1)));
     let handler_retained = Arc::clone(&retained);
     let (decoded_attention, attention_receipts) = std::sync::mpsc::sync_channel(2);
-    let server = FakeServer::start_optional_connections(5, move |index, mut stream| {
+    // Origin, destination, Agent snapshot, Agent watch, and both native attention lanes.
+    let server = FakeServer::start_optional_connections(6, move |index, mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
             read_message(&mut stream)
@@ -473,6 +474,18 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
                 action: AgentViewAction::Read {},
                 ..
             })) => {}
+            Ok(WorkbenchRequest::Events(SemanticEventsRequest {
+                site_id,
+                action: SemanticEventsAction::Subscribe { .. },
+                ..
+            })) => {
+                assert_eq!(site_id, snapshot.site_id);
+                assert_eq!(
+                    stream.read(&mut [0])?,
+                    0,
+                    "pending Agent watch must cancel at teardown"
+                );
+            }
             Ok(WorkbenchRequest::WorkspaceMetadata(WorkspaceMetadataRequest {
                 action: WorkspaceMetadataAction::Read { workspace_ids },
                 ..

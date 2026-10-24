@@ -19,13 +19,40 @@
 
 .root[data-tone='attention'] .status {
 	color: var(--ob-sys-color-status-attention);
+	animation: agent-attention var(--ob-sys-motion-duration-agent-cycle)
+		var(--ob-sys-motion-easing-agent-frame) infinite;
 }
 .root[data-tone='danger'] .status {
-	color: var(--ob-sys-color-status-danger-text);
+	color: var(--ob-sys-color-status-agent-error);
 }
 .root[data-tone='working'] .status {
 	color: var(--ob-sys-color-status-working);
+	animation: agent-working var(--ob-sys-motion-duration-agent-breath)
+		var(--ob-sys-motion-easing-agent-breath) infinite;
 }
 .root[data-tone='success'] .status {
-	color: var(--ob-sys-color-status-success-text);
+	color: var(--ob-sys-color-status-agent-done);
+}
+
+.root[data-tone='idle'] .status {
+	color: var(--ob-sys-color-status-agent-idle);
+}
+
+@keyframes agent-working {
+	50% {
+		opacity: var(--ob-ref-opacity-50);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.root[data-tone='attention'] .status,
+	.root[data-tone='working'] .status {
+		animation: none;
+	}
+}
+
+@keyframes agent-attention {
+	50% {
+		opacity: var(--ob-ref-opacity-50);
+	}
 }

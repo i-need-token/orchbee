@@ -414,6 +414,9 @@ pub(crate) trait TerminalInputPort {
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
 
+    /// Called only after terminal-bound editing input was admitted by `forward`.
+    fn terminal_edited(&mut self) {}
+
     #[cfg(windows)]
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         None
@@ -824,6 +827,19 @@ pub(crate) fn forward_or_report(
 ) {
     if terminal_input.forward(input).is_err() {
         view.report_terminal_input_unavailable();
+    }
+}
+
+fn forward_edit_or_report(
+    view: &mut ClientView,
+    input: &[u8],
+    editing: bool,
+    terminal_input: &mut (impl TerminalInputPort + ?Sized),
+) {
+    match terminal_input.forward(input) {
+        Ok(()) if editing => terminal_input.terminal_edited(),
+        Ok(()) => {}
+        Err(_) => view.report_terminal_input_unavailable(),
     }
 }
 

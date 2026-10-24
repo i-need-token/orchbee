@@ -119,7 +119,7 @@ pub(super) fn dimensions() -> WindowDimensions {
 }
 pub(super) fn setup() -> (Manager, ClientView, SurfaceSlot<'static>) {
     let mut view = ClientView::new(100);
-    let mut manager = Manager::new(&mut view);
+    let mut manager = Manager::new(&mut view, crate::terminal_session::UiWakeup::current());
     manager.refresh = Instant::now() + Duration::from_secs(60);
     manager.catalog_ok = true;
     manager.profiles = vec![profile()];

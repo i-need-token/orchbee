@@ -8,6 +8,7 @@ import {
 import {
 	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	ProjectedTerminal,
+	type ProjectedTerminalCommand,
 	type ProjectedTerminalActionContextRequest,
 	type ProjectedTerminalThemePreparationResult,
 	type ProjectedTerminalThemeReadinessResult,
@@ -169,12 +170,29 @@ type ProjectedTerminalDriver = Pick<
 	>;
 
 export interface ProjectedTerminalWorkbenchHost {
+	readonly onTerminalEdit?: (() => void) | undefined;
 	readonly admitBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;
 	readonly bindContextProvider: (
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+}
+
+/** Typed input admission, not DOM keydown: selection, focus and cursor movement keep completion. */
+function terminalCommandEditsContent(command: ProjectedTerminalCommand): boolean {
+	if (command.kind === 'text-input' || command.kind === 'paste-input') {
+		return command.payload.text.length > 0;
+	}
+	if (command.kind !== 'key-input' || command.payload.action === 'release') return false;
+	const { key, modifiers, consumedModifiers, text } = command.payload;
+	if (modifiers.meta && !consumedModifiers.meta) return false;
+	if (key === 'Backspace' || key === 'Delete') return true;
+	if (modifiers.alt && !consumedModifiers.alt) return false;
+	if (key === 'Enter' || key === 'NumpadEnter' || key === 'Tab') return true;
+	if (modifiers.control && !consumedModifiers.control)
+		return ['KeyD', 'KeyH', 'KeyI', 'KeyJ', 'KeyK', 'KeyM', 'KeyU', 'KeyW', 'KeyY'].includes(key);
+	return text.length > 0;
 }
 
 interface ProjectedTerminalThemeDriver {
@@ -710,7 +728,10 @@ export async function startProjectedTerminalRenderer(
 			labels: terminalLabels,
 			localFileEffects: bootstrap.localFileEffects === true,
 			port: {
-				send: (command) => transport.send(command),
+				send: (command) => {
+					transport.send(command);
+					if (terminalCommandEditsContent(command)) workbenchHost?.onTerminalEdit?.();
+				},
 			},
 			...(presentationSnapshot === undefined ? {} : { presentationSnapshot }),
 			projectionBufferTrust: transport.projectionBufferTrust,

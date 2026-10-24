@@ -56,6 +56,7 @@ import { useWorkbenchPanelActions } from './useWorkbenchPanelActions';
 import { useWorkbenchPanelBroadcastInput } from './useWorkbenchPanelBroadcastInput';
 
 interface UseWorkbenchPanelWorkspaceOptions {
+	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
@@ -98,6 +99,7 @@ const EMPTY_PANEL_DRAG: WorkbenchPanelWorkspaceView['panelDrag'] = Object.freeze
 });
 
 export function useWorkbenchPanelWorkspace({
+	onTerminalEdit,
 	actionRuntime,
 	panelWorkspaceStore,
 	parentActionScope,
@@ -853,6 +855,7 @@ export function useWorkbenchPanelWorkspace({
 		},
 		activeTab,
 		bindBroadcastInputSink: panelBroadcastInput.bindSink,
+		onTerminalEdit,
 		broadcastInput: panelBroadcastInput.state,
 		cancelPanelVisualSelection,
 		cancelPanelResize: () => setPendingResize(null),

@@ -75,9 +75,18 @@ pub(super) fn paint(
     let (glyph, unread) = match (ended, panel) {
         (None, Some(panel)) => (
             super::panel_reports::agent_state(native.panel_report(panel)).map(|state| {
+                let state = if state == orchbee_workbench_protocol::MetadataState::Done
+                    && native.panel_completion_edited(panel.panel_id())
+                {
+                    orchbee_workbench_protocol::MetadataState::Idle
+                } else {
+                    state
+                };
                 (
                     super::sidebar_text::state_glyph(state, theme, title.working_frame),
-                    flat(Theme::agent_role(state)),
+                    theme
+                        .agent_style(state, title.working_frame)
+                        .remove_modifier(Modifier::BOLD),
                 )
             }),
             native.panel_unseen_count(panel.panel_id()) > 0,

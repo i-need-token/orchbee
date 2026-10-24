@@ -229,6 +229,7 @@ export function WorkbenchTerminalViewport({
 						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						bindBroadcastInputSink={bindBroadcastInputSink}
+						onTerminalEdit={() => view.onTerminalEdit?.(terminal.presentationId)}
 						onPresentationReady={(readiness) => {
 							setDisplayReady((current) =>
 								current?.presentationId === terminal.presentationId &&

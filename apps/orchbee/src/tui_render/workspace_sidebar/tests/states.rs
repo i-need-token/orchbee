@@ -103,23 +103,22 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
             let owner_rows = sidebar_target_rows(&hits, 40, 20, &workspace);
             let agent_rows = sidebar_target_rows(&hits, 40, 20, &agent);
             assert_eq!(owner_rows.len(), 2);
-            assert_eq!(
-                agent_rows.len(),
-                2,
-                "an Agent is a title line over its provider"
-            );
+            assert_eq!(agent_rows.len(), 1, "an Agent occupies one identity line");
             assert_eq!(agent_rows[0], owner_rows[1] + 1);
             for y in owner_rows {
-                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome)));
+                assert_eq!(buffer[(0, y)].symbol(), " ");
+                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceRelated)));
             }
-            // The Agent surface starts at its state track; the tree lead stays on chrome.
-            let state_x = agent_state_x(&view, &agent);
+            // The Agent surface includes one blank cell before state; the tree stays on chrome.
+            let surface_x = agent_surface_x(&view, &agent);
             for y in agent_rows {
                 assert!(
-                    (0..state_x).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome))
+                    (0..surface_x).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome))
                 );
+                assert_eq!(buffer[(surface_x, y)].symbol(), " ");
+                assert_ne!(buffer[(surface_x + 1, y)].symbol(), " ");
                 assert!(
-                    (state_x..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent))
+                    (surface_x..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent))
                 );
             }
             assert!(view.machines.toggle_sidebar_context_agents(&workspace));
@@ -127,6 +126,7 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
             assert!(sidebar_target_rows(&hits, 40, 20, &agent).is_empty());
             let owner_rows = sidebar_target_rows(&hits, 40, 20, &workspace);
             for y in owner_rows {
+                assert_eq!(collapsed[(0, y)].symbol(), " ");
                 assert!((0..40).all(|x| collapsed[(x, y)].bg == theme.color(Role::SurfaceCurrent)));
             }
             assert!(!view.machines.sidebar_navigation_active());
@@ -149,6 +149,35 @@ fn current_workspace_and_agent_have_distinct_surfaces_and_collapse_restores_the_
                 focused[(tracks.current.x, y)].symbol(),
                 theme.glyphs.active_marker
             );
+            assert_eq!(
+                focused[(tracks.unread.x, y)].symbol(),
+                theme.glyphs.status_bullet
+            );
+            // Provisional Agent navigation also reveals its parent without activating either.
+            assert!(view.machines.toggle_sidebar_context_agents(&workspace));
+            let SidebarTarget::Context { target, .. } = &workspace else {
+                unreachable!()
+            };
+            for context in [None, Some(target.clone())] {
+                assert!(
+                    view.machines
+                        .observe_focus(Choice::Local, context.clone(), None)
+                );
+                view.machines.focus_sidebar_target(&agent);
+                let (focused, _, hits) = paint_navigation_buffers(&view, locale, &theme, 40, 20);
+                for y in sidebar_target_rows(&hits, 40, 20, &workspace) {
+                    assert!(
+                        (0..40).all(|x| focused[(x, y)].bg == theme.color(Role::SurfaceRelated))
+                    );
+                }
+                let y = sidebar_target_rows(&hits, 40, 20, &agent)[0];
+                assert_eq!(
+                    focused[(surface_x, y)].bg,
+                    theme.color(Role::SurfaceSelection)
+                );
+                assert_eq!(view.machines.current_context, context);
+                assert!(view.machines.request.is_none());
+            }
         }
     }
 }
@@ -197,12 +226,12 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             Role::SurfaceHover
                         };
                         let expected = theme.style(surface);
-                        // A Workspace keeps its branch line; an Agent keeps its provider line.
-                        assert_eq!(ys.len(), 2, "identity and supporting lines: {target:?}");
+                        // A Workspace keeps its branch line; a default Agent occupies one line.
+                        assert_eq!(ys.len(), if owner { 2 } else { 1 }, "{target:?}");
                         let first = if owner {
                             0
                         } else {
-                            agent_state_x(&view, target)
+                            agent_surface_x(&view, target)
                         };
                         if owner {
                             let supporting_text: String = (0..40)
@@ -215,21 +244,20 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             );
                         }
                         for y in &ys {
+                            assert_eq!(buffer[(first, *y)].symbol(), " ");
                             for x in 0..40 {
                                 if hidden_by_candidate_wide_glyph(&buffer, x, *y) {
                                     continue;
                                 }
                                 let cell = &buffer[(x, *y)];
-                                // A keyboard-focused Agent keeps its marker in the navigation
-                                // track, outside the surface.
+                                // The guide and its gap stay on chrome; keyboard focus is inside
+                                // the surface, between the state and identity.
                                 if x < first {
-                                    if x > 0 {
-                                        assert_eq!(
-                                            cell.bg,
-                                            theme.color(Role::SurfaceChrome),
-                                            "{x},{y}"
-                                        );
-                                    }
+                                    assert_eq!(
+                                        cell.bg,
+                                        theme.color(Role::SurfaceChrome),
+                                        "{x},{y}"
+                                    );
                                     continue;
                                 }
                                 assert_eq!(cell.bg, expected.bg.unwrap(), "{surface:?} {x},{y}");
@@ -299,7 +327,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                         false,
                     )
                 };
-                let state = theme.style(Role::StatusWorking);
+                let state = theme.style(Role::StatusSuccess);
                 let mut lines = vec![
                     Line::from(vec![
                         Span::styled("Codex", identity),
@@ -311,7 +339,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                         Span::styled("explicit plain", supporting_token(Some(false))),
                     ])
                     .style(secondary.add_modifier(Modifier::BOLD)),
-                    Line::from(Span::styled("Working", state)),
+                    Line::from(Span::styled("Completed", state)),
                 ];
                 let mut provisional = lines.clone();
                 sidebar_text::compose_lines(&mut provisional, Some(surface), false, &theme);
@@ -382,7 +410,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
 }
 
 /// The column where an Agent row's interaction surface starts in a 40-cell navigation paint.
-fn agent_state_x(view: &ClientView, agent: &SidebarTarget) -> u16 {
+fn agent_surface_x(view: &ClientView, agent: &SidebarTarget) -> u16 {
     layout::Tracks::resolve_for_width(
         Rect::new(0, 0, 40, 1),
         0,
@@ -391,6 +419,6 @@ fn agent_state_x(view: &ClientView, agent: &SidebarTarget) -> u16 {
         layout::RowKind::Agent,
     )
     .unwrap()
-    .state
+    .surface()
     .x
 }

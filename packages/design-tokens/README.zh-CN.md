@@ -81,4 +81,14 @@ pnpm generate:design-token-inventory
 pnpm generate:tailwind-token-compat
 ```
 
-Agent 等待关注、运行与未读角色分开：`--ob-sys-color-status-attention` 使用各主题的琥珀色，`--ob-sys-color-status-working` 使用各主题的紫色，`--ob-sys-color-status-unread` 使用各主题的蓝色。组件配合不同符号使用，并在选中表面保留其前景色。
+Agent 等待关注、运行、空闲、完成、失败与未读是独立角色。等待关注与运行分别使用 `--ob-sys-color-status-attention` 和 `--ob-sys-color-status-working`；空闲、完成与失败分别使用 `--ob-sys-color-status-agent-idle`、`--ob-sys-color-status-agent-done` 和 `--ob-sys-color-status-agent-error`。未读独立保留蓝色 `--ob-sys-color-status-unread`，未知保留次要图标颜色。消费者在选中表面保留这些前景色。
+
+注册表拥有下方共享的深色 Agent 配色：中性色工作状态与 GrokNight 结果色。原生 One Dark 状态角色映射为相同值；浅色与 terminal-native 主题保留考虑对比度的适配。工作中使用 `--ob-sys-motion-duration-agent-breath` 和 `--ob-sys-motion-easing-agent-breath` 实现两秒白灰呼吸实心圆，浅色主题使用深色前景保证对比度。等待关注在 `--ob-sys-motion-duration-agent-cycle` 的一秒周期内交替显示完整与一半亮度。减少动态效果时保留静态帧。
+
+| 状态     | 深色颜色  |
+| -------- | --------- |
+| 工作中   | `#E5E5E5` |
+| 等待关注 | `#E0AF68` |
+| 已完成   | `#9ECE6A` |
+| 失败     | `#F7768E` |
+| 空闲     | `#585858` |

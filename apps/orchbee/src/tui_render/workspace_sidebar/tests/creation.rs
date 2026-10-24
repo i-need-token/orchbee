@@ -183,8 +183,7 @@ fn assert_creation_member_surface(
 ) -> Vec<u16> {
     let ys = sidebar_target_rows(hits, buffer.area.width, buffer.area.height, target);
     assert!(!ys.is_empty(), "missing creation member {target:?}");
-    // An Agent surface starts at its state track; the tree lead after the navigation marker
-    // track stays on chrome.
+    // An Agent surface includes leading padding; the guide and its gap stay on chrome.
     let first = match target {
         SidebarTarget::Agent { .. } => {
             layout::Tracks::resolve(
@@ -194,7 +193,7 @@ fn assert_creation_member_surface(
                 layout::RowKind::Agent,
             )
             .unwrap()
-            .state
+            .surface()
             .x
         }
         _ => 0,
@@ -266,8 +265,10 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                     &theme,
                     if pending_current && !provisional {
                         Role::SurfaceCurrent
-                    } else {
+                    } else if pending_current {
                         Role::SurfaceChrome
+                    } else {
+                        Role::SurfaceRelated
                     },
                 );
                 assert_creation_member_surface(&buffer, &hits, &alpha, &theme, Role::SurfaceChrome);
@@ -305,7 +306,7 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                 }
                 if !pending_current {
                     assert_eq!(
-                        buffer[(tracks.current.x, y)].symbol(),
+                        buffer[(tracks.unread.x, y)].symbol(),
                         theme.glyphs.active_marker
                     );
                 }
@@ -354,6 +355,8 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
                         &theme,
                         if row == current {
                             Role::SurfaceCurrent
+                        } else if row == &workspace && current != &other {
+                            Role::SurfaceRelated
                         } else {
                             Role::SurfaceChrome
                         },
@@ -387,7 +390,7 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
                     if collapsed {
                         Role::SurfaceCurrent
                     } else {
-                        Role::SurfaceChrome
+                        Role::SurfaceRelated
                     },
                 );
                 if collapsed {
@@ -811,11 +814,13 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                         .map(|x| buffer[(x, *y)].symbol())
                         .collect();
                     let expected = if collapsed {
-                        "Repo"
+                        "Repo".to_owned()
+                    } else if present {
+                        format!("{} created workspace", theme.glyphs.workspace)
                     } else {
-                        "created workspace"
+                        "created workspace".to_owned()
                     };
-                    assert!(label.trim_start().starts_with(expected), "{label}");
+                    assert!(label.trim_start().starts_with(&expected), "{label}");
                 }
             }
         }

@@ -21,6 +21,7 @@ pub(in crate::terminal_session) struct PhysicalRound {
 struct Entry {
     current: TerminalAgentStateSnapshot,
     seen: bool,
+    completion_edited: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,6 +39,47 @@ pub(super) struct PhysicalAttentionState {
 }
 
 impl PhysicalAttentionState {
+    pub(super) fn edit_completed(&mut self, matches: impl Fn(&AgentLaunchBinding) -> bool) -> bool {
+        if !self.readable {
+            return false;
+        }
+        let Some(serial) = self.serial.checked_add(1) else {
+            return false;
+        };
+        let mut changed = false;
+        for entry in self.entries.values_mut() {
+            if entry.current.state == PanelAgentState::Done
+                && !entry.completion_edited
+                && matches(&entry.current.binding)
+            {
+                entry.completion_edited = true;
+                changed = true;
+            }
+        }
+        if changed {
+            self.serial = serial;
+        }
+        changed
+    }
+
+    #[cfg(any(windows, test))]
+    pub(super) fn edited_completions(&self) -> Vec<(AgentLaunchBinding, WorkbenchRevision)> {
+        self.entries
+            .values()
+            .filter(|entry| self.readable && entry.completion_edited)
+            .map(|entry| (entry.current.binding.clone(), entry.current.sequence))
+            .collect()
+    }
+
+    #[cfg(windows)]
+    pub(super) fn completion_edited(&self, matches: impl Fn(&AgentLaunchBinding) -> bool) -> bool {
+        self.readable
+            && self
+                .entries
+                .values()
+                .any(|entry| entry.completion_edited && matches(&entry.current.binding))
+    }
+
     pub(super) fn agent_in_terminal(
         &self,
         presentation: &str,
@@ -102,6 +144,9 @@ impl PhysicalAttentionState {
                     Entry {
                         current: current.clone(),
                         seen,
+                        completion_edited: previous.is_some_and(|old| {
+                            old.completion_edited && old.current.sequence == current.sequence
+                        }),
                     },
                 )
                 .is_some()

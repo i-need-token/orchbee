@@ -316,7 +316,7 @@ fn windows_terminal_color_capability_respects_explicit_descriptors_and_multiplex
 }
 
 #[test]
-fn named_interaction_roles_conform_to_the_public_design_token_contract() {
+fn named_roles_conform_to_the_public_design_token_contract() {
     let references = css_block(DESIGN_TOKENS_CSS, ":root");
     let light = css_block(DESIGN_TOKENS_CSS, "[data-theme='light']");
     let dark = css_block(DESIGN_TOKENS_CSS, "[data-theme='dark']");
@@ -374,6 +374,30 @@ fn named_interaction_roles_conform_to_the_public_design_token_contract() {
     );
 
     let theme = Theme::one_dark();
+    for (role, system, reference) in [
+        (Role::StatusWarning, "status-attention", "yellow"),
+        (Role::StatusSuccess, "status-agent-done", "green"),
+        (Role::StatusError, "status-agent-error", "red"),
+        (Role::StatusIdle, "status-agent-idle", "gray"),
+    ] {
+        let reference = format!("--ob-ref-color-groknight-{reference}");
+        assert_eq!(
+            css_value(dark, &format!("--ob-sys-color-{system}")),
+            format!("var({reference})")
+        );
+        assert_eq!(
+            rgb_channels(theme.color(role)),
+            parse_hex_rgb(&css_value(references, &reference))
+        );
+    }
+    assert_eq!(
+        css_value(dark, "--ob-sys-color-status-working"),
+        "var(--ob-ref-color-agent-working-dark)"
+    );
+    assert_eq!(
+        rgb_channels(theme.color(Role::StatusWorking)),
+        parse_hex_rgb(&css_value(references, "--ob-ref-color-agent-working-dark"))
+    );
     let neutral = |value| [parse_neutral_oklch(value); 3];
     assert_eq!(
         rgb_channels(theme.color(Role::AccentAction)),
@@ -435,6 +459,7 @@ fn named_secondary_adjustments_are_the_minimum_readable_steps() {
             Role::SurfacePressed,
             Role::SurfaceSelection,
             Role::SurfaceCurrent,
+            Role::SurfaceRelated,
             Role::SurfaceInactive,
         ] {
             assert!(
@@ -524,6 +549,7 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
             Role::SurfacePressed,
             Role::SurfaceSelection,
             Role::SurfaceCurrent,
+            Role::SurfaceRelated,
             Role::SurfaceInactive,
         ];
         for surface in surfaces {
@@ -667,6 +693,7 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
                 Role::FrameFocused,
                 Role::FrameUnfocused,
                 Role::FrameDivider,
+                Role::FrameGuide,
             ] {
                 assert_ne!(
                     low.style(role).fg,
@@ -687,7 +714,7 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
             }
             if !matches!(
                 role,
-                Role::FrameFocused | Role::FrameUnfocused | Role::FrameDivider
+                Role::FrameFocused | Role::FrameUnfocused | Role::FrameDivider | Role::FrameGuide
             ) {
                 assert_ne!(style.fg, Some(Color::DarkGray), "{} {role:?}", theme.name);
             }
@@ -935,7 +962,7 @@ fn terminal_native_text_and_surface_safety() {
         }
         if !matches!(
             role,
-            Role::FrameFocused | Role::FrameUnfocused | Role::FrameDivider
+            Role::FrameFocused | Role::FrameUnfocused | Role::FrameDivider | Role::FrameGuide
         ) {
             assert!(
                 !matches!(fg, Some(Color::DarkGray)),
@@ -1233,10 +1260,12 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
         GlyphSet::ASCII.ellipsis,
         GlyphSet::ASCII.middle_dot,
         GlyphSet::ASCII.status_bullet,
+        GlyphSet::ASCII.workspace,
         GlyphSet::ASCII.active_marker,
         GlyphSet::ASCII.navigation_marker,
         GlyphSet::ASCII.disclosure_open,
         GlyphSet::ASCII.disclosure_closed,
+        GlyphSet::ASCII.tree_guide,
     ] {
         assert!(value.is_ascii());
     }

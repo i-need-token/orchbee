@@ -1,4 +1,10 @@
 :root {
+	--ob-ref-color-agent-working-dark: #e5e5e5;
+	--ob-ref-color-agent-working-light: #383a42;
+	--ob-ref-color-groknight-yellow: #e0af68;
+	--ob-ref-color-groknight-green: #9ece6a;
+	--ob-ref-color-groknight-red: #f7768e;
+	--ob-ref-color-groknight-gray: #585858;
 	--ob-ref-font-family-sans:
 		-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial,
 		'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif, 'Apple Color Emoji',
@@ -488,11 +494,14 @@
 	--ob-ref-motion-duration-500: 500ms;
 	--ob-ref-motion-duration-1000: 1000ms;
 	--ob-ref-motion-duration-1568: 1568ms;
+	--ob-ref-motion-duration-2000: 2000ms;
 	--ob-ref-motion-duration-2600: 2600ms;
 	--ob-ref-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
 	--ob-ref-motion-easing-enter: cubic-bezier(0, 0, 0.2, 1);
 	--ob-ref-motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
 	--ob-ref-motion-easing-linear: linear;
+	--ob-ref-motion-easing-step-end: steps(1, end);
+	--ob-ref-motion-easing-breath: ease-in-out;
 	--ob-ref-opacity-50: 0.5;
 	--ob-ref-opacity-72: 0.72;
 	--ob-ref-layer-base: 0;
@@ -651,7 +660,10 @@
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-400);
 	--ob-sys-color-action-disabled-border: var(--ob-ref-color-neutral-200);
 	--ob-sys-color-status-attention: var(--ob-ref-color-amber-700);
-	--ob-sys-color-status-working: var(--ob-ref-color-purple-700);
+	--ob-sys-color-status-working: var(--ob-ref-color-agent-working-light);
+	--ob-sys-color-status-agent-idle: var(--ob-ref-color-gray-600);
+	--ob-sys-color-status-agent-done: var(--ob-ref-color-green-700);
+	--ob-sys-color-status-agent-error: var(--ob-ref-color-red-700);
 	--ob-sys-color-status-unread: var(--ob-ref-color-blue-700);
 	--ob-sys-color-status-info: var(--ob-ref-color-blue-600);
 	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-500);
@@ -776,6 +788,9 @@
 	--ob-sys-text-decoration-link-hover: var(--ob-ref-text-decoration-underline);
 	--ob-sys-text-decoration-link-focus: var(--ob-ref-text-decoration-underline);
 	--ob-sys-motion-duration-instant: var(--ob-ref-motion-duration-instant);
+	--ob-sys-motion-duration-agent-cycle: var(--ob-ref-motion-duration-1000);
+	--ob-sys-motion-duration-agent-breath: var(--ob-ref-motion-duration-2000);
+	--ob-sys-motion-easing-agent-breath: var(--ob-ref-motion-easing-breath);
 	--ob-sys-motion-duration-tab-strip-brief: var(--ob-ref-motion-duration-50);
 	--ob-sys-motion-duration-fast: var(--ob-ref-motion-duration-fast);
 	--ob-sys-motion-duration-tab-strip-hover: var(--ob-ref-motion-duration-120);
@@ -793,6 +808,7 @@
 	--ob-sys-motion-easing-enter: var(--ob-ref-motion-easing-enter);
 	--ob-sys-motion-easing-exit: var(--ob-ref-motion-easing-exit);
 	--ob-sys-motion-easing-linear: var(--ob-ref-motion-easing-linear);
+	--ob-sys-motion-easing-agent-frame: var(--ob-ref-motion-easing-step-end);
 	--ob-sys-focus-ring-width: var(--ob-ref-border-width-strong);
 	--ob-sys-focus-ring-offset: var(--ob-ref-space-1);
 	--ob-sys-opacity-disabled: var(--ob-ref-opacity-50);
@@ -999,8 +1015,11 @@
 	--ob-sys-color-action-disabled: var(--ob-ref-color-neutral-800);
 	--ob-sys-color-action-disabled-text: var(--ob-ref-color-neutral-600);
 	--ob-sys-color-action-disabled-border: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-status-attention: var(--ob-ref-color-amber-300);
-	--ob-sys-color-status-working: var(--ob-ref-color-purple-400);
+	--ob-sys-color-status-attention: var(--ob-ref-color-groknight-yellow);
+	--ob-sys-color-status-working: var(--ob-ref-color-agent-working-dark);
+	--ob-sys-color-status-agent-idle: var(--ob-ref-color-groknight-gray);
+	--ob-sys-color-status-agent-done: var(--ob-ref-color-groknight-green);
+	--ob-sys-color-status-agent-error: var(--ob-ref-color-groknight-red);
 	--ob-sys-color-status-unread: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info: var(--ob-ref-color-blue-400);
 	--ob-sys-color-status-info-hover: var(--ob-ref-color-blue-300);

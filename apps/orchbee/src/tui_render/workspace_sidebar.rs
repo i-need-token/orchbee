@@ -728,7 +728,7 @@ fn render_creation(
         frame,
         row,
         RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary).with_status(tracks.state),
-        &[RowContentBand::explicit(tracks.current)],
+        &[RowContentBand::explicit(tracks.unread)],
         ControlSurface::Chrome,
         state,
         theme,
@@ -743,7 +743,7 @@ fn render_creation(
     if preview.current && !theme.current_context_marker().trim().is_empty() {
         frame.render_widget(
             Paragraph::new(theme.glyphs.active_marker).style(theme.style(Role::TextPrimary)),
-            tracks.current,
+            tracks.unread,
         );
     }
 }
@@ -777,8 +777,8 @@ fn winning_surface(pointer: PointerPresentation, focused: bool, current: bool) -
 }
 
 /// Returns an Agent's leading tree cells to plain chrome after its row surface was composed over
-/// them, so the surface starts at the state track. A keyboard-focused row keeps its marker there.
-fn clear_tree_lead(frame: &mut Frame<'_>, lead: Rect, marker: Option<Rect>, theme: &Theme) {
+/// them, leaving the row's leading padding on its interaction surface.
+fn clear_tree_lead(frame: &mut Frame<'_>, lead: Rect, theme: &Theme) {
     let chrome = theme.style(Role::SurfaceChrome);
     for y in lead.y..lead.bottom() {
         for x in lead.x..lead.right() {
@@ -786,19 +786,6 @@ fn clear_tree_lead(frame: &mut Frame<'_>, lead: Rect, marker: Option<Rect>, them
             cell.reset();
             cell.set_style(chrome);
         }
-    }
-    if let Some(marker) = marker {
-        frame.buffer_mut().set_string(
-            marker.x,
-            marker.y,
-            theme.glyphs.navigation_marker,
-            theme.content_on_surface(
-                Role::SurfaceChrome,
-                None,
-                Some(Role::AccentSelection),
-                theme.style(Role::AccentSelection),
-            ),
-        );
     }
 }
 
@@ -995,8 +982,8 @@ fn current_row(view: &ClientView, row: &SidebarRow<'_>, target: &SidebarTarget) 
     }
 }
 
-// The most specific visible current row owns the fill. Its expanded ancestors retain their
-// identity emphasis and marker, so a Workspace and its active Agent never form one filled block.
+// The most specific visible current row owns the strong fill. Its Workspace uses a quieter
+// related surface and retains the current marker.
 fn current_descendant(
     view: &ClientView,
     rows: &[SidebarRow<'_>],
@@ -1063,44 +1050,25 @@ fn gap_before(
     }
 }
 
-#[derive(Clone, Copy)]
-struct TreePosition {
-    /// A previous Agent sibling continues the trunk through this row's leading gap.
-    follows_sibling: bool,
-    /// The final child closes the branch and leaves its continuation lines empty.
-    last: bool,
-}
-
-/// Agent connectors use divider color on the chrome beside the row surface.
-fn paint_tree_connector(
+/// The muted guide spans every child line and intervening gap without horizontal branches.
+fn paint_tree_guide(
     frame: &mut Frame<'_>,
     band: Rect,
     tracks: layout::Tracks,
-    position: TreePosition,
+    follows_sibling: bool,
     theme: &Theme,
 ) {
     let style = theme.content_on_surface(
         Role::SurfaceChrome,
         None,
-        Some(Role::FrameDivider),
-        theme.style(Role::FrameDivider),
+        Some(Role::FrameGuide),
+        theme.style(Role::FrameGuide),
     );
     for y in band.y..band.bottom() {
-        let glyph = if y < tracks.content_y {
-            position.follows_sibling.then_some(theme.glyphs.tree_trunk)
-        } else if y == tracks.content_y {
-            Some(if position.last {
-                theme.glyphs.tree_last
-            } else {
-                theme.glyphs.tree_branch
-            })
-        } else {
-            (!position.last).then_some(theme.glyphs.tree_trunk)
-        };
-        if let Some(glyph) = glyph {
+        if y >= tracks.content_y || follows_sibling {
             frame.render_widget(
-                Paragraph::new(glyph).style(style),
-                Rect::new(tracks.branch.x, y, tracks.branch.width, 1),
+                Paragraph::new(theme.glyphs.tree_guide).style(style),
+                Rect::new(tracks.guide.x, y, tracks.guide.width, 1),
             );
         }
     }
@@ -1426,7 +1394,17 @@ pub(super) fn render(
         let current = projected_current[row_index];
         let current_ancestor =
             current && current_descendant(view, rows, &projected_current, &target);
-        let filled_current = current && !current_ancestor;
+        let related = current_ancestor
+            || (matches!(row, SidebarRow::Context { .. })
+                && owns_keyboard
+                && view
+                    .machines
+                    .sidebar_focused_target()
+                    .filter(|focused| matches!(focused, SidebarTarget::Agent { .. }))
+                    .and_then(|focused| view.machines.sidebar_parent(focused))
+                    .as_ref()
+                    == Some(&target));
+        let filled_current = current && !related;
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
         let suffix = &annotations[row_index];
@@ -1665,6 +1643,31 @@ pub(super) fn render(
             revealed || matches!(row, SidebarRow::Project { .. }) && expanded == Some(false);
         let disclosure_target = disclosure_target.filter(|_| disclosure_shown);
         let create_target = create_target.filter(|_| revealed);
+        // A Workspace keeps its identity glyph until an Agent state is observed. All Agent
+        // Working glyphs share the Client's animation phase with the Tab strip and pane titles.
+        let agent_state = match row {
+            SidebarRow::Agent { row, .. } => row
+                .sidebar_agent()
+                .map(crate::machine_agents::Row::display_state),
+            SidebarRow::Context { row, .. } => view.machines.workspace_state(row),
+            SidebarRow::Project { .. } => None,
+        };
+        let marker = agent_state
+            .map(|state| {
+                let (key, role) = state_role(state);
+                (
+                    super::sidebar_text::state_glyph(state, theme, view.machines.working_frame()),
+                    role,
+                    locale.machine_picker_text(key),
+                )
+            })
+            .or_else(|| {
+                matches!(row, SidebarRow::Context { .. }).then_some((
+                    theme.glyphs.workspace,
+                    Role::TextSecondary,
+                    locale.sidebar_marker_label("workspace"),
+                ))
+            });
         if row_paint_pointer != PointerPresentation::Rest {
             let mut hint = Vec::new();
             if current {
@@ -1674,19 +1677,8 @@ pub(super) fn render(
                     locale.sidebar_marker_label("current")
                 ));
             }
-            let state = match row {
-                SidebarRow::Agent { row, .. } => row
-                    .sidebar_agent()
-                    .map(crate::machine_agents::Row::display_state),
-                SidebarRow::Context { row, .. } => view.machines.workspace_state(row),
-                SidebarRow::Project { .. } => None,
-            };
-            if let Some(state) = state {
-                hint.push(format!(
-                    "{} {}",
-                    theme.agent_glyph(state),
-                    locale.machine_picker_text(state_role(state).0)
-                ));
+            if let Some((glyph, _, label)) = marker {
+                hint.push(format!("{glyph} {label}"));
             }
             if unread {
                 hint.push(format!(
@@ -1716,7 +1708,7 @@ pub(super) fn render(
             tracks.current,
             tracks.state,
             tracks.unread,
-            tracks.branch,
+            tracks.guide,
             tracks.auxiliary,
         ]
         .into_iter()
@@ -1733,29 +1725,22 @@ pub(super) fn render(
             row_state(owns_keyboard, focused, filled_current, row_paint_pointer),
             theme,
         );
-        let interaction = winning_surface(row_paint_pointer, focused, filled_current);
-        // Agent surfaces start at the state track; the tree indent and connector stay on chrome.
-        let surface = if matches!(row, SidebarRow::Agent { .. }) {
+        let interaction = winning_surface(row_paint_pointer, focused, filled_current)
+            .or(related.then_some(Role::SurfaceRelated));
+        // Agent surfaces include the blank cell before state; the guide and its gap stay on chrome.
+        let surface = tracks.surface();
+        if matches!(row, SidebarRow::Agent { .. }) {
             clear_tree_lead(
                 frame,
                 Rect::new(
                     band.x,
                     band.y,
-                    tracks.state.x.saturating_sub(band.x),
+                    surface.x.saturating_sub(band.x),
                     band.height,
                 ),
-                focused.then(|| tracks.first_line(tracks.navigation)),
                 theme,
             );
-            Rect::new(
-                tracks.state.x,
-                band.y,
-                band.right().saturating_sub(tracks.state.x),
-                band.height,
-            )
-        } else {
-            band
-        };
+        }
         sidebar_text::compose_lines(
             &mut row_lines,
             interaction,
@@ -1833,25 +1818,16 @@ pub(super) fn render(
             );
         }
 
-        // Sidebar state glyphs are static; the Tab strip owns Working motion.
-        let state = match row {
-            SidebarRow::Context { row, .. } => view
-                .machines
-                .workspace_state(row)
-                .map(|state| (theme.agent_glyph(state), state_role(state).1)),
-            SidebarRow::Agent { row, .. } => row.sidebar_agent().map(|agent| {
-                let state = agent.display_state();
-                (theme.agent_glyph(state), state_role(state).1)
-            }),
-            SidebarRow::Project { .. } => None,
-        };
-        if let Some((glyph, role)) = state {
+        if let Some((glyph, role, _)) = marker {
             frame.render_widget(
                 Paragraph::new(glyph).style(theme.content_on_surface(
                     Role::SurfaceChrome,
                     interaction,
                     Some(role),
-                    theme.style(role),
+                    agent_state.map_or_else(
+                        || theme.style(role),
+                        |state| theme.agent_style(state, view.machines.working_frame()),
+                    ),
                 )),
                 tracks.first_line(tracks.state),
             );
@@ -1864,7 +1840,11 @@ pub(super) fn render(
                     Some(Role::TextPrimary),
                     theme.style(Role::TextPrimary),
                 )),
-                tracks.first_line(tracks.current),
+                tracks.first_line(if unread_marker {
+                    tracks.current
+                } else {
+                    tracks.unread
+                }),
             );
         }
         if unread_marker {
@@ -1908,17 +1888,14 @@ pub(super) fn render(
                 ));
             }
         }
-        if matches!(row, SidebarRow::Agent { .. }) && !tracks.branch.is_empty() {
-            paint_tree_connector(
+        if matches!(row, SidebarRow::Agent { .. }) && !tracks.guide.is_empty() {
+            paint_tree_guide(
                 frame,
                 band,
                 tracks,
-                TreePosition {
-                    follows_sibling: row_index
-                        .checked_sub(1)
-                        .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
-                    last: !matches!(rows.get(row_index + 1), Some(SidebarRow::Agent { .. })),
-                },
+                row_index
+                    .checked_sub(1)
+                    .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
                 theme,
             );
         }

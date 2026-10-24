@@ -1,7 +1,7 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
 use crate::{
     local_client::LocalClient, machine_discovery::Connection, machine_picker::Choice,
-    machines::ProfileId,
+    machines::ProfileId, terminal_session::UiWakeup,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, SemanticEventFilter, SemanticEventKind, SemanticEventMatch,
@@ -75,7 +75,12 @@ struct Job<T> {
     task: Option<JoinHandle<Completed<T>>>,
 }
 impl<T: Send + Sync + 'static> Job<T> {
-    fn start(source: Connection, deadline: Instant, read: Reader<T>) -> Result<Self, ()> {
+    fn start(
+        source: Connection,
+        deadline: Instant,
+        read: Reader<T>,
+        wakeup: Option<UiWakeup>,
+    ) -> Result<Self, ()> {
         let cancel = Arc::new(AtomicU8::new(0));
         let flag = cancel.clone();
         let task = thread::Builder::new()
@@ -85,10 +90,14 @@ impl<T: Send + Sync + 'static> Job<T> {
                     let mut client = source.reconnect(deadline, &flag).map_err(|_| ())?;
                     read(&mut client, deadline, &flag)
                 })();
-                Completed {
+                let completed = Completed {
                     at: Instant::now(),
                     rows: result,
+                };
+                if let Some(wakeup) = wakeup {
+                    wakeup.signal();
                 }
+                completed
             })
             .map_err(|_| ())?;
         Ok(Self {
@@ -111,14 +120,18 @@ struct Watch {
     task: Option<JoinHandle<()>>,
 }
 impl Watch {
-    fn start(source: Connection, kinds: &'static [SemanticEventKind]) -> Result<Self, ()> {
+    fn start(
+        source: Connection,
+        kinds: &'static [SemanticEventKind],
+        wakeup: Option<UiWakeup>,
+    ) -> Result<Self, ()> {
         let cancel = Arc::new(AtomicU8::new(0));
         let changes = Arc::new(AtomicU64::new(0));
         let (flag, counter) = (cancel.clone(), changes.clone());
         let task = thread::Builder::new()
             .name("orchbee-machine-watch".into())
             .spawn(move || {
-                let _ended = watch(&source, kinds, &flag, &counter);
+                let _ended = watch(&source, kinds, &flag, &counter, wakeup.as_ref());
             })
             .map_err(|_| ())?;
         Ok(Self {
@@ -150,6 +163,7 @@ fn watch(
     kinds: &'static [SemanticEventKind],
     cancel: &AtomicU8,
     changes: &AtomicU64,
+    wakeup: Option<&UiWakeup>,
 ) -> Result<(), ()> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut client = source.reconnect(deadline, cancel).map_err(|_| ())?;
@@ -178,6 +192,9 @@ fn watch(
     }
     // A change can commit between the consumer's last read and this baseline.
     changes.fetch_add(1, Ordering::AcqRel);
+    if let Some(wakeup) = wakeup {
+        wakeup.signal();
+    }
     while cancel.load(Ordering::Acquire) == 0 {
         match events(
             &mut client,
@@ -190,6 +207,9 @@ fn watch(
         )? {
             SemanticEventsOutcome::Matched { .. } | SemanticEventsOutcome::Gap { .. } => {
                 changes.fetch_add(1, Ordering::AcqRel);
+                if let Some(wakeup) = wakeup {
+                    wakeup.signal();
+                }
             }
             SemanticEventsOutcome::TimedOut { .. } => {}
             SemanticEventsOutcome::Failed {
@@ -251,12 +271,14 @@ pub(crate) struct Collector<T> {
     cursor: usize,
     watch_kinds: &'static [SemanticEventKind],
     hinted: Vec<Choice>,
+    wakeup: Option<UiWakeup>,
 }
 impl<T: Clone + Send + Sync + 'static> Collector<T> {
     /// Reads each source again as soon as it publishes one of `kinds`.
-    pub(crate) fn watching(kinds: &'static [SemanticEventKind]) -> Self {
+    pub(crate) fn watching(kinds: &'static [SemanticEventKind], wakeup: UiWakeup) -> Self {
         let mut collector = Self::default();
         collector.watch_kinds = kinds;
+        collector.wakeup = Some(wakeup);
         collector
     }
     /// Whether `choice` published a watched change during the latest tick.
@@ -281,8 +303,9 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         now: Instant,
         read: Reader<T>,
     ) -> Vec<(Choice, Observation<T>)> {
+        let wakeup = self.wakeup.clone();
         self.tick_with_start(sources, now, |source, deadline| {
-            Job::start(source, deadline, read)
+            Job::start(source, deadline, read, wakeup.clone())
         })
     }
     fn tick_with_start(
@@ -346,7 +369,11 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                     entry.watch_retry = now + WATCH_RETRY;
                 }
                 if entry.watch.is_none() && now >= entry.watch_retry {
-                    match Watch::start(sources[index].connection.clone(), self.watch_kinds) {
+                    match Watch::start(
+                        sources[index].connection.clone(),
+                        self.watch_kinds,
+                        self.wakeup.clone(),
+                    ) {
                         Ok(watch) => {
                             entry.watch = Some(watch);
                             entry.seen_changes = 0;
@@ -438,6 +465,7 @@ impl<T> Default for Collector<T> {
             cursor: 0,
             watch_kinds: &[],
             hinted: Vec::new(),
+            wakeup: None,
         }
     }
 }

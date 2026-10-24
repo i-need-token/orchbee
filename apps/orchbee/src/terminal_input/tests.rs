@@ -12,6 +12,78 @@ use super::{
 };
 
 #[test]
+fn completion_edit_requires_admitted_content_input_not_focus_navigation_or_copy() {
+    #[derive(Default)]
+    struct EditPort {
+        edits: usize,
+        refused: bool,
+    }
+    impl TerminalInputPort for EditPort {
+        fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            if self.refused {
+                Err(TerminalInputUnavailable)
+            } else {
+                Ok(())
+            }
+        }
+        fn terminal_edited(&mut self) {
+            self.edits += 1;
+        }
+    }
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let mut port = EditPort::default();
+    for bytes in [
+        b"\x1b[I\x1b[O".as_slice(),
+        b"\x1b[A\x1b[B\x1b[C\x1b[D",
+        b"\x03\x01\x05",
+        b"\x1b[200~\x1b[201~",
+    ] {
+        dispatch_input(
+            &mut dispatcher,
+            &mut view,
+            bytes,
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<_, Infallible>(()),
+        )
+        .unwrap();
+        assert_eq!(port.edits, 0);
+    }
+    for bytes in [
+        "你好".as_bytes(),
+        b"\x7f",
+        b"\x1b[3~",
+        b"\x15",
+        b"\x1b[200~pasted\x1b[201~",
+    ] {
+        let before = port.edits;
+        dispatch_input(
+            &mut dispatcher,
+            &mut view,
+            bytes,
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<_, Infallible>(()),
+        )
+        .unwrap();
+        assert_eq!(port.edits, before + 1);
+    }
+    port.refused = true;
+    let before = port.edits;
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"rejected",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert_eq!(port.edits, before);
+}
+
+#[test]
 fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() {
     struct ModalInput {
         active: bool,

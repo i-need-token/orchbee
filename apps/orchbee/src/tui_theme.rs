@@ -36,10 +36,12 @@ pub(crate) enum Role {
     StatusInfo,
     StatusPending,
     StatusWorking,
+    StatusIdle,
     StatusUnread,
     FrameFocused,
     FrameUnfocused,
     FrameDivider,
+    FrameGuide,
     SurfaceCanvas,
     SurfaceChrome,
     SurfaceStrip,
@@ -48,6 +50,7 @@ pub(crate) enum Role {
     SurfacePressed,
     SurfaceSelection,
     SurfaceCurrent,
+    SurfaceRelated,
     SurfaceInactive,
     HintKey,
     HintLabel,
@@ -57,7 +60,7 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 30] = [
+    pub(crate) const ALL: [Self; 33] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
@@ -73,10 +76,12 @@ impl Role {
         Self::StatusInfo,
         Self::StatusPending,
         Self::StatusWorking,
+        Self::StatusIdle,
         Self::StatusUnread,
         Self::FrameFocused,
         Self::FrameUnfocused,
         Self::FrameDivider,
+        Self::FrameGuide,
         Self::SurfaceCanvas,
         Self::SurfaceChrome,
         Self::SurfaceStrip,
@@ -85,6 +90,7 @@ impl Role {
         Self::SurfacePressed,
         Self::SurfaceSelection,
         Self::SurfaceCurrent,
+        Self::SurfaceRelated,
         Self::SurfaceInactive,
         Self::HintKey,
         Self::HintLabel,
@@ -128,6 +134,8 @@ pub(crate) struct GlyphSet {
     pub middle_dot: &'static str,
     /// Status glyph used in the sidebar site section.
     pub status_bullet: &'static str,
+    /// Workspace identity when no Agent state is available; never an activity status.
+    pub workspace: &'static str,
     pub git_ahead: &'static str,
     pub git_behind: &'static str,
     /// Active marker in navigator and context lists.
@@ -142,11 +150,8 @@ pub(crate) struct GlyphSet {
     /// Project disclosure, with one-cell ASCII fallbacks.
     pub disclosure_open: &'static str,
     pub disclosure_closed: &'static str,
-    /// Two-cell sidebar tree connectors for a non-final and a final child, and the
-    /// one-cell trunk that continues past a non-final child.
-    pub tree_branch: &'static str,
-    pub tree_last: &'static str,
-    pub tree_trunk: &'static str,
+    /// One-cell vertical guide connecting sibling Agents to their Workspace.
+    pub tree_guide: &'static str,
     /// One-cell Working frames; every frame has the same display width.
     pub working_frames: &'static [&'static str],
 }
@@ -156,7 +161,8 @@ impl GlyphSet {
         mode: GlyphMode::Unicode,
         ellipsis: "…",
         middle_dot: "·",
-        status_bullet: "●",
+        status_bullet: "•",
+        workspace: "•",
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
@@ -166,10 +172,8 @@ impl GlyphSet {
         scrollbar_thumb: "┃",
         disclosure_open: "▾",
         disclosure_closed: "▸",
-        tree_branch: "├─",
-        tree_last: "╰─",
-        tree_trunk: "│",
-        working_frames: &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+        tree_guide: "│",
+        working_frames: &["●"],
     };
 
     #[cfg(test)]
@@ -178,6 +182,7 @@ impl GlyphSet {
         ellipsis: "..",
         middle_dot: "-",
         status_bullet: "*",
+        workspace: "w",
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",
@@ -187,9 +192,7 @@ impl GlyphSet {
         scrollbar_thumb: "#",
         disclosure_open: "-",
         disclosure_closed: "+",
-        tree_branch: "|-",
-        tree_last: "`-",
-        tree_trunk: "|",
+        tree_guide: "|",
         working_frames: &["-", "\\", "|", "/"],
     };
 
@@ -224,10 +227,12 @@ pub(crate) struct RoleStyles {
     pub status_info: Style,
     pub status_pending: Style,
     pub status_working: Style,
+    pub status_idle: Style,
     pub status_unread: Style,
     pub frame_focused: Style,
     pub frame_unfocused: Style,
     pub frame_divider: Style,
+    pub frame_guide: Style,
     pub surface_canvas: Style,
     pub surface_chrome: Style,
     pub surface_strip: Style,
@@ -236,6 +241,7 @@ pub(crate) struct RoleStyles {
     pub surface_pressed: Style,
     pub surface_selection: Style,
     pub surface_current: Style,
+    pub surface_related: Style,
     pub surface_inactive: Style,
     pub hint_key: Style,
     pub hint_label: Style,
@@ -260,10 +266,12 @@ impl RoleStyles {
             Role::StatusInfo => self.status_info,
             Role::StatusPending => self.status_pending,
             Role::StatusWorking => self.status_working,
+            Role::StatusIdle => self.status_idle,
             Role::StatusUnread => self.status_unread,
             Role::FrameFocused => self.frame_focused,
             Role::FrameUnfocused => self.frame_unfocused,
             Role::FrameDivider => self.frame_divider,
+            Role::FrameGuide => self.frame_guide,
             Role::SurfaceCanvas => self.surface_canvas,
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceStrip => self.surface_strip,
@@ -272,6 +280,7 @@ impl RoleStyles {
             Role::SurfacePressed => self.surface_pressed,
             Role::SurfaceSelection => self.surface_selection,
             Role::SurfaceCurrent => self.surface_current,
+            Role::SurfaceRelated => self.surface_related,
             Role::SurfaceInactive => self.surface_inactive,
             Role::HintKey => self.hint_key,
             Role::HintLabel => self.hint_label,
@@ -295,10 +304,12 @@ impl RoleStyles {
             status_info: apply(self.status_info),
             status_pending: apply(self.status_pending),
             status_working: apply(self.status_working),
+            status_idle: apply(self.status_idle),
             status_unread: apply(self.status_unread),
             frame_focused: apply(self.frame_focused),
             frame_unfocused: apply(self.frame_unfocused),
             frame_divider: apply(self.frame_divider),
+            frame_guide: apply(self.frame_guide),
             surface_canvas: apply(self.surface_canvas),
             surface_chrome: apply(self.surface_chrome),
             surface_strip: apply(self.surface_strip),
@@ -307,6 +318,7 @@ impl RoleStyles {
             surface_pressed: apply(self.surface_pressed),
             surface_selection: apply(self.surface_selection),
             surface_current: apply(self.surface_current),
+            surface_related: apply(self.surface_related),
             surface_inactive: apply(self.surface_inactive),
             hint_key: apply(self.hint_key),
             hint_label: apply(self.hint_label),
@@ -346,27 +358,29 @@ impl Theme {
     ) -> &'static str {
         use orchbee_workbench_protocol::MetadataState::*;
         let ascii = self.glyphs.ellipsis == "..";
+        let distinguish_outcomes =
+            ascii || self.no_color || self.color_level == ColorLevel::Monochrome;
         match state {
-            Working => {
-                if ascii {
-                    "~"
+            Working => self.glyphs.working_frames.first().copied().unwrap_or("~"),
+            Blocked => {
+                if distinguish_outcomes {
+                    "#"
                 } else {
-                    "◐"
+                    "●"
                 }
             }
-            Blocked => "!",
             Done => {
-                if ascii {
+                if distinguish_outcomes {
                     "+"
                 } else {
-                    "✓"
+                    "●"
                 }
             }
             Error => {
-                if ascii {
+                if distinguish_outcomes {
                     "x"
                 } else {
-                    "×"
+                    "●"
                 }
             }
             Idle => {
@@ -376,7 +390,13 @@ impl Theme {
                     "○"
                 }
             }
-            Unknown => "?",
+            Unknown => {
+                if ascii {
+                    "."
+                } else {
+                    self.glyphs.status_bullet
+                }
+            }
         }
     }
     pub(crate) fn agent_role(state: orchbee_workbench_protocol::MetadataState) -> Role {
@@ -386,7 +406,61 @@ impl Theme {
             Blocked => Role::StatusWarning,
             Done => Role::StatusSuccess,
             Error => Role::StatusError,
-            Idle | Unknown => Role::TextSecondary,
+            Idle => Role::StatusIdle,
+            Unknown => Role::TextSecondary,
+        }
+    }
+
+    /// A stationary Working circle breathes over two seconds; attention keeps its 500 ms pulse.
+    pub(crate) fn agent_style(
+        &self,
+        state: orchbee_workbench_protocol::MetadataState,
+        frame: usize,
+    ) -> Style {
+        let style = self.style(Self::agent_role(state));
+        use orchbee_workbench_protocol::MetadataState::{Blocked, Working};
+        if self.no_color || self.color_level == ColorLevel::Monochrome {
+            return style;
+        }
+        let intensity = match state {
+            Working => {
+                let phase = (frame % 20) as f64 / 20.0 * std::f64::consts::TAU;
+                0.5 + 0.5 * (1.0 + phase.cos()) / 2.0
+            }
+            Blocked if !(frame / 5).is_multiple_of(2) => 0.5,
+            _ => return style,
+        };
+        let colors = match (style.fg, self.styles.surface_canvas.bg) {
+            (Some(Color::Rgb(r, g, b)), Some(Color::Rgb(br, bg, bb))) => {
+                Some(((r, g, b), (br, bg, bb)))
+            }
+            (Some(foreground), _)
+                if state == Working && self.color_level == ColorLevel::Truecolor =>
+            {
+                // System surfaces keep Reset even when the outer host's RGB is known. Child
+                // terminal preferences must not replace the background used by authored chrome.
+                let background = (self.terminal_color_source == TerminalColorSource::OuterHost)
+                    .then_some(self.terminal_colors)
+                    .flatten()
+                    .and_then(|(_, background)| sampled_color(background))
+                    .unwrap_or(if self.polarity == Some(Polarity::Light) {
+                        (255, 255, 255)
+                    } else {
+                        (0, 0, 0)
+                    });
+                sampled_color(foreground).map(|foreground| (foreground, background))
+            }
+            _ => None,
+        };
+        match colors {
+            Some(((r, g, b), (br, bg, bb))) => {
+                let blend = |a: u8, b: u8| {
+                    (f64::from(b) + (f64::from(a) - f64::from(b)) * intensity).round() as u8
+                };
+                style.fg(Color::Rgb(blend(r, br), blend(g, bg), blend(b, bb)))
+            }
+            _ if intensity < 0.75 => style.add_modifier(Modifier::DIM),
+            _ => style,
         }
     }
 
@@ -442,11 +516,13 @@ impl Theme {
                 status_error: Style::new().fg(Color::Red),
                 status_info: Style::new().fg(Color::Cyan),
                 status_pending: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
-                status_working: Style::new().fg(Color::Magenta),
+                status_working: Style::new().fg(Color::Gray),
+                status_idle: dim,
                 status_unread: Style::new().fg(Color::LightBlue),
                 frame_focused: Style::new().fg(Color::Cyan),
                 frame_unfocused: Style::new().fg(Color::DarkGray),
                 frame_divider: Style::new().fg(Color::DarkGray),
+                frame_guide: Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
                 surface_canvas: Style::new().bg(Color::Reset),
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_strip: Style::new().bg(Color::Reset),
@@ -455,6 +531,8 @@ impl Theme {
                 surface_pressed: interaction_surface_fallback(),
                 surface_selection: Style::new().bg(Color::Blue),
                 surface_current: Style::new().fg(Color::Black).bg(Color::Gray),
+                // Unknown host colors cannot promise a softer fill; ancestry keeps its marker.
+                surface_related: Style::new().bg(Color::Reset),
                 surface_inactive: Style::new().bg(Color::Reset),
                 hint_key: Style::new().fg(Color::Reset).add_modifier(Modifier::BOLD),
                 hint_label: dim,
@@ -497,7 +575,8 @@ impl Theme {
                 status_warning: Style::new().fg(Color::Rgb(232, 179, 95)),
                 status_error: Style::new().fg(Color::Rgb(247, 118, 142)),
                 status_info: Style::new().fg(Color::Rgb(125, 207, 255)),
-                status_working: Style::new().fg(Color::Rgb(192, 132, 252)),
+                status_working: Style::new().fg(Color::Rgb(229, 229, 229)),
+                status_idle: Style::new().fg(Color::Rgb(88, 88, 88)),
                 status_unread: Style::new().fg(Color::Rgb(96, 165, 250)),
                 status_pending: Style::new()
                     .fg(Color::Rgb(133, 146, 171))
@@ -505,6 +584,7 @@ impl Theme {
                 frame_focused: Style::new().fg(Color::Rgb(122, 162, 247)),
                 frame_unfocused: Style::new().fg(Color::Rgb(52, 61, 78)),
                 frame_divider: Style::new().fg(Color::Rgb(52, 61, 78)),
+                frame_guide: Style::new().fg(Color::Rgb(36, 43, 55)),
                 surface_canvas: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_chrome: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_strip: Style::new().bg(Color::Rgb(24, 29, 38)),
@@ -513,6 +593,7 @@ impl Theme {
                 surface_pressed: Style::new().bg(Color::Rgb(64, 64, 64)),
                 surface_selection: Style::new().bg(Color::Rgb(45, 63, 99)),
                 surface_current: Style::new().bg(Color::Rgb(33, 39, 49)),
+                surface_related: Style::new().bg(Color::Rgb(22, 27, 35)),
                 surface_inactive: Style::new().bg(Color::Rgb(11, 14, 20)),
                 hint_key: Style::new()
                     .fg(Color::Rgb(211, 218, 232))
@@ -592,6 +673,7 @@ impl Theme {
                 | Role::SurfacePressed
                 | Role::SurfaceSelection
                 | Role::SurfaceCurrent
+                | Role::SurfaceRelated
         )));
         let base_style = self.style(base);
         let interaction_style = interaction.map(|role| self.style(role));
@@ -774,6 +856,7 @@ impl Theme {
             | Role::SurfacePressed
             | Role::SurfaceSelection
             | Role::SurfaceCurrent
+            | Role::SurfaceRelated
             | Role::SurfaceInactive => style.bg,
             _ => style.fg,
         }
@@ -960,6 +1043,7 @@ impl Theme {
                 (&mut styles.status_info, self.styles.status_info),
                 (&mut styles.status_pending, self.styles.status_pending),
                 (&mut styles.status_working, self.styles.status_working),
+                (&mut styles.status_idle, self.styles.status_idle),
                 (&mut styles.status_unread, self.styles.status_unread),
                 (&mut styles.surface_canvas, self.styles.surface_canvas),
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
@@ -969,6 +1053,7 @@ impl Theme {
                 (&mut styles.surface_pressed, self.styles.surface_pressed),
                 (&mut styles.surface_selection, self.styles.surface_selection),
                 (&mut styles.surface_current, self.styles.surface_current),
+                (&mut styles.surface_related, self.styles.surface_related),
                 (&mut styles.surface_inactive, self.styles.surface_inactive),
                 (&mut styles.hint_key, self.styles.hint_key),
                 (&mut styles.hint_label, self.styles.hint_label),
@@ -992,6 +1077,17 @@ impl Theme {
                     *target = target.fg(nearest_visible_ansi16(r, g, b, styles.surface_canvas.bg));
                 }
             }
+            // Hierarchy guides live on chrome, which can quantize differently from the canvas.
+            if styles.frame_guide.fg == styles.surface_chrome.bg
+                && let Some(Color::Rgb(r, g, b)) = self.styles.frame_guide.fg
+            {
+                styles.frame_guide = styles.frame_guide.fg(nearest_visible_ansi16(
+                    r,
+                    g,
+                    b,
+                    styles.surface_chrome.bg,
+                ));
+            }
         }
         if level == ColorLevel::Monochrome
             || (matches!(level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
@@ -1005,6 +1101,7 @@ impl Theme {
             for secondary in [
                 &mut styles.text_secondary,
                 &mut styles.text_disabled,
+                &mut styles.status_idle,
                 &mut styles.hint_label,
             ] {
                 if secondary.fg == primary {

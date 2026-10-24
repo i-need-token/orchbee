@@ -55,6 +55,10 @@ pub(crate) struct AgentBoardRow {
     status: AgentSemanticStatus,
     lifecycle: AgentLifecycle,
     freshness: AgentObservationFreshness,
+    #[cfg(windows)]
+    generation: orchbee_agent_observation_protocol::AgentSafeInteger,
+    #[cfg(windows)]
+    sequence: orchbee_agent_observation_protocol::AgentSafeInteger,
     attachments: Box<[AgentPresentationAttachment]>,
 }
 
@@ -66,6 +70,10 @@ impl AgentBoardRow {
             status: summary.status,
             lifecycle: summary.lifecycle,
             freshness: summary.observation.freshness,
+            #[cfg(windows)]
+            generation: summary.observation.generation,
+            #[cfg(windows)]
+            sequence: summary.observation.sequence,
             attachments: summary.presentation_attachments.into_boxed_slice(),
         }
     }
@@ -1912,6 +1920,20 @@ impl<'a> NativeAgentBoardView<'a> {
             let _ = row;
             false
         }
+    }
+    pub(crate) fn display_status<'row>(
+        &self,
+        row: &'row AgentBoardRow,
+    ) -> &'row AgentSemanticStatus {
+        #[cfg(windows)]
+        if matches!(row.status(), AgentSemanticStatus::Succeeded {})
+            && self.attention.is_some_and(|attention| {
+                attention.session_completion_edited(row.session_id(), row.generation, row.sequence)
+            })
+        {
+            return &AgentSemanticStatus::Idle {};
+        }
+        row.status()
     }
     pub(crate) fn rows(&self) -> &'a [AgentBoardRow] {
         self.board.rows()

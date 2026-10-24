@@ -70,17 +70,20 @@ fn target(n: u128) -> ProcessObservationTarget {
 #[test]
 fn turns_are_bounded_fair_and_wrap_after_membership_changes() {
     let targets: Vec<_> = (1..=11).map(target).collect();
-    assert_eq!(select_turn(&targets, None), (0..8).collect::<Vec<_>>());
+    assert_eq!(select_turn(&targets, None, 8), (0..8).collect::<Vec<_>>());
     assert_eq!(
-        select_turn(&targets, Some(&targets[7].key())),
+        select_turn(&targets, Some(&targets[7].key()), 8),
         [8, 9, 10, 0, 1, 2, 3, 4]
     );
     assert_eq!(
-        select_turn(&targets, Some(&target(99).key())),
+        select_turn(&targets, Some(&target(99).key()), 8),
         (0..8).collect::<Vec<_>>()
     );
-    assert_eq!(select_turn(&targets[..2], Some(&targets[0].key())), [1, 0]);
-    assert!(select_turn(&[], None).is_empty());
+    assert_eq!(
+        select_turn(&targets[..2], Some(&targets[0].key()), 8),
+        [1, 0]
+    );
+    assert!(select_turn(&[], None, 8).is_empty());
 }
 #[test]
 fn idle_observer_wakes_joins_and_cannot_restart_after_stop() {

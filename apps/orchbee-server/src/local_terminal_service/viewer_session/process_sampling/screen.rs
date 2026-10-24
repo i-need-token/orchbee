@@ -311,15 +311,6 @@ fn capture(
     let frame = fresh_frame(viewer, template, stop)?;
     capture_frame(viewer, template, stop, frame)
 }
-fn capture_after_sequence(
-    viewer: &mut ViewerAttachment<'_>,
-    template: WorkerRequest,
-    stop: &AtomicBool,
-    sequence: std::num::NonZeroU64,
-) -> Option<CapturedScreen> {
-    let frame = refresh_after_sequence(viewer, template, stop, sequence)?;
-    capture_frame(viewer, template, stop, frame)
-}
 fn capture_frame(
     viewer: &mut ViewerAttachment<'_>,
     template: WorkerRequest,
@@ -375,20 +366,6 @@ fn capture_frame(
         generation: frame.route.generation.get(),
         revision: frame.route.revision,
     })
-}
-fn screen(
-    viewer: &mut ViewerAttachment<'_>,
-    template: WorkerRequest,
-    stop: &AtomicBool,
-    detector: &ScreenDetector,
-    provider: orchbee_agent_observation_protocol::AgentReportProvider,
-    refresh_after: Option<std::num::NonZeroU64>,
-) -> Option<crate::agent_screen::Detection> {
-    let captured = match refresh_after {
-        Some(sequence) => capture_after_sequence(viewer, template, stop, sequence),
-        None => capture(viewer, template, stop),
-    }?;
-    detector.detect(Some(provider), captured.input()).ok()
 }
 /// A query predicts against the selected report provider; screen text never infers provider identity.
 pub(super) fn explain(
@@ -457,6 +434,9 @@ pub(super) fn observe(
     detector: &ScreenDetector,
 ) {
     let started = Instant::now();
+    // Bracket the same fresh projection used for lifecycle/directory observation. Sampling
+    // it again after process-before adds latency and can miss a short Working footer entirely.
+    let before = process(viewer, template, stop);
     let lifecycle = request(
         viewer,
         template,
@@ -477,10 +457,10 @@ pub(super) fn observe(
     let version = projection
         .as_ref()
         .map(|frame| (frame.route.generation.get(), frame.route.revision));
-    let refresh_after = projection.as_ref().map(|frame| frame.route.sequence);
     let reported = projection
-        .and_then(|frame| frame.current_directory)
-        .and_then(|path| orchbee_local_site_runtime::windows_reported_directory(&path))
+        .as_ref()
+        .and_then(|frame| frame.current_directory.as_deref())
+        .and_then(orchbee_local_site_runtime::windows_reported_directory)
         .and_then(|path| orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(&path).ok());
     if !stop.load(Ordering::Acquire) {
         viewer.service.observe_terminal_projection(
@@ -491,19 +471,18 @@ pub(super) fn observe(
             started,
         );
     }
-    let Some(before) = process(viewer, template, stop) else {
+    let Some(before) = before else {
         return;
     };
     let selected = identify_host_agent(&before);
     let (sample, detection) = if let Some(selected) = selected {
-        let detection = screen(
-            viewer,
-            template,
-            stop,
-            detector,
-            selected.provider,
-            refresh_after,
-        );
+        let detection = projection
+            .and_then(|frame| capture_frame(viewer, template, stop, frame))
+            .and_then(|captured| {
+                detector
+                    .detect(Some(selected.provider), captured.input())
+                    .ok()
+            });
         match process(viewer, template, stop) {
             Some(after) => {
                 let detection = detection.filter(|_| identify_host_agent(&after) == Some(selected));

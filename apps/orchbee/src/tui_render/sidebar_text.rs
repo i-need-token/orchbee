@@ -73,7 +73,7 @@ pub(super) fn state_role(state: orchbee_workbench_protocol::MetadataState) -> (&
         MetadataState::Done => ("agent-done", Role::StatusSuccess),
         MetadataState::Error => ("agent-error", Role::StatusError),
         MetadataState::Working => ("agent-working", Role::StatusWorking),
-        MetadataState::Idle => ("agent-idle", Role::TextSecondary),
+        MetadataState::Idle => ("agent-idle", Role::StatusIdle),
         MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
     }
 }

@@ -82,7 +82,7 @@ pub(crate) fn render_agent_board_for_test(
         locale.shell(),
         locale,
         board,
-        theme,
+        (theme, 0),
         hits,
     )
 }
@@ -612,13 +612,17 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(board) = native.agent_board()
         {
+            #[cfg(windows)]
+            let working_frame = view.machines.working_frame();
+            #[cfg(not(windows))]
+            let working_frame = 0;
             let draw = agent_board::render(
                 frame,
                 overlay_area(&areas),
                 text,
                 locale,
                 board,
-                theme,
+                (theme, working_frame),
                 hits,
             );
             board_draw = Some(draw);

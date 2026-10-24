@@ -85,6 +85,8 @@ export interface WorkbenchTerminalBroadcastInputSink {
 }
 
 export interface WorkbenchTerminalSurfaceProps {
+	/** Accepted terminal editing input, distinct from focus, navigation and input rejection. */
+	readonly onTerminalEdit?: (() => void) | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
 	readonly admitBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;

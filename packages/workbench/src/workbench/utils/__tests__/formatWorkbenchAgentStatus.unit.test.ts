@@ -17,7 +17,7 @@ describe('formatWorkbenchAgentStatus', () => {
 		};
 
 		expect(formatWorkbenchAgentStatus(createOrchbeeIntl('en-US'), presentation)).toEqual({
-			glyph: '◐',
+			glyph: '●',
 			provider: 'Codex',
 			status: 'Thinking · Status stale',
 			tone: 'working',
@@ -25,14 +25,14 @@ describe('formatWorkbenchAgentStatus', () => {
 	});
 
 	it.each([
-		[{ count: 1, kind: 'needs-attention' }, '!', 'attention'],
-		[{ kind: 'failed' }, '×', 'danger'],
-		[{ kind: 'canceled' }, '×', 'danger'],
-		[{ kind: 'interrupted' }, '×', 'danger'],
-		[{ kind: 'succeeded' }, '✓', 'success'],
-		[{ activity: null, kind: 'working', phase: 'working' }, '◐', 'working'],
-		[{ kind: 'idle' }, '○', 'neutral'],
-		[{ activityHint: null, kind: 'unknown' }, '?', 'neutral'],
+		[{ count: 1, kind: 'needs-attention' }, '●', 'attention'],
+		[{ kind: 'failed' }, '●', 'danger'],
+		[{ kind: 'canceled' }, '●', 'danger'],
+		[{ kind: 'interrupted' }, '●', 'danger'],
+		[{ kind: 'succeeded' }, '●', 'success'],
+		[{ activity: null, kind: 'working', phase: 'working' }, '●', 'working'],
+		[{ kind: 'idle' }, '○', 'idle'],
+		[{ activityHint: null, kind: 'unknown' }, '•', 'neutral'],
 	] as const)('maps %o to a visible semantic glyph and tone', (status, glyph, tone) => {
 		expect(
 			formatWorkbenchAgentStatus(createOrchbeeIntl('en-US'), {

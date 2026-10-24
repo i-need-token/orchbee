@@ -8,10 +8,10 @@ import { agentObservationMessages, type IntlShape } from '@orchbee/i18n';
 import { formatWorkbenchAgentProvider } from './formatWorkbenchAgentProvider';
 
 export interface WorkbenchAgentStatusView {
-	readonly glyph: '!' | '?' | '×' | '◐' | '○' | '✓';
+	readonly glyph: '●' | '•' | '○';
 	readonly provider: string;
 	readonly status: string;
-	readonly tone: 'attention' | 'danger' | 'working' | 'neutral' | 'success';
+	readonly tone: 'attention' | 'danger' | 'working' | 'idle' | 'neutral' | 'success';
 }
 
 export function formatWorkbenchAgentStatus<
@@ -105,6 +105,8 @@ function resolveTone(value: AgentSemanticStatus): WorkbenchAgentStatusView['tone
 			return 'working';
 		case 'succeeded':
 			return 'success';
+		case 'idle':
+			return 'idle';
 		default:
 			return 'neutral';
 	}
@@ -113,19 +115,16 @@ function resolveTone(value: AgentSemanticStatus): WorkbenchAgentStatusView['tone
 function resolveGlyph(value: AgentSemanticStatus): WorkbenchAgentStatusView['glyph'] {
 	switch (value.kind) {
 		case 'needs-attention':
-			return '!';
 		case 'failed':
 		case 'canceled':
 		case 'interrupted':
-			return '×';
 		case 'succeeded':
-			return '✓';
 		case 'working':
-			return '◐';
+			return '●';
 		case 'idle':
 			return '○';
 		case 'unknown':
 		case 'ended':
-			return '?';
+			return '•';
 	}
 }

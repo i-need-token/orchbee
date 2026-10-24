@@ -14,21 +14,25 @@ fn group_owner_and_agent_tracks_align_the_tree_across_width_modes() {
         let agent = Tracks::resolve(band, 1, actions, RowKind::Agent).unwrap();
         assert_eq!(owner.density(), density);
         assert_eq!(owner.auxiliary.width, auxiliary);
-        assert_eq!(owner.navigation, Rect::new(3, 4, 1, 3));
+        assert_eq!(owner.navigation, Rect::new(5, 4, 1, 3));
         assert_eq!(owner.content_y, 5);
-        // A heading starts after the keyboard marker; a Workspace state sits one cell inside it.
+        // A heading starts after the keyboard marker; a Workspace state follows one padding cell.
         assert_eq!(group.primary.x, band.x + NAVIGATION_WIDTH);
-        assert!(group.state.is_empty() && group.branch.is_empty());
-        assert_eq!(
-            owner.state,
-            Rect::new(band.x + NAVIGATION_WIDTH + TREE_INSET, 4, 1, 3)
-        );
-        assert!(owner.branch.is_empty());
-        // An Agent connector sits under the Workspace state, then a gap before its own state.
-        assert_eq!(agent.branch, Rect::new(owner.state.x, 4, BRANCH_WIDTH, 3));
-        assert_eq!(agent.state.x, agent.branch.right() + BRANCH_GAP);
+        assert!(group.state.is_empty() && group.guide.is_empty());
+        assert_eq!(owner.state, Rect::new(band.x + 1, 4, 1, 3));
+        assert!(owner.guide.is_empty());
+        // The guide sits under the Workspace state; the padded surface aligns with the parent name.
+        assert_eq!(agent.guide, Rect::new(owner.state.x, 4, GUIDE_WIDTH, 3));
+        assert_eq!(agent.surface().x, agent.guide.right() + GUIDE_GAP);
+        assert_eq!(agent.surface().x, owner.primary.x);
+        assert_eq!(agent.state.x, agent.surface().x + 1);
+        assert_eq!(agent.surface().right(), band.right());
+        assert_eq!(owner.surface(), band);
+        assert_eq!(group.surface(), band);
         for tracks in [owner, agent] {
             assert_eq!(tracks.state.right() + STATE_GAP, tracks.primary.x);
+            assert_eq!(tracks.navigation.x, tracks.state.right());
+            assert_eq!(tracks.navigation.right(), tracks.primary.x);
             assert!(tracks.disclosure.is_empty());
         }
         assert_eq!(
@@ -72,7 +76,7 @@ fn disclosure_follows_displayed_identity_and_only_owns_its_first_line_cell() {
 
 #[test]
 fn insufficient_identity_width_omits_disclosure_instead_of_publishing_a_phantom_cell() {
-    for width in [8, 9] {
+    for width in [7, 8] {
         let tracks = Tracks::resolve(
             Rect::new(0, 0, width, 1),
             0,

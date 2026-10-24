@@ -4,6 +4,30 @@ use crate::terminal_session::agent_attention::{NativeAgentAttentionDraw, Painted
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl NativeSessionView<'_> {
+    #[cfg(windows)]
+    pub(crate) fn edited_completions(
+        &self,
+    ) -> Vec<(
+        orchbee_agent_observation_protocol::AgentLaunchBinding,
+        orchbee_workbench_protocol::WorkbenchRevision,
+    )> {
+        self.attention
+            .filter(|_| self.retirement.is_none())
+            .map_or_else(Vec::new, |attention| attention.edited_completions())
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn panel_completion_edited(&self, panel: &WorkbenchPanelId) -> bool {
+        let Some(pane) = self
+            .pane_ref_for_panel(panel)
+            .and_then(|pane| self.bound_attention_pane(&pane))
+        else {
+            return false;
+        };
+        self.attention
+            .is_some_and(|attention| attention.completion_edited(&pane))
+    }
+
     pub(crate) fn machine_attention_version(&self) -> Option<(u64, usize)> {
         if self.retirement.is_some() {
             return None;
@@ -26,7 +50,6 @@ impl NativeSessionView<'_> {
         if self.pane_ref_for_panel(panel_id).as_ref() != Some(pane)
             || self.pane_projection_status(panel_id) != NativeProjectionStatus::FrameAvailable
             || self.pane_projection(panel_id)?.frame().is_none()
-            || self.pane_viewport(panel_id).is_some()
             || (self.zoom_active() && self.focus_panel_id() != Some(panel_id))
         {
             return None;
@@ -64,6 +87,13 @@ impl NativeSessionView<'_> {
     }
 
     fn painted_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {
+        if self.pane_viewport(pane.pane().panel()).is_some() {
+            return None;
+        }
+        self.bound_attention_pane(pane)
+    }
+
+    fn bound_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {
         let presentation = self.attention_presentation(pane)?;
         let projection = self.pane_projection(pane.pane().panel())?;
         Some(PaintedPane {
@@ -108,6 +138,18 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn terminal_edited(&mut self) {
+        let Some(pane) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.focus_pane_ref())
+            .and_then(|pane| self.view().bound_attention_pane(&pane))
+        else {
+            return;
+        };
+        self.attention.terminal_edited(&pane);
+    }
+
     pub(in crate::terminal_session) fn configure_agent_notifications(
         &mut self,
         revision: u64,

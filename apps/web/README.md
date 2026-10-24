@@ -127,6 +127,11 @@ Initial active surfaces also report display readiness from the same painted-fram
 outcome evidence. Workbench uses that witness to acknowledge Agent unread activity only after the
 terminal is actually displayed. Retained surfaces cannot supply this read witness.
 
+The active terminal adapter reports `onTerminalEdit` only after typed editing input reaches its
+transport port successfully. Text, paste and content-editing keys retire the Client-local completed
+Agent display; focus, mouse, cursor movement, copy, rejected input and inactive layers cannot.
+Workbench owns this presentation override and leaves canonical Agent outcomes and notifications intact.
+
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
 bounded diagnostics and applies the matching Terminal consequence. Background input acknowledgement,

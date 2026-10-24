@@ -67,18 +67,19 @@ fn explanation_process_refusal_releases_viewer_and_uncertain_detach_keeps_owners
 fn periodic_turns_observe_lifecycle_and_content_before_process_refusal_and_release_before_next_attach()
  {
     let fixture = Fixture::new();
-    let mut cursor = None;
+    let mut cursor = Default::default();
     fixture.service.process_observer_turn_for_test(&mut cursor);
     let effects = fixture.barrier().unwrap();
-    assert_eq!(effects.len(), 56);
+    assert!((1..=8).contains(&(effects.len() / 7)));
+    assert_eq!(effects.len() % 7, 0);
     for events in effects.chunks_exact(7) {
         let [
             Effect::Attach(a, _),
+            Effect::ProcessInfo(b),
             Effect::Lifecycle(l),
             Effect::Poll(p1),
             Effect::Feedback(f),
             Effect::Poll(p2),
-            Effect::ProcessInfo(b),
             Effect::Detach(c),
         ] = events
         else {
@@ -89,7 +90,9 @@ fn periodic_turns_observe_lifecycle_and_content_before_process_refusal_and_relea
         assert!([l, p1, f, p2].iter().all(|id| *id == a));
     }
     assert!(!fixture.service.process_observer_pending_for_test());
-    fixture.service.process_observer_turn_for_test(&mut cursor);
+    for _ in 0..10 {
+        fixture.service.process_observer_turn_for_test(&mut cursor);
+    }
     let effects = fixture.barrier().unwrap();
     let targets: std::collections::BTreeSet<_> = effects
         .iter()
@@ -102,6 +105,50 @@ fn periodic_turns_observe_lifecycle_and_content_before_process_refusal_and_relea
         })
         .collect();
     assert_eq!(targets.len(), 10);
+}
+
+#[test]
+fn known_agent_is_sampled_each_round_while_nine_other_terminals_remain_fair() {
+    let fixture = Fixture::new();
+    let mut coordinator = fixture.service.coordinator.lock().unwrap();
+    let target = coordinator.process_observation_targets().unwrap().remove(0);
+    let now = Instant::now();
+    assert!(coordinator.observe_host_process(
+        target.target,
+        &static_codex_process(0, [1; 16]),
+        now,
+        now
+    ));
+    assert!(coordinator.process_observation_has_agent(&target));
+    let mut stale = target.clone();
+    stale.target.worker.generation = orchbee_capability_node_protocol::WorkerGeneration::new(
+        std::num::NonZeroU64::new(2).unwrap(),
+    );
+    assert!(!coordinator.process_observation_has_agent(&stale));
+    drop(coordinator);
+    let mut schedule = Default::default();
+    let mut discovered = std::collections::BTreeSet::new();
+    for _ in 0..9 {
+        fixture.effects.lock().unwrap().clear();
+        fixture
+            .service
+            .process_observer_turn_for_test(&mut schedule);
+        let effects = fixture.barrier().unwrap();
+        let attached: Vec<_> = effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Effect::Attach(_, target) => Some(*target),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(attached.len(), 2);
+        assert_eq!(
+            attached[1], 0,
+            "known Agent must not wait for the discovery scan"
+        );
+        discovered.insert(attached[0]);
+    }
+    assert_eq!(discovered, (1..10).collect());
 }
 
 #[test]
@@ -144,19 +191,17 @@ fn static_codex_refreshes_the_retained_frame_after_process_before() {
     let effects = fixture.barrier().unwrap();
     let [
         Effect::Attach(attachment, 0),
+        Effect::ProcessInfo(before),
         Effect::Lifecycle(lifecycle),
         Effect::Poll(first),
         Effect::Feedback(first_reset),
-        Effect::Poll(retained),
-        Effect::ProcessInfo(before),
-        Effect::Feedback(second_reset),
         Effect::Poll(captured),
         Effect::ProcessInfo(after),
         Effect::Detach(detach),
     ] = effects.as_slice()
     else {
         panic!(
-            "the retained frame must receive an exact second snapshot reset before one capture poll; current trace: {effects:?}"
+            "one fresh snapshot must follow process-before and precede process-after: {effects:?}"
         )
     };
     assert!(
@@ -164,9 +209,7 @@ fn static_codex_refreshes_the_retained_frame_after_process_before() {
             lifecycle,
             first,
             first_reset,
-            retained,
             before,
-            second_reset,
             captured,
             after,
             detach,
@@ -202,7 +245,7 @@ fn semantic_events_keep_real_settlement_independent_of_process_refusal_and_rejec
     let fixture = Fixture::new();
     let journal = fixture.service.event_journal().unwrap();
     let cursor = journal.head().unwrap();
-    let mut round = None;
+    let mut round = Default::default();
     fixture.service.process_observer_turn_for_test(&mut round);
     let filters = [K::PaneExited, K::PaneOutputChanged].map(|event| SemanticEventFilter::Event {
         event,
@@ -210,7 +253,13 @@ fn semantic_events_keep_real_settlement_independent_of_process_refusal_and_rejec
         condition: SemanticEventMatch::Any {},
     });
     let page = journal.read(&cursor, &filters, 32).unwrap();
-    assert_eq!(page.events.len(), 8);
+    let effects = fixture.barrier().unwrap();
+    let samples = effects
+        .iter()
+        .filter(|e| matches!(e, Effect::Attach(..)))
+        .count();
+    assert!((1..=8).contains(&samples));
+    assert_eq!(page.events.len(), samples);
     assert!(page.events.iter().all(|event| event.event == K::PaneExited));
     let mut coordinator = fixture.service.coordinator.lock().unwrap();
     let target = coordinator.process_observation_targets().unwrap().remove(0);
@@ -421,7 +470,7 @@ fn semantic_events_output_refusal_is_not_a_false_timeout_and_uncertain_cleanup_b
 fn uncertain_cleanup_blocks_new_attachments_and_transfers_to_matching_worker_shutdown() {
     let fixture = Fixture::new();
     fixture.detach_refusals.store(2, Ordering::Release);
-    let mut cursor = None;
+    let mut cursor = Default::default();
     fixture.service.process_observer_turn_for_test(&mut cursor);
     assert!(fixture.service.process_observer_pending_for_test());
     fixture.service.process_observer_turn_for_test(&mut cursor);

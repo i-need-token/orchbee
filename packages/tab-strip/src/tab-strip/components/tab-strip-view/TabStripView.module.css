@@ -1858,13 +1858,27 @@
 }
 .ct-tab-icon[data-status-adornment='active'] .ct-tab-icon__status-symbol {
 	color: var(--ob-sys-color-status-working);
+	animation: agent-breath var(--ob-sys-motion-duration-agent-breath)
+		var(--ob-sys-motion-easing-agent-breath) infinite;
 }
 .ct-tab-icon[data-status-adornment='attention'] .ct-tab-icon__status-symbol {
 	color: var(--ob-sys-color-status-attention);
 }
 .ct-tab-icon[data-status-adornment='error'] .ct-tab-icon__status-symbol {
-	color: var(--ob-sys-color-status-danger-text);
+	color: var(--ob-sys-color-status-agent-error);
 }
 .ct-tab-icon[data-status-adornment='success'] .ct-tab-icon__status-symbol {
-	color: var(--ob-sys-color-status-success-text);
+	color: var(--ob-sys-color-status-agent-done);
+}
+
+@keyframes agent-breath {
+	50% {
+		opacity: var(--ob-ref-opacity-50);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ct-tab-icon[data-status-adornment='active'] .ct-tab-icon__status-symbol {
+		animation: none;
+	}
 }

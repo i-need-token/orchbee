@@ -333,6 +333,7 @@ export function Workbench({
 										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
 										terminalFocusRequest={view.terminalFocusRequest}
 										terminalSurface={terminalSurface}
+										onTerminalEdit={agentPresentation.terminalEdited}
 									/>
 								) : (
 									<div className={styles['emptyWindow']} data-slot='workbench-empty-window' />

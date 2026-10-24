@@ -180,7 +180,11 @@ impl SiteCoordinator {
             && selected.is_some()
             && selected == retained
             && let Some(detection) = detection
-            && started.saturating_duration_since(first_seen) >= std::time::Duration::from_secs(3)
+            && (detection.visible_working
+                || detection.visible_idle
+                || detection.visible_blocker
+                || started.saturating_duration_since(first_seen)
+                    >= std::time::Duration::from_secs(3))
         {
             let Ok(tick) = u64::try_from(started.saturating_duration_since(first_seen).as_millis())
             else {
@@ -256,6 +260,18 @@ impl ProcessObservationTarget {
     }
 }
 impl SiteCoordinator {
+    /// Scheduling hint only; publication still validates the complete physical/process identity.
+    pub(crate) fn process_observation_has_agent(&self, target: &ProcessObservationTarget) -> bool {
+        self.process_samples
+            .get(&key(&target.binding))
+            .is_some_and(|sample| {
+                sample.selected.is_some()
+                    && sample.target.binding == target.binding
+                    && sample.target.worker_generation == target.target.worker.generation
+                    && sample.target.identity == target.target.identity
+            })
+    }
+
     /// The latest exact-physical directory of a Workspace's first terminal: the first Tab's
     /// leading Panel primary, reported by OSC 7 or else its root process. Never attaches a viewer.
     pub(crate) fn workspace_terminal_directory(

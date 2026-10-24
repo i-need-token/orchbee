@@ -527,7 +527,7 @@ mod process_samples {
         let working = Detection {
             state: PanelAgentState::Working,
             skip: false,
-            visible_working: true,
+            visible_working: false,
             visible_idle: false,
             visible_blocker: false,
         };
@@ -567,6 +567,28 @@ mod process_samples {
         let at = now + Duration::from_millis(8100);
         assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
         assert_eq!(read(&mut site).1.state, PanelAgentState::Working);
+    }
+    #[test]
+    fn short_visible_working_then_idle_is_published_during_startup_grace() {
+        use crate::agent_screen::Detection;
+        let (mut site, target, sample) = fixture();
+        let origin = Instant::now();
+        for (ms, state) in [
+            (0, PanelAgentState::Working),
+            (200, PanelAgentState::Idle),
+            (400, PanelAgentState::Blocked),
+        ] {
+            let at = origin + Duration::from_millis(ms);
+            let detection = Detection {
+                state,
+                skip: false,
+                visible_working: state == PanelAgentState::Working,
+                visible_idle: state == PanelAgentState::Idle,
+                visible_blocker: state == PanelAgentState::Blocked,
+            };
+            assert!(site.observe_host_screen(target, &sample, Some(detection), at, at));
+            assert_eq!(read(&mut site).1.state, state);
+        }
     }
     #[test]
     fn manifest_reload_resets_screen_hysteresis_without_changing_process_or_report_facts() {
@@ -615,7 +637,8 @@ mod process_samples {
             visible_idle: false,
             visible_blocker: false,
         };
-        assert!(site.observe_host_screen(target, &sample, Some(working), origin, origin));
+        // Seed presence only: visible Working no longer waits for the startup grace.
+        assert!(site.observe_host_process(target, &sample, origin, origin));
         let snapshot = site.workbench.as_ref().unwrap().snapshot().clone();
         let PanelNode::Panel {
             panel_id,

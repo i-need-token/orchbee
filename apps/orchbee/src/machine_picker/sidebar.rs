@@ -352,7 +352,7 @@ impl<S> Sidebar<S> {
     }
 }
 
-/// Working-glyph phase for the Tab strip and pane titles; the Sidebar shows Working statically.
+/// Shared Agent animation phase for Sidebar rows, Tabs, pane titles, and the Agent Board.
 /// Rendering only reads the phase; the event loop advances it, so every frame remains a pure
 /// function of Client state.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -369,13 +369,16 @@ impl Picker {
         self.working_motion.frame
     }
 
-    /// Advances the Working glyph only while an observed Agent is Working, and reports whether
-    /// the frame changed. Only the Sidebar and the Tab strip demand these observations.
-    pub(crate) fn advance_working_motion(&mut self, now: std::time::Instant) -> bool {
-        let working = self.agent_observations.iter().any(|(_, observation)| {
+    /// Advance only while an observed Agent or the visible Board needs status animation.
+    pub(crate) fn advance_working_motion(
+        &mut self,
+        now: std::time::Instant,
+        board_animates: bool,
+    ) -> bool {
+        let working = board_animates || self.agent_observations.iter().any(|(_, observation)| {
             matches!(observation, crate::machine_agents::Observation::Ready(checkpoint)
             if checkpoint.rows.iter().any(|row| {
-                row.display_state() == orchbee_workbench_protocol::MetadataState::Working
+                matches!(row.display_state(), orchbee_workbench_protocol::MetadataState::Working | orchbee_workbench_protocol::MetadataState::Blocked)
             }))
         });
         if !working {

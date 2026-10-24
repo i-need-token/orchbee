@@ -18,6 +18,7 @@ export function ProjectedTerminalSurface({
 	bindBroadcastInputSink,
 	focusRequest,
 	onPresentationReady,
+	onTerminalEdit,
 	presentation,
 	presentationMode,
 }: WorkbenchTerminalSurfaceProps): ReactNode {
@@ -30,6 +31,7 @@ export function ProjectedTerminalSurface({
 		bindBroadcastInputSink,
 		focusRequest,
 		onPresentationReady,
+		onTerminalEdit,
 		presentationMode,
 	});
 	const intl = useOrchbeeIntl();

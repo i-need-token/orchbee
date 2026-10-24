@@ -239,3 +239,73 @@ fn system_defaults_remain_host_relative_without_a_probe_or_exact_color_support()
         }
     }
 }
+
+#[test]
+fn host_default_backgrounds_keep_working_breath_smooth_and_unknown_static() {
+    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    use orchbee_workbench_protocol::MetadataState::{Unknown, Working};
+
+    for (appearance, foreground, background) in [
+        (HostAppearance::Dark, 0xcccccc, 0x0c0c0c),
+        (HostAppearance::Light, 0x141414, 0xfcfcfc),
+    ] {
+        let theme = Theme::application_with_host(App::System, appearance, ColorLevel::Truecolor)
+            .with_terminal_appearance_for_application(
+                App::System,
+                Terminal::Host,
+                "#141414",
+                "#fcfcfc",
+            )
+            .with_outer_host_colors(
+                App::System,
+                HostColors {
+                    foreground: Some(foreground),
+                    background: Some(background),
+                },
+            );
+        assert_eq!(theme.color(Role::SurfaceCanvas), Color::Reset);
+        let colors: Vec<_> = [0, 3, 7, 10]
+            .map(|frame| theme.agent_style(Working, frame))
+            .into_iter()
+            .map(|style| {
+                assert!(style.bg.is_none());
+                assert!(!style.add_modifier.contains(Modifier::DIM));
+                let Some(Color::Rgb(r, _, _)) = style.fg else {
+                    panic!("truecolor Working must retain interpolated RGB");
+                };
+                r
+            })
+            .collect();
+        assert!(
+            colors
+                .windows(2)
+                .all(|pair| if appearance == HostAppearance::Dark {
+                    pair[0] > pair[1]
+                } else {
+                    pair[0] < pair[1]
+                })
+        );
+        assert_eq!(
+            theme.agent_style(Working, 0),
+            theme.agent_style(Working, 20)
+        );
+        assert_eq!(theme.agent_style(Unknown, 0), theme.agent_style(Unknown, 7));
+    }
+
+    let native = Theme::terminal_native();
+    assert_ne!(
+        native.agent_style(Working, 3).fg,
+        native.agent_style(Working, 7).fg
+    );
+    for level in [
+        ColorLevel::Ansi16,
+        ColorLevel::Ansi256,
+        ColorLevel::Monochrome,
+    ] {
+        let theme = native.quantize(level);
+        assert!(
+            (0..20)
+                .all(|frame| !matches!(theme.agent_style(Working, frame).fg, Some(Color::Rgb(..))))
+        );
+    }
+}

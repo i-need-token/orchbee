@@ -92,7 +92,7 @@ pub(in crate::tui_render) fn height(view: &ClientView, row: &Row, locale: Locale
         );
     };
     let Some(rows) = configured(view, context.agent) else {
-        return 2;
+        return 1;
     };
     rows.iter()
         .filter(|tokens| tokens.iter().any(|token| context.resolved(token).is_some()))
@@ -130,8 +130,7 @@ pub(in crate::tui_render) fn projection(
     let text_style =
         |role, _first_line| theme.sidebar_token_style(role, Default::default(), false, false);
     let Some(rows) = configured(view, context.agent) else {
-        // The default row is the identity over its provider: the state glyph, connector and hover
-        // hint carry the state.
+        // The default row shows identity once; its leading glyph and hover hint carry state.
         let title = display_label(
             context
                 .agent
@@ -153,13 +152,10 @@ pub(in crate::tui_render) fn projection(
             title
         };
         return ProjectedSidebarLines::new(
-            vec![
-                Line::from(Span::styled(title, text_style(Role::TextPrimary, true))),
-                Line::from(Span::styled(
-                    display_label(context.agent.provider()),
-                    text_style(Role::TextSecondary, false),
-                )),
-            ],
+            vec![Line::from(Span::styled(
+                title,
+                text_style(Role::TextPrimary, true),
+            ))],
             CurrentIdentityEmphasis::Theme,
         );
     };

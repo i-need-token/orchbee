@@ -49,7 +49,7 @@ pub(super) fn render(
     text: ShellText,
     locale: Locale,
     board: &NativeAgentBoardView<'_>,
-    theme: &Theme,
+    (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
     let rows = board.rows();
@@ -237,13 +237,31 @@ pub(super) fn render(
     } else if rows.is_empty() {
         render_empty_state(frame, body, text, locale, read, theme);
     } else {
-        render_rows(frame, body, text, locale, board, &draw, theme, hits);
+        render_rows(
+            frame,
+            body,
+            text,
+            locale,
+            board,
+            &draw,
+            (theme, working_frame),
+            hits,
+        );
     }
     #[cfg(not(windows))]
     if rows.is_empty() {
         render_empty_state(frame, body, text, locale, read, theme);
     } else {
-        render_rows(frame, body, text, locale, board, &draw, theme, hits);
+        render_rows(
+            frame,
+            body,
+            text,
+            locale,
+            board,
+            &draw,
+            (theme, working_frame),
+            hits,
+        );
     }
 
     let (status, status_role) = if let Some(failure) = board.notice() {
@@ -334,7 +352,7 @@ fn render_rows(
     locale: Locale,
     board: &NativeAgentBoardView<'_>,
     draw: &crate::terminal_session::AgentBoardActualDraw,
-    theme: &Theme,
+    (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) {
     let rows = board.rows();
@@ -360,7 +378,7 @@ fn render_rows(
             row,
             index + scroll == selection,
             target,
-            theme,
+            (theme, working_frame),
             hits,
         );
     }
@@ -994,12 +1012,12 @@ fn render_row(
     row: &AgentBoardRow,
     selected: bool,
     target: crate::terminal_session::AgentBoardRowTarget,
-    theme: &Theme,
+    (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) {
     use super::controls::{ControlSurface, RowContentBand, RowFocusCue, RowTracks};
     use orchbee_workbench_protocol::MetadataState;
-    let state = match row.status() {
+    let state = match board.display_status(row) {
         AgentSemanticStatus::NeedsAttention { .. } => MetadataState::Blocked,
         AgentSemanticStatus::Working { .. } => MetadataState::Working,
         AgentSemanticStatus::Succeeded { .. } => MetadataState::Done,
@@ -1011,7 +1029,7 @@ fn render_row(
             MetadataState::Unknown
         }
     };
-    let status = locale.agent_status(row.status());
+    let status = locale.agent_status(board.display_status(row));
     let freshness = match row.freshness() {
         AgentObservationFreshness::Fresh => "",
         AgentObservationFreshness::Stale => text.board.stale,
@@ -1043,7 +1061,10 @@ fn render_row(
     .join(&separator);
     let navigation_width =
         u16::try_from(display_width(theme.glyphs.navigation_marker).max(1)).unwrap_or(u16::MAX);
-    let glyph_text = format!("{} ", theme.agent_glyph(state));
+    let glyph_text = format!(
+        "{} ",
+        super::sidebar_text::state_glyph(state, theme, working_frame)
+    );
     let glyph_width = u16::try_from(display_width(&glyph_text)).unwrap_or(u16::MAX);
     let unread_width =
         u16::try_from(display_width(theme.glyphs.status_bullet).max(1)).unwrap_or(u16::MAX);
@@ -1071,7 +1092,7 @@ fn render_row(
         Role::TextPrimary
     };
     frame.render_widget(
-        Paragraph::new(glyph_text).style(theme.style(Theme::agent_role(state))),
+        Paragraph::new(glyph_text).style(theme.agent_style(state, working_frame)),
         glyph,
     );
     frame.render_widget(

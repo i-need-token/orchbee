@@ -327,7 +327,10 @@ to 4096 bound Presentations and 8 MiB of serialized physical, report and metadat
 two-second cooldown. Each Agent source also keeps one separately admitted semantic-event
 subscription for Agent detection, Agent status and pane exit. A matching event, gap or fresh
 subscription starts that source's next read immediately, or right after its in-flight read; the
-attached machine's hint also expedites the Session's Agent attention and Panel report reads. The
+attached machine's hint also expedites the Session's Agent attention and Panel report reads. Agent
+event hints and completed Agent reads signal the existing UI wakeup, avoiding an extra input-poll
+interval before starting the read or painting its result. Notifications may coalesce; snapshots
+and owned job completion remain authoritative. The
 hint never replaces a read: the cooldown remains the fallback, and a failed subscription retries
 after ten seconds. Hiding the last Agent read consumer
 cancels pending jobs. Removed/disabled/replaced sources discard their results;
@@ -536,16 +539,16 @@ the original value; only painting sanitizes controls and truncates graphemes.
 observation below; pane title and `$terminal_title` never substitute for those
 builtins.
 
-Default rows show the effective presentation title beside the tree connector and status
-glyph, over the provider on a second line. A blank sanitized title falls back to the provider.
+Default rows show one line with the effective presentation title beside the vertical guide and
+status glyph. A blank sanitized title falls back to the provider.
 Parent Machine/Workspace text stays in the tree rather than each Agent. Status color stays on the
-glyph; the title uses the primary text role and the provider the secondary role. Hovering the row
+glyph; the title uses the primary text role. Hovering the row
 shows the glyph and localized state in the sidebar footer; configured `state_text` and `agent`
 tokens restore inline state and provider text.
 
 | Input or event                                 | Decision and observable result                                                                                          |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No rows setting or matching override           | Use the title-over-provider default                                                                                     |
+| No rows setting or matching override           | Use the single-line title default                                                                                       |
 | Provider override                              | Exact physical Agent label first, then its canonical report label; displayAgent cannot select an override               |
 | Empty rows, missing custom value, or hide rule | Remove configured text, preserving at least the identity line and exact hit target                                      |
 | Styled text token                              | Apply base foreground/bold/dim, then the first matching rule; `hide=true` removes that token                            |

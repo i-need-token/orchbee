@@ -80,6 +80,44 @@ function source(initial = observation('idle')) {
 }
 
 describe('Workbench Agent acknowledgement', () => {
+	it('keeps completion on focus, consumes it on editing, and preserves canonical outcomes and later completions', () => {
+		const runtime = source(observation('succeeded'));
+		const viewer = new WorkbenchAgentAttention(runtime);
+		const unsubscribe = viewer.subscribe(() => {});
+		const status = () =>
+			viewer.getSnapshot().presentation.sessions.map(projectAgentSession)[0]?.status.kind;
+		viewer.acknowledge(viewer.getSnapshot(), new Set(['terminal']), true);
+		expect(status()).toBe('succeeded');
+		viewer.terminalEdited('unrelated-terminal');
+		expect(status()).toBe('succeeded');
+		viewer.terminalEdited('terminal');
+		expect(status()).toBe('idle');
+		expect(runtime.getSnapshot().sessions.map(projectAgentSession)[0]?.status.kind).toBe(
+			'succeeded',
+		);
+		runtime.publish(observation('succeeded', 2));
+		expect(status()).toBe('idle');
+		const next = observation('succeeded', 3);
+		runtime.publish(
+			AgentRuntimeSnapshotSchema.parse({
+				...next,
+				sessions: next.sessions.map((session) => ({
+					...session,
+					lastOutcome: { eventId: 'next-outcome', kind: 'succeeded', turnId: 'next-turn' },
+				})),
+			}),
+		);
+		expect(status()).toBe('succeeded');
+		viewer.terminalEdited('terminal');
+		runtime.publish(observation('working', 4));
+		viewer.terminalEdited('terminal');
+		expect(status()).toBe('working');
+		runtime.publish(observation('failed', 5));
+		viewer.terminalEdited('terminal');
+		expect(status()).toBe('failed');
+		unsubscribe();
+	});
+
 	it.each(['working', 'waiting', 'succeeded', 'failed', 'idle', 'unknown'] as const)(
 		'reading %s only clears this Client’s unread mark',
 		(state) => {

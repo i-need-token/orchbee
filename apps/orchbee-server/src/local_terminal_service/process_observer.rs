@@ -11,10 +11,16 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
-const INTERVAL: Duration = Duration::from_millis(250);
-const TURN_BUDGET: Duration = Duration::from_secs(1);
+const INTERVAL: Duration = Duration::from_millis(50);
+const DISCOVERY_INTERVAL: Duration = Duration::from_millis(250);
+const TURN_BUDGET: Duration = Duration::from_millis(100);
 const TARGETS_PER_TURN: usize = 8;
 type Cursor = (String, String);
+#[derive(Default)]
+pub(super) struct Schedule {
+    agents: Option<Cursor>,
+    discovery: Option<Cursor>,
+}
 mod explanation;
 mod manifests;
 #[derive(Default)]
@@ -169,11 +175,11 @@ impl LocalTerminalService {
     }
 
     #[cfg(test)]
-    pub(super) fn process_observer_turn_for_test(&self, cursor: &mut Option<Cursor>) {
+    pub(super) fn process_observer_turn_for_test(&self, schedule: &mut Schedule) {
         turn(
             self,
             &self.process_observer.wake,
-            cursor,
+            schedule,
             &ScreenDetector::bundled().unwrap(),
         );
     }
@@ -240,27 +246,31 @@ impl LocalTerminalService {
         Ok(())
     }
 }
-fn select_turn(targets: &[ProcessObservationTarget], cursor: Option<&Cursor>) -> Vec<usize> {
+fn select_turn(
+    targets: &[ProcessObservationTarget],
+    cursor: Option<&Cursor>,
+    limit: usize,
+) -> Vec<usize> {
     if targets.is_empty() {
         return vec![];
     }
     let start = cursor
         .and_then(|cursor| targets.iter().position(|t| t.key() > *cursor))
         .unwrap_or(0);
-    (0..TARGETS_PER_TURN.min(targets.len()))
+    (0..limit.min(targets.len()))
         .map(|n| (start + n) % targets.len())
         .collect()
 }
 fn turn(
     service: &LocalTerminalService,
     wake: &Wake,
-    cursor: &mut Option<Cursor>,
+    schedule: &mut Schedule,
     detector: &ScreenDetector,
-) {
+) -> Duration {
     let deadline = Instant::now() + TURN_BUDGET;
     let pending = match wake.pending.lock() {
         Ok(mut p) => p.take(),
-        Err(_) => return,
+        Err(_) => return DISCOVERY_INTERVAL,
     };
     if let Some(pending) = pending
         && !pending.settle(service)
@@ -269,30 +279,58 @@ fn turn(
             .pending
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(pending);
-        return;
+        return DISCOVERY_INTERVAL;
     }
     if wake.stop.load(Ordering::Acquire) {
-        return;
+        return DISCOVERY_INTERVAL;
     }
-    let targets = {
+    let (agents, discovery): (Vec<_>, Vec<_>) = {
         let Ok(mut coordinator) = service.coordinator.lock() else {
-            return;
+            return DISCOVERY_INTERVAL;
         };
         let Ok(targets) = coordinator.process_observation_targets() else {
-            return;
+            return DISCOVERY_INTERVAL;
         };
         targets
+            .into_iter()
+            .partition(|target| coordinator.process_observation_has_agent(target))
     };
-    if targets.is_empty() {
-        *cursor = None;
-        return;
+    if agents.is_empty() {
+        schedule.agents = None;
     }
-    for index in select_turn(&targets, cursor.as_ref()) {
-        if wake.stop.load(Ordering::Acquire) || Instant::now() >= deadline {
+    if discovery.is_empty() {
+        schedule.discovery = None;
+    }
+    // Reserve one fair discovery sample, then return to known Agents. Ten idle shells must
+    // not force a detected Agent to wait for an entire scan; discovery must not starve either.
+    let discovery_limit = if agents.is_empty() {
+        TARGETS_PER_TURN
+    } else {
+        1
+    };
+    let ordinary = select_turn(&discovery, schedule.discovery.as_ref(), discovery_limit);
+    let active = select_turn(
+        &agents,
+        schedule.agents.as_ref(),
+        TARGETS_PER_TURN - ordinary.len(),
+    );
+    let mut observed_agent = false;
+    for (target, is_agent) in ordinary
+        .into_iter()
+        .map(|i| (&discovery[i], false))
+        .chain(active.into_iter().map(|i| (&agents[i], true)))
+    {
+        if wake.stop.load(Ordering::Acquire)
+            || (Instant::now() >= deadline && (!is_agent || observed_agent))
+        {
             break;
         }
-        let target = &targets[index];
-        *cursor = Some(target.key());
+        observed_agent |= is_agent;
+        if is_agent {
+            schedule.agents = Some(target.key());
+        } else {
+            schedule.discovery = Some(target.key());
+        }
         if let Some(pending) = service.sample_process_target(target, &wake.stop, detector) {
             *wake
                 .pending
@@ -301,12 +339,19 @@ fn turn(
             break;
         }
     }
+    if agents.is_empty() {
+        DISCOVERY_INTERVAL
+    } else {
+        INTERVAL
+    }
 }
 fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: ScreenDetector) {
     let _manifest_lifetime = manifests::Lifetime(&wake.manifests);
-    let mut cursor = None;
+    let mut schedule = Schedule::default();
     let mut updates = manifests::Worker::default();
     loop {
+        let started = Instant::now();
+        let mut interval = DISCOVERY_INTERVAL;
         let service = service.upgrade();
         if service.is_none() {
             wake.stop.store(true, Ordering::Release);
@@ -322,12 +367,16 @@ fn run(service: Weak<LocalTerminalService>, wake: Arc<Wake>, mut detector: Scree
             }
         } else if let Some(service) = service.as_deref() {
             explanation::serve(service, &wake, &detector);
-            turn(service, &wake, &mut cursor, &detector);
+            interval = turn(service, &wake, &mut schedule, &detector);
         }
         drop(service);
         match wake.wait.lock() {
             Ok(guard) => {
-                if wake.changed.wait_timeout(guard, INTERVAL).is_err() {
+                // Include sampling time in the cadence instead of adding a fixed wait to it.
+                let wait = interval
+                    .saturating_sub(started.elapsed())
+                    .max(Duration::from_millis(1));
+                if wake.changed.wait_timeout(guard, wait).is_err() {
                     wake.stop.store(true, Ordering::Release);
                 }
             }

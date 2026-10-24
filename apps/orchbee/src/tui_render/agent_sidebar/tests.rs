@@ -494,14 +494,11 @@ fn sidebar_token_styles_survive_grapheme_truncation_and_do_not_style_identity_ma
             .unwrap();
         let buffer = terminal.backend().buffer();
         let connector_x = (0..30)
-            .find(|x| {
-                buffer[(*x, y)].symbol()
-                    == theme.glyphs.tree_last.chars().next().unwrap().to_string()
-            })
+            .find(|x| buffer[(*x, y)].symbol() == theme.glyphs.tree_guide)
             .expect("nested Agent connector");
         assert_eq!(
             buffer[(connector_x, y)].fg,
-            theme.style(Role::FrameDivider).fg.unwrap()
+            theme.style(Role::FrameGuide).fg.unwrap()
         );
         let expected = theme.sidebar_token_style(
             Role::TextPrimary,
@@ -656,8 +653,8 @@ fn nested_agents_share_one_tree_without_a_second_sidebar_region() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (rows, hits) = paint(&view, locale, &theme, 120, 40);
         let text = rows.join("\n");
-        assert!(text.contains(theme.glyphs.tree_branch), "{rows:?}");
-        assert!(text.contains(theme.glyphs.tree_last), "{rows:?}");
+        assert!(text.contains(theme.glyphs.tree_guide), "{rows:?}");
+        assert!(!text.contains("├─") && !text.contains("╰─"), "{rows:?}");
         assert!(!text.contains(&format!("{} 2", locale.shell().agents)));
         assert!(text.contains(locale.machine_picker_text("agent-search")));
         assert_eq!(
@@ -667,8 +664,8 @@ fn nested_agents_share_one_tree_without_a_second_sidebar_region() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            4,
-            "each Agent has a title line over its provider"
+            2,
+            "each Agent occupies one identity line"
         );
     }
 }
@@ -710,15 +707,7 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 .map(|span| span.content.as_ref())
                 .collect::<String>();
             assert_eq!(projected_title, "Input handling");
-            assert_eq!(projected.len(), 2, "state text lives in the hover hint");
-            assert_eq!(
-                projected[1]
-                    .spans
-                    .iter()
-                    .map(|span| span.content.as_ref())
-                    .collect::<String>(),
-                "codex"
-            );
+            assert_eq!(projected.len(), 1, "state text lives in the hover hint");
             let y = (0..40)
                 .find(|y| {
                     matches!(
@@ -1089,7 +1078,7 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                                     matches!(hits.hit_target_at(2, *candidate), Some(HitTarget::MachineAgentRow { selected: actual, .. }) if actual == selected)
                                 })
                                 .collect::<Vec<_>>();
-                            assert_eq!(exact.len(), 2, "{rows:?}");
+                            assert_eq!(exact.len(), 1, "{rows:?}");
                             assert!(exact.iter().all(|candidate| *candidate < height - 1));
                             assert!(rows[usize::from(exact[0])].contains("build"), "{rows:?}");
                         }
@@ -1121,7 +1110,7 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     assert!(rows[4].contains("Standalone"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(
-        rows[5].contains(theme.glyphs.tree_last) && rows[5].contains("build"),
+        rows[5].contains(theme.glyphs.tree_guide) && rows[5].contains("build"),
         "{rows:?}"
     );
     assert!(rows[11].contains("[ Settings ]"), "{rows:?}");
@@ -1178,7 +1167,10 @@ fn sidebar_shares_source_order_and_never_lists_unavailable_rows() {
     let glyphs = Theme::rgb_test_dark().glyphs;
     assert_eq!(
         rows.iter()
-            .filter(|line| line.contains(glyphs.tree_branch) || line.contains(glyphs.tree_last))
+            .filter(|line| line
+                .chars()
+                .nth(1)
+                .is_some_and(|ch| glyphs.tree_guide.starts_with(ch)))
             .count(),
         2,
         "{joined}"
@@ -1277,7 +1269,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 )
             })
             .unwrap();
-        // The Agent surface starts at its state track, after the tree connector.
+        // The Agent surface includes a blank cell before its state, after the guide and gap.
         assert_eq!(
             terminal.backend().buffer()[(5, y)].bg,
             theme.color(Role::SurfaceCurrent)
@@ -1325,7 +1317,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             let marker_x = (0..30)
                 .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == marker)
                 .unwrap();
-            assert_eq!(marker_x, 26);
+            assert_eq!(marker_x, 27);
         }
         assert_eq!(
             view.machines

@@ -56,6 +56,42 @@ fn physical_clients_observe_independent_paints_and_preserve_quiet_updates() {
 }
 
 #[test]
+fn completed_edit_is_local_exact_version_and_independent_from_reading() {
+    let mut owner = PhysicalAttentionState::default();
+    let mut done = state(1, 1, 3);
+    done.state = PanelAgentState::Done;
+    publish(&mut owner, 3, std::slice::from_ref(&done));
+    owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true);
+    assert!(owner.edited_completions().is_empty());
+    assert!(!owner.edit_completed(|binding| binding.host_terminal_id.as_str() == "wrong"));
+    assert!(owner.edit_completed(|binding| *binding == done.binding));
+    assert_eq!(
+        owner.edited_completions(),
+        vec![(done.binding.clone(), done.sequence)]
+    );
+    assert_eq!(
+        owner.notification_observations().unwrap()[0].state,
+        crate::terminal_session::agent_notifications::AgentNotificationState::Done
+    );
+    publish(&mut owner, 4, std::slice::from_ref(&done));
+    assert_eq!(owner.edited_completions().len(), 1);
+    done.sequence = WorkbenchRevision::new(5);
+    publish(&mut owner, 5, std::slice::from_ref(&done));
+    assert!(
+        owner.edited_completions().is_empty(),
+        "a later completion remains green"
+    );
+    assert!(owner.edit_completed(|_| true));
+    let replacement = state(1, 2, 0);
+    publish(&mut owner, 6, &[replacement]);
+    assert!(owner.edited_completions().is_empty());
+    assert!(
+        !owner.edit_completed(|_| true),
+        "idle/working/error are never overwritten"
+    );
+}
+
+#[test]
 fn stale_hidden_unfocused_and_failed_reads_never_acknowledge_physical_changes() {
     let mut owner = PhysicalAttentionState::default();
     publish(&mut owner, 0, &[]);

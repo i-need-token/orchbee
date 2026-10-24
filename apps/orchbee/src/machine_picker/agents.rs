@@ -223,6 +223,17 @@ impl Picker {
         }
         changed && self.project_agent_observations(self.agent_sources.clone())
     }
+
+    pub(crate) fn observe_agent_edits(
+        &mut self,
+        edits: &[(
+            orchbee_agent_observation_protocol::AgentLaunchBinding,
+            orchbee_workbench_protocol::WorkbenchRevision,
+        )],
+    ) -> bool {
+        self.agent_attention.observe_edits(&self.current, edits)
+            && self.project_agent_observations(self.agent_sources.clone())
+    }
     pub(crate) fn current_agent(&self, machine: &Choice, row: &crate::machine_agents::Row) -> bool {
         machine == &self.current
             && self.current_context.as_ref() == Some(&row.target.context)

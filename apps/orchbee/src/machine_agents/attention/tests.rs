@@ -53,6 +53,32 @@ fn row() -> Row {
         tokens: MetadataTokens::default(),
     }
 }
+
+#[test]
+fn completion_edit_projects_idle_without_mutating_observation_or_new_completion() {
+    let mut attention = Attention::default();
+    let mut done = row();
+    done.state = PanelAgentState::Done;
+    let round = super::super::tests::checkpoint(vec![done.clone()]);
+    assert_eq!(
+        attention.project(&Choice::Local, &round).unwrap()[0].state,
+        PanelAgentState::Done
+    );
+    let edits = [(done.target.physical.clone(), done.sequence)];
+    assert!(attention.observe_edits(&Choice::Local, &edits));
+    assert_eq!(
+        attention.project(&Choice::Local, &round).unwrap()[0].display_state(),
+        orchbee_workbench_protocol::MetadataState::Idle
+    );
+    assert_eq!(round[0].state, PanelAgentState::Done);
+    done.sequence = WorkbenchRevision::new(2);
+    let next = super::super::tests::checkpoint(vec![done]);
+    assert_eq!(
+        attention.project(&Choice::Local, &next).unwrap()[0].state,
+        PanelAgentState::Done
+    );
+    assert!(!attention.observe_edits(&Choice::Local, &edits));
+}
 #[test]
 fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
     let mut attention = Attention::default();

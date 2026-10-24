@@ -99,7 +99,7 @@ pub(super) struct Manager {
     space_git: Option<bool>,
 }
 impl Manager {
-    pub(super) fn new(view: &mut ClientView) -> Self {
+    pub(super) fn new(view: &mut ClientView, wakeup: crate::terminal_session::UiWakeup) -> Self {
         view.machines.available = true;
         Self {
             profiles: Vec::new(),
@@ -113,7 +113,7 @@ impl Manager {
             queued: None,
             selection_scope: None,
             discovery: Discovery::default(),
-            agents: crate::machine_agents::Collector::watching(AGENT_EVENTS),
+            agents: crate::machine_agents::Collector::watching(AGENT_EVENTS, wakeup),
             spaces: crate::machine_spaces::Collector::default(),
             space_git: None,
         }
@@ -262,6 +262,9 @@ impl Manager {
                 .filter_map(|chunk| native.machine_agent_attention(chunk))
                 .collect();
             change.redraw |= view.machines.observe_agent_attention(&snapshots);
+            change.redraw |= view
+                .machines
+                .observe_agent_edits(&native.edited_completions());
         }
         change.redraw |= view.machines.drive_agent_navigation(now);
         if !self.selection_current(view) {

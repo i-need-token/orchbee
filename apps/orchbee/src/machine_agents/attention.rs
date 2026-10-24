@@ -11,6 +11,7 @@ struct Version {
     agent: String,
     state: PanelAgentState,
     seen: bool,
+    completion_edited: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Endpoint {
@@ -70,6 +71,8 @@ impl Attention {
                         agent: row.target.agent.clone(),
                         state: row.state,
                         seen,
+                        completion_edited: old
+                            .is_some_and(|v| v.sequence == row.sequence && v.completion_edited),
                     },
                 )
                 .is_some()
@@ -78,6 +81,11 @@ impl Attention {
             }
             let mut projected = row.clone();
             projected.seen = seen;
+            if row.state == PanelAgentState::Done
+                && old.is_some_and(|v| v.sequence == row.sequence && v.completion_edited)
+            {
+                projected.state = PanelAgentState::Idle;
+            }
             rows.push(projected);
         }
         let next = Endpoint {
@@ -129,6 +137,26 @@ impl Attention {
             {
                 changed |= version.seen != state.seen;
                 version.seen = state.seen;
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn observe_edits(
+        &mut self,
+        choice: &Choice,
+        edits: &[(AgentLaunchBinding, WorkbenchRevision)],
+    ) -> bool {
+        let Some(endpoint) = self.endpoints.iter_mut().find(|e| &e.choice == choice) else {
+            return false;
+        };
+        let mut changed = false;
+        for (binding, sequence) in edits {
+            if let Some(version) = endpoint.versions.values_mut().find(|v| {
+                v.binding == *binding && v.sequence == *sequence && v.state == PanelAgentState::Done
+            }) {
+                changed |= !version.completion_edited;
+                version.completion_edited = true;
             }
         }
         changed

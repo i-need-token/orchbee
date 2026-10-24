@@ -305,10 +305,6 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         )
                     })
                     .unwrap();
-                assert_eq!(
-                    buffer[(0, agent_y)].symbol(),
-                    theme.glyphs.navigation_marker
-                );
                 let agent_tracks = layout::Tracks::resolve_for_width(
                     Rect::new(0, agent_y, sidebar_width - 2, 1),
                     0,
@@ -317,12 +313,22 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     layout::RowKind::for_target(&focused),
                 )
                 .unwrap();
-                assert_eq!(buffer[(agent_tracks.branch.x, agent_y)].symbol(), "╰");
+                assert_eq!(
+                    buffer[(agent_tracks.navigation.x, agent_y)].symbol(),
+                    theme.glyphs.navigation_marker
+                );
+                assert_eq!(agent_tracks.guide.x, 1);
+                assert_eq!(
+                    buffer[(agent_tracks.guide.x, agent_y)].symbol(),
+                    theme.glyphs.tree_guide
+                );
                 assert_eq!(
                     buffer[(agent_tracks.state.x, agent_y)].symbol(),
                     theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
                 );
-                assert_eq!(agent_tracks.state.x, 5);
+                assert_eq!(agent_tracks.state.x, 4);
+                assert_eq!(buffer[(3, agent_y)].symbol(), " ");
+                assert_eq!(buffer[(3, agent_y)].bg, theme.color(Role::SurfaceSelection));
                 assert_eq!(buffer[(agent_tracks.primary.x, agent_y)].symbol(), "I");
                 for x in 0..28 {
                     assert!(matches!(
@@ -391,6 +397,11 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
             for target in &targets {
                 let exact = sidebar_target_rows(&hits, 30, 40, target);
                 assert_eq!(exact.len(), 3, "{target:?}: {text}");
+                assert!(
+                    rows[usize::from(exact[0])]
+                        .contains(&format!("{} same", theme.glyphs.workspace)),
+                    "a Workspace without an Agent keeps its identity track: {text}"
+                );
                 assert!(exact.windows(2).all(|pair| pair[1] == pair[0] + 1));
                 let painted_x = (0..30)
                     .filter(|x| {
@@ -609,7 +620,7 @@ fn compact_sidebar_keeps_current_workspace_and_agent_unclipped() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            2
+            1
         );
     }
 }
@@ -886,7 +897,7 @@ fn sidebar_context_menus_have_no_overflow_trigger_and_revealed_create_stays_righ
                 Some(HitTarget::SidebarMenu(_))
             )));
             assert_eq!(
-                focused_buffer[(0, other_rows[0])].symbol(),
+                focused_buffer[(2, other_rows[0])].symbol(),
                 theme.glyphs.navigation_marker
             );
             let active_rows = sidebar_target_rows(&focused_hits, width, 10, &active);
@@ -900,7 +911,7 @@ fn sidebar_context_menus_have_no_overflow_trigger_and_revealed_create_stays_righ
             let (restored_buffer, restored_hits) =
                 paint_navigation(&view, locale, &theme, width, 10);
             let restored_other_rows = sidebar_target_rows(&restored_hits, width, 10, &other);
-            assert_eq!(restored_buffer[(0, restored_other_rows[0])].symbol(), " ");
+            assert_eq!(restored_buffer[(2, restored_other_rows[0])].symbol(), " ");
             assert!((0..width).all(|x| !matches!(
                 restored_hits.hit_target_at(x, restored_other_rows[0]),
                 Some(HitTarget::SidebarMenu(actual)) if actual == &other
@@ -994,7 +1005,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     }
                 }
                 assert_eq!(
-                    candidate[(0, focused_rows[0])].symbol(),
+                    candidate[(2, focused_rows[0])].symbol(),
                     theme.glyphs.navigation_marker
                 );
 
@@ -1084,7 +1095,7 @@ fn agents_are_nested_by_default_and_project_collapse_retains_disclosure() {
                     Some(HitTarget::MachineAgentRow { .. })
                 ))
                 .count(),
-            4
+            2
         );
         assert!(
             !rows
@@ -1167,8 +1178,19 @@ fn collapsed_rows_keep_focus_disclosure_and_current_context() {
                     let target_rows = sidebar_target_rows(&hits, width, 20, target);
                     assert!(!target_rows.is_empty(), "{text}");
                     let y = target_rows[0];
-                    assert_eq!(buffer[(0, y)].symbol(), theme.glyphs.navigation_marker);
-                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
+                    let navigation_x = if matches!(target, SidebarTarget::Project { .. }) {
+                        0
+                    } else {
+                        2
+                    };
+                    assert_eq!(
+                        buffer[(navigation_x, y)].symbol(),
+                        theme.glyphs.navigation_marker
+                    );
+                    assert_eq!(
+                        buffer[(navigation_x, y)].bg,
+                        theme.color(Role::SurfaceSelection)
+                    );
                     assert!(target_rows.iter().any(|row| (0..width).any(|x| matches!(
                         hits.hit_target_at(x, *row),
                         Some(HitTarget::SidebarDisclosure(actual)) if actual == target
@@ -1341,7 +1363,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
                         Some(HitTarget::MachineAgentRow { .. })
                     ))
                     .count(),
-                2
+                1
             );
             // The footer divider yields; only the Agent's tree connector draws a rule glyph.
             assert!(!rows.iter().any(|row| row.contains("───")), "{rows:?}");
@@ -1559,7 +1581,15 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             .unwrap();
             assert_eq!(candidate[(tracks.navigation.x, y)].symbol(), " ");
             assert_eq!(
-                candidate[(tracks.current.x, y)].symbol(),
+                candidate[(
+                    if target == &context {
+                        tracks.unread.x
+                    } else {
+                        tracks.current.x
+                    },
+                    y
+                )]
+                    .symbol(),
                 theme.glyphs.active_marker
             );
             assert_eq!(
@@ -1570,7 +1600,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             assert_eq!(
                 candidate[(tracks.unread.x, y)].symbol(),
                 if target == &context {
-                    " "
+                    theme.glyphs.active_marker
                 } else {
                     theme.glyphs.status_bullet
                 }
@@ -1579,11 +1609,13 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
                 .find(|x| candidate[(*x, y)].symbol() != " ")
                 .unwrap();
             assert!(!candidate[(identity_x, y)].modifier.contains(Modifier::BOLD));
-            // The Agent surface starts at its state track; the tree lead stays on chrome.
+            // The Agent surface includes leading padding; the tree lead stays on chrome.
             for x in 0..120 {
                 assert_eq!(
                     candidate[(x, y)].bg,
-                    theme.color(if target == &context || x < tracks.state.x {
+                    theme.color(if target == &context {
+                        Role::SurfaceRelated
+                    } else if x < tracks.surface().x {
                         Role::SurfaceChrome
                     } else {
                         Role::SurfaceCurrent
@@ -1743,5 +1775,37 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
             (0..width).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::SidebarMenu(_))))
         }));
         crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, &theme);
+        let before = terminal.backend().buffer().clone();
+        let now = std::time::Instant::now();
+        for step in 0..10 {
+            assert!(
+                view.machines.advance_working_motion(
+                    now + std::time::Duration::from_millis(step * 100),
+                    false
+                )
+            );
+        }
+        let mut animated_hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, &view, locale, None, &theme, &mut animated_hits);
+            })
+            .unwrap();
+        let after = terminal.backend().buffer();
+        let mut changed = 0;
+        for y in 0..height {
+            for x in 0..width {
+                if before[(x, y)] != after[(x, y)] {
+                    assert_eq!(before[(x, y)].symbol(), theme.glyphs.working_frames[0]);
+                    assert_eq!(after[(x, y)].symbol(), theme.glyphs.working_frames[0]);
+                    assert_ne!(before[(x, y)].style(), after[(x, y)].style());
+                    changed += 1;
+                }
+            }
+        }
+        assert!(
+            changed > 0,
+            "the Sidebar must repaint observed Working Agents between ticks"
+        );
     }
 }

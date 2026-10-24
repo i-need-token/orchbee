@@ -1427,6 +1427,12 @@ impl TerminalInputPort for TerminalSession {
         accepted.then_some(()).ok_or(TerminalInputUnavailable)
     }
 
+    fn terminal_edited(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.terminal_edited();
+        }
+    }
+
     fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
         match &mut self.backend {
             SessionBackend::Native(native) => native.pointer_probe(),

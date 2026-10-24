@@ -24,6 +24,7 @@ interface UseWorkbenchAgentPresentationOptions {
 }
 
 interface WorkbenchAgentPresentationView {
+	readonly terminalEdited: (presentationId: string) => void;
 	readonly tabIdentityIcons: ReadonlyMap<string, React.ReactNode>;
 	readonly tabStatusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
@@ -39,12 +40,11 @@ export function useWorkbenchAgentPresentation({
 }: UseWorkbenchAgentPresentationOptions): WorkbenchAgentPresentationView {
 	const agentIconGradientPrefix = React.useId().replaceAll(':', '');
 	const intl = useOrchbeeIntl();
-	const { observation: snapshot, unread } = useWorkbenchAgentAttention(
-		source,
-		panelWorkspaceStore,
-		tabModel,
-		root,
-	);
+	const {
+		presentation: snapshot,
+		unread,
+		terminalEdited,
+	} = useWorkbenchAgentAttention(source, panelWorkspaceStore, tabModel, root);
 	const panelWorkspaceState = React.useSyncExternalStore(
 		panelWorkspaceStore.subscribe,
 		panelWorkspaceStore.getSnapshot,
@@ -192,10 +192,11 @@ export function useWorkbenchAgentPresentation({
 	}, [intl, projectWorkspaceRuntime, snapshot, terminalTopologyRevision, unread]);
 	return React.useMemo(
 		() => ({
+			terminalEdited,
 			tabIdentityIcons: tabPresentation.identityIcons,
 			tabStatusAdornments: tabPresentation.statusAdornments,
 			workspaceAgentOverviews,
 		}),
-		[tabPresentation, workspaceAgentOverviews],
+		[tabPresentation, workspaceAgentOverviews, terminalEdited],
 	);
 }

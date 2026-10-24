@@ -144,26 +144,32 @@ A blank row normally separates the fixed actions from the first group. When cano
 are available, the list omits repeated application branding and ordinary session status.
 An empty navigation tree leaves the space below the actions blank until rows or a creation preview arrive.
 Both sidebar presentations keep one top padding row and one right padding cell, with no
-outer left padding; the shared focus gutter owns the list's left edge. Row surfaces, the footer
+outer left padding. Row surfaces, the footer
 divider and fixed-action shortcut hints continue through the right padding cell to the sidebar
 divider; pointer targets keep the list's own columns. Footer rows carry only
 overflow ranges; fully visible lists leave them blank.
 
-Navigation rows keep a one-cell navigation marker at the list's left edge and no per-level
-indentation; the tree shape comes from shared columns. Project and Standalone headings start their
-regular-weight secondary label in the column after the marker. Workspace rows sit one blank cell further in, with a
-one-cell leading operational state track and a one-cell gap, so Workspace names start four cells
-from the list's left edge. Agent rows place a two-cell tree connector (`├─`, or `╰─` for the last
-child; ASCII `|-` and `` `- ``) under the Workspace state track, then a one-cell gap, their own
-state track and gap, so Agent titles start seven cells from the edge. A `│` trunk continues through
-the leading gap between Agent siblings only; it never crosses the Workspace's branch line.
-Connectors use the divider role on chrome: an Agent row's surface starts at its state track, so
-hover, press, navigation and current fills leave the tree indent and connector unfilled. Eligible
+The tree shape comes from shared columns. Project and Standalone headings keep a one-cell navigation
+marker at the list's left edge, followed by their regular-weight secondary label. Workspace rows start
+with one cell of leading padding covered by the row surface, followed by a one-cell operational state
+track and a one-cell gap, so Workspace names start three cells
+from the list's left edge. Agent rows place a one-cell vertical guide (`│`; ASCII `|`) under
+the Workspace state track, then a one-cell chrome gap, one cell of leading row padding, their own
+state track and gap, so Agent titles start six cells from the edge. Workspace and Agent keyboard navigation markers occupy the existing
+gap between state and identity, without adding leading space or shifting either track. The guide spans all Agent lines, including configured continuations
+and gaps between siblings, and ends with the last child. It has no horizontal branches or corners
+and never crosses the Workspace's location line or the gap before its first Agent.
+Guides use the low-contrast `frame-guide` role on chrome: an Agent row's surface starts one cell before
+its state track, so hover, press, navigation and current fills include that blank padding while leaving
+the guide and its adjacent chrome gap unfilled. Eligible
 disclosures follow the displayed first-line identity.
 After the primary identity, a one-cell gap precedes independent one-cell current and
-unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
-their markers are blank, so changing state never moves the label. A Workspace shows its Agents'
-unread marker only while their rows are collapsed; expanded Agent rows carry their own. Git
+unread markers, followed by the right-aligned auxiliary area. Visible markers pack against the same
+right edge as the close control: a lone current or unread marker occupies the last cell; when both
+appear, current precedes unread. Their two-cell area remains reserved even when blank, so changing
+state never moves the label. A Workspace shows its Agents'
+unread marker only while their rows are collapsed; expanded Agent rows carry their own. Unread
+markers use a small `•` in `status-unread` (ASCII `*`), shared with the Tab and pane title cues. Git
 ahead/behind counts use secondary text. On the identity line they sit flush with the row's trailing
 edge, where the close control appears, unless a current or unread marker occupies those cells; on
 other lines they right-align at the end of the primary track. The default layout places them on
@@ -188,15 +194,23 @@ existing Close Workspace confirmation. Standalone, remote-machine, other-site an
 reveal it, and the context menu and keyboard close routes remain available.
 Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
-keep their existing owners. Agent rows carry no ordinal. The default Agent row is a primary title
-line over its provider in secondary text; its state glyph and the hover footer hint carry state.
+keep their existing owners. Agent rows carry no ordinal. The default Agent row is one primary
+title line, falling back to its provider when no meaningful title is available; its state glyph and
+the hover footer hint carry state. Explicitly configured Agent rows retain their selected tokens
+and line count.
 Project and Standalone groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
 under its heading. The default Workspace gap is zero rows. These external separators retain the chrome
 background and an inert list-surface target; hover, press, current and navigation surfaces never
 include them. Only the gap between Agent siblings stays inside the following Agent row so its trunk continues.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
-while typing. The same continuous rectangle includes the name, branch, configured metadata and
+while typing, except when their active Agent is visible: the Agent keeps that fill and its parent
+Workspace uses the quieter `surface-related` background plus the current marker. A Workspace also
+receives that related background while one of its Agents owns provisional keyboard navigation.
+Direct press, navigation and hover feedback on the Workspace takes precedence over the related
+background. This presentation never activates or focuses a second target. Unknown or reduced-color
+hosts may collapse the related fill; the guide and independent current/navigation markers retain
+the relationship. The same continuous rectangle includes the name, branch, configured metadata and
 identity continuations, including their gutters and trailing space. It stops at the entry's own
 last line, excluding separators, Project headings and neighboring entries.
 Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across a noncurrent Workspace
@@ -351,12 +365,31 @@ the complete physical Agent checkpoint, so waiting evidence stays visible throug
 Agent filters. Current-Workspace styling remains on the Context or its collapsed Project,
 without changing the active terminal.
 
-Agent, Workspace and Tab state glyphs keep the reported Agent state: a completed turn stays done
-after the person has seen it, and only its unread marker clears. Sidebar state glyphs are static,
-including Working (`◐`; ASCII `~`). Tab and pane-title Working state animates through the theme's
-equal-width frames (braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`; ASCII `-\|/`) every 100 ms while a Working Agent is
-observed. The phase lives in the Picker and the event loop advances it, so rendering remains a pure
-function of state.
+Without an observed Agent state, a Workspace keeps a secondary-text `•` identity glyph (ASCII
+`w`) in the same leading track. It represents the Workspace, including while Agent observation is
+unavailable, and asserts no Agent activity or idle state. Hover hints and the help legend label it
+Workspace. This matches the GUI's default layout icon; an observed Agent state replaces the identity
+glyph without moving the name.
+
+Agent, Workspace and Tab state glyphs keep completed turns green after focus or reading; only the
+independent unread marker clears. Accepted terminal text, paste, deletion, completion or line-editing
+input changes the exact observed completion to a Client-local idle presentation. Focus, hover,
+scrolling, cursor movement, copy and rejected input do not. The observation, outcome and notification
+inputs remain canonical; a newer state or terminal incarnation cannot inherit the edited version.
+The Agent Board applies the same presentation override to its matching observed session version.
+
+Sidebar, Tab, pane-title and Agent Board Working glyphs use a stationary solid circle `●`, breathing from
+white to gray over two seconds on the shared 100 ms clock. Idle uses gray `○`; attention, done and
+error use yellow, green and red `●`; unknown and the default Workspace identity use secondary-gray
+`•`. Attention alternates full and half intensity every 500 ms. The Picker owns the phase and only
+advances while observed Agents or the visible Board need animation. Rendering stays pure. ASCII
+uses `-\|/` Working frames and distinct `#`, `+`, `x`, `o`, `.` status fallbacks; monochrome
+keeps distinguishable outcomes without color breathing. The shared palette is owned by
+[`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral, while
+attention, done, error and idle retain GrokNight colors. Light themes use a dark breathing circle for
+contrast, and reduced-color hosts use bright/dim intensity. Truecolor System themes retain smooth
+interpolation while their canvas stays host-relative: observed outer-host colors or neutral endpoints
+for the theme polarity drive the fade, independently of child-terminal color preferences.
 
 The fixed Search row opens the Workspaces picker with its name query focused. Existing Workspaces
 are immediately visible even without Agents; typing filters names, Enter opens the selected exact
@@ -453,10 +486,11 @@ focus or selection. Menu, Create, right-click and wheel retain their specialized
 | Wheel / key reveal                 | Workspace and Agent hits use the same coalesced, viewport-capped wheel window. Keyboard movement resumes focus reveal; wheel movement does not activate a target.                                                                                                                                                                        |
 | Escape / hidden sidebar            | Leave keyboard ownership and consume its packet tail. Hiding the last observation consumer releases source rows and obsolete disclosure; ordinary terminal input retains its existing owner.                                                                                                                                             |
 
-Agent tree connectors occupy a fixed two-cell track under the Workspace state. Configured
+Agent vertical guides occupy a fixed one-cell track under the Workspace state. Configured
 continuation rows align with the first name after its optional state icon. Secondary
 rows use metadata text and retain explicit token overrides. Current Contexts and
-Agents use the same neutral surface and bold identity. A dedicated marker preserves current identity
+Agents use the same neutral current surface; a visible current Agent's Workspace uses the quieter
+related surface. A dedicated marker preserves current identity
 when a collapsed palette needs it or an identity token explicitly disables bold; operational state,
 unread state and keyboard navigation remain in separate tracks.
 

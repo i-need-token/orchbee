@@ -61,6 +61,47 @@ fn paint(state: &AttentionState) -> AttentionPaint {
 }
 
 #[test]
+fn editing_a_completed_session_changes_only_the_matching_display_version() {
+    let mut state = AttentionState::default();
+    let mut row = summary("edited-agent");
+    row.status = AgentSemanticStatus::Succeeded {};
+    state
+        .publish(&round(vec![row.clone()], None, 1, vec![], false))
+        .unwrap();
+    state.acknowledge(&paint(&state), Some(true), |_| true);
+    assert!(!state.completion_edited(
+        &row.session_id,
+        row.observation.generation,
+        row.observation.sequence
+    ));
+    assert!(state.edit_completed(PRESENTATION));
+    assert!(state.completion_edited(
+        &row.session_id,
+        row.observation.generation,
+        row.observation.sequence
+    ));
+    assert_eq!(
+        state.entries[&row.session_id].summary.status,
+        AgentSemanticStatus::Succeeded {}
+    );
+    row.observation.sequence = AgentSafeInteger::new(2);
+    state
+        .publish(&round(
+            vec![row.clone()],
+            Some(1),
+            2,
+            vec![change(&row, 2)],
+            false,
+        ))
+        .unwrap();
+    assert!(!state.completion_edited(
+        &row.session_id,
+        row.observation.generation,
+        row.observation.sequence
+    ));
+}
+
+#[test]
 fn attention_rapid_round_trip_is_unseen_and_clients_acknowledge_independently() {
     let row = summary("agent-1");
     let mut first = AttentionState::default();
