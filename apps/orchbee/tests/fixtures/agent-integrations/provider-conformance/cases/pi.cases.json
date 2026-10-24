@@ -12,7 +12,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": { "target": "exact-owned current bootstrap" },
+			"dims": {
+				"target": "exact-owned current bootstrap"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -44,7 +46,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -68,7 +72,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "target": "content mismatch" },
+			"dims": {
+				"target": "content mismatch"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -97,7 +103,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "target": "opencode bootstrap bytes at pi path" },
+			"dims": {
+				"target": "opencode bootstrap bytes at pi path"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -106,7 +114,7 @@
 					{
 						"path": ".pi/agent/extensions/orchbee-agent-observation.cjs",
 						"kind": "file",
-						"content": "// orchbee-agent-observation-bootstrap-v3:opencode\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/opencode/orchbee-agent-observation.mjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n"
+						"content": "// orchbee-agent-observation-bootstrap-v1:opencode\nconst orchbeeAgentObservationModuleUrl = \"${BUNDLE_URL}/opencode/orchbee-agent-observation.mjs\";\nmodule.exports = async function orchbeeAgentObservation(api) {\n\ttry {\n\t\tconst loaded = await import(orchbeeAgentObservationModuleUrl);\n\t\tif (typeof loaded.orchbeeAgentObservation === 'function') {\n\t\t\tawait loaded.orchbeeAgentObservation(api);\n\t\t}\n\t} catch {}\n};\n"
 					}
 				],
 				"commands": []
@@ -123,40 +131,13 @@
 			"notes": "Marker integrationId is part of the byte-exact contract — an Orchbee-written bootstrap for ANOTHER provider is still conflict here."
 		},
 		{
-			"id": "pi.inspect.legacy-symlink",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required", "legacy-symlink"],
-			"dims": { "target": "symlink → legacy root" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/pi",
-				"capsule": "ready",
-				"fs": [
-					{
-						"path": ".pi/agent/extensions/orchbee-agent-observation.cjs",
-						"kind": "symlink",
-						"target": "${APP_BUNDLE_ROOT}/bundle/pi/orchbee-agent-observation.cjs"
-					}
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["guarded-adapter:203-219"]
-		},
-		{
 			"id": "pi.inspect.foreign-symlink",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": { "target": "symlink → foreign root" },
+			"dims": {
+				"target": "symlink → foreign root"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -181,46 +162,24 @@
 			"anchors": ["guarded-adapter:203-216"]
 		},
 		{
-			"id": "pi.inspect.newer-sibling-symlink",
+			"id": "pi.inspect.unreadable-target",
 			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling"],
-			"dims": { "target": "symlink → newer sibling" },
+			"class": "shared",
+			"covers": ["unreadable", "unknown"],
+			"dims": {
+				"target": "lstat EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
 				"capsule": "ready",
 				"fs": [
 					{
-						"path": ".pi/agent/extensions/orchbee-agent-observation.cjs",
-						"kind": "symlink",
-						"target": "${NEWER_SIBLING}/bundle/pi/orchbee-agent-observation.cjs"
+						"path": ".pi/agent/extensions",
+						"kind": "dir",
+						"mode": "0000"
 					}
 				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "stale-side",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				},
-				"desktopCanonical": { "state": "update-required", "issue": null }
-			},
-			"anchors": ["guarded-adapter:203-219", "state-parsers:173-180", "design:complete53§3.2"]
-		},
-		{
-			"id": "pi.inspect.unreadable-target",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["unreadable", "unknown"],
-			"dims": { "target": "lstat EACCES" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/pi",
-				"capsule": "ready",
-				"fs": [{ "path": ".pi/agent/extensions", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
 			"expect": {
@@ -238,7 +197,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -256,7 +217,10 @@
 					"mode": "0600",
 					"noReplace": true
 				},
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:153-184,260-310", "create-adapters:113-129"]
 		},
@@ -265,7 +229,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": { "target": "exact-owned current" },
+			"dims": {
+				"target": "exact-owned current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -284,8 +250,13 @@
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:157"]
 		},
@@ -294,7 +265,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "target": "foreign content" },
+			"dims": {
+				"target": "foreign content"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -312,8 +285,13 @@
 				"attempt": "conflict",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:158-164"]
 		},
@@ -322,7 +300,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": { "target": "exact-owned current" },
+			"dims": {
+				"target": "exact-owned current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -344,7 +324,10 @@
 					"kind": "unlink",
 					"path": ".pi/agent/extensions/orchbee-agent-observation.cjs"
 				},
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:186-194,235-236"]
 		},
@@ -353,7 +336,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
@@ -365,8 +350,13 @@
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:189"]
 		},
@@ -375,20 +365,33 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": { "target": "lstat EACCES" },
+			"dims": {
+				"target": "lstat EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/pi",
 				"capsule": "ready",
-				"fs": [{ "path": ".pi/agent/extensions", "kind": "dir", "mode": "0000" }],
+				"fs": [
+					{
+						"path": ".pi/agent/extensions",
+						"kind": "dir",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 9, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
 		}

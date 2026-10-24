@@ -660,7 +660,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   或文件输入——唯一例外是显式声明的 `terminal send --file`/`--stdin` 源（见
   [Send 输入源](#send-输入源)），在任何运行时副作用之前一次性物化。
 - 环境：`ORCHBEE_RUNTIME_BASE`（可选，默认 `/tmp`）选择运行基座；`LC_ALL`/`LC_MESSAGES`/`LANG`
-  选择诊断 locale。`agent doctor` 另外读取 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`
+  选择诊断 locale。`agent doctor` 另外读取 `ORCHBEE_AGENT_OBSERVATION_SOCKET`
   （观察端点 override，其 endpoint 事实原样报告）、供有界可执行文件扫描的继承 `PATH`，以及
   Linux 上 provider 目标前缀所用的 `HOME`。Windows 使用原生用户配置目录，
   并读取可选非空 `CODEX_HOME` 选择 Codex 配置。调用者模式的 `panel current` 还读取下文说明的
@@ -1052,6 +1052,16 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 应答。触及上限的运行仍产出文档并标 `complete:false`——部分事实是显式的，绝不静默丢弃——
 `providers[]` 始终按规范次序报告每个所选 provider。`hints[]` 仅作观察：每个
 `{id,evidence,text}` 指明其引用的具体事实行，不含因果、修复或信任断言。
+
+Capsule 清单使用契约 1，严格包含 `contractVersion` 和 `payloadSha256`。
+集成结果的 `capsule.payloadSha256` 替代载荷版本字段，根目录为
+`~/.orchbee/agent-observation-adapters/<payloadSha256>`。Marketplace 检查使用
+`absent|current|update-required`，不准入旧根目录别名。
+Doctor 重新计算安装字节后才与当前 sidecar 身份比较。自身一致但摘要不同的 asset root
+报告 `update-required`，携带 `detail.payloadSha256` 和 `detail.expectedPayloadSha256`。
+引用该根且已启用的 hook 随后使用已有更新摘要，给出显式
+`agent integration enable --provider <id>` 命令。契约失配和不可读字节保持为无法检查，
+损坏的安装树保持不一致。诊断不修复接入，也不删除旧目录。
 
 ### Windows Agent 诊断细化
 

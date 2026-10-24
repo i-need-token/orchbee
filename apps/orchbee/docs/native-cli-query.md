@@ -827,7 +827,7 @@ Selected-Client composition keeps missing/stale Client selection failures in `or
   effect.
 - Environment: `ORCHBEE_RUNTIME_BASE` (optional; defaults to `/tmp`) selects the runtime base;
   `LC_ALL`/`LC_MESSAGES`/`LANG` select the diagnostic locale. `agent doctor` additionally reads
-  `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` (the observation-endpoint override its endpoint fact
+  `ORCHBEE_AGENT_OBSERVATION_SOCKET` (the observation-endpoint override its endpoint fact
   reports verbatim), the inherited `PATH` for its bounded executable scan, and `HOME` for the
   provider target prefixes on Linux. Windows uses the native user profile and an optional
   non-empty `CODEX_HOME` for Codex configuration. `panel current` in caller mode additionally reads
@@ -1284,6 +1284,17 @@ cancellation checkpoints between items. It answers `check-failed` with
 partial facts are explicit, never silently dropped — and `providers[]` always reports every
 selected provider in canonical order. `hints[]` are observation-only: each `{id,evidence,text}`
 names the concrete fact rows it cites and carries no causal, remedy, or trust claim.
+
+Capsule manifests use contract 1 with exactly `contractVersion` and `payloadSha256`.
+The integration result's `capsule.payloadSha256` replaces payload-version fields;
+its root is `~/.orchbee/agent-observation-adapters/<payloadSha256>`. Marketplace
+inspection uses `absent|current|update-required`; old-root aliases are not admitted.
+Doctor recomputes installed bytes before comparing with the current sidecar identity.
+A self-consistent different payload is an asset-root `update-required`, carrying
+`detail.payloadSha256` and `detail.expectedPayloadSha256`. Recorded enabled hooks
+then use the existing update summary and explicit `agent integration enable --provider <id>`
+command. Contract mismatches and unreadable bytes remain uninspectable, and a corrupt
+installed tree remains inconsistent. Diagnosis neither repairs setup nor deletes old directories.
 
 ### Windows Agent diagnostic refinement
 

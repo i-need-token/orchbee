@@ -147,7 +147,7 @@ enum Attempt {
 pub(crate) enum Refusal {
     AgentUnavailable,
     Conflict,
-    /// The installed entry belongs to a NEWER payload version — the CLI
+    /// The installed entry declares an unrecognized contract — the CLI
     /// refuses motion in either direction.
     StaleSide,
     /// The provider is `manual-only` on this platform — the CLI names the
@@ -156,7 +156,6 @@ pub(crate) enum Refusal {
     InspectionFailed,
     /// No adapter source: no cohort sidecar and no override.
     CapsuleUnavailable,
-    CapsuleUnsupportedVersion,
     /// The deadline cannot cover the plan plus the re-inspection reserve.
     Deadline,
 }
@@ -170,7 +169,6 @@ impl Refusal {
             Self::ManualActionRequired => "manual-action-required",
             Self::InspectionFailed => "inspection-failed",
             Self::CapsuleUnavailable => "capsule-unavailable",
-            Self::CapsuleUnsupportedVersion => "capsule-unsupported-version",
             Self::Deadline => "timed-out",
         }
     }
@@ -253,7 +251,6 @@ pub(crate) fn mutate(
     id: IntegrationId,
     direction: Direction,
     context: &ProviderContext,
-    legacy_roots: &[PathBuf],
 ) -> MutationReport {
     let mut attempted: Vec<AttemptedStep> = Vec::new();
     let mut residuals: Vec<PathBuf> = Vec::new();
@@ -365,7 +362,7 @@ pub(crate) fn mutate(
         }
     }
 
-    let (initial, detail) = providers::inspect_full(id, context, legacy_roots);
+    let (initial, detail) = providers::inspect_full(id, context);
     // Whether the capsule publish step already ran decides what `initial`
     // proves: a snapshot taken behind an Orchbee-owned effect can never be
     // reported as admission-before-effect, even when the provider state it
@@ -472,7 +469,6 @@ pub(crate) fn mutate(
         Direction::Enable => enable_vector(
             id,
             context,
-            legacy_roots,
             &initial,
             &detail,
             EffectTrace {
@@ -484,7 +480,6 @@ pub(crate) fn mutate(
         Direction::Disable => disable_vector(
             id,
             context,
-            legacy_roots,
             &initial,
             &detail,
             EffectTrace {
@@ -562,7 +557,7 @@ pub(crate) fn mutate(
             if now() < context.deadline {
                 #[cfg(all(test, unix))]
                 super::tests::fault_injection::boundary("reinspect", Path::new(""));
-                let item = providers::inspect_provider(id, context, legacy_roots);
+                let item = providers::inspect_provider(id, context);
                 let verdict = if goal_observed(direction, item.state) {
                     Verdict::Completed
                 } else {
@@ -628,7 +623,7 @@ pub(crate) fn mutate(
     let (observed, provenance) = if reserve_deadline_ok {
         #[cfg(all(test, unix))]
         super::tests::fault_injection::boundary("reinspect", Path::new(""));
-        let item = providers::inspect_provider(id, context, legacy_roots);
+        let item = providers::inspect_provider(id, context);
         let provenance = if item.state == State::Unknown
             && item.issue == Some(super::model::Issue::InspectionFailed)
         {
@@ -709,9 +704,8 @@ enum CapsuleStep {
     Failed(FailureCode),
 }
 
-/// Canonical `prepare()`: isReady → declared-version check → stage →
-/// copy → validate staged → no-replace publish. An unsupported declared
-/// payloadVersion refuses pre-effect; every other source invalidity is
+/// Canonical `prepare()`: isReady → stage → copy → validate staged →
+/// no-replace publish. Source invalidity is
 /// discovered on the staged copy, so the attempted publish records
 /// `failed` and the verdict is a determinate post-effect failure.
 fn prepare_capsule(
@@ -736,9 +730,6 @@ fn prepare_capsule(
     let Some(source) = context.adapter_source else {
         return CapsuleStep::Refused(Refusal::CapsuleUnavailable);
     };
-    if let CapsuleValidity::UnsupportedVersion { .. } = capsule::validate(source) {
-        return CapsuleStep::Refused(Refusal::CapsuleUnsupportedVersion);
-    }
     // Staging is the first real effect — the frontier crosses here, even
     // if a later same-call cleanup removes every byte again.
     *effect = true;
@@ -1078,7 +1069,6 @@ fn vector_inspection(
 fn enable_vector(
     id: IntegrationId,
     context: &ProviderContext,
-    legacy_roots: &[PathBuf],
     initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
     trace: EffectTrace,
@@ -1088,7 +1078,7 @@ fn enable_vector(
         residuals,
         begun: effect,
     } = trace;
-    let options = providers::resource_options(context, legacy_roots);
+    let options = providers::resource_options(context);
     let resource_root = context.capsule_root.to_string_lossy().into_owned();
     let reserve = providers::inspect_slots(id);
     match id {
@@ -1177,7 +1167,7 @@ fn enable_vector(
                             "user".into(),
                         ]);
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         commands.push(vec![
                             "plugin".into(),
                             "marketplace".into(),
@@ -1237,7 +1227,7 @@ fn enable_vector(
                             "--json".into(),
                         ]);
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         commands.push(vec![
                             "plugin".into(),
                             "marketplace".into(),
@@ -1338,7 +1328,7 @@ fn enable_vector(
                     if inspection.plugin_present {
                         commands.push(CopilotCommand::Remove.owned_arguments());
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         commands.push(CopilotCommand::MarketplaceRemove.owned_arguments());
                     }
                     if inspection.marketplace != Marketplace::Current {
@@ -1410,7 +1400,6 @@ fn enable_vector(
 fn disable_vector(
     id: IntegrationId,
     context: &ProviderContext,
-    legacy_roots: &[PathBuf],
     initial: &SnapshotItem,
     detail: &providers::InspectionDetail,
     trace: EffectTrace,
@@ -1420,7 +1409,7 @@ fn disable_vector(
         residuals,
         begun: effect,
     } = trace;
-    let options = providers::resource_options(context, legacy_roots);
+    let options = providers::resource_options(context);
     let reserve = providers::inspect_slots(id);
     match id {
         IntegrationId::Hermes => {
@@ -1508,7 +1497,7 @@ fn disable_vector(
                             "user".into(),
                         ]);
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         commands.push(vec![
                             "plugin".into(),
                             "marketplace".into(),
@@ -1547,7 +1536,7 @@ fn disable_vector(
                             "--json".into(),
                         ]);
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         commands.push(vec![
                             "plugin".into(),
                             "marketplace".into(),
@@ -1620,7 +1609,7 @@ fn disable_vector(
                     if inspection.plugin_present {
                         commands.push(CopilotCommand::Remove.owned_arguments());
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         commands.push(CopilotCommand::MarketplaceRemove.owned_arguments());
                     }
                     if commands.is_empty() {
@@ -1699,7 +1688,6 @@ fn guarded_enable(
         &target,
         spec.kind,
         id,
-        &source_path,
         Path::new(spec.source_relative),
         options,
     );
@@ -1708,7 +1696,7 @@ fn guarded_enable(
     }
     if !matches!(
         initial_state,
-        TargetState::Missing | TargetState::Legacy | TargetState::UpdateRequired
+        TargetState::Missing | TargetState::UpdateRequired
     ) {
         return if initial_state == TargetState::Conflict {
             Attempt::Conflict
@@ -1781,7 +1769,6 @@ fn guarded_enable(
         &target,
         spec.kind,
         id,
-        &source_path,
         Path::new(spec.source_relative),
         options,
     );
@@ -1802,10 +1789,7 @@ fn guarded_enable(
     // gap restores the backup and reports conflict — never clobbered.
     let mut backup: Option<PathBuf> = None;
     let mut backup_digest: Option<String> = None;
-    if matches!(
-        current_state,
-        TargetState::Legacy | TargetState::UpdateRequired
-    ) {
+    if matches!(current_state, TargetState::UpdateRequired) {
         match files::move_aside(&target) {
             Ok(moved) => {
                 backup = moved;
@@ -1898,7 +1882,6 @@ fn guarded_enable(
         &target,
         spec.kind,
         id,
-        &source_path,
         Path::new(spec.source_relative),
         options,
     ) == TargetState::Current;
@@ -2057,7 +2040,6 @@ fn guarded_disable(
     attempted: &mut Vec<AttemptedStep>,
     effect: &mut bool,
 ) -> Attempt {
-    let source_path = context.capsule_root.join(spec.source_relative);
     let Some(target) = providers::guarded_target(id, spec, context.home) else {
         return Attempt::Failed(FailureCode::OperationFailed);
     };
@@ -2067,20 +2049,18 @@ fn guarded_disable(
         &target,
         spec.kind,
         id,
-        &source_path,
         Path::new(spec.source_relative),
         options,
     );
     match state {
         TargetState::Missing => return Attempt::Attempted,
-        TargetState::Current | TargetState::Legacy | TargetState::UpdateRequired => {}
+        TargetState::Current | TargetState::UpdateRequired => {}
         TargetState::Conflict => return Attempt::Conflict,
         _ => return Attempt::Failed(FailureCode::OperationFailed),
     }
-    // Owned removal only: legacy/symlink and module entries unlink; an
+    // Owned removal only: module entries unlink; an
     // extension directory removes through the no-follow walk.
-    let is_directory =
-        spec.kind == BootstrapKind::ExtensionDirectory && state != TargetState::Legacy;
+    let is_directory = spec.kind == BootstrapKind::ExtensionDirectory;
     #[cfg(all(test, unix))]
     super::tests::fault_injection::boundary(
         if is_directory {
@@ -2232,7 +2212,7 @@ pub(crate) fn plan_enable(
                             ],
                         ));
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         steps.push(command(
                             "claude",
                             &[
@@ -2302,7 +2282,7 @@ pub(crate) fn plan_enable(
                             &["plugin", "remove", inspect::CODEX_PLUGIN_ID, "--json"],
                         ));
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         steps.push(command(
                             "codex",
                             &[
@@ -2374,7 +2354,7 @@ pub(crate) fn plan_enable(
                     if inspection.plugin_present {
                         steps.push(command("copilot", &CopilotCommand::Remove.arguments()));
                     }
-                    if inspection.marketplace == Marketplace::Legacy {
+                    if inspection.marketplace == Marketplace::Outdated {
                         steps.push(command(
                             "copilot",
                             &CopilotCommand::MarketplaceRemove.arguments(),

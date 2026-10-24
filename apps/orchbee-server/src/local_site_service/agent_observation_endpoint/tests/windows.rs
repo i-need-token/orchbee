@@ -11,7 +11,7 @@ fn fragmented_native_envelope_is_acknowledged_without_half_close_and_listener_su
     let endpoint = bound.start(agent_harness::seeded(&[]).unwrap());
     assert_eq!(endpoint.path(), path);
     let body = serde_json::json!({
-        "adapterId":"codex", "correlations":[{"correlationId":"correlation-0000000000000001","visibility":"unknown"}], "eventId":"native-test-event-1", "version":3,
+        "adapterId":"codex", "correlations":[{"correlationId":"correlation-0000000000000001","visibility":"unknown"}], "eventId":"native-test-event-1", "version":1,
         "observation":{"activity":null,"agentKey":null,"event":"session-started","operationKey":null,"sessionKey":"session-1","turnKey":null,"version":1}
     }).to_string();
     let mut invalid = UnixStream::connect(&path).unwrap();

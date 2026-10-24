@@ -15,7 +15,6 @@ import {
 import { ClineAgentIntegrationAdapter } from './ClineAgentIntegrationAdapter';
 import { CodexAgentIntegrationAdapter } from './CodexAgentIntegrationAdapter';
 import {
-	AGENT_OBSERVATION_CAPSULE_VERSION,
 	FileAgentObservationAdapterCapsule,
 	type AgentObservationAdapterCapsule,
 } from './file-agent-observation-adapter-capsule';
@@ -60,7 +59,6 @@ export function createDesktopAgentIntegrationAdapters(
 			sourcePath: options.resourceRoot,
 		});
 	const stableResourceRoot = capsule.rootPath;
-	const legacyResourceRoots = [options.resourceRoot];
 	const bundleRoot = path.join(stableResourceRoot, 'bundle');
 	const sharedRuntimeRoot = path.join(bundleRoot, 'scripts');
 	const adapters = [
@@ -71,14 +69,12 @@ export function createDesktopAgentIntegrationAdapters(
 			executableName: 'claude',
 			inspect: inspectClaudeState,
 			integrationId: 'claude-code',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 		}),
 		new CodexAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
 			homeDirectory: options.homeDirectory,
-			legacyResourceRoots: [options.resourceRoot],
 			managementMode,
 			resourceRoot: stableResourceRoot,
 		}),
@@ -89,7 +85,6 @@ export function createDesktopAgentIntegrationAdapters(
 			executableName: 'grok',
 			inspect: inspectGrokState,
 			integrationId: 'grok',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 		}),
@@ -98,7 +93,6 @@ export function createDesktopAgentIntegrationAdapters(
 			entryKind: 'opencode-module',
 			executableName: 'opencode',
 			integrationId: 'opencode',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 			sourcePath: path.join(bundleRoot, 'opencode', 'orchbee-agent-observation.mjs'),
@@ -115,7 +109,6 @@ export function createDesktopAgentIntegrationAdapters(
 			entryKind: 'pi-module',
 			executableName: 'pi',
 			integrationId: 'pi',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 			sourcePath: path.join(bundleRoot, 'pi', 'orchbee-agent-observation.cjs'),
@@ -132,7 +125,6 @@ export function createDesktopAgentIntegrationAdapters(
 			entryKind: 'omp-module',
 			executableName: 'omp',
 			integrationId: 'omp',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 			sourcePath: path.join(bundleRoot, 'omp', 'orchbee-agent-observation.cjs'),
@@ -149,7 +141,6 @@ export function createDesktopAgentIntegrationAdapters(
 			entryKind: 'extension-directory',
 			executableName: 'gemini',
 			integrationId: 'gemini',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 			runtimeSourcePath: sharedRuntimeRoot,
@@ -168,7 +159,6 @@ export function createDesktopAgentIntegrationAdapters(
 			executableName: 'copilot',
 			inspect: inspectGitHubCopilotState,
 			integrationId: 'github-copilot',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 		}),
@@ -183,7 +173,6 @@ export function createDesktopAgentIntegrationAdapters(
 			entryKind: 'extension-directory',
 			executableName: 'qwen',
 			integrationId: 'qwen-code',
-			legacyResourceRoots,
 			managementMode,
 			resourceRoot: stableResourceRoot,
 			runtimeSourcePath: sharedRuntimeRoot,
@@ -232,7 +221,7 @@ async function enableClaude(
 	if (configuration.state === 'update-required' && configuration.pluginPresent) {
 		commands.push(['plugin', 'uninstall', CLAUDE_PLUGIN_ID, '--scope', 'user']);
 	}
-	if (configuration.marketplace === 'legacy') {
+	if (configuration.marketplace === 'update-required') {
 		commands.push(['plugin', 'marketplace', 'remove', MARKETPLACE_NAME, '--scope', 'user']);
 	}
 	if (configuration.marketplace !== 'current') {
@@ -270,7 +259,7 @@ async function disableClaude(
 	if (configuration.pluginPresent) {
 		commands.push(['plugin', 'uninstall', CLAUDE_PLUGIN_ID, '--scope', 'user']);
 	}
-	if (configuration.marketplace === 'legacy') {
+	if (configuration.marketplace === 'update-required') {
 		commands.push(['plugin', 'marketplace', 'remove', MARKETPLACE_NAME, '--scope', 'user']);
 	}
 	return commands.length === 0 ? { kind: 'failed' } : runCommandSequence(context, commands);
@@ -347,7 +336,7 @@ async function enableGitHubCopilot(
 	if (configuration.pluginPresent) {
 		commands.push(['plugins', 'remove', GITHUB_COPILOT_PLUGIN_ID, '--plugin']);
 	}
-	if (configuration.marketplace === 'legacy') {
+	if (configuration.marketplace === 'update-required') {
 		commands.push(['plugins', 'marketplace', 'remove', MARKETPLACE_NAME]);
 	}
 	if (configuration.marketplace !== 'current') {
@@ -381,7 +370,7 @@ async function disableGitHubCopilot(
 	if (configuration.pluginPresent) {
 		commands.push(['plugins', 'remove', GITHUB_COPILOT_PLUGIN_ID, '--plugin']);
 	}
-	if (configuration.marketplace === 'legacy') {
+	if (configuration.marketplace === 'update-required') {
 		commands.push(['plugins', 'marketplace', 'remove', MARKETPLACE_NAME]);
 	}
 	return commands.length === 0 ? { kind: 'failed' } : runCommandSequence(context, commands);
@@ -470,8 +459,6 @@ async function inspectGitHubCopilotConfiguration(
 
 function resourceOptions(context: CliAgentIntegrationOperationContext) {
 	return {
-		expectedVersion: AGENT_OBSERVATION_CAPSULE_VERSION,
-		legacyResourceRoots: context.legacyResourceRoots,
 		resourceRoot: context.resourceRoot,
 	};
 }

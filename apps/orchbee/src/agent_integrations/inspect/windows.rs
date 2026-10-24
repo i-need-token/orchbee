@@ -8,66 +8,11 @@ use toml::Table;
 
 use super::super::model::IntegrationId;
 use super::{
-    BOOTSTRAP_MARKER_PREFIX, BootstrapKind, CODEX_PLUGIN_ID, CodexInspection, GROK_PLUGIN_NAME,
-    MARKETPLACE_NAME, MAX_CODEX_CONFIGURATION_BYTES, Marketplace, PluginInspection,
-    ResourceOptions, ResourceOwnership, State, TargetState, bounded_file_follow,
-    classify_resource_root, module_bootstrap, read_string, record_array, resource_root_for_source,
-    windows_plugin_version,
+    CODEX_PLUGIN_ID, CodexInspection, GROK_PLUGIN_NAME, MARKETPLACE_NAME,
+    MAX_CODEX_CONFIGURATION_BYTES, Marketplace, PluginInspection, ResourceOptions,
+    ResourceOwnership, State, TargetState, bounded_file_follow, classify_resource_root,
+    read_string, record_array,
 };
-
-pub(super) fn inspect_module_target(
-    target: &Path,
-    kind: BootstrapKind,
-    id: IntegrationId,
-    relative: &Path,
-    options: &ResourceOptions,
-) -> TargetState {
-    let bytes = match bounded_file_follow(target, 16 * 1024) {
-        Ok(Some(bytes)) => bytes,
-        _ => return TargetState::Unknown,
-    };
-    let source = module_source(&bytes, kind, id);
-    let Some(root) = source.and_then(|source| resource_root_for_source(&source, relative)) else {
-        return TargetState::Conflict;
-    };
-    match classify_resource_root(&root.to_string_lossy(), options) {
-        ResourceOwnership::Current => TargetState::Current,
-        ResourceOwnership::Legacy => TargetState::Legacy,
-        ResourceOwnership::Newer => TargetState::Newer,
-        ResourceOwnership::Foreign => TargetState::Conflict,
-    }
-}
-
-fn module_source(bytes: &[u8], kind: BootstrapKind, id: IntegrationId) -> Option<PathBuf> {
-    let text = std::str::from_utf8(bytes).ok()?;
-    let rest = text.strip_prefix(&format!("{BOOTSTRAP_MARKER_PREFIX}{}\n", id.as_str()))?;
-    let assignment = rest
-        .lines()
-        .next()?
-        .strip_prefix("const orchbeeAgentObservationModuleUrl = ")?
-        .strip_suffix(';')?;
-    let url: String = serde_json::from_str(assignment).ok()?;
-    let encoded = url.strip_prefix("file:///")?.as_bytes();
-    let mut decoded = Vec::with_capacity(encoded.len());
-    let mut index = 0;
-    while index < encoded.len() {
-        if encoded[index] == b'%' {
-            let digits = std::str::from_utf8(encoded.get(index + 1..index + 3)?).ok()?;
-            decoded.push(u8::from_str_radix(digits, 16).ok()?);
-            index += 3;
-        } else {
-            decoded.push(encoded[index]);
-            index += 1;
-        }
-    }
-    let source = PathBuf::from(String::from_utf8(decoded).ok()?);
-    if !super::super::files::path_admitted(&source) {
-        return None;
-    }
-    // Round-trip validates canonical URL spelling and every executable byte,
-    // rather than accepting an edited body that happens to carry our marker.
-    (module_bootstrap(kind, id, &source).as_bytes() == bytes).then_some(source)
-}
 
 fn configuration_home(home: &Path, variable: &str, default: &str) -> Option<PathBuf> {
     let configured = std::env::var_os(variable);
@@ -159,8 +104,7 @@ fn codex_configuration(root: &Table, options: &ResourceOptions) -> CodexInspecti
     };
     let (marketplace, state) = match classify_resource_root(source, options) {
         ResourceOwnership::Foreign => return conflict(),
-        ResourceOwnership::Newer => (Marketplace::Absent, State::StaleSide),
-        ResourceOwnership::Legacy => (Marketplace::Legacy, State::UpdateRequired),
+        ResourceOwnership::Outdated => (Marketplace::Outdated, State::UpdateRequired),
         ResourceOwnership::Current => (
             Marketplace::Current,
             match enabled {
@@ -254,33 +198,26 @@ pub(super) fn inspect_grok(
     if read_string(plugin, "status") != Some("installed") {
         return None;
     }
+    read_string(plugin, "version")?;
     let source = Path::new(read_string(plugin, "source")?);
     if source.file_name().and_then(|name| name.to_str()) != Some("bundle") {
         return result(State::Conflict, true);
     }
     let ownership = classify_resource_root(source.parent()?.to_str()?, options);
-    match ownership {
-        ResourceOwnership::Foreign => return result(State::Conflict, true),
-        ResourceOwnership::Newer => return result(State::StaleSide, true),
-        _ => {}
+    if ownership == ResourceOwnership::Foreign {
+        return result(State::Conflict, true);
     }
-    let version = windows_plugin_version(plugin, options)?;
-    if version == State::StaleSide {
-        return result(version, true);
-    }
-    if ownership == ResourceOwnership::Legacy || version == State::UpdateRequired {
+    if ownership == ResourceOwnership::Outdated {
         return result(State::UpdateRequired, true);
     }
     result(grok_activation(&configuration, plugin)?, true)
 }
 
-/// A self-consistent directory marker proves ownership, not the copied payload
-/// version. Refuse a newer payload even when the marker contract is older.
-pub(super) fn inspect_extension_version(
+/// The named provider manifest must agree with the self-consistent owned directory.
+pub(super) fn inspect_extension_manifest(
     target: &Path,
     id: IntegrationId,
     state: TargetState,
-    options: &ResourceOptions,
 ) -> TargetState {
     if !matches!(state, TargetState::Current | TargetState::UpdateRequired) {
         return state;
@@ -296,10 +233,8 @@ pub(super) fn inspect_extension_version(
     if read_string(&value, "name") != Some("orchbee-agent-observation") {
         return TargetState::Conflict;
     }
-    match windows_plugin_version(&value, options) {
-        Some(State::Enabled) => state,
-        Some(State::UpdateRequired) => TargetState::UpdateRequired,
-        Some(State::StaleSide) => TargetState::Newer,
-        _ => TargetState::Unknown,
+    if read_string(&value, "version").is_none() {
+        return TargetState::Unknown;
     }
+    state
 }

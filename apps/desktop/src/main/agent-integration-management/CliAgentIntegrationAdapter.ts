@@ -14,7 +14,6 @@ import type {
 export interface CliAgentIntegrationOperationContext {
 	readonly commandRunner: AgentIntegrationCommandRunner;
 	readonly executablePath: string;
-	readonly legacyResourceRoots: readonly string[];
 	readonly resourceRoot: string;
 }
 
@@ -31,7 +30,6 @@ export interface CliAgentIntegrationAdapterOptions {
 		context: CliAgentIntegrationOperationContext,
 	) => Promise<DesktopAgentIntegrationState | null>;
 	readonly integrationId: DesktopAgentIntegrationId;
-	readonly legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
 	readonly resourceRoot: string;
 }
@@ -43,7 +41,6 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 	readonly #executableName: string;
 	readonly #inspectOperation: CliAgentIntegrationAdapterOptions['inspect'];
 	readonly integrationId: DesktopAgentIntegrationId;
-	readonly #legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
 	readonly #resourceRoot: string;
 
@@ -54,7 +51,6 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		this.#executableName = options.executableName;
 		this.#inspectOperation = options.inspect;
 		this.integrationId = options.integrationId;
-		this.#legacyResourceRoots = options.legacyResourceRoots;
 		this.managementMode = options.managementMode;
 		this.#resourceRoot = options.resourceRoot;
 	}
@@ -104,7 +100,6 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		return {
 			commandRunner: this.#commandRunner,
 			executablePath,
-			legacyResourceRoots: this.#legacyResourceRoots,
 			resourceRoot: this.#resourceRoot,
 		};
 	}

@@ -4,7 +4,7 @@
 
 Desktop Main owns the volatile join between one sanitized rich Agent-hook event and the bounded
 terminal correlation hints that identify its live presentations. The private Unix-socket half has
-semantic authority but no presentation authority; a private APC version-3 hint has presentation
+semantic authority but no presentation authority; a private APC version-1 hint has presentation
 authority for one live terminal generation but no semantic authority. Visibility belongs to the
 trusted socket envelope, not the terminal half. Neither half alone may mutate canonical Agent
 state.
@@ -17,12 +17,12 @@ policy, persistence, or user-visible copy.
 ## Transport admission
 
 Desktop creates one user-private Unix-domain endpoint and advertises only
-`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`. A hook sends one strict, content-free v3 rich envelope and
+`ORCHBEE_AGENT_OBSERVATION_SOCKET`. A hook sends one strict, content-free v1 rich envelope and
 must receive exactly `{"accepted":true,"version":3}\n` before it may emit any terminal half. No
 endpoint, rejection, timeout, partial or extra ACK bytes, disconnect, and malformed input all stop
 silently. Desktop writes no ACK until schema validation and closed-registry admission succeed.
 
-The only terminal frame is `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`. Its decoded JSON
+The only terminal frame is `ESC _ orchbee.agent.v1;<base64url-payload> ESC \\`. Its decoded JSON
 contains only `kind`, `version`, opaque `eventId`, and opaque `correlationId`. It contains no provider,
 activity, visibility, path, hostname, mux identity, content, or notification copy. Public
 notification channels including OSC 9, OSC 777, OSC 99, and OSC 1337 are not observation transports.
@@ -49,7 +49,7 @@ remain authoritative when the implementations differ.
 
 | Input                     | Admission and absence semantics                                                                                                                                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rich hook event           | The socket boundary has enforced its body limit, strict v3 schema, trusted visibility, exact ACK, and closed-registry provider/event grant. Without a matching hint it remains pending and has no canonical effect. |
+| Rich hook event           | The socket boundary has enforced its body limit, strict v1 schema, trusted visibility, exact ACK, and closed-registry provider/event grant. Without a matching hint it remains pending and has no canonical effect. |
 | Terminal correlation hint | Terminal Host admitted the exact private APC prefix and bounded base64url UTF-8 payload; Desktop then applied the strict hint schema. The join admits it only for the exact current presentation generation.        |
 | Presentation registration | Establishes the only generation later hints for that presentation may name. Replacement retires the previous generation first.                                                                                      |
 | Presentation retirement   | Removes pending and canonical navigation membership for only the named presentation generation.                                                                                                                     |
@@ -127,11 +127,11 @@ Identity-only hooks use `session-identified`. After the normal strict envelope, 
 and exact presentation join, the translator ensures the session and attaches presentations, then
 performs no turn, activity, request or outcome transition. A new session retains its `unknown`
 turn; repeated identity preserves any known state. The canonical runtime owns all such state.
-Cursor, Qoder, Antigravity, Mastracode, Droid, Kimi, Letta, Devin and Hermes emit this event; Cursor's legacy `session-started` from capsule `0.4.7` has the same identity-only
+Cursor, Qoder, Antigravity, Mastracode, Droid, Kimi, Letta, Devin and Hermes emit this event; Cursor's `session-started` has the same identity-only
 meaning. Other providers retain their existing `session-started` behavior and do not gain admission
 to the new event. Identity never proves readiness or process liveness.
 
-Capsule `0.4.16` ships with matching native and Desktop receivers. Older receivers reject the new
+The current Capsule ships with matching native and Desktop receivers. Older receivers reject the new
 event without acknowledgment. Cohort rollback restores prior semantics; there is no durable-state
 migration. Direct boundary and native ingress tests cover new/legacy identity, unknown state,
 repetition and unrelated-provider rejection. Translator tests additionally preserve active turns,
@@ -148,7 +148,7 @@ publish an expired event.
 These bounds do not claim delivery after Desktop restart, delivery while every SSH attachment is disconnected, unbounded replay protection, provider termination or wall-clock liveness. Singleton and paired-correlation implementation tests check immediate application and scheduled settlement.
 
 The socket accepts at most 64 concurrent connections, 16 KiB per body, and 500 milliseconds per
-connection. A local Agent process that inherits `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` may use only
+connection. A local Agent process that inherits `ORCHBEE_AGENT_OBSERVATION_SOCKET` may use only
 that exact owned socket; a stale or malformed explicit path does not fall through to another
 Desktop instance. Only a remote process without the overlay scans at most 32 same-user forwarded
 socket candidates, and that scan requires a non-empty inherited `SSH_CONNECTION`, `SSH_CLIENT`, or

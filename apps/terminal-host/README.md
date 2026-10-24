@@ -109,7 +109,7 @@ The accepted contract requires these externally visible properties:
 - OSC 52 can publish one bounded plain-text write intent to one read-capable attachment, but never
   reads the user's clipboard or performs a platform effect. Outgoing backpressure retries the same
   intent, while successful handoff and reconnect cannot duplicate it.
-- An unknown APC beginning with the exact private prefix `orchbee.agent.v3;` can publish one
+- An unknown APC beginning with the exact private prefix `orchbee.agent.v1;` can publish one
   base64url-decoded, bounded application signal. Reader-batch admission is transactional, up to 64
   admitted signals remain in FIFO order, and outgoing backpressure preserves the exact queue head
   until commit. The Host does not authenticate the emitter, interpret Agent or provider state, or
@@ -261,7 +261,7 @@ It does not update the operating system, installed Terminal, PATH or user config
 
 The system ConHost `10.0.26100.8875` consumed the private APC in a raw comparison;
 the pinned ConPTY preserved the same bytes. This runtime admission supports the native
-CLI's Windows Agent correlation path without changing the v3 observation protocol.
+CLI's Windows Agent correlation path without changing the v1 observation protocol.
 
 The pinned runtime also starts a bounded Win32 cursor synchronization after a successful resize.
 When a console child next queries screen-buffer information, ConPTY asks the hosting terminal

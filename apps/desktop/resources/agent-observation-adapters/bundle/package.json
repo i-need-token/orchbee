@@ -20,6 +20,6 @@
 		]
 	},
 	"orchbeeAgentObservation": {
-		"contractVersion": 3
+		"contractVersion": 1
 	}
 }

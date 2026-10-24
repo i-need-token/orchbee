@@ -12,7 +12,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": { "target": "exact-owned current bootstrap" },
+			"dims": {
+				"target": "exact-owned current bootstrap"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -44,7 +46,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -68,7 +72,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "target": "content mismatch" },
+			"dims": {
+				"target": "content mismatch"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -93,40 +99,13 @@
 			"anchors": ["guarded-adapter:226-228"]
 		},
 		{
-			"id": "omp.inspect.legacy-symlink",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required", "legacy-symlink"],
-			"dims": { "target": "symlink → legacy root" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/omp",
-				"capsule": "ready",
-				"fs": [
-					{
-						"path": ".omp/agent/extensions/orchbee-agent-observation.cjs",
-						"kind": "symlink",
-						"target": "${APP_BUNDLE_ROOT}/bundle/omp/orchbee-agent-observation.cjs"
-					}
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["guarded-adapter:203-219"]
-		},
-		{
 			"id": "omp.inspect.foreign-symlink",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": { "target": "symlink → foreign root" },
+			"dims": {
+				"target": "symlink → foreign root"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -151,46 +130,24 @@
 			"anchors": ["guarded-adapter:203-216"]
 		},
 		{
-			"id": "omp.inspect.newer-sibling-symlink",
+			"id": "omp.inspect.unreadable-target",
 			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling"],
-			"dims": { "target": "symlink → newer sibling" },
+			"class": "shared",
+			"covers": ["unreadable", "unknown"],
+			"dims": {
+				"target": "lstat EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
 				"capsule": "ready",
 				"fs": [
 					{
-						"path": ".omp/agent/extensions/orchbee-agent-observation.cjs",
-						"kind": "symlink",
-						"target": "${NEWER_SIBLING}/bundle/omp/orchbee-agent-observation.cjs"
+						"path": ".omp/agent/extensions",
+						"kind": "dir",
+						"mode": "0000"
 					}
 				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "stale-side",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				},
-				"desktopCanonical": { "state": "update-required", "issue": null }
-			},
-			"anchors": ["guarded-adapter:203-219", "state-parsers:173-180", "design:complete53§3.2"]
-		},
-		{
-			"id": "omp.inspect.unreadable-target",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["unreadable", "unknown"],
-			"dims": { "target": "lstat EACCES" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/omp",
-				"capsule": "ready",
-				"fs": [{ "path": ".omp/agent/extensions", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
 			"expect": {
@@ -208,7 +165,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -226,7 +185,10 @@
 					"mode": "0600",
 					"noReplace": true
 				},
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:153-184,260-310", "create-adapters:130-146"]
 		},
@@ -235,7 +197,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": { "target": "exact-owned current" },
+			"dims": {
+				"target": "exact-owned current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -254,8 +218,13 @@
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:157"]
 		},
@@ -264,7 +233,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "target": "foreign content" },
+			"dims": {
+				"target": "foreign content"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -282,8 +253,13 @@
 				"attempt": "conflict",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:158-164"]
 		},
@@ -292,7 +268,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": { "target": "exact-owned current" },
+			"dims": {
+				"target": "exact-owned current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -314,7 +292,10 @@
 					"kind": "unlink",
 					"path": ".omp/agent/extensions/orchbee-agent-observation.cjs"
 				},
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:186-194,235-236"]
 		},
@@ -323,7 +304,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
@@ -335,8 +318,13 @@
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:189"]
 		},
@@ -345,20 +333,33 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": { "target": "lstat EACCES" },
+			"dims": {
+				"target": "lstat EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/omp",
 				"capsule": "ready",
-				"fs": [{ "path": ".omp/agent/extensions", "kind": "dir", "mode": "0000" }],
+				"fs": [
+					{
+						"path": ".omp/agent/extensions",
+						"kind": "dir",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 9, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
 		}

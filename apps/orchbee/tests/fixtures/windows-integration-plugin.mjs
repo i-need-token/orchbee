@@ -60,8 +60,8 @@ if (words.join(' ') === 'plugin list --json') {
 		if (words[1] === 'install') {
 			assert.ok(state.source);
 			state.version = JSON.parse(
-				fs.readFileSync(path.join(state.source, 'capsule.json'), 'utf8'),
-			).payloadVersion;
+				fs.readFileSync(path.join(state.source, 'bundle', 'package.json'), 'utf8'),
+			).version;
 			state.installed = true;
 			state.enabled = true;
 		} else if (words[1] === 'uninstall') {

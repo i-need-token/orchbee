@@ -134,7 +134,7 @@ describe('ClineAgentIntegrationAdapter', () => {
 	});
 });
 
-async function writeManagedPackage(packageRoot: string, contractVersion = 3): Promise<void> {
+async function writeManagedPackage(packageRoot: string, contractVersion = 1): Promise<void> {
 	await mkdir(packageRoot, { recursive: true });
 	await writeFile(
 		path.join(packageRoot, 'package.json'),

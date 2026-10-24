@@ -60,7 +60,7 @@ try {
 			env: {
 				...process.env,
 				PATH: path.dirname(process.execPath) + ';' + process.env.PATH,
-				ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: pipe,
+				ORCHBEE_AGENT_OBSERVATION_SOCKET: pipe,
 			},
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});

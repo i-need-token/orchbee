@@ -478,7 +478,7 @@ no earlier alias or function owns the name, a private local Agent-observation so
 stdin and stdout are interactive terminals. It leaves configuration, control, forwarding-only, and
 version/query modes unchanged. An eligible call preserves every user argument and adds only
 `StreamLocalBindMask=0177`, `StreamLocalBindUnlink=yes`, and a reverse Unix-socket forward from a
-random `/tmp/orchbee-agent-v3-*.sock` on the remote host to the local Desktop socket. OpenSSH
+random `/tmp/orchbee-agent-v1-*.sock` on the remote host to the local Desktop socket. OpenSSH
 authentication, explicit arguments, and user configuration remain authoritative. Orchbee adds no
 `SendEnv` rule, persists no host or credential, installs no remote file, and maintains no remote
 cache. A standard requested SSH PTY still carries TERM according to OpenSSH behavior. OSC 7
@@ -504,7 +504,7 @@ changes running or restored terminals, Windows terminals, remote connections, or
 files.
 
 For an explicitly installed Agent observation adapter, the integration also enables the eligible
-SSH reverse-socket path described above. After a local or reverse-forwarded v3 socket returns the
+SSH reverse-socket path described above. After a local or reverse-forwarded v1 socket returns the
 exact acceptance ACK, a remote adapter writes bounded private-APC correlation hints directly to
 resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host projects only bounded
 application signals. OSC 9, OSC 777, OSC 99, OSC 1337, BEL, and provider notification hooks are not

@@ -173,13 +173,11 @@ fn antigravity_named_blocks_preserve_foreign_values_and_validate_disabled_owners
     let root = Path::new(r"C:\owned\0.4.17");
     let options = ResourceOptions {
         resource_root: root,
-        expected_version: "0.4.17",
-        legacy_roots: &[],
     };
     for (version, expected) in [
         ("0.4.17", State::Disabled),
         ("0.4.9", State::UpdateRequired),
-        ("9.0.0", State::StaleSide),
+        ("9.0.0", State::UpdateRequired),
     ] {
         let bytes = patch(id, None, &root.with_file_name(version), true).unwrap();
         let text = String::from_utf8(bytes)

@@ -15,7 +15,7 @@ import type {
 } from './agent-integration-adapter';
 
 const CLINE_PLUGIN_NAME = 'orchbee-agent-observation';
-const CLINE_CONTRACT_VERSION = 3;
+const CLINE_CONTRACT_VERSION = 1;
 const MAX_CLINE_INSTALLS = 128;
 const MAX_MANIFEST_BYTES = 16 * 1024;
 

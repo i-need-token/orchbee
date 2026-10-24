@@ -76,19 +76,13 @@ fn local_state(entry: Option<&[u8]>, manifest: Option<&[u8]>, options: &Resource
     {
         return State::Conflict;
     }
-    if roots
-        .iter()
-        .any(|root| matches!(root, ResourceOwnership::Newer))
-    {
-        return State::StaleSide;
-    }
     if roots.is_empty() {
         return State::NotInstalled;
     }
     if roots.len() != 2
         || roots
             .iter()
-            .any(|root| matches!(root, ResourceOwnership::Legacy))
+            .any(|root| matches!(root, ResourceOwnership::Outdated))
     {
         return State::UpdateRequired;
     }

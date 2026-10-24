@@ -10,14 +10,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 /// The contract version this build can evaluate — `ENTRY_CONTRACT_VERSION`,
-/// `CLINE_CONTRACT_VERSION`, and `CAPSULE_CONTRACT_VERSION` all pin `3` in
+/// `CLINE_CONTRACT_VERSION`, and `CAPSULE_CONTRACT_VERSION` all pin `1` in
 /// the Desktop sources. A declared newer version is an honest
 /// `unrecognized`, never "invalid"; the doctor build may be the stale side.
-pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 3;
-
-/// The capsule payload version the manifest contract requires —
-/// `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const CAPSULE_PAYLOAD_VERSION: &str = "0.4.17";
+pub(crate) const SUPPORTED_CONTRACT_VERSION: u64 = 1;
 
 // ---------------------------------------------------------------------------
 // Provider binding table — the literals of
@@ -287,7 +283,7 @@ pub(crate) const PROVIDERS: &[Provider] = &[
 ];
 
 /// The bootstrap marker line prefix — `BOOTSTRAP_MARKER_PREFIX`.
-pub(crate) const BOOTSTRAP_MARKER_PREFIX: &[u8] = b"// orchbee-agent-observation-bootstrap-v3:";
+pub(crate) const BOOTSTRAP_MARKER_PREFIX: &[u8] = b"// orchbee-agent-observation-bootstrap-v1:";
 const MODULE_URL_LINE_PREFIX: &[u8] = b"const orchbeeAgentObservationModuleUrl = ";
 /// The guarded-directory marker filename — `DIRECTORY_MARKER_NAME`.
 pub(crate) const GUARDED_MARKER_NAME: &str = ".orchbee-agent-observation.json";
@@ -298,7 +294,7 @@ pub(crate) const CLINE_PACKAGE_NAME: &str = "orchbee-agent-observation";
 /// The cline payload entry path inside a managed `package/` directory.
 pub(crate) const CLINE_ENTRY_PATH: &str = "cline/orchbee-agent-observation.js";
 /// The own-process environment variable hook payloads read.
-pub(crate) const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3";
+pub(crate) const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 
 // ---------------------------------------------------------------------------
 // Shared outcome vocabulary — the contract's closed state/reason sets.
@@ -350,7 +346,6 @@ pub(crate) enum HookReason {
     PluginWithoutMarketplace,
     RecordedRootInconsistent,
     RecordedRootAbsent,
-    ContractVersionBelowSupported,
     ProviderCommandInspectionRequired,
     Unreadable,
     Malformed,
@@ -382,7 +377,6 @@ impl HookReason {
             Self::PluginWithoutMarketplace => "plugin-without-marketplace",
             Self::RecordedRootInconsistent => "recorded-root-inconsistent",
             Self::RecordedRootAbsent => "recorded-root-absent",
-            Self::ContractVersionBelowSupported => "contract-version-below-supported",
             Self::ProviderCommandInspectionRequired => "provider-command-inspection-required",
             Self::Unreadable => "unreadable",
             Self::Malformed => "malformed",
@@ -400,6 +394,7 @@ impl HookReason {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RootState {
     Consistent,
+    UpdateRequired,
     Inconsistent,
     Unreadable,
     Unsafe,
@@ -413,6 +408,7 @@ impl RootState {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Consistent => "consistent",
+            Self::UpdateRequired => "update-required",
             Self::Inconsistent => "inconsistent",
             Self::Unreadable => "unreadable",
             Self::Unsafe => "unsafe",
@@ -430,6 +426,7 @@ impl RootState {
     pub(crate) fn recorded_hook_outcome(self) -> Option<(HookState, HookReason)> {
         match self {
             Self::Consistent => None,
+            Self::UpdateRequired => Some((HookState::UpdateRequired, HookReason::MarkerMismatch)),
             Self::Inconsistent => Some((HookState::Conflict, HookReason::RecordedRootInconsistent)),
             Self::Absent => Some((HookState::Conflict, HookReason::RecordedRootAbsent)),
             Self::Unreadable
@@ -476,8 +473,8 @@ pub(crate) fn bounded_json(bytes: &[u8]) -> Option<Value> {
     within(&value, 1).then_some(value)
 }
 
-/// JavaScript `Number.isSafeInteger` on a JSON number — accepts `3.0` the
-/// way `=== 3` does.
+/// JavaScript `Number.isSafeInteger` on a JSON number — accepts `1.0` the
+/// way `=== 1` does.
 fn safe_integer(value: &Value) -> Option<u64> {
     let number = value.as_f64()?;
     if number.fract() == 0.0 && (0.0..=9_007_199_254_740_991.0).contains(&number) {
@@ -906,7 +903,7 @@ fn json_literal_end(bytes: &[u8]) -> Option<usize> {
 
 // ---------------------------------------------------------------------------
 // Guarded-directory marker — `parseDirectoryMarker` port with the doctor's
-// version>3 divergence (unrecognized, not conflict).
+// version>1 divergence (unrecognized, not conflict).
 // ---------------------------------------------------------------------------
 
 /// One `files[]` entry of a guarded marker.
@@ -919,7 +916,7 @@ pub(crate) struct MarkerFileEntry {
 /// The guarded-marker parse outcome.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MarkerParse {
-    /// Structurally valid marker for a supported contract version (1..=3).
+    /// Structurally valid marker for the current contract version (1).
     Valid {
         contract_version: u64,
         files: Vec<MarkerFileEntry>,
@@ -936,8 +933,8 @@ pub(crate) enum MarkerParse {
 /// `parseDirectoryMarker` port: `kind == "guarded-extension"`, matching
 /// `integrationId`, safe-integer `contractVersion`, `files[]` with strict
 /// `{path, sha256}` entry shapes and strict ascending order — extra
-/// top-level keys tolerated like the source, numeric `3.0` accepted like
-/// JS `=== 3`. Divergence: `contractVersion > 3` reports
+/// top-level keys tolerated like the source, numeric `1.0` accepted like
+/// JS `=== 1`. Divergence: `contractVersion > 1` reports
 /// `UnrecognizedVersion` instead of the source's parse failure.
 pub(crate) fn parse_guarded_marker(bytes: &[u8], integration_id: &str) -> MarkerParse {
     const MAX_ENTRY_FILES: usize = 64;
@@ -1027,10 +1024,8 @@ pub(crate) fn fingerprint_matches(
 /// The managed `package/` inspection outcome.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClinePackage {
-    /// `name` matches and `orchbeeAgentObservation.contractVersion === 3`.
+    /// `name` matches and `orchbeeAgentObservation.contractVersion === 1`.
     Current,
-    /// Safe-integer `contractVersion` in 1..=2.
-    UpdateRequired,
     /// Safe-integer `contractVersion` above the supported version.
     UnrecognizedVersion,
     /// Anything else — `conflict`.
@@ -1039,8 +1034,8 @@ pub(crate) enum ClinePackage {
 
 /// `inspectManagedClinePackage` port: `package.json` must be a bounded JSON
 /// record with `name == "orchbee-agent-observation"` and a numeric
-/// `orchbeeAgentObservation.contractVersion` — `=== 3` is current, another
-/// positive safe integer is stale (`< 3`) or unrecognized (`> 3`), anything
+/// `orchbeeAgentObservation.contractVersion` — `=== 1` is current, another
+/// positive safe integer is unrecognized (`> 1`), anything
 /// else is a contradiction.
 pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
     let Some(value) = bounded_json(bytes) else {
@@ -1060,7 +1055,6 @@ pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
     match contract_version {
         Some(SUPPORTED_CONTRACT_VERSION) => ClinePackage::Current,
         Some(version) if version > SUPPORTED_CONTRACT_VERSION => ClinePackage::UnrecognizedVersion,
-        Some(version) if version >= 1 => ClinePackage::UpdateRequired,
         _ => ClinePackage::Conflict,
     }
 }
@@ -1069,25 +1063,23 @@ pub(crate) fn parse_cline_package(bytes: &[u8]) -> ClinePackage {
 // Capsule — `readManifest` + `computeAgentObservationCapsulePayloadDigest`.
 // ---------------------------------------------------------------------------
 
-/// The strict capsule manifest check: exactly the three declared keys,
-/// `contractVersion === 3`, `payloadVersion === "0.4.17"`, and a lowercase
+/// The strict capsule manifest check: exactly the two declared keys,
+/// `contractVersion === 1` and a lowercase
 /// `payloadSha256` — plus the declared values carried for detail.
 #[derive(Clone, Debug)]
 pub(crate) struct CapsuleManifestScan {
     /// The manifest's declared `contractVersion` when it parsed as a number.
     pub(crate) declared_contract_version: Option<f64>,
-    /// The manifest's declared `payloadVersion` when it parsed as a string.
-    pub(crate) declared_payload_version: Option<String>,
     /// The manifest's declared `payloadSha256` when it parsed as a string.
     pub(crate) declared_payload_sha256: Option<String>,
-    /// The manifest declares a different contract/payload version — the
+    /// The manifest declares a different contract version — the
     /// payload contract cannot be evaluated under this build.
     pub(crate) version_mismatch: bool,
-    /// The manifest satisfies the strict three-key shape and version gate.
+    /// The manifest satisfies the strict two-key shape and version gate.
     pub(crate) valid_shape: bool,
 }
 
-/// `readManifest` port: bounded JSON record, strict three-key set —
+/// `readManifest` port: bounded JSON record, strict two-key set —
 /// `version_mismatch` (declared ≠ supported) is reported separately from a
 /// shape contradiction so a newer-format capsule reads as uninspectable,
 /// never broken.
@@ -1095,30 +1087,23 @@ pub(crate) fn scan_capsule_manifest(bytes: &[u8]) -> Option<CapsuleManifestScan>
     let value = bounded_json(bytes)?;
     let record = value.as_object()?;
     let declared_contract_version = record.get("contractVersion").and_then(Value::as_f64);
-    let declared_payload_version = record
-        .get("payloadVersion")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
     let declared_payload_sha256 = record
         .get("payloadSha256")
         .and_then(Value::as_str)
         .map(str::to_owned);
-    // A version mismatch requires both fields to be present and declaring a
+    // A version mismatch requires a numeric contract version declaring a
     // different version; missing or wrongly-typed fields are shape
     // contradictions, not "a different format we might not understand".
-    let version_declared =
-        declared_contract_version.is_some() && declared_payload_version.is_some();
-    let version_matches = declared_contract_version == Some(3.0)
-        && declared_payload_version.as_deref() == Some(CAPSULE_PAYLOAD_VERSION);
+    let version_declared = declared_contract_version.is_some();
+    let version_matches = declared_contract_version == Some(1.0);
     let version_mismatch = version_declared && !version_matches;
     let valid_shape = !version_mismatch
         && version_declared
         && version_matches
-        && record.len() == 3
+        && record.len() == 2
         && declared_payload_sha256.as_deref().is_some_and(valid_digest);
     Some(CapsuleManifestScan {
         declared_contract_version,
-        declared_payload_version,
         declared_payload_sha256,
         version_mismatch,
         valid_shape,

@@ -86,7 +86,7 @@ impl NativeEvent {
 }
 
 /// Semantic equality unit for duplicate/conflict: the validated hint
-/// fields only — `version=3` and `kind="correlation"` are fixed shape.
+/// fields only — `version=1` and `kind="correlation"` are fixed shape.
 /// Byte, member-order, and whitespace differences classify Duplicate,
 /// never Conflict.
 #[derive(Clone, Debug, Eq, PartialEq)]

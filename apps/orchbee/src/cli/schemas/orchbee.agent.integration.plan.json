@@ -82,7 +82,6 @@
 						},
 						"issue": {
 							"enum": [
-								"capsule-unsupported-version",
 								"inspection-failed",
 								"manual-action-required",
 								"unsupported-platform",
@@ -190,7 +189,6 @@
 								},
 								"issue": {
 									"enum": [
-										"capsule-unsupported-version",
 										"inspection-failed",
 										"manual-action-required",
 										"unsupported-platform",
@@ -231,26 +229,14 @@
 	"$defs": {
 		"capsule": {
 			"type": "object",
-			"required": ["state", "source", "supportedPayloadVersion"],
+			"required": ["state", "source", "payloadSha256"],
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": ["ready", "not-ready", "unsupported-version", "source-absent", "binding-failed"]
+					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
 				},
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
-				},
-				"supportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"declaredPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"unsupportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
 				},
 				"bindingFailure": {
 					"const": true
@@ -262,6 +248,10 @@
 				"rootPathBytesHex": {
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
+				},
+				"payloadSha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
 				}
 			}
 		},
@@ -274,21 +264,13 @@
 					"enum": ["provider-cli", "provider-config", "guarded-filesystem", "none"]
 				},
 				"marketplace": {
-					"enum": ["absent", "current", "legacy", null]
+					"enum": ["absent", "current", "update-required", null]
 				},
 				"pluginPresent": {
 					"type": ["boolean", "null"]
 				},
 				"targetState": {
-					"enum": [
-						"conflict",
-						"current",
-						"legacy",
-						"missing",
-						"newer",
-						"unknown",
-						"update-required"
-					]
+					"enum": ["conflict", "current", "update-required", "missing", "newer", "unknown"]
 				},
 				"sourceReady": {
 					"type": "boolean"
@@ -321,26 +303,14 @@
 		},
 		"publicProvider_capsule": {
 			"type": "object",
-			"required": ["state", "source", "supportedPayloadVersion"],
+			"required": ["state", "source", "payloadSha256"],
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": ["ready", "not-ready", "unsupported-version", "source-absent", "binding-failed"]
+					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
 				},
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
-				},
-				"supportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"declaredPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"unsupportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
 				},
 				"bindingFailure": {
 					"const": true
@@ -352,6 +322,10 @@
 				"rootPathBytesHex": {
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
+				},
+				"payloadSha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
 				}
 			}
 		},
@@ -364,21 +338,13 @@
 					"enum": ["provider-cli", "provider-config", "guarded-filesystem", "none"]
 				},
 				"marketplace": {
-					"enum": ["absent", "current", "legacy", null]
+					"enum": ["absent", "current", "update-required", null]
 				},
 				"pluginPresent": {
 					"type": ["boolean", "null"]
 				},
 				"targetState": {
-					"enum": [
-						"conflict",
-						"current",
-						"legacy",
-						"missing",
-						"newer",
-						"unknown",
-						"update-required"
-					]
+					"enum": ["conflict", "current", "update-required", "missing", "newer", "unknown"]
 				},
 				"sourceReady": {
 					"type": "boolean"

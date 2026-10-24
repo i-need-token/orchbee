@@ -6,7 +6,7 @@ describe('parseAgentIntegrationLaunchSignal', () => {
 	it('accepts only the closed integration registry without retaining command content', () => {
 		expect(
 			parseAgentIntegrationLaunchSignal(
-				'{"integrationId":"claude-code","kind":"launch","version":3}',
+				'{"integrationId":"claude-code","kind":"launch","version":1}',
 			),
 		).toEqual({
 			integrationId: 'claude-code',
@@ -15,12 +15,12 @@ describe('parseAgentIntegrationLaunchSignal', () => {
 		});
 		expect(
 			parseAgentIntegrationLaunchSignal(
-				'{"command":"claude --prompt secret","integrationId":"claude-code","kind":"launch","version":3}',
+				'{"command":"claude --prompt secret","integrationId":"claude-code","kind":"launch","version":1}',
 			),
 		).toBeNull();
 		expect(
 			parseAgentIntegrationLaunchSignal(
-				'{"integrationId":"unknown-agent","kind":"launch","version":3}',
+				'{"integrationId":"unknown-agent","kind":"launch","version":1}',
 			),
 		).toBeNull();
 		expect(

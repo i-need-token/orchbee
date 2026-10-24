@@ -107,7 +107,7 @@ fn seed_clock_adapter_hint(
     ingress.observe_terminal_application_signal(
         runtime,
         "{\"correlationId\":\"correlation-0000000000000001\",\
-         \"eventId\":\"event-0000000000000001\",\"kind\":\"correlation\",\"version\":3}",
+         \"eventId\":\"event-0000000000000001\",\"kind\":\"correlation\",\"version\":1}",
         generation,
         "desktop:presentation:c1".to_owned(),
         now,
@@ -131,7 +131,7 @@ fn clock_adapter_envelope_body() -> Vec<u8> {
             "turnKey": null,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
     .to_string()
     .into_bytes()
@@ -175,7 +175,7 @@ fn cursor_identity_join_does_not_infer_idle_for_current_or_legacy_payload() {
         assert!(ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0));
         ingress.observe_terminal_application_signal(
             &mut runtime,
-            r#"{"correlationId":"correlation-0000000000000002","eventId":"event-0000000000000002","kind":"correlation","version":3}"#,
+            r#"{"correlationId":"correlation-0000000000000002","eventId":"event-0000000000000002","kind":"correlation","version":1}"#,
             format!("{:032x}", 1u8),
             "desktop:presentation:c1".to_owned(),
             0.0,
@@ -272,7 +272,7 @@ fn mastracode_joined_lifecycle_preserves_run_and_attention() {
         envelope["observation"]["turnKey"] = json!("run-1");
         envelope["observation"]["operationKey"] = json!("call-1");
         ingress.observe_terminal_application_signal(&mut runtime,
-            &json!({"correlationId":correlation_id,"eventId":event_id,"kind":"correlation","version":3}).to_string(),
+            &json!({"correlationId":correlation_id,"eventId":event_id,"kind":"correlation","version":1}).to_string(),
             format!("{:032x}",1u8),"desktop:presentation:c1".to_owned(),0.0);
         assert!(ingress.admit_envelope(&mut runtime, &serde_json::to_vec(&envelope).unwrap(), 0.0));
         let snapshot = ingress.snapshot_json(&runtime);

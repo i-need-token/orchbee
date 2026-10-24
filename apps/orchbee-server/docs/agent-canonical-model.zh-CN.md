@@ -461,7 +461,7 @@ drain 页应用/终态栅栏服务缝与只读叶子访问器 `NativeObservation
 `local_site_service/agent_observation_endpoint.rs` 是为
 托管 hook 观察 ingress 供给的生产私有 Unix 传输。`local_site_service::managed`
 在站点运行时目录内绑定每站点一个
-socket（`agent-observation-v3.sock`，模式 `0600`），在绑定时记录该路径的文件系统身份，
+socket（`agent-observation-v1.sock`，模式 `0600`），在绑定时记录该路径的文件系统身份，
 并运行单个 poll 线程，多路复用监听器、停止管道与至多 `MAX_ACTIVE_CONNECTIONS` 条已
 接受的 nonblocking 流；`set_nonblocking` 失败的流即弃，accept 排空每轮循环受同一私有
 预算约束，因此持续积压的连接无法饿死停止管道、结算 tick 或存活连接。
@@ -496,7 +496,7 @@ socket 路径在构造期即绑定进翻译器，随后 `Arc` 才被共享——
 端点、Worker 准入（`register_carrier_with_agents` 在注册守卫内准入原生叶子）与
 客户端读取。Worker 从既有 `--local-site <runtime-dir>` 参数推导 socket 路径，
 校验 socket 类型与同用户归属，并经既有环境覆盖注入
-`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`；不新增 wire 字段、公共设置或 Worker 对
+`ORCHBEE_AGENT_OBSERVATION_SOCKET`；不新增 wire 字段、公共设置或 Worker 对
 Server 代码的依赖，远端（非托管）路径保持既有行为。被替换或外来 socket 路径在
 清理时绝不解除链接——drop 先停止并 join poll 线程，再做身份门控解除链接。
 

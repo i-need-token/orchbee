@@ -182,7 +182,7 @@ fn terminal_effect_identity_and_positive_decimal_refinements_are_exact()
 fn application_signal_channel_is_the_exact_closed_literal() -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     let signal = fixture_string(&fixture, "/outputs/terminal_application_signal")?;
-    for invalid in ["", "orchbee.agent.v3", "ORCHBEE.AGENT.V1", "future"] {
+    for invalid in ["", "orchbee.agent.v1", "ORCHBEE.AGENT.V1", "future"] {
         let mut value: Value = serde_json::from_str(signal)?;
         set_pointer(&mut value, "/channel", Value::String(invalid.to_owned()))?;
         assert_value_code(58, value, ProtocolErrorCode::InvalidField);

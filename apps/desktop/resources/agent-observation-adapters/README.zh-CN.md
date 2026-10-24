@@ -1,6 +1,6 @@
 # Agent observation adapter
 
-该打包资源包含十八个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
+该打包资源包含二十个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
 Codex、Grok、OpenCode、Kilo、Cursor、Qoder CLI、Antigravity CLI、Mastracode、Droid、Kimi、Letta、Devin、Hermes、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code。每个 adapter
 校验自己的 upstream event contract，再通过 Orchbee 共享的本地 socket／管道加 private APC correlation
 transport 发出同一组不含内容的 normalized fact。Provider identity、accepted event 与 maximum
@@ -8,8 +8,8 @@ capability 由 Desktop 的 closed registry 授予，而不是由 adapter payload
 
 ## Windows Codex 传输
 
-Windows 原生 cohort 复用 v3 rich envelope／私有 APC 关联。Capsule `0.4.1`
-新增 Codex `commandWindows` hook，使用 provider 既有的 `cmd.exe /C` 执行契约
+Windows 原生 cohort 复用 v1 rich envelope／私有 APC 关联。当前 Capsule
+提供 Codex `commandWindows` hook，使用 provider 既有的 `cmd.exe /C` 执行契约
 和 `PLUGIN_ROOT`。Windows x64 cohort 必须包含固定 ConPTY 运行时，因为系统 ConHost 可能吞掉私有 APC。
 本适配器变更不提供 Windows Unix 远程发现或其他 provider 安装能力。
 原生托管 enable/disable 和 start/prompt 仍是独立 CLI 责任。
@@ -17,7 +17,7 @@ Windows 原生 cohort 复用 v3 rich envelope／私有 APC 关联。Capsule `0.4
 | 字段           | 契约                                                                                                                                                                                                                                                                                           |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题与归属     | Orchbee ConPTY 中的 Codex 命令 hook 必须到达原生 Server 的既有 observation 入口。共享适配器拥有投递；Server／Host 保留 envelope 验证、generation 身份和精确关联。                                                                                                                              |
-| 输入与参考     | 允许的规范 Codex 事件、继承的 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` 和 provider 提供的插件根。Codex 0.155.1 的 Windows hook 契约接受 `commandWindows`，标准流重定向后仍保留父进程 Console。环境字符串不授予 Agent 或终端身份。                                                                 |
+| 输入与参考     | 允许的规范 Codex 事件、继承的 `ORCHBEE_AGENT_OBSERVATION_SOCKET` 和 provider 提供的插件根。Codex 0.155.1 的 Windows hook 契约接受 `commandWindows`，标准流重定向后仍保留父进程 Console。环境字符串不授予 Agent 或终端身份。                                                                    |
 | 端点策略       | 只接纳精确本地管道拼写 `\\.\pipe\orchbee-<32-lowercase-hex>-observation`。缺失、畸形、远程 UNC 或非 observation 目标均不投递。Windows 不扫描管道、文件或 Unix SSH 转发。注入端点和原生 Server ACL 提供路由；适配器不声称检查了管道所有者。                                                     |
 | 关联目标       | 只使用字面设备 `\\.\CONOUT$`，以读写方式打开，并在写入前验证为字符设备。不使用相对 `CONOUT$`、环境指定设备、stdout 或 stderr。直接可见性保持 unknown。缺少 Console 时不发 hint，不得回退到文件。                                                                                               |
 | 流程与转换     | 验证 observation → 解析精确端点和固定 Console 目标 → 发送有界无内容 envelope → 等待精确有界 ACK → 写入匹配私有 APC → 关闭 Console handle。缺少端点、无效输入、超时、ACK 被拒和打开／写入失败终止相应投递。仅 rich half 的事件按既有入口规则过期。                                              |
@@ -196,13 +196,13 @@ cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation re
 ## 安全与失败边界
 
 Desktop 只通过非持久化 terminal environment overlay 注入
-`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Transport 前，每个 entry 只选择有界的 event、session、Turn、
+`ORCHBEE_AGENT_OBSERVATION_SOCKET`。Transport 前，每个 entry 只选择有界的 event、session、Turn、
 tool-operation 与 subagent identifier，并丢弃 prompt、question、tool input/output、transcript path、
 working directory、error text、notification text 与未知字段。Rich half 发往同用户 private Unix-domain
 socket 或 Windows 命名管道。Local process 只使用 environment 中的准确 endpoint；只有没有该 overlay 的 remote process
 才发现 same-user forwarded candidate，并且 discovery 要求继承的 `SSH_CONNECTION`、`SSH_CLIENT` 或
 `SSH_TTY` marker 至少一个非空。没有准确 overlay 的普通 local terminal 不执行 socket scan。只有
-endpoint 返回准确、有界的 v3 acceptance ACK 后，adapter
+endpoint 返回准确、有界的 v1 acceptance ACK 后，adapter
 才会把一份不含内容的 private APC correlation half 直接写入每个解析出的 outer TTY。没有准确 ACK 时，
 adapter 不写 terminal control sequence。Desktop 要求对 live terminal generation 完成精确
 event/correlation join，因此任一 half 都不能单独关联并授权 rich state；发送到另一个 live instance 的
@@ -238,25 +238,25 @@ pnpm --filter @orchbee/desktop test:unit
 
 ## Claude 直接执行
 
-Capsule 0.4.2 将 Claude 的 `/bin/sh` hook 启动器替换为 `node` 加显式参数向量，遵循[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)。固定模块表达式通过 pathToFileURL 导入原样插件脚本路径，并捕获导入失败。脚本删除及输入格式错误仍静默处理；Node 本身必须存在于 provider PATH 中。Node 无法启动时，Claude 可能显示其非阻塞诊断。集成从不产生工具权限决定。
+当前 Capsule 使用 `node` 加显式参数向量启动 Claude hook，遵循[上游 exec 契约](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)。固定模块表达式通过 pathToFileURL 导入原样插件脚本路径，并捕获导入失败。脚本删除及输入格式错误仍静默处理；Node 本身必须存在于 provider PATH 中。Node 无法启动时，Claude 可能显示其非阻塞诊断。集成从不产生工具权限决定。
 
-此共享声明让原生 Windows 配置不依赖 Shell。既有事件、hook 期限、输入界限、清洗及传输归属不变。[原生 Windows 契约](../../../orchbee/docs/windows-agent-integrations.zh-CN.md) 拥有安装及受控 Windows 证据；此变化不证明已认证 Agent 任务完成，也不增加 macOS/Linux 工作流支持。旧 capsule 保持不可变，显式修复安装 0.4.2。
+此共享声明让原生 Windows 配置不依赖 Shell。既有事件、hook 期限、输入界限、清洗及传输归属不变。[原生 Windows 契约](../../../orchbee/docs/windows-agent-integrations.zh-CN.md) 拥有安装及受控 Windows 证据；此变化不证明已认证 Agent 任务完成，也不增加 macOS/Linux 工作流支持。旧 capsule 保持不可变，显式修复安装当前载荷。
 
 ## Copilot 直接执行
 
-Capsule 0.4.16 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。
+当前 Capsule 使用基于 Node 的 [Copilot exec hook 契约](https://docs.github.com/en/copilot/reference/hooks-reference)。固定导入保护直接从 provider 子进程环境读取 COPILOT_PLUGIN_ROOT，检查其为绝对路径，并将拼接后的脚本路径传给 pathToFileURL。根目录或脚本缺失时不输出内容。Node 为前提；可执行文件不可用属于 provider 启动错误，不是已送达观察。PascalCase 事件名称保留文档所述的 VS Code 兼容输入字段，供既有清洗器使用。没有 Shell 解释路径。Windows 配置使用单独验证的当前插件命令／JSON 契约；共享载荷兼容不提升 Desktop CLI 对齐判定。
 
 ### Grok 命令引导
 
-Capsule 0.4.16 保留 Grok 的纯命令 hook 契约，使用固定的 base64 编码 Node 引导。解码后的代码将 GROK_PLUGIN_ROOT 作为数据读取，设置原样脚本／provider 参数，并执行受保护的动态导入；不把用户路径插入 Shell 语法。PowerShell 5.1／7 在此命令中保留重定向的 JSON stdin。Node 是前提；Node 缺失是 provider 命令错误，根目录／脚本缺失则继续静默处理。Grok 既有 camelCase 事件输入、清洗器、时限和观察传输不变。编码用于保护 Shell 引号，不用于隐藏秘密。Windows 本地安装状态另从 provider 管理的 TOML 配置读取；不证明项目有效策略或活动会话已经重新加载。
+当前 Capsule 保留 Grok 的纯命令 hook 契约，使用固定的 base64 编码 Node 引导。解码后的代码将 GROK_PLUGIN_ROOT 作为数据读取，设置原样脚本／provider 参数，并执行受保护的动态导入；不把用户路径插入 Shell 语法。PowerShell 5.1／7 在此命令中保留重定向的 JSON stdin。Node 是前提；Node 缺失是 provider 命令错误，根目录／脚本缺失则继续静默处理。Grok 既有 camelCase 事件输入、清洗器、时限和观察传输不变。编码用于保护 Shell 引号，不用于隐藏秘密。Windows 本地安装状态另从 provider 管理的 TOML 配置读取；不证明项目有效策略或活动会话已经重新加载。
 
 ## OpenCode 家族 Windows 引导安装
 
-Capsule 0.4.16 新增 Kilo，并与 OpenCode 共用事件规范化器。共享工厂接受 sessionID 或旧版 info.id 生命周期身份，不一致时拒绝。回调参数与输出保持私有。发送按顺序保留最多 64 个待完成清洗事件；溢出/dispose 后停止接收并丢弃排队后缀，直到重新加载；正在发送的一项可以完成。传输失败静默处理。Windows 原生引导安装可发现的 .js 入口，保留外来/更新版本入口。路径、转移与证据见[归属 Windows 模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#kilo-windows-集成与共享事件模型)。Desktop 引导安装保留独立提供方注册表。
+当前 Capsule 新增 Kilo，并与 OpenCode 共用事件规范化器。共享工厂接受 sessionID 或旧版 info.id 生命周期身份，不一致时拒绝。回调参数与输出保持私有。发送按顺序保留最多 64 个待完成清洗事件；溢出/dispose 后停止接收并丢弃排队后缀，直到重新加载；正在发送的一项可以完成。传输失败静默处理。Windows 原生引导安装可发现的 .js 入口，保留外来/更新版本入口。路径、转移与证据见[归属 Windows 模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#kilo-windows-集成与共享事件模型)。Desktop 引导安装保留独立提供方注册表。
 
 ## Gemini 与 Qwen 命令根目录
 
-Capsule 0.4.16 使用提供方各 Hook 环境中的 ORCHBEE_AGENT_EXTENSION_ROOT 执行固定 Node 保护入口。Gemini 通过递归替换外部 Hook 文件提供该值；Qwen 通过递归替换 qwen-extension.json 中的内联 hooks 提供该值。替换作用于环境值，从不作用于命令源码。两个入口导入其自包含脚本，保留现有不携带内容的事件/传输边界。Windows 原生引导安装与 doctor 共用提供方特定目录覆盖规则，拒绝无效显式根目录。Windows 目录归属检查包含载荷版本方向，旧入口需要修复，新入口拒绝降级。参见 [Windows 扩展模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#gemini-与-qwen-windows-扩展)。
+当前 Capsule 使用提供方各 Hook 环境中的 ORCHBEE_AGENT_EXTENSION_ROOT 执行固定 Node 保护入口。Gemini 通过递归替换外部 Hook 文件提供该值；Qwen 通过递归替换 qwen-extension.json 中的内联 hooks 提供该值。替换作用于环境值，从不作用于命令源码。两个入口导入其自包含脚本，保留现有不携带内容的事件/传输边界。Windows 原生引导安装与 doctor 共用提供方特定目录覆盖规则，拒绝无效显式根目录。Windows 目录归属检查保留准确的 marker 和文件摘要校验；不认识的入口契约继续拒绝修改。参见 [Windows 扩展模型](../../../orchbee/docs/windows-agent-integrations.zh-CN.md#gemini-与-qwen-windows-扩展)。
 
 Cursor 适配器仅从一致的 session/conversation 身份别名发出 session-identified，不推导工作、空闲状态或权限决定。原生 Windows JSON 接入安装固定编码启动器，不代表已执行认证后的 provider 任务。
 
@@ -278,9 +278,20 @@ Hermes 提供仅依赖标准库的 Python 插件，注册三个身份回调，�
 
 ## 打包载荷身份
 
-当前 Capsule 为 `0.4.17`，契约版本为 3。载荷摘要覆盖 `capsule.json` 之外的所有
-打包文件与目录，包括两份文档。因此，仅格式变化也需要新 Capsule 版本及基于最终
-字节的摘要。Provider 包声明及 Desktop／原生 Windows 的预期版本同时推进；本补丁
-保留观察事件、grant 及传输行为。已安装版本目录保持不可变。仅显式 enable／repair
-发布新版本；验证不接受漂移，也不覆盖旧的同版本目录。回滚选择之前的 cohort 及其
-保留的 Capsule。
+当前 Capsule 的契约版本为 1。清单严格包含
+`{contractVersion: 1, payloadSha256: "<64 lowercase hex>"}`。摘要同时作为身份和安装目录名：
+`~/.orchbee/agent-observation-adapters/<payloadSha256>`。
+Provider 包版本仍是提供方元数据，不用于识别安装。
+
+对 `JSON.stringify(entries)` 的 UTF-8 编码计算 SHA-256。Entry 使用以 `/` 分隔的相对路径，
+按 UTF-16 码元排序；目录按成员顺序序列化为 `{kind,path}`，文件序列化为
+`{kind,path,sha256,size}`。只排除 `capsule.json`，两份文档及其余所有打包文件和目录均参与摘要。
+任何字节变化（包括格式）都必须对最终载荷树重新计算 `payloadSha256`。
+Desktop、Rust 和原生 staging 在准入前重新计算摘要，使用相同边界及必需文件集合。
+
+Doctor 先核对安装字节与清单是否一致，再将已校验的身份与当前相邻 sidecar 比较。
+未 staging 的开发二进制使用嵌入的 sidecar 身份。摘要不同报告 `update-required`；
+字节损坏和无法检查的读取继续使用各自现有结果。集成 CLI 文档暴露 `capsule.payloadSha256`。
+显式重装使用 `orchbee agent integration enable --provider codex`（选择实际提供方）。
+旧目录会保留；disable 沿用现有归属保护移除提供方入口，不清扫 Capsule。
+不提供兼容读取、自动迁移或后台清理。

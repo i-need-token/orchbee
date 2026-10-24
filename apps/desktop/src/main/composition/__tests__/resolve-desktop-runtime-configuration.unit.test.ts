@@ -74,7 +74,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.posix.resolve('/users/orchbee/library/orchbee/worktrees'),
 		);
 		expect(first.agentObservationCapsuleDirectory).toBe(
-			path.posix.resolve('/users/orchbee/library/orchbee/agent-observation-adapters/0.4.17'),
+			path.posix.resolve('/users/orchbee/.orchbee/agent-observation-adapters/unavailable'),
 		);
 		expect(first.projectWorktreeOperationStorePath).toBe(
 			path.posix.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),

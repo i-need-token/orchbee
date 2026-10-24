@@ -2563,10 +2563,8 @@ impl Locale {
                 "a managed hook is declared but explicitly disabled for"
             }
             (Self::ZhCn, "hook-disabled") => "以下提供方声明了托管钩子但被显式禁用：",
-            (Self::EnUs, "hook-update-required") => {
-                "a managed hook declares an older contract version for"
-            }
-            (Self::ZhCn, "hook-update-required") => "以下提供方的托管钩子声明了较旧的契约版本：",
+            (Self::EnUs, "hook-update-required") => "an outdated managed hook was observed for",
+            (Self::ZhCn, "hook-update-required") => "观察到以下提供方的托管钩子需要更新：",
             (Self::EnUs, "hook-unsupported") => {
                 "the hook state needs the provider's own command surface, which offline inspection does not run, for"
             }
@@ -2612,10 +2610,10 @@ impl Locale {
                 "观察端点路径存在但未通过消费者的所有权与类型检查。"
             }
             (Self::EnUs, "env-override-invalid") => {
-                "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3 is set but is not an absolute path."
+                "ORCHBEE_AGENT_OBSERVATION_SOCKET is set but is not an absolute path."
             }
             (Self::ZhCn, "env-override-invalid") => {
-                "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3 已设置但不是绝对路径。"
+                "ORCHBEE_AGENT_OBSERVATION_SOCKET 已设置但不是绝对路径。"
             }
             (Self::EnUs, "root-anomaly") => {
                 "an asset root contradicts its own manifest declaration:"
@@ -3470,12 +3468,12 @@ const HELP_AGENT_INTEGRATION_EXPLAIN_ZH: crate::localization::HelpDetails =
 const HELP_AGENT_INTEGRATION_ENABLE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "Enable one provider's managed observation integration locally: publish\nthe adapter capsule when needed, then install its guarded module or run\nbounded non-interactive provider setup commands. Manual-only entries and\nunavailable providers refuse before effects. Foreign or newer provider\nentries are never replaced; the receipt retains attempted effects and\nthe state observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.",
+        "Enable one provider's managed observation integration locally: publish\nthe adapter capsule when needed, then install its guarded module or run\nbounded non-interactive provider setup commands. Manual-only entries and\nunavailable providers refuse before effects. Foreign entries and unrecognized entry contracts\nare never replaced; the receipt retains attempted effects and\nthe state observed by re-inspection. '--format json' emits the\norchbee.agent.integration.mutation envelope.",
     );
 const HELP_AGENT_INTEGRATION_ENABLE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent integration enable --provider <id> [--adapter-source <abs>] [--format text|json]",
-        "在本地启用一个 provider 的受管观测集成：必要时先发布 adapter capsule，然后安装受保护的模块，或执行有界、非交互的 provider 设置命令。仅手动管理或不可用的 provider 在产生效应前拒绝。不会替换外来或更新版本的 provider 条目；回执保留已尝试的效应和复检观察到的状态。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。",
+        "在本地启用一个 provider 的受管观测集成：必要时先发布 adapter capsule，然后安装受保护的模块，或执行有界、非交互的 provider 设置命令。仅手动管理或不可用的 provider 在产生效应前拒绝。不会替换外来条目或不认识的入口契约；回执保留已尝试的效应和复检观察到的状态。\n'--format json' 输出 orchbee.agent.integration.mutation 封套。",
     );
 
 const HELP_AGENT_INTEGRATION_DISABLE_EN: crate::localization::HelpDetails =

@@ -133,7 +133,7 @@ async function run(hook, input, scriptRoot = root) {
 				USERPROFILE: process.env.USERPROFILE,
 				GROK_PLUGIN_ROOT: scriptRoot,
 				COPILOT_PLUGIN_ROOT: scriptRoot,
-				ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: pipe,
+				ORCHBEE_AGENT_OBSERVATION_SOCKET: pipe,
 			},
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
@@ -271,7 +271,7 @@ try {
 	);
 	for (const envelope of observations) {
 		assert.equal(envelope.adapterId, provider);
-		assert.equal(envelope.version, 3);
+		assert.equal(envelope.version, 1);
 		assert.equal(envelope.observation.sessionKey, 'literal-path-session');
 		assert.equal(envelope.correlations.length, 1);
 		assert.ok(!JSON.stringify(envelope).includes('PRIVATE_'));

@@ -359,7 +359,7 @@ const FIXTURE_TIMEOUT: Duration = Duration::from_secs(10);
 /// opaque UTF-8 with no schema parse.
 #[cfg(target_os = "linux")]
 const HINT_JSON: &str = concat!(
-    r#"{"kind":"correlation","version":3,"#,
+    r#"{"kind":"correlation","version":1,"#,
     r#""correlationId":"fixture-correlation-0001","#,
     r#""eventId":"fixture-event-00000001"}"#
 );
@@ -1166,7 +1166,7 @@ fn send_apc(
     attempt: u8,
 ) -> TestResult<orchbee_capability_node_protocol::TerminalSendResult> {
     let apc = format!(
-        "printf '\\033_orchbee.agent.v3;{}\\033\\\\'\n",
+        "printf '\\033_orchbee.agent.v1;{}\\033\\\\'\n",
         base64_url_nopad(HINT_JSON.as_bytes()),
     );
     // The wire payload must be pure ASCII shell text: `\033` is four ASCII
@@ -1174,7 +1174,7 @@ fn send_apc(
     // (`\0`) or a raw ESC byte pushed into the interactive line editor.
     assert!(apc.is_ascii() && !apc.bytes().any(|byte| byte < 0x20 && byte != b'\n'));
     assert!(
-        apc.starts_with("printf '\\033_orchbee.agent.v3;") && apc.ends_with("\\033\\\\'\n"),
+        apc.starts_with("printf '\\033_orchbee.agent.v1;") && apc.ends_with("\\033\\\\'\n"),
         "APC shell command must carry ASCII printf escapes, got {apc:?}"
     );
     write_message(

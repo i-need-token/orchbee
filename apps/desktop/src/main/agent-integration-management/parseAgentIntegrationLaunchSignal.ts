@@ -7,7 +7,7 @@ import { z } from 'zod';
 const AgentIntegrationLaunchSignalSchema = z.strictObject({
 	integrationId: DesktopAgentIntegrationIdSchema,
 	kind: z.literal('launch'),
-	version: z.literal(3),
+	version: z.literal(1),
 });
 
 export interface AgentIntegrationLaunchPresence {

@@ -11,7 +11,7 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import { createDefaultTerminalProfile, POSIX_HOST_ENDPOINT_ADDON_NAME } from '../host';
-import { AGENT_OBSERVATION_CAPSULE_VERSION } from '../agent-integration-management';
+import { FileAgentObservationAdapterCapsule } from '../agent-integration-management';
 import type {
 	AutomaticShellIntegrationConfiguration,
 	AutomaticShellIntegrationShell,
@@ -215,9 +215,11 @@ export function resolveDesktopRuntimeConfiguration(
 	const configuration: DesktopRuntimeConfiguration = {
 		agentObservationAdapterDirectory,
 		agentObservationCapsuleDirectory: platformPath.join(
-			input.userDataPath,
+			input.homeDirectory,
+			'.orchbee',
 			'agent-observation-adapters',
-			AGENT_OBSERVATION_CAPSULE_VERSION,
+			FileAgentObservationAdapterCapsule.readPayloadIdentity(agentObservationAdapterDirectory) ??
+				'unavailable',
 		),
 		automaticShellIntegration: resolveAutomaticShellIntegrationConfiguration(
 			shellIntegrationDirectory,

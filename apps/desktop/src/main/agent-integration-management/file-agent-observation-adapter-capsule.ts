@@ -1,10 +1,9 @@
 import { createHash } from 'node:crypto';
+import { lstatSync, readFileSync } from 'node:fs';
 import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-export const AGENT_OBSERVATION_CAPSULE_VERSION = '0.4.17';
-
-const CAPSULE_CONTRACT_VERSION = 3;
+const CAPSULE_CONTRACT_VERSION = 1;
 const MAX_CAPSULE_ENTRIES = 128;
 const MAX_CAPSULE_DEPTH = 8;
 const MAX_CAPSULE_FILE_BYTES = 512 * 1024;
@@ -31,7 +30,7 @@ export interface FileAgentObservationAdapterCapsuleOptions {
 }
 
 /**
- * Materializes one immutable, versioned copy of the bundled adapters outside the
+ * Materializes one immutable, content-addressed copy of the bundled adapters outside the
  * application bundle. Persisted provider entries can therefore survive an app
  * move or uninstall without retaining a path into `/Applications`.
  */
@@ -41,6 +40,28 @@ export class FileAgentObservationAdapterCapsule implements AgentObservationAdapt
 
 	static computePayloadDigest(rootPath: string): Promise<string | null> {
 		return computeAgentObservationCapsulePayloadDigest(rootPath);
+	}
+
+	/** Resolves a declared identity only; readiness still verifies the actual tree. */
+	static readPayloadIdentity(sourcePath: string): string | null {
+		try {
+			const manifestPath = path.join(sourcePath, 'capsule.json');
+			const metadata = lstatSync(manifestPath);
+			if (!metadata.isFile() || metadata.size > MAX_MANIFEST_BYTES) return null;
+			const bytes = readFileSync(manifestPath);
+			if (bytes.byteLength > MAX_MANIFEST_BYTES) return null;
+			const manifest: unknown = JSON.parse(bytes.toString('utf8'));
+			if (!isRecord(manifest)) return null;
+			const digest = manifest['payloadSha256'];
+			return manifest['contractVersion'] === CAPSULE_CONTRACT_VERSION &&
+				Object.keys(manifest).sort().join(',') === 'contractVersion,payloadSha256' &&
+				typeof digest === 'string' &&
+				SHA256_PATTERN.test(digest)
+				? digest
+				: null;
+		} catch {
+			return null;
+		}
 	}
 
 	constructor(options: FileAgentObservationAdapterCapsuleOptions) {
@@ -105,10 +126,9 @@ async function readValidCapsulePayloadDigest(rootPath: string): Promise<string |
 	const declaredDigest = manifest?.['payloadSha256'];
 	if (
 		manifest?.['contractVersion'] !== CAPSULE_CONTRACT_VERSION ||
-		manifest['payloadVersion'] !== AGENT_OBSERVATION_CAPSULE_VERSION ||
 		typeof declaredDigest !== 'string' ||
 		!SHA256_PATTERN.test(declaredDigest) ||
-		Object.keys(manifest).sort().join(',') !== 'contractVersion,payloadSha256,payloadVersion'
+		Object.keys(manifest).sort().join(',') !== 'contractVersion,payloadSha256'
 	) {
 		return null;
 	}

@@ -129,10 +129,10 @@ and replay cache.
 
 Every Launch on this managed path also propagates the local Agent observation channel through the
 existing Terminal Protocol `environmentOverlay`. For each admitted Launch the launch adapter joins
-the cross-owner file name `agent-observation-v3.sock` onto the verified `--local-site` runtime
+the cross-owner file name `agent-observation-v1.sock` onto the verified `--local-site` runtime
 directory and admits the candidate only when `lstat` proves an existing socket owned by this
 Worker's effective user. An admitted socket sets
-`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` to its absolute path inside the existing 16-entry and 4 KiB
+`ORCHBEE_AGENT_OBSERVATION_SOCKET` to its absolute path inside the existing 16-entry and 4 KiB
 overlay bounds; a missing, non-socket, foreign-owned, or non-UTF-8 candidate emits no variable and
 never fails the launch. The gate re-evaluates on every Launch instead of caching admission. The
 explicit-endpoint path carries no Site runtime directory and has no observation overlay — remote and

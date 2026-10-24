@@ -197,7 +197,7 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
     if !is_adapter_id(adapter_id) {
         return None;
     }
-    if object["version"] != 3 {
+    if object["version"] != 1 {
         return None;
     }
     let event_id = object["eventId"].as_str()?;
@@ -276,7 +276,7 @@ pub fn parse_envelope(value: &Value) -> Option<HookEnvelope> {
 /// `AgentHookPresentationCorrelationHintSchema.safeParse`.
 pub fn parse_hint(value: &Value) -> Option<HookHint> {
     let object = strict_object(value, &["correlationId", "eventId", "kind", "version"])?;
-    if object["kind"] != "correlation" || object["version"] != 3 {
+    if object["kind"] != "correlation" || object["version"] != 1 {
         return None;
     }
     let correlation_id = object["correlationId"].as_str()?;

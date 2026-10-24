@@ -1,6 +1,6 @@
 # Agent observation adapters
 
-This packaged resource contains eighteen explicitly installed, provider-bound observation adapters for
+This packaged resource contains twenty explicitly installed, provider-bound observation adapters for
 Claude Code, Codex, Grok, OpenCode, Kilo, Cursor, Qoder CLI, Antigravity CLI, Mastracode, Droid, Kimi, Letta, Devin, Hermes, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
 Each adapter validates its own upstream event contract and emits the same content-free normalized
 facts through Orchbee's shared local socket/pipe plus private-APC correlation transport. Desktop's closed
@@ -9,8 +9,8 @@ capabilities.
 
 ## Windows Codex transport
 
-The native Windows cohort uses the same v3 rich-envelope/private-APC join. Capsule
-`0.4.1` adds Codex `commandWindows` hooks, using the provider's existing `cmd.exe /C`
+The native Windows cohort uses the same v1 rich-envelope/private-APC join. The capsule
+supplies Codex `commandWindows` hooks, using the provider's existing `cmd.exe /C`
 execution contract and `PLUGIN_ROOT`. The Windows x64 cohort must include its pinned ConPTY runtime: the inbox ConHost may
 consume private APC sequences. Windows does not gain Unix remote discovery or
 additional provider installation support through this adapter change. Native managed
@@ -19,7 +19,7 @@ enable/disable and start/prompt remain separate CLI obligations.
 | Field                    | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem and owner        | Codex command hooks in an Orchbee ConPTY must reach the native Server's existing observation ingress. The shared adapter owns delivery; Server/Host retain envelope validation, generation identity and the exact join.                                                                                                                                                                                                                                                |
-| Inputs and reference     | Allowlisted normalized Codex events, the inherited `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` and the provider-supplied plugin root. Codex 0.155.1's Windows hook contract accepts `commandWindows` and retains the parent's console despite redirecting standard streams. Environment strings never grant Agent or terminal identity.                                                                                                                                      |
+| Inputs and reference     | Allowlisted normalized Codex events, the inherited `ORCHBEE_AGENT_OBSERVATION_SOCKET` and the provider-supplied plugin root. Codex 0.155.1's Windows hook contract accepts `commandWindows` and retains the parent's console despite redirecting standard streams. Environment strings never grant Agent or terminal identity.                                                                                                                                         |
 | Endpoint policy          | Admit only the exact local pipe spelling `\\.\pipe\orchbee-<32-lowercase-hex>-observation`. Missing, malformed, remote UNC and non-observation targets produce no delivery. Windows never scans pipes, files or Unix SSH forwards. The injected endpoint and native Server ACL provide routing; the adapter does not claim to inspect pipe ownership.                                                                                                                  |
 | Correlation target       | Use only the literal device `\\.\CONOUT$`, opened with read/write access and verified as a character device before writing. Never use a relative `CONOUT$`, environment-selected device, stdout or stderr. Direct visibility remains unknown. Missing console means no hint; no fallback may redirect the hint into a file.                                                                                                                                            |
 | Workflow and transitions | Validate observation → resolve exact endpoint and fixed console target → send bounded content-free envelope → wait for exact bounded ACK → write the matching private APC → close the console handle. Missing endpoint, invalid input, timeout, rejected ACK and open/write failure stop the affected delivery. Rich-only events expire under the existing ingress rules.                                                                                              |
@@ -211,7 +211,7 @@ disconnected SSH path degrade to stale or unknown rather than guessed completion
 
 ## Security and failure boundary
 
-Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` through a non-persistent terminal
+Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET` through a non-persistent terminal
 environment overlay. Before transport, each entry selects only bounded event, session, Turn,
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
 transcript paths, working directories, error text, notification text, and unknown fields. The rich
@@ -219,7 +219,7 @@ half goes to same-user private Unix-domain sockets or the injected native Window
 its environment; only a remote process without that overlay discovers same-user forwarded
 candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH_CLIENT`, or
 `SSH_TTY` marker. An ordinary local terminal without the exact overlay performs no socket scan.
-Only after an endpoint returns the exact bounded v3 acceptance ACK does the adapter
+Only after an endpoint returns the exact bounded v1 acceptance ACK does the adapter
 write one content-free private APC correlation half directly to each resolved outer TTY. With no
 exact ACK, the adapter writes no terminal control sequence. Desktop requires an exact
 event/correlation join for a live terminal generation, so neither half can associate and authorize
@@ -258,25 +258,25 @@ The owning runtime and transport contract is documented in the [Desktop guide](.
 
 ## Claude direct execution
 
-Capsule 0.4.2 replaces Claude's `/bin/sh` hook launcher with `node` plus an explicit argument vector, following the [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form). A fixed module expression imports the literal plugin script path through pathToFileURL and catches import failures. Script removal and malformed input remain silent; Node itself must exist on the provider PATH. If Node cannot start, Claude may display its non-blocking diagnostic. The integration never produces a tool permission decision.
+The capsule launches Claude hooks with `node` plus an explicit argument vector, following the [upstream exec contract](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form). A fixed module expression imports the literal plugin script path through pathToFileURL and catches import failures. Script removal and malformed input remain silent; Node itself must exist on the provider PATH. If Node cannot start, Claude may display its non-blocking diagnostic. The integration never produces a tool permission decision.
 
-This shared declaration allows native Windows onboarding without a shell dependency. Existing events, hook deadlines, input bounds, sanitization and transport ownership are unchanged. The [native Windows contract](../../../orchbee/docs/windows-agent-integrations.md) owns installation and controlled Windows evidence; this change does not establish authenticated Agent task completion or new macOS/Linux workflow support. Old capsules remain immutable and explicit repair installs 0.4.2.
+This shared declaration allows native Windows onboarding without a shell dependency. Existing events, hook deadlines, input bounds, sanitization and transport ownership are unchanged. The [native Windows contract](../../../orchbee/docs/windows-agent-integrations.md) owns installation and controlled Windows evidence; this change does not establish authenticated Agent task completion or new macOS/Linux workflow support. Old capsules remain immutable and explicit repair installs the current payload.
 
 ## Copilot direct execution
 
-Capsule 0.4.16 uses the [Copilot exec hook contract](https://docs.github.com/en/copilot/reference/hooks-reference) with Node. The fixed import guard reads COPILOT_PLUGIN_ROOT directly from the provider child environment, checks that it is absolute, and passes its joined script path through pathToFileURL. It emits no output when the root or script is absent. Node is a prerequisite; an unavailable executable is a provider launch error, not a delivered observation. PascalCase event names retain the documented VS Code compatible input fields used by the existing sanitizer. No shell interprets the path. Windows onboarding uses the separately verified current plugin command/JSON contract; shared payload compatibility does not promote Desktop CLI parity.
+The capsule uses the [Copilot exec hook contract](https://docs.github.com/en/copilot/reference/hooks-reference) with Node. The fixed import guard reads COPILOT_PLUGIN_ROOT directly from the provider child environment, checks that it is absolute, and passes its joined script path through pathToFileURL. It emits no output when the root or script is absent. Node is a prerequisite; an unavailable executable is a provider launch error, not a delivered observation. PascalCase event names retain the documented VS Code compatible input fields used by the existing sanitizer. No shell interprets the path. Windows onboarding uses the separately verified current plugin command/JSON contract; shared payload compatibility does not promote Desktop CLI parity.
 
 ### Grok command bootstrap
 
-Capsule 0.4.16 keeps Grok's command-only hook contract with a fixed base64-encoded Node bootstrap. The decoded code reads GROK_PLUGIN_ROOT as data, sets the literal script/provider arguments, and performs a guarded dynamic import; it never inserts a user path into shell syntax. PowerShell 5.1/7 preserve redirected JSON stdin through this command. Node is a prerequisite; missing Node is a provider command error, while missing roots/scripts remain silent. Grok's existing camelCase event inputs, sanitizer, deadlines and observation transport are unchanged. The encoding protects shell quoting, not secrets. Windows local installation state is read separately from the provider-owned TOML configuration; it does not establish effective project policy or an active session's reload.
+The capsule keeps Grok's command-only hook contract with a fixed base64-encoded Node bootstrap. The decoded code reads GROK_PLUGIN_ROOT as data, sets the literal script/provider arguments, and performs a guarded dynamic import; it never inserts a user path into shell syntax. PowerShell 5.1/7 preserve redirected JSON stdin through this command. Node is a prerequisite; missing Node is a provider command error, while missing roots/scripts remain silent. Grok's existing camelCase event inputs, sanitizer, deadlines and observation transport are unchanged. The encoding protects shell quoting, not secrets. Windows local installation state is read separately from the provider-owned TOML configuration; it does not establish effective project policy or an active session's reload.
 
 ## OpenCode-family Windows onboarding
 
-Capsule 0.4.16 adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence. Desktop onboarding retains its separate provider registry.
+The capsule adds Kilo and shares its event normalizer with OpenCode. The shared factory admits lifecycle identities from sessionID or legacy info.id, rejecting disagreement. Callback arguments and outputs remain private. Delivery retains at most 64 outstanding sanitized events, in order; overflow/dispose stops new admission and drops the queued suffix until reload, while an in-flight send may finish. Transport failures are silent. Windows native onboarding installs discoverable .js bootstraps and preserves foreign/newer entries. See the [owning Windows model](../../../orchbee/docs/windows-agent-integrations.md#kilo-windows-integration-and-shared-event-model) for paths, transitions and evidence. Desktop onboarding retains its separate provider registry.
 
 ## Gemini and Qwen command roots
 
-Capsule 0.4.16 executes fixed Node guards using ORCHBEE_AGENT_EXTENSION_ROOT in the provider's per-hook environment. Gemini supplies the value by recursively hydrating its external hook file; Qwen supplies it through recursively hydrated inline hooks in qwen-extension.json. Substitution affects an environment value, never command source. Both entries import their self-contained scripts and keep existing content-free event/transport bounds. Windows native onboarding and doctor share provider-specific directory overrides and refuse invalid explicit roots. Windows directory ownership checks include payload version direction so old entries require repair and newer entries refuse downgrade. See the [Windows extension model](../../../orchbee/docs/windows-agent-integrations.md#gemini-and-qwen-windows-extensions).
+The capsule executes fixed Node guards using ORCHBEE_AGENT_EXTENSION_ROOT in the provider's per-hook environment. Gemini supplies the value by recursively hydrating its external hook file; Qwen supplies it through recursively hydrated inline hooks in qwen-extension.json. Substitution affects an environment value, never command source. Both entries import their self-contained scripts and keep existing content-free event/transport bounds. Windows native onboarding and doctor share provider-specific directory overrides and refuse invalid explicit roots. Windows directory ownership checks retain exact marker and file-digest validation; unrecognized entry contracts remain refused. See the [Windows extension model](../../../orchbee/docs/windows-agent-integrations.md#gemini-and-qwen-windows-extensions).
 
 The Cursor adapter emits session-identified from consistent session/conversation identity aliases. It never derives working/idle or permission decisions. Windows native JSON onboarding installs the fixed encoded launcher; no authenticated provider execution is implied.
 
@@ -298,13 +298,25 @@ Hermes supplies a stdlib-only Python plugin that registers three identity callba
 
 ## Packaged payload identity
 
-The current Capsule is `0.4.17` with contract version 3. Its payload digest
-includes every packaged file and directory except `capsule.json`, including
-both documentation files. A formatting-only payload change therefore requires
-a fresh Capsule version and a digest over its final bytes. Provider package
-declarations and Desktop/native Windows expected versions advance together;
-this patch preserves the observation events, grants and transport behavior.
-Already installed version directories remain immutable. Only an explicit
-enable/repair publishes the new version; verification never accepts drift or
-overwrites an older same-version directory. Rollback selects the previous
-cohort and its retained Capsule.
+The current Capsule uses contract version 1. Its manifest contains exactly
+`{contractVersion: 1, payloadSha256: "<64 lowercase hex>"}`. Its identity and
+installation directory are the digest: `~/.orchbee/agent-observation-adapters/<payloadSha256>`.
+Provider package versions remain provider metadata and do not identify an installation.
+
+Compute SHA-256 over the UTF-8 encoding of `JSON.stringify(entries)`. Entries use
+`/`-separated relative paths, ordered by UTF-16 code units; directories serialize
+as `{kind,path}`, files as `{kind,path,sha256,size}` in that member order. Exclude
+only `capsule.json`; include both documentation files and every other packaged
+file and directory. Every byte change, including formatting, requires recomputing
+`payloadSha256` over the final tree. Desktop, Rust and native staging recompute
+this digest before admitting the payload, with the same bounds and required files.
+
+Doctor verifies installed bytes against their manifest, then compares that verified
+identity with the current adjacent sidecar. An unstaged development binary uses
+its embedded sidecar identity. A different digest is `update-required`; corrupt
+bytes and uninspectable reads retain their distinct existing outcomes. Integration
+CLI documents expose `capsule.payloadSha256`. Reinstall explicitly with
+`orchbee agent integration enable --provider codex` (select the relevant provider).
+Old directories are retained; disable removes provider entries under their existing
+ownership guards and does not sweep capsules. There is no compatibility reader,
+automatic migration or background cleanup.

@@ -135,8 +135,8 @@ int main(void) {
         !write_growth(output, "GROW-B") ||
         !write_text(
             output,
-            "\x1b_orchbee.agent.v3;"
-            "eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ"
+            "\x1b_orchbee.agent.v1;"
+            "eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjoxfQ"
             "\x1b\\"
         ) ||
         !write_text(output, "PHASE-B-DONE|\r\n\a")) {

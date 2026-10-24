@@ -551,7 +551,7 @@ registry admission.
 `local_site_service/agent_observation_endpoint.rs` is the
 production private Unix transport that feeds the managed hook-observation ingress.
 `local_site_service::managed` binds
-one socket per site (`agent-observation-v3.sock`, mode `0600`) inside the site runtime
+one socket per site (`agent-observation-v1.sock`, mode `0600`) inside the site runtime
 directory, records the bound path's filesystem identity at bind time, and runs a single
 poll thread multiplexing the listener, a stop pipe, and up to `MAX_ACTIVE_CONNECTIONS`
 accepted nonblocking streams; a stream that fails `set_nonblocking` is dropped, and
@@ -601,7 +601,7 @@ at construction before the `Arc` is shared — and hands the same `Arc` to the e
 to Worker admission (`register_carrier_with_agents` admits the native leaf inside the
 registry guard), and to client reads. The Worker derives the socket path from its
 existing `--local-site <runtime-dir>` argument, validates socket type and same-user
-ownership, and injects `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` through the existing
+ownership, and injects `ORCHBEE_AGENT_OBSERVATION_SOCKET` through the existing
 environment overlay; no new wire field, public setting, or Server-code dependency in
 Worker exists, and remote (non-managed) paths keep their existing behavior. Replaced
 or foreign socket paths are never unlinked on cleanup — drop stops and joins the poll

@@ -85,7 +85,7 @@ pub fn envelope_json(envelope: &HookEnvelope) -> Value {
             "turnKey": envelope.observation.turn_key,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
 }
 

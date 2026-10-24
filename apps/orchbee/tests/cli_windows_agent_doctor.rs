@@ -42,7 +42,21 @@ impl Fixture {
         Self(root)
     }
     fn run(&self, words: &[&str], locale: &str, codex_home: Option<&Path>) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+        self.run_binary(
+            Path::new(env!("CARGO_BIN_EXE_orchbee")),
+            words,
+            locale,
+            codex_home,
+        )
+    }
+    fn run_binary(
+        &self,
+        binary: &Path,
+        words: &[&str],
+        locale: &str,
+        codex_home: Option<&Path>,
+    ) -> Output {
+        let mut command = Command::new(binary);
         command
             .args(words)
             .env("USERPROFILE", self.0.join("用户 home"))
@@ -55,7 +69,7 @@ impl Fixture {
             .env("LC_ALL", locale)
             .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
             .env_remove("CODEX_HOME")
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
             .current_dir(&self.0)
             .stdin(Stdio::null());
         if let Some(home) = codex_home {
@@ -297,4 +311,98 @@ fn codex_installation_disabled_and_corrupt_capsule_facts_do_not_claim_delivery()
         document["result"]["asset"]["roots"][0]["state"],
         "inconsistent"
     );
+}
+
+#[test]
+fn changed_sidecar_bytes_require_reinstall_even_with_refreshed_manifests() {
+    use std::os::windows::process::CommandExt;
+    let fixture = Fixture::new();
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../desktop/resources/agent-observation-adapters");
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(source.join("capsule.json")).unwrap()).unwrap();
+    let installed = fixture
+        .0
+        .join("用户 home/.orchbee/agent-observation-adapters")
+        .join(manifest["payloadSha256"].as_str().unwrap());
+    fs::create_dir_all(installed.parent().unwrap()).unwrap();
+    copy_tree(&source, &installed);
+    let explicit = fixture.0.join("explicit Codex home");
+    fs::write(explicit.join("config.toml"), config(&installed, true)).unwrap();
+    let distribution = fixture.0.join("isolated distribution");
+    fs::create_dir(&distribution).unwrap();
+    let binary = distribution.join("orchbee.exe");
+    fs::copy(env!("CARGO_BIN_EXE_orchbee"), &binary).unwrap();
+    let current = distribution.join("agent-observation-adapters");
+    copy_tree(&source, &current);
+    let words = ["agent", "doctor", "--provider", "codex", "--format", "json"];
+    let before = snapshot(&installed);
+    let initial = fixture.run_binary(&binary, &words, "en-US", Some(&explicit));
+    assert!(initial.status.success());
+    let initial: Value = serde_json::from_slice(&initial.stdout).unwrap();
+    assert_eq!(
+        initial["result"]["providers"][0]["hook"]["state"],
+        "present"
+    );
+
+    // Runtime and documentation bytes both participate in the same identity.
+    // Desktop's canonical implementation supplies an independent digest oracle.
+    for relative in ["bundle/scripts/forward-hook.mjs", "README.md"] {
+        fs::write(
+            current.join(relative),
+            [fs::read(source.join(relative)).unwrap(), b"\n".to_vec()].concat(),
+        )
+        .unwrap();
+        let output = Command::new("node.exe")
+            .args(["--experimental-strip-types", "--input-type=module", "--eval",
+                "import {pathToFileURL} from 'node:url'; const {FileAgentObservationAdapterCapsule:C}=await import(pathToFileURL(process.argv[1]).href); process.stdout.write(await C.computePayloadDigest(process.argv[2]));"])
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../desktop/src/main/agent-integration-management/file-agent-observation-adapter-capsule.ts"))
+            .arg(&current)
+            .creation_flags(0x0800_0000)
+            .output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let digest = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(digest.len(), 64);
+        let refreshed = serde_json::json!({"contractVersion":1,"payloadSha256":digest});
+        fs::write(current.join("capsule.json"), refreshed.to_string()).unwrap();
+        let output = fixture.run_binary(&binary, &words, "en-US", Some(&explicit));
+        assert!(output.status.success());
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let root = &document["result"]["asset"]["roots"][0];
+        assert_eq!(root["state"], "update-required", "{relative}: {document}");
+        assert_eq!(root["detail"]["payloadSha256"], manifest["payloadSha256"]);
+        assert_eq!(
+            root["detail"]["expectedPayloadSha256"],
+            refreshed["payloadSha256"]
+        );
+        assert_eq!(
+            document["result"]["providers"][0]["hook"]["state"],
+            "update-required"
+        );
+        let schema: Value =
+            serde_json::from_str(include_str!("../src/cli/schemas/orchbee.agent.doctor.json"))
+                .unwrap();
+        assert!(
+            jsonschema::validator_for(&schema)
+                .unwrap()
+                .is_valid(&document)
+        );
+        let localized = fixture.run_binary(&binary, &words[..4], "zh-CN", Some(&explicit));
+        assert!(localized.status.success());
+        assert!(
+            String::from_utf8(localized.stdout)
+                .unwrap()
+                .contains("orchbee agent integration enable --provider codex")
+        );
+        assert_eq!(
+            snapshot(&installed),
+            before,
+            "doctor must retain the installed bytes"
+        );
+        fs::copy(source.join(relative), current.join(relative)).unwrap();
+    }
 }

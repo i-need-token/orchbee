@@ -485,7 +485,7 @@ fn bridge_dispatches_hook_envelope_into_the_read_path_runtime() {
     assert_eq!(
         overlay,
         vec![(
-            "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3".to_string(),
+            "ORCHBEE_AGENT_OBSERVATION_SOCKET".to_string(),
             "fixture.sock".to_string()
         )]
     );

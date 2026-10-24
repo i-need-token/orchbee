@@ -37,7 +37,7 @@ describe('GuardedLocalAgentIntegrationAdapter', () => {
 			expect(metadata.isFile()).toBe(true);
 			expect(metadata.isSymbolicLink()).toBe(false);
 			expect(await readFile(targetPath, 'utf8')).toContain(
-				'orchbee-agent-observation-bootstrap-v3:opencode',
+				'orchbee-agent-observation-bootstrap-v1:opencode',
 			);
 			await expect(adapter.inspect()).resolves.toMatchObject({ issue: null, state: 'enabled' });
 			await expect(adapter.disable()).resolves.toEqual({ kind: 'attempted' });
@@ -137,65 +137,28 @@ describe('GuardedLocalAgentIntegrationAdapter', () => {
 		}
 	});
 
-	it('reports an exact application-bundle symlink as update-required and migrates it', async () => {
+	it('preserves symlinks under managed and foreign resource roots', async () => {
 		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-integration-'));
 		try {
-			const resourceRoot = path.join(root, 'user-data', '0.4.17');
-			const legacySourcePath = path.join(
-				root,
-				'Orchbee.app',
-				'Contents',
-				'Resources',
-				'agent-observation-adapters',
-				'bundle',
-				'opencode',
-				'orchbee-agent-observation.mjs',
-			);
-			const sourcePath = path.join(
-				resourceRoot,
-				'bundle',
-				'opencode',
-				'orchbee-agent-observation.mjs',
-			);
+			const resourceRoot = path.join(root, 'capsules', 'a'.repeat(64));
+			const relative = path.join('bundle', 'opencode', 'orchbee-agent-observation.mjs');
+			const sourcePath = path.join(resourceRoot, relative);
 			const targetPath = path.join(root, 'config', 'adapter.mjs');
 			await mkdir(path.dirname(sourcePath), { recursive: true });
 			await mkdir(path.dirname(targetPath), { recursive: true });
 			await writeFile(sourcePath, 'export {};');
-			await symlink(legacySourcePath, targetPath, 'file');
 			const adapter = createModuleAdapter(sourcePath, targetPath, resourceRoot);
-
-			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
-			await expect(adapter.enable()).resolves.toEqual({ kind: 'attempted' });
-			const metadata = await lstat(targetPath);
-			expect(metadata.isFile()).toBe(true);
-			expect(metadata.isSymbolicLink()).toBe(false);
-			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'enabled' });
-		} finally {
-			await rm(root, { force: true, recursive: true });
-		}
-	});
-
-	it('recognizes an exact older Capsule symlink but preserves a foreign lookalike', async () => {
-		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-integration-'));
-		try {
-			const resourceRoot = path.join(root, 'capsules', '0.4.17');
-			const sourceRelativePath = path.join('bundle', 'opencode', 'orchbee-agent-observation.mjs');
-			const sourcePath = path.join(resourceRoot, sourceRelativePath);
-			const targetPath = path.join(root, 'config', 'adapter.mjs');
-			await mkdir(path.dirname(sourcePath), { recursive: true });
-			await mkdir(path.dirname(targetPath), { recursive: true });
-			await writeFile(sourcePath, 'export {};');
-			await symlink(path.join(root, 'capsules', '0.3.0', sourceRelativePath), targetPath);
-			const adapter = createModuleAdapter(sourcePath, targetPath, resourceRoot);
-
-			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
-			await rm(targetPath);
-			const foreignSourcePath = path.join(root, 'foreign', sourceRelativePath);
-			await symlink(foreignSourcePath, targetPath);
-			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'conflict' });
-			await expect(adapter.enable()).resolves.toEqual({ kind: 'conflict' });
-			await expect(adapter.disable()).resolves.toEqual({ kind: 'conflict' });
-			expect((await lstat(targetPath)).isSymbolicLink()).toBe(true);
+			for (const candidate of [
+				path.join(root, 'capsules', 'b'.repeat(64), relative),
+				path.join(root, 'foreign', relative),
+			]) {
+				await symlink(candidate, targetPath);
+				await expect(adapter.inspect()).resolves.toMatchObject({ state: 'conflict' });
+				await expect(adapter.enable()).resolves.toEqual({ kind: 'conflict' });
+				await expect(adapter.disable()).resolves.toEqual({ kind: 'conflict' });
+				expect((await lstat(targetPath)).isSymbolicLink()).toBe(true);
+				await rm(targetPath);
+			}
 		} finally {
 			await rm(root, { force: true, recursive: true });
 		}
@@ -228,7 +191,6 @@ function createModuleAdapter(
 		entryKind: 'opencode-module',
 		executableName: 'opencode',
 		integrationId: 'opencode',
-		legacyResourceRoots: [],
 		managementMode: 'managed-local',
 		resourceRoot,
 		sourcePath,
@@ -246,7 +208,6 @@ function createExtensionAdapter(
 		entryKind: 'extension-directory',
 		executableName: 'gemini',
 		integrationId: 'gemini',
-		legacyResourceRoots: [],
 		managementMode: 'managed-local',
 		resourceRoot: path.dirname(sourcePath),
 		runtimeSourcePath,

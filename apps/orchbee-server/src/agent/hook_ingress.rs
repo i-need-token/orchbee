@@ -36,9 +36,9 @@ use settlement_queue::SettlementQueue;
 const MAX_CHILD_SESSIONS_PER_SESSION: usize = 128;
 const MAX_PENDING_REQUESTS_PER_SESSION: usize = 128;
 const MAX_SESSIONS: usize = 128;
-pub const ACCEPTED_ENVELOPE_ACK: &str = "{\"accepted\":true,\"version\":3}\n";
+pub const ACCEPTED_ENVELOPE_ACK: &str = "{\"accepted\":true,\"version\":1}\n";
 #[cfg(test)]
-const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3";
+const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 
 #[derive(Clone, Debug)]
 struct SessionBinding {

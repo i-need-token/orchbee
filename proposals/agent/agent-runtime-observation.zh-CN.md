@@ -705,22 +705,22 @@ Consequential 与 Modeled 替换切片。本节取代本提案中此前选择 OS
 启动时 eager inspection 或仅依据启动 inventory 提醒的所有条款。未受影响的领域、capability、通知与
 SSH/mux 决策继续有效。
 
-### Transport v3 与精确关联
+### Transport v1 与精确关联
 
 1. 拒绝把公开 terminal notification protocol 用作 Orchbee transport。Adapter 与 Terminal Host 均不得
    通过 OSC 9、OSC 777、OSC 99、OSC 1337 notification、BEL、title change、hyperlink、clipboard operation
    或其他具有用户可见或第三方定义副作用的 sequence 编码 Agent observation。
 2. 唯一接受的 terminal half 是 namespaced private APC frame：
-   `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`。Terminal Host 只准入精确 prefix、已结束且未
+   `ESC _ orchbee.agent.v1;<base64url-payload> ESC \\`。Terminal Host 只准入精确 prefix、已结束且未
    truncated 的 frame、ASCII base64url syntax，以及解码后位于既有 4 KiB application-signal bound 内的
    UTF-8 payload。其他 APC 继续由 Ghostty 拥有或被忽略。Terminal Host 只运输解码后的有界 payload，
    不拥有 Agent semantics。
-3. Rich Unix-socket protocol 硬切到 v3。Desktop 只在已经验证、user-private 的产品 runtime directory
-   下创建 `agent-observation-v3.sock`，并只发布 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Eligible SSH
-   invocation 会另外在 remote host 创建随机、mode-`0600` 的 `/tmp/orchbee-agent-v3-*` endpoint，并把它
+3. Rich Unix-socket protocol 硬切到 v1。Desktop 只在已经验证、user-private 的产品 runtime directory
+   下创建 `agent-observation-v1.sock`，并只发布 `ORCHBEE_AGENT_OBSERVATION_SOCKET`。Eligible SSH
+   invocation 会另外在 remote host 创建随机、mode-`0600` 的 `/tmp/orchbee-agent-v1-*` endpoint，并把它
    reverse-forward 到该 local listener。Desktop 既不发布也不监听 v2 名称。不存在 dual-stack
    compatibility window：旧 adapter 看不到受支持 endpoint，必须在写入任何 terminal half 前 fail open。
-4. v3 adapter 先发送 sanitized rich envelope，并等待一个精确且有界的 ACK。Local process 只能定位
+4. v1 adapter 先发送 sanitized rich envelope，并等待一个精确且有界的 ACK。Local process 只能定位
    environment 中继承的准确 owned endpoint；只有没有该 overlay 且继承的 `SSH_CONNECTION`、
    `SSH_CLIENT` 或 `SSH_TTY` marker 至少一个非空的 remote process 才发现有界的 same-user forwarded
    candidate。没有准确 overlay 的普通 local terminal 不执行 socket scan。Stale 显式 local path 永远不会
@@ -829,10 +829,10 @@ entry 与有效 Capsule manifest。缺失 dependency 绝不能成为 `enabled`�
   signature sequence 都不会产生 semantic transition、request、outcome 或 device notification；hysteresis
   与 stale transition 是 deterministic 的。
 
-Rollout 首先把 Desktop endpoint advertisement 与所有 bundled adapter 作为一个 hard-cut v3 切片替换，
+Rollout 首先把 Desktop endpoint advertisement 与所有 bundled adapter 作为一个 hard-cut v1 切片替换，
 随后修改 Terminal Host admission，再把显式 local installation 迁移到 stable Capsule，然后启用按需
 inspection 与 contextual reminder eligibility，最后在 limited projection 后启用 passive presence。同一
-build 不得同时包含 v3 adapter 与 v2-only Desktop，反之亦然。Rollback 会一起关闭 v3 endpoint advertisement
+build 不得同时包含 v1 adapter 与 v2-only Desktop，反之亦然。Rollback 会一起关闭 v1 endpoint advertisement
 与 adapter offering；terminal operation、ordinary SSH 与 provider operation 保持正常。它不会恢复 OSC 777、
 application-bundle symlink、eager inspection 或 automatic onboarding。
 

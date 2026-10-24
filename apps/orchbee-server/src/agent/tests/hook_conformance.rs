@@ -173,7 +173,7 @@ fn hook_conformance_replays_frozen_corpus() {
                         "correlationId": corpus_correlation(args[0].as_u64().unwrap()),
                         "eventId": corpus_event(args[1].as_u64().unwrap()),
                         "kind": "correlation",
-                        "version": 3,
+                        "version": 1,
                     })
                     .to_string();
                     ingress.observe_terminal_application_signal(
@@ -210,7 +210,7 @@ fn hook_conformance_replays_frozen_corpus() {
                             "correlationId": corpus_correlation(tuple[0].as_u64().unwrap()),
                             "eventId": corpus_event(tuple[1].as_u64().unwrap()),
                             "kind": "correlation",
-                            "version": 3,
+                            "version": 1,
                         })
                         .to_string();
                         ingress.observe_terminal_application_signal(
@@ -470,7 +470,7 @@ fn test_envelope(sequence: u64, _now: f64) -> Value {
             "turnKey": null,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
 }
 

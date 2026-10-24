@@ -221,7 +221,7 @@ function envelope(
 			turnKey: null,
 			version: 1,
 		},
-		version: 3,
+		version: 1,
 	};
 }
 

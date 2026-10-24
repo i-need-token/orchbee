@@ -106,9 +106,9 @@ Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或
 
 此 managed 路径上的每个 Launch 还会通过现有 Terminal Protocol `environmentOverlay`
 传播本地 Agent 观察通道。对每个准入的 Launch，launch adapter 将跨属主约定的文件名
-`agent-observation-v3.sock` 拼接到已验证的 `--local-site` 运行时目录上，仅当 `lstat`
+`agent-observation-v1.sock` 拼接到已验证的 `--local-site` 运行时目录上，仅当 `lstat`
 证明该路径是存在且归本 Worker effective user 所有的 socket 时才予以采纳。被采纳的
-socket 在现有 16 条 / 4 KiB overlay 上限内把 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`
+socket 在现有 16 条 / 4 KiB overlay 上限内把 `ORCHBEE_AGENT_OBSERVATION_SOCKET`
 设为其绝对路径；候选缺失、非 socket、属主不符或非 UTF-8 时则不注入变量，也绝不因此
 使 Launch 失败。门禁在每次 Launch 重新求值，不缓存准入结果。显式端点路径不携带 Site
 运行时目录，不携带观察通道 overlay——远端与非 managed 启动不会获得观察通道，也不为此引入

@@ -400,8 +400,7 @@ pub(super) fn state(
                         State::Enabled
                     }
                 }
-                ResourceOwnership::Legacy => State::UpdateRequired,
-                ResourceOwnership::Newer => State::StaleSide,
+                ResourceOwnership::Outdated => State::UpdateRequired,
                 ResourceOwnership::Foreign => State::Conflict,
             }
         }

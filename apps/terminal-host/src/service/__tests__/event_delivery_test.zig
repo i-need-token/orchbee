@@ -293,7 +293,7 @@ test "private APC application signals cross the Host event scheduler once" {
         @as(terminal_runtime.testing.ReaderBatchOutcomeType, .committed),
         commitReaderBatch(
             runtime,
-            "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\",
+            "\x1b_orchbee.agent.v1;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjoxfQ\x1b\\",
         ),
     );
 
@@ -316,7 +316,7 @@ test "private APC application signals cross the Host event scheduler once" {
     defer signal.deinit();
     try std.testing.expectEqualStrings("orchbee.agent.v1", signal.value.channel);
     try std.testing.expectEqualStrings(
-        "{\"kind\":\"correlation\",\"version\":3}",
+        "{\"kind\":\"correlation\",\"version\":1}",
         signal.value.payload,
     );
     try std.testing.expectEqualStrings("1", signal.value.sequence);

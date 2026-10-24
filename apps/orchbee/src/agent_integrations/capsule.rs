@@ -1,4 +1,4 @@
-//! The versioned adapter payload capsule — a Rust port of
+//! The content-addressed adapter payload capsule — a Rust port of
 //! `apps/desktop/src/main/agent-integration-management/
 //! file-agent-observation-adapter-capsule.ts`. Digest parity is contractual:
 //! the canonical sha256 is computed over `JSON.stringify` of the sorted
@@ -14,10 +14,6 @@ use std::{
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
-/// The payload version this port supports — the compiled counterpart of the
-/// canonical `AGENT_OBSERVATION_CAPSULE_VERSION`.
-pub(crate) const PAYLOAD_VERSION: &str = "0.4.17";
-const CAPSULE_CONTRACT_VERSION: u64 = 3;
 const MAX_CAPSULE_ENTRIES: usize = 128;
 const MAX_CAPSULE_DEPTH: usize = 8;
 const MAX_CAPSULE_FILE_BYTES: u64 = 512 * 1024;
@@ -30,23 +26,16 @@ const REQUIRED_RUNTIME_FILES: [&str; 4] = [
     "bundle/scripts/observation-transport.mjs",
 ];
 
-/// Why a capsule is not usable — keeps the version ceiling a distinct typed
-/// outcome from generic corruption.
+/// Whether the strict current manifest and its actual payload agree.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum CapsuleValidity {
     Ready,
-    /// Declared `payloadVersion` differs from this build's support —
-    /// the `capsule-unsupported-version` issue member.
-    UnsupportedVersion {
-        declared: Option<String>,
-    },
     /// Any other invalidity: malformed manifest, digest mismatch, bounds,
     /// symlinks, missing required files, unreadable tree.
     Invalid,
 }
 
-/// `capsule.json` is a directory of entries: `{contractVersion:3,
-/// payloadSha256:<64hex>, payloadVersion:"<semver>"}` with no other keys.
+/// `capsule.json` contains exactly `{contractVersion:1, payloadSha256:<64hex>}`.
 fn read_manifest(root: &Path) -> Option<Map<String, Value>> {
     let manifest_path = root.join("capsule.json");
     let metadata = fs::symlink_metadata(&manifest_path).ok()?;
@@ -76,10 +65,9 @@ pub(super) fn verify_distribution(root: &Path, expected: &str) -> bool {
     let Some(manifest) = read_manifest(root) else {
         return false;
     };
-    manifest.len() == 3
-        && manifest.get("contractVersion").and_then(Value::as_u64) == Some(CAPSULE_CONTRACT_VERSION)
+    manifest.len() == 2
+        && manifest.get("contractVersion").and_then(Value::as_f64) == Some(1.0)
         && manifest.get("payloadSha256").and_then(Value::as_str) == Some(expected)
-        && manifest.get("payloadVersion").is_some_and(Value::is_string)
         && REQUIRED_RUNTIME_FILES.iter().all(|relative| {
             fs::symlink_metadata(root.join(relative)).is_ok_and(|metadata| metadata.is_file())
         })
@@ -163,7 +151,7 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
     // Canonical `compareCapsulePayloadEntries` sorts by PATH — directories and
     // files interleave (`bundle/package.json` sits between the `bundle/*`
     // directories), so the sort key is the path, never the serialized entry.
-    entries.sort_by(|left, right| left.0.cmp(&right.0));
+    entries.sort_by(|left, right| left.0.encode_utf16().cmp(right.0.encode_utf16()));
     let joined = format!(
         "[{}]",
         entries
@@ -185,42 +173,38 @@ pub(crate) fn manifest_declared_digest(root: &Path) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// The manifest's declared payloadVersion verbatim — carried into machine
-/// output even when the value exceeds this build's support.
-pub(crate) fn manifest_declared_version(root: &Path) -> Option<String> {
-    read_manifest(root)?
-        .get("payloadVersion")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
+/// The build's bundled payload identity, also available when no cohort is staged.
+pub(crate) fn bundled_payload_sha256() -> String {
+    let manifest: Value = serde_json::from_str(include_str!(
+        "../../../desktop/resources/agent-observation-adapters/capsule.json"
+    ))
+    .expect("the checked-in capsule manifest is valid JSON");
+    manifest["payloadSha256"]
+        .as_str()
+        .filter(|digest| valid_sha256(&Value::String((*digest).to_owned())))
+        .expect("the checked-in capsule manifest declares a canonical digest")
+        .to_owned()
 }
 
-/// Validate one capsule root: strict manifest keys, contract and payload
-/// versions, the four required runtime files, and the canonical digest
+/// Validate one capsule root: strict manifest keys and current contract, the four required runtime files, and the canonical digest
 /// matching the declared one.
 pub(crate) fn validate(root: &Path) -> CapsuleValidity {
-    let invalid = |validity: CapsuleValidity| validity;
     let Some(manifest) = read_manifest(root) else {
-        return invalid(CapsuleValidity::Invalid);
+        return CapsuleValidity::Invalid;
     };
-    if manifest.len() != 3
-        || manifest.get("contractVersion") != Some(&json!(CAPSULE_CONTRACT_VERSION))
+    if manifest.len() != 2
+        || manifest.get("contractVersion").and_then(Value::as_f64) != Some(1.0)
         || !valid_sha256(manifest.get("payloadSha256").unwrap_or(&Value::Null))
     {
-        return invalid(CapsuleValidity::Invalid);
-    }
-    let declared_version = manifest.get("payloadVersion").and_then(Value::as_str);
-    if declared_version != Some(PAYLOAD_VERSION) {
-        return invalid(CapsuleValidity::UnsupportedVersion {
-            declared: declared_version.map(str::to_owned),
-        });
+        return CapsuleValidity::Invalid;
     }
     for relative in REQUIRED_RUNTIME_FILES {
         let metadata = match fs::symlink_metadata(root.join(relative)) {
             Ok(metadata) => metadata,
-            Err(_) => return invalid(CapsuleValidity::Invalid),
+            Err(_) => return CapsuleValidity::Invalid,
         };
         if !metadata.is_file() {
-            return invalid(CapsuleValidity::Invalid);
+            return CapsuleValidity::Invalid;
         }
     }
     let declared_digest = manifest
@@ -229,7 +213,7 @@ pub(crate) fn validate(root: &Path) -> CapsuleValidity {
         .unwrap_or("");
     match payload_digest(root) {
         Some(computed) if computed == declared_digest => CapsuleValidity::Ready,
-        Some(_) | None => invalid(CapsuleValidity::Invalid),
+        Some(_) | None => CapsuleValidity::Invalid,
     }
 }
 

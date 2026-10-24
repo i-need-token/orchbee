@@ -673,7 +673,6 @@
 						"symlink-uninspected",
 						"budget-exhausted",
 						"not-inspected",
-						"contract-version-below-supported",
 						"contract-version-unrecognized"
 					]
 				},
@@ -766,6 +765,7 @@
 				"state": {
 					"enum": [
 						"consistent",
+						"update-required",
 						"inconsistent",
 						"unreadable",
 						"unsafe",
@@ -781,8 +781,13 @@
 						"declaredContractVersion": {
 							"type": "number"
 						},
-						"declaredPayloadVersion": {
-							"type": "string"
+						"payloadSha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						},
+						"expectedPayloadSha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
 						}
 					}
 				}
@@ -939,7 +944,6 @@
 						"symlink-uninspected",
 						"budget-exhausted",
 						"not-inspected",
-						"contract-version-below-supported",
 						"contract-version-unrecognized"
 					]
 				},
@@ -1032,6 +1036,7 @@
 				"state": {
 					"enum": [
 						"consistent",
+						"update-required",
 						"inconsistent",
 						"unreadable",
 						"unsafe",
@@ -1047,8 +1052,13 @@
 						"declaredContractVersion": {
 							"type": "number"
 						},
-						"declaredPayloadVersion": {
-							"type": "string"
+						"payloadSha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
+						},
+						"expectedPayloadSha256": {
+							"type": "string",
+							"pattern": "^[0-9a-f]{64}$"
 						}
 					}
 				}

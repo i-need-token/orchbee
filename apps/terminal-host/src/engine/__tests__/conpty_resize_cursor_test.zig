@@ -246,7 +246,7 @@ test "bundled Windows ConPTY synchronizes cursor after history resize" {
     defer signal.deinit();
     try std.testing.expectEqual(@as(u64, 1), signal.sequence);
     try std.testing.expectEqualStrings(
-        "{\"kind\":\"correlation\",\"version\":3}",
+        "{\"kind\":\"correlation\",\"version\":1}",
         signal.payload,
     );
     runtime.commitApplicationSignal(signal);

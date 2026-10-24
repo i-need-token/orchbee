@@ -44,7 +44,7 @@ const MAX_OBSERVATION_BODY_BYTES = 16 * 1024;
 const MAX_PENDING_REQUESTS_PER_SESSION = 128;
 const MAX_SESSIONS = 128;
 const CONNECTION_TIMEOUT_MILLISECONDS = 500;
-const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":3}\n';
+const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":1}\n';
 type AgentSessionObservationEvent = Exclude<
 	AgentObservationEvent,
 	{ readonly type: 'session-observed' }
@@ -147,7 +147,7 @@ export class AgentHookObservationIngress {
 		this.#handleJoinCommands(
 			this.#observationJoin.registerPresentationGeneration(presentationId, creationId),
 		);
-		return [{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3', value: this.#socketPath }];
+		return [{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: this.#socketPath }];
 	}
 
 	observeTerminalApplicationSignal(

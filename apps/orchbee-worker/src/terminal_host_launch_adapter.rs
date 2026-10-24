@@ -174,8 +174,8 @@ impl From<HostProtocolError> for HostLaunchAdapterError {
 // runtime directory holds the Agent observation socket under this exact file
 // name. The Worker keeps its own literal copy; no Server code is imported.
 #[cfg(unix)]
-const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
-const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3";
+const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
+const OBSERVATION_SOCKET_ENV: &str = "ORCHBEE_AGENT_OBSERVATION_SOCKET";
 
 /// Maps an authorized launch to its closed ordinary or source-capturing Host request.
 ///

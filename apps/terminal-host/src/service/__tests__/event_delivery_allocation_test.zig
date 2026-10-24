@@ -9,10 +9,10 @@ const Outgoing = harness.Outgoing;
 const ApplicationSignalScheduler = harness.service_boundary.testing.ApplicationSignalSchedulerType;
 const MetadataScheduler = harness.service_boundary.testing.MetadataSchedulerType;
 
-const correlation_apc = "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\";
-const launch_apc = "\x1b_orchbee.agent.v3;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\x1b\\";
-const correlation_payload = "{\"kind\":\"correlation\",\"version\":3}";
-const launch_payload = "{\"kind\":\"launch\",\"version\":3}";
+const correlation_apc = "\x1b_orchbee.agent.v1;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjoxfQ\x1b\\";
+const launch_apc = "\x1b_orchbee.agent.v1;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6MX0\x1b\\";
+const correlation_payload = "{\"kind\":\"correlation\",\"version\":1}";
+const launch_payload = "{\"kind\":\"launch\",\"version\":1}";
 
 // Only scheduler-owned allocations fail. Runtime creation and retained source
 // events use the stable testing allocator. The reader stays parked until

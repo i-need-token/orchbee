@@ -786,25 +786,25 @@ supersedes every earlier clause in this proposal that selects OSC 777, an applic
 symlink, eager startup inspection, or a reminder based merely on startup inventory. Unaffected
 domain, capability, notification, and SSH/mux decisions remain authoritative.
 
-### Transport v3 and exact correlation
+### Transport v1 and exact correlation
 
 1. Public terminal-notification protocols are rejected as an Orchbee transport. Neither an adapter
    nor Terminal Host may encode Agent observation in OSC 9, OSC 777, OSC 99, OSC 1337 notification,
    BEL, title changes, hyperlinks, clipboard operations, or another sequence with user-visible or
    third-party-defined side effects.
 2. The only accepted terminal half is the namespaced private APC frame
-   `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`. Terminal Host admits only that exact prefix,
+   `ESC _ orchbee.agent.v1;<base64url-payload> ESC \\`. Terminal Host admits only that exact prefix,
    a terminated and non-truncated frame, ASCII base64url syntax, and a decoded UTF-8 payload within
    the existing 4 KiB application-signal bound. Every other APC remains owned by Ghostty or is
    ignored. Terminal Host transports the decoded bounded payload and owns no Agent semantics.
-3. The rich Unix-socket protocol is hard-cut to v3. Desktop creates only
-   `agent-observation-v3.sock` beneath its already validated, user-private product runtime directory
-   and publishes only `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`. An eligible SSH invocation separately
-   creates a random mode-`0600` `/tmp/orchbee-agent-v3-*` endpoint on the remote host and
+3. The rich Unix-socket protocol is hard-cut to v1. Desktop creates only
+   `agent-observation-v1.sock` beneath its already validated, user-private product runtime directory
+   and publishes only `ORCHBEE_AGENT_OBSERVATION_SOCKET`. An eligible SSH invocation separately
+   creates a random mode-`0600` `/tmp/orchbee-agent-v1-*` endpoint on the remote host and
    reverse-forwards it to that local listener. Desktop neither advertises nor listens on the v2
    name. There is no dual-stack compatibility window: an old adapter sees no supported endpoint and
    must fail open before writing any terminal half.
-4. A v3 adapter sends the sanitized rich envelope first and waits for one exact bounded ACK. A local
+4. A v1 adapter sends the sanitized rich envelope first and waits for one exact bounded ACK. A local
    process may address only the exact owned endpoint inherited in its environment; only a remote
    process without that overlay and with a non-empty inherited `SSH_CONNECTION`, `SSH_CLIENT`, or
    `SSH_TTY` marker discovers bounded same-user forwarded candidates. An ordinary local terminal
@@ -932,11 +932,11 @@ requires both the exact owned entry and a valid Capsule manifest. Missing depend
   prove that no signature sequence produces semantic transitions, requests, outcomes, or device
   notifications; hysteresis and stale transitions are deterministic.
 
-Rollout first replaces Desktop endpoint advertisement and all bundled adapters as one hard-cut v3
+Rollout first replaces Desktop endpoint advertisement and all bundled adapters as one hard-cut v1
 slice, then changes Terminal Host admission, then migrates explicit local installations to the
 stable Capsule, then enables demand-driven inspection and contextual reminder eligibility, and
-finally enables passive presence behind its limited projection. A build must not ship a v3 adapter
-with a v2-only Desktop or vice versa. Rollback disables v3 endpoint advertisement and adapter
+finally enables passive presence behind its limited projection. A build must not ship a v1 adapter
+with a v2-only Desktop or vice versa. Rollback disables v1 endpoint advertisement and adapter
 offering together; terminal operation, ordinary SSH, and provider operation remain intact. It does
 not restore OSC 777, app-bundle symlinks, eager inspection, or automatic onboarding.
 

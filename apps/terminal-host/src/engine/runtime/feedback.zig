@@ -11,7 +11,7 @@ const mode_effects = @import("mode_effects.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
 const max_application_signal_bytes = protocol.Limits.terminal_application_signal_bytes;
-const private_application_signal_prefix = "orchbee.agent.v3;";
+const private_application_signal_prefix = "orchbee.agent.v1;";
 pub const max_private_application_signal_apc_bytes = private_application_signal_prefix.len +
     ((max_application_signal_bytes + 2) / 3) * 4;
 

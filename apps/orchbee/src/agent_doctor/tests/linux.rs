@@ -575,7 +575,7 @@ fn guarded_marker_parse() {
         files,
     } = probes::parse_guarded_marker(
         &marker(
-            "3.0",
+            "1.0",
             &format!(r#"{{"path":"a.js","sha256":"{valid_sha}"}}"#),
         )
         .into_bytes(),
@@ -584,7 +584,7 @@ fn guarded_marker_parse() {
     else {
         panic!("valid marker")
     };
-    assert_eq!(contract_version, 3);
+    assert_eq!(contract_version, 1);
     assert_eq!(files.len(), 1);
     // A newer contract version reports the declared number — the doctor
     // build is the stale side, never "broken".
@@ -594,7 +594,7 @@ fn guarded_marker_parse() {
     );
     // Wrong integration id → name-mismatch.
     assert_eq!(
-        probes::parse_guarded_marker(&marker("3", "").into_bytes(), "qwen-code"),
+        probes::parse_guarded_marker(&marker("1", "").into_bytes(), "qwen-code"),
         MarkerParse::NameMismatch
     );
     // Any other shape contradiction → invalid.
@@ -603,8 +603,8 @@ fn guarded_marker_parse() {
         br#"{"kind":"guarded-extension"}"#.as_slice(),
         br#"{"kind":"guarded-extension","integrationId":"gemini","contractVersion":0,"files":[]}"#
             .as_slice(),
-        marker("3", r#"{"path":"a.js"}"#).into_bytes().as_slice(),
-        marker("3", r#"{"sha256":"x","path":"a.js","extra":1}"#)
+        marker("1", r#"{"path":"a.js"}"#).into_bytes().as_slice(),
+        marker("1", r#"{"sha256":"x","path":"a.js","extra":1}"#)
             .into_bytes()
             .as_slice(),
     ] {
@@ -620,7 +620,7 @@ fn guarded_marker_parse() {
         .collect::<Vec<_>>()
         .join(",");
     assert_eq!(
-        probes::parse_guarded_marker(&marker("3", &over).into_bytes(), "gemini"),
+        probes::parse_guarded_marker(&marker("1", &over).into_bytes(), "gemini"),
         MarkerParse::Invalid
     );
 }
@@ -650,7 +650,7 @@ fn guarded_probe_through_filesystem() {
     std::fs::write(target.join("index.js"), payload).expect("write payload");
     let sha = probes::hex_digest(payload);
     let marker = format!(
-        r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":3,"files":[{{"path":"index.js","sha256":"{sha}"}}]}}"#
+        r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":1,"files":[{{"path":"index.js","sha256":"{sha}"}}]}}"#
     );
     std::fs::write(target.join(probes::GUARDED_MARKER_NAME), marker).expect("write marker");
     let mut budget = Budget::new();
@@ -687,12 +687,12 @@ fn cline_package_versions() {
         format!(r#"{{"name":"{name}","orchbeeAgentObservation":{{"contractVersion":{version}}}}}"#)
     };
     assert_eq!(
-        probes::parse_cline_package(&package("orchbee-agent-observation", "3").into_bytes()),
+        probes::parse_cline_package(&package("orchbee-agent-observation", "1").into_bytes()),
         ClinePackage::Current
     );
     assert_eq!(
         probes::parse_cline_package(&package("orchbee-agent-observation", "2").into_bytes()),
-        ClinePackage::UpdateRequired
+        ClinePackage::UnrecognizedVersion
     );
     assert_eq!(
         probes::parse_cline_package(&package("orchbee-agent-observation", "4").into_bytes()),
@@ -729,7 +729,7 @@ fn bootstrap_scan_verdicts() {
         .expect("opencode bootstrap");
     let module_url = "file:///home/u/capsule/extensions/opencode/dist/index.mjs";
     let bytes = format!(
-        "// orchbee-agent-observation-bootstrap-v3:opencode\nconst orchbeeAgentObservationModuleUrl = {module_url_json};\n{body}",
+        "// orchbee-agent-observation-bootstrap-v1:opencode\nconst orchbeeAgentObservationModuleUrl = {module_url_json};\n{body}",
         module_url_json = serde_json::to_string(module_url).expect("url json"),
         body = String::from_utf8_lossy(shape.body),
     );
@@ -741,7 +741,7 @@ fn bootstrap_scan_verdicts() {
     assert_eq!(scan.verdict, BootstrapVerdict::ForeignContent);
     // Owned prefix naming another integration → name-mismatch.
     let scan = probes::scan_bootstrap(
-        b"// orchbee-agent-observation-bootstrap-v3:pi\nrest",
+        b"// orchbee-agent-observation-bootstrap-v1:pi\nrest",
         "opencode",
         shape,
     );
@@ -749,7 +749,7 @@ fn bootstrap_scan_verdicts() {
     // Owned marker with a different body → template-mismatch; the moduleUrl
     // literal still contributes its recorded-root candidate.
     let bytes = format!(
-        "// orchbee-agent-observation-bootstrap-v3:opencode\nconst orchbeeAgentObservationModuleUrl = {};\nbody-differs",
+        "// orchbee-agent-observation-bootstrap-v1:opencode\nconst orchbeeAgentObservationModuleUrl = {};\nbody-differs",
         serde_json::to_string(module_url).expect("url json"),
     );
     let scan = probes::scan_bootstrap(bytes.as_bytes(), "opencode", shape);
@@ -763,44 +763,30 @@ fn bootstrap_scan_verdicts() {
 
 #[test]
 fn capsule_manifest_shape_and_version() {
-    let manifest = |contract: &str, payload_version: &str, sha: &str, extra: &str| {
-        format!(
-            r#"{{"contractVersion":{contract},"payloadVersion":{payload_version},"payloadSha256":"{sha}"{extra}}}"#
-        )
-    };
     let digest = "a".repeat(64);
-    // Strict three-key set + supported versions → valid.
-    let scan =
-        probes::scan_capsule_manifest(&manifest("3", "\"0.4.17\"", &digest, "").into_bytes())
-            .expect("bounded json record");
+    let manifest = |contract: u64, sha: &str| {
+        format!(r#"{{"contractVersion":{contract},"payloadSha256":"{sha}"}}"#)
+    };
+    let scan = probes::scan_capsule_manifest(manifest(1, &digest).as_bytes()).unwrap();
     assert!(scan.valid_shape && !scan.version_mismatch);
     assert_eq!(
         scan.declared_payload_sha256.as_deref(),
         Some(digest.as_str())
     );
-    // Declared ≠ supported → version-mismatch (uninspectable, not broken).
-    let scan =
-        probes::scan_capsule_manifest(&manifest("4", "\"0.4.17\"", &digest, "").into_bytes())
-            .expect("bounded json record");
+    let scan = probes::scan_capsule_manifest(manifest(2, &digest).as_bytes()).unwrap();
     assert!(scan.version_mismatch && !scan.valid_shape);
-    let scan = probes::scan_capsule_manifest(&manifest("3", "\"9.9.9\"", &digest, "").into_bytes())
-        .expect("bounded json record");
-    assert!(scan.version_mismatch && !scan.valid_shape);
-    // Missing or extra keys → shape-invalid, never version-mismatch.
-    let scan = probes::scan_capsule_manifest(
-        &manifest("3", "\"0.4.17\"", &digest, ",\"extra\":1").into_bytes(),
-    )
-    .expect("bounded json record");
-    assert!(!scan.valid_shape && !scan.version_mismatch);
-    let scan =
-        probes::scan_capsule_manifest(br#"{"contractVersion":3}"#).expect("bounded json record");
-    assert!(!scan.valid_shape && !scan.version_mismatch);
-    // Bad digest spelling → shape-invalid.
-    let scan =
-        probes::scan_capsule_manifest(&manifest("3", "\"0.4.17\"", "not-hex", "").into_bytes())
-            .expect("bounded json record");
-    assert!(!scan.valid_shape);
-    // Non-record documents do not scan at all.
+    for bytes in [
+        br#"{"contractVersion":1}"#.as_slice(),
+        br#"{"contractVersion":1,"payloadSha256":"bad","extra":true}"#.as_slice(),
+    ] {
+        let scan = probes::scan_capsule_manifest(bytes).unwrap();
+        assert!(!scan.valid_shape && !scan.version_mismatch);
+    }
+    assert!(
+        !probes::scan_capsule_manifest(manifest(1, "not-hex").as_bytes())
+            .unwrap()
+            .valid_shape
+    );
     assert!(probes::scan_capsule_manifest(b"[1,2]").is_none());
 }
 
@@ -851,8 +837,7 @@ fn supplied_root_probe_states() {
         panic!("fixture capsule must walk")
     };
     let digest = probes::capsule_payload_digest(&mut walked);
-    let manifest =
-        format!(r#"{{"contractVersion":3,"payloadVersion":"0.4.17","payloadSha256":"{digest}"}}"#);
+    let manifest = format!(r#"{{"contractVersion":1,"payloadSha256":"{digest}"}}"#);
     std::fs::write(root.join(probes::CAPSULE_MANIFEST_NAME), manifest).expect("write manifest");
     let mut budget = Budget::new();
     let outcome = probe_root(root.as_os_str().as_bytes(), &mut budget);
@@ -890,7 +875,7 @@ fn observation_socket_fact_states() {
     let euid = nix::unistd::geteuid().as_raw();
     // Absent when nothing exists.
     let directory = scratch("socket");
-    let path = directory.join("agent-observation-v3.sock");
+    let path = directory.join("agent-observation-v1.sock");
     assert_eq!(fs::observation_socket(&path, euid), fs::SocketFact::Absent);
     // A real same-euid socket → present.
     let _listener = UnixListener::bind(&path).expect("bind scratch socket");
@@ -944,7 +929,6 @@ fn emitted_vocabularies_are_closed() {
         "plugin-without-marketplace",
         "recorded-root-inconsistent",
         "recorded-root-absent",
-        "contract-version-below-supported",
         "provider-command-inspection-required",
         "unreadable",
         "malformed",
@@ -974,7 +958,6 @@ fn emitted_vocabularies_are_closed() {
         HookReason::PluginWithoutMarketplace,
         HookReason::RecordedRootInconsistent,
         HookReason::RecordedRootAbsent,
-        HookReason::ContractVersionBelowSupported,
         HookReason::ProviderCommandInspectionRequired,
         HookReason::Unreadable,
         HookReason::Malformed,
@@ -994,6 +977,7 @@ fn emitted_vocabularies_are_closed() {
     // Root states and hook states are similarly closed.
     for (variant, spelling) in [
         (RootState::Consistent, "consistent"),
+        (RootState::UpdateRequired, "update-required"),
         (RootState::Inconsistent, "inconsistent"),
         (RootState::Unreadable, "unreadable"),
         (RootState::Unsafe, "unsafe"),

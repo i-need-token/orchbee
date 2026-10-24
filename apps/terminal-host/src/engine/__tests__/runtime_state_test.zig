@@ -896,19 +896,19 @@ test "private APC queues the reserved bounded application signal channel in orde
         "\x1b]777;notify;orchbee.agent.v1;ignored\x1b\\" ++
             "\x1b]9;also ignored\x1b\\" ++
             "\x1b_unrelated.private;ignored\x1b\\" ++
-            "\x1b_orchbee.agent.v3;\x1b\\" ++
-            "\x1b_orchbee.agent.v3;***\x1b\\" ++
-            "\x1b_orchbee.agent.v3;AA\x1b\\" ++
-            "\x1b_orchbee.agent.v3;_w\x1b\\" ++
-            "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\" ++
-            "\x1b_orchbee.agent.v3;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\x1b\\",
+            "\x1b_orchbee.agent.v1;\x1b\\" ++
+            "\x1b_orchbee.agent.v1;***\x1b\\" ++
+            "\x1b_orchbee.agent.v1;AA\x1b\\" ++
+            "\x1b_orchbee.agent.v1;_w\x1b\\" ++
+            "\x1b_orchbee.agent.v1;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjoxfQ\x1b\\" ++
+            "\x1b_orchbee.agent.v1;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6MX0\x1b\\",
     ));
 
     var first = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
     defer first.deinit();
     try std.testing.expectEqual(@as(u64, 1), first.sequence);
     try std.testing.expectEqualStrings(
-        "{\"kind\":\"correlation\",\"version\":3}",
+        "{\"kind\":\"correlation\",\"version\":1}",
         first.payload,
     );
     runtime.commitApplicationSignal(first);
@@ -917,7 +917,7 @@ test "private APC queues the reserved bounded application signal channel in orde
     defer second.deinit();
     try std.testing.expectEqual(@as(u64, 2), second.sequence);
     try std.testing.expectEqualStrings(
-        "{\"kind\":\"launch\",\"version\":3}",
+        "{\"kind\":\"launch\",\"version\":1}",
         second.payload,
     );
     runtime.commitApplicationSignal(second);
@@ -931,7 +931,7 @@ test "private APC application signal queue preserves admitted predecessors at it
     defer runtime.destroy();
 
     const input_signal =
-        "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\";
+        "\x1b_orchbee.agent.v1;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjoxfQ\x1b\\";
     var input: std.ArrayList(u8) = .empty;
     defer input.deinit(std.testing.allocator);
     for (0..max_pending_application_signals + 1) |_| {
@@ -959,21 +959,21 @@ test "truncated private APC is ignored without consuming the next valid signal" 
 
     var input: std.ArrayList(u8) = .empty;
     defer input.deinit(std.testing.allocator);
-    try input.appendSlice(std.testing.allocator, "\x1b_orchbee.agent.v3;");
+    try input.appendSlice(std.testing.allocator, "\x1b_orchbee.agent.v1;");
     for (0..protocol.Limits.terminal_application_signal_bytes * 2) |_| {
         try input.append(std.testing.allocator, 'A');
     }
     try input.appendSlice(
         std.testing.allocator,
         "\x1b\\" ++
-            "\x1b_orchbee.agent.v3;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\x1b\\",
+            "\x1b_orchbee.agent.v1;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6MX0\x1b\\",
     );
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, input.items));
 
     var signal = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
     defer signal.deinit();
     try std.testing.expectEqual(@as(u64, 1), signal.sequence);
-    try std.testing.expectEqualStrings("{\"kind\":\"launch\",\"version\":3}", signal.payload);
+    try std.testing.expectEqualStrings("{\"kind\":\"launch\",\"version\":1}", signal.payload);
     runtime.commitApplicationSignal(signal);
     try std.testing.expect((try runtime.prepareApplicationSignal(std.testing.allocator)) == null);
 

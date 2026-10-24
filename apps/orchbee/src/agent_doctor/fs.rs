@@ -33,6 +33,16 @@ use super::{
     probes::{CapsuleEntry, MarkerFileEntry},
 };
 
+/// The current executable's adjacent distribution sidecar; never searches PATH.
+pub(crate) fn current_adapter_directory() -> Option<PathBuf> {
+    Some(
+        std::env::current_exe()
+            .ok()?
+            .parent()?
+            .join("agent-observation-adapters"),
+    )
+}
+
 /// Native path admission: byte-bounded before rendering — never silently
 /// truncated, never lossy-decoded. The Desktop PATH helper's ≤4096-*character*
 /// directory cap is a separate source fact; admission here is in bytes.
@@ -660,11 +670,11 @@ pub(crate) enum SocketFact {
 
 /// The observation endpoint filename inside the native runtime directory.
 #[cfg(target_os = "linux")]
-pub(crate) const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
+pub(crate) const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
 
 /// The endpoint path the hook payloads resolve:
-/// `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` when it carries a non-empty value,
-/// else `<ORCHBEE_RUNTIME_BASE || /tmp>/orchbee-native-<euid>/agent-observation-v3.sock`.
+/// `ORCHBEE_AGENT_OBSERVATION_SOCKET` when it carries a non-empty value,
+/// else `<ORCHBEE_RUNTIME_BASE || /tmp>/orchbee-native-<euid>/agent-observation-v1.sock`.
 /// Pure path derivation — no inspection.
 #[cfg(target_os = "linux")]
 pub(crate) fn observation_socket_path(euid: u32) -> PathBuf {

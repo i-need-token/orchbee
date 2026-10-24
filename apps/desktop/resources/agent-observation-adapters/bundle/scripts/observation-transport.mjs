@@ -12,13 +12,13 @@ const MAX_SOCKET_CANDIDATES = 32;
 const MAX_COMMAND_OUTPUT_BYTES = 64 * 1024;
 const SOCKET_TIMEOUT_MILLISECONDS = 250;
 const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
-const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v3-[A-Za-z0-9_-]{16,64}\.sock$/u;
-const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3';
+const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v1-[A-Za-z0-9_-]{16,64}\.sock$/u;
+const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET';
 const WINDOWS_OBSERVATION_PIPE_PATTERN =
 	/^\\\\\.\\pipe\\orchbee-[a-f0-9]{32}-observation$(?![\s\S])/u;
 const WINDOWS_CONSOLE_TARGET = String.raw`\\.\CONOUT$`;
-const PRIVATE_APC_PREFIX = 'orchbee.agent.v3;';
-const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":3}\n';
+const PRIVATE_APC_PREFIX = 'orchbee.agent.v1;';
+const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":1}\n';
 const MAX_ACK_BYTES = Buffer.byteLength(ACCEPTED_ENVELOPE_ACK);
 const ADAPTER_IDS = new Set([
 	'claude-code',
@@ -112,7 +112,7 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 		})),
 		eventId,
 		observation,
-		version: 3,
+		version: 1,
 	};
 	const deliveries = await Promise.allSettled(
 		sockets.slice(0, MAX_SOCKET_CANDIDATES).map((socketPath) => sendEnvelope(socketPath, envelope)),
@@ -126,7 +126,7 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 				correlationId,
 				eventId,
 				kind: 'correlation',
-				version: 3,
+				version: 1,
 			}),
 		),
 	);

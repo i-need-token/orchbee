@@ -20,7 +20,7 @@ const ACTIVATION_MARKER_NAME: &str = "activation.started";
 /// The managed Agent observation leaf the Server binds inside the Site
 /// runtime directory — a private known-path convention shared with the
 /// endpoint binder, not a general socket API.
-const AGENT_OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
+const AGENT_OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
 /// The Host endpoint's name relative to the Site runtime directory —
 /// `host/{HOST_ENDPOINT_NAME}` — for descriptor-relative observation.
 fn host_endpoint_relative_name() -> String {

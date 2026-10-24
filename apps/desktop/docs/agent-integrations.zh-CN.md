@@ -18,55 +18,51 @@ Registry 是封闭且有序的：Claude Code、Codex、Grok、OpenCode、Pi、OM
 Copilot CLI、Cline、Qwen Code。每个 entry 只投影 availability、management mode、integration state
 与 bounded issue。
 
-| Agent              | 只读检查                                                            | 显式开启/更新 effect                                                    | 显式关闭 effect                                   |
-| ------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------- |
-| Claude Code        | 准确 plugin 加 `plugin marketplace list --json` source/version 检查 | 迁移准确 legacy source，再从 stable Capsule 安装并开启                  | 关闭 current plugin；移除准确 legacy entry        |
-| Codex              | 有界、准确读取 Codex-owned marketplace/plugin declaration           | 修复准确 legacy marketplace、重定向到 stable Capsule，再重装准确 plugin | 移除准确 plugin；同时移除准确 legacy source       |
-| Grok               | 准确的 `plugin list --json` source/version 检查                     | 替换准确 legacy copy，或安装/开启 stable Capsule copy                   | 仅卸载 source-proven 的准确 plugin copy           |
-| OpenCode           | 准确 provider-local bootstrap 与 legacy-symlink 检查                | 原子发布 guarded local module bootstrap                                 | 仅移除 byte-exact bootstrap 或准确 legacy symlink |
-| Pi                 | 准确 provider-local bootstrap 与 legacy-symlink 检查                | 原子发布 guarded local CommonJS bootstrap                               | 仅移除 byte-exact bootstrap 或准确 legacy symlink |
-| OMP                | 准确 provider-local bootstrap 与 legacy-symlink 检查                | 原子发布 guarded local CommonJS bootstrap                               | 仅移除 byte-exact bootstrap 或准确 legacy symlink |
-| Gemini CLI         | 对 provider-local extension 执行有界 manifest 与 digest 检查        | 原子复制 self-contained guarded extension                               | 仅移除 digest-verified owned directory            |
-| GitHub Copilot CLI | 准确 plugin 加 `plugins marketplace list --json` source 检查        | 重定向准确 legacy marketplace，再安装或开启准确 plugin                  | 关闭 current plugin；移除准确 legacy entry        |
-| Cline              | 有界扫描 Cline 官方 local-install layout 与准确 Orchbee marker      | 安装 stable Capsule bundle；仅在用户请求后替换准确旧 contract           | 仅卸载准确的 current 或 older Orchbee package     |
-| Qwen Code          | 对 provider-local extension 执行有界 manifest 与 digest 检查        | 原子复制 self-contained guarded extension                               | 仅移除 digest-verified owned directory            |
+| Agent              | 只读检查                                      | 显式开启/更新 effect                              | 显式关闭 effect                     |
+| ------------------ | --------------------------------------------- | ------------------------------------------------- | ----------------------------------- |
+| Claude Code        | 准确插件与本地 marketplace 内容身份           | 修复过期托管来源，再安装并启用当前 Capsule        | 关闭当前插件；移除过期托管入口      |
+| Codex              | 有界读取 Codex 拥有的 marketplace/plugin 声明 | 重定向过期托管 marketplace，再重装准确插件        | 移除插件与过期托管 marketplace 声明 |
+| Grok               | 准确插件来源身份与启用状态                    | 替换过期托管副本，或启用当前副本                  | 仅卸载来源已证实的插件              |
+| OpenCode           | 准确的 provider-local bootstrap               | 原子发布受保护模块引导                            | 仅移除字节完全匹配的自有引导        |
+| Pi                 | 准确的 provider-local bootstrap               | 原子发布受保护 CommonJS 引导                      | 仅移除字节完全匹配的自有引导        |
+| OMP                | 准确的 provider-local bootstrap               | 原子发布受保护 CommonJS 引导                      | 仅移除字节完全匹配的自有引导        |
+| Gemini CLI         | 有界自有标记与文件摘要                        | 原子复制自包含受保护扩展                          | 仅移除摘要校验后的自有目录          |
+| GitHub Copilot CLI | 准确插件与本地 marketplace 来源身份           | 重定向过期托管 marketplace，再安装或启用插件      | 关闭当前插件；移除过期托管入口      |
+| Cline              | 有界官方安装布局与 Orchbee 标记               | 安装当前 Capsule bundle，或显式替换带标记的过期包 | 仅卸载带 Orchbee 标记的包           |
+| Qwen Code          | 有界自有标记与文件摘要                        | 原子复制自包含受保护扩展                          | 仅移除摘要校验后的自有目录          |
 
-Versioned Capsule 位于 Desktop user data 下，不在 application bundle 与 provider cache 内。它只会在
-显式 local enable/update 前立即 materialize；只要仍有任一 provider declaration 引用它，即使 application
-已移除也必须保留。Provider-local entry 要么保持 self-contained，要么会在
-provider code 报错前捕获 Capsule 缺失。每个持久化 command hook 都检查 runtime 与 script、重定向
-stdout/stderr，并在 observation 不可用时以零退出码结束。Cline inspection 只信任其官方 local-install
-layout 中带 Orchbee 准确 contract marker 的唯一 package。Orchbee 不执行后台更新。Windows 把所有
-entry 投影为 `manual-only`；不会运行受管本地 mutation。
+内容寻址的 Capsule 位于 `~/.orchbee/agent-observation-adapters/<payloadSha256>`，
+不在应用 bundle 与提供方缓存中。仅在显式 enable/update 前生成，引用仍存在时保留，
+包括移除应用之后。严格的契约 1 清单及实际载荷摘要必须与打包来源一致。
+同一托管安装父目录下的其他身份报告 `update-required`；包 semver 不用于排序身份。
+不再将应用 bundle 和检出资源根识别为托管安装。符号链接、外来或修改过的入口继续报告冲突。
+不执行自动迁移或目录清理。
 
-Claude 与 GitHub Copilot inspection 会把准确 plugin inventory 和准确 local marketplace declaration
-结合起来。Grok 的 provider-owned installed copy 是 self-contained，但 inspection 仍会校验其记录的
-source 与 payload version。准确的 Orchbee application-bundle source 或较旧 sibling Capsule 会成为
-`update-required`；只有显式 Enable/Update 才能重定向或替换。任何使用其他 source 的同名 marketplace、
-plugin 或 copy 都是 conflict，永远不会被修改。Grok disable 会移除 source-proven copy，避免其当前 CLI
-inventory 通过 provider-specific enablement representation 掩盖仍已安装的 hook。
+Provider-local 入口保持自包含，或在提供方代码报错前捕获 Capsule 缺失。
+持久化 hook 保留运行时／脚本保护及有界输出策略。Cline 信任官方本地布局中唯一且
+带准确 Orchbee 标记的安装。Desktop 不执行后台更新；其 Windows 注册表仍为 `manual-only`。
 
 打包 adapter contract、compatibility floor、手动命令与 observation 隐私边界以
 [adapter 指南](../resources/agent-observation-adapters/README.zh-CN.md)为准。
 
 ## 状态与 transaction
 
-| 状态              | 含义                                                      |
-| ----------------- | --------------------------------------------------------- |
-| `enabled`         | 准确的 Orchbee 集成已存在且开启                           |
-| `disabled`        | 准确的 Orchbee 集成已存在但关闭                           |
-| `not-installed`   | 受管 entry 中没有准确的 Orchbee 集成                      |
-| `update-required` | 准确旧版或 dependency 缺失的 Orchbee entry 需要经同意迁移 |
-| `conflict`        | 不同文件或 source 占用了 Orchbee 拥有的名称或 target      |
-| `unknown`         | 检查无法建立准确状态                                      |
+| 状态              | 含义                                                 |
+| ----------------- | ---------------------------------------------------- |
+| `enabled`         | 准确的 Orchbee 集成已存在且开启                      |
+| `disabled`        | 准确的 Orchbee 集成已存在但关闭                      |
+| `not-installed`   | 受管 entry 中没有准确的 Orchbee 集成                 |
+| `update-required` | 内容身份过期或依赖缺失的入口需要显式修复             |
+| `conflict`        | 不同文件或 source 占用了 Orchbee 拥有的名称或 target |
+| `unknown`         | 检查无法建立准确状态                                 |
 
 一个 process-wide controller 串行执行 mutation。显式请求按以下顺序运行：
 
 1. 初始化或复用最新的只读 inventory。
 2. 在写入前拒绝不可用的开启请求、manual-only management、conflict 与并发操作。
-3. Preflight 并原子发布 Capsule `0.4.16`，不修改 provider configuration。
+3. Preflight 并原子发布当前内容寻址的 Capsule，不修改 provider configuration。
 4. 重新检查 provider-owned state，只执行固定 command vector 或准确 guarded-entry operation；只有
-   准确 legacy entry 可以迁移。
+   已证实的托管入口可以修复。
 5. 每次 effect 尝试后重新检查所选 adapter。
 6. 发布观察到的状态。Command 成功但未观察到请求状态时返回 `verification-failed`；失败绝不会伪造
    成功状态。
@@ -106,18 +102,11 @@ timeout、diagnostic 或 CLI-launch policy。确定性 candidate test 覆盖顺�
 shell `PATH` 完成的 interpreter lookup。Native macOS verification 覆盖 packaged-launch compatibility claim；
 其他 shell family 仍以各自的 maintained platform test 为边界。
 
-Provider-local bootstrap installation 会先 stage 再发布。Module bootstrap 会捕获缺失或无效的 Capsule
-import，并且没有任何输出；extension directory 包含 guarded runtime 与记录每个 file digest 的 owned
-manifest。Regular file、directory、foreign link、被修改的 bootstrap、额外文件或 digest mismatch 都是
-conflict，并保持不变。准确的旧 application-bundle 或 stable-Capsule symlink 是 `update-required`；只有
-显式 switch action 才会迁移。关闭只移除 byte-exact bootstrap、digest-verified directory 或已识别的
-准确 legacy symlink。
-
-任何 managed provider entry 都不会持久指向 application-bundle path。已识别的准确 legacy bundle path
-绝不会被静默跟随或修复：inspection 会报告 `update-required`，只有 Settings 中的显式操作才能迁移。
-因此，移除 application 但保留已启用 integration 时，留下的会是 self-contained provider entry、静默的
-guarded bootstrap，或被有意保留的 Capsule。Uninstall tooling 不得删除仍被引用的 Capsule；完整清理
-必须先 disable integration。
+Provider-local bootstrap 安装先暂存再发布。模块引导静默捕获缺失或无效的 Capsule 导入。
+扩展目录包含运行时，以及记录各文件摘要的自有清单。符号链接、外来根目录、修改过的引导、
+额外文件和摘要失配均为冲突，保持不变。Disable 仅移除字节完全匹配的自有引导或已校验摘要的目录。
+托管入口不会持久引用应用 bundle 路径。移除应用后保留被引用的 Capsule 或自包含提供方入口；
+完整清理前先关闭集成。
 
 ## 设置与提醒策略
 
@@ -128,7 +117,7 @@ row，并禁用所有竞争 switch。界面还会展示十个本地 entry、刷�
 尝试 effect。经过验证的成功开启会清除 dismissal，使之后发生的外部移除仍可再次被发现。
 
 本地 Zsh、Bash 与 Fish resource 只会在第一个 command word 表示受支持 Agent 且解析为外部 executable
-时发出 version `3` launch hint。Hint 只含封闭的 integration ID 与 protocol version；command text 与
+时发出 version `1` launch hint。Hint 只含封闭的 integration ID 与 protocol version；command text 与
 argument 永远不会进入 signal。Main 只把它当作不可信的 reminder gating evidence，而不是 Agent status
 或 configuration authority，并按首次观察顺序对每个 ID 记录一次。Alias、function、wrapper、remote
 shell，以及没有 Orchbee shell integration 的 terminal 都保持静默。
@@ -156,7 +145,7 @@ Desktop 本地管理不会因为一个 SSH terminal 而获得权限。对于 Orc
 Zellij → Agent，必须在 Agent process 实际运行的机器上手动 review 并开启 adapter。Orchbee 不会执行
 远端 command、复制打包 resource、写远端文件、检查远端 home directory 或持久化远端 credential。
 
-手动完成远端设置后，v3 reverse Unix socket 与 private APC correlation transport 可以让 observation
+手动完成远端设置后，v1 reverse Unix socket 与 private APC correlation transport 可以让 observation
 穿过 SSH 与 nested tmux/Zellij layer。Adapter 会解析 outer client TTY 并直接写入 private frame，因此
 不依赖 mux passthrough。Transport 可达性不会授予 integration management 权限。
 

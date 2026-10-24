@@ -9,8 +9,6 @@ export const GITHUB_COPILOT_PLUGIN_ID = 'orchbee-agent-observation@orchbee-local
 const MARKETPLACE_NAME = 'orchbee-local';
 
 export interface ManagedAgentIntegrationResourceOptions {
-	readonly expectedVersion: string;
-	readonly legacyResourceRoots: readonly string[];
 	readonly resourceRoot: string;
 }
 
@@ -31,7 +29,7 @@ export interface GitHubCopilotAgentIntegrationConfiguration {
 	readonly state: DesktopAgentIntegrationState;
 }
 
-type ManagedMarketplaceState = 'absent' | 'current' | 'legacy';
+type ManagedMarketplaceState = 'absent' | 'current' | 'update-required';
 
 export function parseClaudeConfiguration(
 	pluginOutput: string,
@@ -53,7 +51,7 @@ export function parseClaudeConfiguration(
 	if (marketplace === 'foreign') {
 		return { marketplace: 'absent', pluginPresent: plugin !== undefined, state: 'conflict' };
 	}
-	if (marketplace === 'legacy') {
+	if (marketplace === 'update-required') {
 		return { marketplace, pluginPresent: plugin !== undefined, state: 'update-required' };
 	}
 	if (plugin === undefined) {
@@ -62,11 +60,7 @@ export function parseClaudeConfiguration(
 	if (marketplace === 'absent') {
 		return { marketplace, pluginPresent: true, state: 'conflict' };
 	}
-	const version = readString(plugin, 'version');
-	if (version === null) return null;
-	if (version !== options.expectedVersion) {
-		return { marketplace, pluginPresent: true, state: 'update-required' };
-	}
+	if (readString(plugin, 'version') === null) return null;
 	const enabled = readBoolean(plugin, 'enabled');
 	if (enabled === null) return null;
 	return { marketplace, pluginPresent: true, state: enabled ? 'enabled' : 'disabled' };
@@ -84,13 +78,16 @@ export function parseGrokConfiguration(
 	const plugin = matches[0];
 	if (plugin === undefined) return null;
 	const source = readString(plugin, 'source');
-	const version = readString(plugin, 'version');
-	if (source === null || version === null || path.basename(source) !== 'bundle') {
+	if (
+		source === null ||
+		readString(plugin, 'version') === null ||
+		path.basename(source) !== 'bundle'
+	) {
 		return { pluginPresent: true, state: 'conflict' };
 	}
 	const ownership = classifyManagedResourceRoot(path.dirname(source), options);
 	if (ownership === 'foreign') return { pluginPresent: true, state: 'conflict' };
-	if (ownership === 'legacy' || version !== options.expectedVersion) {
+	if (ownership === 'update-required') {
 		return { pluginPresent: true, state: 'update-required' };
 	}
 	const enabled = readBoolean(plugin, 'enabled');
@@ -130,7 +127,7 @@ export function parseGitHubCopilotConfiguration(
 		return {
 			marketplace,
 			pluginPresent: false,
-			state: marketplace === 'legacy' ? 'update-required' : 'not-installed',
+			state: marketplace === 'update-required' ? 'update-required' : 'not-installed',
 		};
 	}
 	const source = readString(plugin, 'source');
@@ -142,7 +139,7 @@ export function parseGitHubCopilotConfiguration(
 	if (ownership === 'foreign' || marketplace === 'absent') {
 		return { marketplace, pluginPresent: true, state: 'conflict' };
 	}
-	if (ownership === 'legacy' || marketplace === 'legacy') {
+	if (ownership === 'update-required' || marketplace === 'update-required') {
 		return { marketplace, pluginPresent: true, state: 'update-required' };
 	}
 	const enabled = readBoolean(plugin, 'enabled');
@@ -152,33 +149,13 @@ export function parseGitHubCopilotConfiguration(
 
 export function classifyManagedResourceRoot(
 	value: string,
-	options: Pick<ManagedAgentIntegrationResourceOptions, 'legacyResourceRoots' | 'resourceRoot'>,
-): 'current' | 'foreign' | 'legacy' {
+	options: Pick<ManagedAgentIntegrationResourceOptions, 'resourceRoot'>,
+): 'current' | 'foreign' | 'update-required' {
 	if (!path.isAbsolute(value)) return 'foreign';
 	const resolved = path.resolve(value);
 	const current = path.resolve(options.resourceRoot);
 	if (resolved === current) return 'current';
-	if (options.legacyResourceRoots.some((candidate) => path.resolve(candidate) === resolved)) {
-		return 'legacy';
-	}
-	const normalized = resolved.split(path.sep).join('/');
-	if (
-		/(?:^|\/)Orchbee(?: Dev| Local)?\.app\/Contents\/Resources\/agent-observation-adapters$/u.test(
-			normalized,
-		) ||
-		normalized.endsWith('/apps/desktop/resources/agent-observation-adapters')
-	) {
-		return 'legacy';
-	}
-	const versionPattern = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/u;
-	if (
-		path.dirname(resolved) === path.dirname(current) &&
-		versionPattern.test(path.basename(resolved)) &&
-		versionPattern.test(path.basename(current))
-	) {
-		return 'legacy';
-	}
-	return 'foreign';
+	return path.dirname(resolved) === path.dirname(current) ? 'update-required' : 'foreign';
 }
 
 type JsonRecord = Record<string, unknown>;

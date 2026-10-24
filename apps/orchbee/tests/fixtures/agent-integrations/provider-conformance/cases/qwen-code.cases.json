@@ -12,7 +12,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": { "target": "dir, marker v3 + fingerprint match" },
+			"dims": {
+				"target": "dir, marker v3 + fingerprint match"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -50,7 +52,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -74,7 +78,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "target": "dir, marker absent" },
+			"dims": {
+				"target": "dir, marker absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -99,47 +105,13 @@
 			"anchors": ["guarded-adapter:330-341"]
 		},
 		{
-			"id": "qwen-code.inspect.marker-contract-2",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required"],
-			"dims": { "target": "dir, marker contractVersion=2 + fingerprint match" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/qwen",
-				"capsule": "ready",
-				"capsuleSources": [
-					"bundle/qwen-code/**",
-					"bundle/scripts/forward-hook.mjs",
-					"bundle/scripts/hook-sanitizers.mjs",
-					"bundle/scripts/observation-transport.mjs"
-				],
-				"fs": [
-					{
-						"path": ".qwen/extensions/orchbee-agent-observation",
-						"kind": "dir-owned",
-						"ownedKind": "extension-directory",
-						"markerContractVersion": 2
-					}
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["guarded-adapter:343-345,355-357"]
-		},
-		{
 			"id": "qwen-code.inspect.fingerprint-mismatch",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "target": "dir, marker ok, content drifted" },
+			"dims": {
+				"target": "dir, marker ok, content drifted"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -155,7 +127,9 @@
 						"path": ".qwen/extensions/orchbee-agent-observation",
 						"kind": "dir-owned",
 						"ownedKind": "extension-directory",
-						"mutate": { "addFile": "user-notes.txt" }
+						"mutate": {
+							"addFile": "user-notes.txt"
+						}
 					}
 				],
 				"commands": []
@@ -171,40 +145,13 @@
 			"anchors": ["guarded-adapter:343-344,376-407"]
 		},
 		{
-			"id": "qwen-code.inspect.legacy-symlink",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required", "legacy-symlink"],
-			"dims": { "target": "symlink → legacy root dir" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/qwen",
-				"capsule": "ready",
-				"fs": [
-					{
-						"path": ".qwen/extensions/orchbee-agent-observation",
-						"kind": "symlink",
-						"target": "${APP_BUNDLE_ROOT}/bundle/qwen-code"
-					}
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["guarded-adapter:203-219"]
-		},
-		{
 			"id": "qwen-code.inspect.foreign-symlink",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": { "target": "symlink → foreign root" },
+			"dims": {
+				"target": "symlink → foreign root"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -229,46 +176,24 @@
 			"anchors": ["guarded-adapter:203-216"]
 		},
 		{
-			"id": "qwen-code.inspect.newer-sibling-symlink",
+			"id": "qwen-code.inspect.unreadable-target",
 			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling"],
-			"dims": { "target": "symlink → newer sibling dir" },
+			"class": "shared",
+			"covers": ["unreadable", "unknown"],
+			"dims": {
+				"target": "lstat EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
 				"capsule": "ready",
 				"fs": [
 					{
-						"path": ".qwen/extensions/orchbee-agent-observation",
-						"kind": "symlink",
-						"target": "${NEWER_SIBLING}/bundle/qwen-code"
+						"path": ".qwen/extensions",
+						"kind": "dir",
+						"mode": "0000"
 					}
 				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "stale-side",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				},
-				"desktopCanonical": { "state": "update-required", "issue": null }
-			},
-			"anchors": ["guarded-adapter:203-219", "state-parsers:173-180", "design:complete53§3.2"]
-		},
-		{
-			"id": "qwen-code.inspect.unreadable-target",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["unreadable", "unknown"],
-			"dims": { "target": "lstat EACCES" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/qwen",
-				"capsule": "ready",
-				"fs": [{ "path": ".qwen/extensions", "kind": "dir", "mode": "0000" }],
 				"commands": []
 			},
 			"expect": {
@@ -286,7 +211,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -308,7 +235,10 @@
 					},
 					"noReplace": true
 				},
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:153-184,260-310", "create-adapters:181-194"]
 		},
@@ -317,7 +247,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": { "target": "dir, exact-owned" },
+			"dims": {
+				"target": "dir, exact-owned"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -342,8 +274,13 @@
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:157"]
 		},
@@ -352,7 +289,9 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "target": "dir, foreign" },
+			"dims": {
+				"target": "dir, foreign"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -370,8 +309,13 @@
 				"attempt": "conflict",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:158-164"]
 		},
@@ -380,7 +324,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": { "target": "dir, exact-owned" },
+			"dims": {
+				"target": "dir, exact-owned"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -404,8 +350,14 @@
 			"expect": {
 				"attempt": "attempted",
 				"commands": [],
-				"fsEffect": { "kind": "remove-dir", "path": ".qwen/extensions/orchbee-agent-observation" },
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"fsEffect": {
+					"kind": "remove-dir",
+					"path": ".qwen/extensions/orchbee-agent-observation"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:186-194,236-243"]
 		},
@@ -414,7 +366,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": { "target": "absent" },
+			"dims": {
+				"target": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -426,8 +380,13 @@
 				"attempt": "attempted",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:189"]
 		},
@@ -436,7 +395,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "target": "dir, fingerprint mismatch" },
+			"dims": {
+				"target": "dir, fingerprint mismatch"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
@@ -452,7 +413,9 @@
 						"path": ".qwen/extensions/orchbee-agent-observation",
 						"kind": "dir-owned",
 						"ownedKind": "extension-directory",
-						"mutate": { "addFile": "user-notes.txt" }
+						"mutate": {
+							"addFile": "user-notes.txt"
+						}
 					}
 				],
 				"commands": []
@@ -461,8 +424,13 @@
 				"attempt": "conflict",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:190-192,343-344"]
 		},
@@ -471,20 +439,33 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": { "target": "lstat EACCES" },
+			"dims": {
+				"target": "lstat EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/qwen",
 				"capsule": "ready",
-				"fs": [{ "path": ".qwen/extensions", "kind": "dir", "mode": "0000" }],
+				"fs": [
+					{
+						"path": ".qwen/extensions",
+						"kind": "dir",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"fsEffect": { "kind": "none" },
-				"cli": { "exit": 9, "frontier": "pre-effect" }
+				"fsEffect": {
+					"kind": "none"
+				},
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["guarded-adapter:190-192", "disposition55:29-31"]
 		}

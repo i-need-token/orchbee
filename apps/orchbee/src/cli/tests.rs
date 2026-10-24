@@ -86,8 +86,7 @@ fn integration_list_documents_cover_the_entire_provider_registry() {
                 root: "/isolated-capsule".into(),
                 source_kind: "absent",
                 binding_failure: false,
-                unsupported_version: None,
-                declared_payload_version: None,
+                payload_sha256: "a".repeat(64),
             },
             outdated_only,
         };

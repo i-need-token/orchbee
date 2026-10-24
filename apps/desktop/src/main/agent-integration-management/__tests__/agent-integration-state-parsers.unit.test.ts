@@ -7,13 +7,12 @@ import {
 } from '../agent-integration-state-parsers';
 
 const resourceOptions = {
-	expectedVersion: '0.4.17',
-	legacyResourceRoots: ['/Applications/Orchbee.app/Contents/Resources/agent-observation-adapters'],
-	resourceRoot: '/user-data/agent-observation-adapters/0.4.17',
+	resourceRoot:
+		'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 } as const;
 
 describe('Agent integration state parsers', () => {
-	it('requires the exact Claude plugin, version, and owned marketplace source', () => {
+	it('requires the exact Claude plugin and owned content identity', () => {
 		const plugin = (version = '0.4.17', enabled = true) =>
 			JSON.stringify([
 				{ enabled: true, id: 'other@orchbee-local', version },
@@ -35,14 +34,16 @@ describe('Agent integration state parsers', () => {
 				marketplace(resourceOptions.resourceRoot),
 				resourceOptions,
 			),
-		).toMatchObject({ state: 'update-required' });
+		).toMatchObject({ state: 'enabled' });
 		expect(
 			parseClaudeConfiguration(
 				plugin(),
-				marketplace('/user-data/agent-observation-adapters/0.3.0'),
+				marketplace(
+					'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+				),
 				resourceOptions,
 			),
-		).toMatchObject({ marketplace: 'legacy', state: 'update-required' });
+		).toMatchObject({ marketplace: 'update-required', state: 'update-required' });
 		expect(
 			parseClaudeConfiguration(plugin(), marketplace('/third-party'), resourceOptions),
 		).toMatchObject({ state: 'conflict' });
@@ -54,7 +55,7 @@ describe('Agent integration state parsers', () => {
 		expect(parseClaudeConfiguration('{"not":"an array"}', '[]', resourceOptions)).toBeNull();
 	});
 
-	it('classifies only source- and version-proven Grok copies as managed', () => {
+	it('classifies only source-proven Grok copies as managed', () => {
 		const entry = (source: string, version = '0.4.17', status = 'installed') =>
 			JSON.stringify([{ name: 'orchbee-agent-observation', source, status, version }]);
 		const currentBundle = `${resourceOptions.resourceRoot}/bundle`;
@@ -71,7 +72,10 @@ describe('Agent integration state parsers', () => {
 		});
 		expect(
 			parseGrokConfiguration(
-				entry(`${resourceOptions.legacyResourceRoots[0]}/bundle`, '0.3.0'),
+				entry(
+					`${'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}/bundle`,
+					'0.3.0',
+				),
 				resourceOptions,
 			),
 		).toMatchObject({ state: 'update-required' });
@@ -108,11 +112,15 @@ describe('Agent integration state parsers', () => {
 		).toMatchObject({ marketplace: 'current', pluginPresent: true, state: 'enabled' });
 		expect(
 			parseGitHubCopilotConfiguration(
-				plugin(resourceOptions.legacyResourceRoots[0]),
-				marketplace(resourceOptions.legacyResourceRoots[0]),
+				plugin(
+					'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+				),
+				marketplace(
+					'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+				),
 				resourceOptions,
 			),
-		).toMatchObject({ marketplace: 'legacy', state: 'update-required' });
+		).toMatchObject({ marketplace: 'update-required', state: 'update-required' });
 		expect(
 			parseGitHubCopilotConfiguration(
 				plugin('/third-party'),

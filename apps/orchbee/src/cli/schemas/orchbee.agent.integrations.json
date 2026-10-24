@@ -369,7 +369,6 @@
 				},
 				"issue": {
 					"enum": [
-						"capsule-unsupported-version",
 						"inspection-failed",
 						"manual-action-required",
 						"unsupported-platform",
@@ -381,26 +380,14 @@
 		},
 		"capsule": {
 			"type": "object",
-			"required": ["state", "source", "supportedPayloadVersion"],
+			"required": ["state", "source", "payloadSha256"],
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": ["ready", "not-ready", "unsupported-version", "source-absent", "binding-failed"]
+					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
 				},
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
-				},
-				"supportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"declaredPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"unsupportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
 				},
 				"bindingFailure": {
 					"const": true
@@ -412,6 +399,10 @@
 				"rootPathBytesHex": {
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
+				},
+				"payloadSha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
 				}
 			}
 		},
@@ -463,7 +454,6 @@
 				},
 				"issue": {
 					"enum": [
-						"capsule-unsupported-version",
 						"inspection-failed",
 						"manual-action-required",
 						"unsupported-platform",
@@ -475,26 +465,14 @@
 		},
 		"publicProvider_capsule": {
 			"type": "object",
-			"required": ["state", "source", "supportedPayloadVersion"],
+			"required": ["state", "source", "payloadSha256"],
 			"additionalProperties": false,
 			"properties": {
 				"state": {
-					"enum": ["ready", "not-ready", "unsupported-version", "source-absent", "binding-failed"]
+					"enum": ["ready", "not-ready", "source-absent", "binding-failed"]
 				},
 				"source": {
 					"enum": ["cohort-sidecar", "adapter-source-override", "absent"]
-				},
-				"supportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"declaredPayloadVersion": {
-					"type": "string",
-					"minLength": 1
-				},
-				"unsupportedPayloadVersion": {
-					"type": "string",
-					"minLength": 1
 				},
 				"bindingFailure": {
 					"const": true
@@ -506,6 +484,10 @@
 				"rootPathBytesHex": {
 					"type": "string",
 					"pattern": "^([0-9a-f]{2})+$"
+				},
+				"payloadSha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
 				}
 			}
 		}

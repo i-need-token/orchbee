@@ -98,8 +98,19 @@
 			"area": "file-publish",
 			"summary": "Fresh publish onto an absent target converges clean: stage -> verify -> link+unlink -> cleanup.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$TARGET", "kind": "absent" }] },
-			"drive": { "op": "publish-file", "stagedBytes": "payload-A", "target": "$TARGET" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-A",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -109,7 +120,12 @@
 				"provenance": "post-effect",
 				"attempted": ["stage-create", "digest-verify", "install", "cleanup-stage"],
 				"residue": [],
-				"preserved": [{ "path": "$TARGET", "bytes": "payload-A" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "payload-A"
+					}
+				],
 				"forbidden": [],
 				"allowedNext": ["invocation completes"]
 			},
@@ -122,10 +138,19 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "foreign-content", "ownership": "foreign" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "foreign-content",
+						"ownership": "foreign"
+					}
 				]
 			},
-			"drive": { "op": "publish-file", "stagedBytes": "payload-A", "target": "$TARGET" },
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-A",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
@@ -135,7 +160,12 @@
 				"provenance": "pre-effect",
 				"attempted": ["preflight-inspect"],
 				"residue": [],
-				"preserved": [{ "path": "$TARGET", "bytes": "foreign-content" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "foreign-content"
+					}
+				],
 				"forbidden": ["target bytes overwritten", "occupant moved or removed", "stage dir created"],
 				"allowedNext": ["user clears occupant; retry publishes fresh"]
 			},
@@ -146,8 +176,19 @@
 			"area": "file-publish",
 			"summary": "Target absent at inspect; a foreign file lands before link(2). EEXIST at install = post-effect determinate conflict; our stage is the only residue and the foreign bytes are never clobbered.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$TARGET", "kind": "absent" }] },
-			"drive": { "op": "publish-file", "stagedBytes": "payload-A", "target": "$TARGET" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-A",
+				"target": "$TARGET"
+			},
 			"inject": {
 				"atStep": "install",
 				"errno": "EEXIST",
@@ -167,7 +208,12 @@
 						"note": "cleaned if still verifiably ours; otherwise retained and named"
 					}
 				],
-				"preserved": [{ "path": "$TARGET", "bytes": "foreign-arrival" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "foreign-arrival"
+					}
+				],
 				"forbidden": ["foreign arrival overwritten", "arrival unlinked"],
 				"allowedNext": ["conflict reported; next run re-inspects"]
 			},
@@ -178,8 +224,19 @@
 			"area": "dir-publish",
 			"summary": "Same mid-window arrival for a directory-kind target via the platform no-replace rename primitive.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$TARGET", "kind": "absent" }] },
-			"drive": { "op": "publish-dir", "stagedBytes": "payload-dir-A", "target": "$TARGET" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "publish-dir",
+				"stagedBytes": "payload-dir-A",
+				"target": "$TARGET"
+			},
 			"inject": {
 				"atStep": "install",
 				"errno": "EEXIST",
@@ -191,8 +248,18 @@
 				"frontier": "post-effect",
 				"determinate": true,
 				"attempted": ["stage-create", "digest-verify", "install"],
-				"residue": [{ "pattern": ".orchbee-agent-entry-*", "namedInResult": true }],
-				"preserved": [{ "path": "$TARGET", "bytes": "foreign-dir" }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-entry-*",
+						"namedInResult": true
+					}
+				],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "foreign-dir"
+					}
+				],
 				"forbidden": ["foreign dir overwritten or merged"],
 				"allowedNext": ["conflict reported"]
 			},
@@ -203,8 +270,12 @@
 			"area": "dir-publish",
 			"summary": "Platform lacks a no-replace directory primitive: directory-kind managed effects type manual-action-required (4) while file-kind still proceeds via link+unlink.",
 			"execution": "static",
-			"setup": { "platform": "no-dir-noreplace" },
-			"drive": { "op": "publish-dir" },
+			"setup": {
+				"platform": "no-dir-noreplace"
+			},
+			"drive": {
+				"op": "publish-dir"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "manual-action-required",
@@ -223,9 +294,22 @@
 			"area": "file-publish",
 			"summary": "mkdtemp stage creation fails (ENOSPC). The first effect step was initiated and failed atomically: post-effect determinate failure; nothing to clean.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$TARGET", "kind": "absent" }] },
-			"drive": { "op": "publish-file", "stagedBytes": "payload-A" },
-			"inject": { "atStep": "stage-create", "errno": "ENOSPC" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-A"
+			},
+			"inject": {
+				"atStep": "stage-create",
+				"errno": "ENOSPC"
+			},
 			"expect": {
 				"verdict": "failed",
 				"exit": 9,
@@ -247,17 +331,40 @@
 			"area": "file-publish",
 			"summary": "Staged bytes fail digest-verify before install: verification-failed is undetermined family — exit 8; nothing installed; stage residue owned-and-named.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$TARGET", "kind": "absent" }] },
-			"drive": { "op": "publish-file", "stagedBytes": "payload-A" },
-			"inject": { "atStep": "digest-verify", "kind": "staged digest != expected" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-A"
+			},
+			"inject": {
+				"atStep": "digest-verify",
+				"kind": "staged digest != expected"
+			},
 			"expect": {
 				"verdict": "verification-failed",
 				"exit": 8,
 				"frontier": "post-effect",
 				"determinate": false,
 				"attempted": ["stage-create", "digest-verify"],
-				"residue": [{ "pattern": ".orchbee-agent-entry-*", "namedInResult": true }],
-				"preserved": [{ "path": "$TARGET", "kind": "absent" }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-entry-*",
+						"namedInResult": true
+					}
+				],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				],
 				"forbidden": ["install attempted after failed verify"],
 				"allowedNext": []
 			},
@@ -270,10 +377,19 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -291,7 +407,12 @@
 					"cleanup-stage"
 				],
 				"residue": [],
-				"preserved": [{ "path": "$TARGET", "bytes": "payload-B" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "payload-B"
+					}
+				],
 				"forbidden": ["backup retained after digest-equal removal step"],
 				"allowedNext": ["invocation completes"]
 			},
@@ -304,7 +425,12 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" },
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					},
 					{
 						"path": ".orchbee-agent-backup-<n1>",
 						"kind": "file",
@@ -325,8 +451,15 @@
 					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
-			"inject": { "atStep": "move-aside", "kind": "EEXIST x3 on first three nonce names" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
+			"inject": {
+				"atStep": "move-aside",
+				"kind": "EEXIST x3 on first three nonce names"
+			},
 			"expect": {
 				"verdict": "applied",
 				"exit": 0,
@@ -341,10 +474,22 @@
 					"backup-remove"
 				],
 				"preserved": [
-					{ "path": ".orchbee-agent-backup-<n1>", "bytes": "prev-backup-1" },
-					{ "path": ".orchbee-agent-backup-<n2>", "bytes": "prev-backup-2" },
-					{ "path": ".orchbee-agent-backup-<n3>", "bytes": "prev-backup-3" },
-					{ "path": "$TARGET", "bytes": "payload-B" }
+					{
+						"path": ".orchbee-agent-backup-<n1>",
+						"bytes": "prev-backup-1"
+					},
+					{
+						"path": ".orchbee-agent-backup-<n2>",
+						"bytes": "prev-backup-2"
+					},
+					{
+						"path": ".orchbee-agent-backup-<n3>",
+						"bytes": "prev-backup-3"
+					},
+					{
+						"path": "$TARGET",
+						"bytes": "payload-B"
+					}
 				],
 				"forbidden": [
 					"any occupied nonce name overwritten",
@@ -361,7 +506,12 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" },
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					},
 					{
 						"path": ".orchbee-agent-backup-<n1..n8>",
 						"kind": "file",
@@ -371,18 +521,37 @@
 					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
-			"inject": { "atStep": "move-aside", "kind": "EEXIST x8 — nonce space exhausted" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
+			"inject": {
+				"atStep": "move-aside",
+				"kind": "EEXIST x8 — nonce space exhausted"
+			},
 			"expect": {
 				"verdict": "conflict",
 				"exit": 9,
 				"frontier": "post-effect",
 				"determinate": true,
 				"attempted": ["stage-create", "digest-verify", "move-aside x8"],
-				"residue": [{ "pattern": ".orchbee-agent-entry-*", "namedInResult": true }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-entry-*",
+						"namedInResult": true
+					}
+				],
 				"preserved": [
-					{ "path": "$TARGET", "bytes": "old-owned" },
-					{ "path": ".orchbee-agent-backup-<n1..n8>", "bytes": "occupant-k", "all": true }
+					{
+						"path": "$TARGET",
+						"bytes": "old-owned"
+					},
+					{
+						"path": ".orchbee-agent-backup-<n1..n8>",
+						"bytes": "occupant-k",
+						"all": true
+					}
 				],
 				"forbidden": [
 					"any occupant destroyed or displaced",
@@ -404,19 +573,41 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
-			"inject": { "atStep": "install", "errno": "EACCES" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
+			"inject": {
+				"atStep": "install",
+				"errno": "EACCES"
+			},
 			"expect": {
 				"verdict": "failed",
 				"exit": 9,
 				"frontier": "post-effect",
 				"determinate": true,
 				"attempted": ["stage-create", "digest-verify", "move-aside", "install", "restore"],
-				"residue": [{ "pattern": ".orchbee-agent-entry-*", "namedInResult": true }],
-				"preserved": [{ "path": "$TARGET", "bytes": "old-owned" }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-entry-*",
+						"namedInResult": true
+					}
+				],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "old-owned"
+					}
+				],
 				"forbidden": [
 					"backup retained after successful restore (rename consumed it)",
 					"target left absent"
@@ -432,10 +623,19 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
 			"inject": {
 				"atStep": "restore",
 				"errno": "EEXIST",
@@ -453,11 +653,20 @@
 						"namedInResult": true,
 						"bytesPreserved": "old-owned"
 					},
-					{ "pattern": ".orchbee-agent-entry-*", "namedInResult": true }
+					{
+						"pattern": ".orchbee-agent-entry-*",
+						"namedInResult": true
+					}
 				],
 				"preserved": [
-					{ "path": "$TARGET", "bytes": "foreign-arrival" },
-					{ "path": ".orchbee-agent-backup-*", "bytes": "old-owned" }
+					{
+						"path": "$TARGET",
+						"bytes": "foreign-arrival"
+					},
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "old-owned"
+					}
 				],
 				"forbidden": [
 					"foreign arrival overwritten by restore",
@@ -477,11 +686,23 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
-			"inject": { "atStep": "restore", "errno": "EIO" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
+			"inject": {
+				"atStep": "restore",
+				"errno": "EIO"
+			},
 			"expect": {
 				"verdict": "failed",
 				"exit": 9,
@@ -495,7 +716,12 @@
 						"bytesPreserved": "old-owned"
 					}
 				],
-				"preserved": [{ "path": ".orchbee-agent-backup-*", "bytes": "old-owned" }],
+				"preserved": [
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "old-owned"
+					}
+				],
 				"forbidden": ["backup destroyed", "unbounded rollback loop"],
 				"allowedNext": []
 			},
@@ -508,11 +734,20 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				],
 				"clock": "remaining budget < one restore step at the point install fails"
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
 			"inject": {
 				"atStep": "install",
 				"errno": "EIO",
@@ -530,9 +765,17 @@
 						"namedInResult": true,
 						"bytesPreserved": "old-owned"
 					},
-					{ "pattern": ".orchbee-agent-entry-*", "namedInResult": true }
+					{
+						"pattern": ".orchbee-agent-entry-*",
+						"namedInResult": true
+					}
 				],
-				"preserved": [{ "path": ".orchbee-agent-backup-*", "bytes": "old-owned" }],
+				"preserved": [
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "old-owned"
+					}
+				],
 				"forbidden": [
 					"restore attempted outside the deadline",
 					"backup silently deleted",
@@ -553,10 +796,19 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
 			"inject": {
 				"atStep": "post-verify",
 				"kind": "target digest != staged digest after successful install"
@@ -574,7 +826,12 @@
 						"bytesPreserved": "old-owned"
 					}
 				],
-				"preserved": [{ "path": ".orchbee-agent-backup-*", "bytes": "old-owned" }],
+				"preserved": [
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "old-owned"
+					}
+				],
 				"forbidden": [
 					"target 'repaired' by deleting possibly-foreign bytes",
 					"backup removed despite mismatch"
@@ -590,11 +847,23 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "old-owned", "ownership": "orchbee-exact" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "old-owned",
+						"ownership": "orchbee-exact"
+					}
 				]
 			},
-			"drive": { "op": "replace-file", "stagedBytes": "payload-B", "target": "$TARGET" },
-			"inject": { "atStep": "backup-remove", "kind": "backup digest != inspect-time digest" },
+			"drive": {
+				"op": "replace-file",
+				"stagedBytes": "payload-B",
+				"target": "$TARGET"
+			},
+			"inject": {
+				"atStep": "backup-remove",
+				"kind": "backup digest != inspect-time digest"
+			},
 			"expect": {
 				"verdict": "conflict",
 				"exit": 9,
@@ -608,10 +877,21 @@
 					"post-verify",
 					"backup-remove"
 				],
-				"residue": [{ "pattern": ".orchbee-agent-backup-*", "namedInResult": true }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-backup-*",
+						"namedInResult": true
+					}
+				],
 				"preserved": [
-					{ "path": "$TARGET", "bytes": "payload-B" },
-					{ "path": ".orchbee-agent-backup-*", "bytes": "whatever occupies it now" }
+					{
+						"path": "$TARGET",
+						"bytes": "payload-B"
+					},
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "whatever occupies it now"
+					}
 				],
 				"forbidden": ["backup deleted despite digest mismatch"],
 				"allowedNext": []
@@ -624,9 +904,19 @@
 			"summary": "Exact-owned file: verify-owned at effect time -> unlink -> done. Control.",
 			"execution": "delivery-injected",
 			"setup": {
-				"fs": [{ "path": "$TARGET", "kind": "file", "bytes": "ours", "ownership": "orchbee-exact" }]
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "ours",
+						"ownership": "orchbee-exact"
+					}
+				]
 			},
-			"drive": { "op": "remove-file", "target": "$TARGET" },
+			"drive": {
+				"op": "remove-file",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -635,7 +925,12 @@
 				"determinate": true,
 				"attempted": ["remove-verify-owned", "remove-unlink"],
 				"residue": [],
-				"preserved": [{ "path": "$TARGET", "kind": "absent" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					}
+				],
 				"forbidden": [],
 				"allowedNext": []
 			},
@@ -648,10 +943,18 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "file", "bytes": "opaque", "ownership": "unverifiable" }
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "opaque",
+						"ownership": "unverifiable"
+					}
 				]
 			},
-			"drive": { "op": "remove-file", "target": "$TARGET" },
+			"drive": {
+				"op": "remove-file",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
@@ -660,7 +963,12 @@
 				"determinate": true,
 				"attempted": ["remove-verify-owned"],
 				"residue": [],
-				"preserved": [{ "path": "$TARGET", "bytes": "opaque" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "opaque"
+					}
+				],
 				"forbidden": ["unlink attempted", "fallback removal on unverifiable content"],
 				"allowedNext": ["user disambiguates ownership"]
 			},
@@ -675,9 +983,19 @@
 			"summary": "Target verified foreign at effect time: refuse, exit 3, bytes preserved.",
 			"execution": "delivery-injected",
 			"setup": {
-				"fs": [{ "path": "$TARGET", "kind": "file", "bytes": "foreign", "ownership": "foreign" }]
+				"fs": [
+					{
+						"path": "$TARGET",
+						"kind": "file",
+						"bytes": "foreign",
+						"ownership": "foreign"
+					}
+				]
 			},
-			"drive": { "op": "remove-file", "target": "$TARGET" },
+			"drive": {
+				"op": "remove-file",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
@@ -686,7 +1004,12 @@
 				"determinate": true,
 				"attempted": ["remove-verify-owned"],
 				"residue": [],
-				"preserved": [{ "path": "$TARGET", "bytes": "foreign" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "foreign"
+					}
+				],
 				"forbidden": ["unlink attempted"],
 				"allowedNext": []
 			},
@@ -698,7 +1021,10 @@
 			"summary": "Boundary-honesty pin: the verify->unlink micro-window is a COOPERATIVE same-uid bound. A non-cooperating actor swapping its own bytes inside the window is NOT excluded by the mechanism; tests may only assert the guarantee is documented as cooperative, never absolute.",
 			"execution": "static",
 			"setup": {},
-			"drive": { "op": "remove-file", "target": "$TARGET" },
+			"drive": {
+				"op": "remove-file",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -727,8 +1053,14 @@
 					}
 				]
 			},
-			"drive": { "op": "remove-dir", "target": "$TARGET" },
-			"inject": { "atStep": "remove-dir-walk", "kind": "component 'a' becomes a symlink mid-walk" },
+			"drive": {
+				"op": "remove-dir",
+				"target": "$TARGET"
+			},
+			"inject": {
+				"atStep": "remove-dir-walk",
+				"kind": "component 'a' becomes a symlink mid-walk"
+			},
 			"expect": {
 				"verdict": "conflict",
 				"exit": 9,
@@ -751,8 +1083,18 @@
 			"area": "capsule",
 			"summary": "Valid capsule, absent <version> dir: stage -> verify -> no-replace rename -> applied. Control.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$CAPSULE_ROOT", "kind": "absent" }] },
-			"drive": { "op": "capsule-publish", "capsule": "valid-capsule-A" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "capsule-publish",
+				"capsule": "valid-capsule-A"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -761,7 +1103,12 @@
 				"determinate": true,
 				"attempted": ["capsule-stage", "capsule-verify", "capsule-rename"],
 				"residue": [],
-				"preserved": [{ "path": "$CAPSULE_ROOT", "bytes": "valid-capsule-A" }],
+				"preserved": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"bytes": "valid-capsule-A"
+					}
+				],
 				"forbidden": [],
 				"allowedNext": []
 			},
@@ -782,7 +1129,10 @@
 					}
 				]
 			},
-			"drive": { "op": "capsule-publish", "capsule": "valid-capsule-A" },
+			"drive": {
+				"op": "capsule-publish",
+				"capsule": "valid-capsule-A"
+			},
 			"inject": {
 				"atStep": "capsule-rename",
 				"errno": "EEXIST",
@@ -805,7 +1155,12 @@
 						"note": "this run's stage cleaned if still verifiably ours"
 					}
 				],
-				"preserved": [{ "path": "$CAPSULE_ROOT", "bytes": "valid-capsule-A" }],
+				"preserved": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"bytes": "valid-capsule-A"
+					}
+				],
 				"forbidden": ["existing dir overwritten, merged, or 'repaired'"],
 				"allowedNext": ["install proceeds against existing capsule"]
 			},
@@ -826,7 +1181,10 @@
 					}
 				]
 			},
-			"drive": { "op": "capsule-publish", "capsule": "valid-capsule-A" },
+			"drive": {
+				"op": "capsule-publish",
+				"capsule": "valid-capsule-A"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
@@ -835,7 +1193,12 @@
 				"determinate": true,
 				"attempted": ["preflight-inspect"],
 				"residue": [],
-				"preserved": [{ "path": "$CAPSULE_ROOT", "bytes": "corrupt-capsule" }],
+				"preserved": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"bytes": "corrupt-capsule"
+					}
+				],
 				"forbidden": ["overwrite", "stage created despite known-occupied invalid target"],
 				"allowedNext": ["user removes the corrupt dir; retry"]
 			},
@@ -849,8 +1212,18 @@
 			"area": "capsule",
 			"summary": "Target was absent at inspect; an invalid occupant lands before the no-replace rename. EEXIST -> isValidCapsule(existing) fails -> refuse. Stage exists -> post-effect determinate -> 9; occupant untouched.",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$CAPSULE_ROOT", "kind": "absent" }] },
-			"drive": { "op": "capsule-publish", "capsule": "valid-capsule-A" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "capsule-publish",
+				"capsule": "valid-capsule-A"
+			},
 			"inject": {
 				"atStep": "capsule-rename",
 				"errno": "EEXIST",
@@ -868,8 +1241,18 @@
 					"capsule-rename",
 					"capsule-isvalid-existing"
 				],
-				"residue": [{ "pattern": ".orchbee-agent-capsule-*", "namedInResult": true }],
-				"preserved": [{ "path": "$CAPSULE_ROOT", "bytes": "foreign-capsule" }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-capsule-*",
+						"namedInResult": true
+					}
+				],
+				"preserved": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"bytes": "foreign-capsule"
+					}
+				],
 				"forbidden": ["occupant overwritten", "verdict reported as pre-effect"],
 				"allowedNext": []
 			},
@@ -880,8 +1263,18 @@
 			"area": "capsule",
 			"summary": "FRONTIER PIN: capsule stage creation is already an Orchbee effect. Any failure after stage-create (verify fail, rename fail, later guard refusal) may NOT exit a pre-effect family — must be 8/9 with attempted[]+residue[].",
 			"execution": "delivery-injected",
-			"setup": { "fs": [{ "path": "$CAPSULE_ROOT", "kind": "absent" }] },
-			"drive": { "op": "capsule-publish", "capsule": "capsule-with-bad-entry" },
+			"setup": {
+				"fs": [
+					{
+						"path": "$CAPSULE_ROOT",
+						"kind": "absent"
+					}
+				]
+			},
+			"drive": {
+				"op": "capsule-publish",
+				"capsule": "capsule-with-bad-entry"
+			},
 			"inject": {
 				"atStep": "capsule-verify",
 				"kind": "capsule structural check fails after stage exists"
@@ -892,7 +1285,12 @@
 				"frontier": "post-effect",
 				"determinate": true,
 				"attempted": ["capsule-stage", "capsule-verify"],
-				"residue": [{ "pattern": ".orchbee-agent-capsule-*", "namedInResult": true }],
+				"residue": [
+					{
+						"pattern": ".orchbee-agent-capsule-*",
+						"namedInResult": true
+					}
+				],
 				"forbidden": ["exit in {3,4,7} after the stage existed", "residue unreported"],
 				"allowedNext": []
 			},
@@ -902,76 +1300,22 @@
 			]
 		},
 		{
-			"id": "capsule.payload-version-older-refuse",
-			"area": "capsule",
-			"summary": "Capsule declares payloadVersion older than supported: typed capsule-unsupported-version {declared,supported} — manual-action-required -> 4; zero bytes written; existing capsule content untouched. Never the generic invalid-capsule kind.",
-			"execution": "delivery-injected",
-			"setup": {
-				"fs": [
-					{
-						"path": "$CAPSULE_ROOT",
-						"kind": "dir",
-						"bytes": "current-capsule",
-						"ownership": "orchbee-exact"
-					}
-				]
-			},
-			"drive": { "op": "capsule-publish", "capsule": "capsule-declaring-older-payloadVersion" },
-			"inject": null,
-			"expect": {
-				"verdict": "manual-action-required",
-				"issue": "capsule-unsupported-version",
-				"exit": 4,
-				"frontier": "pre-effect",
-				"determinate": true,
-				"attempted": ["preflight-inspect"],
-				"residue": [],
-				"preserved": [{ "path": "$CAPSULE_ROOT", "bytes": "current-capsule" }],
-				"forbidden": ["generic invalid-capsule classification", "downgrade or overwrite attempted"],
-				"allowedNext": ["user supplies a capsule of the supported payloadVersion"]
-			},
-			"authority": ["53§2.6 capsule-unsupported-version", "53§7 exit 4", "56 no legacy compat"]
-		},
-		{
-			"id": "capsule.payload-version-future-refuse",
-			"area": "capsule",
-			"summary": "Capsule declares a NEWER payloadVersion than this build supports: same typed capsule-unsupported-version refusal -> 4; zero overwrite.",
-			"execution": "delivery-injected",
-			"setup": {
-				"fs": [
-					{
-						"path": "$CAPSULE_ROOT",
-						"kind": "dir",
-						"bytes": "current-capsule",
-						"ownership": "orchbee-exact"
-					}
-				]
-			},
-			"drive": { "op": "capsule-publish", "capsule": "capsule-declaring-future-payloadVersion" },
-			"inject": null,
-			"expect": {
-				"verdict": "manual-action-required",
-				"issue": "capsule-unsupported-version",
-				"exit": 4,
-				"frontier": "pre-effect",
-				"determinate": true,
-				"attempted": ["preflight-inspect"],
-				"residue": [],
-				"preserved": [{ "path": "$CAPSULE_ROOT", "bytes": "current-capsule" }],
-				"forbidden": ["silent clamp/accept of future format", "generic invalid-capsule"],
-				"allowedNext": []
-			},
-			"authority": ["53§2.6", "53§3.2 newer-sibling -> stale-side refusal family"]
-		},
-		{
 			"id": "cohort.manifest-version-older-refuse",
 			"area": "cohort-gate",
 			"summary": "Cohort manifest schemaVersion=1 (or any <2): explicit typed rejection at admission — no load, no migration, no dual-read; zero overwrite. Version-gate family -> 6.",
 			"execution": "static",
 			"setup": {
-				"fs": [{ "path": "$PARENT/manifest", "kind": "file", "bytes": "schemaVersion=1 manifest" }]
+				"fs": [
+					{
+						"path": "$PARENT/manifest",
+						"kind": "file",
+						"bytes": "schemaVersion=1 manifest"
+					}
+				]
 			},
-			"drive": { "op": "cohort-admit" },
+			"drive": {
+				"op": "cohort-admit"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "incompatible",
@@ -980,7 +1324,12 @@
 				"determinate": true,
 				"attempted": ["cohort-admit"],
 				"residue": [],
-				"preserved": [{ "path": "$PARENT/manifest", "bytes": "schemaVersion=1 manifest" }],
+				"preserved": [
+					{
+						"path": "$PARENT/manifest",
+						"bytes": "schemaVersion=1 manifest"
+					}
+				],
 				"forbidden": ["v1 fallback parse", "silent upgrade", "rewrite of the old manifest"],
 				"allowedNext": ["manifest replaced by a v2 writer (Capacity47 scope)"]
 			},
@@ -995,9 +1344,17 @@
 			"summary": "Cohort manifest schemaVersion>2: same explicit rejection -> 6; never clamped or partially read.",
 			"execution": "static",
 			"setup": {
-				"fs": [{ "path": "$PARENT/manifest", "kind": "file", "bytes": "schemaVersion=9 manifest" }]
+				"fs": [
+					{
+						"path": "$PARENT/manifest",
+						"kind": "file",
+						"bytes": "schemaVersion=9 manifest"
+					}
+				]
 			},
-			"drive": { "op": "cohort-admit" },
+			"drive": {
+				"op": "cohort-admit"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "incompatible",
@@ -1006,7 +1363,12 @@
 				"determinate": true,
 				"attempted": ["cohort-admit"],
 				"residue": [],
-				"preserved": [{ "path": "$PARENT/manifest", "bytes": "schemaVersion=9 manifest" }],
+				"preserved": [
+					{
+						"path": "$PARENT/manifest",
+						"bytes": "schemaVersion=9 manifest"
+					}
+				],
 				"forbidden": ["partial field read", "silent fallback"],
 				"allowedNext": []
 			},
@@ -1018,9 +1380,17 @@
 			"summary": "Manifest unparseable / unknown shape: rejected as unknown content — pre-effect refusal -> 3; unknown never falls through to a destructive vector.",
 			"execution": "static",
 			"setup": {
-				"fs": [{ "path": "$PARENT/manifest", "kind": "file", "bytes": "opaque garbage" }]
+				"fs": [
+					{
+						"path": "$PARENT/manifest",
+						"kind": "file",
+						"bytes": "opaque garbage"
+					}
+				]
 			},
-			"drive": { "op": "cohort-admit" },
+			"drive": {
+				"op": "cohort-admit"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
@@ -1029,7 +1399,12 @@
 				"determinate": true,
 				"attempted": ["cohort-admit"],
 				"residue": [],
-				"preserved": [{ "path": "$PARENT/manifest", "bytes": "opaque garbage" }],
+				"preserved": [
+					{
+						"path": "$PARENT/manifest",
+						"bytes": "opaque garbage"
+					}
+				],
 				"forbidden": ["delete-and-rewrite of unknown content", "else-uninstall fallthrough"],
 				"allowedNext": []
 			},
@@ -1050,7 +1425,9 @@
 					}
 				]
 			},
-			"drive": { "op": "disable-provider" },
+			"drive": {
+				"op": "disable-provider"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
@@ -1058,7 +1435,12 @@
 				"frontier": "pre-effect",
 				"determinate": true,
 				"attempted": ["preflight-inspect"],
-				"preserved": [{ "path": "$PROVIDER_CFG", "bytes": "unscannable" }],
+				"preserved": [
+					{
+						"path": "$PROVIDER_CFG",
+						"bytes": "unscannable"
+					}
+				],
 				"forbidden": [
 					"uninstall vector emitted for an unknown classification",
 					"state 'repaired' into a known shape"
@@ -1085,7 +1467,9 @@
 					}
 				]
 			},
-			"drive": { "op": "enable-provider" },
+			"drive": {
+				"op": "enable-provider"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "stale-side",
@@ -1093,7 +1477,12 @@
 				"frontier": "pre-effect",
 				"determinate": true,
 				"attempted": ["preflight-inspect"],
-				"preserved": [{ "path": "$TARGET", "bytes": "newer-version-content" }],
+				"preserved": [
+					{
+						"path": "$TARGET",
+						"bytes": "newer-version-content"
+					}
+				],
 				"forbidden": ["downward mutation", "disable allowed through on newer content"],
 				"allowedNext": []
 			},
@@ -1104,8 +1493,12 @@
 			"area": "budget",
 			"summary": "Declared deadline reached before any possible integration mutation: exit 7, zero attempted steps, zero residue.",
 			"execution": "delivery-injected",
-			"setup": { "clock": "deadline expires during inspection/planning" },
-			"drive": { "op": "enable-provider" },
+			"setup": {
+				"clock": "deadline expires during inspection/planning"
+			},
+			"drive": {
+				"op": "enable-provider"
+			},
 			"inject": {
 				"atStep": "provider-command",
 				"index": 0,
@@ -1129,8 +1522,13 @@
 			"area": "budget",
 			"summary": "Mid provider-command sequence: remaining < 3.6s for the next slot -> stop, timed-out verdict, NO partial slot. Earlier commands may have applied -> undetermined post-effect -> 8; attempted[] names the completed steps exactly.",
 			"execution": "delivery-injected",
-			"setup": { "clock": "remaining < 3.6s after k>=1 provider mutations completed" },
-			"drive": { "op": "enable-provider", "vector": "multi-step" },
+			"setup": {
+				"clock": "remaining < 3.6s after k>=1 provider mutations completed"
+			},
+			"drive": {
+				"op": "enable-provider",
+				"vector": "multi-step"
+			},
 			"inject": {
 				"atStep": "provider-command",
 				"index": "k",
@@ -1143,7 +1541,11 @@
 				"determinate": false,
 				"provenance": "unavailable",
 				"attempted": ["provider-command x k completed steps named"],
-				"residue": [{ "pattern": "per-step residue honestly named" }],
+				"residue": [
+					{
+						"pattern": "per-step residue honestly named"
+					}
+				],
 				"forbidden": [
 					"partial slot launched",
 					"completed steps omitted from attempted[]",
@@ -1164,8 +1566,13 @@
 				"provider": "inspect-reads=2",
 				"clock": "reserve unfundable at re-inspection time"
 			},
-			"drive": { "op": "enable-provider" },
-			"inject": { "atStep": "reinspect", "kind": "skipped — reserve gone" },
+			"drive": {
+				"op": "enable-provider"
+			},
+			"inject": {
+				"atStep": "reinspect",
+				"kind": "skipped — reserve gone"
+			},
 			"expect": {
 				"verdict": "timed-out",
 				"exit": 8,
@@ -1192,9 +1599,16 @@
 			"area": "budget",
 			"summary": "Re-inspection ran but one of two reads failed/unbudgeted: provenance='partial' naming only the confirmed dimensions -> undetermined -> 8.",
 			"execution": "delivery-injected",
-			"setup": { "provider": "inspect-reads=2" },
-			"drive": { "op": "enable-provider" },
-			"inject": { "atStep": "reinspect", "kind": "read 2 of 2 fails" },
+			"setup": {
+				"provider": "inspect-reads=2"
+			},
+			"drive": {
+				"op": "enable-provider"
+			},
+			"inject": {
+				"atStep": "reinspect",
+				"kind": "read 2 of 2 fails"
+			},
 			"expect": {
 				"verdict": "failed",
 				"exit": 8,
@@ -1215,8 +1629,13 @@
 			"area": "budget",
 			"summary": "Provider with zero inspect reads (fs-only verification): no command slots are reserved; the post-effect observation is the bounded fs re-verify inside the same window. Provenance 'post-effect' is legitimately claimable from fs facts.",
 			"execution": "static",
-			"setup": { "provider": "inspect-reads=0" },
-			"drive": { "op": "enable-provider", "vector": "guarded-write only" },
+			"setup": {
+				"provider": "inspect-reads=0"
+			},
+			"drive": {
+				"op": "enable-provider",
+				"vector": "guarded-write only"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -1236,8 +1655,12 @@
 			"area": "budget",
 			"summary": "Provider with 1 inspect read: mutation admission requires remaining >= 3.6s for the next mutation slot AND 1x3.6s held in reserve.",
 			"execution": "static",
-			"setup": { "provider": "inspect-reads=1" },
-			"drive": { "op": "enable-provider" },
+			"setup": {
+				"provider": "inspect-reads=1"
+			},
+			"drive": {
+				"op": "enable-provider"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -1253,8 +1676,12 @@
 			"area": "budget",
 			"summary": "Provider with 2 inspect reads: reserve = 2x3.6s; a mid-sequence budget that would starve the reserve stops further mutation slots instead.",
 			"execution": "static",
-			"setup": { "provider": "inspect-reads=2" },
-			"drive": { "op": "enable-provider" },
+			"setup": {
+				"provider": "inspect-reads=2"
+			},
+			"drive": {
+				"op": "enable-provider"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -1272,7 +1699,10 @@
 			"execution": "delivery-injected",
 			"setup": {
 				"fs": [
-					{ "path": "$TARGET", "kind": "absent" },
+					{
+						"path": "$TARGET",
+						"kind": "absent"
+					},
 					{
 						"path": ".orchbee-agent-backup-<nonce>",
 						"kind": "file",
@@ -1281,7 +1711,11 @@
 					}
 				]
 			},
-			"drive": { "op": "publish-file", "stagedBytes": "payload-C", "target": "$TARGET" },
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-C",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -1297,8 +1731,14 @@
 					}
 				],
 				"preserved": [
-					{ "path": "$TARGET", "bytes": "payload-C" },
-					{ "path": ".orchbee-agent-backup-*", "bytes": "prior-owned" }
+					{
+						"path": "$TARGET",
+						"bytes": "payload-C"
+					},
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "prior-owned"
+					}
 				],
 				"forbidden": ["backup auto-deleted as 'cleanup'", "backup restored over the fresh publish"],
 				"allowedNext": []
@@ -1320,13 +1760,20 @@
 					}
 				]
 			},
-			"drive": { "op": "inspect" },
+			"drive": {
+				"op": "inspect"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "conflict",
 				"exit": 3,
 				"assertion": "residue reported by name; classification is a conflict artifact, not silently swept",
-				"preserved": [{ "path": ".orchbee-agent-backup-*", "bytes": "orphaned" }],
+				"preserved": [
+					{
+						"path": ".orchbee-agent-backup-*",
+						"bytes": "orphaned"
+					}
+				],
 				"forbidden": ["auto-delete", "invisible to the result document"],
 				"allowedNext": ["future `prune` verb owns reclamation (deferred)"]
 			},
@@ -1347,7 +1794,11 @@
 					}
 				]
 			},
-			"drive": { "op": "publish-file", "stagedBytes": "payload-D", "target": "$TARGET" },
+			"drive": {
+				"op": "publish-file",
+				"stagedBytes": "payload-D",
+				"target": "$TARGET"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "applied",
@@ -1359,7 +1810,12 @@
 						"note": "pre-existing crash residue listed, still present"
 					}
 				],
-				"preserved": [{ "path": ".orchbee-agent-entry-<oldnonce>", "bytes": "crash residue" }],
+				"preserved": [
+					{
+						"path": ".orchbee-agent-entry-<oldnonce>",
+						"bytes": "crash residue"
+					}
+				],
 				"forbidden": [
 					"sweeping residue the run did not create",
 					"blocking publish on residue presence"
@@ -1376,7 +1832,9 @@
 			"summary": "Provider READ commands' own ambient bookkeeping (auth/cache/telemetry) is NOT an Orchbee effect and never flips the invocation post-effect; list/explain keep read-only semantics and exit 0.",
 			"execution": "static",
 			"setup": {},
-			"drive": { "op": "inspect" },
+			"drive": {
+				"op": "inspect"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "no-op",
@@ -1400,7 +1858,9 @@
 			"summary": "attempted[] and observed are separate fact lists: a skipped or failed re-inspection reports provenance honestly and never fabricates a combined current snapshot.",
 			"execution": "static",
 			"setup": {},
-			"drive": { "op": "enable-provider" },
+			"drive": {
+				"op": "enable-provider"
+			},
 			"inject": null,
 			"expect": {
 				"verdict": "failed",
@@ -1416,8 +1876,13 @@
 			"summary": "SIGINT before any effect: cooperative cancel -> 130; zero residue.",
 			"execution": "delivery-injected",
 			"setup": {},
-			"drive": { "op": "enable-provider" },
-			"inject": { "atStep": "preflight-inspect", "kind": "SIGINT" },
+			"drive": {
+				"op": "enable-provider"
+			},
+			"inject": {
+				"atStep": "preflight-inspect",
+				"kind": "SIGINT"
+			},
 			"expect": {
 				"verdict": "cancelled",
 				"exit": 130,
@@ -1436,15 +1901,26 @@
 			"summary": "SIGINT during an in-flight provider command: same 130; the in-flight command takes the kill path (TERM(group) -> 500ms -> KILL(group)); attempted[] and residue stay honest.",
 			"execution": "delivery-injected",
 			"setup": {},
-			"drive": { "op": "enable-provider", "vector": "multi-step" },
-			"inject": { "atStep": "provider-command", "index": "in-flight k", "kind": "SIGINT" },
+			"drive": {
+				"op": "enable-provider",
+				"vector": "multi-step"
+			},
+			"inject": {
+				"atStep": "provider-command",
+				"index": "in-flight k",
+				"kind": "SIGINT"
+			},
 			"expect": {
 				"verdict": "cancelled",
 				"exit": 130,
 				"frontier": "post-effect",
 				"determinate": false,
 				"attempted": ["provider-command"],
-				"residue": [{ "pattern": "per-step residue honestly named" }],
+				"residue": [
+					{
+						"pattern": "per-step residue honestly named"
+					}
+				],
 				"forbidden": [
 					"kill path bypassed",
 					"descendant-reap claimed stronger than group-terminates+direct-child-reaped-or-leaked-recorded"

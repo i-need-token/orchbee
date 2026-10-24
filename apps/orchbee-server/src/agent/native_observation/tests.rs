@@ -53,7 +53,7 @@ fn hint_json(correlation: u64, event: u64) -> String {
     format!(
         "{{\"correlationId\":\"correlation-{correlation:016}\",\
          \"eventId\":\"event-{event:016}\",\
-         \"kind\":\"correlation\",\"version\":3}}"
+         \"kind\":\"correlation\",\"version\":1}}"
     )
 }
 
@@ -145,7 +145,7 @@ fn typed_duplicate_conflict_and_invalid_consume_sequence() {
 
     // Same semantic hint, reordered members -> Duplicate, never
     // Conflict: equality is typed, not bytewise.
-    let reordered = "{\"version\":3,\"kind\":\"correlation\",\
+    let reordered = "{\"version\":1,\"kind\":\"correlation\",\
         \"eventId\":\"event-0000000000000001\",\
         \"correlationId\":\"correlation-0000000000000001\"}";
     let duplicate = leaf.apply_event_observed(event(carrier, 2, host, reordered), t0);
@@ -164,7 +164,7 @@ fn typed_duplicate_conflict_and_invalid_consume_sequence() {
 
     // A schema-invalid hint (wrong kind) is likewise consumed.
     let wrong_kind = "{\"correlationId\":\"correlation-0000000000000005\",\"eventId\":\"event-0000000000000005\",\
-         \"kind\":\"other\",\"version\":3}";
+         \"kind\":\"other\",\"version\":1}";
     let schema_invalid = leaf.apply_event_observed(event(carrier, 5, host, wrong_kind), t0);
     assert_eq!(class_of(&schema_invalid), (NativeClass::Invalid, Some(5)));
 }
@@ -503,7 +503,7 @@ fn envelope_body(correlation: u64, event: u64) -> Vec<u8> {
             "turnKey": null,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
     .to_string()
     .into_bytes()

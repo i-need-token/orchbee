@@ -80,7 +80,7 @@ fn hint_json(correlation: u64, event: u64) -> String {
     format!(
         "{{\"correlationId\":\"correlation-{correlation:016}\",\
          \"eventId\":\"event-{event:016}\",\
-         \"kind\":\"correlation\",\"version\":3}}"
+         \"kind\":\"correlation\",\"version\":1}}"
     )
 }
 
@@ -116,7 +116,7 @@ fn envelope(correlations: &[u64], event: u64, visibility: &str) -> Vec<u8> {
             "turnKey": null,
             "version": 1,
         },
-        "version": 3,
+        "version": 1,
     })
     .to_string()
     .into_bytes()

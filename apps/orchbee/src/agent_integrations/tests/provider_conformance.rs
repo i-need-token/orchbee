@@ -145,7 +145,9 @@ fn make_dirs() -> Dirs {
     ));
     let home = root.join("home");
     let dirs = Dirs {
-        capsule_root: home.join(".orchbee/agent-observation-adapters/0.4.17"),
+        capsule_root: home
+            .join(".orchbee/agent-observation-adapters")
+            .join("a".repeat(64)),
         adapter_source: root.join("adapter-source"),
         bin: root.join("bin"),
         root,
@@ -160,16 +162,6 @@ impl Drop for Dirs {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.root);
     }
-}
-
-/// Canonical legacy roots: the declared adapter source plus the app
-/// bundle's installed adapter root — an entry pointing back into either
-/// classifies `legacy`, exactly like production's root set.
-fn legacy_roots(dirs: &Dirs) -> Vec<PathBuf> {
-    vec![
-        dirs.adapter_source.clone(),
-        PathBuf::from("/Applications/Orchbee.app/Contents/Resources/agent-observation-adapters"),
-    ]
 }
 
 // ---------------------------------------------------------------------------
@@ -192,31 +184,21 @@ fn substitutions(dirs: &Dirs, id: IntegrationId) -> Vec<(String, String)> {
             "${BUNDLE_URL}".into(),
             format!("file://{}", dirs.capsule_root.join("bundle").display()),
         ),
-        // The fixture's legacy root models "the distribution source the
-        // entry points back to" — this port's adapter source directory.
+        // A different managed content identity, without ordering between siblings.
         (
-            "${LEGACY_ROOT}".into(),
-            dirs.adapter_source.display().to_string(),
+            "${OUTDATED_ROOT}".into(),
+            capsule_parent.join("b".repeat(64)).display().to_string(),
         ),
         (
-            "${APP_BUNDLE_ROOT}".into(),
-            "/Applications/Orchbee.app/Contents/Resources/agent-observation-adapters".into(),
-        ),
-        (
-            "${OLDER_SIBLING}".into(),
-            capsule_parent.join("0.3.0").display().to_string(),
-        ),
-        (
-            "${NEWER_SIBLING}".into(),
-            capsule_parent.join("0.5.0").display().to_string(),
+            "${OTHER_SIBLING}".into(),
+            capsule_parent.join("b".repeat(64)).display().to_string(),
         ),
         (
             "${FOREIGN_ROOT}".into(),
             "/third-party/agent-observation-adapters".into(),
         ),
-        ("${VERSION}".into(), capsule::PAYLOAD_VERSION.to_owned()),
+        ("${VERSION}".into(), "1.0.0".to_owned()),
         ("${OLDER_VERSION}".into(), "0.3.0".into()),
-        ("${NEWER_VERSION}".into(), "0.5.0".into()),
         (
             "${MARKETPLACE}".into(),
             inspect::MARKETPLACE_NAME.to_owned(),
@@ -306,7 +288,7 @@ fn resolve_json(
 /// plus the shared runtime files the capsule contract requires.
 fn capsule_files() -> Vec<(&'static str, &'static [u8])> {
     vec![
-        ("bundle/package.json", br#"{"name":"orchbee-agent-observation","orchbeeAgentObservation":{"contractVersion":3}}"#),
+        ("bundle/package.json", br#"{"name":"orchbee-agent-observation","orchbeeAgentObservation":{"contractVersion":1}}"#),
         ("bundle/scripts/forward-hook.mjs", b"// forward"),
         ("bundle/scripts/hook-sanitizers.mjs", b"// sanitize"),
         ("bundle/scripts/observation-transport.mjs", b"// transport"),
@@ -359,9 +341,8 @@ fn materialize_capsule(
     }
     let digest = capsule::payload_digest(root).expect("materialized capsule digests");
     let manifest = serde_json::json!({
-        "contractVersion": 3,
+        "contractVersion": 1,
         "payloadSha256": digest,
-        "payloadVersion": capsule::PAYLOAD_VERSION,
     });
     fs::write(root.join("capsule.json"), manifest.to_string()).unwrap();
 }
@@ -396,7 +377,7 @@ fn materialize_owned_dir(
     }
     let files = inspect::fingerprint_directory(target).expect("owned dir fingerprints");
     let marker = serde_json::json!({
-        "contractVersion": entry["markerContractVersion"].as_u64().unwrap_or(3),
+        "contractVersion": entry["markerContractVersion"].as_u64().unwrap_or(1),
         "files": files
             .into_iter()
             .map(|(path, sha256)| serde_json::json!({ "path": path, "sha256": sha256 }))
@@ -964,14 +945,13 @@ fn run_case(case: &Case) {
         cancel: Some(&cancel),
         management_mode: case.management_mode,
     };
-    let roots = legacy_roots(&dirs);
 
     if case.inspect_only {
-        let item = providers::inspect_provider(case.provider, &context, &roots);
+        let item = providers::inspect_provider(case.provider, &context);
         assert_snapshot(case, &item);
         assert_commands(case, &vars);
     } else {
-        let report = mutation::mutate(case.provider, case.operation, &context, &roots);
+        let report = mutation::mutate(case.provider, case.operation, &context);
         if let Some(observed) = &report.observed {
             assert_snapshot(case, observed);
         } else {
@@ -1095,9 +1075,23 @@ fn run_case(case: &Case) {
 }
 
 #[test]
+fn capsule_digest_uses_javascript_utf16_path_order() {
+    let dirs = make_dirs();
+    let root = dirs.root.join("unicode-digest");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("\u{e000}"), b"B").unwrap();
+    fs::write(root.join("\u{10000}"), b"A").unwrap();
+    // Node JSON.stringify puts U+10000 before U+E000; UTF-8 byte order reverses it.
+    assert_eq!(
+        capsule::payload_digest(&root).as_deref(),
+        Some("34231f4c10b448ca3b14d2ef5668bdcf0302b3155c0b357d5d5f597b2d870460")
+    );
+}
+
+#[test]
 fn provider_conformance64_replay() {
     let cases = load_cases();
-    assert_eq!(cases.len(), 250, "frozen corpus is 250 cases");
+    assert_eq!(cases.len(), 221, "current corpus is 221 cases");
     let mut failures = Vec::new();
     for case in &cases {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(case)));

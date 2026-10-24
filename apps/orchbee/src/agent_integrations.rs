@@ -8,13 +8,12 @@
 //! The payload source is the native cohort's `agent-observation-adapters`
 //! sidecar — declared by the schema-2 manifest, admitted lazily here, and
 //! never touched by Site startup. The managed capsule materializes at
-//! `~/.orchbee/agent-observation-adapters/<payloadVersion>` only as an
+//! `~/.orchbee/agent-observation-adapters/<payloadSha256>` only as an
 //! explicit `enable` effect.
 
 #[cfg(any(unix, windows))]
 mod capsule;
-/// Checks a distribution sidecar's canonical digest without imposing this Client's
-/// supported provider payload version on a newer, separately installed Client.
+/// Checks a distribution sidecar against its cohort's payload identity.
 #[cfg(windows)]
 pub(crate) fn verify_distribution_capsule(root: &std::path::Path, expected: &str) -> bool {
     capsule::verify_distribution(root, expected)
@@ -125,7 +124,6 @@ mod imp {
         pub(crate) home: PathBuf,
         pub(crate) capsule_root: PathBuf,
         pub(crate) source: AdapterSource,
-        pub(crate) legacy_roots: Vec<PathBuf>,
         pub(crate) deadline: Instant,
         path_env: Option<OsString>,
         /// The armed termination source — `None` when the caller never
@@ -160,11 +158,8 @@ mod imp {
         /// `Some` when the source's declared digest does not match the capsule
         /// contract — a binding failure, surfaced separately from readiness.
         pub(crate) binding_failure: bool,
-        /// `Some(declared)` when the capsule's payloadVersion exceeds support.
-        pub(crate) unsupported_version: Option<String>,
-        /// The source manifest's declared payloadVersion when one is legible —
-        /// carried verbatim into the machine document.
-        pub(crate) declared_payload_version: Option<String>,
+        /// Identity of the current source payload, never a semantic version.
+        pub(crate) payload_sha256: String,
     }
 
     /// Resolve the adapter source: the explicit `--adapter-source` override
@@ -227,21 +222,25 @@ mod imp {
         if !super::files::path_admitted(&home) {
             return Err(ContextError::NoHome);
         }
+        let source = resolve_adapter_source(override_path, deadline);
+        let payload_sha256 = source
+            .directory()
+            .and_then(capsule::manifest_declared_digest)
+            .filter(|digest| {
+                digest.len() == 64
+                    && digest
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            })
+            .unwrap_or_else(capsule::bundled_payload_sha256);
         let capsule_root = home
             .join(".orchbee")
             .join("agent-observation-adapters")
-            .join(capsule::PAYLOAD_VERSION);
-        let source = resolve_adapter_source(override_path, deadline);
-        let legacy_roots = source
-            .directory()
-            .into_iter()
-            .map(Path::to_path_buf)
-            .collect();
+            .join(payload_sha256);
         Ok(IntegrationContext {
             home,
             capsule_root,
             source,
-            legacy_roots,
             deadline,
             path_env: std::env::var_os("PATH"),
             cancel,
@@ -257,26 +256,17 @@ mod imp {
         let binding_failure = !source_binding_ok(&context.source);
         let ready = !binding_failure
             && capsule::is_ready(context.capsule_root.as_path(), context.source.directory());
-        let (unsupported_version, declared_payload_version) = context
-            .source
-            .directory()
-            .map(|directory| {
-                (
-                    match capsule::validate(directory) {
-                        capsule::CapsuleValidity::UnsupportedVersion { declared } => declared,
-                        _ => None,
-                    },
-                    capsule::manifest_declared_version(directory),
-                )
-            })
-            .unwrap_or((None, None));
         CapsuleStatus {
             ready,
             root: context.capsule_root.clone(),
             source_kind: context.source.kind_str(),
             binding_failure,
-            unsupported_version,
-            declared_payload_version,
+            payload_sha256: context
+                .capsule_root
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_owned(),
         }
     }
 
@@ -288,12 +278,8 @@ mod imp {
         let provider_context = context.provider_context();
         (
             match provider {
-                Some(id) => vec![providers::inspect_provider(
-                    id,
-                    &provider_context,
-                    &context.legacy_roots,
-                )],
-                None => providers::snapshot(&provider_context, &context.legacy_roots),
+                Some(id) => vec![providers::inspect_provider(id, &provider_context)],
+                None => providers::snapshot(&provider_context),
             },
             capsule_status(context),
         )
@@ -311,8 +297,7 @@ mod imp {
         Vec<PlannedStep>,
     ) {
         let provider_context = context.provider_context();
-        let (item, detail) =
-            providers::inspect_provider_detail(id, &provider_context, &context.legacy_roots);
+        let (item, detail) = providers::inspect_provider_detail(id, &provider_context);
         let plan = mutation::plan_enable(id, &provider_context, &item, &detail);
         (item, detail, capsule_status(context), plan)
     }
@@ -328,8 +313,7 @@ mod imp {
         // binding failure — refuse before any effect.
         if !source_binding_ok(&context.source) {
             let provider_context = context.provider_context();
-            let observed =
-                providers::inspect_provider(id, &provider_context, &context.legacy_roots);
+            let observed = providers::inspect_provider(id, &provider_context);
             return MutationReport {
                 integration_id: id,
                 direction,
@@ -342,12 +326,12 @@ mod imp {
             };
         }
         let provider_context = context.provider_context();
-        mutation::mutate(id, direction, &provider_context, &context.legacy_roots)
+        mutation::mutate(id, direction, &provider_context)
     }
 }
 
-#[cfg(any(unix, windows))]
-pub(crate) use capsule::PAYLOAD_VERSION;
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use capsule::bundled_payload_sha256;
 #[cfg(windows)]
 pub(crate) use imp::context_before;
 #[cfg(any(unix, windows))]

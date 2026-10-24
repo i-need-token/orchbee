@@ -21,13 +21,12 @@ const MAX_CODEX_CONFIGURATION_BYTES = 512 * 1024;
 export interface CodexAgentIntegrationAdapterOptions {
 	readonly commandRunner: AgentIntegrationCommandRunner;
 	readonly homeDirectory: string;
-	readonly legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
 	readonly resourceRoot: string;
 }
 
 interface CodexConfigurationInspection {
-	readonly marketplace: 'absent' | 'current' | 'legacy';
+	readonly marketplace: 'absent' | 'current' | 'update-required';
 	readonly pluginPresent: boolean;
 	readonly state:
 		| 'conflict'
@@ -43,16 +42,12 @@ export class CodexAgentIntegrationAdapter implements AgentIntegrationAdapter {
 	readonly #commandRunner: AgentIntegrationCommandRunner;
 	readonly #configurationPath: string;
 	readonly integrationId = 'codex' as const;
-	readonly #legacyResourceRoots: ReadonlySet<string>;
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
 	readonly #resourceRoot: string;
 
 	constructor(options: CodexAgentIntegrationAdapterOptions) {
 		this.#commandRunner = options.commandRunner;
 		this.#configurationPath = path.resolve(options.homeDirectory, '.codex', 'config.toml');
-		this.#legacyResourceRoots = new Set(
-			options.legacyResourceRoots.map((resourceRoot) => path.resolve(resourceRoot)),
-		);
 		this.managementMode = options.managementMode;
 		this.#resourceRoot = path.resolve(options.resourceRoot);
 	}
@@ -86,7 +81,7 @@ export class CodexAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		if (configuration.pluginPresent) {
 			commands.push(['plugin', 'remove', CODEX_PLUGIN_ID, '--json']);
 		}
-		if (configuration.marketplace === 'legacy') {
+		if (configuration.marketplace === 'update-required') {
 			commands.push(['plugin', 'marketplace', 'remove', CODEX_MARKETPLACE_NAME, '--json']);
 		}
 		if (configuration.marketplace !== 'current') {
@@ -114,7 +109,7 @@ export class CodexAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		if (configuration.pluginPresent) {
 			commands.push(['plugin', 'remove', CODEX_PLUGIN_ID, '--json']);
 		}
-		if (configuration.marketplace === 'legacy') {
+		if (configuration.marketplace === 'update-required') {
 			commands.push(['plugin', 'marketplace', 'remove', CODEX_MARKETPLACE_NAME, '--json']);
 		}
 		return commands.length === 0
@@ -138,7 +133,6 @@ export class CodexAgentIntegrationAdapter implements AgentIntegrationAdapter {
 			return { marketplace: 'absent', pluginPresent: false, state: 'unknown' };
 		}
 		return parseCodexAgentIntegrationConfiguration(configuration.value, {
-			legacyResourceRoots: this.#legacyResourceRoots,
 			resourceRoot: this.#resourceRoot,
 		});
 	}
@@ -146,7 +140,7 @@ export class CodexAgentIntegrationAdapter implements AgentIntegrationAdapter {
 
 function parseCodexAgentIntegrationConfiguration(
 	value: string,
-	options: { readonly legacyResourceRoots: ReadonlySet<string>; readonly resourceRoot: string },
+	options: { readonly resourceRoot: string },
 ): CodexConfigurationInspection {
 	let section: 'marketplace' | 'other' | 'plugin' = 'other';
 	let marketplaceCount = 0;
@@ -212,11 +206,10 @@ function parseCodexAgentIntegrationConfiguration(
 	}
 	if (
 		classifyManagedResourceRoot(resolvedSource, {
-			legacyResourceRoots: [...options.legacyResourceRoots],
 			resourceRoot: options.resourceRoot,
-		}) === 'legacy'
+		}) === 'update-required'
 	) {
-		return { marketplace: 'legacy', pluginPresent, state: 'update-required' };
+		return { marketplace: 'update-required', pluginPresent, state: 'update-required' };
 	}
 	return { marketplace: 'absent', pluginPresent, state: 'conflict' };
 }

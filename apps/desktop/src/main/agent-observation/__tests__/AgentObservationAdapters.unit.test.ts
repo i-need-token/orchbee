@@ -485,7 +485,7 @@ describe('Agent observation adapter resources', () => {
 
 		await transport.forwardSanitizedObservation('claude-code', observation, {
 			allocateIdentity: () => `identity_${String(++identity).padStart(16, '0')}`,
-			discoverSockets: async () => ['/tmp/orchbee-agent-v3-forwarded.sock'],
+			discoverSockets: async () => ['/tmp/orchbee-agent-v1-forwarded.sock'],
 			environment: {},
 			resolveTargets: async () => [
 				{ tty: '/dev/pts/4', visibility: 'hidden' },
@@ -506,7 +506,7 @@ describe('Agent observation adapter resources', () => {
 					correlationId: 'identity_0000000000000002',
 					eventId: 'identity_0000000000000001',
 					kind: 'correlation',
-					version: 3,
+					version: 1,
 				},
 				tty: '/dev/pts/4',
 			},
@@ -515,7 +515,7 @@ describe('Agent observation adapter resources', () => {
 					correlationId: 'identity_0000000000000003',
 					eventId: 'identity_0000000000000001',
 					kind: 'correlation',
-					version: 3,
+					version: 1,
 				},
 				tty: '/dev/pts/7',
 			},
@@ -537,7 +537,7 @@ describe('Agent observation adapter resources', () => {
 					turnKey: null,
 					version: 1,
 				},
-				version: 3,
+				version: 1,
 			},
 		]);
 		const serialized = JSON.stringify({ envelopes, hints });
@@ -590,12 +590,12 @@ describe('Agent observation adapter resources', () => {
 				});
 				await expect(
 					transport.discoverObservationSockets({
-						ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: socketPath,
+						ORCHBEE_AGENT_OBSERVATION_SOCKET: socketPath,
 					}),
 				).resolves.toEqual([socketPath]);
 				await expect(
 					transport.discoverObservationSockets({
-						ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: path.join(directory, 'missing.sock'),
+						ORCHBEE_AGENT_OBSERVATION_SOCKET: path.join(directory, 'missing.sock'),
 					}),
 				).resolves.toEqual([]);
 			} finally {
@@ -611,7 +611,7 @@ describe('Agent observation adapter resources', () => {
 			const transport = await import(transportUrl);
 			const socketPath = path.join(
 				'/tmp',
-				`orchbee-agent-v3-test_${process.pid}_${Date.now()}.sock`,
+				`orchbee-agent-v1-test_${process.pid}_${Date.now()}.sock`,
 			);
 			const server = createServer();
 			try {
@@ -671,19 +671,19 @@ describe('Agent observation adapter resources', () => {
 		) => Promise<boolean>;
 
 		await expect(
-			withAckServer((socket) => socket.end('{"accepted":true,"version":3}\n'), send),
+			withAckServer((socket) => socket.end('{"accepted":true,"version":1}\n'), send),
 		).resolves.toBe(true);
 		await expect(
 			withAckServer((socket) => {
 				socket.write('{"accepted":');
-				socket.end('true,"version":3}\n');
+				socket.end('true,"version":1}\n');
 			}, send),
 		).resolves.toBe(true);
 		await expect(withAckServer((socket) => socket.end('{"accepted":true'), send)).resolves.toBe(
 			false,
 		);
 		await expect(
-			withAckServer((socket) => socket.end('{"accepted":true,"version":3}\nextra'), send),
+			withAckServer((socket) => socket.end('{"accepted":true,"version":1}\nextra'), send),
 		).resolves.toBe(false);
 		await expect(withAckServer((socket) => socket.destroy(), send)).resolves.toBe(false);
 		await expect(withAckServer(() => undefined, send)).resolves.toBe(false);
@@ -1351,7 +1351,7 @@ async function withAckServer(
 			server.once('error', reject);
 			server.listen(socketPath, resolve);
 		});
-		return await send(socketPath, { version: 3 });
+		return await send(socketPath, { version: 1 });
 	} finally {
 		for (const socket of connections) socket.destroy();
 		await new Promise<void>((resolve) => server.close(() => resolve()));

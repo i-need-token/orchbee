@@ -652,14 +652,14 @@ export class DesktopApplication {
 					socketPath:
 						options.platform === 'win32'
 							? null
-							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v3.sock'),
+							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v1.sock'),
 				}) ??
 				new AgentHookObservationIngress(this.#agentObservationRuntime, {
 					allocateIdentifier: dependencies.randomIdentifier,
 					socketPath:
 						options.platform === 'win32'
 							? null
-							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v3.sock'),
+							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v1.sock'),
 				});
 		} catch {
 			this.#agentHookObservationIngress = undefined;

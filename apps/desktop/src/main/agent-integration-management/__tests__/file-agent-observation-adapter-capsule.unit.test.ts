@@ -4,10 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-	AGENT_OBSERVATION_CAPSULE_VERSION,
-	FileAgentObservationAdapterCapsule,
-} from '../file-agent-observation-adapter-capsule';
+import { FileAgentObservationAdapterCapsule } from '../file-agent-observation-adapter-capsule';
 
 describe('FileAgentObservationAdapterCapsule', () => {
 	let temporaryRoot: string | undefined;
@@ -27,16 +24,25 @@ describe('FileAgentObservationAdapterCapsule', () => {
 		await expect(capsule.isReady()).resolves.toBe(true);
 	});
 
+	it('orders supplementary Unicode paths by UTF-16 code units in the shared digest vector', async () => {
+		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
+		await writeFile(path.join(temporaryRoot, '\uE000'), 'B');
+		await writeFile(path.join(temporaryRoot, '\u{10000}'), 'A');
+		await expect(
+			FileAgentObservationAdapterCapsule.computePayloadDigest(temporaryRoot),
+		).resolves.toBe('34231f4c10b448ca3b14d2ef5668bdcf0302b3155c0b357d5d5f597b2d870460');
+	});
+
 	it('atomically retains a self-contained regular-file payload after the app source disappears', async () => {
 		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
 		const sourcePath = path.join(temporaryRoot, 'application-resources');
+		const payloadSha256 = await writeSourceCapsule(sourcePath);
 		const rootPath = path.join(
 			temporaryRoot,
 			'user-data',
 			'agent-observation-adapters',
-			AGENT_OBSERVATION_CAPSULE_VERSION,
+			payloadSha256,
 		);
-		await writeSourceCapsule(sourcePath);
 		const capsule = new FileAgentObservationAdapterCapsule({ rootPath, sourcePath });
 
 		await expect(capsule.prepare()).resolves.toBe(true);
@@ -47,16 +53,14 @@ describe('FileAgentObservationAdapterCapsule', () => {
 
 		await rm(sourcePath, { recursive: true });
 		await expect(capsule.prepare()).resolves.toBe(true);
-		expect(await readFile(path.join(rootPath, 'capsule.json'), 'utf8')).toContain(
-			AGENT_OBSERVATION_CAPSULE_VERSION,
-		);
+		expect(await readFile(path.join(rootPath, 'capsule.json'), 'utf8')).toContain(payloadSha256);
 	});
 
 	it('rejects a source tree containing a symlink', async () => {
 		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
 		const sourcePath = path.join(temporaryRoot, 'application-resources');
-		const rootPath = path.join(temporaryRoot, 'user-data', AGENT_OBSERVATION_CAPSULE_VERSION);
-		await writeSourceCapsule(sourcePath);
+		const payloadSha256 = await writeSourceCapsule(sourcePath);
+		const rootPath = path.join(temporaryRoot, 'user-data', payloadSha256);
 		await symlink('/private/unowned', path.join(sourcePath, 'unowned-link'));
 
 		await expect(
@@ -69,8 +73,8 @@ describe('FileAgentObservationAdapterCapsule', () => {
 		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
 		const actualSourcePath = path.join(temporaryRoot, 'actual-application-resources');
 		const sourcePath = path.join(temporaryRoot, 'application-resources');
-		const rootPath = path.join(temporaryRoot, 'user-data', AGENT_OBSERVATION_CAPSULE_VERSION);
-		await writeSourceCapsule(actualSourcePath);
+		const payloadSha256 = await writeSourceCapsule(actualSourcePath);
+		const rootPath = path.join(temporaryRoot, 'user-data', payloadSha256);
 		await symlink(actualSourcePath, sourcePath);
 
 		await expect(
@@ -82,8 +86,8 @@ describe('FileAgentObservationAdapterCapsule', () => {
 	it('rejects payload drift and extra entries against the embedded digest', async () => {
 		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
 		const sourcePath = path.join(temporaryRoot, 'application-resources');
-		const rootPath = path.join(temporaryRoot, 'user-data', AGENT_OBSERVATION_CAPSULE_VERSION);
-		await writeSourceCapsule(sourcePath);
+		const payloadSha256 = await writeSourceCapsule(sourcePath);
+		const rootPath = path.join(temporaryRoot, 'user-data', payloadSha256);
 		const capsule = new FileAgentObservationAdapterCapsule({ rootPath, sourcePath });
 		await expect(capsule.prepare()).resolves.toBe(true);
 		await writeFile(path.join(rootPath, 'unexpected.txt'), 'drift\n');
@@ -91,22 +95,25 @@ describe('FileAgentObservationAdapterCapsule', () => {
 		await expect(capsule.isReady()).resolves.toBe(false);
 	});
 
-	it('does not mistake a different same-version source payload for the published Capsule', async () => {
+	it('detects a changed source payload even after its self-reported manifest is refreshed', async () => {
 		temporaryRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-capsule-test-'));
 		const sourcePath = path.join(temporaryRoot, 'application-resources');
-		const rootPath = path.join(temporaryRoot, 'user-data', AGENT_OBSERVATION_CAPSULE_VERSION);
-		await writeSourceCapsule(sourcePath);
+		const payloadSha256 = await writeSourceCapsule(sourcePath);
+		const rootPath = path.join(temporaryRoot, 'user-data', payloadSha256);
 		const capsule = new FileAgentObservationAdapterCapsule({ rootPath, sourcePath });
 		await expect(capsule.prepare()).resolves.toBe(true);
 		await writeFile(path.join(sourcePath, 'bundle', 'package.json'), '{"changed":true}\n');
 		await writeCapsuleManifest(sourcePath);
+		expect(FileAgentObservationAdapterCapsule.readPayloadIdentity(sourcePath)).not.toBe(
+			payloadSha256,
+		);
 
 		await expect(capsule.isReady()).resolves.toBe(false);
 		await expect(capsule.prepare()).resolves.toBe(false);
 	});
 });
 
-async function writeSourceCapsule(rootPath: string): Promise<void> {
+async function writeSourceCapsule(rootPath: string): Promise<string> {
 	const scriptsPath = path.join(rootPath, 'bundle', 'scripts');
 	await mkdir(scriptsPath, { recursive: true });
 	await Promise.all([
@@ -115,18 +122,18 @@ async function writeSourceCapsule(rootPath: string): Promise<void> {
 		writeFile(path.join(scriptsPath, 'hook-sanitizers.mjs'), 'export {};\n'),
 		writeFile(path.join(scriptsPath, 'observation-transport.mjs'), 'export {};\n'),
 	]);
-	await writeCapsuleManifest(rootPath);
+	return writeCapsuleManifest(rootPath);
 }
 
-async function writeCapsuleManifest(rootPath: string): Promise<void> {
+async function writeCapsuleManifest(rootPath: string): Promise<string> {
 	const payloadSha256 = await FileAgentObservationAdapterCapsule.computePayloadDigest(rootPath);
 	if (payloadSha256 === null) throw new Error('Fixture Capsule payload must be valid.');
 	await writeFile(
 		path.join(rootPath, 'capsule.json'),
 		`${JSON.stringify({
-			contractVersion: 3,
+			contractVersion: 1,
 			payloadSha256,
-			payloadVersion: AGENT_OBSERVATION_CAPSULE_VERSION,
 		})}\n`,
 	);
+	return payloadSha256;
 }

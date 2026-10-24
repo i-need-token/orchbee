@@ -357,11 +357,21 @@ fn inspect(
 
     let mut roots: Vec<Value> = Vec::with_capacity(ordered.len());
     let mut root_states: Vec<RootState> = Vec::with_capacity(ordered.len());
+    // Compare verified installed bytes with this distribution's actual payload.
+    // Unstaged development binaries retain their embedded sidecar identity.
+    let current_digest = if ordered.is_empty() {
+        Ok(crate::agent_integrations::bundled_payload_sha256())
+    } else if budget.take_item() {
+        current_payload_digest(&mut budget)
+    } else {
+        complete = false;
+        Err(RootState::BudgetExhausted)
+    };
     for (path_bytes, origin) in &ordered {
         if signal.requested() {
             return Err(Failure::new(FailureKind::Cancelled).details(stage_details("agent-doctor")));
         }
-        let outcome = if budget.take_item() {
+        let mut outcome = if budget.take_item() {
             probe_root(path_bytes, &mut budget)
         } else {
             complete = false;
@@ -370,6 +380,21 @@ fn inspect(
                 detail: Map::new(),
             }
         };
+        if outcome.state == RootState::Consistent {
+            match &current_digest {
+                Ok(expected) => {
+                    if outcome.detail.get("payloadSha256").and_then(Value::as_str)
+                        != Some(expected.as_str())
+                    {
+                        outcome.state = RootState::UpdateRequired;
+                    }
+                    outcome
+                        .detail
+                        .insert("expectedPayloadSha256".to_owned(), json!(expected));
+                }
+                Err(state) => outcome.state = *state,
+            }
+        }
         root_states.push(outcome.state);
         let mut row = path_bytes_field(path_bytes);
         row.insert("origin".to_owned(), json!(origin));
@@ -741,7 +766,7 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
         }
         read => return read_uninspectable(read),
     };
-    let (contract_version, declared) = match probes::parse_guarded_marker(&bytes, provider.id) {
+    let (_contract_version, declared) = match probes::parse_guarded_marker(&bytes, provider.id) {
         MarkerParse::Valid {
             contract_version,
             files,
@@ -783,14 +808,7 @@ fn probe_guarded(provider: &Provider, home: &Path, budget: &mut Budget) -> HookP
     if !probes::fingerprint_matches(&mut computed, &declared) {
         return final_verdict(HookState::Conflict, HookReason::MarkerMismatch);
     }
-    if contract_version == probes::SUPPORTED_CONTRACT_VERSION {
-        final_verdict(HookState::Present, HookReason::MarkerConsistent)
-    } else {
-        final_verdict(
-            HookState::UpdateRequired,
-            HookReason::ContractVersionBelowSupported,
-        )
-    }
+    final_verdict(HookState::Present, HookReason::MarkerConsistent)
 }
 
 /// A bootstrap module file (`opencode`, `pi`, `omp`): marker + exact
@@ -934,7 +952,6 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
         }
     };
     let mut current = 0usize;
-    let mut update_required = 0usize;
     for entry in entries {
         if entry.kind == ListKind::Symlink {
             return final_verdict(HookState::Unknown, HookReason::SymlinkUninspected);
@@ -973,7 +990,6 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
         };
         match probes::parse_cline_package(&bytes) {
             ClinePackage::Current => current += 1,
-            ClinePackage::UpdateRequired => update_required += 1,
             ClinePackage::UnrecognizedVersion => {
                 return final_verdict(HookState::Unknown, HookReason::ContractVersionUnrecognized);
             }
@@ -982,15 +998,9 @@ fn probe_cline(provider: &Provider, home: &Path, budget: &mut Budget) -> HookPro
             }
         }
     }
-    match (current, update_required) {
-        (1, 0) => final_verdict(HookState::Present, HookReason::MarkerConsistent),
-        (0, 1) => final_verdict(
-            HookState::UpdateRequired,
-            HookReason::ContractVersionBelowSupported,
-        ),
-        (0, 0) => final_verdict(HookState::Absent, HookReason::NoManagedInstall),
-        // Coexisting managed installs contradict the single-install
-        // declaration shape.
+    match current {
+        1 => final_verdict(HookState::Present, HookReason::MarkerConsistent),
+        0 => final_verdict(HookState::Absent, HookReason::NoManagedInstall),
         _ => final_verdict(HookState::Conflict, HookReason::Malformed),
     }
 }
@@ -1139,9 +1149,6 @@ fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
     if let Some(version) = scan.declared_contract_version {
         detail.insert("declaredContractVersion".to_owned(), json!(version));
     }
-    if let Some(version) = &scan.declared_payload_version {
-        detail.insert("declaredPayloadVersion".to_owned(), json!(version));
-    }
     if scan.version_mismatch {
         // A differently-versioned capsule format cannot be evaluated by
         // this build — uninspectable, never broken.
@@ -1188,6 +1195,7 @@ fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
     };
     let digest = probes::capsule_payload_digest(&mut entries);
     let consistent = scan.declared_payload_sha256.as_deref() == Some(digest.as_str());
+    detail.insert("payloadSha256".to_owned(), json!(digest));
     RootOutcome {
         state: if consistent {
             RootState::Consistent
@@ -1195,6 +1203,34 @@ fn probe_root(path_bytes: &[u8], budget: &mut Budget) -> RootOutcome {
             RootState::Inconsistent
         },
         detail,
+    }
+}
+
+/// A sidecar that exists must verify; unreadable or corrupt source bytes never
+/// establish a current installation identity.
+#[cfg(any(target_os = "linux", windows))]
+fn current_payload_digest(budget: &mut Budget) -> Result<String, RootState> {
+    let Some(path) = fs::current_adapter_directory() else {
+        return Err(RootState::Unreadable);
+    };
+    let (key, value) = path_detail(&path);
+    let Some(encoded) = value.as_str() else {
+        return Err(RootState::Unreadable);
+    };
+    if key != "path" {
+        return Err(RootState::Unreadable);
+    }
+    let outcome = probe_root(encoded.as_bytes(), budget);
+    match outcome.state {
+        RootState::Absent => Ok(crate::agent_integrations::bundled_payload_sha256()),
+        RootState::Consistent => outcome
+            .detail
+            .get("payloadSha256")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or(RootState::Unreadable),
+        RootState::Inconsistent | RootState::UpdateRequired => Err(RootState::Unreadable),
+        state => Err(state),
     }
 }
 
@@ -1220,7 +1256,7 @@ fn executable_fact(scan: fs::PathScan) -> Value {
     }
 }
 
-/// The `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` fact — the override hook
+/// The `ORCHBEE_AGENT_OBSERVATION_SOCKET` fact — the override hook
 /// payloads read; only its shape is classified, never interpreted.
 #[cfg(any(target_os = "linux", windows))]
 fn environment_fact() -> Value {

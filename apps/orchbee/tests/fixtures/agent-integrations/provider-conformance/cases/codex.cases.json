@@ -2,19 +2,29 @@
 	"provider": "codex",
 	"executableName": "codex",
 	"readSlots": 0,
-	"dimensions": "{marketplace ∈ absent|current|legacy|foreign} × pluginPresent × enabled — scanned from ~/.codex/config.toml via bounded line scanner (≤512KiB, [marketplaces.orchbee-local] / [plugins.\"orchbee-agent-observation@orchbee-local\"] tables, 'k = v' single-line only; duplicate section/key → conflict; enabled must be bare true|false; source_type must be \"local\"; source must be a JSON-parseable absolute string; conservative verdicts only — never false-enabled)",
+	"dimensions": "{marketplace ∈ absent|current|outdated|foreign} × pluginPresent × enabled — scanned from ~/.codex/config.toml via bounded line scanner (≤512KiB, [marketplaces.orchbee-local] / [plugins.\"orchbee-agent-observation@orchbee-local\"] tables, 'k = v' single-line only; duplicate section/key → conflict; enabled must be bare true|false; source_type must be \"local\"; source must be a JSON-parseable absolute string; conservative verdicts only — never false-enabled)",
 	"cases": [
 		{
 			"id": "codex.inspect.enabled-current",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": { "marketplace": "current", "pluginPresent": true, "enabled": true },
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.enabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.enabled"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -34,12 +44,22 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["disabled", "disabled-path"],
-			"dims": { "marketplace": "current", "pluginPresent": true, "enabled": false },
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": true,
+				"enabled": false
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.disabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.disabled"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -58,7 +78,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": { "config": "missing" },
+			"dims": {
+				"config": "missing"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -81,13 +103,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": { "marketplace": "current", "pluginPresent": false },
+			"dims": {
+				"marketplace": "current",
+				"pluginPresent": false
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
 				"fs": [
-					{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.marketplaceOnly" }
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.marketplaceOnly"
+					}
 				],
 				"commands": []
 			},
@@ -106,12 +135,21 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable"],
-			"dims": { "config": "unavailable" },
+			"dims": {
+				"config": "unavailable"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "x", "mode": "0000" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "x",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -130,12 +168,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable"],
-			"dims": { "config": "exceeds-512KiB" },
+			"dims": {
+				"config": "exceeds-512KiB"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "contentBytes": 524289 }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"contentBytes": 524289
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -153,13 +199,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": { "marketplace": "absent", "pluginPresent": true },
+			"dims": {
+				"marketplace": "absent",
+				"pluginPresent": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
 				"fs": [
-					{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.pluginOnly" }
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.pluginOnly"
+					}
 				],
 				"commands": []
 			},
@@ -178,12 +231,20 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["foreign", "conflict"],
-			"dims": { "marketplace": "foreign" },
+			"dims": {
+				"marketplace": "foreign"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.foreign" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.foreign"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -201,7 +262,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "scanner-dimension"],
-			"dims": { "marketplaceSections": 2 },
+			"dims": {
+				"marketplaceSections": 2
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -230,13 +293,19 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "scanner-dimension"],
-			"dims": { "duplicateKey": "enabled" },
+			"dims": {
+				"duplicateKey": "enabled"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
 				"fs": [
-					{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.duplicateKey" }
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.duplicateKey"
+					}
 				],
 				"commands": []
 			},
@@ -255,7 +324,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "scanner-dimension"],
-			"dims": { "enabled": "\"true\" (string)" },
+			"dims": {
+				"enabled": "\"true\" (string)"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -285,7 +356,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "scanner-dimension"],
-			"dims": { "source": "TOML literal string (single quotes)" },
+			"dims": {
+				"source": "TOML literal string (single quotes)"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -315,7 +388,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["scanner-dimension"],
-			"dims": { "pluginSection": "single-quoted key (not scanned)" },
+			"dims": {
+				"pluginSection": "single-quoted key (not scanned)"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -345,7 +420,9 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": { "sourceType": "git" },
+			"dims": {
+				"sourceType": "git"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -374,13 +451,19 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": { "source": "relative path" },
+			"dims": {
+				"source": "relative path"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
 				"fs": [
-					{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.relativeSource" }
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.relativeSource"
+					}
 				],
 				"commands": []
 			},
@@ -395,16 +478,26 @@
 			"anchors": ["codex-adapter:197-201", "state-parsers:157"]
 		},
 		{
-			"id": "codex.inspect.legacy-marketplace",
+			"id": "codex.inspect.outdated-marketplace",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required"],
-			"dims": { "marketplace": "legacy", "pluginPresent": true, "enabled": true },
+			"dims": {
+				"marketplace": "outdated",
+				"pluginPresent": true,
+				"enabled": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.legacy" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.outdated"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -416,35 +509,6 @@
 				}
 			},
 			"anchors": ["codex-adapter:213-220"]
-		},
-		{
-			"id": "codex.inspect.newer-sibling-source",
-			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling"],
-			"dims": { "marketplace": "newer-sibling" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/codex",
-				"capsule": "ready",
-				"fs": [
-					{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.newerSibling" }
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "stale-side",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				},
-				"desktopCanonical": { "state": "update-required", "issue": null },
-				"cli": {
-					"note": "newer versioned sibling → stale-side; enable/disable refuse pre-effect exit 3 (§3.2)."
-				}
-			},
-			"anchors": ["codex-adapter:213-221", "state-parsers:173-180", "design:complete53§3.2"]
 		},
 		{
 			"id": "codex.inspect.executable-missing-still-classifies",
@@ -461,7 +525,13 @@
 				"managementMode": "managed-local",
 				"exe": null,
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.enabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.enabled"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -480,12 +550,21 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["capsule-drift"],
-			"dims": { "capsule": "absent", "state": "enabled" },
+			"dims": {
+				"capsule": "absent",
+				"state": "enabled"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "absent",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.enabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.enabled"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -503,12 +582,20 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": { "state": "enabled" },
+			"dims": {
+				"state": "enabled"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.enabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.enabled"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -516,7 +603,10 @@
 				"commands": [],
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["codex-adapter:82"]
 		},
@@ -525,20 +615,36 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "disabled-path"],
-			"dims": { "state": "disabled", "marketplace": "current", "pluginPresent": true },
+			"dims": {
+				"state": "disabled",
+				"marketplace": "current",
+				"pluginPresent": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.disabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.disabled"
+					}
+				],
 				"commands": [
 					{
 						"argv": ["plugin", "remove", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "add", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
@@ -548,7 +654,10 @@
 					["plugin", "remove", "${PLUGIN_ID}", "--json"],
 					["plugin", "add", "${PLUGIN_ID}", "--json"]
 				],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["codex-adapter:85-104"],
 			"notes": "Codex disabled → remove+add (reinstall path), NOT a no-op — fixes the false-completed row (Provider58 B-1). PLUGIN_ID here is 'orchbee-agent-observation@orchbee-local' (codex-adapter:18); complete53 §4.3 prose dropped the qualifier — source wins."
@@ -558,7 +667,10 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": { "state": "not-installed", "marketplace": "absent" },
+			"dims": {
+				"state": "not-installed",
+				"marketplace": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -567,11 +679,17 @@
 				"commands": [
 					{
 						"argv": ["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "add", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
@@ -581,37 +699,62 @@
 					["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--json"],
 					["plugin", "add", "${PLUGIN_ID}", "--json"]
 				],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["codex-adapter:92-95"]
 		},
 		{
-			"id": "codex.enable.update-required-legacy",
+			"id": "codex.enable.update-required-outdated",
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "update-required"],
-			"dims": { "state": "update-required", "marketplace": "legacy", "pluginPresent": true },
+			"dims": {
+				"state": "update-required",
+				"marketplace": "outdated",
+				"pluginPresent": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.legacy" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.outdated"
+					}
+				],
 				"commands": [
 					{
 						"argv": ["plugin", "remove", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "marketplace", "remove", "${MARKETPLACE}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "add", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
@@ -623,7 +766,10 @@
 					["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--json"],
 					["plugin", "add", "${PLUGIN_ID}", "--json"]
 				],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["codex-adapter:85-104"]
 		},
@@ -632,19 +778,30 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "state": "conflict" },
+			"dims": {
+				"state": "conflict"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.foreign" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.foreign"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["codex-adapter:83"]
 		},
@@ -653,19 +810,32 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": { "state": "unknown", "config": "unavailable" },
+			"dims": {
+				"state": "unknown",
+				"config": "unavailable"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "x", "mode": "0000" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "x",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 9, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["codex-adapter:84", "disposition55:29-31"]
 		},
@@ -674,19 +844,31 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["agent-unavailable"],
-			"dims": { "exe": "not-found" },
+			"dims": {
+				"exe": "not-found"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": null,
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.enabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.enabled"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"commands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 4, "code": "agent-unavailable", "frontier": "pre-effect" }
+				"cli": {
+					"exit": 4,
+					"code": "agent-unavailable",
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["codex-adapter:79-80"],
 			"notes": "Enable resolves the executable BEFORE reading config — exe missing fails even though inspect would have classified enabled."
@@ -705,15 +887,27 @@
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": ""
+					}
+				],
 				"commands": [
 					{
 						"argv": ["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "add", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
@@ -723,7 +917,10 @@
 					["plugin", "marketplace", "add", "${CAPSULE_ROOT}", "--json"],
 					["plugin", "add", "${PLUGIN_ID}", "--json"]
 				],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["codex-adapter:85-104"],
 			"notes": "After a mid-sequence timeout the residual config (empty → not-installed, marketplace absent) re-plans to exactly the remaining vector."
@@ -733,46 +930,77 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": { "state": "enabled", "marketplace": "current" },
+			"dims": {
+				"state": "enabled",
+				"marketplace": "current"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.enabled" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.enabled"
+					}
+				],
 				"commands": [
 					{
 						"argv": ["plugin", "remove", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "remove", "${PLUGIN_ID}", "--json"]],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["codex-adapter:106-130"],
 			"notes": "marketplace==current stays — only the plugin row is removed."
 		},
 		{
-			"id": "codex.disable.legacy-marketplace",
+			"id": "codex.disable.outdated-marketplace",
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable", "update-required"],
-			"dims": { "state": "update-required", "marketplace": "legacy", "pluginPresent": true },
+			"dims": {
+				"state": "update-required",
+				"marketplace": "outdated",
+				"pluginPresent": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
 				"capsule": "ready",
-				"fs": [{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.legacy" }],
+				"fs": [
+					{
+						"path": ".codex/config.toml",
+						"kind": "file",
+						"content": "@codex.toml.outdated"
+					}
+				],
 				"commands": [
 					{
 						"argv": ["plugin", "remove", "${PLUGIN_ID}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "marketplace", "remove", "${MARKETPLACE}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
@@ -782,7 +1010,10 @@
 					["plugin", "remove", "${PLUGIN_ID}", "--json"],
 					["plugin", "marketplace", "remove", "${MARKETPLACE}", "--json"]
 				],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["codex-adapter:113-129"]
 		},
@@ -791,7 +1022,10 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": { "state": "not-installed", "marketplace": "absent" },
+			"dims": {
+				"state": "not-installed",
+				"marketplace": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -803,7 +1037,10 @@
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["codex-adapter:120-121"]
 		},
@@ -812,7 +1049,9 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "state": "conflict" },
+			"dims": {
+				"state": "conflict"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/codex",
@@ -830,41 +1069,12 @@
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["codex-adapter:111"]
-		},
-		{
-			"id": "codex.mutation.newer-sibling-stale-side",
-			"operation": "disable",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling", "refusal"],
-			"dims": { "marketplace": "newer-sibling" },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/codex",
-				"capsule": "ready",
-				"fs": [
-					{ "path": ".codex/config.toml", "kind": "file", "content": "@codex.toml.newerSibling" }
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": { "state": "stale-side" },
-				"attempt": "stale-side",
-				"planCommands": [],
-				"mustNotMutate": true,
-				"desktopCanonical": {
-					"state": "update-required",
-					"attempt": "attempted",
-					"planCommands": [
-						["plugin", "remove", "${PLUGIN_ID}", "--json"],
-						["plugin", "marketplace", "remove", "${MARKETPLACE}", "--json"]
-					]
-				},
-				"cli": { "exit": 3, "verdict": "stale-side", "frontier": "pre-effect" }
-			},
-			"anchors": ["codex-adapter:213-221", "design:complete53§3.2"]
 		}
 	]
 }

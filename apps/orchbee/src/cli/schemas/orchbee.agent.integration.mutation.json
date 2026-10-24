@@ -78,7 +78,6 @@
 										"inspection-failed",
 										"capsule-unavailable",
 										"capsule-invalid",
-										"capsule-unsupported-version",
 										"timed-out",
 										"operation-failed",
 										"verification-failed",
@@ -208,7 +207,6 @@
 												"inspection-failed",
 												"capsule-unavailable",
 												"capsule-invalid",
-												"capsule-unsupported-version",
 												"timed-out",
 												"operation-failed",
 												"verification-failed",
@@ -314,7 +312,6 @@
 				},
 				"issue": {
 					"enum": [
-						"capsule-unsupported-version",
 						"inspection-failed",
 						"manual-action-required",
 						"unsupported-platform",
@@ -411,7 +408,6 @@
 				},
 				"issue": {
 					"enum": [
-						"capsule-unsupported-version",
 						"inspection-failed",
 						"manual-action-required",
 						"unsupported-platform",

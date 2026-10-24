@@ -314,7 +314,7 @@ Desktop Main 的准确 effect、reconciliation、conflict、rollback 与远端�
 
 该命令不包含用户插值，并在一个子 shell 内运行其帮助程序和临时值。它仅读取环境值，打印最多 128 个与保守的显示安全字符集匹配的字符的值，检查 `command -v infocmp` 并评估 `command infocmp` 的退出状态。不安全或过大的值会收到稳定的标记，而不是作为潜在的终端控制输入进行回显。它不会调用 SSH、访问网络、安装 terminfo、创建目录、读取配置文件、写入远程状态或在用户的交互式 shell 中留下帮助程序函数。设置不执行或粘贴命令；只读字段使用正常的文本选择，因此用户仍然负责选择在何处以及是否运行它。
 
-只有在 `ssh` 仍是 file、没有更早的 alias 或 function 拥有该名称、存在私有 local Agent-observation socket，且 stdin 与 stdout 都是交互式 terminal 时，显式 source 的 shell integration 才会定义 `ssh` wrapper。Configuration、control、仅转发与 version/query mode 保持不变。符合条件的调用会保留全部用户参数，只增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v3-*.sock` 到 local Desktop socket 的 reverse Unix-socket forward。OpenSSH authentication、显式参数与用户配置仍然是最终依据。Orchbee 不添加 `SendEnv` rule、不持久化 host 或 credential、不安装 remote file，也不维护 remote cache。标准请求的 SSH PTY 仍根据 OpenSSH 行为携带 TERM。OSC 7 hostname、process title 与 terminal output 不是 remote-identity authority。
+只有在 `ssh` 仍是 file、没有更早的 alias 或 function 拥有该名称、存在私有 local Agent-observation socket，且 stdin 与 stdout 都是交互式 terminal 时，显式 source 的 shell integration 才会定义 `ssh` wrapper。Configuration、control、仅转发与 version/query mode 保持不变。符合条件的调用会保留全部用户参数，只增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v1-*.sock` 到 local Desktop socket 的 reverse Unix-socket forward。OpenSSH authentication、显式参数与用户配置仍然是最终依据。Orchbee 不添加 `SendEnv` rule、不持久化 host 或 credential、不安装 remote file，也不维护 remote cache。标准请求的 SSH PTY 仍根据 OpenSSH 行为携带 TERM。OSC 7 hostname、process title 与 terminal output 不是 remote-identity authority。
 
 ## Shell 集成与完成提醒
 
@@ -330,7 +330,7 @@ Shell 的正常启动路径，再 source 共享集成。不受支持的形式保
 标准 OSC 133 命令边界和 OSC 7 当前目录状态，但不传输命令文本。环境变量不能替换该资源路径；自动
 加载也绝不改变运行中或恢复的终端、Windows 终端、远程连接或用户启动文件。
 
-对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path。Local 或 reverse-forwarded v3 socket 返回准确 acceptance ACK 后，remote adapter 会把有界 private-APC correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 application signal。OSC 9、OSC 777、OSC 99、OSC 1337、BEL 与 provider notification hook 不用作 Agent-observation correlation channel。
+对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path。Local 或 reverse-forwarded v1 socket 返回准确 acceptance ACK 后，remote adapter 会把有界 private-APC correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 application signal。OSC 9、OSC 777、OSC 99、OSC 1337、BEL 与 provider notification hook 不用作 Agent-observation correlation channel。
 
 Browser Preview 反馈使用 `orchbee:web:terminal-feedback:v3`：Agent 模式（never/hidden）、
 完成模式（never/unfocused/always）、最小整秒（1–3600）及声音布尔值。

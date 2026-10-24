@@ -25,7 +25,7 @@ use super::model::{Availability, IntegrationId, Issue, ManagementMode, SnapshotI
 pub(crate) struct ProviderContext<'a> {
     /// The user's home directory (HOME-isolated in tests).
     pub(crate) home: &'a Path,
-    /// The stable managed capsule root `~/.orchbee/agent-observation-adapters/<v>`.
+    /// The managed capsule root `~/.orchbee/agent-observation-adapters/<payloadSha256>`.
     pub(crate) capsule_root: &'a Path,
     /// The declared adapter source: the cohort sidecar directory or the
     /// `--adapter-source` override — `None` when no source exists.
@@ -43,14 +43,9 @@ pub(crate) struct ProviderContext<'a> {
     pub(crate) management_mode: ManagementMode,
 }
 
-/// Build the classifier options: the caller owns the legacy-root Vec.
-pub(crate) fn resource_options<'a>(
-    context: &ProviderContext<'a>,
-    legacy_roots: &'a [PathBuf],
-) -> ResourceOptions<'a> {
+/// Build the classifier's content-addressed resource options.
+pub(crate) fn resource_options<'a>(context: &ProviderContext<'a>) -> ResourceOptions<'a> {
     ResourceOptions {
-        expected_version: capsule::PAYLOAD_VERSION,
-        legacy_roots,
         resource_root: context.capsule_root,
     }
 }
@@ -362,7 +357,6 @@ fn inspect_guarded_spec(
         &target,
         spec.kind,
         id,
-        &context.capsule_root.join(spec.source_relative),
         Path::new(spec.source_relative),
         options,
     )
@@ -424,12 +418,8 @@ pub(crate) fn executable_available(id: IntegrationId, context: &ProviderContext)
 /// One provider's snapshot row — canonical `inspect()` semantics plus the
 /// capsule fold. CLI-command providers report `unknown` (no issue) when the
 /// executable is unresolvable; filesystem providers inspect regardless.
-pub(crate) fn inspect_provider(
-    id: IntegrationId,
-    context: &ProviderContext,
-    legacy_roots: &[PathBuf],
-) -> SnapshotItem {
-    inspect_full(id, context, legacy_roots).0
+pub(crate) fn inspect_provider(id: IntegrationId, context: &ProviderContext) -> SnapshotItem {
+    inspect_full(id, context).0
 }
 
 /// The single read pass every consumer shares: one scripted queue slot per
@@ -439,7 +429,6 @@ pub(crate) fn inspect_provider(
 pub(crate) fn inspect_full(
     id: IntegrationId,
     context: &ProviderContext,
-    legacy_roots: &[PathBuf],
 ) -> (SnapshotItem, InspectionDetail) {
     let management_mode = management_mode(id, context.management_mode);
     let spec = spec(id);
@@ -449,7 +438,7 @@ pub(crate) fn inspect_full(
     } else {
         Availability::NotFound
     };
-    let options = resource_options(context, legacy_roots);
+    let options = resource_options(context);
     let bundle_root = context.capsule_root.join("bundle");
 
     // CLI-command adapters skip inspection entirely when the executable is
@@ -517,7 +506,11 @@ pub(crate) fn inspect_full(
                     ReadOutcome::Stdout(bytes) => super::hermes_windows::list_state(
                         &bytes,
                         local.state,
-                        options.expected_version,
+                        context
+                            .capsule_root
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .unwrap_or_default(),
                     ),
                     _ => State::Unknown,
                 },
@@ -633,7 +626,7 @@ pub(crate) fn inspect_full(
                 combine_guarded_targets(target_state, obsolete_target_state);
             let state = match combined_target_state {
                 TargetState::Missing => State::NotInstalled,
-                TargetState::Legacy | TargetState::UpdateRequired => State::UpdateRequired,
+                TargetState::UpdateRequired => State::UpdateRequired,
                 TargetState::Current if !source_ready => State::UpdateRequired,
                 TargetState::Current => State::Enabled,
                 TargetState::Newer => State::StaleSide,
@@ -663,23 +656,13 @@ pub(crate) fn inspect_full(
     };
 
     // Issue precedence (canonical): the platform slot wins, then the
-    // inspection failure, then the additive capsule-version issue (R-2).
+    // inspection failure.
     let issue = if management_mode == ManagementMode::ManualOnly {
         Some(Issue::UnsupportedPlatform)
     } else if inspection_failed {
         Some(Issue::InspectionFailed)
     } else {
-        match context.adapter_source {
-            Some(source)
-                if matches!(
-                    capsule::validate(source),
-                    capsule::CapsuleValidity::UnsupportedVersion { .. }
-                ) =>
-            {
-                Some(Issue::CapsuleUnsupportedVersion)
-            }
-            _ => None,
-        }
+        None
     };
 
     (
@@ -697,10 +680,10 @@ pub(crate) fn inspect_full(
 
 /// The whole snapshot — canonical order, each provider inspected in turn
 /// inside the shared deadline.
-pub(crate) fn snapshot(context: &ProviderContext, legacy_roots: &[PathBuf]) -> Vec<SnapshotItem> {
+pub(crate) fn snapshot(context: &ProviderContext) -> Vec<SnapshotItem> {
     IntegrationId::ALL
         .iter()
-        .map(|id| inspect_provider(*id, context, legacy_roots))
+        .map(|id| inspect_provider(*id, context))
         .collect()
 }
 
@@ -731,7 +714,6 @@ pub(crate) enum InspectionDetail {
 pub(crate) fn inspect_provider_detail(
     id: IntegrationId,
     context: &ProviderContext,
-    legacy_roots: &[PathBuf],
 ) -> (SnapshotItem, InspectionDetail) {
-    inspect_full(id, context, legacy_roots)
+    inspect_full(id, context)
 }

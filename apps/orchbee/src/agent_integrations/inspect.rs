@@ -1,10 +1,8 @@
 //! Per-provider observation — the Rust port of the canonical classifiers in
 //! `agent-integration-state-parsers.ts`, `CodexAgentIntegrationAdapter.ts`,
 //! `ClineAgentIntegrationAdapter.ts`, and `GuardedLocalAgentIntegrationAdapter.ts`.
-//! Every parser keeps the canonical verdicts verbatim; the only deliberate
-//! divergence is the registered direction split: content owned by a NEWER
-//! payload/contract version classifies `stale-side` where the canonical maps
-//! it to `update-required` — the CLI never initiates downward motion.
+//! Resource identity is a payload digest, with no ordering between siblings.
+//! Unrecognized owned entry contracts retain the CLI's `stale-side` refusal.
 
 use std::{
     fs,
@@ -25,8 +23,8 @@ pub(crate) const GITHUB_COPILOT_PLUGIN_ID: &str = "orchbee-agent-observation@orc
 pub(crate) const GROK_PLUGIN_NAME: &str = "orchbee-agent-observation";
 pub(crate) const MARKETPLACE_NAME: &str = "orchbee-local";
 const CLINE_PLUGIN_NAME: &str = "orchbee-agent-observation";
-const CLINE_CONTRACT_VERSION: u64 = 3;
-pub(crate) const ENTRY_CONTRACT_VERSION: u64 = 3;
+const CLINE_CONTRACT_VERSION: u64 = 1;
+pub(crate) const ENTRY_CONTRACT_VERSION: u64 = 1;
 const MAX_CLINE_INSTALLS: usize = 128;
 const MAX_CLINE_MANIFEST_BYTES: u64 = 16 * 1024;
 const MAX_CODEX_CONFIGURATION_BYTES: u64 = 512 * 1024;
@@ -36,7 +34,7 @@ const MAX_ENTRY_FILE_BYTES: u64 = 128 * 1024;
 const MAX_ENTRY_TOTAL_BYTES: u64 = 512 * 1024;
 const MAX_MARKER_BYTES: u64 = 16 * 1024;
 pub(crate) const DIRECTORY_MARKER_NAME: &str = ".orchbee-agent-observation.json";
-const BOOTSTRAP_MARKER_PREFIX: &str = "// orchbee-agent-observation-bootstrap-v3:";
+const BOOTSTRAP_MARKER_PREFIX: &str = "// orchbee-agent-observation-bootstrap-v1:";
 const REQUIRED_RUNTIME_FILES: [&str; 3] = [
     "forward-hook.mjs",
     "hook-sanitizers.mjs",
@@ -47,25 +45,18 @@ const REQUIRED_RUNTIME_FILES: [&str; 3] = [
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ResourceOwnership {
     Current,
-    /// An older/legacy sibling or one of the declared legacy roots.
-    Legacy,
-    /// A version-qualified sibling NEWER than this build's payload — the
-    /// CLI-local direction split feeding `stale-side`.
-    Newer,
+    /// A different content identity under the same managed installation parent.
+    Outdated,
     Foreign,
 }
 
-/// The classifier's managed-resource options: the stable capsule root plus
-/// the declared legacy roots (the distribution source the entry may point
-/// back to).
+/// The classifier's current content-addressed capsule root.
 pub(crate) struct ResourceOptions<'a> {
-    pub(crate) expected_version: &'a str,
-    pub(crate) legacy_roots: &'a [PathBuf],
     pub(crate) resource_root: &'a Path,
 }
 
-/// `classifyManagedResourceRoot` verbatim plus the newer-sibling direction
-/// split.
+/// Exact current identity or an outdated sibling; paths outside the managed
+/// installation parent never establish ownership.
 pub(crate) fn classify_resource_root(value: &str, options: &ResourceOptions) -> ResourceOwnership {
     let candidate = Path::new(value);
     if !candidate.is_absolute() {
@@ -76,64 +67,10 @@ pub(crate) fn classify_resource_root(value: &str, options: &ResourceOptions) -> 
     if resolved == current {
         return ResourceOwnership::Current;
     }
-    if options
-        .legacy_roots
-        .iter()
-        .any(|legacy| normalize(legacy) == resolved)
-    {
-        return ResourceOwnership::Legacy;
-    }
-    let normalized = resolved.to_string_lossy().replace('\\', "/");
-    if normalized.ends_with("/apps/desktop/resources/agent-observation-adapters")
-        || bundle_app_resource_root(&normalized)
-    {
-        return ResourceOwnership::Legacy;
-    }
-    // A version-qualified sibling of the managed root: direction splits —
-    // older is legacy (repairable), newer is out of ownership (stale-side).
     if resolved.parent() == current.parent() {
-        let version_of = |path: &Path| -> Option<(u64, u64, u64)> {
-            let name = path.file_name()?.to_str()?;
-            parse_version(name)
-        };
-        if let (Some(candidate_version), Some(current_version)) =
-            (version_of(&resolved), version_of(&current))
-        {
-            return if candidate_version > current_version {
-                ResourceOwnership::Newer
-            } else {
-                ResourceOwnership::Legacy
-            };
-        }
+        return ResourceOwnership::Outdated;
     }
     ResourceOwnership::Foreign
-}
-
-fn bundle_app_resource_root(normalized: &str) -> bool {
-    // `/(?:^|\/)Orchbee(?: Dev| Local)?\.app\/Contents\/Resources\/
-    // agent-observation-adapters$/` — the release/dev bundle resource root.
-    let Some(marker) = normalized.rfind(".app/Contents/Resources/agent-observation-adapters")
-    else {
-        return false;
-    };
-    if marker + ".app/Contents/Resources/agent-observation-adapters".len() != normalized.len() {
-        return false;
-    }
-    let prefix = &normalized[..marker];
-    let name = prefix.rsplit('/').next().unwrap_or(prefix);
-    name == "Orchbee" || name == "Orchbee Dev" || name == "Orchbee Local"
-}
-
-/// `<x>.<y>.<z>` with optional `-pre`/`+build` suffix — the canonical
-/// versionPattern. Comparison is numeric on the triple only (pre-release
-/// tags are not part of the payload's own version contract).
-fn parse_version(name: &str) -> Option<(u64, u64, u64)> {
-    let core = name.split(['-', '+']).next()?;
-    let mut parts = core.split('.');
-    let major = parts.next()?.parse().ok()?;
-    let minor = parts.next()?.parse().ok()?;
-    let patch = parts.next()?.parse().ok()?;
-    parts.next().is_none().then_some((major, minor, patch))
 }
 
 fn normalize(path: &Path) -> PathBuf {
@@ -186,7 +123,7 @@ pub(crate) struct PluginInspection {
 pub(crate) enum Marketplace {
     Absent,
     Current,
-    Legacy,
+    Outdated,
 }
 
 impl Marketplace {
@@ -194,7 +131,7 @@ impl Marketplace {
         match self {
             Self::Absent => "absent",
             Self::Current => "current",
-            Self::Legacy => "legacy",
+            Self::Outdated => "update-required",
         }
     }
 }
@@ -239,14 +176,7 @@ pub(crate) fn inspect_claude(
                                 state: State::Conflict,
                             });
                         }
-                        ResourceOwnership::Newer => {
-                            return Some(PluginInspection {
-                                marketplace: Marketplace::Absent,
-                                plugin_present: plugin.is_some(),
-                                state: State::StaleSide,
-                            });
-                        }
-                        ResourceOwnership::Legacy => Marketplace::Legacy,
+                        ResourceOwnership::Outdated => Marketplace::Outdated,
                         ResourceOwnership::Current => Marketplace::Current,
                     }
                 }
@@ -260,17 +190,7 @@ pub(crate) fn inspect_claude(
             }
         }
     };
-    #[cfg(windows)]
-    if let Some(plugin) = plugin
-        && windows_plugin_version(plugin, options)? == State::StaleSide
-    {
-        return Some(PluginInspection {
-            marketplace,
-            plugin_present: true,
-            state: State::StaleSide,
-        });
-    }
-    if marketplace == Marketplace::Legacy {
+    if marketplace == Marketplace::Outdated {
         return Some(PluginInspection {
             marketplace,
             plugin_present: plugin.is_some(),
@@ -291,14 +211,7 @@ pub(crate) fn inspect_claude(
             state: State::Conflict,
         });
     }
-    let version = read_string(plugin, "version")?;
-    if version != options.expected_version {
-        return Some(PluginInspection {
-            marketplace,
-            plugin_present: true,
-            state: version_direction_state(version, options.expected_version),
-        });
-    }
+    read_string(plugin, "version")?;
     let enabled = read_boolean(plugin, "enabled")?;
     Some(PluginInspection {
         marketplace,
@@ -311,26 +224,6 @@ pub(crate) fn inspect_claude(
     })
 }
 
-/// Version-direction divergence: canonical maps every version mismatch to
-/// `update-required`; the CLI refuses to own a NEWER entry — `stale-side`.
-fn version_direction_state(observed: &str, expected: &str) -> State {
-    match (parse_version(observed), parse_version(expected)) {
-        (Some(observed_v), Some(expected_v)) if observed_v > expected_v => State::StaleSide,
-        _ => State::UpdateRequired,
-    }
-}
-
-#[cfg(windows)]
-fn windows_plugin_version(plugin: &Value, options: &ResourceOptions) -> Option<State> {
-    let version = read_string(plugin, "version")?;
-    parse_version(version)?;
-    Some(if version == options.expected_version {
-        State::Enabled
-    } else {
-        version_direction_state(version, options.expected_version)
-    })
-}
-
 #[cfg(windows)]
 pub(crate) fn inspect_grok(
     plugin_stdout: &[u8],
@@ -340,7 +233,7 @@ pub(crate) fn inspect_grok(
     windows::inspect_grok(plugin_stdout, options, home)
 }
 
-/// Legacy Unix inventory contract.
+/// Unix provider inventory contract.
 #[cfg(unix)]
 pub(crate) fn inspect_grok(
     plugin_stdout: &[u8],
@@ -369,7 +262,7 @@ pub(crate) fn inspect_grok(
     let plugin = matches[0];
     let source = read_string(plugin, "source");
     let version = read_string(plugin, "version");
-    let (Some(source), Some(version)) = (source, version) else {
+    let (Some(source), Some(_)) = (source, version) else {
         return Some(PluginInspection {
             marketplace: Marketplace::Absent,
             plugin_present: true,
@@ -392,14 +285,7 @@ pub(crate) fn inspect_grok(
                 state: State::Conflict,
             });
         }
-        ResourceOwnership::Newer => {
-            return Some(PluginInspection {
-                marketplace: Marketplace::Absent,
-                plugin_present: true,
-                state: State::StaleSide,
-            });
-        }
-        ResourceOwnership::Legacy => {
+        ResourceOwnership::Outdated => {
             return Some(PluginInspection {
                 marketplace: Marketplace::Absent,
                 plugin_present: true,
@@ -407,13 +293,6 @@ pub(crate) fn inspect_grok(
             });
         }
         ResourceOwnership::Current => {}
-    }
-    if version != options.expected_version {
-        return Some(PluginInspection {
-            marketplace: Marketplace::Absent,
-            plugin_present: true,
-            state: version_direction_state(version, options.expected_version),
-        });
     }
     if let Some(enabled) = read_boolean(plugin, "enabled") {
         return Some(PluginInspection {
@@ -500,14 +379,7 @@ pub(crate) fn inspect_copilot(
                         state: State::Conflict,
                     });
                 }
-                ResourceOwnership::Newer => {
-                    return Some(PluginInspection {
-                        marketplace: Marketplace::Absent,
-                        plugin_present: plugin.is_some(),
-                        state: State::StaleSide,
-                    });
-                }
-                ResourceOwnership::Legacy => Marketplace::Legacy,
+                ResourceOwnership::Outdated => Marketplace::Outdated,
                 ResourceOwnership::Current => Marketplace::Current,
             }
         }
@@ -516,7 +388,7 @@ pub(crate) fn inspect_copilot(
         return Some(PluginInspection {
             marketplace,
             plugin_present: false,
-            state: if marketplace == Marketplace::Legacy {
+            state: if marketplace == Marketplace::Outdated {
                 State::UpdateRequired
             } else {
                 State::NotInstalled
@@ -547,24 +419,7 @@ pub(crate) fn inspect_copilot(
             state: State::Conflict,
         });
     }
-    if ownership == ResourceOwnership::Newer {
-        return Some(PluginInspection {
-            marketplace,
-            plugin_present: true,
-            state: State::StaleSide,
-        });
-    }
-    #[cfg(windows)]
-    let version_state = windows_plugin_version(plugin, options)?;
-    #[cfg(windows)]
-    if version_state == State::StaleSide {
-        return Some(PluginInspection {
-            marketplace,
-            plugin_present: true,
-            state: version_state,
-        });
-    }
-    if ownership == ResourceOwnership::Legacy || marketplace == Marketplace::Legacy {
+    if ownership == ResourceOwnership::Outdated || marketplace == Marketplace::Outdated {
         return Some(PluginInspection {
             marketplace,
             plugin_present: true,
@@ -572,13 +427,7 @@ pub(crate) fn inspect_copilot(
         });
     }
     #[cfg(windows)]
-    if version_state != State::Enabled {
-        return Some(PluginInspection {
-            marketplace,
-            plugin_present: true,
-            state: version_state,
-        });
-    }
+    read_string(plugin, "version")?;
     let enabled = read_boolean(plugin, "enabled")?;
     Some(PluginInspection {
         marketplace,
@@ -774,15 +623,10 @@ fn parse_codex_configuration(value: &str, options: &ResourceOptions) -> CodexIns
                 State::Disabled
             },
         },
-        ResourceOwnership::Legacy => CodexInspection {
-            marketplace: Marketplace::Legacy,
+        ResourceOwnership::Outdated => CodexInspection {
+            marketplace: Marketplace::Outdated,
             plugin_present,
             state: State::UpdateRequired,
-        },
-        ResourceOwnership::Newer => CodexInspection {
-            marketplace: Marketplace::Absent,
-            plugin_present,
-            state: State::StaleSide,
         },
         ResourceOwnership::Foreign => CodexInspection {
             marketplace: Marketplace::Absent,
@@ -864,8 +708,7 @@ fn io_invalid(message: &'static str) -> std::io::Error {
 
 /// cline — `~/.cline/plugins` scan: direct-name conflicts, then
 /// `_installed/local/*/package` markers. Canonical's
-/// `update-required` on any positive contractVersion≠3 splits by direction
-/// here.
+/// current contract and unrecognized owned contracts are distinct.
 pub(crate) fn inspect_cline(home: &Path) -> State {
     let plugin_root = home.join(".cline").join("plugins");
     for direct_name in [
@@ -895,7 +738,6 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
         return State::Unknown;
     }
     let mut exact = 0usize;
-    let mut update_required = 0usize;
     let mut newer = 0usize;
     for entry in entries {
         if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
@@ -909,19 +751,15 @@ pub(crate) fn inspect_cline(home: &Path) -> State {
         }
         match cline_package_state(&candidate_root) {
             ClinePackage::Conflict => return State::Conflict,
-            ClinePackage::UpdateRequired => update_required += 1,
             ClinePackage::Newer => newer += 1,
             ClinePackage::Current => exact += 1,
         }
     }
-    if exact + update_required + newer > 1 {
+    if exact + newer > 1 {
         return State::Conflict;
     }
     if newer == 1 {
         return State::StaleSide;
-    }
-    if update_required == 1 {
-        return State::UpdateRequired;
     }
     if exact == 1 {
         State::Enabled
@@ -934,12 +772,11 @@ pub(crate) enum ClinePackage {
     Conflict,
     Current,
     Newer,
-    UpdateRequired,
 }
 
 /// The installed `package/package.json` contract: name must be the plugin
-/// name; `orchbeeAgentObservation.contractVersion`==3 current, positive int
-/// <3 update-required, >3 stale-side, otherwise conflict. Also used on the
+/// name; `orchbeeAgentObservation.contractVersion`==1 current, a larger
+/// positive integer stale-side, otherwise conflict. Also used on the
 /// capsule's `bundle/package.json` as the source-readiness check.
 pub(crate) fn cline_package_state(package_root: &Path) -> ClinePackage {
     let Some(value) =
@@ -958,7 +795,6 @@ pub(crate) fn cline_package_state(package_root: &Path) -> ClinePackage {
         }
         Some(Value::Number(version)) => match version.as_u64() {
             Some(v) if v > CLINE_CONTRACT_VERSION => ClinePackage::Newer,
-            Some(v) if v > 0 => ClinePackage::UpdateRequired,
             _ => ClinePackage::Conflict,
         },
         _ => ClinePackage::Conflict,
@@ -1009,7 +845,6 @@ fn read_json_record(path: &Path, maximum: u64) -> Option<Value> {
 pub(crate) enum TargetState {
     Conflict,
     Current,
-    Legacy,
     Missing,
     Newer,
     Unknown,
@@ -1021,7 +856,6 @@ impl TargetState {
         match self {
             Self::Conflict => "conflict",
             Self::Current => "current",
-            Self::Legacy => "legacy",
             Self::Missing => "missing",
             Self::Newer => "newer",
             Self::Unknown => "unknown",
@@ -1109,7 +943,6 @@ pub(crate) fn inspect_guarded_target(
     target: &Path,
     kind: BootstrapKind,
     integration_id: IntegrationId,
-    source_path: &Path,
     source_relative: &Path,
     options: &ResourceOptions,
 ) -> TargetState {
@@ -1121,27 +954,7 @@ pub(crate) fn inspect_guarded_target(
         Err(_) => return TargetState::Unknown,
     };
     if metadata.file_type().is_symlink() {
-        let linked = match fs::read_link(target) {
-            Ok(linked) => {
-                if linked.is_absolute() {
-                    linked
-                } else {
-                    target
-                        .parent()
-                        .map(|parent| normalize(&parent.join(&linked)))
-                        .unwrap_or_default()
-                }
-            }
-            Err(_) => return TargetState::Unknown,
-        };
-        let Some(linked_root) = resource_root_for_source(&linked, source_relative) else {
-            return TargetState::Conflict;
-        };
-        return match classify_resource_root(&linked_root.to_string_lossy(), options) {
-            ResourceOwnership::Foreign => TargetState::Conflict,
-            ResourceOwnership::Newer => TargetState::Newer,
-            ResourceOwnership::Current | ResourceOwnership::Legacy => TargetState::Legacy,
-        };
+        return TargetState::Conflict;
     }
     if kind == BootstrapKind::ExtensionDirectory {
         if !metadata.is_dir() {
@@ -1149,27 +962,67 @@ pub(crate) fn inspect_guarded_target(
         }
         let state = inspect_owned_directory(target, integration_id);
         #[cfg(windows)]
-        return windows::inspect_extension_version(target, integration_id, state, options);
+        return windows::inspect_extension_manifest(target, integration_id, state);
         #[cfg(unix)]
         return state;
     }
     if !metadata.is_file() {
         return TargetState::Conflict;
     }
-    #[cfg(windows)]
-    {
-        let _ = source_path;
-        windows::inspect_module_target(target, kind, integration_id, source_relative, options)
+    let bytes = match bounded_file(target, 16 * 1024) {
+        Ok(Some(bytes)) => bytes,
+        Err(_) => return TargetState::Unknown,
+        _ => return TargetState::Conflict,
+    };
+    let Some(source) = module_source(&bytes, kind, integration_id) else {
+        return TargetState::Conflict;
+    };
+    let Some(root) = resource_root_for_source(&source, source_relative) else {
+        return TargetState::Conflict;
+    };
+    match classify_resource_root(&root.to_string_lossy(), options) {
+        ResourceOwnership::Current => TargetState::Current,
+        ResourceOwnership::Outdated => TargetState::UpdateRequired,
+        ResourceOwnership::Foreign => TargetState::Conflict,
     }
-    #[cfg(unix)]
-    {
-        let expected = module_bootstrap(kind, integration_id, source_path);
-        match bounded_file(target, expected.len() as u64) {
-            Ok(Some(bytes)) if bytes == expected.as_bytes() => TargetState::Current,
-            Ok(_) => TargetState::Conflict,
-            Err(_) => TargetState::Conflict,
+}
+
+fn module_source(bytes: &[u8], kind: BootstrapKind, id: IntegrationId) -> Option<PathBuf> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let rest = text.strip_prefix(&format!("{BOOTSTRAP_MARKER_PREFIX}{}\n", id.as_str()))?;
+    let assignment = rest
+        .lines()
+        .next()?
+        .strip_prefix("const orchbeeAgentObservationModuleUrl = ")?
+        .strip_suffix(';')?;
+    let url: String = serde_json::from_str(assignment).ok()?;
+    let encoded = url.strip_prefix("file://")?.as_bytes();
+    let mut decoded = Vec::with_capacity(encoded.len());
+    let mut index = 0;
+    while index < encoded.len() {
+        if encoded[index] == b'%' {
+            let digits = std::str::from_utf8(encoded.get(index + 1..index + 3)?).ok()?;
+            decoded.push(u8::from_str_radix(digits, 16).ok()?);
+            index += 3;
+        } else {
+            decoded.push(encoded[index]);
+            index += 1;
         }
     }
+    let decoded = String::from_utf8(decoded).ok()?;
+    #[cfg(windows)]
+    let decoded = decoded.strip_prefix('/').unwrap_or(&decoded).to_owned();
+    let source = PathBuf::from(decoded);
+    if !source.is_absolute() {
+        return None;
+    }
+    #[cfg(windows)]
+    if !super::files::path_admitted(&source) {
+        return None;
+    }
+    // Round-trip validates canonical URL spelling and every executable byte,
+    // rather than accepting an edited body that happens to carry our marker.
+    (module_bootstrap(kind, id, &source).as_bytes() == bytes).then_some(source)
 }
 
 /// `<source dir>` minus its path inside the resource root → the root the
@@ -1185,7 +1038,7 @@ fn resource_root_for_source(source_path: &Path, relative_source: &Path) -> Optio
 
 /// The extension-directory marker check: `.orchbee-agent-observation.json`
 /// pins the entry to this integration id plus a sorted file-digest list.
-/// Registered divergence: canonical rejects contractVersion>3 at marker
+/// Registered divergence: canonical rejects contractVersion>1 at marker
 /// parse (→ conflict); the CLI keeps the parsed marker so a newer owned
 /// contract classifies `newer`/`stale-side` instead of unverifiable.
 pub(crate) fn inspect_owned_directory(root: &Path, integration_id: IntegrationId) -> TargetState {
@@ -1203,8 +1056,6 @@ pub(crate) fn inspect_owned_directory(root: &Path, integration_id: IntegrationId
     }
     if marker.contract_version == ENTRY_CONTRACT_VERSION {
         TargetState::Current
-    } else if marker.contract_version < ENTRY_CONTRACT_VERSION {
-        TargetState::UpdateRequired
     } else {
         TargetState::Newer
     }

@@ -12,11 +12,13 @@ import { createDesktopAgentIntegrationAdapters } from '../createDesktopAgentInte
 describe('Desktop Agent integration adapters', () => {
 	it('constructs the complete closed registry in canonical order', () => {
 		const adapters = createDesktopAgentIntegrationAdapters({
-			capsuleRoot: '/user-data/agent-observation-adapters/0.4.17',
+			capsuleRoot:
+				'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 			commandRunner: new FakeRunner(),
 			homeDirectory: '/home/person',
 			platform: 'darwin',
-			resourceRoot: '/application/agent-observation-adapters',
+			resourceRoot:
+				'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
 		});
 
 		expect(adapters.map(({ integrationId }) => integrationId)).toEqual(
@@ -26,11 +28,13 @@ describe('Desktop Agent integration adapters', () => {
 
 	it('keeps platform policy outside provider inspection output', async () => {
 		const adapters = createDesktopAgentIntegrationAdapters({
-			capsuleRoot: '/user-data/agent-observation-adapters/0.4.17',
+			capsuleRoot:
+				'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 			commandRunner: new FakeRunner(),
 			homeDirectory: '/home/person',
 			platform: 'win32',
-			resourceRoot: '/application/agent-observation-adapters',
+			resourceRoot:
+				'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
 		});
 
 		const snapshot = await adapters[0]?.inspect();
@@ -50,8 +54,10 @@ describe('Desktop Agent integration adapters', () => {
 			{ kind: 'completed', stdout: '' },
 			{ kind: 'completed', stdout: '' },
 		]);
-		const resourceRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.17';
+		const resourceRoot =
+			'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		const capsuleRoot =
+			'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 		const adapters = createDesktopAgentIntegrationAdapters({
 			capsule: {
 				isReady: async () => true,
@@ -76,9 +82,11 @@ describe('Desktop Agent integration adapters', () => {
 		]);
 	});
 
-	it('migrates only an exact legacy Claude marketplace after explicit enable', async () => {
-		const legacyRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.17';
+	it('repairs an outdated Claude marketplace after explicit enable', async () => {
+		const outdatedRoot =
+			'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		const capsuleRoot =
+			'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 		const runner = new SequencedRunner([
 			{
 				kind: 'completed',
@@ -92,11 +100,13 @@ describe('Desktop Agent integration adapters', () => {
 			},
 			{
 				kind: 'completed',
-				stdout: JSON.stringify([{ name: 'orchbee-local', path: legacyRoot, source: 'directory' }]),
+				stdout: JSON.stringify([
+					{ name: 'orchbee-local', path: outdatedRoot, source: 'directory' },
+				]),
 			},
 			...completedResults(5),
 		]);
-		const claude = createAdapters(runner, capsuleRoot, legacyRoot).find(
+		const claude = createAdapters(runner, capsuleRoot, outdatedRoot).find(
 			({ integrationId }) => integrationId === 'claude-code',
 		);
 		if (claude === undefined) throw new Error('Missing Claude adapter.');
@@ -134,8 +144,8 @@ describe('Desktop Agent integration adapters', () => {
 		]);
 		const claude = createAdapters(
 			runner,
-			'/user-data/agent-observation-adapters/0.4.17',
-			'/application/agent-observation-adapters',
+			'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
 		).find(({ integrationId }) => integrationId === 'claude-code');
 		if (claude === undefined) throw new Error('Missing Claude adapter.');
 
@@ -144,15 +154,17 @@ describe('Desktop Agent integration adapters', () => {
 	});
 
 	it('replaces a source-proven legacy Grok copy after explicit enable', async () => {
-		const legacyRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.17';
+		const outdatedRoot =
+			'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		const capsuleRoot =
+			'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 		const runner = new SequencedRunner([
 			{
 				kind: 'completed',
 				stdout: JSON.stringify([
 					{
 						name: 'orchbee-agent-observation',
-						source: `${legacyRoot}/bundle`,
+						source: `${outdatedRoot}/bundle`,
 						status: 'installed',
 						version: '0.3.0',
 					},
@@ -160,7 +172,7 @@ describe('Desktop Agent integration adapters', () => {
 			},
 			...completedResults(2),
 		]);
-		const grok = createAdapters(runner, capsuleRoot, legacyRoot).find(
+		const grok = createAdapters(runner, capsuleRoot, outdatedRoot).find(
 			({ integrationId }) => integrationId === 'grok',
 		);
 		if (grok === undefined) throw new Error('Missing Grok adapter.');
@@ -174,8 +186,10 @@ describe('Desktop Agent integration adapters', () => {
 	});
 
 	it('repoints an exact legacy Copilot marketplace after explicit enable', async () => {
-		const legacyRoot = '/application/agent-observation-adapters';
-		const capsuleRoot = '/user-data/agent-observation-adapters/0.4.17';
+		const outdatedRoot =
+			'/user-data/agent-observation-adapters/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		const capsuleRoot =
+			'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 		const runner = new SequencedRunner([
 			{
 				kind: 'completed',
@@ -183,7 +197,7 @@ describe('Desktop Agent integration adapters', () => {
 					plugins: [
 						{
 							enabled: true,
-							installedFrom: legacyRoot,
+							installedFrom: outdatedRoot,
 							name: 'orchbee-agent-observation',
 							source: 'live-marketplace:orchbee-local',
 						},
@@ -192,11 +206,11 @@ describe('Desktop Agent integration adapters', () => {
 			},
 			{
 				kind: 'completed',
-				stdout: JSON.stringify([{ name: 'orchbee-local', source: `Local: ${legacyRoot}` }]),
+				stdout: JSON.stringify([{ name: 'orchbee-local', source: `Local: ${outdatedRoot}` }]),
 			},
 			...completedResults(4),
 		]);
-		const copilot = createAdapters(runner, capsuleRoot, legacyRoot).find(
+		const copilot = createAdapters(runner, capsuleRoot, outdatedRoot).find(
 			({ integrationId }) => integrationId === 'github-copilot',
 		);
 		if (copilot === undefined) throw new Error('Missing GitHub Copilot adapter.');

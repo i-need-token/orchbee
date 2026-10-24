@@ -9,12 +9,19 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["current"],
-			"dims": { "installCount": 1, "contractVersion": 3, "sourceReady": true },
+			"dims": {
+				"installCount": 1,
+				"contractVersion": 3,
+				"sourceReady": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json",
@@ -46,12 +53,19 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["not-installed"],
-			"dims": { "installCount": 0, "directNames": "none", "installedRoot": "missing" },
+			"dims": {
+				"installCount": 0,
+				"directNames": "none",
+				"installedRoot": "missing"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [],
 				"commands": []
 			},
@@ -70,12 +84,17 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "directNames": "orchbee-agent-observation.js present" },
+			"dims": {
+				"directNames": "orchbee-agent-observation.js present"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/orchbee-agent-observation.js",
@@ -97,51 +116,22 @@
 			"notes": "Any direct-name entry (.js/.ts/bare dir) under ~/.cline/plugins is a foreign install → conflict, never adopted."
 		},
 		{
-			"id": "cline.inspect.contract-version-1",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required"],
-			"dims": { "installCount": 1, "contractVersion": 1 },
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/cline",
-				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
-				"fs": [
-					{
-						"path": ".cline/plugins/_installed/local/bundle-old/package/package.json",
-						"kind": "file",
-						"contentJson": "@cline.package.contract1"
-					},
-					{
-						"path": ".cline/plugins/_installed/local/bundle-old/package/cline/orchbee-agent-observation.js",
-						"kind": "file",
-						"content": "// owned"
-					}
-				],
-				"commands": []
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["cline-adapter:163-174"]
-		},
-		{
 			"id": "cline.inspect.contract-version-4",
 			"operation": "inspect",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-contract", "cline-direction-split"],
-			"dims": { "installCount": 1, "contractVersion": 4 },
+			"dims": {
+				"installCount": 1,
+				"contractVersion": 4
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-new/package/package.json",
@@ -163,7 +153,10 @@
 					"availability": "available",
 					"managementMode": "managed-local"
 				},
-				"desktopCanonical": { "state": "update-required", "issue": null },
+				"desktopCanonical": {
+					"state": "update-required",
+					"issue": null
+				},
 				"cli": {
 					"note": "contractVersion >3 → CLI stale-side (registered direction split §4.3-cline/§3.2); canonical spec maps ANY positive int ≠3 to update-required — an older Desktop would downgrade the newer contract on explicit enable."
 				}
@@ -176,12 +169,18 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": { "installCount": 1, "contractVersion": 0 },
+			"dims": {
+				"installCount": 1,
+				"contractVersion": 0
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-bad/package/package.json",
@@ -212,12 +211,18 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": { "installCount": 1, "contractVersion": "\"3\" (string)" },
+			"dims": {
+				"installCount": 1,
+				"contractVersion": "\"3\" (string)"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-bad/package/package.json",
@@ -247,12 +252,18 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "installCount": 1, "marker": "absent" },
+			"dims": {
+				"installCount": 1,
+				"marker": "absent"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-x/package/package.json",
@@ -283,12 +294,18 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict", "foreign"],
-			"dims": { "installCount": 1, "nameMatch": false },
+			"dims": {
+				"installCount": 1,
+				"nameMatch": false
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/other/package/package.json",
@@ -318,12 +335,17 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["conflict"],
-			"dims": { "installCount": 2 },
+			"dims": {
+				"installCount": 2
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/a/package/package.json",
@@ -363,14 +385,23 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable", "unknown"],
-			"dims": { "installedLocalEntries": 129 },
+			"dims": {
+				"installedLocalEntries": 129
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
-					{ "path": ".cline/plugins/_installed/local", "kind": "dir-with-entries", "entries": 129 }
+					{
+						"path": ".cline/plugins/_installed/local",
+						"kind": "dir-with-entries",
+						"entries": 129
+					}
 				],
 				"commands": []
 			},
@@ -390,13 +421,24 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["unreadable", "unknown"],
-			"dims": { "installedRoot": "EACCES" },
+			"dims": {
+				"installedRoot": "EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
-				"fs": [{ "path": ".cline/plugins/_installed/local", "kind": "dir", "mode": "0000" }],
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
+				"fs": [
+					{
+						"path": ".cline/plugins/_installed/local",
+						"kind": "dir",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
@@ -415,7 +457,11 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["capsule-drift", "update-required"],
-			"dims": { "installCount": 1, "contractVersion": 3, "sourceReady": false },
+			"dims": {
+				"installCount": 1,
+				"contractVersion": 3,
+				"sourceReady": false
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
@@ -450,12 +496,19 @@
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["agent-unavailable"],
-			"dims": { "exe": "not-found", "installCount": 1, "contractVersion": 3 },
+			"dims": {
+				"exe": "not-found",
+				"installCount": 1,
+				"contractVersion": 3
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": null,
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json",
@@ -485,24 +538,36 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable"],
-			"dims": { "state": "not-installed", "sourceReady": true },
+			"dims": {
+				"state": "not-installed",
+				"sourceReady": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [],
 				"commands": [
 					{
 						"argv": ["plugin", "install", "${BUNDLE}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "install", "${BUNDLE}", "--json"]],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["cline-adapter:65-92"]
 		},
@@ -511,12 +576,19 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["enable", "update-required"],
-			"dims": { "state": "update-required", "contractVersion": 1, "sourceReady": true },
+			"dims": {
+				"state": "update-required",
+				"contractVersion": 1,
+				"sourceReady": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-old/package/package.json",
@@ -532,11 +604,17 @@
 				"commands": [
 					{
 						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					},
 					{
 						"argv": ["plugin", "install", "${BUNDLE}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
@@ -546,7 +624,10 @@
 					["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
 					["plugin", "install", "${BUNDLE}", "--json"]
 				],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["cline-adapter:75-91"]
 		},
@@ -555,12 +636,18 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["noop", "enable"],
-			"dims": { "state": "enabled", "sourceReady": true },
+			"dims": {
+				"state": "enabled",
+				"sourceReady": true
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json",
@@ -579,7 +666,10 @@
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:69"]
 		},
@@ -588,12 +678,18 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "state": "conflict", "directNames": "present" },
+			"dims": {
+				"state": "conflict",
+				"directNames": "present"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/orchbee-agent-observation.js",
@@ -607,7 +703,10 @@
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:70-72"]
 		},
@@ -616,20 +715,35 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "no-else-uninstall", "unknown"],
-			"dims": { "state": "unknown", "installedRoot": "EACCES" },
+			"dims": {
+				"state": "unknown",
+				"installedRoot": "EACCES"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
-				"fs": [{ "path": ".cline/plugins/_installed/local", "kind": "dir", "mode": "0000" }],
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
+				"fs": [
+					{
+						"path": ".cline/plugins/_installed/local",
+						"kind": "dir",
+						"mode": "0000"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "failed",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 9, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 9,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:70-72", "disposition55:29-31"]
 		},
@@ -638,7 +752,10 @@
 			"operation": "enable",
 			"class": "shared",
 			"covers": ["refusal", "capsule-drift"],
-			"dims": { "sourceReady": false, "state": "not-installed" },
+			"dims": {
+				"sourceReady": false,
+				"state": "not-installed"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
@@ -664,12 +781,18 @@
 			"operation": "enable",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-contract", "cline-direction-split", "refusal"],
-			"dims": { "state": "stale-side", "contractVersion": 4 },
+			"dims": {
+				"state": "stale-side",
+				"contractVersion": 4
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-new/package/package.json",
@@ -685,7 +808,9 @@
 				"commands": []
 			},
 			"expect": {
-				"snapshot": { "state": "stale-side" },
+				"snapshot": {
+					"state": "stale-side"
+				},
 				"attempt": "stale-side",
 				"planCommands": [],
 				"mustNotMutate": true,
@@ -697,7 +822,11 @@
 						["plugin", "install", "${BUNDLE}", "--json"]
 					]
 				},
-				"cli": { "exit": 3, "verdict": "stale-side", "frontier": "pre-effect" }
+				"cli": {
+					"exit": 3,
+					"verdict": "stale-side",
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:170-174", "design:complete53§4.3-cline"],
 			"notes": "Canonical Desktop would emit uninstall+install — a downgrade of the newer contract. CLI refuses. Same for disable."
@@ -707,12 +836,17 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable"],
-			"dims": { "state": "enabled" },
+			"dims": {
+				"state": "enabled"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-reviewed/package/package.json",
@@ -728,14 +862,20 @@
 				"commands": [
 					{
 						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["cline-adapter:94-111"],
 			"notes": "Cline disable = uninstall --json even from enabled (no separate disable verb)."
@@ -745,12 +885,17 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["noop", "disable"],
-			"dims": { "state": "not-installed" },
+			"dims": {
+				"state": "not-installed"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [],
 				"commands": []
 			},
@@ -758,7 +903,10 @@
 				"attempt": "attempted",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 0, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:97"]
 		},
@@ -767,12 +915,18 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["disable", "update-required"],
-			"dims": { "state": "update-required", "contractVersion": 1 },
+			"dims": {
+				"state": "update-required",
+				"contractVersion": 1
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-old/package/package.json",
@@ -788,14 +942,20 @@
 				"commands": [
 					{
 						"argv": ["plugin", "uninstall", "${PLUGIN_NAME}", "--json"],
-						"result": { "kind": "completed", "stdout": "{}" }
+						"result": {
+							"kind": "completed",
+							"stdout": "{}"
+						}
 					}
 				]
 			},
 			"expect": {
 				"attempt": "attempted",
 				"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]],
-				"cli": { "exit": 0, "frontier": "post-effect" }
+				"cli": {
+					"exit": 0,
+					"frontier": "post-effect"
+				}
 			},
 			"anchors": ["cline-adapter:98-110"]
 		},
@@ -804,20 +964,33 @@
 			"operation": "disable",
 			"class": "shared",
 			"covers": ["refusal", "conflict", "no-else-uninstall"],
-			"dims": { "state": "conflict" },
+			"dims": {
+				"state": "conflict"
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
-				"fs": [{ "path": ".cline/plugins/orchbee-agent-observation", "kind": "dir" }],
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
+				"fs": [
+					{
+						"path": ".cline/plugins/orchbee-agent-observation",
+						"kind": "dir"
+					}
+				],
 				"commands": []
 			},
 			"expect": {
 				"attempt": "conflict",
 				"planCommands": [],
 				"mustNotMutate": true,
-				"cli": { "exit": 3, "frontier": "pre-effect" }
+				"cli": {
+					"exit": 3,
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:98-99,118-126"],
 			"notes": "Bare-directory direct name is equally a conflict trigger."
@@ -827,12 +1000,18 @@
 			"operation": "disable",
 			"class": "cli-divergence",
 			"covers": ["stale-side", "newer-contract", "cline-direction-split", "refusal"],
-			"dims": { "state": "stale-side", "contractVersion": 4 },
+			"dims": {
+				"state": "stale-side",
+				"contractVersion": 4
+			},
 			"given": {
 				"managementMode": "managed-local",
 				"exe": "/usr/bin/cline",
 				"capsule": "ready",
-				"capsuleBundle": { "path": "bundle/package.json", "contentJson": "@cline.package.current" },
+				"capsuleBundle": {
+					"path": "bundle/package.json",
+					"contentJson": "@cline.package.current"
+				},
 				"fs": [
 					{
 						"path": ".cline/plugins/_installed/local/bundle-new/package/package.json",
@@ -848,7 +1027,9 @@
 				"commands": []
 			},
 			"expect": {
-				"snapshot": { "state": "stale-side" },
+				"snapshot": {
+					"state": "stale-side"
+				},
 				"attempt": "stale-side",
 				"planCommands": [],
 				"mustNotMutate": true,
@@ -857,7 +1038,11 @@
 					"attempt": "attempted",
 					"planCommands": [["plugin", "uninstall", "${PLUGIN_NAME}", "--json"]]
 				},
-				"cli": { "exit": 3, "verdict": "stale-side", "frontier": "pre-effect" }
+				"cli": {
+					"exit": 3,
+					"verdict": "stale-side",
+					"frontier": "pre-effect"
+				}
 			},
 			"anchors": ["cline-adapter:170-174", "design:complete53§3.2"],
 			"notes": "Disable of a newer contract must ALSO refuse — Desktop would uninstall it."

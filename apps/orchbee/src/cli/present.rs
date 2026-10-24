@@ -1674,7 +1674,7 @@ pub(crate) fn agent_doctor(
             (
                 text.agent_doctor_environment,
                 format!(
-                    "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3 {}",
+                    "ORCHBEE_AGENT_OBSERVATION_SOCKET {}",
                     doctor_fact(&result["environment"]["observationSocketEnv"])
                 ),
             ),

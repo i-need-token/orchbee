@@ -10,7 +10,7 @@ const [provider, entry] = process.argv.slice(2);
 assert.ok(['opencode', 'kilo', 'pi', 'omp'].includes(provider));
 assert.equal(typeof entry, 'string');
 const pipe = String.raw`\\.\pipe\orchbee-${randomBytes(16).toString('hex')}-observation`;
-process.env.ORCHBEE_AGENT_OBSERVATION_SOCKET_V3 = pipe;
+process.env.ORCHBEE_AGENT_OBSERVATION_SOCKET = pipe;
 const observed = [];
 const connections = new Set();
 const delivered = Promise.withResolvers();
@@ -92,7 +92,7 @@ try {
 	);
 	for (const envelope of observed) {
 		assert.equal(envelope.adapterId, provider);
-		assert.equal(envelope.version, 3);
+		assert.equal(envelope.version, 1);
 		assert.equal(envelope.observation.sessionKey, 'module-session');
 		assert.equal(envelope.correlations.length, 1);
 	}

@@ -82,7 +82,7 @@ export const AgentHookRichObservationEnvelopeSchema = z
 			.max(MAX_CORRELATIONS_PER_EVENT),
 		eventId: transportIdentitySchema,
 		observation: AgentHookSanitizedObservationSchema,
-		version: z.literal(3),
+		version: z.literal(1),
 	})
 	.superRefine((envelope, context) => {
 		const correlationIds = envelope.correlations.map(({ correlationId }) => correlationId);
@@ -99,7 +99,7 @@ export const AgentHookPresentationCorrelationHintSchema = z.strictObject({
 	correlationId: transportIdentitySchema,
 	eventId: transportIdentitySchema,
 	kind: z.literal('correlation'),
-	version: z.literal(3),
+	version: z.literal(1),
 });
 
 export type AgentHookAdapterId = z.infer<typeof AgentHookAdapterIdSchema>;

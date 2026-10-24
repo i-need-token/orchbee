@@ -10,9 +10,9 @@
 //! before the Worker socket.
 //!
 //! Wire semantics are the ported oracle contract (`AgentHookObservation
-//! Ingress.ts`): one `<runtime>/agent-observation-v3.sock` listener,
+//! Ingress.ts`): one `<runtime>/agent-observation-v1.sock` listener,
 //! 64-connection bound, 16 KiB body cap, read-to-EOF then admit, and a
-//! 30-byte `{"accepted":true,"version":3}\n` ACK written after the
+//! 30-byte `{"accepted":true,"version":1}\n` ACK written after the
 //! shared-state fold decides admission. The ACK means "admitted into
 //! join bookkeeping" — never "a canonical session exists": an
 //! uncorrelated envelope is acknowledged and silently consumed at
@@ -50,7 +50,7 @@ use crate::agent::hook_ingress::ACCEPTED_ENVELOPE_ACK;
 use crate::agent_service::AgentService;
 
 #[cfg(unix)]
-const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v3.sock";
+const OBSERVATION_SOCKET_NAME: &str = "agent-observation-v1.sock";
 /// `server.maxConnections` — oracle `MAX_ACTIVE_CONNECTIONS`.
 const MAX_ACTIVE_CONNECTIONS: usize = 64;
 /// `MAX_OBSERVATION_BODY_BYTES` — also re-checked inside the admit fold.

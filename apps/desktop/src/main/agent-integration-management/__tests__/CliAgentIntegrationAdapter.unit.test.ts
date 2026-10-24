@@ -43,7 +43,6 @@ describe('CliAgentIntegrationAdapter', () => {
 			executableName: 'codex',
 			inspect: async () => 'not-installed',
 			integrationId: 'codex',
-			legacyResourceRoots: [],
 			managementMode: 'manual-only',
 			resourceRoot: '/resource',
 		});
@@ -64,7 +63,6 @@ function createAdapter(runner: AgentIntegrationCommandRunner): CliAgentIntegrati
 			return result.kind === 'completed' && result.stdout === 'enabled' ? 'enabled' : null;
 		},
 		integrationId: 'codex',
-		legacyResourceRoots: [],
 		managementMode: 'managed-local',
 		resourceRoot: '/resource',
 	});

@@ -30,7 +30,7 @@
 
 - `packages/agent` 拥有 canonical observed-session 模型（`AgentSessionSnapshot`、`AgentRuntimeSnapshot`、`AgentTurnState`、`AgentAttentionRequest`、`AgentTurnOutcome`、`AgentObservation`）、语义投影（`needs-attention`、`failed`、`succeeded`、`canceled`、`interrupted`、`working`、`idle`、`unknown`、`ended`）以及 `AgentRuntime` 内的易失变化 journal（`AGENT_RUNTIME_CHANGE_RETENTION` 为 512 条已应用迁移，`MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE` 为每次读取至多 100 条有序记录）。
 - 该 journal 按契约 content-free：不含 prompt、transcript、命令、问题文本、工具内容、文件系统路径、环境值、provider 私有 payload 或屏幕证据。保留溢出返回显式 reset-required 结果，并指引消费者重新获取 canonical snapshot。
-- Desktop 拥有 ingress 与 brokering：`apps/desktop/src/main/agent-observation/` 承载 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` Unix-socket 监听器，将其与经 `orchbee.agent.v1` 通道以 `TerminalApplicationSignal` 转发的私有 APC correlation 半边汇合，并把汇合后的迁移 dispatch 进运行时。`DesktopAgentObservationBroker` 通过 `desktop-client-protocol` 向 renderer 发布 snapshot-change 与 semantic-event 通知。
+- Desktop 拥有 ingress 与 brokering：`apps/desktop/src/main/agent-observation/` 承载 `ORCHBEE_AGENT_OBSERVATION_SOCKET` Unix-socket 监听器，将其与经 `orchbee.agent.v1` 通道以 `TerminalApplicationSignal` 转发的私有 APC correlation 半边汇合，并把汇合后的迁移 dispatch 进运行时。`DesktopAgentObservationBroker` 通过 `desktop-client-protocol` 向 renderer 发布 snapshot-change 与 semantic-event 通知。
 - Web Workbench 保留通过 `useAgentSnapshot`、Agent navigation 与 notification hook 消费 `AgentSnapshotSource` 的能力。旧 Desktop semantic endpoint 与 TypeScript CLI consumer 已退役；原生 Agent 行为由其原生所有者维护。
 
 ### 原生路径（Rust）
@@ -99,7 +99,7 @@ TUI 作为对等 renderer 消费该投影；它只拥有呈现。
 ## 关联与迁移说明
 
 - canonical 模型迁入 Rust 时必须调和 presentation attachment 标识：TypeScript 模型允许至多 256 字符的 opaque 字符串，而原生 `TerminalPresentationId` 为 32 位小写十六进制。Server 拥有的投影应发出原生 presentation 标识，使每个 Client 无需 per-renderer 关联规则即可映射 attachment。
-- 终端 effect wire 上的 `orchbee.agent.v1` 通道名与 `orchbee.agent.v3;` APC 前缀是 ingress 传输细节，不是面向 Client 的观测契约；Client 族命名不得继承其中任何一个。
+- 终端 effect wire 上的 `orchbee.agent.v1` 通道名与 `orchbee.agent.v1;` APC 前缀是 ingress 传输细节，不是面向 Client 的观测契约；Client 族命名不得继承其中任何一个。
 - 当前 TypeScript package（`@orchbee/agent` 契约）在已接受迁移逐个切换消费者之前仍是其现有消费者的当前权威；它们不会静默变成 Rust wire 契约。首个 Rust 生产者与消费者之前必须有语言中立 schema 与跨语言符合性证据。
 - Server 重启 fencing、remote-Client 可达性与 Server 侧 journal 由 Server 迁移切片拥有；本提案消费其结果而不替其决策。
 

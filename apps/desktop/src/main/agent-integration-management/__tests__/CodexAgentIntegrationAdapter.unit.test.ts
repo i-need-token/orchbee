@@ -10,12 +10,14 @@ import type {
 	AgentIntegrationCommandRunner,
 } from '../NodeAgentIntegrationCommandRunner';
 
-const stableRoot = '/user-data/agent-observation-adapters/0.4.17';
-const legacyRoot = '/Applications/Orchbee Local.app/Contents/Resources/agent-observation-adapters';
+const stableRoot =
+	'/user-data/agent-observation-adapters/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const outdatedRoot =
+	'/Applications/Orchbee Local.app/Contents/Resources/agent-observation-adapters';
 
 describe('CodexAgentIntegrationAdapter', () => {
-	it('inspects a broken exact legacy marketplace without invoking the failing Codex inventory', async () => {
-		const fixture = await createFixture(configuration(legacyRoot, true));
+	it('inspects a broken exact outdated marketplace without invoking the failing Codex inventory', async () => {
+		const fixture = await createFixture(configuration(outdatedRoot, true));
 		try {
 			await expect(fixture.adapter.inspect()).resolves.toMatchObject({
 				availability: 'available',
@@ -29,7 +31,7 @@ describe('CodexAgentIntegrationAdapter', () => {
 	});
 
 	it('migrates only after explicit enable through remove, retarget, and reinstall', async () => {
-		const fixture = await createFixture(configuration(legacyRoot, true));
+		const fixture = await createFixture(configuration(outdatedRoot, true));
 		try {
 			await expect(fixture.adapter.enable()).resolves.toEqual({ kind: 'attempted' });
 			expect(fixture.runner.commands).toEqual([
@@ -44,7 +46,7 @@ describe('CodexAgentIntegrationAdapter', () => {
 	});
 
 	it('removes both the plugin and stale owned marketplace on explicit disable', async () => {
-		const fixture = await createFixture(configuration(legacyRoot, true));
+		const fixture = await createFixture(configuration(outdatedRoot, true));
 		try {
 			await expect(fixture.adapter.disable()).resolves.toEqual({ kind: 'attempted' });
 			expect(fixture.runner.commands).toEqual([
@@ -94,7 +96,6 @@ async function createFixture(value: string): Promise<{
 		adapter: new CodexAgentIntegrationAdapter({
 			commandRunner: runner,
 			homeDirectory,
-			legacyResourceRoots: [legacyRoot],
 			managementMode: 'managed-local',
 			resourceRoot: stableRoot,
 		}),

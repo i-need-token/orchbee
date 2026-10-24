@@ -6,7 +6,6 @@ import {
 	mkdtemp,
 	readFile,
 	readdir,
-	readlink,
 	rename,
 	rm,
 	stat,
@@ -14,7 +13,7 @@ import {
 	writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import type {
 	DesktopAgentIntegrationId,
@@ -29,9 +28,9 @@ import type {
 } from './agent-integration-adapter';
 import { classifyManagedResourceRoot } from './agent-integration-state-parsers';
 
-const BOOTSTRAP_MARKER_PREFIX = '// orchbee-agent-observation-bootstrap-v3:';
+const BOOTSTRAP_MARKER_PREFIX = '// orchbee-agent-observation-bootstrap-v1:';
 const DIRECTORY_MARKER_NAME = '.orchbee-agent-observation.json';
-const ENTRY_CONTRACT_VERSION = 3;
+const ENTRY_CONTRACT_VERSION = 1;
 const MAX_ENTRY_DEPTH = 8;
 const MAX_ENTRY_FILES = 64;
 const MAX_ENTRY_FILE_BYTES = 128 * 1024;
@@ -50,7 +49,6 @@ export interface GuardedLocalAgentIntegrationAdapterOptions {
 	readonly entryKind: GuardedLocalEntryKind;
 	readonly executableName: string;
 	readonly integrationId: DesktopAgentIntegrationId;
-	readonly legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
 	readonly resourceRoot: string;
 	readonly runtimeSourcePath?: string;
@@ -58,7 +56,7 @@ export interface GuardedLocalAgentIntegrationAdapterOptions {
 	readonly targetPath: string;
 }
 
-type TargetState = 'conflict' | 'current' | 'legacy' | 'missing' | 'unknown' | 'update-required';
+type TargetState = 'conflict' | 'current' | 'missing' | 'unknown' | 'update-required';
 
 interface DirectoryMarker {
 	readonly contractVersion: number;
@@ -79,15 +77,13 @@ interface StagedEntry {
 
 /**
  * Installs a provider-local entry whose loader remains silent when Orchbee or
- * its stable Capsule is gone. Legacy exact symlinks are migration candidates;
- * arbitrary or modified targets remain conflicts.
+ * its stable Capsule is gone. Symlinks, foreign roots and modified targets remain conflicts.
  */
 export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdapter {
 	readonly #commandRunner: AgentIntegrationCommandRunner;
 	readonly #entryKind: GuardedLocalEntryKind;
 	readonly #executableName: string;
 	readonly integrationId: DesktopAgentIntegrationId;
-	readonly #legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
 	readonly #resourceRoot: string;
 	readonly #runtimeSourcePath: string | null;
@@ -100,9 +96,6 @@ export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdap
 		this.#entryKind = options.entryKind;
 		this.#executableName = options.executableName;
 		this.integrationId = options.integrationId;
-		this.#legacyResourceRoots = options.legacyResourceRoots.map((resourceRoot) =>
-			path.resolve(resourceRoot),
-		);
 		this.managementMode = options.managementMode;
 		this.#resourceRoot = path.resolve(options.resourceRoot);
 		this.#runtimeSourcePath =
@@ -133,11 +126,7 @@ export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdap
 			this.managementMode === 'manual-only' ? ('unsupported-platform' as const) : null;
 		let state: DesktopAgentIntegrationSnapshotItem['state'];
 		if (targetState === 'missing') state = 'not-installed';
-		else if (
-			targetState === 'legacy' ||
-			targetState === 'update-required' ||
-			(targetState === 'current' && !sourceReady)
-		) {
+		else if (targetState === 'update-required' || (targetState === 'current' && !sourceReady)) {
 			state = 'update-required';
 		} else if (targetState === 'current') state = 'enabled';
 		else state = targetState;
@@ -155,11 +144,7 @@ export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdap
 		if (!(await this.#sourceReady())) return { kind: 'failed' };
 		const initialState = await this.#inspectTarget();
 		if (initialState === 'current') return { kind: 'attempted' };
-		if (
-			initialState !== 'missing' &&
-			initialState !== 'legacy' &&
-			initialState !== 'update-required'
-		) {
+		if (initialState !== 'missing' && initialState !== 'update-required') {
 			return { kind: initialState === 'conflict' ? 'conflict' : 'failed' };
 		}
 		const staged = await this.#stageEntry();
@@ -169,8 +154,8 @@ export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdap
 			if (currentState !== initialState) {
 				return { kind: currentState === 'conflict' ? 'conflict' : 'failed' };
 			}
-			if (currentState === 'legacy' || currentState === 'update-required') {
-				if (!(await this.#removeOwnedTarget(currentState))) return { kind: 'failed' };
+			if (currentState === 'update-required') {
+				if (!(await this.#removeOwnedTarget())) return { kind: 'failed' };
 			}
 			try {
 				await rename(staged.entryPath, this.#targetPath);
@@ -187,10 +172,10 @@ export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdap
 		if (this.managementMode === 'manual-only') return { kind: 'manual-action-required' };
 		const state = await this.#inspectTarget();
 		if (state === 'missing') return { kind: 'attempted' };
-		if (state !== 'current' && state !== 'legacy' && state !== 'update-required') {
+		if (state !== 'current' && state !== 'update-required') {
 			return { kind: state === 'conflict' ? 'conflict' : 'failed' };
 		}
-		return (await this.#removeOwnedTarget(state)) ? { kind: 'attempted' } : { kind: 'failed' };
+		return (await this.#removeOwnedTarget()) ? { kind: 'attempted' } : { kind: 'failed' };
 	}
 
 	async #inspectTarget(): Promise<TargetState> {
@@ -200,39 +185,25 @@ export class GuardedLocalAgentIntegrationAdapter implements AgentIntegrationAdap
 		} catch (error: unknown) {
 			return isFileNotFoundError(error) ? 'missing' : 'unknown';
 		}
-		if (metadata.isSymbolicLink()) {
-			try {
-				const linkedPath = path.resolve(
-					path.dirname(this.#targetPath),
-					await readlink(this.#targetPath),
-				);
-				const linkedResourceRoot = resourceRootForSource(linkedPath, this.#sourceRelativePath);
-				if (linkedResourceRoot === null) return 'conflict';
-				return classifyManagedResourceRoot(linkedResourceRoot, {
-					legacyResourceRoots: this.#legacyResourceRoots,
-					resourceRoot: this.#resourceRoot,
-				}) === 'foreign'
-					? 'conflict'
-					: 'legacy';
-			} catch {
-				return 'unknown';
-			}
-		}
+		if (metadata.isSymbolicLink()) return 'conflict';
 		if (this.#entryKind === 'extension-directory') {
 			if (!metadata.isDirectory()) return 'conflict';
 			return inspectOwnedDirectory(this.#targetPath, this.integrationId);
 		}
 		if (!metadata.isFile()) return 'conflict';
-		const expected = moduleBootstrap(this.#entryKind, this.integrationId, this.#sourcePath);
-		const bytes = await readBoundedFile(this.#targetPath, Buffer.byteLength(expected));
-		return bytes?.toString('utf8') === expected ? 'current' : 'conflict';
+		const bytes = await readBoundedFile(this.#targetPath, 16 * 1024);
+		if (bytes === null) return 'unknown';
+		const source = moduleSource(bytes, this.#entryKind, this.integrationId);
+		if (source === null) return 'conflict';
+		const root = resourceRootForSource(source, this.#sourceRelativePath);
+		if (root === null) return 'conflict';
+		const ownership = classifyManagedResourceRoot(root, { resourceRoot: this.#resourceRoot });
+		return ownership === 'foreign' ? 'conflict' : ownership;
 	}
 
-	async #removeOwnedTarget(
-		state: Exclude<TargetState, 'conflict' | 'missing' | 'unknown'>,
-	): Promise<boolean> {
+	async #removeOwnedTarget(): Promise<boolean> {
 		try {
-			if (state === 'legacy' || this.#entryKind !== 'extension-directory') {
+			if (this.#entryKind !== 'extension-directory') {
 				await unlink(this.#targetPath);
 			} else {
 				await rm(this.#targetPath, { recursive: true });
@@ -436,6 +407,28 @@ function validRelativePath(value: unknown): value is string {
 
 function validDigest(value: unknown): value is string {
 	return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
+}
+
+function moduleSource(
+	bytes: Buffer,
+	kind: Exclude<GuardedLocalEntryKind, 'extension-directory'>,
+	integrationId: DesktopAgentIntegrationId,
+): string | null {
+	try {
+		const text = bytes.toString('utf8');
+		const marker = BOOTSTRAP_MARKER_PREFIX + integrationId + '\n';
+		if (!text.startsWith(marker)) return null;
+		const assignment = text.slice(marker.length).split('\n')[0];
+		const prefix = 'const orchbeeAgentObservationModuleUrl = ';
+		if (assignment === undefined || !assignment.startsWith(prefix) || !assignment.endsWith(';'))
+			return null;
+		const url: unknown = JSON.parse(assignment.slice(prefix.length, -1));
+		if (typeof url !== 'string') return null;
+		const source = fileURLToPath(url);
+		return moduleBootstrap(kind, integrationId, source) === text ? source : null;
+	} catch {
+		return null;
+	}
 }
 
 function resourceRootForSource(sourcePath: string, relativeSourcePath: string): string | null {

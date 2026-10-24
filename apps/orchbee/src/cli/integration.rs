@@ -278,9 +278,7 @@ fn item_json(item: &SnapshotItem) -> Value {
 
 #[cfg(any(unix, windows))]
 fn capsule_json(capsule: &CapsuleStatus) -> Value {
-    let state = if capsule.unsupported_version.is_some() {
-        "unsupported-version"
-    } else if capsule.binding_failure {
+    let state = if capsule.binding_failure {
         "binding-failed"
     } else if capsule.ready {
         "ready"
@@ -298,17 +296,9 @@ fn capsule_json(capsule: &CapsuleStatus) -> Value {
     let mut object = Map::from_iter([
         ("state".to_owned(), json!(state)),
         ("source".to_owned(), json!(capsule.source_kind)),
-        ("supportedPayloadVersion".to_owned(), {
-            json!(crate::agent_integrations::PAYLOAD_VERSION)
-        }),
+        ("payloadSha256".to_owned(), json!(capsule.payload_sha256)),
         (root_key.to_string(), root_value),
     ]);
-    if let Some(declared) = &capsule.declared_payload_version {
-        object.insert("declaredPayloadVersion".to_owned(), json!(declared));
-    }
-    if let Some(declared) = &capsule.unsupported_version {
-        object.insert("unsupportedPayloadVersion".to_owned(), json!(declared));
-    }
     if capsule.binding_failure {
         object.insert("bindingFailure".to_owned(), json!(true));
     }
@@ -476,8 +466,7 @@ pub(crate) fn mutation_status(report: &MutationReport) -> u8 {
                 Refusal::Conflict | Refusal::StaleSide => 3,
                 Refusal::ManualActionRequired
                 | Refusal::AgentUnavailable
-                | Refusal::CapsuleUnavailable
-                | Refusal::CapsuleUnsupportedVersion => 4,
+                | Refusal::CapsuleUnavailable => 4,
                 Refusal::Deadline => 7,
                 // An unclassifiable pre-effect state is a determinate
                 // failure — the run refuses without ever falling into an
@@ -592,9 +581,7 @@ fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale)
 
 #[cfg(any(unix, windows))]
 fn capsule_summary(capsule: &CapsuleStatus) -> String {
-    let state = if capsule.unsupported_version.is_some() {
-        "unsupported-version"
-    } else if capsule.binding_failure {
+    let state = if capsule.binding_failure {
         "binding-failed"
     } else if capsule.ready {
         "ready"

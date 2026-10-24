@@ -40,7 +40,7 @@ describe.runIf(process.platform !== 'win32')('AgentHookObservationIngress POSIX 
 			for (const sequence of [1, 2]) {
 				await expect(
 					sendEnvelope(setup.socketPath, envelope(sequence, event, [sequence], 'cursor')),
-				).resolves.toBe('{"accepted":true,"version":3}\n');
+				).resolves.toBe('{"accepted":true,"version":1}\n');
 				setup.ingress.observeTerminalApplicationSignal(
 					signal(sequence, sequence, generation),
 					presentation,
@@ -64,12 +64,12 @@ describe.runIf(process.platform !== 'win32')('AgentHookObservationIngress POSIX 
 		const creationId = CreationIdSchema.parse('11'.repeat(16));
 		const overlay = setup.ingress.environmentOverlayFor(presentationId, creationId);
 		expect(overlay).toEqual([
-			{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3', value: setup.socketPath },
+			{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: setup.socketPath },
 		]);
 		expect((await lstat(setup.socketPath)).mode & 0o777).toBe(0o600);
 
 		await expect(sendEnvelope(setup.socketPath, envelope(1, 'session-started'))).resolves.toBe(
-			'{"accepted":true,"version":3}\n',
+			'{"accepted":true,"version":1}\n',
 		);
 		expect(runtime.getSnapshot().sessions).toEqual([]);
 		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, creationId), presentationId);
@@ -235,7 +235,7 @@ describe.runIf(process.platform !== 'win32')('AgentHookObservationIngress POSIX 
 		expect(runtime.getSnapshot().sessions).toEqual([]);
 
 		await expect(sendEnvelope(setup.socketPath, envelope(2, 'session-started'))).resolves.toBe(
-			'{"accepted":true,"version":3}\n',
+			'{"accepted":true,"version":1}\n',
 		);
 		await expect(sendEnvelope(setup.socketPath, envelope(3, 'session-started', [2]))).resolves.toBe(
 			'',
@@ -335,7 +335,7 @@ describe.runIf(process.platform !== 'win32')('AgentHookObservationIngress POSIX 
 	) {
 		let identifier = 0;
 		runtimeDirectory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-ingress-'));
-		const socketPath = path.join(runtimeDirectory, 'agent-observation-v3.sock');
+		const socketPath = path.join(runtimeDirectory, 'agent-observation-v1.sock');
 		ingress = new AgentHookObservationIngress(runtime, {
 			allocateIdentifier: () => `${++identifier}`,
 			joinSettleMilliseconds,
@@ -393,7 +393,7 @@ function envelope(
 		})),
 		eventId: eventId(sequence),
 		observation: observation(event) as AgentHookRichObservationEnvelope['observation'],
-		version: 3,
+		version: 1,
 	};
 }
 
@@ -429,7 +429,7 @@ function signal(
 			correlationId: correlationId(sequence),
 			eventId: eventId(eventSequence),
 			kind: 'correlation',
-			version: 3,
+			version: 1,
 		}),
 		sequence: String(sequence),
 	});

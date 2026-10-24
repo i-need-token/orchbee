@@ -1,10 +1,8 @@
 //! Closed vocabularies for the Agent integration surface. The canonical
 //! contract is `packages/desktop-client-protocol/src/
-//! desktop-agent-integration-management-contract.ts`; this port adds the two
-//! CLI-local members `stale-side` (newer-sibling entries the CLI refuses to
-//! move in either direction) and `capsule-unsupported-version` (the payload's
-//! declared version exceeds the port's compiled support — distinct from the
-//! entry-level `unsupported-version`). Kilo extends the native registry with
+//! desktop-agent-integration-management-contract.ts`; this port adds the
+//! CLI-local member `stale-side` for an unrecognized owned entry contract.
+//! Kilo extends the native registry with
 //! Windows-only managed onboarding; Desktop management keeps its own registry.
 
 /// Canonical integration ids, in the registry's canonical order.
@@ -106,8 +104,8 @@ pub(crate) enum State {
     Disabled,
     Enabled,
     NotInstalled,
-    /// The CLI-local member: the installed entry belongs to a NEWER payload
-    /// version than this build supports, so ownership cannot be proven and
+    /// The CLI-local member: the installed entry declares an unrecognized
+    /// contract, so compatible ownership cannot be proven and
     /// both enable and disable refuse. Canonical surfaces classify the same
     /// shape `update-required`; the divergence is registered.
     StaleSide,
@@ -133,7 +131,6 @@ impl State {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[cfg(any(unix, windows))]
 pub(crate) enum Issue {
-    CapsuleUnsupportedVersion,
     InspectionFailed,
     /// Canonical vocabulary member — a manual-only mutation outcome on
     /// unsupported platforms; the unix port never attaches it to a row.
@@ -152,7 +149,6 @@ pub(crate) enum Issue {
 impl Issue {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
-            Self::CapsuleUnsupportedVersion => "capsule-unsupported-version",
             Self::InspectionFailed => "inspection-failed",
             Self::ManualActionRequired => "manual-action-required",
             Self::UnsupportedPlatform => "unsupported-platform",

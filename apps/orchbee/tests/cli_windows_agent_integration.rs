@@ -87,7 +87,13 @@ fn hermes_plugin_activation_repairs_members_and_preserves_python_cache() {
             .strip_suffix("'")
             .unwrap();
         let recorded = PathBuf::from(String::from_utf8(STANDARD.decode(encoded).unwrap()).unwrap());
-        for (version, state) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+        for (version, state) in [
+            ("0.4.2", "update-required"),
+            (
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "update-required",
+            ),
+        ] {
             let root = recorded.parent().unwrap().join(version);
             let entry = text.replace(encoded, &STANDARD.encode(root.to_str().unwrap()));
             let mut value: Value = serde_json::from_slice(&manifest).unwrap();
@@ -276,7 +282,7 @@ fn devin_grouped_hooks_preserve_settings_and_use_roaming_directory() {
         recorded_root.canonicalize().unwrap(),
         fixture.capsule().canonicalize().unwrap()
     );
-    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "update-required")] {
         let changed = script.replace(
             recorded,
             &STANDARD.encode(
@@ -399,7 +405,7 @@ fn letta_silent_hooks_preserve_settings_and_use_provider_home() {
         recorded_root.canonicalize().unwrap(),
         fixture.capsule().canonicalize().unwrap()
     );
-    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "update-required")] {
         let changed = script.replace(
             recorded,
             &STANDARD.encode(
@@ -697,7 +703,7 @@ fn check_json_hooks(provider: &str) {
             .collect::<Vec<_>>(),
     )
     .unwrap();
-    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "stale-side")] {
+    for (version, expected) in [("0.4.2", "update-required"), ("9.0.0", "update-required")] {
         let old_root = decoded.lines().nth(1).unwrap().split('\'').nth(1).unwrap();
         let current_root =
             PathBuf::from(String::from_utf8(STANDARD.decode(old_root).unwrap()).unwrap());
@@ -716,14 +722,8 @@ fn check_json_hooks(provider: &str) {
             fixture.provider_document("explain", provider, 0)["result"]["state"],
             expected
         );
-        if version == "0.4.2" {
-            fixture.provider_document("enable", provider, 0);
-            assert_eq!(fs::read_to_string(&target).unwrap(), installed);
-        } else {
-            fixture.provider_document("enable", provider, 3);
-            fixture.provider_document("disable", provider, 3);
-            assert_eq!(fs::read_to_string(&target).unwrap(), modified);
-        }
+        fixture.provider_document("enable", provider, 0);
+        assert_eq!(fs::read_to_string(&target).unwrap(), installed);
     }
     fs::write(
         &target,
@@ -919,10 +919,14 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     for (old, expected) in [
         ("// foreign user module".to_string(), "conflict"),
         (
-            String::from_utf8(bytes.clone())
-                .unwrap()
-                .replace("/0.4.17/", "/9.0.0/"),
-            "stale-side",
+            String::from_utf8(bytes.clone()).unwrap().replace(
+                &format!(
+                    "/agent-observation-adapters/{}/",
+                    fixture.payload_identity()
+                ),
+                "/foreign/identity/",
+            ),
+            "conflict",
         ),
     ] {
         fs::write(&obsolete, &old).unwrap();
@@ -934,9 +938,10 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
     }
     fs::write(
         &obsolete,
-        String::from_utf8(bytes.clone())
-            .unwrap()
-            .replace("/0.4.17/", "/0.4.2/"),
+        String::from_utf8(bytes.clone()).unwrap().replace(
+            &format!("/{}/", fixture.payload_identity()),
+            &format!("/{}/", "b".repeat(64)),
+        ),
     )
     .unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
@@ -975,7 +980,7 @@ fn opencode_migrates_only_owned_undiscovered_entries_and_resolves_xdg() {
         ])
         .env("USERPROFILE", fixture.home())
         .env("XDG_CONFIG_HOME", &xdg)
-        .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+        .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
         .stdin(Stdio::null())
         .output()
         .unwrap();
@@ -1065,15 +1070,13 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
             entry["sha256"] = Value::from(hash);
             fs::write(&marker_path, marker.to_string()).unwrap();
         };
-        set_version(Value::from("0.4.2"), 3);
-        assert_eq!(inspect("explain")["result"]["state"], "update-required");
-        inspect("enable");
-        assert_eq!(fs::read(&manifest_path).unwrap(), original_manifest);
-        set_version(Value::from("9.0.0"), 1);
+        set_version(Value::from("0.4.2"), 1);
+        assert_eq!(inspect("explain")["result"]["state"], "enabled");
+        set_version(Value::from("9.0.0"), 2);
         assert_eq!(inspect("explain")["result"]["state"], "stale-side");
         fixture.provider_document("enable", provider, 3);
         fixture.provider_document("disable", provider, 3);
-        set_version(Value::Null, 3);
+        set_version(Value::Null, 1);
         assert_eq!(inspect("explain")["result"]["state"], "unknown");
         fixture.provider_document("enable", provider, 9);
         fs::write(&manifest_path, &original_manifest).unwrap();
@@ -1136,7 +1139,7 @@ fn windows_extensions_install_upgrade_and_execute_literal_env_hooks() {
             ])
             .env("USERPROFILE", fixture.home())
             .env(variable, &configured)
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
             .stdin(Stdio::null())
             .output()
             .unwrap();
@@ -1208,7 +1211,7 @@ fn kilo_uses_explicit_config_before_xdg_without_invalid_fallback() {
             .env_remove("QODER_CONFIG_DIR")
             .env_remove("CURSOR_CONFIG_DIR")
             .env_remove("KIMI_CODE_HOME")
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
             .stdin(Stdio::null());
         configure(&mut doctor);
         let document: Value = serde_json::from_slice(&doctor.output().unwrap().stdout).unwrap();
@@ -1281,21 +1284,12 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
     .unwrap();
     let state_path = fixture.config_home().join("grok-state.json");
     let current = fs::read(&state_path).unwrap();
-    for (source, version, expected, code) in [
-        (fixture.capsule().join("bundle"), Value::Null, "unknown", 9),
-        (
-            fixture.0.join("foreign/bundle"),
-            Value::from("0.4.17"),
-            "conflict",
-            3,
-        ),
-        (
-            fixture.capsule().parent().unwrap().join("0.4.2/bundle"),
-            Value::from("9.0.0"),
-            "stale-side",
-            3,
-        ),
-    ] {
+    for (source, version, expected, code) in [(
+        fixture.0.join("foreign/bundle"),
+        Value::from("0.4.17"),
+        "conflict",
+        3,
+    )] {
         let mut state: Value = serde_json::from_slice(&current).unwrap();
         state["source"] = serde_json::json!(source);
         state["version"] = version;
@@ -1307,7 +1301,14 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
         assert_eq!(calls(), before);
     }
     let mut old: Value = serde_json::from_slice(&current).unwrap();
-    old["version"] = "0.4.2".into();
+    old["source"] = serde_json::json!(
+        fixture
+            .capsule()
+            .parent()
+            .unwrap()
+            .join("b".repeat(64))
+            .join("bundle")
+    );
     fs::write(&state_path, old.to_string()).unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
     inspect("enable");
@@ -1506,9 +1507,15 @@ impl Fixture {
             .canonicalize()
             .unwrap()
     }
+    fn payload_identity(&self) -> String {
+        let manifest: Value =
+            serde_json::from_slice(&fs::read(self.assets().join("capsule.json")).unwrap()).unwrap();
+        manifest["payloadSha256"].as_str().unwrap().to_owned()
+    }
     fn capsule(&self) -> PathBuf {
         self.home()
-            .join(".orchbee/agent-observation-adapters/0.4.17")
+            .join(".orchbee/agent-observation-adapters")
+            .join(self.payload_identity())
     }
     fn run(&self, verb: &str, provider: &str, config_home: &Path) -> Output {
         self.run_options(verb, provider, config_home, &[])
@@ -1635,7 +1642,7 @@ fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
     inspect("enable");
     let state_path = fixture.config_home().join("copilot-state.json");
     let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
-    state["version"] = "0.4.2".into();
+    state["source"] = serde_json::json!(fixture.capsule().parent().unwrap().join("b".repeat(64)));
     fs::write(&state_path, state.to_string()).unwrap();
     assert_eq!(inspect("explain")["result"]["state"], "update-required");
     inspect("enable");
@@ -1644,8 +1651,6 @@ fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
     for (field, value, expected) in [
         ("sourceTag", Value::from("cached"), "conflict"),
         ("marketplace", Value::from("foreign"), "conflict"),
-        ("version", Value::from("9.0.0"), "stale-side"),
-        ("version", Value::Null, "unknown"),
         (
             "source",
             serde_json::json!(fixture.0.join("foreign")),
@@ -1664,15 +1669,6 @@ fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
         assert_eq!(calls(), previous_calls);
         assert_eq!(fs::read_to_string(&state_path).unwrap(), bytes);
     }
-    let mut crossed: Value = serde_json::from_slice(&current).unwrap();
-    crossed["source"] = serde_json::json!(fixture.capsule().parent().unwrap().join("0.4.2"));
-    crossed["version"] = "9.0.0".into();
-    fs::write(&state_path, crossed.to_string()).unwrap();
-    assert_eq!(inspect("explain")["result"]["state"], "stale-side");
-    let previous_calls = calls();
-    fixture.provider_document("enable", "github-copilot", 3);
-    assert_eq!(calls(), previous_calls);
-    fs::write(&state_path, current).unwrap();
     let output = Command::new("node.exe")
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1742,7 +1738,7 @@ fn claude_plugin_lifecycle_and_shipped_exec_hooks_work_on_windows() {
 }
 
 #[test]
-fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources() {
+fn claude_repairs_outdated_identities_and_preserves_foreign_sources() {
     let fixture = Fixture::new();
     fixture.plugin("claude");
     let state_path = fixture.config_home().join("claude-state.json");
@@ -1766,20 +1762,7 @@ fn claude_repairs_owned_old_installations_and_preserves_foreign_or_newer_sources
         fixture.provider_document("explain", "claude-code", 0)["result"]["state"],
         "enabled"
     );
-    for (source, version, expected) in [
-        (fixture.0.join("foreign"), "0.4.17", "conflict"),
-        (
-            fixture.capsule().parent().unwrap().join("9.0.0"),
-            "9.0.0",
-            "stale-side",
-        ),
-        (fixture.capsule(), "9.0.0", "stale-side"),
-        (
-            fixture.capsule().parent().unwrap().join("0.4.2"),
-            "9.0.0",
-            "stale-side",
-        ),
-    ] {
+    for (source, version, expected) in [(fixture.0.join("foreign"), "1.0.0", "conflict")] {
         let original = state(&source, version);
         fs::write(&state_path, &original).unwrap();
         let calls = fixture.claude_calls();
@@ -1873,7 +1856,7 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
                 std::env::join_paths([fixture.0.join("bin"), node.parent().unwrap().to_path_buf()])
                     .unwrap(),
             )
-            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET_V3")
+            .env_remove("ORCHBEE_AGENT_OBSERVATION_SOCKET")
             .stdin(Stdio::null())
             .output()
             .unwrap();
@@ -1883,9 +1866,10 @@ fn javascript_modules_load_and_deliver_ordered_windows_observations() {
             "{inspection}"
         );
 
-        let old = String::from_utf8(original.clone())
-            .unwrap()
-            .replace("/0.4.17/", "/0.4.2/");
+        let old = String::from_utf8(original.clone()).unwrap().replace(
+            &format!("/{}/", fixture.payload_identity()),
+            &format!("/{}/", "b".repeat(64)),
+        );
         fs::write(&target, old).unwrap();
         assert_eq!(
             fixture.provider_document("explain", provider, 0)["result"]["state"],
@@ -1973,17 +1957,11 @@ fn onboarding_is_idempotent_and_disable_preserves_user_configuration() {
 }
 
 #[test]
-fn foreign_newer_and_invalid_roots_are_refused_without_provider_commands() {
+fn foreign_and_invalid_roots_are_refused_without_provider_commands() {
     let fixture = Fixture::new();
     fixture.document("enable", 0);
     let calls = fixture.calls();
-    for (path, state) in [
-        (fixture.0.join("foreign"), "conflict"),
-        (
-            fixture.capsule().parent().unwrap().join("9.0.0"),
-            "stale-side",
-        ),
-    ] {
+    for (path, state) in [(fixture.0.join("foreign"), "conflict")] {
         let content = format!(
             "[marketplaces.orchbee-local]\nsource_type = 'local'\nsource = {}\n[plugins.\"orchbee-agent-observation@orchbee-local\"]\nenabled = true\n",
             serde_json::to_string(&path).unwrap()

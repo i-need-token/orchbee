@@ -4,7 +4,7 @@
 
 Desktop Main 拥有易失 join，负责把一条经过清理的 rich Agent hook event 与用于识别其 live
 presentation 的有界 terminal correlation hint 关联起来。私有 Unix socket half 拥有 semantic
-authority，但没有 presentation authority；private APC version-3 hint 只对一个 live terminal
+authority，但没有 presentation authority；private APC version-1 hint 只对一个 live terminal
 generation 拥有 presentation authority，但没有 semantic authority。Visibility 属于可信 socket
 envelope，而不属于 terminal half。任何一半都不能单独修改 canonical Agent state。
 
@@ -15,12 +15,12 @@ reducer、Workbench projection、notification policy、持久化或用户可见 
 ## Transport 准入
 
 Desktop 创建一个 user-private Unix-domain endpoint，并且只发布
-`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Hook 先发送一条 strict、content-free v3 rich envelope；只有
+`ORCHBEE_AGENT_OBSERVATION_SOCKET`。Hook 先发送一条 strict、content-free v1 rich envelope；只有
 收到完全一致的 `{"accepted":true,"version":3}\n` 后，才可以发送任何 terminal half。没有 endpoint、
 拒绝、超时、ACK 缺少或多出 byte、断连与 malformed input 都会静默停止。只有 schema validation 与
 closed-registry admission 成功后，Desktop 才写 ACK。
 
-唯一 terminal frame 是 `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`。解码后的 JSON 只包含
+唯一 terminal frame 是 `ESC _ orchbee.agent.v1;<base64url-payload> ESC \\`。解码后的 JSON 只包含
 `kind`、`version`、opaque `eventId` 与 opaque `correlationId`，不含 provider、activity、visibility、path、
 hostname、mux identity、content 或 notification copy。OSC 9、OSC 777、OSC 99 与 OSC 1337 等公开
 notification channel 都不是 observation transport。Socket acceptance 后，adapter 可以直接向解析出的
@@ -45,7 +45,7 @@ provider lifecycle 与 timing constant 均不在范围内。当实现不同时�
 
 | 输入                      | 准入与缺失语义                                                                                                                                                                           |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rich hook event           | Socket boundary 已执行 body limit、strict v3 schema、可信 visibility、准确 ACK，以及 closed-registry provider/event grant。没有匹配 hint 时，它保持 pending，且不产生 canonical effect。 |
+| Rich hook event           | Socket boundary 已执行 body limit、strict v1 schema、可信 visibility、准确 ACK，以及 closed-registry provider/event grant。没有匹配 hint 时，它保持 pending，且不产生 canonical effect。 |
 | Terminal correlation hint | Terminal Host 已准入准确 private APC prefix 与有界 base64url UTF-8 payload，随后 Desktop 应用 strict hint schema。Join 只接受准确的 current presentation generation。                    |
 | Presentation registration | 建立后续 hint 能为该 presentation 指定的唯一 generation。替换时先 retire previous generation。                                                                                           |
 | Presentation retirement   | 只移除指定 presentation generation 的 pending 与 canonical navigation membership。                                                                                                       |
@@ -119,11 +119,10 @@ Visibility merge 只使用 socket 声明的值：`hidden` 优先；两个 `visib
 
 仅识别身份的 hook 使用 `session-identified`。通过严格信封、provider 事件门禁和精确展示关联后，
 转换器确保会话存在并附加展示，随后不改变回合、活动、请求或结果。新会话保持 `unknown` 回合；
-重复身份保留所有已知状态。这些状态均由规范运行时持有。Cursor、Qoder、Antigravity、Mastracode、Droid、Kimi、Letta、Devin 和 Hermes 发出此事件；胶囊 `0.4.7` 的旧
-`session-started` 对 Cursor 具有相同的仅识别身份含义。其他 provider 保持原有的
+重复身份保留所有已知状态。这些状态均由规范运行时持有。Cursor、Qoder、Antigravity、Mastracode、Droid、Kimi、Letta、Devin 和 Hermes 发出此事件；`session-started` 对 Cursor 具有相同的仅识别身份含义。其他 provider 保持原有的
 `session-started` 行为，也不会获得新事件的准入权限。身份不证明就绪或进程存活。
 
-胶囊 `0.4.16` 与匹配的原生和 Desktop 接收器一起发布。旧接收器拒绝新事件且不确认接收。
+当前胶囊与匹配的原生和 Desktop 接收器一起发布。旧接收器拒绝新事件且不确认接收。
 回滚整组运行时会恢复旧语义；无需持久状态迁移。直接边界与原生入口测试覆盖新旧身份、未知状态、
 重复上报及其他 provider 拒绝。转换器测试另外通过合成 adapter 输入验证活动回合、待处理请求和
 结果的保留；这不是公开准入证据。历史语料指纹保持不变。经过认证的 provider 执行和完整 Windows
@@ -137,7 +136,7 @@ entry 中直到 join expiry，随后再进入 60 秒 replay fence。Cleanup 是 
 这些边界不声明 Desktop 重启后的交付、全部 SSH 附件断开时的交付、无界重放保护、provider 终止或墙钟进展。单项与成对 correlation 实现测试检查立即应用与调度结算。
 
 Socket 最多接受 64 个 concurrent connection、每个 body 16 KiB、每个 connection 500 毫秒。继承
-`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` 的 local Agent process 只能使用该准确 owned socket；stale 或
+`ORCHBEE_AGENT_OBSERVATION_SOCKET` 的 local Agent process 只能使用该准确 owned socket；stale 或
 malformed 的显式 path 不会回退到另一个 Desktop instance。只有没有 overlay 的 remote process 才扫描
 最多 32 个 same-user forwarded socket candidate，并且该扫描要求继承的 `SSH_CONNECTION`、`SSH_CLIENT`
 或 `SSH_TTY` marker 至少一个非空。没有准确 overlay 的普通 local terminal 不执行 socket scan。每次

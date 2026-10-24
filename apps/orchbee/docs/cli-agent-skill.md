@@ -59,7 +59,7 @@ A receipt proves accepted input records, not Shell readiness, command completion
 
 ## Install and operate Agents
 
-`agent doctor` inspects local setup offline. Use `agent integration list`, then `explain --provider <id>` to discover each provider's actual availability and management mode. `enable`/`disable --provider <id>` perform explicit guarded changes. `list --outdated-only` shows owned repair candidates and separately reports blocked or unresolved providers; an empty list does not establish complete inspection.
+`agent doctor` inspects local setup offline. Adapter capsules use contract version 1 and a content digest as identity: `capsule.payloadSha256`, installed under `~/.orchbee/agent-observation-adapters/<payloadSha256>`. Doctor reports a verified older payload as `update-required`; explicitly reinstall with `orchbee agent integration enable --provider codex` (choose the provider). It retains old directories and does not migrate setup. Use `agent integration list`, then `explain --provider <id>` to discover each provider's actual availability and management mode. `enable`/`disable --provider <id>` perform explicit guarded changes. `list --outdated-only` shows owned repair candidates and separately reports blocked or unresolved providers; an empty list does not establish complete inspection.
 
 Windows Codex inspection and installation use the same configuration root: nonempty `CODEX_HOME`, otherwise the native user profile's `.codex`. Invalid overrides refuse without fallback. Provider exit alone does not prove installation; read the observed state in the mutation receipt.
 

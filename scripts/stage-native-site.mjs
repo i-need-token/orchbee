@@ -20,7 +20,7 @@ import { stageWindows } from './stage-native-windows.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
 const CAPSULE_DIRECTORY = 'agent-observation-adapters';
-const CAPSULE_CONTRACT_VERSION = 3;
+const CAPSULE_CONTRACT_VERSION = 1;
 const MAX_CAPSULE_ENTRIES = 128;
 const MAX_CAPSULE_DEPTH = 8;
 const MAX_CAPSULE_FILE_BYTES = 512 * 1024;
@@ -37,8 +37,7 @@ const REQUIRED_PAYLOAD_FILES = [
 // Faithful port of the canonical capsule verifier in
 // apps/desktop/src/main/agent-integration-management/
 // file-agent-observation-adapter-capsule.ts — same bounds, same entry shape,
-// same digest. payloadVersion is data here: the runtime port owns the
-// supported-version ceiling at admission.
+// same digest. The strict manifest contains only contractVersion and payloadSha256.
 function readCapsuleManifest(filePath) {
 	try {
 		const metadata = lstatSync(filePath);
@@ -115,7 +114,7 @@ export function verifiedCapsuleDigest(rootPath) {
 		manifest?.contractVersion !== CAPSULE_CONTRACT_VERSION ||
 		typeof declared !== 'string' ||
 		!SHA256_PATTERN.test(declared) ||
-		Object.keys(manifest).toSorted().join(',') !== 'contractVersion,payloadSha256,payloadVersion'
+		Object.keys(manifest).toSorted().join(',') !== 'contractVersion,payloadSha256'
 	)
 		return null;
 	for (const relativePath of REQUIRED_PAYLOAD_FILES) {

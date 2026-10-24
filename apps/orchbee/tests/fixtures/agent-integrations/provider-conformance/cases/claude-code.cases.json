@@ -2,7 +2,7 @@
 	"provider": "claude-code",
 	"executableName": "claude",
 	"readSlots": 2,
-	"dimensions": "{marketplace ∈ absent|current|legacy|foreign} × pluginPresent × enabled ∈ {true,false} × versionMatch; marketplace ownership via classifyManagedResourceRoot on entry.path; plugin matched on id==='${PLUGIN_ID}'; marketplace matched on name==='${MARKETPLACE}' with source ∈ {directory,local}",
+	"dimensions": "{marketplace ∈ absent|current|outdated|foreign} × pluginPresent × enabled ∈ {true,false} × versionMatch; marketplace ownership via classifyManagedResourceRoot on entry.path; plugin matched on id==='${PLUGIN_ID}'; marketplace matched on name==='${MARKETPLACE}' with source ∈ {directory,local}",
 	"cases": [
 		{
 			"id": "claude-code.inspect.enabled-current",
@@ -539,55 +539,12 @@
 			"notes": "A present plugin with no orchbee-local marketplace is a foreign/ unmanaged install — conflict, never silently adopted."
 		},
 		{
-			"id": "claude-code.inspect.legacy-marketplace",
+			"id": "claude-code.inspect.different-payload-root",
 			"operation": "inspect",
 			"class": "shared",
 			"covers": ["update-required"],
 			"dims": {
-				"marketplace": "legacy",
-				"pluginPresent": true,
-				"enabled": true,
-				"versionMatch": true
-			},
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/claude",
-				"capsule": "ready",
-				"commands": [
-					{
-						"argv": ["plugin", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.plugins.enabled"
-						}
-					},
-					{
-						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.appBundle"
-						}
-					}
-				]
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["state-parsers:56-58,164-172"],
-			"notes": "App-bundle resource path is a named legacy root — update-required regardless of plugin version."
-		},
-		{
-			"id": "claude-code.inspect.older-sibling-versioned-root",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required"],
-			"dims": {
-				"marketplace": "legacy",
+				"marketplace": "outdated",
 				"siblingVersion": "0.3.0"
 			},
 			"given": {
@@ -606,7 +563,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.olderSibling"
+							"stdoutJson": "@claude.marketplace.otherIdentity"
 						}
 					}
 				]
@@ -620,136 +577,7 @@
 				}
 			},
 			"anchors": ["state-parsers:173-180"],
-			"notes": "Versioned SIBLING of the current capsule root classifies 'legacy' on the canonical spec."
-		},
-		{
-			"id": "claude-code.inspect.newer-sibling-versioned-root",
-			"operation": "inspect",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling"],
-			"dims": {
-				"marketplace": "newer-sibling",
-				"siblingVersion": "0.5.0"
-			},
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/claude",
-				"capsule": "ready",
-				"commands": [
-					{
-						"argv": ["plugin", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.plugins.enabled"
-						}
-					},
-					{
-						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.newerSibling"
-						}
-					}
-				]
-			},
-			"expect": {
-				"snapshot": {
-					"state": "stale-side",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				},
-				"desktopCanonical": {
-					"state": "update-required",
-					"issue": null
-				},
-				"cli": {
-					"note": "semver-greater versioned sibling is CLI stale-side; enable/disable refuse pre-effect exit 3. Canonical classifier maps it to legacy→update-required (which would permit an explicit older-surface downgrade — §3.2 registers this divergence)."
-				}
-			},
-			"anchors": ["state-parsers:173-180", "design:complete53§3.2"],
-			"notes": "Direction-aware split is the CLI's registered divergence — versionPattern is direction-blind on Desktop."
-		},
-		{
-			"id": "claude-code.inspect.old-plugin-version",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["update-required", "unsupported-version-dimension"],
-			"dims": {
-				"marketplace": "current",
-				"pluginPresent": true,
-				"enabled": true,
-				"versionMatch": false
-			},
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/claude",
-				"capsule": "ready",
-				"commands": [
-					{
-						"argv": ["plugin", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.plugins.oldVersion"
-						}
-					},
-					{
-						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.current"
-						}
-					}
-				]
-			},
-			"expect": {
-				"snapshot": {
-					"state": "update-required",
-					"issue": null,
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["state-parsers:65-69"]
-		},
-		{
-			"id": "claude-code.inspect.missing-version-field",
-			"operation": "inspect",
-			"class": "shared",
-			"covers": ["unreadable"],
-			"dims": {
-				"parse": "missing-version"
-			},
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/claude",
-				"capsule": "ready",
-				"commands": [
-					{
-						"argv": ["plugin", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.plugins.missingVersion"
-						}
-					},
-					{
-						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.current"
-						}
-					}
-				]
-			},
-			"expect": {
-				"snapshot": {
-					"state": "unknown",
-					"issue": "inspection-failed",
-					"availability": "available",
-					"managementMode": "managed-local"
-				}
-			},
-			"anchors": ["state-parsers:65-66"]
+			"notes": "Versioned SIBLING of the current capsule root classifies 'outdated' on the canonical spec."
 		},
 		{
 			"id": "claude-code.inspect.missing-enabled-field",
@@ -1141,7 +969,7 @@
 			"dims": {
 				"state": "update-required",
 				"pluginPresent": true,
-				"marketplace": "legacy"
+				"marketplace": "outdated"
 			},
 			"given": {
 				"managementMode": "managed-local",
@@ -1159,7 +987,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.legacy"
+							"stdoutJson": "@claude.marketplace.outdated"
 						}
 					},
 					{
@@ -1394,7 +1222,7 @@
 			"dims": {
 				"state": "update-required",
 				"pluginPresent": true,
-				"marketplace": "legacy",
+				"marketplace": "outdated",
 				"stepTimedOut": "marketplace-remove"
 			},
 			"given": {
@@ -1413,7 +1241,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.legacy"
+							"stdoutJson": "@claude.marketplace.outdated"
 						}
 					},
 					{
@@ -1529,11 +1357,17 @@
 				"commands": [
 					{
 						"argv": ["plugin", "list", "--json"],
-						"result": { "kind": "completed", "stdoutJson": "@claude.plugins.enabled" }
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.enabled"
+						}
 					},
 					{
 						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": { "kind": "completed", "stdoutJson": "@claude.marketplace.foreign" }
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.foreign"
+						}
 					}
 				]
 			},
@@ -1573,11 +1407,15 @@
 				"commands": [
 					{
 						"argv": ["plugin", "list", "--json"],
-						"result": { "kind": "timed-out" }
+						"result": {
+							"kind": "timed-out"
+						}
 					},
 					{
 						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": { "kind": "timed-out" }
+						"result": {
+							"kind": "timed-out"
+						}
 					}
 				]
 			},
@@ -1608,7 +1446,7 @@
 			"dims": {
 				"state": "update-required",
 				"pluginPresent": false,
-				"marketplace": "legacy",
+				"marketplace": "outdated",
 				"prior": "claude-code.enable.mutation-timed-out"
 			},
 			"given": {
@@ -1627,7 +1465,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.legacy"
+							"stdoutJson": "@claude.marketplace.outdated"
 						}
 					},
 					{
@@ -1674,7 +1512,7 @@
 				}
 			},
 			"anchors": ["create-adapters:228-245", "state-parsers:56-58"],
-			"notes": "Same-invocation partial completion left plugin absent + marketplace legacy → still update-required; re-evaluation emits ONLY the remaining steps (no uninstall — pluginPresent=false). Guard evaluation IS convergence (§4.4)."
+			"notes": "Same-invocation partial completion left plugin absent + marketplace outdated → still update-required; re-evaluation emits ONLY the remaining steps (no uninstall — pluginPresent=false). Guard evaluation IS convergence (§4.4)."
 		},
 		{
 			"id": "claude-code.disable.enabled",
@@ -1810,7 +1648,7 @@
 			"dims": {
 				"state": "update-required",
 				"pluginPresent": true,
-				"marketplace": "legacy"
+				"marketplace": "outdated"
 			},
 			"given": {
 				"managementMode": "managed-local",
@@ -1828,7 +1666,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.legacy"
+							"stdoutJson": "@claude.marketplace.outdated"
 						}
 					},
 					{
@@ -1934,60 +1772,6 @@
 			"anchors": ["create-adapters:251-268", "disposition55:29-31"]
 		},
 		{
-			"id": "claude-code.mutation.newer-sibling-stale-side",
-			"operation": "disable",
-			"class": "cli-divergence",
-			"covers": ["stale-side", "newer-sibling", "refusal"],
-			"dims": {
-				"marketplace": "newer-sibling",
-				"siblingVersion": "0.5.0"
-			},
-			"given": {
-				"managementMode": "managed-local",
-				"exe": "/usr/bin/claude",
-				"capsule": "ready",
-				"commands": [
-					{
-						"argv": ["plugin", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.plugins.enabled"
-						}
-					},
-					{
-						"argv": ["plugin", "marketplace", "list", "--json"],
-						"result": {
-							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.newerSibling"
-						}
-					}
-				]
-			},
-			"expect": {
-				"snapshot": {
-					"state": "stale-side"
-				},
-				"attempt": "stale-side",
-				"planCommands": [],
-				"mustNotMutate": true,
-				"desktopCanonical": {
-					"state": "update-required",
-					"attempt": "attempted",
-					"planCommands": [
-						["plugin", "uninstall", "${PLUGIN_ID}", "--scope", "user"],
-						["plugin", "marketplace", "remove", "${MARKETPLACE}", "--scope", "user"]
-					]
-				},
-				"cli": {
-					"exit": 3,
-					"verdict": "stale-side",
-					"frontier": "pre-effect"
-				}
-			},
-			"anchors": ["state-parsers:173-180", "design:complete53§3.2"],
-			"notes": "The same input on canonical Desktop produces update-required and WOULD emit uninstall+marketplace-remove on disable — the CLI must refuse instead. Both enable and disable refuse for stale-side."
-		},
-		{
 			"id": "claude-code.enable.slot-deadline-before-first-command",
 			"operation": "enable",
 			"class": "cli-divergence",
@@ -2013,7 +1797,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.legacy"
+							"stdoutJson": "@claude.marketplace.outdated"
 						}
 					}
 				]
@@ -2038,11 +1822,11 @@
 					"frontier": "pre-effect",
 					"observedProvenance": "unavailable",
 					"attemptedSteps": ["plugin uninstall (deadline)"],
-					"note": "root97-A: remaining lands inside (reserve*SLOT, (reserve+1)*SLOT) \u2014 the reserve gate passes but the FIRST command's slot admission refuses before exec::run_command ever runs. The deadline step in attempted[] is a planned-step record, not an effect \u2014 deadline-before-first-effect stays exit 7."
+					"note": "root97-A: remaining lands inside (reserve*SLOT, (reserve+1)*SLOT) — the reserve gate passes but the FIRST command's slot admission refuses before exec::run_command ever runs. The deadline step in attempted[] is a planned-step record, not an effect — deadline-before-first-effect stays exit 7."
 				}
 			},
 			"anchors": ["root97:A"],
-			"notes": "Slot-admission refusal on the first vector command: attempted[] logs the refused step but no provider command was spawned \u2014 no Orchbee effect could exist, so the accepted deadline-before-first-effect class (7) applies, not the post-effect uncertain 8."
+			"notes": "Slot-admission refusal on the first vector command: attempted[] logs the refused step but no provider command was spawned — no Orchbee effect could exist, so the accepted deadline-before-first-effect class (7) applies, not the post-effect uncertain 8."
 		},
 		{
 			"id": "claude-code.enable.slot-deadline-mid-vector",
@@ -2070,7 +1854,7 @@
 						"argv": ["plugin", "marketplace", "list", "--json"],
 						"result": {
 							"kind": "completed",
-							"stdoutJson": "@claude.marketplace.legacy"
+							"stdoutJson": "@claude.marketplace.outdated"
 						}
 					},
 					{
@@ -2103,11 +1887,11 @@
 					"frontier": "post-effect",
 					"observedProvenance": "unavailable",
 					"attemptedSteps": ["plugin uninstall", "plugin marketplace remove (deadline)"],
-					"note": "root97-A second half: the SAME slot refusal after a completed provider command is post-effect \u2014 the frontier crossed at the first spawn, so the deadline refusal reports undetermined 8, never 7."
+					"note": "root97-A second half: the SAME slot refusal after a completed provider command is post-effect — the frontier crossed at the first spawn, so the deadline refusal reports undetermined 8, never 7."
 				}
 			},
 			"anchors": ["root97:A"],
-			"notes": "The slot-admission refusal mid-vector: uninstall completed legally, then afterCommandAdvanceMs models external scheduling time before the next admission, so the second command's refused slot lands behind the frontier \u2014 undetermined post-effect exit 8."
+			"notes": "The slot-admission refusal mid-vector: uninstall completed legally, then afterCommandAdvanceMs models external scheduling time before the next admission, so the second command's refused slot lands behind the frontier — undetermined post-effect exit 8."
 		},
 		{
 			"id": "claude-code.enable.capsule-published-then-inspection-failed",
@@ -2115,8 +1899,8 @@
 			"class": "cli-divergence",
 			"covers": ["refusal", "inspection-failed", "capsule-frontier"],
 			"dims": {
-				"capsule": "unpublished \u2192 published this invocation",
-				"state": "unknown \u2014 read failed"
+				"capsule": "unpublished → published this invocation",
+				"state": "unknown — read failed"
 			},
 			"given": {
 				"managementMode": "managed-local",
@@ -2142,11 +1926,11 @@
 					"frontier": "post-effect",
 					"observedProvenance": "partial",
 					"attemptedSteps": ["publish-capsule"],
-					"note": "root97-B: a fresh read attempt behind the capsule effect is not a complete observation \u2014 the unclassifiable snapshot is partial post-effect evidence and the refusal reports uncertainty (8), not the determinate 9."
+					"note": "root97-B: a fresh read attempt behind the capsule effect is not a complete observation — the unclassifiable snapshot is partial post-effect evidence and the refusal reports uncertainty (8), not the determinate 9."
 				}
 			},
 			"anchors": ["root97:B"],
-			"notes": "The capsule published, then the only provider read failed \u2014 the snapshot never classified. Partial provenance plus the inspection-failed refusal: undetermined 8 behind the crossed frontier, while the zero-effect baseline keeps its determinate 9."
+			"notes": "The capsule published, then the only provider read failed — the snapshot never classified. Partial provenance plus the inspection-failed refusal: undetermined 8 behind the crossed frontier, while the zero-effect baseline keeps its determinate 9."
 		},
 		{
 			"id": "claude-code.enable.capsule-publish-conflict-valid-occupant-cleanup-fails",
@@ -2154,7 +1938,7 @@
 			"class": "cli-divergence",
 			"covers": ["capsule", "residue", "conflict-recovery"],
 			"dims": {
-				"capsule": "unpublished \u2192 publish conflicted by a concurrent VALID capsule",
+				"capsule": "unpublished → publish conflicted by a concurrent VALID capsule",
 				"cleanup": "retained stage removal fails"
 			},
 			"given": {
@@ -2202,7 +1986,7 @@
 					"frontier": "post-effect",
 					"observedProvenance": "post-effect",
 					"attemptedSteps": ["publish-capsule (conflict)", "plugin enable"],
-					"note": "root97-C: the publish conflicted but the concurrent occupant verifies as ours \u2014 the run completes; the retained stage's cleanup FAILED so the residue must stay named, not be silently dropped."
+					"note": "root97-C: the publish conflicted but the concurrent occupant verifies as ours — the run completes; the retained stage's cleanup FAILED so the residue must stay named, not be silently dropped."
 				},
 				"residue": [
 					{
@@ -2212,7 +1996,46 @@
 				]
 			},
 			"anchors": ["root97:C"],
-			"notes": "Concurrent valid capsule absorbs the publish conflict; the owned stage's same-call cleanup fails (EIO on the walk unlink) \u2014 the residue survives the report instead of being removed by an unchecked cleanup result."
+			"notes": "Concurrent valid capsule absorbs the publish conflict; the owned stage's same-call cleanup fails (EIO on the walk unlink) — the residue survives the report instead of being removed by an unchecked cleanup result."
+		},
+		{
+			"id": "claude-code.inspect.missing-version-field",
+			"operation": "inspect",
+			"class": "shared",
+			"covers": ["unreadable"],
+			"dims": {
+				"parse": "missing-version"
+			},
+			"given": {
+				"managementMode": "managed-local",
+				"exe": "/usr/bin/claude",
+				"capsule": "ready",
+				"commands": [
+					{
+						"argv": ["plugin", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.plugins.missingVersion"
+						}
+					},
+					{
+						"argv": ["plugin", "marketplace", "list", "--json"],
+						"result": {
+							"kind": "completed",
+							"stdoutJson": "@claude.marketplace.current"
+						}
+					}
+				]
+			},
+			"expect": {
+				"snapshot": {
+					"state": "unknown",
+					"issue": "inspection-failed",
+					"availability": "available",
+					"managementMode": "managed-local"
+				}
+			},
+			"anchors": ["state-parsers:65-66"]
 		}
 	]
 }

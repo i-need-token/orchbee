@@ -101,7 +101,15 @@ pub(super) fn update(
     match hermes::read(&executable, context) {
         super::super::providers::ReadOutcome::Stdout(bytes)
             if if enable {
-                hermes::list_state(&bytes, local.state, options.expected_version) == State::Enabled
+                hermes::list_state(
+                    &bytes,
+                    local.state,
+                    context
+                        .capsule_root
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or_default(),
+                ) == State::Enabled
             } else {
                 hermes::activation_disabled(&bytes)
             } =>

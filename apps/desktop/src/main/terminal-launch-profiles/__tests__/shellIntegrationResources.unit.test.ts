@@ -45,7 +45,7 @@ describe('Desktop shell integration resources', () => {
 			expect(source).toContain('133;C');
 			expect(source).toContain('133;D;');
 			expect(source).toContain('133;A');
-			expect(source).toContain('orchbee.agent.v3;%s');
+			expect(source).toContain('orchbee.agent.v1;%s');
 			expect(source).not.toContain(']777;notify');
 			expect(source).toContain('file://');
 			expect(source).not.toMatch(/cmdline|command[_ -]?text/iu);
@@ -83,7 +83,7 @@ describe('Desktop shell integration resources', () => {
 				].join('\n');
 				const output = execFileSync('/bin/zsh', ['-f', '-c', script]).toString('utf8');
 				expect(output).toContain(
-					'\u001B_orchbee.agent.v3;eyJpbnRlZ3JhdGlvbklkIjoiY2xhdWRlLWNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\u001B\\',
+					'\u001B_orchbee.agent.v1;eyJpbnRlZ3JhdGlvbklkIjoiY2xhdWRlLWNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6MX0\u001B\\',
 				);
 				expect(output).not.toContain('do-not-transport-this');
 			} finally {

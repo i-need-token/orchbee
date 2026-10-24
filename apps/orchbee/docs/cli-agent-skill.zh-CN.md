@@ -59,7 +59,7 @@ orchbee panel split <panel-id> --direction right
 
 ## 安装并操作 Agent
 
-`agent doctor` 离线检查本地接入。先用 `agent integration list`，再用 `explain --provider <id>` 发现每个提供方的实际可用性与管理模式。`enable`/`disable --provider <id>` 执行显式受保护修改。`list --outdated-only` 显示自有修复候选，并分别报告被阻止或未能确认的提供方；空列表不代表检查完整。
+`agent doctor` 离线检查本地接入。适配器 Capsule 的契约版本为 1，以内容摘要 `capsule.payloadSha256` 为身份，安装在 `~/.orchbee/agent-observation-adapters/<payloadSha256>`。Doctor 将校验后发现的旧载荷报告为 `update-required`；使用 `orchbee agent integration enable --provider codex` 显式重装（选择实际提供方）。旧目录会保留，不执行接入迁移。先用 `agent integration list`，再用 `explain --provider <id>` 发现每个提供方的实际可用性与管理模式。`enable`/`disable --provider <id>` 执行显式受保护修改。`list --outdated-only` 显示自有修复候选，并分别报告被阻止或未能确认的提供方；空列表不代表检查完整。
 
 Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，否则为原生用户目录中的 `.codex`。无效覆盖值拒绝且不回退。提供方退出成功不证明安装成功；应读取修改回执中的观察状态。
 

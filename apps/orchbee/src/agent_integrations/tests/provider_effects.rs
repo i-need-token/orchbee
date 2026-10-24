@@ -1,6 +1,6 @@
 //! Root57 `provider-effects52` conformance harness — drives the shared
 //! filesystem effect machine (stage → verify → publish → restore → cleanup)
-//! and the mutation frontier against the frozen 47-case pack with real
+//! and the mutation frontier against the current 45-case pack with real
 //! injected faults. `delivery-injected` cases materialize `setup.fs` under
 //! an isolated temporary home, install the stated fault at `inject.atStep`,
 //! run the real implementation path, and assert every `expect` field;
@@ -95,7 +95,7 @@ fn make_dirs() -> Dirs {
     let home = root.join("home");
     let parent = home.join(".orchbee/agent-observation-adapters");
     let dirs = Dirs {
-        capsule_root: parent.join(capsule::PAYLOAD_VERSION),
+        capsule_root: parent.join(&"a".repeat(64)),
         target: home.join("managed-target"),
         provider_cfg: home.join("provider.cfg"),
         cohort_dir: root.join("cohort"),
@@ -241,10 +241,10 @@ fn materialize_fs(dirs: &Dirs, entries: &[Value]) -> BTreeMap<PathBuf, Vec<u8>> 
 
 /// Materialize a syntactically valid managed capsule at `dir`:
 /// the four required runtime files plus one bundle module per guarded
-/// provider, the canonical payload digest, and the strict three-key
-/// manifest. `payload_version` overrides the declared version; `sabotage`
+/// provider, the canonical payload digest, and the strict two-key
+/// manifest. `sabotage`
 /// drops a required file so the capsule validates `Invalid`.
-fn materialize_capsule(dir: &Path, payload_version: Option<&str>, sabotage: bool) {
+fn materialize_capsule(dir: &Path, sabotage: bool) {
     let files_to_write: Vec<(&str, &[u8])> = vec![
         ("bundle/package.json", br#"{"name":"orchbee-observation"}"#),
         ("bundle/scripts/forward-hook.mjs", b"// forward"),
@@ -269,9 +269,8 @@ fn materialize_capsule(dir: &Path, payload_version: Option<&str>, sabotage: bool
     }
     let digest = capsule::payload_digest(dir).expect("materialized capsule digests");
     let manifest = serde_json::json!({
-        "contractVersion": 3,
+        "contractVersion": 1,
         "payloadSha256": digest,
-        "payloadVersion": payload_version.unwrap_or(capsule::PAYLOAD_VERSION),
     });
     fs::write(dir.join("capsule.json"), manifest.to_string()).unwrap();
 }
@@ -661,7 +660,6 @@ fn report_outcome(report: &mutation::MutationReport) -> Outcome {
         Verdict::Refused(Refusal::StaleSide) => "stale-side",
         Verdict::Refused(Refusal::ManualActionRequired)
         | Verdict::Refused(Refusal::CapsuleUnavailable)
-        | Verdict::Refused(Refusal::CapsuleUnsupportedVersion)
         | Verdict::Refused(Refusal::AgentUnavailable) => "manual-action-required",
         _ => verdict,
     };
@@ -1040,12 +1038,6 @@ fn drive_capsule(_case: &Case, dirs: &Dirs) -> Outcome {
     {
         return Outcome::refused("conflict", 3);
     }
-    // The declared source's version gate — typed, never generic-invalid.
-    if let capsule::CapsuleValidity::UnsupportedVersion { .. } = capsule::validate(&source) {
-        let mut outcome = Outcome::refused("manual-action-required", 4);
-        outcome.issue = Some("capsule-unsupported-version");
-        return outcome;
-    }
 
     let publish = mutation::publish_capsule(&source, &capsule_root);
     let mut residues: Vec<PathBuf> = publish.residual.into_iter().collect();
@@ -1196,14 +1188,8 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
     let source_label = case.drive["capsule"].as_str();
     if !dirs.adapter_source.exists() {
         match source_label {
-            Some("capsule-declaring-older-payloadVersion") => {
-                materialize_capsule(&dirs.adapter_source, Some("0.3.0"), false)
-            }
-            Some("capsule-declaring-future-payloadVersion") => {
-                materialize_capsule(&dirs.adapter_source, Some("9.9.9"), false)
-            }
-            Some("capsule-with-bad-entry") => materialize_capsule(&dirs.adapter_source, None, true),
-            _ => materialize_capsule(&dirs.adapter_source, None, false),
+            Some("capsule-with-bad-entry") => materialize_capsule(&dirs.adapter_source, true),
+            _ => materialize_capsule(&dirs.adapter_source, false),
         }
     }
 
@@ -1222,19 +1208,14 @@ fn drive_provider(case: &Case, dirs: &Dirs) -> mutation::MutationReport {
     // capsule starts already published so the publish step never enters
     // the attempted[] these cases assert.
     if !dirs.capsule_root.exists() {
-        materialize_capsule(&dirs.capsule_root, None, false);
+        materialize_capsule(&dirs.capsule_root, false);
     }
 
     let direction = match case.drive["op"].as_str().unwrap() {
         "disable-provider" => Direction::Disable,
         _ => Direction::Enable,
     };
-    mutation::mutate(
-        id,
-        direction,
-        &context,
-        std::slice::from_ref(&dirs.adapter_source),
-    )
+    mutation::mutate(id, direction, &context)
 }
 
 // ---------------------------------------------------------------------------
@@ -1812,7 +1793,7 @@ fn run_case(case: &Case) {
                 && entry["ownership"].as_str() == Some("orchbee-exact")
         });
     let setup_fs: Vec<Value> = if capsule_occupied {
-        materialize_capsule(&dirs.capsule_root, None, false);
+        materialize_capsule(&dirs.capsule_root, false);
         case.setup_fs
             .iter()
             .filter(|entry| entry["path"].as_str() != Some("$CAPSULE_ROOT"))
@@ -1871,16 +1852,10 @@ fn run_case(case: &Case) {
         "capsule-publish" => {
             if !dirs.adapter_source.exists() {
                 match case.drive["capsule"].as_str() {
-                    Some("capsule-declaring-older-payloadVersion") => {
-                        materialize_capsule(&dirs.adapter_source, Some("0.3.0"), false)
-                    }
-                    Some("capsule-declaring-future-payloadVersion") => {
-                        materialize_capsule(&dirs.adapter_source, Some("9.9.9"), false)
-                    }
                     Some("capsule-with-bad-entry") => {
-                        materialize_capsule(&dirs.adapter_source, None, true)
+                        materialize_capsule(&dirs.adapter_source, true)
                     }
-                    _ => materialize_capsule(&dirs.adapter_source, None, false),
+                    _ => materialize_capsule(&dirs.adapter_source, false),
                 }
             }
             drive_capsule(case, &dirs)
@@ -2098,7 +2073,7 @@ fn run_static(case: &Case) {
                 cancel: Some(&cancel),
                 management_mode: super::super::model::ManagementMode::ManagedLocal,
             };
-            let _item = providers::inspect_provider(IntegrationId::Grok, &context, &[]);
+            let _item = providers::inspect_provider(IntegrationId::Grok, &context);
             let witnessed = inject::witnessed();
             inject::reset();
             assert!(
@@ -2150,7 +2125,7 @@ fn drive_provider_at(
         })],
     );
     if !dirs.adapter_source.exists() {
-        materialize_capsule(&dirs.adapter_source, None, false);
+        materialize_capsule(&dirs.adapter_source, false);
     }
     let cancel = InjectCancel;
     let context = ProviderContext {
@@ -2162,12 +2137,7 @@ fn drive_provider_at(
         cancel: Some(&cancel),
         management_mode: super::super::model::ManagementMode::ManagedLocal,
     };
-    mutation::mutate(
-        id,
-        direction,
-        &context,
-        std::slice::from_ref(&dirs.adapter_source),
-    )
+    mutation::mutate(id, direction, &context)
 }
 
 #[test]

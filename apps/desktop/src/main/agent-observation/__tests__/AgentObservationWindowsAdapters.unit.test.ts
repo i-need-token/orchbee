@@ -13,10 +13,10 @@ const resourceRoot = path.resolve(process.cwd(), 'resources/agent-observation-ad
 const transportUrl = pathToFileURL(
 	path.join(resourceRoot, 'scripts/observation-transport.mjs'),
 ).href;
-const endpointName = 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3';
+const endpointName = 'ORCHBEE_AGENT_OBSERVATION_SOCKET';
 const consoleTarget = String.raw`\\.\CONOUT$`;
 const endpoint = String.raw`\\.\pipe\orchbee-0123456789abcdef0123456789abcdef-observation`;
-const ack = '{"accepted":true,"version":3}\n';
+const ack = '{"accepted":true,"version":1}\n';
 const observation = {
 	activity: null,
 	agentKey: null,
@@ -43,7 +43,7 @@ describe('Windows Agent observation transport', () => {
 			`${endpoint}\n`,
 			`${endpoint}\\child`,
 			'C:\\ordinary-file',
-			'/tmp/orchbee-agent-v3-forwarded.sock',
+			'/tmp/orchbee-agent-v1-forwarded.sock',
 		]) {
 			await expect(
 				transport.discoverObservationSockets(
@@ -94,7 +94,7 @@ describe('Windows Agent observation transport', () => {
 					correlations: [{ correlationId: 'windows-identity-2', visibility: 'unknown' }],
 					eventId: 'windows-identity-1',
 					observation,
-					version: 3,
+					version: 1,
 				},
 			]);
 			expect(hints).toEqual(
@@ -106,7 +106,7 @@ describe('Windows Agent observation transport', () => {
 									correlationId: 'windows-identity-2',
 									eventId: 'windows-identity-1',
 									kind: 'correlation',
-									version: 3,
+									version: 1,
 								},
 							},
 						]
@@ -121,13 +121,13 @@ describe('Windows Agent observation transport', () => {
 			const transport = await import(transportUrl);
 			for (const [response, accepted] of [
 				[ack, true],
-				['{"accepted":false,"version":3}\n', false],
+				['{"accepted":false,"version":1}\n', false],
 				[`${ack}x`, false],
 				['', false],
 			] as const) {
 				expect(
 					await withPipe(response, (pipe) =>
-						transport.sendObservationEnvelope(pipe, { version: 3 }),
+						transport.sendObservationEnvelope(pipe, { version: 1 }),
 					),
 				).toBe(accepted);
 			}
@@ -210,7 +210,7 @@ describe('Windows Agent observation transport', () => {
 			const envelopes: string[] = [];
 			// Reject the envelope so this process test never writes to the runner's console.
 			await withPipe(
-				'{"accepted":false,"version":3}\n',
+				'{"accepted":false,"version":1}\n',
 				async (pipe) => {
 					const child = promisify(execFile)(
 						process.env['COMSPEC'] ?? 'cmd.exe',

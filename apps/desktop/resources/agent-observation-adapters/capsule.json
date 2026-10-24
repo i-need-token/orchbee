@@ -1,5 +1,4 @@
 {
-	"contractVersion": 3,
-	"payloadSha256": "83b7a5fb6adb56d2e9b4410cf12d7fa82fa6d30c8c3e00e8ca8ee2b5aa35fe95",
-	"payloadVersion": "0.4.17"
+	"contractVersion": 1,
+	"payloadSha256": "de9d43bbed749e3b9aca661c9a1bbb89827cf602d22d93ef1752429439204fc6"
 }
