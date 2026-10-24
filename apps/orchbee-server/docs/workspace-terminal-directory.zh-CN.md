@@ -67,8 +67,8 @@ Server 是 Directory 身份、选择、修订和保留命令结果的唯一写�
 这些流程不保留独立 TLA 模型或 cwd-validation 模型配置。
 
 严格 schema 及独立 Rust/TypeScript binding 必须拒绝悬空 Directory 或 Project 引用、重复身份、
-缺失必需可空字段、无效路径和越界。跨 Project 分组的 Directory 引用是有效的；历史检查点迁移
-仍须在扁平化前校验旧的各 Project 所有权，见[检查点契约](workbench-checkpoint.zh-CN.md#规范化导航与历史迁移)。
+缺失必需可空字段、无效路径和越界。跨 Project 分组的 Directory 引用是有效的。保留检查点仅准入
+当前规范化导航，历史的各 Project 嵌套形状不可读，见[检查点契约](workbench-checkpoint.zh-CN.md#当前规范化导航)。
 确定性及状态化测试须将每个准入/重新验证分支映射到保留或提交状态的
 结果。进程测试须覆盖真实目录、两个已授权观察者、Workspace Create 和 AttachBinding、独立槽不变、
 缺失/被删除目录及 Worker 丢失且不从 home 启动。纯核心测试本身不证明文件系统或载体行为。

@@ -80,9 +80,9 @@ These workflows have no separate retained TLA model or cwd-validation model conf
 
 Strict schema and independent Rust/TypeScript bindings must reject dangling Directory or Project
 references, duplicate identities, missing required nullable fields, invalid paths and bounds.
-Directory references across Project groups are valid; historical checkpoint migration must still
-validate the old per-Project ownership before flattening, as defined by the
-[checkpoint contract](workbench-checkpoint.md#normalized-navigation-and-historical-migration).
+Directory references across Project groups are valid. Retained checkpoints admit only the current
+normalized navigation; historical per-Project shapes are unreadable, as defined by the
+[checkpoint contract](workbench-checkpoint.md#current-normalized-navigation).
 Deterministic and stateful tests must map each admission/revalidation branch to its state-preserving
 or committing result. Process tests must exercise a real directory, two authorized observers,
 Workspace Create and AttachBinding, an unchanged standalone slot, missing/deleted directories and
