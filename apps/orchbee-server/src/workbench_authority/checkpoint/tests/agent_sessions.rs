@@ -107,17 +107,7 @@ fn read(
 }
 
 #[test]
-fn v1_remains_readable_but_v2_records_are_required_and_strict() {
-    let legacy = changed(|v| {
-        historical_navigation(v, 1);
-        v.as_object_mut().unwrap().remove("agentSessions");
-        v.as_object_mut().unwrap().remove("terminalDirectories");
-        v.as_object_mut().unwrap().remove("managedNames");
-    });
-    let upgraded = restore(&legacy).unwrap().checkpoint(&worker(400)).unwrap();
-    let upgraded: Value = serde_json::from_slice(&upgraded).unwrap();
-    assert_eq!(upgraded["version"], 7);
-    assert_eq!(upgraded["agentSessions"], json!([]));
+fn agent_session_records_are_required_and_strict() {
     for fault in 0..10 {
         let bytes = changed(|v| {
             v["agentSessions"] = rows();
@@ -125,7 +115,7 @@ fn v1_remains_readable_but_v2_records_are_required_and_strict() {
                 0 => {
                     v.as_object_mut().unwrap().remove("agentSessions");
                 }
-                1 => v["version"] = json!(1),
+                1 => v["version"] = json!(2),
                 2 => v["agentSessions"] = Value::Null,
                 3 => {
                     let r = v["agentSessions"][0].clone();
@@ -143,11 +133,6 @@ fn v1_remains_readable_but_v2_records_are_required_and_strict() {
         });
         assert!(WorkbenchCheckpoint::parse(&bytes).is_err(), "fault {fault}");
     }
-    let null_legacy = changed(|v| {
-        historical_navigation(v, 1);
-        v["agentSessions"] = Value::Null;
-    });
-    assert!(WorkbenchCheckpoint::parse(&null_legacy).is_err());
 }
 
 #[test]

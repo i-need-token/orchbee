@@ -80,10 +80,7 @@ fn rename_draft_fault_only_clears_with_explicit_backspace_or_clear() {
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Backspace));
     assert!(!state.rename_draft().unwrap().input_fault());
     assert!(state.edit_rename_draft(token, RenameDraftEdit::Append("  \t ")));
-    assert_eq!(
-        state.plan_rename_draft(token).unwrap().label().as_str(),
-        "  \t "
-    );
+    assert!(state.plan_rename_draft(token).is_none());
 }
 
 #[test]

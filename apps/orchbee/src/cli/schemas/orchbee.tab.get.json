@@ -658,7 +658,7 @@
 		},
 		"presentation": {
 			"type": "object",
-			"required": ["presentationId", "label", "binding"],
+			"required": ["presentationId", "label", "binding", "customLabel"],
 			"additionalProperties": false,
 			"properties": {
 				"presentationId": {
@@ -688,7 +688,7 @@
 					]
 				},
 				"customLabel": {
-					"type": "string",
+					"type": ["string", "null"],
 					"minLength": 1,
 					"maxLength": 512
 				}

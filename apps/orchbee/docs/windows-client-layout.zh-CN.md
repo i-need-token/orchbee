@@ -45,7 +45,7 @@ Server 在查询入队前，从 16 MiB 编码布局预算中预留 1 MiB。完�
 返回共享范围的 `orchbee.layout.ratio` v1，保留请求及结果。无需 Client，并保留未知修改结果；
 `--request-id` 可选，拒绝 `--detach`。隐式／当前目标或显式 `--client` 仍使用 Client 路由及绘制确认。连接或副作用前完成解析。路径缺失及 resize 源隐藏均明确失败。设置比例可以指向隐藏的分割，不编造焦点。
 
-Server 在规范 Workbench 树中持有每个分割的标称比例。所有 Client 在各自视口中投影相同比例；焦点、zoom 和终端控制仍由各窗口管理。新分割默认为 `0.5`，保留的子树继续保留比例。原子修改及历史上在 checkpoint v5/catalog v4 中引入该能力的说明见[共享比例契约](../../orchbee-server/docs/shared-split-ratios.zh-CN.md)；当前写入器使用 checkpoint v6。
+Server 在规范 Workbench 树中持有每个分割的标称比例。所有 Client 在各自视口中投影相同比例；焦点、zoom 和终端控制仍由各窗口管理。新分割默认为 `0.5`，保留的子树继续保留比例。原子修改及当前版本 1 checkpoint／catalog 准入见[共享比例契约](../../orchbee-server/docs/shared-split-ratios.zh-CN.md)。
 
 绘制、终端尺寸、指针区域和布局读取消费同一加权树投影。每个分割用轴长减去共享分隔单元格，按名义比例计算一次，第一部分取最近整数单元格（半数向上），并限制到两个子区域都满足约定最小尺寸。无法同时满足时沿用活动／首叶折叠。即使最小尺寸或整数取整限制了单元格结果，名义比例仍可观测。边线标题、zoom 和界面占用保留原所有者。
 

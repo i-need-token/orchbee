@@ -23,7 +23,12 @@ it('keeps fallback text and admits exactly canonical stored Panel overrides', as
 	);
 	ajv.addSchema(schema);
 	const validate = ajv.compile({ $ref: 'urn:orchbee:schema:workbench:v1#/$defs/presentation' });
-	const base = { label: 'creation fallback', binding: null, presentationId: '1'.repeat(32) };
+	const base = {
+		customLabel: null,
+		label: 'creation fallback',
+		binding: null,
+		presentationId: '1'.repeat(32),
+	};
 	expect(WorkbenchPresentationSchema.parse(base)).toEqual(base);
 	expect(validate(base)).toBe(true);
 	for (const customLabel of ['标题', '🐝'.repeat(512), '\ufefftitle', '\u200btitle', 'a\nb']) {
@@ -32,7 +37,7 @@ it('keeps fallback text and admits exactly canonical stored Panel overrides', as
 		expect(validate(document)).toBe(true);
 	}
 	for (const customLabel of [
-		null,
+		undefined,
 		'',
 		' x',
 		'x\u0085',

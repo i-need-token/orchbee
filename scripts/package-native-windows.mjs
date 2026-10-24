@@ -106,7 +106,7 @@ export function packageWindows(cohort, channel, version, buildId) {
 	files.sort((left, right) => (left.path < right.path ? -1 : Number(left.path > right.path)));
 	const manifest = JSON.parse(readFileSync(path.join(cohort, 'cohort.json'), 'utf8'));
 	if (
-		manifest.schemaVersion !== 2 ||
+		manifest.schemaVersion !== 1 ||
 		Object.keys(manifest).length !== 2 ||
 		Object.keys(manifest.artifacts ?? {}).length !== 5
 	)

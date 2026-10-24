@@ -315,48 +315,63 @@ fn plugin_managed_recovery_preserves_current_references_and_rejects_redirected_p
 }
 
 #[test]
-fn plugin_legacy_catalog_reads_without_migration_and_mutations_preserve_source() {
-    let fixture = Fixture::new();
-    let registry = fixture.registry();
-    fs::write(fixture.0.join("orchbee-plugin.toml"), MANIFEST).unwrap();
-    registry
-        .mutate(crate::PluginRegistryMutation::Link {
-            path: fixture.0.clone(),
-            enabled: true,
-        })
-        .unwrap();
-    let mut cache = WindowsPrivateCache::acquire(&registry.root).unwrap();
-    let mut legacy: serde_json::Value =
-        serde_json::from_slice(&cache.read(FILE, REGISTRY_LIMIT).unwrap().unwrap()).unwrap();
-    legacy["version"] = serde_json::json!(1);
-    legacy.as_object_mut().unwrap().remove("cleanup");
-    legacy.as_object_mut().unwrap().remove("blockedCleanup");
-    legacy["plugins"][0]
-        .as_object_mut()
-        .unwrap()
-        .remove("source");
-    let encoded = serde_json::to_vec(&legacy).unwrap();
-    cache.replace(FILE, &encoded).unwrap();
-    drop(cache);
-    assert_eq!(registry.list(None).unwrap().plugins[0].source, None);
-    assert_eq!(
-        WindowsPrivateCache::read_existing(&registry.root, FILE, REGISTRY_LIMIT)
-            .unwrap()
-            .unwrap(),
-        encoded
-    );
-    registry
-        .mutate(crate::PluginRegistryMutation::SetEnabled {
-            id: "tools".into(),
-            enabled: false,
-        })
-        .unwrap();
-    let current: serde_json::Value = serde_json::from_slice(
-        &WindowsPrivateCache::read_existing(&registry.root, FILE, REGISTRY_LIMIT)
-            .unwrap()
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(current["version"], 2);
-    assert!(fixture.0.join("orchbee-plugin.toml").exists());
+fn plugin_incompatible_catalog_preserves_bytes_and_refuses_mutation() {
+    for fault in [
+        "version",
+        "cleanup",
+        "blockedCleanup",
+        "source",
+        "description",
+        "build",
+    ] {
+        let fixture = Fixture::new();
+        let registry = fixture.registry();
+        fs::write(fixture.0.join("orchbee-plugin.toml"), MANIFEST).unwrap();
+        registry
+            .mutate(crate::PluginRegistryMutation::Link {
+                path: fixture.0.clone(),
+                enabled: true,
+            })
+            .unwrap();
+        let mut cache = WindowsPrivateCache::acquire(&registry.root).unwrap();
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&cache.read(FILE, REGISTRY_LIMIT).unwrap().unwrap()).unwrap();
+        assert_eq!(document["version"], 1);
+        match fault {
+            "version" => document["version"] = serde_json::json!(2),
+            "source" => {
+                document["plugins"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(fault);
+            }
+            "description" | "build" => {
+                document["plugins"][0]["manifest"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(fault);
+            }
+            _ => {
+                document.as_object_mut().unwrap().remove(fault);
+            }
+        }
+        let encoded = serde_json::to_vec(&document).unwrap();
+        cache.replace(FILE, &encoded).unwrap();
+        drop(cache);
+        assert_eq!(registry.list(None), Err(Error::InvalidRegistry));
+        assert_eq!(
+            registry.mutate(crate::PluginRegistryMutation::SetEnabled {
+                id: "tools".into(),
+                enabled: false,
+            }),
+            Err(Error::InvalidRegistry)
+        );
+        assert_eq!(
+            WindowsPrivateCache::read_existing(&registry.root, FILE, REGISTRY_LIMIT)
+                .unwrap()
+                .unwrap(),
+            encoded
+        );
+        assert!(fixture.0.join("orchbee-plugin.toml").exists());
+    }
 }

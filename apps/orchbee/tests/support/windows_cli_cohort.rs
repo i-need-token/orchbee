@@ -89,6 +89,6 @@ fn manifest() -> &'static [u8] {
             "agent-observation-adapters".to_owned(),
             json!(format!("{:x}", Sha256::digest(b"unused adapters"))),
         );
-        serde_json::to_vec(&json!({"schemaVersion":2,"artifacts":artifacts})).unwrap()
+        serde_json::to_vec(&json!({"schemaVersion":1,"artifacts":artifacts})).unwrap()
     })
 }

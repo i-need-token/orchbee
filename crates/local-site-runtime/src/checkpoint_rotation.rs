@@ -19,7 +19,7 @@ pub(super) enum Candidate {
 }
 
 impl Candidate {
-    pub(super) fn decode(bytes: &[u8], maximum: usize, legacy: bool) -> Self {
+    pub(super) fn decode(bytes: &[u8], maximum: usize) -> Self {
         if bytes.starts_with(PREFIX) {
             let generation = (bytes.get(..5) == Some(MAGIC.as_slice()))
                 .then(|| bytes.get(5..13))
@@ -45,11 +45,6 @@ impl Candidate {
                 };
             }
             Self::Invalid { generation }
-        } else if legacy && bytes.len() <= maximum {
-            Self::Valid {
-                generation: 0,
-                payload: bytes.to_vec(),
-            }
         } else {
             Self::Invalid { generation: None }
         }
@@ -82,23 +77,10 @@ pub(super) fn validate<T>(
     candidates: &mut [Candidate; 3],
     mut parse: impl FnMut(&[u8]) -> Option<T>,
 ) -> [Option<T>; 3] {
-    match try_validate(candidates, |bytes| {
-        Ok::<_, std::convert::Infallible>(parse(bytes))
-    }) {
-        Ok(values) => values,
-        Err(never) => match never {},
-    }
-}
-
-/// A domain admission failure aborts selection, even if another slot is usable.
-pub(super) fn try_validate<T, E>(
-    candidates: &mut [Candidate; 3],
-    mut parse: impl FnMut(&[u8]) -> Result<Option<T>, E>,
-) -> Result<[Option<T>; 3], E> {
     let mut values = std::array::from_fn(|_| None);
     for (index, candidate) in candidates.iter_mut().enumerate() {
         let value = match candidate.payload() {
-            Some(bytes) => parse(bytes)?,
+            Some(bytes) => parse(bytes),
             None => None,
         };
         if value.is_none() && matches!(candidate, Candidate::Valid { .. }) {
@@ -125,7 +107,7 @@ pub(super) fn try_validate<T, E>(
             values[index] = None;
         }
     }
-    Ok(values)
+    values
 }
 
 pub(super) fn latest(candidates: &[Candidate; 3]) -> Option<usize> {
@@ -148,12 +130,7 @@ pub(super) fn prepare(
     if bytes.len() > maximum {
         return Err(io::ErrorKind::InvalidInput.into());
     }
-    if latest(candidates).is_some_and(|index| {
-        candidates[index]
-            .generation()
-            .is_some_and(|generation| generation != 0)
-            && candidates[index].payload() == Some(bytes)
-    }) {
+    if latest(candidates).is_some_and(|index| candidates[index].payload() == Some(bytes)) {
         return Ok(None);
     }
     let generation = candidates

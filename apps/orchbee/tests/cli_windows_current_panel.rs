@@ -17,7 +17,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn panel(n: u64) -> Value {
-    json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"presentationId":id(n+100),"label":"Agent","binding":{"terminalId":id(n+200),"workerId":"6f7263686265652d6c6f63616c2d7631"}},"childPresentations":[{"presentationId":id(n+300),"label":"child","binding":{"terminalId":id(n+400),"workerId":"6f7263686265652d6c6f63616c2d7631"}}]})
+    json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"customLabel":null,"presentationId":id(n+100),"label":"Agent","binding":{"terminalId":id(n+200),"workerId":"6f7263686265652d6c6f63616c2d7631"}},"childPresentations":[{"customLabel":null,"presentationId":id(n+300),"label":"child","binding":{"terminalId":id(n+400),"workerId":"6f7263686265652d6c6f63616c2d7631"}}]})
 }
 fn snapshot_reply(stream: &mut LocalStream) {
     snapshot_reply_at(stream, 12);

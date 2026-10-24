@@ -85,19 +85,6 @@ fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value
     })
 }
 
-// Versions 1–5 deliberately retain the historical per-Project schema.
-fn historical_navigation(value: &mut Value, version: u32) {
-    value["version"] = json!(version);
-    value["navigation"] = json!({
-        "standaloneTerminalContextId": identity(1),
-        "projects": [{
-            "projectId": identity(2), "label": "项目",
-            "directories": [{"directoryId": identity(3), "path": "C:\\work space\\项目"}],
-            "workspaces": [{"workspaceId": identity(4), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}]
-        }]
-    });
-}
-
 fn fixture() -> WorkbenchAuthority {
     let mut authority = WorkbenchAuthority::new(site(100)).unwrap();
     authority.projection = WorkbenchProjectionStore::load(
@@ -391,6 +378,9 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
         "navigation",
         "terminalContexts",
         "profiles",
+        "agentSessions",
+        "terminalDirectories",
+        "managedNames",
     ] {
         assert!(
             restore(&changed(|value| {
@@ -398,6 +388,36 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
             }))
             .is_err(),
             "missing {field}"
+        );
+    }
+    for (path, field) in [
+        ("/terminalContexts/1/tabs/1", "automaticLabel"),
+        ("/terminalContexts/1/tabs/0", "groupId"),
+        ("/terminalContexts/1/tabs/0/root", "ratio"),
+        ("/terminalContexts/1/tabs/1/root", "rightClick"),
+        (
+            "/terminalContexts/1/tabs/1/root/primaryPresentation",
+            "binding",
+        ),
+        (
+            "/terminalContexts/1/tabs/1/root/primaryPresentation",
+            "customLabel",
+        ),
+    ] {
+        assert!(
+            restore(&changed(|value| {
+                assert!(
+                    value
+                        .pointer_mut(path)
+                        .unwrap()
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(field)
+                        .is_some()
+                );
+            }))
+            .is_err(),
+            "missing {path}/{field}"
         );
     }
     assert!(restore(&changed(|value| value["siteId"] = json!(identity(100)))).is_err());
@@ -408,7 +428,7 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
     );
     let encoded = String::from_utf8(checkpoint()).unwrap();
     for (needle, replacement) in [
-        ("\"version\":7", "\"version\":7,\"version\":7"),
+        ("\"version\":1", "\"version\":1,\"version\":1"),
         ("\"binding\":null", "\"binding\":null,\"binding\":null"),
         (
             "\"name\":\"same name\"",

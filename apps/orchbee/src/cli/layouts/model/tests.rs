@@ -105,11 +105,17 @@ fn export_preserves_order_orientation_observed_ratio_manual_label_and_literal_ar
         json!({"type":"panel","panelId":first,"rightClick":"orchbee","children":[],"primary":{"presentationId":first,"name":"automatic","start":true,"label":"manual",
         "cwd":"C:\\目录 空格","command":["C:\\Program Files\\shell.exe","","quoted \" text","中文"],"env":{}}})
     );
-    assert!(result["second"]["first"]["primary"].get("cwd").is_none());
+    assert!(
+        result["second"]["first"]["primary"]
+            .get("cwd")
+            .unwrap()
+            .is_null()
+    );
     assert!(
         result["second"]["first"]["primary"]
             .get("command")
-            .is_none()
+            .unwrap()
+            .is_null()
     );
     assert_eq!(result["second"]["first"]["primary"]["env"], json!({}));
 }
@@ -170,7 +176,7 @@ fn portable_bounds_are_checked_before_terminal_reads_and_never_drop_child_presen
     let value = tree(&root, &splits, &facts).unwrap();
     assert_eq!(value["primary"]["start"], true);
     assert_eq!(value["children"][0]["start"], false);
-    assert!(value["children"][0].get("command").is_none());
+    assert!(value["children"][0].get("command").unwrap().is_null());
     let plan = crate::cli::layouts::template::parse(&serde_json::to_vec(&value).unwrap())
         .unwrap()
         .plan();

@@ -113,10 +113,7 @@ fn project(
                     facts: &BTreeMap<TerminalPresentationId, Leaf>,
                 ) -> Result<Value, &'static str> {
                     let mut value = json!({"presentationId":presentation.presentation_id,"name":presentation.label,
-                        "start":presentation.binding.is_some(),"env":{}});
-                    if let Some(label) = &presentation.custom_label {
-                        value["label"] = json!(label);
-                    }
+                        "start":presentation.binding.is_some(),"env":{},"label":presentation.custom_label,"cwd":null,"command":null});
                     if presentation.binding.is_some() {
                         let leaf = facts
                             .get(&presentation.presentation_id)

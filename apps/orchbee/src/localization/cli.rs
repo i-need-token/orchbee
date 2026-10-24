@@ -103,6 +103,21 @@ impl Locale {
             return self.cli_plugin_preparation_failure(reason).to_owned();
         }
         #[cfg(windows)]
+        if failure.failure_schema == Some("orchbee.cli.failure.layout-apply")
+            && matches!(
+                failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("reason"))
+                    .and_then(serde_json::Value::as_str),
+                Some("invalid-layout" | "layout-version-1-required")
+            )
+        {
+            return match self {
+                Self::EnUs => "Invalid layout input; expected the current orchbee.layout.export version 1 shape.\n".to_owned(),
+                Self::ZhCn => "布局输入无效；需要当前 orchbee.layout.export 版本 1 的结构。\n".to_owned(),
+            };
+        }
         if failure.failure_schema == Some("orchbee.cli.failure.workbench-query") {
             let reason = failure
                 .details
@@ -3340,7 +3355,7 @@ const HELP_TERMINAL_OBSERVE_ZH: crate::localization::HelpDetails =
 #[cfg(windows)]
 const HELP_SITE_START_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee server start [--format text|json]",
-    "Ensure the selected local session is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete catalog v2/v3\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd and unique provider session references. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and legacy Active records\nrefuse without deleting data. Run server diagnose with the same --session selection\nor use orchbee --session recovery-work server start for another name. New activation\npublishes catalog v3 before checkpoint storage; binaries limited to v1/v2 cannot\noperate v3 sessions, even after clean stop. Live Host adoption remains separate.\n\nJSON uses orchbee.site.start: started means this invocation spawned Server;\nalready-running means an existing session admitted it. Resume providers is enabled\nby default; ORCHBEE_RESUME_AGENTS_ON_RESTORE accepts only true/false. Live Agent\nstate, terminal history and screen contents are not restored.",
+    "Ensure the selected local session is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete current catalog\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd and unique provider session references. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and unreadable records\nrefuse without deleting data. Run server diagnose with the same --session selection\nor use orchbee --session recovery-work server start for another name. New activation\npublishes the current version 1 catalog before checkpoint storage. Other record\nversions and shapes remain unreadable without migration. Live Host adoption remains separate.\n\nJSON uses orchbee.site.start: started means this invocation spawned Server;\nalready-running means an existing session admitted it. Resume providers is enabled\nby default; ORCHBEE_RESUME_AGENTS_ON_RESTORE accepts only true/false. Live Agent\nstate, terminal history and screen contents are not restored.",
 );
 #[cfg(not(windows))]
 const HELP_SITE_START_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3350,7 +3365,7 @@ const HELP_SITE_START_EN: crate::localization::HelpDetails = crate::localization
 #[cfg(windows)]
 const HELP_SITE_START_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee server start [--format text|json]",
-    "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当清单 v2/v3 登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 会话引用。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和旧版\nActive 记录均拒绝且不删除数据。请用相同 --session 选择执行 server diagnose，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布 catalog v3\n再使用检查点存储；只支持 v1/v2 的二进制即使在正常停止后也不能操作 v3 会话。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.site.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。默认恢复 provider；\nORCHBEE_RESUME_AGENTS_ON_RESTORE 仅接受 true／false。不恢复存活 Agent 状态、终端历史或屏幕内容。",
+    "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当当前清单登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 会话引用。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和不可读记录均拒绝且不删除数据。请用相同 --session 选择执行 server diagnose，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布当前版本 1 catalog\n再使用检查点存储；其他记录版本和形状保持不可读，不迁移。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.site.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。默认恢复 provider；\nORCHBEE_RESUME_AGENTS_ON_RESTORE 仅接受 true／false。不恢复存活 Agent 状态、终端历史或屏幕内容。",
 );
 #[cfg(not(windows))]
 const HELP_SITE_START_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(

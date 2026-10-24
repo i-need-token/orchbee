@@ -601,7 +601,7 @@ impl CohortFixture {
         std::fs::write(
             owner.0.join("cohort.json"),
             format!(
-                "{{\"schemaVersion\":2,\"artifacts\":{{{}}}}}",
+                "{{\"schemaVersion\":1,\"artifacts\":{{{}}}}}",
                 entries.join(",")
             ),
         )

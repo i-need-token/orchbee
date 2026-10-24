@@ -41,7 +41,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn panel(n: u64) -> Value {
-    json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"presentationId":id(n+100),"label":"shell","binding":null},"childPresentations":[]})
+    json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"customLabel":null,"presentationId":id(n+100),"label":"shell","binding":null},"childPresentations":[]})
 }
 fn tree(split: u64, left: Value, right: Value) -> Value {
     json!({"kind":"split","splitId":id(split),"orientation":"horizontal","children":[{"slotId":id(split+1),"node":left},{"slotId":id(split+2),"node":right}]})

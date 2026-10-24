@@ -204,6 +204,7 @@
 											"starting",
 											"deleting",
 											"recovery-required",
+											"unreadable",
 											"recoverable"
 										]
 									},
@@ -271,7 +272,7 @@
 									{
 										"properties": {
 											"state": {
-												"enum": ["starting", "deleting", "recovery-required"]
+												"enum": ["starting", "deleting", "recovery-required", "unreadable"]
 											},
 											"running": {
 												"type": "null"

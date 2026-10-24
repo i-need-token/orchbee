@@ -55,7 +55,7 @@ pub(crate) fn spawn_registered(
     deadline: Instant,
 ) -> io::Result<RetainedChild> {
     let initial = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
-    if initial.lifecycle != Lifecycle::Active || initial.processes.is_none() {
+    if initial.lifecycle != Lifecycle::Active {
         return Err(io::ErrorKind::InvalidData.into());
     }
     let _writer = loop {
@@ -84,8 +84,6 @@ pub(crate) fn spawn_registered(
     };
     record
         .processes
-        .as_mut()
-        .ok_or(io::ErrorKind::InvalidData)?
         .reserve(role, creator)
         .map_err(|_| io::ErrorKind::InvalidData)?;
     directory.publish(scope, &record)?;
@@ -97,8 +95,6 @@ pub(crate) fn spawn_registered(
         let identity = child.identity()?;
         record
             .processes
-            .as_mut()
-            .ok_or(io::ErrorKind::InvalidData)?
             .identify(role, identity)
             .map_err(|_| io::ErrorKind::InvalidData)?;
         directory.publish(scope, &record)?;

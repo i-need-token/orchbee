@@ -7,7 +7,7 @@ fn id(n: u64) -> String {
 fn snapshot() -> Snapshot {
     let panel = |n| {
         json!({"kind":"panel","panelId":id(n),
-        "primaryPresentation":{"presentationId":id(n+100),"label":"shell","binding":null},
+        "primaryPresentation":{"customLabel":null,"presentationId":id(n+100),"label":"shell","binding":null},
         "childPresentations":[]})
     };
     serde_json::from_value(json!({

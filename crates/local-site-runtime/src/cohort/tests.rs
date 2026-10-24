@@ -45,7 +45,7 @@ impl Fixture {
         fs::write(
             path.join("cohort.json"),
             serde_json::to_vec(&serde_json::json!({
-                "schemaVersion": 2, "artifacts": artifacts,
+                "schemaVersion": 1, "artifacts": artifacts,
             }))
             .unwrap(),
         )
@@ -123,11 +123,8 @@ fn observation_adapters_sidecar_is_declared_and_lazily_admitted() {
 
 #[test]
 fn incompatible_and_incomplete_manifests_fail_typed() {
-    // A schema-1 or unknown-version manifest is incompatible even when every
-    // artifact member is present and well-formed — and a true schema-1 shape
-    // (no adapters member) is incompatible on its version, not merely invalid
-    // on its missing member.
-    for version in [serde_json::json!(1), serde_json::json!(3)] {
+    // Unsupported versions reject even when the complete current shape is supplied.
+    for version in [serde_json::json!(2), serde_json::json!(3)] {
         let fixture = Fixture::new();
         let manifest = fixture.path.join("cohort.json");
         let mut encoded: serde_json::Value =
@@ -146,7 +143,7 @@ fn incompatible_and_incomplete_manifests_fail_typed() {
         let manifest = fixture.path.join("cohort.json");
         let mut encoded: serde_json::Value =
             serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
-        encoded["schemaVersion"] = serde_json::json!(1);
+        encoded["schemaVersion"] = serde_json::json!(2);
         encoded["artifacts"]
             .as_object_mut()
             .unwrap()
@@ -158,7 +155,7 @@ fn incompatible_and_incomplete_manifests_fail_typed() {
             "incompatible native cohort manifest version"
         );
     }
-    // A schema-2 manifest missing the required adapters member, or declaring a
+    // A current manifest missing the required adapters member, or declaring a
     // malformed digest, is an invalid manifest — never defaulted.
     for mutate in [
         |manifest: &mut serde_json::Value| {
@@ -235,8 +232,8 @@ fn diagnostic_names_only_a_missing_artifact_open() {
 fn malformed_duplicate_unknown_and_oversized_manifests_fail_closed() {
     for encoded in [
         b"{}".to_vec(),
-        b"{\"schemaVersion\":2,\"schemaVersion\":2,\"artifacts\":{}}".to_vec(),
-        b"{\"schemaVersion\":2,\"artifacts\":{},\"extra\":true}".to_vec(),
+        b"{\"schemaVersion\":1,\"schemaVersion\":1,\"artifacts\":{}}".to_vec(),
+        b"{\"schemaVersion\":1,\"artifacts\":{},\"extra\":true}".to_vec(),
         vec![b' '; MANIFEST_LIMIT as usize + 1],
     ] {
         let fixture = Fixture::new();

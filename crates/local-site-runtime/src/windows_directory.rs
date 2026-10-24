@@ -1,19 +1,5 @@
 //! Windows terminal directory observations and process-local PowerShell synchronization.
 
-/// Frozen legacy argv fingerprint for retained-shell recognition, never new launches.
-pub const WINDOWS_DIRECTORY_PROMPT: &str = r"if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }";
-
-/// Recognizes only the exact historical directory-only or UTF-8/directory startup.
-/// Current launch authority remains the shared assets below.
-#[must_use]
-pub fn windows_legacy_powershell_initialization_matches(script: &str) -> bool {
-    script == WINDOWS_DIRECTORY_PROMPT
-        || script
-            == format!(
-                "$global:OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $global:OutputEncoding; {WINDOWS_DIRECTORY_PROMPT}"
-            )
-}
-
 // Invoke the original prompt first: preceding statements would overwrite `$?`
 // on Windows PowerShell 5.1. Single-quoted constant text also avoids that shell's
 // command-line quoting differences. No launch argument is interpolated here.

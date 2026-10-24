@@ -32,6 +32,13 @@ impl Object {
     pub(super) fn parse(raw: &RawValue) -> Result<Self, &'static str> {
         serde_json::from_str(raw.get()).map_err(|_| "invalid-layout")
     }
+    pub(super) fn require(&self, names: &[&str]) -> Result<(), &'static str> {
+        if names.iter().all(|name| self.contains(name)) {
+            Ok(())
+        } else {
+            Err("invalid-layout")
+        }
+    }
     pub(super) fn contains(&self, name: &str) -> bool {
         self.0.contains_key(name)
     }

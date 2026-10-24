@@ -169,7 +169,7 @@ combined runtime separately. TLA model execution is not required for this Window
 ## Inspecting completed startup
 
 Windows Agent Get v9 (v10 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Completed managed names and provider intent survive clean restart through
-[checkpoint version 4](../../orchbee-server/docs/agent-canonical-model.md#managed-name-restart).
+[checkpoint version 1](../../orchbee-server/docs/agent-canonical-model.md#managed-name-restart).
 Restored physical Get v14 reports active provider ownership with its own read source, without an old
 Session, reservation or new interactive-readiness claim. Clearing a restored name also clears only its
 matching owned persisted resume reference; later independent reports remain.

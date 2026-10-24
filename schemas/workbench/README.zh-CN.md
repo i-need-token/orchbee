@@ -466,7 +466,7 @@ Client 视图契约还拥有 `layout` 意图及 `layout-read` 完成／状态。
 
 ## 窗格自定义标题
 
-[窗格标题契约](../../apps/orchbee/docs/native-panel-labels.zh-CN.md) 增加可选的规范 `Presentation.customLabel` 及携带精确 context/Tab/Panel ID 的 `panel.rename`。存储的自定义标题必须非空、已裁剪、最多 512 个 Unicode 码点且不能为 null；省略该字段保持旧快照形状。更新的 `label` 可省略或为 null，先限制原文长度，再按 Unicode White_Space 裁剪，空白输入规范化为 null。Rust 与 TypeScript 独立实现该规则（NEL 是空白，BOM 不是）。创建时的 `label` 及所有身份和绑定保持不变。此扩展属于统一升级的实验性 OBWP v1 cohort，旧的严格读取器可能拒绝新字段或动作。共享命令一致性语料覆盖规范设置、清除及规范化输入。
+[窗格标题契约](../../apps/orchbee/docs/native-panel-labels.zh-CN.md) 要求必填可空的规范 `Presentation.customLabel` 及携带精确 context/Tab/Panel ID 的 `panel.rename`。非 null 自定义标题必须非空、已裁剪且最多 512 个 Unicode 码点；没有覆盖项必须显式为 null。省略字段和纯空白回退标签均被拒绝。更新的 `label` 可省略或为 null，先限制原文长度，再按 Unicode White_Space 裁剪，空白输入规范化为 null。Rust 与 TypeScript 独立实现该规则（NEL 是空白，BOM 不是）。创建时的 `label` 及所有身份和绑定保持不变。此扩展属于统一升级的实验性 OBWP v1 cohort，旧的严格读取器可能拒绝新字段或动作。共享命令一致性语料覆盖规范设置、清除及规范化输入。
 
 Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](../../apps/orchbee/docs/native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
 

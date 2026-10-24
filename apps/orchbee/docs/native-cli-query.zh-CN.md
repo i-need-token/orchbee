@@ -458,17 +458,18 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 删除在每个文件系统阶段前检查 Ctrl+C，中断退出 130。已完成移除不会回滚；保留的意图支持继续清理。`interrupted` 结果报告是否仍有待完成意图，也覆盖清理完成后才收到中断的情况。
 
 列表输出 `orchbee.session.list` v2；v1 保持原有封闭状态集合。`recoverable` 表示受门保护的当次观察
-确认 v2/v3 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
+确认当前登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
 删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v148。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
 即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`server start` 会重建
-路由并恢复检查点。`server start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的 v2/v3 Active 代次，
-也支持运行时叶目录丢失，并保留最近检查点。第一阶段保留数据、拒绝活 Host、未知／不完整身份和旧版 Active；
+路由并恢复检查点。`server start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的当前 Active 代次，
+也支持运行时叶目录丢失，并保留最近检查点。第一阶段保留数据、拒绝活 Host、未知／不完整身份和不可读记录；
 不终止旧进程，不伪造正常停止回执。使用相同 `--session` 选择执行 `orchbee server diagnose` 检查拒绝原因，
 或执行 `orchbee --session recovery-work server start` 另开命名会话。新激活会在提交标记、拉起 Server 或发布
-检查点存储前先发布 catalog v3。Stopped v1/v2 要求主检查点；Stopped v3 准入固定槽位与精确的自有
-损坏原件名。只支持 v1/v2 的读取器即使面对正常停止的会话，也会在产生效果前拒绝 v3。详见
+检查点存储前先发布当前版本 1 catalog。Stopped 记录准入固定槽位及精确自有损坏原件。
+其他记录版本／形状保持不可读，不迁移。`session list` 将具有已准入名称的记录显示为 `unreadable`，
+运行状态未知；已确认的 `session delete` 可在全部既有 owner／存储 guard 通过后删除它。详见
 [恢复合同](../../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)。待删除状态也会在临时
 元数据消失后保留，可用相同删除命令继续处理。列表仍只读，不隐式重建运行时基目录本身。
 

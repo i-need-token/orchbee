@@ -15,7 +15,8 @@ fn position(context: u32) -> Position {
 fn startup_preference_codec_rejects_future_incomplete_unknown_and_oversized_records() {
     let position = position(1);
     let bytes = serde_json::to_vec(&Record {
-        version: 2,
+        schema: Schema::Position,
+        version: 1,
         position: position.clone(),
     })
     .unwrap();
@@ -23,7 +24,7 @@ fn startup_preference_codec_rejects_future_incomplete_unknown_and_oversized_reco
     let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     value["version"] = 3.into();
     assert!(decode(&serde_json::to_vec(&value).unwrap()).is_err());
-    value["version"] = 2.into();
+    value["version"] = 1.into();
     value["binding"] = "foreign authority".into();
     assert!(decode(&serde_json::to_vec(&value).unwrap()).is_err());
     assert!(decode(br#"{"version":1}"#).is_err());
@@ -47,7 +48,7 @@ const HISTORICAL_WORKSPACE: &[u8] = br#"{
     }"#;
 
 #[test]
-fn historical_workspace_requires_valid_project_but_current_position_rejects_it() {
+fn current_position_rejects_historical_shape_and_requires_member() {
     let expected = Position {
         location: NativeContextLocation::Workspace {
             workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
@@ -61,33 +62,20 @@ fn historical_workspace_requires_valid_project_but_current_position_rejects_it()
         },
         member: None,
     };
-    assert_eq!(decode(HISTORICAL_WORKSPACE).unwrap(), expected);
-    for invalid in [None, Some(serde_json::Value::Null), Some("invalid".into())] {
-        let mut value: serde_json::Value = serde_json::from_slice(HISTORICAL_WORKSPACE).unwrap();
-        let identity = value["position"]["location"]["identity"]
-            .as_object_mut()
-            .unwrap();
-        match invalid {
-            None => {
-                identity.remove("project_id");
-            }
-            Some(value) => {
-                identity.insert("project_id".into(), value);
-            }
-        }
-        assert!(decode(&serde_json::to_vec(&value).unwrap()).is_err());
-    }
-    let mut current: serde_json::Value = serde_json::from_slice(HISTORICAL_WORKSPACE).unwrap();
-    current["version"] = 2.into();
-    assert!(decode(&serde_json::to_vec(&current).unwrap()).is_err());
-    current["position"]["location"]["identity"]
+    assert!(decode(HISTORICAL_WORKSPACE).is_err());
+    let bytes = serde_json::to_vec(&Record {
+        schema: Schema::Position,
+        version: 1,
+        position: expected.clone(),
+    })
+    .unwrap();
+    assert_eq!(decode(&bytes).unwrap(), expected);
+    let mut missing: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    missing["position"]
         .as_object_mut()
         .unwrap()
-        .remove("project_id");
-    assert_eq!(
-        decode(&serde_json::to_vec(&current).unwrap()).unwrap(),
-        expected
-    );
+        .remove("member");
+    assert!(decode(&serde_json::to_vec(&missing).unwrap()).is_err());
 }
 struct Root(PathBuf);
 impl Drop for Root {
@@ -131,43 +119,7 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
     assert_eq!(decode(&raw).unwrap(), position(2));
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&raw).unwrap()["version"],
-        2
+        1
     );
-    assert!(!path.join(".orchbee-update.pending").exists());
-}
-
-#[test]
-fn historical_workspace_is_rewritten_as_v2_with_the_same_stable_selection() {
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let root = Root(std::env::temp_dir().join(format!("orchbee-startup-preference-{nonce:032x}")));
-    fs::create_dir(&root.0).unwrap();
-    let path = root.0.join("position");
-    let mut cache = orchbee_local_site_runtime::WindowsPrivateCache::acquire(&path).unwrap();
-    cache.replace(FILE, HISTORICAL_WORKSPACE).unwrap();
-    drop(cache);
-    let old =
-        orchbee_local_site_runtime::WindowsPrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
-            .unwrap()
-            .unwrap();
-    assert_eq!(old, HISTORICAL_WORKSPACE);
-    let migrated = decode(&old).unwrap();
-    let mut writer = Writer::start(path.clone()).unwrap();
-    writer.publish(migrated.clone());
-    drop(writer);
-    let raw =
-        orchbee_local_site_runtime::WindowsPrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
-            .unwrap()
-            .unwrap();
-    let record: serde_json::Value = serde_json::from_slice(&raw).unwrap();
-    assert_eq!(record["version"], 2);
-    assert!(
-        record["position"]["location"]["identity"]
-            .get("project_id")
-            .is_none()
-    );
-    assert_eq!(decode(&raw).unwrap(), migrated);
     assert!(!path.join(".orchbee-update.pending").exists());
 }

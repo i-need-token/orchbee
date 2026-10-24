@@ -20,6 +20,7 @@ impl Locale {
                 SessionState::Deleting => "删除未完成",
                 SessionState::RecoveryRequired => "需要恢复",
                 SessionState::Recoverable => "可自动恢复",
+                SessionState::Unreadable => "不可读",
             },
         }
     }

@@ -6,7 +6,7 @@ fn id(n: u8) -> String {
 fn fixture() -> Snapshot {
     let tab = |t, p| {
         json!({"tabId":id(t),"label":"shell","pinned":false,"groupId":null,
-            "root":{"kind":"panel","panelId":id(p),"primaryPresentation":{"presentationId":id(p+40),"label":"shell","binding":null},"childPresentations":[]}})
+            "root":{"kind":"panel","panelId":id(p),"primaryPresentation":{"customLabel":null,"presentationId":id(p+40),"label":"shell","binding":null},"childPresentations":[]}})
     };
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(1),"revision":"2",
             "navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(10), "label":"Project"}], "directories":[], "workspaces":[{"workspaceId":id(11), "label":"Work", "terminalContextId":id(12), "primaryDirectoryId":null, "projectId":id(10)}]},

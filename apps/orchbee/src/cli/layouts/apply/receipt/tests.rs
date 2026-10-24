@@ -52,14 +52,14 @@ fn large_valid_member_layout_keeps_all_recovery_identities_within_the_native_out
             *next += 1;
             members.push(
                 json!({"presentationId":id(*next),"name":"n".repeat(512),"label":"l".repeat(512),
-            "start":true,"cwd":format!("C:\\{}","x".repeat(697)),"env":{}}),
+            "start":true,"command":null,"cwd":format!("C:\\{}","x".repeat(697)),"env":{}}),
             );
         }
         let primary = members.remove(0);
         json!({"type":"panel","panelId":panel,"rightClick":"orchbee","primary":primary,"children":members})
     }
     let layout = json!({"workspaceId":null,"terminalContextId":id(2),"tabId":id(3),"zoomed":false,"focusedPanelId":id(101),"root":root(24,&mut 100)});
-    let export = json!({"schema":"orchbee.layout.export","version":2,"source":{"kind":"layout-observation","siteId":id(1),"revision":"500","clientId":id(4),"viewRevision":"2"},"result":{"layout":layout}});
+    let export = json!({"schema":"orchbee.layout.export","version":1,"source":{"kind":"layout-observation","scope":"client","siteId":id(1),"revision":"500","clientId":id(4),"viewRevision":"2"},"result":{"layout":layout}});
     assert!(output::encode_document(&export).unwrap().len() <= 1024 * 1024);
     let mut receipt = Receipt::new();
     receipt.stage = "complete";

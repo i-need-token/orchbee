@@ -193,12 +193,11 @@ dispose／poison 所有者仍回答 unavailable。保留既有 canonical ID 优�
 
 ## 托管名称重启
 
-私有 Windows 检查点 version 4 仅保留已完成的托管名称占用，按 Presentation 索引，内容为
+私有 Windows 检查点 version 1 仅保留已完成的托管名称占用，按 Presentation 索引，内容为
 名称和 provider ID。每条占用必须有同一规范化 provider 的有效官方恢复引用。占用共用
 512 名称上限，名称和 presentation 均唯一。待完成启动、canonical 会话 ID、旧物理身份及
-预留 ID 不构成重启权威。继续读取 version 1–3；旧二进制拒绝 version 4，不静默丢弃。
-匹配 cohort 回滚必须保留兼容恢复数据，或显式转换／使用此前有效检查点；失败时不得覆盖
-保留的 version 4。
+预留 ID 不构成重启权威。仅完整的当前 version 1 形状可读；不兼容副本按
+[checkpoint 恢复策略](workbench-checkpoint.zh-CN.md)保留。
 
 正常停止在 registry → coordinator → AgentState 守卫内按精确当前成员捕获。启动只选择
 已启用且去重后的 provider 恢复计划。在新的 Host 创建及引用播种完成后、Site 发布前，
@@ -214,7 +213,7 @@ Names 将选中占用恢复到新物理绑定。禁用恢复、重复抑制和�
 提交该准备结果，提交期间始终持有守卫。两个所有者仅执行 CPU 工作，提交守卫内无传输。
 这避免可观察的半释放，也避免删除较新的 provider 会话。
 
-证据须覆盖旧／新检查点严格接纳、有界唯一占用、待完成状态排除、provider／引用一致、
+证据须覆盖当前检查点严格准入与不兼容格式拒绝、有界唯一占用、待完成状态排除、provider／引用一致、
 新物理身份、禁用／去重恢复、同 provider reference 替换、分阶段清除，以及真实 Windows
 托管重启后的按名查询／输入／清除。仅编码或存储测试不能证明这条运行链路。终端语义
 wait／prompt／focus 和完整 provider 就绪仍是独立义务。

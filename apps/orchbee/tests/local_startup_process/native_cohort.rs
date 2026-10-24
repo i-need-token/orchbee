@@ -195,7 +195,7 @@ impl Fixture {
         let manifest = self.cohort.join("cohort.json");
         fs::write(
             &manifest,
-            serde_json::to_vec(&serde_json::json!({"schemaVersion":2,"artifacts":artifacts}))
+            serde_json::to_vec(&serde_json::json!({"schemaVersion":1,"artifacts":artifacts}))
                 .unwrap(),
         )
         .unwrap();

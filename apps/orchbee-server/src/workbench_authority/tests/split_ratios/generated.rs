@@ -16,7 +16,7 @@ fn tree(depth: u8, counter: &mut u128) -> Value {
     };
     if depth == 0 {
         return json!({"kind":"panel", "panelId":mint(),
-            "primaryPresentation":{"presentationId":mint(),"label":"leaf","binding":null},
+            "primaryPresentation":{"customLabel":null,"presentationId":mint(),"label":"leaf","binding":null},
             "childPresentations":[]});
     }
     let id = mint();

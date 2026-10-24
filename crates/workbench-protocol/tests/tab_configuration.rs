@@ -26,7 +26,7 @@ fn context(case: &Case) -> TerminalContext {
         "groups": case.groups.iter().map(|group| json!({"groupId":group["id"],"label":group["title"],"color":group["color"]})).collect::<Vec<_>>(),
         "tabs": case.tabs.iter().enumerate().map(|(index, tab)| json!({
             "tabId":tab["id"],"label":tab["title"],"pinned":tab["pinned"],"groupId":tab["group"],"automaticLabel":index == 1,
-            "root":{"kind":"panel","rightClick":"panel","panelId":format!("{:032x}",1000+index),"childPresentations":[{"presentationId":format!("{:032x}",2000+index),"label":"child","binding":null}],"primaryPresentation":{"presentationId":format!("{:032x}",3000+index),"label":"primary","customLabel":"kept","binding":{"workerId":format!("{:032x}",4000),"terminalId":format!("{:032x}",5000+index)}}}
+            "root":{"kind":"panel","rightClick":"panel","panelId":format!("{:032x}",1000+index),"childPresentations":[{"customLabel":null,"presentationId":format!("{:032x}",2000+index),"label":"child","binding":null}],"primaryPresentation":{"presentationId":format!("{:032x}",3000+index),"label":"primary","customLabel":"kept","binding":{"workerId":format!("{:032x}",4000),"terminalId":format!("{:032x}",5000+index)}}}
         })).collect::<Vec<_>>()
     })).unwrap()
 }

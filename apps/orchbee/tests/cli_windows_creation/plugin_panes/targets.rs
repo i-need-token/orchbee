@@ -27,14 +27,12 @@ fn scene() -> Snapshot {
     let mut value = json!(snapshot(false, false));
     let current = &mut value["terminalContexts"][0]["tabs"][0]["root"]["children"][0]["node"];
     current["primaryPresentation"]["binding"] = binding(206);
-    current["childPresentations"] =
-        json!([{"presentationId":id(306),"label":"current child","binding":binding(406)}]);
+    current["childPresentations"] = json!([{"customLabel":null,"presentationId":id(306),"label":"current child","binding":binding(406)}]);
     value["terminalContexts"][0]["tabs"][0]["root"]["children"][1]["node"]["primaryPresentation"]
         ["binding"] = binding(208);
     let mut focused = panel(18);
     focused["primaryPresentation"]["binding"] = binding(218);
-    focused["childPresentations"] =
-        json!([{"presentationId":id(318),"label":"workspace child","binding":binding(418)}]);
+    focused["childPresentations"] = json!([{"customLabel":null,"presentationId":id(318),"label":"workspace child","binding":binding(418)}]);
     value["navigation"]["projects"] = json!([{"projectId":id(13),"label":"project"}]);
     value["navigation"]["workspaces"] = json!([{"workspaceId":id(12),"projectId":id(13),"terminalContextId":id(11),"label":"destination","primaryDirectoryId":null}]);
     value["terminalContexts"].as_array_mut().unwrap().push(json!({"terminalContextId":id(11),"groups":[],"tabs":[

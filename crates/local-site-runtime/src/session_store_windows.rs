@@ -98,19 +98,10 @@ impl WindowsSessionStore {
     /// Each complete payload is validated once. Invalid originals remain untouched by loading.
     pub fn read_validated<T>(
         &self,
-        mut parse: impl FnMut(&[u8]) -> Option<T>,
-    ) -> io::Result<WindowsCheckpointLoad<T>> {
-        self.try_read_validated(|bytes| Ok(parse(bytes)))
-    }
-
-    /// `Ok(None)` marks ordinary corruption. `Err` refuses the whole load without selecting
-    /// a fallback, reporting an empty restoration, or modifying any committed copy.
-    pub fn try_read_validated<T>(
-        &self,
-        parse: impl FnMut(&[u8]) -> io::Result<Option<T>>,
+        parse: impl FnMut(&[u8]) -> Option<T>,
     ) -> io::Result<WindowsCheckpointLoad<T>> {
         let (mut candidates, _pins) = self.read_slots()?;
-        let mut values = rotation::try_validate(&mut candidates, parse)?;
+        let mut values = rotation::validate(&mut candidates, parse);
         let checkpoint = rotation::latest(&candidates).and_then(|index| values[index].take());
         let invalid = candidates
             .iter()
@@ -187,7 +178,7 @@ impl WindowsSessionStore {
                     (&mut file)
                         .take((self.maximum_bytes + HEADER_BYTES + 1) as u64)
                         .read_to_end(&mut bytes)?;
-                    candidates[index] = Candidate::decode(&bytes, self.maximum_bytes, index == 0);
+                    candidates[index] = Candidate::decode(&bytes, self.maximum_bytes);
                     pins[index] = Some(file);
                 }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}

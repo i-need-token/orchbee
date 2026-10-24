@@ -9,7 +9,12 @@ const id = (value: number) => value.toString(16).padStart(32, '0');
 const leaf = (value: number) => ({
 	kind: 'panel',
 	panelId: id(value),
-	primaryPresentation: { presentationId: id(value + 1), label: 'shell', binding: null },
+	primaryPresentation: {
+		customLabel: null,
+		presentationId: id(value + 1),
+		label: 'shell',
+		binding: null,
+	},
 	childPresentations: [],
 });
 const split = {

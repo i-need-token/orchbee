@@ -266,7 +266,6 @@ impl<'de> Deserialize<'de> for WorkbenchTabGroupLabel {
 
 impl WorkbenchLabel {
     /// Parses a recognizable Workspace name without changing the supplied text.
-    /// Historical snapshot labels retain the broader `parse` contract for recovery.
     ///
     /// # Errors
     /// Rejects empty, whitespace-only, or overlong names.
@@ -278,7 +277,7 @@ impl WorkbenchLabel {
     }
 
     pub fn parse(value: &str) -> Result<Self, ContractError> {
-        if value.is_empty() || value.chars().count() > MAXIMUM_LABEL_LENGTH {
+        if value.trim().is_empty() || value.chars().count() > MAXIMUM_LABEL_LENGTH {
             return Err(ContractError::InvalidDocument);
         }
         Ok(Self(value.to_owned()))

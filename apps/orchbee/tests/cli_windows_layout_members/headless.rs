@@ -2,7 +2,7 @@ use super::*;
 
 fn leaf(n: u64, label: &str) -> Value {
     json!({"kind":"panel","panelId":id(n),"rightClick":"orchbee",
-        "primaryPresentation":{"presentationId":id(n+100),"label":label,"binding":null},
+        "primaryPresentation":{"customLabel":null,"presentationId":id(n+100),"label":label,"binding":null},
         "childPresentations":[]})
 }
 fn split_root(first: u64, second: u64, ratio: f64) -> Value {

@@ -39,11 +39,14 @@ The Server selects the current Windows provider command and literal resume argum
 
 Workbench/OBCS/OBCN launch selections admit 30 KiB of executable/argument UTF-8 bytes and 128 arguments, with a second 30 KiB worst-case JSON string-content budget: ASCII controls count as six bytes, quotes/backslashes as two, and other UTF-8 bytes as one. OBCS JSON frames admit 63 KiB within their existing u16 header; OBCN binary frames admit 40 KiB and Workbench launch requests 96 KiB. The independent Host 64 KiB control-document and Windows command-line limits still apply. Encoded resume arguments are ASCII and limited to 30,000 characters; batch dispatch rejects command lines over 8,000 characters. Older peers reject larger payloads; activate and roll back complete matching cohorts.
 
-The reservation is conservatively retained after both known creation failure and unknown outcome. Herdr's alternate-duplicate retry after proven pre-process spawn failure remains unimplemented. Per-terminal cwd is retained by checkpoint version 3; see [Workbench restart checkpoint](workbench-checkpoint.md). Completed managed names restore through [the Names owner](agent-canonical-model.md#managed-name-restart)
-and checkpoint version 4; disabled resume, deduplicated launches and ordinary manual names do not restore names.
+The reservation is conservatively retained after both known creation failure and unknown outcome. Herdr's alternate-duplicate retry after proven pre-process spawn failure remains unimplemented. Per-terminal cwd is retained by checkpoint version 1; see [Workbench restart checkpoint](workbench-checkpoint.md). Completed managed names restore through [the Names owner](agent-canonical-model.md#managed-name-restart)
+and checkpoint version 1; disabled resume, deduplicated launches and ordinary manual names do not restore names.
 
 ## Evidence and compatibility
 
-Tests cover official ID/path references, primary/child separation, exact physical-generation admission, malformed and duplicate records, membership deletion, v1/v2 compatibility, bounded encoding, fresh identity seeding, candidate rollback and clearing without resurrection. Windows acceptance must exercise actual clean stop, fresh Site restart and public report reads; storage and seed evidence does not prove that a provider was resumed or authenticated.
+Tests cover official ID/path references, primary/child separation, exact physical-generation admission, malformed and duplicate records, membership deletion, incompatible-format rejection, bounded encoding, fresh identity seeding, candidate rollback and clearing without resurrection. Windows acceptance must exercise actual clean stop, fresh Site restart and public report reads; storage and seed evidence does not prove that a provider was resumed or authenticated.
 
-Older binaries reject unsupported checkpoint versions explicitly. Version 1–3 files can upgrade to version 4 on the next successful clean stop; failed capture/publication preserves the preceding committed file. Deploy matched cohorts. Do not erase an unsupported checkpoint to make startup succeed. Full regression and real provider resume acceptance remain required before the Windows parity goal is complete.
+Only the complete current version 1 checkpoint is readable. Incompatible copies are preserved and
+use the existing fallback/empty notice; reads never migrate. Deploy matched cohorts. Do not erase
+unsupported data to make startup succeed. Full regression and real provider resume acceptance
+remain required before the Windows parity goal is complete.

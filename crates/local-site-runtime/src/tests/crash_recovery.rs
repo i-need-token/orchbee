@@ -40,12 +40,6 @@ fn record_version(base: &Fixture, local: &Fixture, scope: &str) -> u64 {
         serde_json::from_slice(&fs::read(record_path(base, local, scope)).unwrap()).unwrap();
     value["version"].as_u64().unwrap()
 }
-fn rewrite_record_version(base: &Fixture, local: &Fixture, scope: &str, version: u8) {
-    let path = record_path(base, local, scope);
-    let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    value["version"] = serde_json::json!(version);
-    fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
-}
 fn guards(site: &Rendezvous) -> (crate::ModeCheckedSiteLock, crate::ModeCheckedSiteLock) {
     let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
         panic!("activation");
@@ -60,17 +54,11 @@ fn guards(site: &Rendezvous) -> (crate::ModeCheckedSiteLock, crate::ModeCheckedS
 fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_one() {
     for text in ["default", "cold-work"] {
         for saved in [false, true] {
-            for catalog_version in [2, 3, 4, 5] {
+            {
                 let base = Fixture::new();
                 let local = Fixture::new();
                 let (catalog, site, scope) = setup(&base, &local, text);
-                if catalog_version != 5 {
-                    rewrite_record_version(&base, &local, &scope, catalog_version);
-                }
-                assert_eq!(
-                    record_version(&base, &local, &scope),
-                    u64::from(catalog_version)
-                );
+                assert_eq!(record_version(&base, &local, &scope), 1);
                 if saved {
                     let mut store = WindowsSessionStore::open(&local.0, &site, 64).unwrap();
                     store.publish(b"last valid workbench").unwrap();
@@ -104,7 +92,7 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
                 assert!(catalog.begin_activation(&site, [1; 16]).is_err());
                 catalog.begin_activation(&site, [2; 16]).unwrap();
                 site.commit_activation().unwrap();
-                assert_eq!(record_version(&base, &local, &scope), 5);
+                assert_eq!(record_version(&base, &local, &scope), 1);
                 let record = directory(&base, &local).read(&scope).unwrap().unwrap();
                 assert_eq!(record.activation_id, Some([2; 16]));
                 assert_eq!(record.lifecycle, Lifecycle::Active);
@@ -122,7 +110,7 @@ fn dead_default_and_named_generations_recover_without_a_checkpoint_or_erasing_on
 #[test]
 fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
     for text in ["default", "interrupted"] {
-        for receipt in ["crashed", "stopped-v1", "stopped-v2"] {
+        for receipt in ["crashed", "stopped"] {
             let base = Fixture::new();
             let local = Fixture::new();
             let (catalog, site, scope) = setup(&base, &local, text);
@@ -146,18 +134,6 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
                     .unwrap()
                     .complete([7; 16])
                     .unwrap();
-                if receipt == "stopped-v1" {
-                    let record = Record::new(
-                        &base.0.canonicalize().unwrap(),
-                        &WindowsSiteName::parse(text).unwrap(),
-                        Some([1; 16]),
-                        Lifecycle::Stopped {
-                            request_id: [7; 16],
-                        },
-                    )
-                    .unwrap();
-                    directory.publish(&scope, &record).unwrap();
-                }
             }
             let previous_marker =
                 fs::read(site.runtime_directory().join("activation.started")).unwrap();
@@ -206,14 +182,10 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
             // A reserved/identified role forbids treating an unrelated receipt as a begin boundary.
             interrupted
                 .processes
-                .as_mut()
-                .unwrap()
                 .reserve(ProcessRole::Server, Creator::Activator)
                 .unwrap();
             interrupted
                 .processes
-                .as_mut()
-                .unwrap()
                 .identify(
                     ProcessRole::Server,
                     ProcessIdentity::new(u32::MAX - 7, 1).unwrap(),
@@ -240,23 +212,15 @@ fn interrupted_new_generation_recovers_only_while_every_child_is_not_started() {
 }
 
 #[test]
-fn legacy_incomplete_unknown_and_exact_live_registration_refuse_without_publication() {
-    for case in ["legacy", "spawning", "unknown", "live", "host-live"] {
+fn incomplete_unknown_and_exact_live_registration_refuse_without_publication() {
+    for case in ["spawning", "unknown", "live", "host-live"] {
         let base = Fixture::new();
         let local = Fixture::new();
         let (catalog, site, scope) = setup(&base, &local, "refused");
         let directory = directory(&base, &local);
         let mut record = directory.read(&scope).unwrap().unwrap();
-        if case == "legacy" {
-            record = Record::new(
-                &base.0.canonicalize().unwrap(),
-                &WindowsSiteName::parse("refused").unwrap(),
-                Some([1; 16]),
-                Lifecycle::Active,
-            )
-            .unwrap();
-        } else {
-            let processes = record.processes.as_mut().unwrap();
+        {
+            let processes = &mut record.processes;
             processes
                 .reserve(ProcessRole::Server, Creator::Activator)
                 .unwrap();
@@ -404,7 +368,7 @@ fn clean_stop_preserves_children_registered_after_the_server_retained_its_genera
     let mut retained = Retained::retain(&local.0, &site).unwrap().unwrap();
     let directory = directory(&base, &local);
     let mut record = directory.read(&scope).unwrap().unwrap();
-    let processes = record.processes.as_mut().unwrap();
+    let processes = &mut record.processes;
     for (role, creator, identity) in [
         (
             ProcessRole::Server,

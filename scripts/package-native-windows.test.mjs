@@ -24,7 +24,7 @@ test('release packaging rejects incomplete cohorts and preserves existing feeds'
 	assert.throws(() => packageWindows(root, 'nightly', '0.1.0', 'test'));
 	assert.throws(() => packageWindows(root, 'stable', '0.1.0', 'test'));
 	assert.equal(existsSync(path.join(root, 'release.json')), false);
-	writeFileSync(path.join(root, 'cohort.json'), '{"schemaVersion":2,"artifacts":{}}');
+	writeFileSync(path.join(root, 'cohort.json'), '{"schemaVersion":1,"artifacts":{}}');
 	assert.throws(() => packageWindows(root, 'stable', '0.1.0', 'test'), /cohort manifest/u);
 	writeFileSync(path.join(root, 'release.json'), 'existing immutable release');
 	assert.throws(() => packageWindows(root, 'stable', '0.1.0', 'test'), /already exists/u);

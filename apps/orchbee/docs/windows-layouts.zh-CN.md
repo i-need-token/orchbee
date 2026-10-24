@@ -6,12 +6,12 @@
 ## 导出
 
 `layout export [--tab <target> | --panel <target> | --current] [--client <id>]
-[--timeout <milliseconds>] [--format text|json]` 成功时两种格式均输出 `orchbee.layout.export` v2/v3 JSON；
+[--timeout <milliseconds>] [--format text|json]` 成功时两种格式均输出 `orchbee.layout.export` v1 JSON；
 失败遵循请求的格式。默认总超时为 30,000 ms。Ctrl+C 以 130 退出，释放自有临时 viewer 和已接纳会话。
 
-显式 Tab／Panel 且省略 `--client` 时，无需 TUI 即可读取共享规范结构（v3）。
+显式 Tab／Panel 且省略 `--client` 时，无需 TUI 即可读取共享规范结构。
 其 source 含 `scope:shared`、null 的 `clientId`／`viewRevision`，缩放和焦点观察也为 null。
-指定 `--client` 或省略目标时，选择显式、调用方匹配或唯一的 Ready Client（v2）。
+指定 `--client` 或省略目标时，选择显式、调用方匹配或唯一的 Ready Client；其 source 使用 `scope:client`。
 必要的 Client 观察缺失或有歧义时失败；比例始终来自共享树。
 省略目标时使用经过验证的调用方 Panel 或所选 Client Panel；显式目标忽略调用方元数据。
 Tab 接受身份、后缀或唯一标签；Panel 接受身份或后缀。导出 Panel 会导出其所在 Tab。
@@ -20,8 +20,8 @@ Tab 接受身份、后缀或唯一标签；Panel 接受身份或后缀。导出 
 结果包含 `layout:{workspaceId,terminalContextId,tabId,zoomed,focusedPanelId,root}`。
 独立上下文的 workspaceId 为 null。分割包含 `type:split`、`direction:right|down`、`ratio`、`first`、`second`。
 Panel 包含 `type:panel`、描述性 `panelId`、`rightClick`、`primary` 和有序 `children`。
-成员包含描述性 `presentationId`、回退 `name`、可选手工 `label`、`start` 及空 `env`。
-已绑定成员还包含可获得的 cwd 观察和不可变显式命令 argv；默认 shell 启动省略 command。
+成员包含描述性 `presentationId`、回退 `name`、必填可空的手工 `label`、`cwd`、`command`、`start` 及空 `env`。
+已绑定成员携带可获得的 cwd 和不可变显式命令 argv；不可用 cwd 及默认 shell command 为 null。
 未绑定成员为 `start:false`，既不读取终端，也不会在应用时启动默认 shell。不导出任何环境值。
 
 最多允许 24 个 Panel、含根节点的 16 层、每个 Panel 的 16 个子成员及 1 MiB 文档。
@@ -41,7 +41,8 @@ Split 身份、有序槽位及所有已绑定主／子成员必须匹配捕获�
 显式标签优先，否则保留旧自定义 Tab 标签或保持自动编号。
 
 产生副作用前完整读取文件或继承的非交互 stdin，接受 UTF-8 BOM，遵守导出限额。
-接受 v1／v2／v3 原生导出信封、含 root 的描述或裸节点。旧平铺叶节点及 Herdr `type:pane`／`pane_id`
+仅接受当前 v1 原生导出信封、含 root 的描述或裸节点。原生信封要求字段完整且形状精确；
+其他版本／形状返回类型化布局输入错误，诊断指出期望版本 1，不迁移。旧平铺叶节点及 Herdr `type:pane`／`pane_id`
 规范化为一个需要启动、使用数字回退名称的主成员。结构化成员保留自己的回退名称、标签及启动意图。
 描述中的身份和焦点／缩放仅用于描述，新布局初始不缩放。混用平铺启动字段和结构化成员、重复／未知字段或
 畸形嵌套子成员均无效。不启动的成员不能指定 cwd、command 或非空 env。比例须有限并限制到 0.1..0.9。
@@ -73,10 +74,10 @@ Split 身份、有序槽位及所有已绑定主／子成员必须匹配捕获�
 ## 所有权与证据
 
 纯模板／投影负责形状、限额、成员意图及无身份重建。Server 负责规范成员和启动；Client 负责视图观察。
-Windows 适配器负责精确绑定关联、单次提交、所有权围栏、取消和清理。共享比例最初在 checkpoint v5/catalog v4 中引入，当前保存在 checkpoint v6 中；不引入新依赖。
+Windows 适配器负责精确绑定关联、单次提交、所有权围栏、取消和清理。共享比例保存在当前版本 1 checkpoint 与 catalog 中；不引入新依赖。
 私有契约要求使用匹配 cohort，不能混用发布版本。
 
-定向测试覆盖新旧输入、子项／未绑定往返、字面启动数据、就绪前各失败边界、精确绑定变化、陈旧元数据及响应关联。
+定向测试覆盖当前导出、不兼容导出拒绝及模板输入、子项／未绑定往返、字面启动数据、就绪前各失败边界、精确绑定变化、陈旧元数据及响应关联。
 受控 Windows CLI 对端测试覆盖真实进程分派和回执，不代表真实 provider 或交互 Client 验收。
 完整 Windows 打包／TUI、provider、多 Client 验收及全量回归仍属于最终集成义务；旧 v1 验收不能证明改动后的 v2/v3 流程。
 无头进程用例覆盖导出、拓扑读取、比例修改、成对交换和应用，受控对端拒绝任何 Client 观察／控制请求。

@@ -99,7 +99,7 @@ fn cohort() -> &'static Path {
             let manifest = directory.join("cohort.json");
             fs::write(
                 &manifest,
-                serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
+                serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
             // NativeCohort rejects group/other-writable manifests; pin the

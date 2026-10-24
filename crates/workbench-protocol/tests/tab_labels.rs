@@ -5,7 +5,7 @@ fn tab_value() -> serde_json::Value {
     json!({
         "tabId": "1".repeat(32), "label":"7", "groupId":null, "pinned":false,
         "root":{"kind":"panel","panelId":"2".repeat(32),"childPresentations":[],
-            "primaryPresentation":{"presentationId":"3".repeat(32),"label":"7","binding":null}}
+            "primaryPresentation":{"customLabel":null,"presentationId":"3".repeat(32),"label":"7","binding":null}}
     })
 }
 

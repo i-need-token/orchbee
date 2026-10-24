@@ -372,7 +372,7 @@ fn pre_host_mutation_is_joined_on_explicit_stop_and_server_disconnect() {
             fs::write(cohort_path.join(format!("{name}.exe")), b"native fixture\n").unwrap();
         }
         let digest = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
-        fs::write(cohort_path.join("cohort.json"), format!(r#"{{"schemaVersion":2,"artifacts":{{"orchbee":"{digest}","orchbee-server":"{digest}","orchbee-worker":"{digest}","orchbee-terminal-host":"{digest}","agent-observation-adapters":"{digest}"}}}}"#)).unwrap();
+        fs::write(cohort_path.join("cohort.json"), format!(r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{digest}","orchbee-server":"{digest}","orchbee-worker":"{digest}","orchbee-terminal-host":"{digest}","agent-observation-adapters":"{digest}"}}}}"#)).unwrap();
         let cohort =
             NativeCohort::load(&cohort_path, Instant::now() + Duration::from_secs(3)).unwrap();
         let runtime = fixture.root.join("runtime");

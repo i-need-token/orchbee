@@ -13,11 +13,7 @@ pub const MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES: usize = 1024 * 1024;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkbenchLayoutPresentation {
     pub label: WorkbenchLabel,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::panel_label::deserialize_present"
-    )]
+    #[serde(deserialize_with = "Option::deserialize")]
     pub custom_label: Option<PanelCustomLabel>,
 }
 

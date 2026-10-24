@@ -1,11 +1,7 @@
 use super::*;
 
 fn framed(generation: u64, bytes: &[u8]) -> Candidate {
-    Candidate::decode(
-        &encode(bytes, NonZeroU64::new(generation).unwrap()),
-        64,
-        false,
-    )
+    Candidate::decode(&encode(bytes, NonZeroU64::new(generation).unwrap()), 64)
 }
 
 #[test]
@@ -21,11 +17,11 @@ fn framing_preserves_exact_payload_and_has_canonical_generation_and_digest() {
         ]
     );
     assert_eq!(
-        Candidate::decode(&encoded, 3, false).payload(),
+        Candidate::decode(&encoded, 3).payload(),
         Some(b"abc".as_slice())
     );
     assert!(matches!(
-        Candidate::decode(&encoded, 2, false),
+        Candidate::decode(&encoded, 2),
         Candidate::Invalid {
             generation: Some(7)
         }
@@ -33,13 +29,13 @@ fn framing_preserves_exact_payload_and_has_canonical_generation_and_digest() {
     let mut changed = encoded.clone();
     changed[5] ^= 1;
     assert!(matches!(
-        Candidate::decode(&changed, 3, false),
+        Candidate::decode(&changed, 3),
         Candidate::Invalid { .. }
     ));
     let mut changed = encoded.clone();
     *changed.last_mut().unwrap() ^= 1;
     assert!(matches!(
-        Candidate::decode(&changed, 3, false),
+        Candidate::decode(&changed, 3),
         Candidate::Invalid {
             generation: Some(7)
         }
@@ -48,13 +44,9 @@ fn framing_preserves_exact_payload_and_has_canonical_generation_and_digest() {
 }
 
 #[test]
-fn legacy_is_only_admitted_in_its_original_slot_and_unknown_frames_are_not_plaintext() {
-    assert_eq!(
-        Candidate::decode(b"legacy", 6, true).payload(),
-        Some(b"legacy".as_slice())
-    );
+fn unframed_and_unknown_frames_are_rejected() {
     assert!(matches!(
-        Candidate::decode(b"legacy", 6, false),
+        Candidate::decode(b"legacy", 6),
         Candidate::Invalid { generation: None }
     ));
     for bytes in [
@@ -63,7 +55,7 @@ fn legacy_is_only_admitted_in_its_original_slot_and_unknown_frames_are_not_plain
         b"OBCK\x01\0\0\0\0\0\0\0\0",
     ] {
         assert!(matches!(
-            Candidate::decode(bytes, 64, true),
+            Candidate::decode(bytes, 64),
             Candidate::Invalid { .. }
         ));
     }
@@ -80,7 +72,7 @@ fn rotation_prefers_missing_then_invalid_then_oldest_and_never_replaces_latest_v
     let publication = prepare(&candidates, b"next", 64).unwrap().unwrap();
     assert_eq!(publication.slot, 1);
     assert!(!publication.preserve_invalid);
-    let next = Candidate::decode(&publication.encoded, 64, false);
+    let next = Candidate::decode(&publication.encoded, 64);
     assert_eq!(next.generation(), Some(9));
     assert_eq!(next.payload(), Some(b"next".as_slice()));
     let invalid = [
@@ -93,7 +85,7 @@ fn rotation_prefers_missing_then_invalid_then_oldest_and_never_replaces_latest_v
     let publication = prepare(&invalid, b"next", 64).unwrap().unwrap();
     assert_eq!(publication.slot, 2);
     assert_eq!(
-        Candidate::decode(&publication.encoded, 64, false).generation(),
+        Candidate::decode(&publication.encoded, 64).generation(),
         Some(9)
     );
     let invalid = [
@@ -117,7 +109,7 @@ fn conflicting_generations_are_preserved_and_fallback_uses_the_older_valid_paylo
     let publication = prepare(&candidates, b"next", 64).unwrap().unwrap();
     assert!(publication.preserve_invalid);
     assert_eq!(
-        Candidate::decode(&publication.encoded, 64, false).generation(),
+        Candidate::decode(&publication.encoded, 64).generation(),
         Some(5)
     );
     let mut duplicates = [framed(5, b"same"), framed(5, b"same"), framed(4, b"older")];
@@ -147,7 +139,7 @@ fn complete_payload_validation_can_reject_a_valid_digest_without_losing_its_gene
 fn damaged_header_generation_cannot_exhaust_publication_after_a_valid_snapshot() {
     let mut damaged = encode(b"damaged", NonZeroU64::new(7).unwrap());
     damaged[5..13].copy_from_slice(&u64::MAX.to_le_bytes());
-    let damaged = Candidate::decode(&damaged, 64, false);
+    let damaged = Candidate::decode(&damaged, 64);
     assert!(matches!(
         &damaged,
         Candidate::Invalid {
@@ -158,7 +150,7 @@ fn damaged_header_generation_cannot_exhaust_publication_after_a_valid_snapshot()
     let publication = prepare(&candidates, b"next", 64).unwrap().unwrap();
     assert_eq!(publication.slot, 2);
     assert_eq!(
-        Candidate::decode(&publication.encoded, 64, false).generation(),
+        Candidate::decode(&publication.encoded, 64).generation(),
         Some(8)
     );
 }
@@ -181,26 +173,15 @@ fn domain_invalid_generation_cannot_exhaust_an_all_invalid_store() {
     let publication = prepare(&candidates, b"first-valid", 64).unwrap().unwrap();
     assert_eq!(publication.slot, 2);
     assert_eq!(
-        Candidate::decode(&publication.encoded, 64, false).generation(),
+        Candidate::decode(&publication.encoded, 64).generation(),
         Some(1)
     );
 }
 
 #[test]
-fn unchanged_payload_does_not_rotate_but_legacy_is_upgraded_and_exhaustion_refuses_effects() {
+fn unchanged_payload_does_not_rotate_and_exhaustion_refuses_effects() {
     let candidates = [framed(9, b"same"), framed(8, b"older"), Candidate::Missing];
     assert!(prepare(&candidates, b"same", 64).unwrap().is_none());
-    let legacy = [
-        Candidate::decode(b"same", 64, true),
-        Candidate::Missing,
-        Candidate::Missing,
-    ];
-    let publication = prepare(&legacy, b"same", 64).unwrap().unwrap();
-    assert_eq!(publication.slot, 1);
-    assert_eq!(
-        Candidate::decode(&publication.encoded, 64, false).generation(),
-        Some(1)
-    );
     let candidates = [
         framed(u64::MAX, b"valid"),
         Candidate::Invalid { generation: None },

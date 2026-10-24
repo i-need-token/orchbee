@@ -14,7 +14,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn panel(n: u64) -> Value {
-    json!({"kind":"panel","panelId":id(n),"primaryPresentation":{
+    json!({"kind":"panel","panelId":id(n),"primaryPresentation":{"customLabel":null,
         "presentationId":id(n+100),"label":format!("panel {n}"),"binding":null},"childPresentations":[]})
 }
 fn snapshot() -> Snapshot {

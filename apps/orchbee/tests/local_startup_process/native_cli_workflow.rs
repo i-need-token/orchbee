@@ -694,7 +694,7 @@ fn closed_resources_absent_negative_controls() {
                 "root": {
                     "kind": "panel",
                     "panelId": "0000000000000000000000000000000d",
-                    "primaryPresentation": {
+                    "primaryPresentation": {"customLabel":null,
                         "presentationId": "0000000000000000000000000000000e",
                         "label": "shell",
                         "binding": null
@@ -721,7 +721,7 @@ fn closed_resources_absent_negative_controls() {
     // is detected.
     snapshot["terminalContexts"][0]["tabs"][0]["tabId"] =
         serde_json::json!("0000000000000000000000000000000f");
-    snapshot["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"] = serde_json::json!([{
+    snapshot["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"] = serde_json::json!([{"customLabel":null,
         "presentationId": "00000000000000000000000000000010",
         "label": "split-child",
         "binding": { "terminalId": "0000000000000000000000000000000b", "workerId": "00000000000000000000000000000011" }
@@ -738,7 +738,7 @@ fn closed_resources_absent_negative_controls() {
             { "slotId": "00000000000000000000000000000013", "node": {
                 "kind": "panel",
                 "panelId": "00000000000000000000000000000014",
-                "primaryPresentation": {
+                "primaryPresentation": {"customLabel":null,
                     "presentationId": "00000000000000000000000000000015",
                     "label": "left",
                     "binding": null
@@ -748,7 +748,7 @@ fn closed_resources_absent_negative_controls() {
             { "slotId": "00000000000000000000000000000016", "node": {
                 "kind": "panel",
                 "panelId": "00000000000000000000000000000017",
-                "primaryPresentation": {
+                "primaryPresentation": {"customLabel":null,
                     "presentationId": "00000000000000000000000000000018",
                     "label": "right",
                     "binding": { "terminalId": "0000000000000000000000000000000b", "workerId": "00000000000000000000000000000011" }

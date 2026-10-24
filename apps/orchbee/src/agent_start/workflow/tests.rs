@@ -42,44 +42,54 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
 #[test]
 fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
     for shell in ["powershell.exe", "pwsh.exe"] {
-        for prompt in [
-            orchbee_local_site_runtime::WINDOWS_DIRECTORY_PROMPT.to_owned(),
-            // Literal observation from the preceding Worker startup generation.
-            r"$global:OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $global:OutputEncoding; if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }".to_owned(),
-            orchbee_local_site_runtime::windows_interactive_powershell_initialization(),
+        let prompt = orchbee_local_site_runtime::windows_interactive_powershell_initialization();
+        let mut sample = TerminalProcessInfo {
+            attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
+            terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
+            root_pid: 1,
+            processes: vec![TerminalProcess {
+                pid: 1,
+                parent_pid: None,
+                creation_time: 1,
+                image: Some(shell.into()),
+                command_line: Some(format!(
+                    "{shell} -NoLogo -NoProfile -NoExit -Command {}",
+                    quoted_windows_argument(&prompt)
+                )),
+                current_directory: None,
+            }],
+        };
+        assert!(
+            sample.processes[0]
+                .command_line
+                .as_ref()
+                .unwrap()
+                .encode_utf16()
+                .count()
+                <= orchbee_terminal_protocol::MAXIMUM_PROCESS_TEXT_UTF16_UNITS
+        );
+        assert!(
+            idle_shell(&sample).is_ok(),
+            "runtime-created {shell} must admit startup"
+        );
+        for command in [
+            format!("{shell} -NoExit -Command task"),
+            format!("{shell} -Command {}", quoted_windows_argument(&prompt)),
+            format!(
+                "{shell} -NoExit -Command {}",
+                quoted_windows_argument(&format!("{prompt}; Start-Sleep 10"))
+            ),
+            format!(
+                "{shell} -NoExit -Command {} extra",
+                quoted_windows_argument(&prompt)
+            ),
+            format!(
+                "{shell} -ExecutionPolicy Bypass -NoExit -Command {}",
+                quoted_windows_argument(&prompt)
+            ),
         ] {
-            let mut sample = TerminalProcessInfo {
-                attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16])
-                    .unwrap(),
-                terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
-                root_pid: 1,
-                processes: vec![TerminalProcess {
-                    pid: 1,
-                    parent_pid: None,
-                    creation_time: 1,
-                    image: Some(shell.into()),
-                    command_line: Some(format!(
-                        "{shell} -NoLogo -NoProfile -NoExit -Command {}", quoted_windows_argument(&prompt)
-                    )),
-                    current_directory: None,
-                }],
-            };
-            assert!(sample.processes[0].command_line.as_ref().unwrap().encode_utf16().count()
-                <= orchbee_terminal_protocol::MAXIMUM_PROCESS_TEXT_UTF16_UNITS);
-            assert!(
-                idle_shell(&sample).is_ok(),
-                "runtime-created {shell} must admit startup"
-            );
-            for command in [
-                format!("{shell} -NoExit -Command task"),
-                format!("{shell} -Command {}", quoted_windows_argument(&prompt)),
-                format!("{shell} -NoExit -Command {}", quoted_windows_argument(&format!("{prompt}; Start-Sleep 10"))),
-                format!("{shell} -NoExit -Command {} extra", quoted_windows_argument(&prompt)),
-                format!("{shell} -ExecutionPolicy Bypass -NoExit -Command {}", quoted_windows_argument(&prompt)),
-            ] {
-                sample.processes[0].command_line = Some(command.clone());
-                assert!(idle_shell(&sample).is_err(), "unsafe shell: {command}");
-            }
+            sample.processes[0].command_line = Some(command.clone());
+            assert!(idle_shell(&sample).is_err(), "unsafe shell: {command}");
         }
     }
 }

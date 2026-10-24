@@ -5,7 +5,7 @@ use serde_json::json;
 fn panel_policy_has_a_closed_domain_and_an_omitted_default() {
     let original = json!({
         "kind":"panel", "panelId":"11111111111111111111111111111111",
-        "childPresentations":[], "primaryPresentation":{
+        "childPresentations":[], "primaryPresentation":{"customLabel":null,
             "binding":null,"label":"terminal","presentationId":"22222222222222222222222222222222"
         }
     });

@@ -137,9 +137,9 @@ OS 前台保持不变。这些是命名实现轨迹，不是 context-selection �
 Windows 本地裸启动为当前 Windows 用户和本地 Session runtime 记住最后成功显示的位置、Tab、
 Panel 和 presentation。这是 Client 拥有的导航提示，与 Server checkpoint 及终端生命周期分离。
 有版本、有大小上限的 JSON 记录位于私有 `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>`
-缓存；键包含用户隔离的 runtime 目录和 runtime base。版本 2 保存 Workspace/context 身份，
-不包含可变的 Project 归属。有效的版本 1 记录按严格的历史结构读取，迁移时去除 Project 身份；
-无效和不支持的记录保持原样。结构 ID 随 checkpoint 重启保留；新 Server 的 Session ID 和 binding
+缓存；键包含用户隔离的 runtime 目录和 runtime base。仅 schema `orchbee.tui.position`、版本 1、完整 position／location／member 字段可读；
+member 必须明确为 null 或成员。Workspace／context 身份不含可变 Project 归属。
+旧形状及此前版本 2 记录保持原样，并禁用本次写入。结构 ID 随 checkpoint 重启保留；新 Server 的 Session ID 和 binding
 始终取自当前已验证 snapshot。
 
 渲染器只在工作台未被遮挡、可绘制时返回稳定位置和焦点 pane incarnation。Shell 成功绘制和

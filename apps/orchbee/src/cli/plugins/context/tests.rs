@@ -8,7 +8,7 @@ fn snapshot() -> Snapshot {
         "navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(3), "label":"project"}], "directories":[{"directoryId":id(4),"workerId":id(5),"path":"C:/repo"}], "workspaces":[{"workspaceId":id(6), "label":"workspace", "primaryDirectoryId":id(4), "terminalContextId":id(7), "projectId":id(3)}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},
         {"terminalContextId":id(7),"groups":[],"tabs":[{"tabId":id(8),"label":"tab","groupId":null,"pinned":false,
-        "root":{"kind":"panel","panelId":id(9),"primaryPresentation":{"presentationId":id(10),"label":"primary","binding":null},"childPresentations":[]}}]}]})).unwrap()
+        "root":{"kind":"panel","panelId":id(9),"primaryPresentation":{"customLabel":null,"presentationId":id(10),"label":"primary","binding":null},"childPresentations":[]}}]}]})).unwrap()
 }
 fn record() -> ClientViewRecord {
     serde_json::from_value(json!({"clientId":id(11),"heartbeat":"1","viewRevision":"2","availability":"current",

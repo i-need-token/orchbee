@@ -17,7 +17,7 @@ use std::{
 use crate::rendezvous::{open_runtime_base, validate_directory};
 
 const MANIFEST_LIMIT: u64 = 16 * 1024;
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 1;
 const OBSERVATION_ADAPTERS: &str = "agent-observation-adapters";
 const ARTIFACTS: [NativeArtifact; 4] = [
     NativeArtifact::Client,
@@ -115,7 +115,7 @@ pub struct NativeCohort {
     observation_adapters: ObservationAdaptersSidecar,
 }
 
-/// The observation-adapters payload a schema-2 cohort manifest declares. Startup
+/// The observation-adapters payload a current cohort manifest declares. Startup
 /// never opens, traverses, or validates it; the first integration consumer
 /// validates the directory privately against the declared digest and answers a
 /// typed unavailable/invalid result, so an absent or damaged sidecar cannot
@@ -136,9 +136,7 @@ impl ObservationAdaptersSidecar {
     }
 }
 
-/// The version gate runs before the schema-2 shape so a schema-1 or
-/// unknown-version manifest answers `incompatible` rather than the generic
-/// invalid result its missing members would also produce.
+/// Reject a different version before checking the complete current manifest shape.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ManifestVersion {

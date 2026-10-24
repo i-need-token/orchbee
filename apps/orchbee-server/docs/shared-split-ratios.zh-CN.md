@@ -20,13 +20,11 @@ Workbench revision、TerminalContext、Tab、分屏身份、原比例和请求�
 准入此命令。视口几何和进程句柄都不作为 canonical 状态。无效比例在有界协议入口拒绝；
 CLI 归一化保留现有有限数值和夹取规则。
 
-Workbench 协议版本 1 在匹配的可执行 cohort 内准入这一增量字段与命令。缺失比例的旧文档
-仍可读取。共享比例最初在 checkpoint 版本 5 引入，当前版本 6 继续保留；版本 1–4 恢复均分，不能引入非默认比例。
-session catalog 版本 4 引入比例准入；当前 catalog 版本 5 还准入可选 Project 组织，
-并在激活或打开升级后的存储前发布。此前 cohort 拒绝此记录，且不修改
-其字节。catalog 版本 3–5 使用现有带 framing 的 checkpoint 存储；frame 格式、三副本
-保留、字节上限与自动保存时序不变。回退使用另一个 Site 或另行授权的离线转换。
-不支持导入活跃 Client 的旧 override、自动降级或跨 cohort 连接。
+Workbench 协议版本 1 在匹配可执行 cohort 内承载共享比例。
+当前版本 1 checkpoint 保留比例，不转换历史版本。当前版本 1 durable catalog 要求完整进程注册表。
+frame 格式、三副本保留、字节上限及自动保存时序不变；不兼容副本使用
+[checkpoint 恢复策略](workbench-checkpoint.zh-CN.md)。不支持活跃 Client override 导入、自动迁移
+或跨 cohort 连接。
 
 ## Canonical 转移
 

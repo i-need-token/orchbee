@@ -124,10 +124,8 @@ pub(crate) fn readable_command(process: &Process<'_>) -> Option<String> {
             let mut argv: &[String] = argv;
             if let [rest @ .., switch, script] = argv
                 && switch.eq_ignore_ascii_case("-Command")
-                && (orchbee_local_site_runtime::windows_legacy_powershell_initialization_matches(
-                    script,
-                ) || *script
-                    == orchbee_local_site_runtime::windows_interactive_powershell_initialization())
+                && *script
+                    == orchbee_local_site_runtime::windows_interactive_powershell_initialization()
             {
                 argv = rest;
             }

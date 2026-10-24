@@ -10,8 +10,8 @@ pub(super) fn action(owner: &WorkbenchAuthority) -> WorkbenchAction {
         layout: serde_json::from_value::<WorkbenchLayoutTemplate>(serde_json::json!({
             "kind":"split", "orientation":"vertical", "children":[
                 {"kind":"panel","rightClick":"panel","primary":{"label":"First","customLabel":"Custom"},
-                    "children":[{"label":"Child 1"},{"label":"Child 2","customLabel":"Pinned name"}]},
-                {"kind":"panel","rightClick":"orchbee","primary":{"label":"Second"},"children":[]}
+                    "children":[{"label":"Child 1","customLabel":null},{"label":"Child 2","customLabel":"Pinned name"}]},
+                {"kind":"panel","rightClick":"orchbee","primary":{"label":"Second","customLabel":null},"children":[]}
             ]
         })).unwrap(),
     }

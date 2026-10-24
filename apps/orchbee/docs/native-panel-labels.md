@@ -9,8 +9,8 @@ it. The two flags are exclusive and one is required. Targets keep the existing P
 of this operation. Windows is the runtime acceptance platform.
 
 The Server owns the shared override. `Presentation.label` remains the immutable creation fallback,
-and optional `Presentation.customLabel` holds only a nonempty, trimmed override. An absent override
-is omitted from snapshots; explicit `null` is not a valid stored override. The action's nullable
+and required `Presentation.customLabel` holds a nonempty, trimmed override or explicit `null`.
+Omission is invalid; null means no override. The action's nullable
 label update accepts a missing value, `null`, empty text or whitespace-only text as clear. Supplied
 text is bounded to 512 Unicode code points before trimming. Trimming follows Unicode White_Space,
 including NEL and excluding BOM; Rust, TypeScript and schema evidence must agree on that boundary.
@@ -79,15 +79,12 @@ convergence, set/clear/no-op, nested Panel isolation and unchanged terminal iden
 applicable root gate and record this native witness separately; a passing owner test or gate does
 not itself establish that interaction. No separate label TLA model is retained.
 
-Snapshots without overrides preserve their existing wire shape. The additive field and action
-require a coordinated development cohort: older strict Clients may reject a snapshot containing
-an override, and no mixed-version compatibility is claimed. There is no durable migration. Before
-integration the change can be reverted as one contract slice; after integration use a matched
-cohort, or clear overrides with that cohort before reverting. Never silently rewrite fallback
-labels or discard canonical overrides to make an older reader accept them.
+Snapshots and layout presentations require explicit nullable overrides. All matched Clients use
+this shape; omitted fields are rejected without migration. Canonical fallback labels cannot be
+whitespace-only. Never rewrite fallback text or discard an override to accommodate an old reader.
 
 CLI Panel reads keep the creation `label` and add nullable `customLabel` plus effective
-`displayLabel`; raw snapshots retain the canonical omitted-when-absent override. Current
+`displayLabel`; raw snapshots require the canonical nullable override. Current
 schema versions and the catalog are owned by [Native CLI queries](native-cli-query.md).
 
 In a leaf title, a provided custom Presentation title or metadata title is displayed without an added Panel ordinal, including explicitly provided numeric titles. When neither is available, the generated title retains its localized resource prefix and Panel ordinal. A bare ASCII number inherited as the creation label is omitted from that title; a nonnumeric creation label follows the ordinal. This display choice never rewrites the immutable label. All forms use the same sanitization and display-cell truncation.

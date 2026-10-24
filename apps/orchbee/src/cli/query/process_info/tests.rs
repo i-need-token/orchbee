@@ -157,8 +157,8 @@ fn process_info_targets_only_the_primary_binding_without_child_fallback() {
     "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[{
         "tabId":id(3),"label":"tab","pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":id(4),
-            "primaryPresentation":{"presentationId":id(5),"label":"primary","binding":{"terminalId":id(10),"workerId":id(11)}},
-            "childPresentations":[{"presentationId":id(6),"label":"child","binding":{"terminalId":id(12),"workerId":id(11)}}]}
+            "primaryPresentation":{"customLabel":null,"presentationId":id(5),"label":"primary","binding":{"terminalId":id(10),"workerId":id(11)}},
+            "childPresentations":[{"customLabel":null,"presentationId":id(6),"label":"child","binding":{"terminalId":id(12),"workerId":id(11)}}]}
     }]}]});
     let parse = |value: &Value| {
         orchbee_workbench_protocol::parse_snapshot(&serde_json::to_vec(value).unwrap()).unwrap()

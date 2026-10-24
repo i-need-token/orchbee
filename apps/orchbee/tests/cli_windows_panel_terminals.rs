@@ -14,8 +14,8 @@ fn snapshot(children: usize, bound: bool) -> Snapshot {
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
     "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],
     "tabs":[{"tabId":id(5),"label":"Existing","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(6),"rightClick":"panel",
-      "primaryPresentation":{"presentationId":id(8),"label":"Empty","binding":if bound { json!({"workerId":id(80),"terminalId":id(81)}) } else { Value::Null }},
-      "childPresentations":(0..children).map(|i|json!({"presentationId":id(9+i as u64),"label":"Child","binding":null})).collect::<Vec<_>>()}}]}]})).unwrap()
+      "primaryPresentation":{"customLabel":null,"presentationId":id(8),"label":"Empty","binding":if bound { json!({"workerId":id(80),"terminalId":id(81)}) } else { Value::Null }},
+      "childPresentations":(0..children).map(|i|json!({"customLabel":null,"presentationId":id(9+i as u64),"label":"Child","binding":null})).collect::<Vec<_>>()}}]}]})).unwrap()
 }
 fn initial(stream: &mut LocalStream, snapshot: Snapshot) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {

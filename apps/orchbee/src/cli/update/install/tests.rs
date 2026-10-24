@@ -129,7 +129,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     );
     fs::write(
         source.join("cohort.json"),
-        json!({"schemaVersion":2,"artifacts":artifacts}).to_string(),
+        json!({"schemaVersion":1,"artifacts":artifacts}).to_string(),
     )
     .unwrap();
     fs::create_dir(source.join("conpty")).unwrap();

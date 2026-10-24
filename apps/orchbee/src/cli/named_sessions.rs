@@ -30,6 +30,7 @@ pub(crate) enum SessionState {
     Deleting,
     RecoveryRequired,
     Recoverable,
+    Unreadable,
 }
 impl SessionState {
     pub(crate) fn token(self) -> &'static str {
@@ -42,6 +43,7 @@ impl SessionState {
             Self::Deleting => "deleting",
             Self::RecoveryRequired => "recovery-required",
             Self::Recoverable => "recoverable",
+            Self::Unreadable => "unreadable",
         }
     }
     fn running(self) -> Option<bool> {
@@ -236,6 +238,9 @@ fn observe(
 ) -> Result<(SessionState, Option<u32>), Failure> {
     if entry.deleting {
         return Ok((SessionState::Deleting, None));
+    }
+    if entry.unreadable {
+        return Ok((SessionState::Unreadable, None));
     }
     if entry.cold_recoverable().map_err(local_error)? {
         return Ok((SessionState::Recoverable, None));

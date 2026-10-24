@@ -90,7 +90,7 @@ fn plan() -> crate::cli::layouts::template::Plan {
 }
 fn tab() -> Tab {
     serde_json::from_value(json!({"tabId":id(1),"label":"Tab","pinned":false,"groupId":null,
-    "root":{"kind":"panel","panelId":id(2),"rightClick":"panel","primaryPresentation":{"presentationId":id(3),"label":"Empty","binding":null},
+    "root":{"kind":"panel","panelId":id(2),"rightClick":"panel","primaryPresentation":{"customLabel":null,"presentationId":id(3),"label":"Empty","binding":null},
     "childPresentations":[{"presentationId":id(4),"label":"Child","customLabel":"Manual","binding":null}]}})).unwrap()
 }
 #[test]

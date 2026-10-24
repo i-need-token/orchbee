@@ -22,6 +22,7 @@ pub(crate) enum Lifecycle {
         request_id: [u8; 16],
     },
     Deleting {
+        #[serde(deserialize_with = "Option::deserialize")]
         stopped_request_id: Option<[u8; 16]>,
     },
 }
@@ -32,10 +33,10 @@ pub(crate) struct Record {
     version: u8,
     pub(crate) name: String,
     runtime: String,
+    #[serde(deserialize_with = "Option::deserialize")]
     pub(crate) activation_id: Option<[u8; 16]>,
     pub(crate) lifecycle: Lifecycle,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) processes: Option<SiteProcesses>,
+    pub(crate) processes: SiteProcesses,
 }
 
 impl Record {
@@ -64,7 +65,7 @@ impl Record {
                 .to_owned(),
             activation_id,
             lifecycle,
-            processes: None,
+            processes: SiteProcesses::default(),
         })
     }
     pub(crate) fn registered(
@@ -72,14 +73,7 @@ impl Record {
         name: &WindowsSiteName,
         activation_id: [u8; 16],
     ) -> io::Result<Self> {
-        let mut record = Self::new(base, name, Some(activation_id), Lifecycle::Active)?;
-        // Fence older activators before they can interpret checkpoint v6 as corruption.
-        record.version = 5;
-        record.processes = Some(SiteProcesses::default());
-        Ok(record)
-    }
-    pub(crate) fn uses_framed_checkpoint(&self) -> bool {
-        matches!(self.version, 3..=5)
+        Self::new(base, name, Some(activation_id), Lifecycle::Active)
     }
     pub(crate) fn activation(&self) -> Option<ActivationState> {
         match self.lifecycle {
@@ -115,6 +109,11 @@ pub(crate) fn supports_scope(scope: &str, sid: &str) -> bool {
                     tail.bytes()
                         .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
                 }))
+}
+
+pub(crate) enum CatalogRecord {
+    Readable(Record),
+    Unreadable(WindowsSiteName),
 }
 
 pub(crate) struct Directory {
@@ -177,10 +176,7 @@ impl Directory {
     }
     fn validate(&self, scope: &str, record: &Record) -> io::Result<()> {
         let name = WindowsSiteName::parse(&record.name).map_err(|_| io::ErrorKind::InvalidData)?;
-        if !matches!(
-            (record.version, &record.processes),
-            (1, None) | (2..=5, Some(_))
-        ) || (record.version == 1 && record.lifecycle == Lifecycle::Crashed)
+        if record.version != 1
             || name.scope_for_user(&self.sid) != scope
             || Path::new(&record.runtime) != self.base.join(scope)
             || record.activation_id == Some([0; 16])
@@ -200,7 +196,7 @@ impl Directory {
             if pending { "pending" } else { "json" }
         )))
     }
-    pub(crate) fn read(&self, scope: &str) -> io::Result<Option<Record>> {
+    fn read_bytes(&self, scope: &str) -> io::Result<Option<Vec<u8>>> {
         let file = match permissions::open_file(&self.record_path(scope, false)?, false, false) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -212,6 +208,12 @@ impl Directory {
         if bytes.len() > MAXIMUM_BYTES {
             return Err(io::ErrorKind::InvalidData.into());
         }
+        Ok(Some(bytes))
+    }
+    pub(crate) fn read(&self, scope: &str) -> io::Result<Option<Record>> {
+        let Some(bytes) = self.read_bytes(scope)? else {
+            return Ok(None);
+        };
         let record: Record =
             serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
         self.validate(scope, &record)?;
@@ -254,7 +256,7 @@ impl Directory {
             Err(TryLockError::Error(error)) => Err(error),
         }
     }
-    pub(crate) fn list(&self, deadline: Instant) -> io::Result<Vec<(String, Record)>> {
+    pub(crate) fn list(&self, deadline: Instant) -> io::Result<Vec<(String, CatalogRecord)>> {
         let mut records = Vec::new();
         for entry in fs::read_dir(&self.path)? {
             if Instant::now() >= deadline {
@@ -277,7 +279,14 @@ impl Directory {
             let scope = leaf
                 .strip_suffix(".json")
                 .ok_or(io::ErrorKind::InvalidData)?;
-            let record = self.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
+            let record = match self.read(scope) {
+                Ok(Some(record)) => CatalogRecord::Readable(record),
+                Ok(None) => return Err(io::ErrorKind::NotFound.into()),
+                Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+                    CatalogRecord::Unreadable(self.unreadable_name(scope)?)
+                }
+                Err(error) => return Err(error),
+            };
             records.push((scope.to_owned(), record));
             if records.len() > 256 {
                 return Err(io::ErrorKind::FileTooLarge.into());
@@ -285,10 +294,44 @@ impl Directory {
         }
         Ok(records)
     }
+    // Read only identity metadata for display; this never admits lifecycle or process facts.
+    fn unreadable_name(&self, scope: &str) -> io::Result<WindowsSiteName> {
+        #[derive(Deserialize)]
+        struct Identity {
+            name: String,
+        }
+        let bytes = self.read_bytes(scope)?.ok_or(io::ErrorKind::NotFound)?;
+        let identity: Identity =
+            serde_json::from_slice(&bytes).map_err(|_| io::ErrorKind::InvalidData)?;
+        let name =
+            WindowsSiteName::parse(&identity.name).map_err(|_| io::ErrorKind::InvalidData)?;
+        if name.scope_for_user(&self.sid) != scope {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        Ok(name)
+    }
+
+    /// Explicit deletion may replace an unreadable record only with its durable deletion fence.
+    pub(crate) fn publish_deleting(&self, scope: &str, record: &Record) -> io::Result<()> {
+        if !record.is_deleting() {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        self.publish_inner(scope, record, true)
+    }
+
     pub(crate) fn publish(&self, scope: &str, record: &Record) -> io::Result<()> {
+        self.publish_inner(scope, record, false)
+    }
+
+    fn publish_inner(&self, scope: &str, record: &Record, deleting: bool) -> io::Result<()> {
         self.validate(scope, record)?;
-        // A corrupt current record is never replaced by an otherwise valid new value.
-        let _current = self.read(scope)?;
+        // Ordinary publication never replaces unreadable user data. Only an explicit,
+        // guarded deletion can install its recovery fence over such a record.
+        match self.read(scope) {
+            Ok(_) => {}
+            Err(error) if deleting && error.kind() == io::ErrorKind::InvalidData => {}
+            Err(error) => return Err(error),
+        }
         let bytes = serde_json::to_vec(record).map_err(io::Error::other)?;
         if bytes.len() > MAXIMUM_BYTES {
             return Err(io::ErrorKind::InvalidInput.into());

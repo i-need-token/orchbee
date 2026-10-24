@@ -12,11 +12,6 @@ pub(super) struct StoredDirectory {
     pub(super) presentation_id: TerminalPresentationId,
     pub(super) path: WorkbenchDirectoryPath,
 }
-pub(super) fn deserialize<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<Option<Vec<StoredDirectory>>, D::Error> {
-    Vec::<StoredDirectory>::deserialize(d).map(Some)
-}
 pub(super) fn validate(rows: &[StoredDirectory], snapshot: &Snapshot) -> Result<(), Error> {
     let mut retained = members(snapshot);
     for row in rows {

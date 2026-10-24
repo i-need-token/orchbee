@@ -9,6 +9,7 @@ use orchbee_workbench_protocol::Snapshot;
 #[serde(deny_unknown_fields)]
 pub(crate) struct Position {
     pub(super) location: NativeContextLocation,
+    #[serde(deserialize_with = "serde::Deserialize::deserialize")]
     pub(super) member: Option<NativeMemberTarget>,
 }
 
@@ -93,29 +94,19 @@ pub(crate) struct Draw {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+enum Schema {
+    #[serde(rename = "orchbee.tui.position")]
+    Position,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Record<P> {
+    schema: Schema,
     version: u32,
     position: P,
 }
 
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct HistoricalPosition {
-    location: HistoricalLocation,
-    member: Option<NativeMemberTarget>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(tag = "kind", content = "identity", deny_unknown_fields)]
-enum HistoricalLocation {
-    Standalone(orchbee_workbench_protocol::WorkbenchTerminalContextId),
-    Workspace {
-        project_id: orchbee_workbench_protocol::WorkbenchProjectId,
-        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId,
-        terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId,
-    },
-}
 const MAXIMUM_BYTES: usize = 4096;
 const FILE: &str = "position.json";
 
@@ -123,44 +114,12 @@ fn decode(bytes: &[u8]) -> std::io::Result<Position> {
     if bytes.len() > MAXIMUM_BYTES {
         return Err(std::io::ErrorKind::FileTooLarge.into());
     }
-    // Dispatch by version, then parse the complete strict historical/current DTO. No legacy
-    // Project identity survives into Client selection, but malformed old identities still fail.
-    #[derive(serde::Deserialize)]
-    struct Version {
-        version: u32,
-    }
-    let version: Version =
+    let record: Record<Position> =
         serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
-    match version.version {
-        1 => {
-            let record: Record<HistoricalPosition> =
-                serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
-            let location = match record.position.location {
-                HistoricalLocation::Standalone(id) => NativeContextLocation::Standalone(id),
-                HistoricalLocation::Workspace {
-                    project_id,
-                    workspace_id,
-                    terminal_context_id,
-                } => {
-                    drop(project_id);
-                    NativeContextLocation::Workspace {
-                        workspace_id,
-                        terminal_context_id,
-                    }
-                }
-            };
-            Ok(Position {
-                location,
-                member: record.position.member,
-            })
-        }
-        2 => {
-            let record: Record<Position> =
-                serde_json::from_slice(bytes).map_err(|_| std::io::ErrorKind::InvalidData)?;
-            Ok(record.position)
-        }
-        _ => Err(std::io::ErrorKind::InvalidData.into()),
+    if record.version != 1 {
+        return Err(std::io::ErrorKind::InvalidData.into());
     }
+    Ok(record.position)
 }
 
 pub(super) struct Preferences {
@@ -284,7 +243,8 @@ impl Writer {
 }
 fn write(path: &std::path::Path, position: Position) -> std::io::Result<()> {
     let bytes = serde_json::to_vec(&Record {
-        version: 2,
+        schema: Schema::Position,
+        version: 1,
         position,
     })
     .map_err(std::io::Error::other)?;

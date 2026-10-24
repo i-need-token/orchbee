@@ -792,9 +792,9 @@ pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snaps
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000001", "groups":[], "tabs":[{
             "tabId":"00000000000000000000000000000002", "label":"tab", "pinned":false, "groupId":null,
             "root":{"kind":"panel", "panelId":"22222222222222222222222222222222",
-                "primaryPresentation":{"presentationId":"11111111111111111111111111111111", "label":"primary",
+                "primaryPresentation":{"customLabel":null,"presentationId":"11111111111111111111111111111111", "label":"primary",
                     "binding":{"terminalId":"33333333333333333333333333333333", "workerId":"6f7263686265652d6c6f63616c2d7631"}},
-                "childPresentations":[{"presentationId":"44444444444444444444444444444444", "label":"child",
+                "childPresentations":[{"customLabel":null,"presentationId":"44444444444444444444444444444444", "label":"child",
                     "binding":{"terminalId":"55555555555555555555555555555555", "workerId":"6f7263686265652d6c6f63616c2d7631"}}]
             }
         }]}]

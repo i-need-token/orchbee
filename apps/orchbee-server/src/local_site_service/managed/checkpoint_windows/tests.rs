@@ -112,89 +112,8 @@ fn valid_checkpoint() -> Vec<u8> {
         .unwrap()
 }
 
-fn historical_at_capacity() -> Vec<u8> {
-    let id = |number: usize| format!("{number:032x}");
-    serde_json::to_vec(&json!({
-        "schema":"orchbee.workbench.checkpoint", "version":5, "lastIdentity":id(260),
-        "navigation": {"standaloneTerminalContextId":id(1), "projects":[{
-            "projectId":id(2), "label":"P",
-            "directories":(0..256).map(|index| json!({"directoryId":id(index+3),
-                "path":format!("C:/{}", "a".repeat(if index < 122 {3984} else {3983}))})).collect::<Vec<_>>(),
-            "workspaces":[{"workspaceId":id(259), "label":"W", "primaryDirectoryId":id(3), "terminalContextId":id(260)}]
-        }]},
-        "terminalContexts":([1,260].map(|number| json!({"terminalContextId":id(number), "groups":[], "tabs":[]}))),
-        "profiles":[], "agentSessions":[], "terminalDirectories":[], "managedNames":[]
-    })).unwrap()
-}
-
 #[test]
-fn historical_capacity_refuses_server_load_without_fallback_notice_or_rewrite() {
-    let historical = historical_at_capacity();
-    let valid = valid_checkpoint();
-    for (plain, payloads) in [
-        (true, vec![&historical]),
-        (false, vec![&historical]),
-        (false, vec![&valid, &historical]),
-        (false, vec![&historical, &valid]),
-    ] {
-        let fixture = Fixture::new();
-        let site = fixture.start();
-        let mut store =
-            WindowsSessionStore::open(fixture.local(), &site, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)
-                .unwrap();
-        let has_fallback = payloads.len() > 1;
-        if plain {
-            fs::write(fixture.state(&site).join("checkpoint.json"), &historical).unwrap();
-        } else {
-            for payload in payloads {
-                store.publish(payload).unwrap();
-            }
-        }
-        // Negative control: the former load callback loses this typed refusal and selects
-        // another checkpoint or Empty. The real Server load below must refuse instead.
-        let prior_behavior = store
-            .read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())
-            .unwrap();
-        assert_eq!(prior_behavior.checkpoint.is_some(), has_fallback);
-        assert_eq!(
-            prior_behavior.notice,
-            Some(if has_fallback {
-                WindowsCheckpointRestoreNotice::Recovered
-            } else {
-                WindowsCheckpointRestoreNotice::Empty
-            })
-        );
-        drop(store);
-        let state = fixture.state(&site);
-        let before = retained_files(&state);
-        let catalog = fs::read(fixture.catalog(&site)).unwrap();
-        let marker = fs::read(site.runtime_directory().join("activation.started")).unwrap();
-        let error = load_from(fixture.local(), &site)
-            .err()
-            .expect("migration limit must stop Server startup");
-        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
-        assert!(matches!(
-            error
-                .get_ref()
-                .and_then(|cause| cause.downcast_ref::<WorkbenchCheckpointError>()),
-            Some(WorkbenchCheckpointError::HistoricalMigrationTooLarge {
-                version: 5,
-                actual: 1_048_677,
-                maximum: 1_048_576
-            })
-        ));
-        assert_eq!(retained_files(&state), before);
-        assert_eq!(fs::read(fixture.catalog(&site)).unwrap(), catalog);
-        assert_eq!(
-            fs::read(site.runtime_directory().join("activation.started")).unwrap(),
-            marker
-        );
-        assert!(!state.join("checkpoint.restore-notice").exists());
-    }
-}
-
-#[test]
-fn ordinary_corruption_still_loads_a_fallback_or_visible_empty_without_rewriting_copies() {
+fn incompatible_checkpoint_loads_a_fallback_or_visible_empty_without_rewriting_copies() {
     for healthy in [false, true] {
         let fixture = Fixture::new();
         let site = fixture.start();
@@ -204,7 +123,11 @@ fn ordinary_corruption_still_loads_a_fallback_or_visible_empty_without_rewriting
         if healthy {
             store.publish(&valid_checkpoint()).unwrap();
         }
-        store.publish(b"{}").unwrap();
+        let mut unsupported: Value = serde_json::from_slice(&valid_checkpoint()).unwrap();
+        unsupported["version"] = json!(7);
+        store
+            .publish(&serde_json::to_vec(&unsupported).unwrap())
+            .unwrap();
         drop(store);
         let before = retained_files(&fixture.state(&site));
         let (store, checkpoint, _record, suppressed) = load_from(fixture.local(), &site).unwrap();

@@ -111,24 +111,23 @@ names are rejected. This identity does not grant process control or authorize st
 Native Windows named and default Sites retain bounded private lifecycle records under
 `LOCALAPPDATA/Orchbee/session-catalog/<runtime-base-digest>`. Each record binds the exact name,
 current-user scope and canonical runtime path to Active, Crashed, Stopped with a nonzero stop identity,
-or Deleting. Catalog v2 introduced PID and creation FILETIME for each Server, Worker and Host;
-v3 retains that exact registry and admits the three-slot checkpoint layout and owned corrupt-original
-files. Catalog v4 adds shared ratios; v5 adds optional Project organization with global Workspace
-and Directory identities. The current reader accepts v1–v5, but v1 Active has no automatic death proof. Paths
-used for effects are derived from admitted inputs, never trusted from a record.
+or Deleting. Only current numeric version 1 with all fields, including the Server/Worker/Host
+PID and creation-FILETIME registry, is admitted. Other versions or shapes return InvalidData;
+reads never migrate records. Effect paths derive from admitted inputs, never serialized paths.
+
 The configured runtime base must still exist; removing a stopped runtime leaf does not remove its
 catalog entry or checkpoint. Reads merge runtime and durable entries without creating or migrating
-files. Corrupt, mismatched, linked or redirected records fail without repair.
+files. Unsupported or malformed records with an admitted name are listed as unreadable without repair.
+Mismatched identities, linked or redirected files still fail admission.
 
 The pinned-base namespace gate covers default and named activation. A missing runtime with a
 validated stopped record, free checkpoint lock and absent endpoints can be recreated at the same
-route. Stopped v1/v2 records require the primary checkpoint; stopped v3–v5 records may use any fixed
-slot or an exactly named owned corrupt original. An Active v2–v5 generation can recover only when exact registered identities are gone,
-registration is complete, all guards are free and all derived endpoints absent. Recovery publishes
-Crashed for the old generation before reconciling its marker, preserves the checkpoint and begins
-a fresh generation. Live/unknown identity, incomplete registration, legacy Active, pending deletion
-and orphan storage refuse recovery. Before marker commitment, Server spawn or checkpoint-store
-publication, activation atomically publishes Active v5.
+route. Stopped records may use any fixed slot or exactly named owned corrupt original. Active
+recovery requires all exact registered identities gone, complete registration, free guards and absent
+endpoints. Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
+Live/unknown identity, incomplete registration, pending deletion and orphan storage refuse recovery.
+Activation atomically publishes the current Active record before marker, Server or storage effects.
+
 Each activation carries a fresh nonzero 128-bit identity. The Server retains that exact generation before Worker effects and publishes Stopped after confirmed shutdown,
 before the runtime stopped receipt and lifetime release. Failed publication never proves a clean stop.
 
@@ -139,8 +138,9 @@ private staging, flush and atomic replacement. This is ordinary process/failure 
 power-loss guarantee. A per-record writer lock serializes direct-child registration, recovery and
 clean-stop publication. `spawn_server` requires the catalog and matching activation owner;
 `spawn_windows_site_child` requires the exact registered direct parent for Worker or Host. Each
-child is created suspended and released only after its identity is flushed. Readers limited to v1–v4
-refuse v5, even after a clean stop; no downgrade is provided.
+child is created suspended and released only after its identity is flushed. Explicit confirmed
+named-session deletion can replace an unreadable record with its deletion fence only after the
+existing owner, endpoint and storage guards pass; ordinary publication cannot overwrite it.
 Live Host adoption remains separate.
 
 The [Windows crash-recovery contract](docs/windows-crash-recovery.md) owns guards, interrupted
@@ -232,13 +232,13 @@ No Host reconnect/adoption is allowed.
 
 ## Development cohort contract
 
-`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 2` and exactly five
+`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 1` and exactly five
 `artifacts` fields, in this canonical order: `orchbee`, `orchbee-server`,
 `orchbee-worker`, `orchbee-terminal-host`, `agent-observation-adapters`. The first four values are
 the lowercase 64-character SHA-256 of each complete executable. The fifth declares the lowercase
 SHA-256 payload digest of the observation-adapters capsule staged beside the executables — the same
 value its `capsule.json` carries as `payloadSha256`. A manifest carrying any other `schemaVersion`,
-including `1`, is incompatible; a `schemaVersion: 2` manifest missing a required member, carrying
+is incompatible; a `schemaVersion: 1` manifest missing a required member, carrying
 duplicated or unknown members, or declaring a malformed digest is an invalid manifest. Both fail
 closed through the existing typed rejection. The directory is effective-user-owned 0700. Files are
 regular, single-link, owned, and not writable by group/other; executables have an owner execute bit.
@@ -408,13 +408,11 @@ is held exclusively for the store lifetime; a competing owner receives `WouldBlo
 
 The store retains three versioned, integrity-checked slots, ordered by their private generation.
 The Server supplies whole-document validation; the newest valid payload wins. Invalid copies remain
-intact and produce an explicit recovered/empty startup notice. Legacy plain `checkpoint.json`
-remains readable. Missing data and invalid data have distinct outcomes; filesystem/private-path
-admission errors still refuse startup. Fatal Server validation errors, including a historical migration
-that exceeds the unchanged Snapshot byte limit, refuse startup without corruption fallback or slot writes.
-Catalog v5 is published before checkpoint v6 can be written, so readers limited to v1–v4 refuse
-the upgraded organization meaning before effects. Admission preserves upgraded bytes and never
-downgrades the catalog. See the [Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
+intact and produce an explicit recovered/empty startup notice. Unframed files and unsupported
+payloads use this same recovery policy. Missing data and invalid data remain distinct;
+filesystem/private-path admission errors still refuse startup. Current durable and checkpoint
+formats each use version 1 and reject preceding numeric versions without migration. See the
+[Windows checkpoint storage contract](docs/windows-checkpoint-storage.md).
 
 Publication writes and flushes one private `checkpoint.pending`, preserves any displaced invalid
 original under a fresh owned raw filename, then atomically replaces a slot in the same directory
@@ -509,11 +507,9 @@ installation cannot abort the enclosing initializer. The modern adapter preserve
 command's status before marker output, and passes it to native ReadLine with the original module
 context; the legacy reader retains its original two-argument behavior.
 
-`WINDOWS_DIRECTORY_PROMPT` is a frozen legacy argv fingerprint, never current launch source.
-`windows_legacy_powershell_initialization_matches` recognizes exactly that historical directory-only
-script and the preceding UTF-8/directory script. CLI retained-shell admission combines this
-compatibility predicate with the current shared startup; arbitrary suffixes and extra argv remain
-refused. New initialization and encoded helpers consume only the owned assets.
+Retained-shell admission recognizes only the exact current shared PowerShell startup.
+Historical directory-only/UTF-8 argv fingerprints, arbitrary suffixes and extra argv are rejected.
+Initialization and encoded helpers consume only the owned assets.
 
 ## Windows user settings
 
@@ -545,7 +541,7 @@ The Windows settings owner exposes bounded offline keybinding reset with semanti
 
 The same keys owner encodes and validates canonical `[keys]` profiles for live Client publication, capped at 64 KiB and 144 expanded triggers per action. User files keep the 16-alternative bound; Server and Client own publication and installation.
 
-The Windows plugin catalog boundary supplies bounded manifest parsing, normalized identifiers, platform inheritance, source availability and atomic private user registration for native plugin management. Reads do not create storage; unavailable sources retain explicitly marked inspection metadata. Configuration/state paths remain stable after unlink. The shared Windows command owner provides bounded output capture and descendant settlement for Worker commands and offline provisioning; applications own execution policy. Managed provisioning owns serialized source download/build/commit/cleanup through an application-supplied executor, with v1 catalog reads and v2 provenance/recovery state; see the [native plugin contract](../../apps/orchbee/docs/windows-plugins.md).
+The Windows plugin catalog boundary supplies bounded manifest parsing, normalized identifiers, platform inheritance, source availability and atomic private user registration for native plugin management. Reads do not create storage; unavailable sources retain explicitly marked inspection metadata. Configuration/state paths remain stable after unlink. The shared Windows command owner provides bounded output capture and descendant settlement for Worker commands and offline provisioning; applications own execution policy. Managed provisioning owns serialized source download/build/commit/cleanup through an application-supplied executor, with one strict version 1 catalog including required provenance/recovery fields; see the [native plugin contract](../../apps/orchbee/docs/windows-plugins.md).
 
 ## Windows immutable release storage
 

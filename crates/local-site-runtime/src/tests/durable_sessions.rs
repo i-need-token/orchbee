@@ -204,8 +204,8 @@ fn default_and_exact_names_remain_discoverable_and_restart_after_runtime_loss() 
 }
 
 #[test]
-fn begin_activation_publishes_v5_before_checkpoint_storage_can_write() {
-    for text in ["default", "catalog-v5-first"] {
+fn begin_activation_publishes_current_record_before_checkpoint_storage_can_write() {
+    for text in ["default", "catalog-first"] {
         let base = Fixture::new();
         let local = Fixture::new();
         let name = WindowsSiteName::parse(text).unwrap();
@@ -233,7 +233,7 @@ fn begin_activation_publishes_v5_before_checkpoint_storage_can_write() {
 
         catalog.begin_activation(&site, [1; 16]).unwrap();
 
-        assert_eq!(record_version(&base, &local, &name), 5);
+        assert_eq!(record_version(&base, &local, &name), 1);
         assert!(!state.exists());
     }
 }
@@ -284,12 +284,11 @@ fn unsupported_catalog_refuses_activation_and_recovery_without_changing_retained
     }
 }
 
-fn assert_framed_stopped_checkpoint_evidence(version: u8, leaf: &str, text: &str) {
+fn assert_framed_stopped_checkpoint_evidence(leaf: &str, text: &str) {
     let base = Fixture::new();
     let local = Fixture::new();
     let (name, site, mut owner) = start(&base, &local, text, 1);
     stop(&site, &mut owner, 9);
-    rewrite_record_version(&base, &local, &name, version);
     let runtime = site.runtime_directory().to_owned();
     let state = local
         .0
@@ -328,202 +327,21 @@ fn assert_framed_stopped_checkpoint_evidence(version: u8, leaf: &str, text: &str
     };
     site.register_session_name(&activation, &name).unwrap();
     catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 5);
+    assert_eq!(record_version(&base, &local, &name), 1);
     assert_eq!(fs::read(state.join(leaf)).unwrap(), evidence);
 }
 
 #[test]
 fn framed_stopped_recovery_accepts_backup_only_checkpoint_evidence() {
-    for version in [3, 4, 5] {
-        assert_framed_stopped_checkpoint_evidence(
-            version,
-            "checkpoint.previous-1.json",
-            "backup-evidence",
-        );
-    }
+    assert_framed_stopped_checkpoint_evidence("checkpoint.previous-1.json", "backup-evidence");
 }
 
 #[test]
 fn framed_stopped_recovery_accepts_raw_only_checkpoint_evidence() {
-    for version in [3, 4, 5] {
-        assert_framed_stopped_checkpoint_evidence(
-            version,
-            "checkpoint.corrupt-00000000000000000000000000000001.raw",
-            "raw-evidence",
-        );
-    }
-}
-
-fn assert_v2_stopped_recovery_requires_primary_checkpoint(leaf: &str, text: &str) {
-    let base = Fixture::new();
-    let local = Fixture::new();
-    let (name, site, mut owner) = start(&base, &local, text, 1);
-    stop(&site, &mut owner, 9);
-    rewrite_record_version(&base, &local, &name, 2);
-    let record_before = fs::read(record_path(&base, &local, &name)).unwrap();
-    let runtime = site.runtime_directory().to_owned();
-    let state = local
-        .0
-        .join("Orchbee/native-sessions")
-        .join(Rendezvous::host_endpoint_id(&runtime));
-    fs::write(state.join("checkpoint.json"), b"plain-v4").unwrap();
-    drop(site);
-    remove_runtime(&base, &runtime);
-    fs::rename(state.join("checkpoint.json"), state.join(leaf)).unwrap();
-
-    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
-    assert_eq!(
-        fs::read(record_path(&base, &local, &name)).unwrap(),
-        record_before
-    );
-    let entry = entries
-        .iter()
-        .find(|entry| entry.name == name)
-        .expect("retained named session");
-    assert_eq!(
-        entry.absent_runtime_state().unwrap(),
-        Some(ActivationState::Active)
-    );
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-    assert!(
-        catalog
-            .prepare_activation(&scope(&name), Some(&name))
-            .is_err()
-    );
-    assert_eq!(
-        fs::read(record_path(&base, &local, &name)).unwrap(),
-        record_before
-    );
-
-    fs::rename(state.join(leaf), state.join("checkpoint.json")).unwrap();
-    assert_eq!(
-        entry.absent_runtime_state().unwrap(),
-        Some(ActivationState::Stopped {
-            request_id: [9; 16]
-        })
-    );
-    assert_eq!(
-        catalog
-            .prepare_activation(&scope(&name), Some(&name))
-            .unwrap(),
-        Some(name.clone())
-    );
-    assert_eq!(record_version(&base, &local, &name), 2);
-    let site = base.open(&scope(&name));
-    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
-        panic!("activation")
-    };
-    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
-        panic!("lifetime")
-    };
-    site.register_session_name(&activation, &name).unwrap();
-    catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 5);
-}
-
-#[test]
-fn v2_stopped_recovery_requires_primary_checkpoint() {
-    assert_v2_stopped_recovery_requires_primary_checkpoint(
-        "checkpoint.previous-1.json",
-        "v2-backup-is-not-primary",
-    );
-    assert_v2_stopped_recovery_requires_primary_checkpoint(
+    assert_framed_stopped_checkpoint_evidence(
         "checkpoint.corrupt-00000000000000000000000000000001.raw",
-        "v2-raw-is-not-primary",
+        "raw-evidence",
     );
-}
-
-#[test]
-fn v1_stopped_recovery_requires_primary_checkpoint() {
-    let base = Fixture::new();
-    let local = Fixture::new();
-    let (name, site, mut owner) = start(&base, &local, "legacy-stopped", 1);
-    stop(&site, &mut owner, 9);
-    let runtime = site.runtime_directory().to_owned();
-    let state = local
-        .0
-        .join("Orchbee/native-sessions")
-        .join(Rendezvous::host_endpoint_id(&runtime));
-    let directory = Directory::open(&local.0, &base.0.canonicalize().unwrap())
-        .unwrap()
-        .unwrap();
-    directory
-        .publish(
-            &scope(&name),
-            &Record::new(
-                &base.0.canonicalize().unwrap(),
-                &name,
-                Some([1; 16]),
-                Lifecycle::Stopped {
-                    request_id: [9; 16],
-                },
-            )
-            .unwrap(),
-        )
-        .unwrap();
-    let record_before = fs::read(record_path(&base, &local, &name)).unwrap();
-    fs::write(state.join("checkpoint.json"), b"plain-v4").unwrap();
-    drop(directory);
-    drop(site);
-    remove_runtime(&base, &runtime);
-    fs::rename(
-        state.join("checkpoint.json"),
-        state.join("checkpoint.previous-1.json"),
-    )
-    .unwrap();
-
-    let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
-    assert_eq!(
-        fs::read(record_path(&base, &local, &name)).unwrap(),
-        record_before
-    );
-    let entry = entries
-        .iter()
-        .find(|entry| entry.name == name)
-        .expect("retained named session");
-    assert_eq!(
-        entry.absent_runtime_state().unwrap(),
-        Some(ActivationState::Active)
-    );
-    let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-    assert!(
-        catalog
-            .prepare_activation(&scope(&name), Some(&name))
-            .is_err()
-    );
-    assert_eq!(
-        fs::read(record_path(&base, &local, &name)).unwrap(),
-        record_before
-    );
-
-    fs::rename(
-        state.join("checkpoint.previous-1.json"),
-        state.join("checkpoint.json"),
-    )
-    .unwrap();
-    assert_eq!(
-        entry.absent_runtime_state().unwrap(),
-        Some(ActivationState::Stopped {
-            request_id: [9; 16]
-        })
-    );
-    assert_eq!(
-        catalog
-            .prepare_activation(&scope(&name), Some(&name))
-            .unwrap(),
-        Some(name.clone())
-    );
-    assert_eq!(record_version(&base, &local, &name), 1);
-    let site = base.open(&scope(&name));
-    let LockAttempt::Acquired(activation) = site.try_acquire_activation_lock().unwrap() else {
-        panic!("activation")
-    };
-    let LockAttempt::Acquired(_lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
-        panic!("lifetime")
-    };
-    site.register_session_name(&activation, &name).unwrap();
-    catalog.begin_activation(&site, [2; 16]).unwrap();
-    assert_eq!(record_version(&base, &local, &name), 5);
 }
 
 #[test]
@@ -594,65 +412,6 @@ fn failed_stop_publication_preserves_active_bytes_and_can_be_retried() {
     assert_eq!(site.activation_state().unwrap(), ActivationState::Active);
     drop(held);
     stop(&site, &mut owner, 2);
-}
-
-#[test]
-fn legacy_active_state_refuses_lost_runtime_and_conflicting_runtime_receipt() {
-    for remove in [false, true] {
-        let base = Fixture::new();
-        let local = Fixture::new();
-        let (name, site, _owner) = start(&base, &local, "uncertain", 1);
-        let directory = Directory::open(&local.0, &base.0.canonicalize().unwrap())
-            .unwrap()
-            .unwrap();
-        directory
-            .publish(
-                &scope(&name),
-                &Record::new(
-                    &base.0.canonicalize().unwrap(),
-                    &name,
-                    Some([1; 16]),
-                    Lifecycle::Active,
-                )
-                .unwrap(),
-            )
-            .unwrap();
-        // An ephemeral stopped marker alone cannot settle the durable Active generation.
-        site.retain_active_record()
-            .unwrap()
-            .complete([7; 16])
-            .unwrap();
-        let runtime = site.runtime_directory().to_owned();
-        drop(site);
-        if remove {
-            remove_runtime(&base, &runtime);
-        }
-        let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
-        assert!(!entries[1].accepts_runtime_state(ActivationState::Stopped {
-            request_id: [7; 16]
-        }));
-        if remove {
-            assert_eq!(
-                entries[1].absent_runtime_state().unwrap(),
-                Some(ActivationState::Active)
-            );
-        }
-        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
-        let before = fs::read(record_path(&base, &local, &name)).unwrap();
-        let failure = catalog
-            .delete(&name, &local.0, deadline(), || Ok(false))
-            .unwrap_err();
-        assert_eq!(failure.reason, Reason::RecoveryRequired);
-        assert!(!failure.pending);
-        assert_eq!(fs::read(record_path(&base, &local, &name)).unwrap(), before);
-        if remove {
-            assert!(
-                catalog
-                    .prepare_activation(&scope(&name), Some(&name))
-                    .is_err()
-            );
-        }
-    }
 }
 
 #[test]
@@ -790,7 +549,16 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     .unwrap();
     for bytes in cases {
         fs::write(&path, &bytes).unwrap();
-        assert!(Catalog::list(&base.0, &local.0, deadline()).is_err());
+        if let Ok(entries) = Catalog::list(&base.0, &local.0, deadline()) {
+            assert!(
+                entries
+                    .iter()
+                    .find(|entry| entry.name == name)
+                    .unwrap()
+                    .unreadable
+            );
+        }
+        assert!(directory.read(&scope(&name)).is_err());
         assert!(directory.publish(&scope(&name), &valid).is_err());
         assert_eq!(fs::read(&path).unwrap(), bytes);
     }
@@ -802,4 +570,56 @@ fn malformed_oversized_mismatched_and_linked_records_are_never_repaired() {
     assert_eq!(fs::read(&alias).unwrap(), original);
     fs::remove_file(alias).unwrap();
     assert!(directory.read(&scope(&name)).is_ok());
+}
+
+#[test]
+fn incompatible_records_are_listed_unreadable_and_only_explicit_guarded_deletion_removes_them() {
+    for missing_processes in [false, true] {
+        let base = Fixture::new();
+        let local = Fixture::new();
+        let (name, site, mut owner) = start(&base, &local, "unreadable", 1);
+        let path = record_path(&base, &local, &name);
+        stop(&site, &mut owner, 3);
+        let mut record: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        if missing_processes {
+            record.as_object_mut().unwrap().remove("processes");
+        } else {
+            record["version"] = serde_json::json!(5);
+        }
+        let bytes = serde_json::to_vec(&record).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        let entries = Catalog::list(&base.0, &local.0, deadline()).unwrap();
+        let entry = entries.iter().find(|entry| entry.name == name).unwrap();
+        assert!(entry.unreadable);
+        assert!(!entry.cold_recoverable().unwrap());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        let catalog = Catalog::try_lock(&base.0, &local.0).unwrap();
+        assert!(
+            catalog
+                .prepare_activation(&scope(&name), Some(&name))
+                .is_err()
+        );
+        let LockAttempt::Acquired(lifetime) = site.try_acquire_site_lifetime_lock().unwrap() else {
+            panic!("lifetime")
+        };
+        assert_eq!(
+            catalog
+                .delete(&name, &local.0, deadline(), || Ok(false))
+                .unwrap_err()
+                .reason,
+            Reason::InUse
+        );
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        drop(lifetime);
+        drop(owner);
+        drop(site);
+        assert_eq!(
+            catalog
+                .delete(&name, &local.0, deadline(), || Ok(false))
+                .unwrap(),
+            Outcome::Deleted
+        );
+        assert!(!path.exists());
+    }
 }

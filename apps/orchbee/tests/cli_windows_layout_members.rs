@@ -15,7 +15,7 @@ fn id(n: u64) -> String {
 }
 fn panel(panel: u64, primary: u64, child: u64) -> Value {
     json!({"kind":"panel","panelId":id(panel),"rightClick":"panel",
-        "primaryPresentation":{"presentationId":id(primary),"label":"Empty","binding":null},
+        "primaryPresentation":{"customLabel":null,"presentationId":id(primary),"label":"Empty","binding":null},
         "childPresentations":[{"presentationId":id(child),"label":"Child","customLabel":"Manual","binding":null}]})
 }
 fn snapshot() -> Snapshot {

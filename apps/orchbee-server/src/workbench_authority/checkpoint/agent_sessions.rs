@@ -22,12 +22,6 @@ pub(super) struct StoredAgentSession {
     pub(super) session: PanelAgentSession,
 }
 
-pub(super) fn deserialize<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<Vec<StoredAgentSession>>, D::Error> {
-    Vec::<StoredAgentSession>::deserialize(deserializer).map(Some)
-}
-
 fn valid(session: &PanelAgentSession) -> bool {
     if normalize_agent_report_label(&session.agent).as_deref() != Some(&session.agent)
         || agent_report_source_policy(&session.source, &session.agent)

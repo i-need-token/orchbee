@@ -128,7 +128,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 ## 检查已完成启动
 
 Windows Agent Get v9（指定 Client 时为 v10）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它。已完成托管名称及 provider 意图通过
-[检查点版本 4](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管名称重启)跨正常重启保留。
+[检查点版本 1](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管名称重启)跨正常重启保留。
 恢复后的物理 Get v14 使用独立读取来源报告 active provider 归属，不携带旧 Session、预留或
 新的交互就绪声明。清名同时仅清除仍匹配的自有持久恢复引用；保留后来的独立报告。
 

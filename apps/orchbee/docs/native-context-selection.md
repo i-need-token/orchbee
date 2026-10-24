@@ -165,9 +165,9 @@ Bare local Windows startup remembers the last successfully displayed location, T
 presentation for the current Windows user and local Session runtime. This is Client-owned navigation
 advice, separate from Server checkpoints and terminal lifetime. Its versioned, bounded JSON record
 lives under the private `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>` cache; the key includes
-the user-scoped runtime directory and runtime base. Version 2 stores Workspace/context identity
-without mutable Project membership. A valid version 1 record is read through its strict historical
-shape and migrated without its Project identity; invalid and unsupported records remain untouched.
+the user-scoped runtime directory and runtime base. Only schema `orchbee.tui.position`, version 1, with required position/location/member fields is
+readable; member is explicitly nullable. Workspace/context identity excludes mutable Project membership.
+Old shapes and the preceding version 2 record remain untouched and disable writes for that invocation.
 Stable structural IDs survive checkpoint restart. The new Server's Session ID and bindings always
 come from its validated snapshot.
 

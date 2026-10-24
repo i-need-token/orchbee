@@ -18,7 +18,7 @@ const WORKER: &str = "6f7263686265652d6c6f63616c2d7631";
 const DUP_TABS: [u8; 9] = [0x29, 0x25, 0x27, 0x22, 0x28, 0x24, 0x26, 0x23, 0x21];
 
 fn presentation(id: u8, terminal: Option<u8>) -> Value {
-    json!({
+    json!({"customLabel":null,
         "presentationId": hex(id),
         "label": "p",
         "binding": terminal.map(|terminal| json!({
@@ -447,7 +447,7 @@ fn selector_snapshot() -> Snapshot {
         json!({
             "kind": "panel",
             "panelId": panel,
-            "primaryPresentation": {
+            "primaryPresentation": {"customLabel":null,
                 "presentationId": pres,
                 "label": "p",
                 "binding": terminal.map(|terminal| json!({
@@ -463,7 +463,7 @@ fn selector_snapshot() -> Snapshot {
             json!({
                 "kind": "panel",
                 "panelId": tid(0, panel),
-                "primaryPresentation": {
+                "primaryPresentation": {"customLabel":null,
                     "presentationId": tid(0xa, pres),
                     "label": "p",
                     "binding": null,

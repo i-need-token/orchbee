@@ -195,7 +195,7 @@ fn cohort_report_maps_verifier_outcomes() {
     let manifest = cohort.join("cohort.json");
     fs::write(
         &manifest,
-        serde_json::json!({"schemaVersion": 2, "artifacts": artifacts}).to_string(),
+        serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
     )
     .unwrap();
     fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600)).unwrap();

@@ -92,7 +92,8 @@
 										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 									},
 									"label": "Shell",
-									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"customLabel": null
 								}
 							},
 							"tabId": "88888888888888888888888888888888"
@@ -193,7 +194,8 @@
 										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 									},
 									"label": "Shell",
-									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"customLabel": null
 								}
 							},
 							"tabId": "88888888888888888888888888888888"
@@ -224,7 +226,8 @@
 											"primaryPresentation": {
 												"binding": null,
 												"label": "Left",
-												"presentationId": "15151515151515151515151515151515"
+												"presentationId": "15151515151515151515151515151515",
+												"customLabel": null
 											}
 										},
 										"slotId": "ffffffffffffffffffffffffffffffff"
@@ -237,7 +240,8 @@
 											"primaryPresentation": {
 												"binding": null,
 												"label": "Right",
-												"presentationId": "16161616161616161616161616161616"
+												"presentationId": "16161616161616161616161616161616",
+												"customLabel": null
 											}
 										},
 										"slotId": "12121212121212121212121212121212"
@@ -284,7 +288,8 @@
 											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 										},
 										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									}
 								},
 								"tabId": "88888888888888888888888888888888"
@@ -472,7 +477,8 @@
 										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 									},
 									"label": "Shell",
-									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"customLabel": null
 								},
 								"rightClick": "panel"
 							},
@@ -504,7 +510,8 @@
 											"primaryPresentation": {
 												"binding": null,
 												"label": "Left",
-												"presentationId": "15151515151515151515151515151515"
+												"presentationId": "15151515151515151515151515151515",
+												"customLabel": null
 											}
 										},
 										"slotId": "ffffffffffffffffffffffffffffffff"
@@ -517,7 +524,8 @@
 											"primaryPresentation": {
 												"binding": null,
 												"label": "Right",
-												"presentationId": "16161616161616161616161616161616"
+												"presentationId": "16161616161616161616161616161616",
+												"customLabel": null
 											}
 										},
 										"slotId": "12121212121212121212121212121212"
@@ -586,7 +594,8 @@
 									"launchFailure": {
 										"executable": "/missing/program",
 										"reason": "terminal-create-failed"
-									}
+									},
+									"customLabel": null
 								},
 								"rightClick": "panel"
 							},
@@ -618,7 +627,8 @@
 											"primaryPresentation": {
 												"binding": null,
 												"label": "Left",
-												"presentationId": "15151515151515151515151515151515"
+												"presentationId": "15151515151515151515151515151515",
+												"customLabel": null
 											}
 										},
 										"slotId": "ffffffffffffffffffffffffffffffff"
@@ -631,7 +641,8 @@
 											"primaryPresentation": {
 												"binding": null,
 												"label": "Right",
-												"presentationId": "16161616161616161616161616161616"
+												"presentationId": "16161616161616161616161616161616",
+												"customLabel": null
 											}
 										},
 										"slotId": "12121212121212121212121212121212"
@@ -677,7 +688,8 @@
 										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 									},
 									"label": "Shell",
-									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+									"customLabel": null
 								}
 							},
 							"tabId": "88888888888888888888888888888888",
@@ -1590,7 +1602,8 @@
 									"primaryPresentation": {
 										"binding": null,
 										"label": "Terminal",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									}
 								},
 								"tabId": "88888888888888888888888888888888"
@@ -1630,7 +1643,8 @@
 									"primaryPresentation": {
 										"binding": null,
 										"label": "Terminal",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									}
 								},
 								"tabId": "88888888888888888888888888888888"
@@ -1692,7 +1706,8 @@
 											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 										},
 										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									},
 									"rightClick": null
 								},
@@ -1724,7 +1739,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Left",
-													"presentationId": "15151515151515151515151515151515"
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -1737,7 +1753,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -1806,7 +1823,8 @@
 											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 										},
 										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									},
 									"rightClick": "pane"
 								},
@@ -1838,7 +1856,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Left",
-													"presentationId": "15151515151515151515151515151515"
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -1851,7 +1870,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -1920,7 +1940,8 @@
 											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 										},
 										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									},
 									"rightClick": 1
 								},
@@ -1952,7 +1973,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Left",
-													"presentationId": "15151515151515151515151515151515"
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -1965,7 +1987,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -2037,7 +2060,8 @@
 										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 										"launchFailure": {
 											"reason": "terminal-create-failed"
-										}
+										},
+										"customLabel": null
 									},
 									"rightClick": "panel"
 								},
@@ -2069,7 +2093,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Left",
-													"presentationId": "15151515151515151515151515151515"
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -2082,7 +2107,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -2155,7 +2181,8 @@
 										"launchFailure": {
 											"executable": "program",
 											"reason": "terminal-create-failed"
-										}
+										},
+										"customLabel": null
 									},
 									"rightClick": "panel"
 								},
@@ -2187,7 +2214,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Left",
-													"presentationId": "15151515151515151515151515151515"
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -2200,7 +2228,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -2273,7 +2302,8 @@
 										"launchFailure": {
 											"executable": "/missing/program",
 											"reason": "executable-not-found"
-										}
+										},
+										"customLabel": null
 									},
 									"rightClick": "panel"
 								},
@@ -2305,7 +2335,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Left",
-													"presentationId": "15151515151515151515151515151515"
+													"presentationId": "15151515151515151515151515151515",
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -2318,7 +2349,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -2391,7 +2423,8 @@
 										"launchFailure": {
 											"executable": "/missing/program",
 											"reason": "terminal-create-failed"
-										}
+										},
+										"customLabel": null
 									},
 									"rightClick": "panel"
 								},
@@ -2427,7 +2460,8 @@
 													"launchFailure": {
 														"executable": null,
 														"reason": "terminal-create-failed"
-													}
+													},
+													"customLabel": null
 												}
 											},
 											"slotId": "ffffffffffffffffffffffffffffffff"
@@ -2440,7 +2474,8 @@
 												"primaryPresentation": {
 													"binding": null,
 													"label": "Right",
-													"presentationId": "16161616161616161616161616161616"
+													"presentationId": "16161616161616161616161616161616",
+													"customLabel": null
 												}
 											},
 											"slotId": "12121212121212121212121212121212"
@@ -2490,7 +2525,8 @@
 											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 										},
 										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									}
 								},
 								"tabId": "88888888888888888888888888888888",
@@ -2534,7 +2570,8 @@
 											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 										},
 										"label": "Shell",
-										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+										"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										"customLabel": null
 									}
 								},
 								"tabId": "88888888888888888888888888888888",

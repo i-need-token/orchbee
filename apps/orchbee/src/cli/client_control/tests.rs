@@ -103,7 +103,7 @@ fn snapshot() -> Snapshot {
     serde_json::from_value(json!({"protocolVersion":1, "siteId":id(2), "revision":"12",
         "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"shell","pinned":false,"groupId":null,
-        "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(8),"label":"shell","binding":null},"childPresentations":[]}}]}]})).unwrap()
+        "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(8),"label":"shell","binding":null},"childPresentations":[]}}]}]})).unwrap()
 }
 
 #[test]

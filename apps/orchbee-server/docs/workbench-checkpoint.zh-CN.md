@@ -9,7 +9,7 @@
 检查点保留可选 Project 成员关系、Project 标签、全局本地目录路径、Workspace 及其显示顺序、终端上下文、有序 Tab、分组、固定状态、
 分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
 包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定或启动失败。
-版本 2 还保留已校验的外部 provider 引用，详见 [Agent 重启引用](agent-restart-reference.zh-CN.md)。
+同时保留已校验的外部 provider 引用，详见 [Agent 重启引用](agent-restart-reference.zh-CN.md)。
 
 它不保留运行进程、Site／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布
 游标、未完成操作、Agent 状态或终端历史；这些恢复责任属于各自运行时所有者。检查点从不授权
@@ -20,7 +20,7 @@
 | 操作       | 前提                                                                                         | 结果与不变式                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 捕获       | 权威未退役；已提交对象图有效；每个 Directory 和已绑定 Presentation 都属于传入的本地 Worker。 | 一个有界检查点；源权威不变；移除进程绑定和 Worker 身份。                                                       |
-| 解码       | 严格 version 1–7 文档、字节有界、导航与版本匹配、配置图、计数器及 provider 引用有效。        | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
+| 解码       | 严格当前 version 1 文档、字节有界、规范化导航、配置图、计数器及 provider 引用有效。          | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
 | 重建       | 调用者传入新启动的 Site 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile Site 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
@@ -30,49 +30,36 @@
 
 ## 私有格式与校验
 
-### 规范化导航与历史迁移
+### 当前规范化导航
 
-写入器输出标识为 `orchbee.workbench.checkpoint`、数字版本为 `version: 7` 的文档。
-`checkpoint/navigation.rs` 分别拥有当前与历史导航 DTO。版本 6 和 7 保存按身份排序的全局
-`directories`、`projects`、`workspaces` 数组。Project 记录仅含 `projectId` 和 `label`；
-每个 Workspace 必须包含可为 null 的 `projectId`。本地 Directory 记录仅含 `directoryId`
-和 `path`，重建时赋予新的 Worker 所有权。显式 `workspaceOrder` 是全部 Workspace 身份的排列。
-未分组 Workspace、空 Project、共享 Directory 引用及未使用 Directory 均在捕获和重启后保留。
-规范化对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个
-Workspace，同时受下述编码上限约束。
+读写器仅使用标识 `orchbee.workbench.checkpoint`、数字版本 `version: 1`。
+所有保留字段均必填，包括 `agentSessions`、`terminalDirectories`、`managedNames`、
+`projectOrder` 和 `workspaceOrder`。`checkpoint/navigation.rs` 仅有一个 DTO，保存按身份排序的
+全局 `directories`、`projects`、`workspaces` 数组。Project 记录含 `projectId` 和 `label`；
+Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryId` 和 `path`，重建时
+赋予新的 Worker 所有权。Workspace 顺序必须是完整排列；Project 顺序为空时使用规范 ID 顺序，
+否则也必须是完整排列。未分组 Workspace、空 Project、共享或未使用的 Directory 及两类显示顺序均保留。
+对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个 Workspace，
+同时受不变的编码上限约束。
 
-版本 7 增加独立的 `projectOrder`：非空值必须是全部 Project 身份的完整排列，省略或空值使用规范
-ID 顺序。版本 6 在不含项目顺序时仍可读取；将非空 Project 顺序标为版本 6 会拒绝。旧 cohort
-显式拒绝版本 7 并保留已提交文件，不提供自动降级或丢弃顺序的转换。Workspace 和 Project 顺序在
-捕获／重启后保留，身份注册表继续按 ID 排序。
+未知、重复或缺失字段、历史嵌套导航、不支持的版本、无效引用和不足的身份高水位均拒绝整份文档。
+不进行迁移或历史规范化。版本规则见仓库[数据边界规范](../../../docs/zh-CN/ARCHITECTURE.md#数据边界)。
+现存标为版本 2–7 的文件，包括此前写入器生成的版本 7，都会变为不可读；修改版本标记不是受支持的转换。
+下述托管恢复策略会保留这些文件。
 
-版本 1–5 必须采用历史形状：每个 Project 拥有自己的 `directories` 和 `workspaces`，历史
-Workspace 记录不含 `projectId`。迁移先校验原始各 Project 数组的排序、256 个 Directory
-和 256 个 Workspace 的上限，以及主目录确属同一 Project。扁平化不能将无效的跨 Project
-引用变为有效。随后将每个 Workspace 关联到原所属 Project，保留全部身份和 Directory，
-对全局数组排序，再执行完整对象图及身份／高水位校验。显式历史显示顺序保持不变；省略或空
-顺序转换为历史 Project／Workspace 遍历顺序，可能不同于全局 Workspace 身份顺序。
-
-导航形状必须与声明版本匹配。向历史记录注入当前字段、将历史导航标为版本 6 或 7、未知或重复
-字段、重复身份、缺失引用，以及低于保留身份的高水位，都会拒绝整份文档。编解码器从不将
-畸形输入转换为空 Workbench。下述存储消费者的全部副本无效显式提醒属于独立的恢复决定。
-
-历史规范化可能因新增字段而超过仍为 1 MiB 的 Snapshot 传输上限，即使原版本 1–5 Snapshot
-符合该上限、检查点也未超过 2 MiB。`HistoricalMigrationTooLarge { version, actual, maximum }`
-会显式拒绝这种迁移；它不准入超限对象图、不丢弃保留内容，也不提高任一上限。源 DTO 仍在
-规范化前拒绝未知或重复字段。不提供自动降级或转换。
-
-版本 2–7 要求 `agentSessions`，版本 3–7 要求 `terminalDirectories`，版本 4–7 要求
-`managedNames`；更早版本拒绝这些字段。版本 5–7 保留规范分割比例；版本 1–4 恢复等比例，
-并拒绝注入的非默认权重。见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／
-Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必须有匹配的已接纳
-官方 provider 引用。见[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。
-`lastIdentity` 和每个 Profile 的 `counter` 都是规范化、非零的 32 字符小写十六进制数。
-终端上下文要求所有 Presentation 绑定为 `null`。不支持的版本均拒绝。
+规范分割比例继续保留，见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／Presentation
+声明含 `presentationId`、`name` 和 `providerId`，并要求匹配的已准入官方 provider 引用，见
+[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。`lastIdentity` 与每个 Profile 的
+`counter` 都是规范化、非零的 32 字符小写十六进制数。所有 Presentation 绑定为 `null`，
+`customLabel` 必填且可为 null。
+`checkpoint/contexts.rs` 拥有保留对象图形状：Tab 的 `automaticLabel` 和 `groupId`、Panel 的
+`rightClick`、Split 的 `ratio` 以及 Presentation 的 `binding` 即使取默认值或 null 也必须显式写出。
+仅属于运行时的 `launchFailure` 字段不准进入保留配置。
 
 ### 逐终端目录恢复
 
-版本 3 要求 `terminalDirectories` 列表，每项为稳定 `presentationId` 与已校验 `path`。主、子 Presentation 各自独立。版本 1、2 仅在没有此字段时仍可读取；null、重复／外部成员及非法路径拒绝整份文档。继续使用 2 MiB 上限；旧 cohort 明确拒绝版本 3。
+必填的 `terminalDirectories` 列表保存稳定的 `presentationId` 与已验证的 `path`。
+主、子 Presentation 各自独立。null 列表、重复／外部成员和非法路径拒绝整份文档，仍使用 2 MiB 上限。
 
 请求／后台工作静止后，正常停止在 Worker 释放前，通过现有私有查看器所有者采集新的有界观察。有效终端上报目录优先于根进程目录；不会用子进程目录冒充根目录。最终物理成员关系与 Worker 代际必须仍匹配。未知 detach 由已停止的进程观察器继续负责，使本次停止失败并保留之前的检查点；后续停止可结算该精确附着。
 
@@ -83,7 +70,7 @@ Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必�
 
 捕获将准入观察映射到当前 Presentation 身份。观察不可用时保留已有恢复意图，否则使用普通工作区／home 默认值；已移除成员不再保存。全新启动优先使用保留目录，其次工作区默认目录；所选路径已不是目录时，Windows 恢复使用 Worker 的 home 默认值。此策略不改变用户显式启动的校验。共享 PowerShell 提示符同步也应用于恢复后的编码命令 shell，因此 provider 退出后切换目录仍可被观察。
 
-证据必须覆盖精确身份／修订围栏、主子分离、旧格式兼容、非法记录、不恢复活跃权威的捕获／重建、未结算查看器清理、实际 Windows 目录切换及保存目录被删除。启动进程证据本身不能证明此目录生命周期。
+证据必须覆盖精确身份／修订围栏、主子分离、不兼容格式拒绝、非法记录、不恢复活跃权威的捕获／重建、未结算查看器清理、实际 Windows 目录切换及保存目录被删除。启动进程证据本身不能证明此目录生命周期。
 
 检查点编码上限为 2 MiB。重建 Snapshot 必须通过既有完整对象图校验和 1 MiB 传输限制；Profile 目录保留
 64 项、256 KiB 限制。全部自有结构／Profile 计数器必须互不重复，且不超过 `lastIdentity`。
@@ -92,7 +79,7 @@ Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必�
 
 领域层不访问文件系统、不启动进程。存储层必须准入 Windows 私有路径、发布完整记录、区分
 不存在和损坏，并保留失败证据。启动恢复必须建立新的物理绑定，并处理被中断操作；编解码器
-返回无绑定权威不代表已恢复可用会话。格式变更需要明确的版本／迁移决定，不提供宽松回退。
+返回无绑定权威不代表已恢复可用会话。格式变更遵循仓库数据边界规范，不提供宽松回退。
 
 ## 终端重新绑定准备
 
@@ -116,16 +103,12 @@ Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必�
 副本。存储 owner 从三个槽位选择最新且完整验证的 payload。无效副本保留并产生可见恢复提醒；
 全部副本无效时明确报告空恢复。数据缺失表示新 Workbench；私有路径或文件系统准入失败仍中止启动。
 详见 [Windows checkpoint 存储契约](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md)。
-默认和命名 Site 激活均在使用 checkpoint v7 存储前发布 catalog v5；catalog reader 接受 v1–v5。
-最多支持 v4 的旧 reader 会拒绝新记录，包括正常停止后的记录。Server 在打开 store 前保留已准入
-的 durable generation，因此直接 Server 入口也会在清理 pending 文件前拒绝不支持的 catalog。
+默认和命名 Site 激活均在使用存储前发布当前版本 1 的 durable 记录。
+Server 在打开 store 和清理 pending 文件前准入完整的 durable 形状。
+`WindowsSessionStore::read_validated` 将所有无效 payload 作为不可读副本处理：选择有效槽位或
+报告空恢复，保留无效字节，并在替换前归档。领域解析失败不再存在特殊的致命迁移错误；文件系统
+准入错误仍中止启动。未提交 pending 文件的清理保持不变。
 
-`WindowsSessionStore::try_read_validated` 区分普通无效副本（`Ok(None)`）和致命领域准入错误
-（`Err`）；`read_validated` 保留其回调不可失败的既有行为。任一完整且通过存储准入的槽位若触发
-历史迁移容量拒绝，Server 加载便会中止，即使另有更旧或更新的有效槽位。类型化 checkpoint 错误
-作为 I/O 错误源向上传播，所有已提交副本保持不变，不发布恢复／空恢复提醒。不启动 Worker、
-恢复权威或后台保存者。普通损坏仍使用既有回退／空恢复策略。打开 store 时清理未提交 pending
-文件的行为保持不变。
 `WorkbenchCheckpoint` 是已准入配置值：私有对象图校验身份不会成为可运行权威，只有使用新 Site
 及已准入 Worker 重建后才产生新的权威。
 
@@ -166,14 +149,11 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 
 确定性测试通过独立对象图预期覆盖捕获／重建、嵌套分屏及子 Presentation、Profile 重映射、
 删除身份后的分配、外部所有权、损坏、重复／未知字段、绑定注入、对象图错误和大小限制。
-历史夹具保持版本 1–5 的嵌套形状。迁移证据覆盖交错的全局身份、显式与隐式历史显示顺序、
-未使用 Directory、扁平化前拒绝跨 Project 主目录、各 Project 上限、重复身份、高水位错误，
-以及版本／字段不匹配。版本 6/7 捕获／重启保留未分组成员关系、目录引用和适用版本中的
-Agent、cwd 及托管名称重启意图。
-构造的版本 1–5 夹具对比恰好 1 MiB 的历史 Snapshot、规范化后的超限形式，以及恰好符合上限的
-对照。原生存储与 Server 加载证据覆盖存在更旧／更新可用副本或没有回退副本时的致命拒绝、
-类型化错误传播、已提交字节不变，以及普通损坏恢复。直接 Server 准入还验证在 durable catalog
-版本不受支持时保留 pending 文件。
+当前形状夹具保留未分组成员关系、显示顺序、未使用／共享 Directory、Agent 引用、cwd 和托管名称。
+严格夹具覆盖字段缺失与不兼容版本。原生存储和 Server 加载证据验证无效副本的回退／空恢复提示及
+准确字节保留，其中包含此前的版本 7 文档。直接 Server 准入也验证在 durable catalog 不受支持时
+保留 pending 文件。
+
 协调器测试覆盖物理预留与对象图的联合准备、分组／固定／子成员、Open 复用，以及不重放的显式
 不可用结果。Windows 存储／进程测试覆盖私有替换、锁和准确句柄终止。真实打包 Windows 正常
 停止／重启验收对比保留的布局／Profile、新运行时身份、shell 执行效果及 TUI Open 复用；

@@ -8,7 +8,7 @@ fn leaf(name: &str) -> Value {
 fn split(first: Value, second: Value) -> Value {
     json!({"type":"split","direction":"right","ratio":0.3,"first":first,"second":second})
 }
-fn parse_value(value: Value) -> Result<Node, &'static str> {
+fn parse_value(value: Value) -> Result<Node, InputError> {
     parse(&serde_json::to_vec(&value).expect("fixture"))
 }
 
@@ -34,12 +34,51 @@ fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
         node
     );
     let export = json!({"schema":"orchbee.layout.export","version":1,
-        "source":{"kind":"layout-observation","siteId":"old","revision":"1","clientId":"old","viewRevision":"1"},
-        "result":{"layout":{"workspaceId":null,"terminalContextId":"old","tabId":"old",
-            "focusedPanelId":null,"zoomed":true,"root":root}}});
+        "source":{"kind":"layout-observation","scope":"client","siteId":"1".repeat(32),"revision":"1","clientId":"2".repeat(32),"viewRevision":"1"},
+        "result":{"layout":{"workspaceId":null,"terminalContextId":"3".repeat(32),"tabId":"4".repeat(32),
+            "focusedPanelId":null,"zoomed":true,"root":{"type":"panel","panelId":"5".repeat(32),
+                "rightClick":"orchbee","children":[],"primary":{"presentationId":"6".repeat(32),
+                    "name":"Retained","label":null,"cwd":null,"command":null,"env":{},"start":false}}}}});
     let mut bytes = vec![0xef, 0xbb, 0xbf];
     bytes.extend(serde_json::to_vec(&export).expect("JSON"));
-    assert_eq!(parse(&bytes).expect("native envelope and BOM"), node);
+    let plan = parse(&bytes)
+        .expect("current native envelope and BOM")
+        .plan();
+    assert_eq!(plan.leaves[0].primary.name.as_str(), "Retained");
+    assert!(!plan.leaves[0].primary.start);
+    for version in [2, 3, 99] {
+        let mut invalid = export.clone();
+        invalid["version"] = json!(version);
+        assert_eq!(
+            parse_value(invalid),
+            Err(InputError::UnsupportedVersion(version))
+        );
+    }
+    for (parent, field) in [
+        ("/source", "scope"),
+        ("/source", "clientId"),
+        ("/result/layout", "zoomed"),
+        ("/result/layout/root", "children"),
+        ("/result/layout/root/primary", "label"),
+        ("/result/layout/root/primary", "cwd"),
+        ("/result/layout/root/primary", "command"),
+    ] {
+        let mut invalid = export.clone();
+        invalid
+            .pointer_mut(parent)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert_eq!(
+            parse_value(invalid),
+            Err(InputError::InvalidLayout),
+            "{field}"
+        );
+    }
+    let mut invalid = export;
+    invalid["result"]["layout"]["root"] = root;
+    assert_eq!(parse_value(invalid), Err(InputError::InvalidLayout));
 }
 
 #[test]
@@ -93,7 +132,7 @@ fn every_leaf_is_validated_before_a_plan_escapes() {
     ] {
         assert_eq!(
             parse_value(split(leaf("valid"), bad)),
-            Err("invalid-layout")
+            Err(InputError::InvalidLayout)
         );
     }
     for bytes in [
@@ -102,7 +141,7 @@ fn every_leaf_is_validated_before_a_plan_escapes() {
         br#"{"type":"split","direction":"right","ratio":0.5,"first":{"type":"panel"},"second":{"type":"panel","label":"a","label":"b"}}"#,
         br#"{"type":"panel"} {}"#,
     ] {
-        assert_eq!(parse(bytes),Err("invalid-layout"));
+        assert_eq!(parse(bytes),Err(InputError::InvalidLayout));
     }
 }
 
@@ -119,7 +158,7 @@ fn limits_cover_total_bytes_leaf_count_depth_and_launch_contracts() {
         parse_value(balanced(24)).expect("24").plan().leaves.len(),
         24
     );
-    assert_eq!(parse_value(balanced(25)), Err("layout-too-large"));
+    assert_eq!(parse_value(balanced(25)), Err(InputError::TooLarge));
     let mut chain = leaf("x");
     for _ in 1..16 {
         chain = split(chain, leaf("x"));
@@ -127,20 +166,20 @@ fn limits_cover_total_bytes_leaf_count_depth_and_launch_contracts() {
     assert!(parse_value(chain.clone()).is_ok());
     assert_eq!(
         parse_value(split(chain, leaf("x"))),
-        Err("layout-too-large")
+        Err(InputError::TooLarge)
     );
     let mut bytes = serde_json::to_vec(&leaf("x")).expect("JSON");
     bytes.resize(MAX_BYTES, b' ');
     assert!(parse(&bytes).is_ok());
     bytes.push(b' ');
-    assert_eq!(parse(&bytes), Err("layout-too-large"));
+    assert_eq!(parse(&bytes), Err(InputError::TooLarge));
     let mut command = vec!["pwsh".to_owned()];
     command.resize(129, String::new());
     assert!(parse_value(json!({"type":"panel","command":command})).is_ok());
     command.push(String::new());
     assert_eq!(
         parse_value(json!({"type":"panel","command":command})),
-        Err("invalid-layout")
+        Err(InputError::InvalidLayout)
     );
     assert!(
         parse_value(json!({"type":"panel","command":["x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES)]}))
@@ -150,7 +189,7 @@ fn limits_cover_total_bytes_leaf_count_depth_and_launch_contracts() {
         parse_value(
             json!({"type":"panel","command":["x".repeat(MAXIMUM_LAUNCH_SELECTION_BYTES + 1)]})
         ),
-        Err("invalid-layout")
+        Err(InputError::InvalidLayout)
     );
 }
 
@@ -179,10 +218,10 @@ fn structured_members_preserve_unbound_intent_and_validate_all_children_before_e
         let mut bad = input.clone();
         let (parent, key) = path.rsplit_once('/').unwrap();
         bad.pointer_mut(parent).unwrap()[key] = value;
-        assert_eq!(parse_value(bad), Err("invalid-layout"), "{path}");
+        assert_eq!(parse_value(bad), Err(InputError::InvalidLayout), "{path}");
     }
     let raw = br#"{"type":"panel","primary":{"name":"x","start":false},"children":[{"name":"x","start":true,"start":false}]}"#;
-    assert_eq!(parse(raw), Err("invalid-layout"));
+    assert_eq!(parse(raw), Err(InputError::InvalidLayout));
     let mut max = input;
     max["children"] = json!(vec![json!({"name":"Empty","start":false}); 16]);
     assert_eq!(
@@ -195,5 +234,5 @@ fn structured_members_preserve_unbound_intent_and_validate_all_children_before_e
         .as_array_mut()
         .unwrap()
         .push(json!({"name":"Extra","start":false}));
-    assert_eq!(parse_value(max), Err("layout-too-large"));
+    assert_eq!(parse_value(max), Err(InputError::TooLarge));
 }

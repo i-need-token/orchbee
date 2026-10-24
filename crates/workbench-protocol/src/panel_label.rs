@@ -63,11 +63,3 @@ impl<'de> Deserialize<'de> for PanelLabelUpdate {
         Self::parse(value.as_deref()).map_err(de::Error::custom)
     }
 }
-
-// `default` handles an absent stored field; when present it must be a label,
-// never null. Keeping one absent spelling preserves legacy snapshot encoding.
-pub(crate) fn deserialize_present<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<PanelCustomLabel>, D::Error> {
-    PanelCustomLabel::deserialize(deserializer).map(Some)
-}

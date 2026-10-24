@@ -9,19 +9,18 @@ retain unreadable originals, and report an empty restoration when every copy is 
 not authorize starting beside an unknown or living Site owner. Windows crash admission remains
 the local Site runtime's responsibility.
 
-The Workbench payload is bounded versioned JSON; current checkpoint v6 keeps shared split ratios and makes Project membership optional for globally identified Workspaces and Directories. Framing stays private to this storage owner and unchanged. Old plain `checkpoint.json` remains readable. Catalog v5 admits the new organization meaning before opening upgraded storage. An earlier cohort must refuse that record without changing catalog, runtime markers or checkpoint bytes. Rollback requires another Site or separately authorized offline conversion; there is no automatic downgrade or live-owner adoption.
+The bounded Workbench payload, durable catalog and private frame each use their current version 1
+shape. Checkpoint payloads retain shared ratios and optional Project organization with global
+Workspace/Directory identities. Catalog records require the exact PID/creation-FILETIME registry;
+there is no older-activator fence or version-dependent recovery. The repository
+[data-boundary rule](../../../docs/ARCHITECTURE.md#data-boundaries) governs versions.
 
-The catalog version is independent of the Workbench document and frame versions:
-
-| Catalog record | Process identity and recovery                                     | Checkpoint evidence for a stopped Site                     |
-| -------------- | ----------------------------------------------------------------- | ---------------------------------------------------------- |
-| v1             | No registry; Active is never inferred dead                        | Legacy plain primary only                                  |
-| v2             | Exact PID and creation-FILETIME registry                          | Legacy plain primary only                                  |
-| v3             | Exact registry and cold-recovery guards; framed multi-slot format | Any fixed slot or exact owned corrupt-raw archive          |
-| v4             | Same registry, guards and framing; canonical shared ratios        | Same fixed-slot/raw evidence; Server validates all content |
-| v5             | Same registry, guards and framing; optional Project organization  | Same fixed-slot/raw evidence; Server validates all content |
-
-Reading versions 1–5 does not migrate them. A stopped v1/v2 activation requires its plain primary. A stopped v3–v5 activation may use backup or raw evidence because an all-invalid restore can intentionally leave no valid slot. Before marker commitment, Server spawn or storage effects, every fresh default or named activation atomically publishes Active catalog v5. Old parsers admitting at most v4 reject it before effects, including after clean stop. The current Server owns content validation and recovered/empty decisions.
+A stopped Site may use any fixed slot or exactly named owned corrupt archive as storage evidence.
+Every fresh default or named activation publishes its current Active record before marker commitment,
+Server spawn or storage effects. Unsupported/malformed records are `InvalidData` and remain intact;
+named records with an admitted name appear as `unreadable` in `session list`. Explicit
+`session delete <name> --confirm` can remove them only under the existing idle-owner, endpoint,
+private-path and storage-lock guards. The Server independently validates checkpoint contents.
 
 ## State and publication
 
@@ -31,7 +30,7 @@ Three fixed slots are `checkpoint.json`, `checkpoint.previous-1.json` and
 five-byte magic consisting of `OBCK` followed by byte `1`, an eight-byte little-endian nonzero
 generation, a 32-byte SHA-256 of the preceding magic/generation bytes followed by the payload,
 and the unchanged payload bytes. The payload limit remains
-2 MiB; the framing adds exactly 45 bytes. A legacy unframed file has generation zero.
+2 MiB; the framing adds exactly 45 bytes. Unframed files are invalid; no generation-zero upgrade exists.
 Each new frame advances from the greatest generation among completely admitted valid slots. A
 generation read from an invalid digest or domain-invalid payload is diagnostic only and never
 advances publication. With no valid slot, ordering restarts at one; a completely valid slot at
@@ -40,10 +39,10 @@ advances publication. With no valid slot, ordering restarts at one; a completely
 Loading admits every slot through the private regular-file boundary, bounds its bytes, checks
 its framing/digest and asks the Server to validate the complete payload. Missing files are
 distinct from invalid files. Permission, identity, reparse and filesystem errors fail admission;
-they never become an empty workspace. A Server validation error also stops loading without fallback:
-historical normalization that exceeds the unchanged Snapshot byte limit is a migration refusal,
-not corruption, and cannot select an older copy or an empty restoration. Existing schema, graph
-and byte limits remain strict; the original slots are unchanged. Pending bytes are not a committed slot.
+they never become an empty workspace. Every payload validation failure, including an unsupported
+version or old shape, invalidates that copy and uses ordinary fallback/empty restoration. Loading
+keeps committed bytes unchanged; publication archives an invalid original before replacement.
+Pending bytes are not a committed slot.
 
 The newest valid generation wins. Conflicting payloads with the same generation are invalid;
 identical duplicate copies do not invent a different generation. If invalid copies are present,
@@ -89,14 +88,10 @@ adding an external notification destination.
 
 ## Evidence and limits
 
-The storage model starts from a v1, v2, v3, v4 or v5 catalog. Its `legacyPrimary` input means one admitted
-plain primary; backup and raw names never satisfy that input. `PublishCatalogV5` maps to successful
-atomic durable-record publication by the activator. Multi-slot prepare and load are disabled until
-that publication. `RefuseOldCohort` changes only the trace observation while retaining catalog and
-storage state. Runtime-marker preservation is outside this storage state vector and requires the
-native old-cohort no-effect witness. Native tests cover publication before storage for both default
-and named Sites, and unsupported-version refusal without changing catalog, marker or checkpoint
-bytes. Fallible validation tests distinguish migration refusal from ordinary corruption fallback.
+The storage model assumes current admitted storage and has no historical catalog or old-activator
+states. Native tests prove current durable publication before storage, unsupported-record refusal
+without mutation, unreadable listing and guarded explicit deletion. Server-load tests cover an
+unsupported payload with a usable alternate slot and with no usable copy.
 
 The storage model separates an abstract monotonic `publicationId` from the private frame generation.
 The model uses `publicationId` only to distinguish each committed original across corruption and
@@ -105,7 +100,7 @@ fresh raw archive name. Frame generation models only ordering among currently ad
 including restart at one after all valid ordering evidence is lost. The model checks three slots,
 invalid-original preservation, atomic commit and fallback; the Server's autosave model checks
 final-stop ordering. Its adapter mapping treats a successful same-directory atomic replacement as
-commit and claims process-crash recovery only after that result. Deterministic storage tests cover legacy bytes,
+commit and claims process-crash recovery only after that result. Deterministic storage tests cover rejection of unframed bytes,
 digest/format/domain rejection, ordering independent of filenames, generation conflicts,
 preservation failure, pending interruption, exhaustion and unchanged publication. Native Windows
 tests cover exclusive ownership, private paths, denied replacement and retained original bytes.

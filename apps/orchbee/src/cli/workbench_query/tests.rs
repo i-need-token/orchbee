@@ -52,7 +52,7 @@ fn record() -> ClientViewRecord {
     client
 }
 fn snapshot() -> Snapshot {
-    let panel = |p| json!({"kind":"panel","panelId":id(p),"primaryPresentation":{"presentationId":id(p+1),"label":"中文\u{1b}[31m","binding":null},"childPresentations":[]});
+    let panel = |p| json!({"kind":"panel","panelId":id(p),"primaryPresentation":{"customLabel":null,"presentationId":id(p+1),"label":"中文\u{1b}[31m","binding":null},"childPresentations":[]});
     let tab =
         |t, p| json!({"tabId":id(t),"label":"shell","pinned":false,"groupId":null,"root":panel(p)});
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",

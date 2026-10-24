@@ -15,8 +15,8 @@ fn snapshot(unbound: bool) -> Snapshot {
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
         "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"tab","pinned":false,"groupId":null,
-        "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(106),"label":"primary","binding":{"terminalId":id(206),"workerId":id(99)}},
-        "childPresentations":[{"presentationId":id(306),"label":"child","binding":if unbound {Value::Null} else {json!({"terminalId":id(406),"workerId":id(99)})}}]}}]}]})).unwrap()
+        "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(106),"label":"primary","binding":{"terminalId":id(206),"workerId":id(99)}},
+        "childPresentations":[{"customLabel":null,"presentationId":id(306),"label":"child","binding":if unbound {Value::Null} else {json!({"terminalId":id(406),"workerId":id(99)})}}]}}]}]})).unwrap()
 }
 
 #[test]

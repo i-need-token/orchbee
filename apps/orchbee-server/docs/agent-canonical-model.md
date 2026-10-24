@@ -225,13 +225,12 @@ terminal access. The protocol schema and CLI envelope versions must agree with e
 
 ## Managed name restart
 
-The private Windows checkpoint version 4 retains only completed managed name claims, keyed by
+The private Windows checkpoint version 1 retains only completed managed name claims, keyed by
 Presentation and containing name plus provider ID. Every claim must have a valid official resume
 reference for that same normalized provider. Claims share the 512-name bound and have unique names
 and presentations. Pending launches, canonical session IDs, old physical identities and reservation
-IDs are not restart authority. Versions 1–3 remain readable; older binaries refuse version 4 rather
-than silently discarding it. Matched-cohort rollback must retain compatible restart data or use an
-explicit conversion/prior valid checkpoint; it must not overwrite a retained version 4 on failure.
+IDs are not restart authority. Only the complete current version 1 shape is readable; incompatible copies remain preserved
+under the [checkpoint recovery policy](workbench-checkpoint.md).
 
 Clean-stop capture holds registry → coordinator → AgentState fences over exact current membership.
 Startup selects only enabled, deduplicated provider resume plans. After fresh Host creation and
@@ -251,7 +250,7 @@ mutation, then commits that prepared update only for the matching successful nam
 its guard is still held. Both owners perform CPU work only; no transport runs under commit guards.
 This prevents a visible half-release or accidental deletion of a newer provider session.
 
-Evidence must establish strict old/new checkpoint admission, bounded and unique claims, pending
+Evidence must establish strict current checkpoint admission and incompatible-format rejection, bounded and unique claims, pending
 exclusion, provider/reference agreement, new physical identities, disabled/deduplicated restoration,
 same-provider reference replacement, staged clear semantics and actual Windows managed restart
 with subsequent name/query/input/clear behavior. Codec or storage-only checks do not prove this

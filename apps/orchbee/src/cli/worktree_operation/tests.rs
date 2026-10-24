@@ -34,7 +34,7 @@ fn snapshot() -> Snapshot {
         "navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(3), "label":"project"}], "directories":[], "workspaces":[{"workspaceId":id(4), "label":"work", "primaryDirectoryId":null, "terminalContextId":id(5), "projectId":id(3)}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},{"terminalContextId":id(5),"groups":[],"tabs":[{
             "tabId":id(6),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(7),
-                "primaryPresentation":{"presentationId":id(8),"label":"shell","binding":{"terminalId":id(9),"workerId":id(10)}},"childPresentations":[]}}]}]})).unwrap()).unwrap()
+                "primaryPresentation":{"customLabel":null,"presentationId":id(8),"label":"shell","binding":{"terminalId":id(9),"workerId":id(10)}},"childPresentations":[]}}]}]})).unwrap()).unwrap()
 }
 
 #[test]

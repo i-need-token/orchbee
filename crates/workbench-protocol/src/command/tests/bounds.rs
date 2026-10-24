@@ -5,21 +5,14 @@ use crate::{Navigation, Project, TerminalContext, Workspace};
 fn workspace_names_reject_unicode_whitespace_on_both_wire_directions_without_trimming() {
     for value in ["   ", "\t\r\n", "\u{85}\u{a0}\u{2003}\u{3000}"] {
         assert!(WorkbenchLabel::parse_workspace(value).is_err());
-        // Historical snapshot labels remain decodable so they can be renamed.
-        let label = WorkbenchLabel::parse(value).unwrap();
-        let request = WorkbenchRequest::Command(WorkbenchCommand {
-            protocol_version: ProtocolVersion,
-            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
-            site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
-            expected_revision: WorkbenchRevision::new(1),
-            action: WorkbenchAction::WorkspaceRename {
-                workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
-                label,
-            },
+        assert!(WorkbenchLabel::parse(value).is_err());
+        let request = serde_json::json!({
+            "kind":"workbench.command", "protocolVersion":1,
+            "requestId":format!("{:032x}",1), "siteId":format!("{:032x}",2),
+            "expectedRevision":"1", "action":{"kind":"workspace.rename",
+                "workspaceId":format!("{:032x}",3), "label":value}
         });
-        assert!(serialize_workbench_request(&request).is_err());
-        let bytes = serde_json::to_vec(&request).unwrap();
-        assert!(parse_workbench_request(&bytes).is_err());
+        assert!(parse_workbench_request(&serde_json::to_vec(&request).unwrap()).is_err());
     }
     for value in ["  Notes  ", "资料 整理", "\u{feff}"] {
         assert_eq!(
@@ -366,8 +359,8 @@ fn launch_selection_wire_shape_is_closed_and_default_omits_the_key() {
 #[test]
 fn layout_command_has_a_bounded_large_carrier_without_widening_ordinary_commands() {
     let leaf = serde_json::json!({"kind":"panel","rightClick":"orchbee",
-        "primary":{"label":"蜂".repeat(512)},
-        "children":(0..16).map(|_| serde_json::json!({"label":"蜂".repeat(512)})).collect::<Vec<_>>()});
+        "primary":{"label":"蜂".repeat(512),"customLabel":null},
+        "children":(0..16).map(|_| serde_json::json!({"label":"蜂".repeat(512),"customLabel":null})).collect::<Vec<_>>()});
     let mut root = leaf;
     for _ in 0..3 {
         root = serde_json::json!({"kind":"split","orientation":"horizontal","children":[root.clone(),root]});

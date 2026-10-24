@@ -353,7 +353,7 @@ fn source_fixture(snapshot: &mut Snapshot) -> PluginInvocationContext {
         .iter()
         .map(|workspace| workspace.workspace_id.clone())
         .collect();
-    snapshot.terminal_contexts.push(serde_json::from_value(json!({"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"canonical tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"Agent","binding":{"workerId":id(8),"terminalId":id(9)}},"childPresentations":[]}}]})).unwrap());
+    snapshot.terminal_contexts.push(serde_json::from_value(json!({"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"canonical tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(7),"label":"Agent","binding":{"workerId":id(8),"terminalId":id(9)}},"childPresentations":[]}}]})).unwrap());
     snapshot.terminal_contexts.push(
         serde_json::from_value(json!({"terminalContextId":id(11),"groups":[],"tabs":[]})).unwrap(),
     );

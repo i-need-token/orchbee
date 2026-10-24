@@ -2,7 +2,7 @@
 use crate::{
     ActivationState, LockAttempt, ModeCheckedLocalSiteRendezvous as Rendezvous, SiteScope,
     WindowsSiteName,
-    durable_sessions_windows::{self as durable, Directory, Lifecycle, Record},
+    durable_sessions_windows::{self as durable, CatalogRecord, Directory, Lifecycle, Record},
     process_observation_windows::ProcessSnapshot,
     process_registration::RecoveryVerdict,
     site_name_windows, windows_permissions as permissions,
@@ -47,8 +47,9 @@ pub struct WindowsNamedSiteEntry {
     pub name: WindowsSiteName,
     pub runtime: PathBuf,
     pub deleting: bool,
+    /// The catalog identity is known, but its retained record cannot be admitted.
+    pub unreadable: bool,
     retained: Option<ActivationState>,
-    framed_checkpoint: bool,
     checkpoint: PathBuf,
     local: PathBuf,
 }
@@ -199,10 +200,7 @@ impl WindowsNamedSiteCatalog {
                 let storage = storage_guard(&checkpoint)?;
                 match record.as_ref().and_then(Record::activation) {
                     Some(ActivationState::Stopped { .. }) => {
-                        stopped_checkpoint_evidence(
-                            &checkpoint,
-                            record.as_ref().is_some_and(Record::uses_framed_checkpoint),
-                        )?;
+                        stopped_checkpoint_evidence(&checkpoint)?;
                     }
                     Some(ActivationState::Active | ActivationState::Crashed { .. }) => {
                         let _writer = self.durable.try_writer(scope)?;
@@ -210,10 +208,7 @@ impl WindowsNamedSiteCatalog {
                             .durable
                             .read(scope)?
                             .ok_or(io::ErrorKind::InvalidData)?;
-                        let processes = record
-                            .processes
-                            .as_ref()
-                            .ok_or(io::ErrorKind::InvalidData)?;
+                        let processes = &record.processes;
                         let snapshot = ProcessSnapshot::observe(processes);
                         if snapshot.verdict(processes) != RecoveryVerdict::Gone {
                             return Err(io::ErrorKind::InvalidData.into());
@@ -255,10 +250,7 @@ impl WindowsNamedSiteCatalog {
         if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        let processes = record
-            .processes
-            .as_ref()
-            .ok_or(io::ErrorKind::InvalidData)?;
+        let processes = &record.processes;
         let snapshot = ProcessSnapshot::observe(processes);
         if snapshot.verdict(processes) != RecoveryVerdict::Gone {
             return Err(io::ErrorKind::InvalidData.into());
@@ -336,7 +328,7 @@ impl WindowsNamedSiteCatalog {
                 return Err(io::ErrorKind::InvalidData.into());
             }
             if matches!(previous.lifecycle, Lifecycle::Stopped { .. }) {
-                stopped_checkpoint_evidence(&checkpoint, previous.uses_framed_checkpoint())?;
+                stopped_checkpoint_evidence(&checkpoint)?;
             }
         }
         let name = if scope.starts_with(site_name_windows::NAMED_PREFIX) {
@@ -387,11 +379,17 @@ impl WindowsNamedSiteCatalog {
         let mut names: BTreeMap<String, (bool, Option<ActivationState>, bool)> = BTreeMap::new();
         if let Some(directory) = Directory::open(local, &base)? {
             for (_, record) in directory.list(deadline)? {
-                let state = record.activation();
-                names.insert(
-                    record.name.clone(),
-                    (record.is_deleting(), state, record.uses_framed_checkpoint()),
-                );
+                match record {
+                    CatalogRecord::Readable(record) => {
+                        names.insert(
+                            record.name.clone(),
+                            (record.is_deleting(), record.activation(), false),
+                        );
+                    }
+                    CatalogRecord::Unreadable(name) => {
+                        names.insert(name.as_str().to_owned(), (false, None, true));
+                    }
+                }
             }
         }
         for entry in fs::read_dir(&base)? {
@@ -433,17 +431,14 @@ impl WindowsNamedSiteCatalog {
                 return Err(io::ErrorKind::FileTooLarge.into());
             }
         }
-        let (deleting, retained, framed_checkpoint) =
+        let (deleting, retained, unreadable) =
             names.remove("default").unwrap_or((false, None, false));
         if names.len() >= MAXIMUM_SESSIONS {
             return Err(io::ErrorKind::FileTooLarge.into());
         }
         let mut result = Vec::with_capacity(names.len() + 1);
-        for (text, (deleting, retained, framed_checkpoint)) in std::iter::once((
-            "default".to_owned(),
-            (deleting, retained, framed_checkpoint),
-        ))
-        .chain(names)
+        for (text, (deleting, retained, unreadable)) in
+            std::iter::once(("default".to_owned(), (deleting, retained, unreadable))).chain(names)
         {
             let name = WindowsSiteName::parse(&text)?;
             let runtime = base.join(name.scope_for_user(&sid));
@@ -454,7 +449,7 @@ impl WindowsNamedSiteCatalog {
                 name,
                 deleting,
                 retained,
-                framed_checkpoint,
+                unreadable,
             });
         }
         Ok(result)
@@ -485,7 +480,11 @@ impl WindowsNamedSiteCatalog {
             let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
             let runtime = self.base.join(&scope);
             let previous = read_intent(&self.base, &scope)?;
-            let durable = self.durable.read(&scope)?;
+            let (durable, unreadable) = match self.durable.read(&scope) {
+                Ok(record) => (record, false),
+                Err(error) if error.kind() == io::ErrorKind::InvalidData => (None, true),
+                Err(error) => return Err(error),
+            };
             pending = previous.is_some() || durable.as_ref().is_some_and(Record::is_deleting);
             check()?;
             let _app_data = permissions::open_tree(local_app_data)?;
@@ -582,12 +581,14 @@ impl WindowsNamedSiteCatalog {
                 && state.is_none()
                 && runtime_directory.is_none()
                 && durable.is_none()
+                && !unreadable
                 && !pending
             {
                 return Ok(WindowsNamedSiteDeleteOutcome::Absent);
             }
             if site.is_none()
                 && !pending
+                && !unreadable
                 && !durable
                     .as_ref()
                     .is_some_and(|record| matches!(record.lifecycle, Lifecycle::Stopped { .. }))
@@ -618,7 +619,7 @@ impl WindowsNamedSiteCatalog {
                         },
                     )?,
                 };
-                self.durable.publish(&scope, &record)?;
+                self.durable.publish_deleting(&scope, &record)?;
                 pending = true;
             }
             check()?;
@@ -686,7 +687,7 @@ impl WindowsNamedSiteCatalog {
 impl WindowsNamedSiteEntry {
     /// A read-only, guarded observation of cold-recovery eligibility, never a future-start promise.
     pub fn cold_recoverable(&self) -> io::Result<bool> {
-        if self.deleting {
+        if self.deleting || self.unreadable {
             return Ok(false);
         }
         let observed = (|| -> io::Result<bool> {
@@ -719,9 +720,7 @@ impl WindowsNamedSiteEntry {
             if !matches!(record.lifecycle, Lifecycle::Active | Lifecycle::Crashed) {
                 return Ok(false);
             }
-            let Some(processes) = &record.processes else {
-                return Ok(false);
-            };
+            let processes = &record.processes;
             let snapshot = ProcessSnapshot::observe(processes);
             if snapshot.verdict(processes) != RecoveryVerdict::Gone {
                 return Ok(false);
@@ -805,7 +804,7 @@ impl WindowsNamedSiteEntry {
         };
         match self.retained {
             Some(stopped @ ActivationState::Stopped { .. }) if storage => {
-                match stopped_checkpoint_evidence(&self.checkpoint, self.framed_checkpoint) {
+                match stopped_checkpoint_evidence(&self.checkpoint) {
                     Ok(_) => Ok(Some(stopped)),
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
                         Ok(Some(ActivationState::Active))
@@ -832,16 +831,8 @@ fn existing_lock(path: &Path, required: bool) -> io::Result<Option<File>> {
     }
 }
 
-fn stopped_checkpoint_evidence(path: &Path, framed: bool) -> io::Result<()> {
-    let leaves: &[&str] = if framed {
-        &[
-            "checkpoint.json",
-            "checkpoint.previous-1.json",
-            "checkpoint.previous-2.json",
-        ]
-    } else {
-        &["checkpoint.json"]
-    };
+fn stopped_checkpoint_evidence(path: &Path) -> io::Result<()> {
+    let leaves = crate::checkpoint_rotation::SLOTS;
     for leaf in leaves {
         match permissions::open_file(&path.join(leaf), false, false) {
             Ok(file) => {
@@ -852,16 +843,14 @@ fn stopped_checkpoint_evidence(path: &Path, framed: bool) -> io::Result<()> {
             Err(error) => return Err(error),
         }
     }
-    if framed {
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let leaf = entry.file_name();
-            let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
-            if crate::checkpoint_rotation::is_corrupt_original(name) {
-                let file = permissions::open_file(&entry.path(), false, false)?;
-                drop(file);
-                return Ok(());
-            }
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let leaf = entry.file_name();
+        let name = leaf.to_str().ok_or(io::ErrorKind::InvalidData)?;
+        if crate::checkpoint_rotation::is_corrupt_original(name) {
+            let file = permissions::open_file(&entry.path(), false, false)?;
+            drop(file);
+            return Ok(());
         }
     }
     Err(io::ErrorKind::NotFound.into())

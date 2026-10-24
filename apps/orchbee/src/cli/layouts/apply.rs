@@ -90,7 +90,7 @@ fn execute(
         SourceFailure::Cancelled { .. } => error(FailureKind::Cancelled, "input-unavailable"),
     })?;
     let plan = template::parse(&bytes)
-        .map_err(|reason| error(FailureKind::InvalidUsage, reason))?
+        .map_err(|error| self::error(FailureKind::InvalidUsage, error.reason()))?
         .plan();
     let prepared = launch::prepare(&plan, work_deadline, signals)?;
     receipt.stage = "discovery";

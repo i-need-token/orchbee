@@ -108,7 +108,7 @@ function panel(depth: number, identity: { next: number }): unknown {
 			childPresentations: [],
 			kind: 'panel',
 			panelId,
-			primaryPresentation: { binding: null, label: 'Terminal', presentationId },
+			primaryPresentation: { customLabel: null, binding: null, label: 'Terminal', presentationId },
 		};
 	}
 	const splitId = opaqueIdentity(identity.next);
@@ -247,6 +247,7 @@ describe('Workbench cross-language semantic contract', () => {
 
 	it('enforces Unicode labels and collection and tree boundaries', () => {
 		const presentation = {
+			customLabel: null,
 			binding: null,
 			label: '😀'.repeat(512),
 			presentationId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',

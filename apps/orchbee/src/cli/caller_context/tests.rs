@@ -21,8 +21,9 @@ fn environment(name: &str) -> Option<OsString> {
 }
 
 fn snapshot(child: bool, workspace: bool) -> Snapshot {
-    let bound = json!({"presentationId": hex(5), "label": "caller", "binding": {"terminalId": TERMINAL, "workerId": WORKER}});
-    let unbound = json!({"presentationId": hex(6), "label": "empty", "binding": null});
+    let bound = json!({"customLabel":null,"presentationId": hex(5), "label": "caller", "binding": {"terminalId": TERMINAL, "workerId": WORKER}});
+    let unbound =
+        json!({"customLabel":null,"presentationId": hex(6), "label": "empty", "binding": null});
     let tab = json!({"tabId": hex(3), "label": "shell", "pinned": false, "groupId": null,
         "root": {"kind": "panel", "panelId": hex(4), "primaryPresentation": if child { &unbound } else { &bound },
         "childPresentations": if child { vec![bound.clone()] } else { vec![] }}});

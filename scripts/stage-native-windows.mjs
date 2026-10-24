@@ -161,7 +161,7 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 		);
 		writeFileSync(
 			path.join(prepared, 'cohort.json'),
-			JSON.stringify({ schemaVersion: 2, artifacts: hashes }) + '\n',
+			JSON.stringify({ schemaVersion: 1, artifacts: hashes }) + '\n',
 			{ flag: 'wx' },
 		);
 		// Publish only a complete cohort. The temporary is on the same volume;

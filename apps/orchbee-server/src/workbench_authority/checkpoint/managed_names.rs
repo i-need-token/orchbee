@@ -15,12 +15,6 @@ pub struct ManagedAgentRestart {
     pub provider_id: AgentProviderId,
 }
 
-pub(super) fn deserialize<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<Vec<ManagedAgentRestart>>, D::Error> {
-    Vec::<ManagedAgentRestart>::deserialize(deserializer).map(Some)
-}
-
 pub(super) fn validate(
     names: &[ManagedAgentRestart],
     sessions: &[StoredAgentSession],

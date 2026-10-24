@@ -89,8 +89,6 @@ fn server_body_observes_its_durable_identity_before_execution_and_replay_cannot_
     assert_eq!(
         record
             .processes
-            .as_ref()
-            .unwrap()
             .registration(ProcessRole::Server)
             .identity(),
         Some(observed)
@@ -151,7 +149,7 @@ fn wrong_direct_parent_and_failed_initial_publication_have_no_process_effect() {
     assert_eq!(directory.read(&scope).unwrap().unwrap(), original);
     drop(pin);
     let mut record = original;
-    let processes = record.processes.as_mut().unwrap();
+    let processes = &mut record.processes;
     processes
         .reserve(ProcessRole::Server, Creator::Activator)
         .unwrap();
@@ -187,7 +185,6 @@ fn child_fixture() {
     assert_eq!(
         record
             .processes
-            .unwrap()
             .registration(ProcessRole::Server)
             .identity(),
         Some(identity)

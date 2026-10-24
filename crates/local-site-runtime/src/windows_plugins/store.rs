@@ -27,8 +27,9 @@ pub struct PluginRegistryEntry {
     pub plugin_root: String,
     pub enabled: bool,
     pub manifest: PluginManifest,
+    #[serde(deserialize_with = "Option::deserialize")]
     pub warning: Option<Error>,
-    #[serde(default)]
+    #[serde(deserialize_with = "Option::deserialize")]
     pub source: Option<PluginManagedSource>,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -37,9 +38,7 @@ struct Catalog {
     version: u8,
     revision: u64,
     plugins: Vec<PluginRegistryEntry>,
-    #[serde(default)]
     cleanup: Vec<String>,
-    #[serde(default)]
     blocked_cleanup: Vec<String>,
 }
 impl Default for Catalog {
@@ -200,7 +199,6 @@ impl PluginRegistry {
             .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
         let changed = catalog.plugins != before;
         if changed {
-            catalog.version = 2;
             catalog.revision = catalog
                 .revision
                 .checked_add(1)
@@ -267,7 +265,14 @@ fn decode(bytes: Option<&[u8]>, root: &Path) -> Result<Catalog, Error> {
         return Ok(Catalog::default());
     };
     let catalog: Catalog = serde_json::from_slice(bytes).map_err(|_| Error::InvalidRegistry)?;
-    if !matches!(catalog.version, 1 | 2)
+    // Authoring TOML permits omitted fields; the retained JSON must contain the complete
+    // serialized manifest and provenance. Compare JSON values so whitespace/key order are free.
+    let retained: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|_| Error::InvalidRegistry)?;
+    if retained != serde_json::to_value(&catalog).map_err(|_| Error::InvalidRegistry)? {
+        return Err(Error::InvalidRegistry);
+    }
+    if catalog.version != 1
         || catalog.revision > MAX_REVISION
         || catalog.plugins.len() > 32
         || catalog.cleanup.len() > 64
@@ -281,10 +286,6 @@ fn decode(bytes: Option<&[u8]>, root: &Path) -> Result<Catalog, Error> {
             .blocked_cleanup
             .iter()
             .any(|id| !catalog.cleanup.contains(id))
-        || (catalog.version == 1
-            && (!catalog.cleanup.is_empty()
-                || !catalog.blocked_cleanup.is_empty()
-                || catalog.plugins.iter().any(|p| p.source.is_some())))
     {
         return Err(Error::InvalidRegistry);
     }

@@ -84,8 +84,8 @@ fn editor_cli_native_pipe_checks_target_and_view_and_retains_one_submission()
         json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
         "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"shell","pinned":false,"groupId":null,
-        "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"presentationId":id(7),"label":"shell","binding":{"workerId":id(8),"terminalId":id(9)}},
-            "childPresentations":[{"presentationId":id(11),"label":"other","binding":{"workerId":id(8),"terminalId":id(10)}}]}}]}]}),
+        "root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(7),"label":"shell","binding":{"workerId":id(8),"terminalId":id(9)}},
+            "childPresentations":[{"customLabel":null,"presentationId":id(11),"label":"other","binding":{"workerId":id(8),"terminalId":id(10)}}]}}]}]}),
     )?;
     let corpus: Value = serde_json::from_str(include_str!(
         "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"

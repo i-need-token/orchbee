@@ -26,11 +26,7 @@ pub struct PresentationBinding {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Presentation {
     pub binding: Option<PresentationBinding>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::panel_label::deserialize_present"
-    )]
+    #[serde(deserialize_with = "Option::deserialize")]
     pub custom_label: Option<crate::PanelCustomLabel>,
     pub label: String,
     /// Runtime fact about the current binding, never persisted or carried across a rebinding.

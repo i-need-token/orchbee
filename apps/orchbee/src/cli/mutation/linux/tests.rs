@@ -216,7 +216,7 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
         json!({
             "kind": "panel",
             "panelId": panel,
-            "primaryPresentation": {
+            "primaryPresentation": {"customLabel":null,
                 "presentationId": pres,
                 "label": "p",
                 "binding": null,

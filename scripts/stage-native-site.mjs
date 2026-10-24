@@ -235,7 +235,7 @@ function main() {
 		hashes[CAPSULE_DIRECTORY] = adaptersDigest;
 		writeFileSync(
 			path.join(destination, 'cohort.json'),
-			JSON.stringify({ schemaVersion: 2, artifacts: hashes }) + '\n',
+			JSON.stringify({ schemaVersion: 1, artifacts: hashes }) + '\n',
 			{ flag: 'wx', mode: 0o600 },
 		);
 		runCommand('chmod', ['600', path.posix.join(output, 'cohort.json')]);

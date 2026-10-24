@@ -330,7 +330,7 @@ fn panel_value(depth: usize, next_identity: &mut u128) -> Value {
             "childPresentations": [],
             "kind": "panel",
             "panelId": panel_id,
-            "primaryPresentation": {
+            "primaryPresentation": {"customLabel":null,
                 "binding": null,
                 "label": "Terminal",
                 "presentationId": presentation_id

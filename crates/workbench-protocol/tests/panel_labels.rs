@@ -28,11 +28,14 @@ fn updates_normalize_bounded_unicode_whitespace_and_clear_without_losing_bom() {
 }
 
 #[test]
-fn stored_overrides_have_one_absent_spelling_and_keep_the_creation_fallback() {
+fn stored_overrides_require_explicit_null_and_keep_the_creation_fallback() {
     let original = json!({
-        "binding": null, "label": "creation fallback",
+        "binding": null, "label": "creation fallback", "customLabel": null,
         "presentationId": "11111111111111111111111111111111"
     });
+    let mut missing = original.clone();
+    missing.as_object_mut().unwrap().remove("customLabel");
+    assert!(serde_json::from_value::<Presentation>(missing).is_err());
     let absent: Presentation = serde_json::from_value(original.clone()).unwrap();
     assert_eq!(absent.custom_label, None);
     assert_eq!(absent.display_label(), "creation fallback");
@@ -44,7 +47,6 @@ fn stored_overrides_have_one_absent_spelling_and_keep_the_creation_fallback() {
     assert_eq!(stored.display_label(), "user title");
     assert_eq!(stored.custom_label.unwrap().as_str(), "user title");
     for invalid in [
-        json!(null),
         json!(""),
         json!(" x"),
         json!("x\u{85}"),

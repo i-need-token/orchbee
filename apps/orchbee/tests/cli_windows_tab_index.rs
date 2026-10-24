@@ -19,7 +19,7 @@ fn snapshot_reply(stream: &mut LocalStream) {
     let tabs: Vec<_> = (0..3).map(|i| json!({
         "tabId":format!("{:032x}",2 + i * 3),"label":format!("tab {i}"),"pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":format!("{:032x}",3 + i * 3),
-            "primaryPresentation":{"presentationId":format!("{:032x}",4 + i * 3),"label":"shell",
+            "primaryPresentation":{"customLabel":null,"presentationId":format!("{:032x}",4 + i * 3),"label":"shell",
                 "binding":{"terminalId":format!("{:032x}",20 + i),"workerId":"6f7263686265652d6c6f63616c2d7631"}},
             "childPresentations":[]}
     })).collect();

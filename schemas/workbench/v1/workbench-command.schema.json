@@ -3513,10 +3513,17 @@
 					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
 				},
 				"customLabel": {
-					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelCustomLabel"
+					"oneOf": [
+						{
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelCustomLabel"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			},
-			"required": ["label"],
+			"required": ["label", "customLabel"],
 			"additionalProperties": false
 		},
 		"layoutNode": {

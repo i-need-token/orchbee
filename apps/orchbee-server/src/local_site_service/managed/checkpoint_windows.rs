@@ -2,9 +2,7 @@ use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, RetainedChild, WindowsRetainedSessionRecord,
     WindowsSessionStore,
 };
-use orchbee_server::{
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpoint, WorkbenchCheckpointError,
-};
+use orchbee_server::{MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, WorkbenchCheckpoint};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -39,13 +37,7 @@ fn load_from(
     // Direct Server entry must also refuse unsupported catalog versions before store effects.
     let record = WindowsRetainedSessionRecord::retain(local, site)?;
     let store = WindowsSessionStore::open(local, site, MAXIMUM_WORKBENCH_CHECKPOINT_BYTES)?;
-    let loaded = store.try_read_validated(|bytes| match WorkbenchCheckpoint::parse(bytes) {
-        Ok(checkpoint) => Ok(Some(checkpoint)),
-        Err(error @ WorkbenchCheckpointError::HistoricalMigrationTooLarge { .. }) => {
-            Err(io::Error::new(io::ErrorKind::InvalidData, error))
-        }
-        Err(_) => Ok(None),
-    })?;
+    let loaded = store.read_validated(|bytes| WorkbenchCheckpoint::parse(bytes).ok())?;
     let suppress_initial_empty = loaded.checkpoint.is_none()
         && loaded.notice == Some(orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty);
     let checkpoint = loaded.checkpoint;

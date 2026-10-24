@@ -13,7 +13,7 @@ fn catalog_checks_publish_the_failed_runtime_stage() {
 }
 
 #[test]
-fn recoverable_session_is_closed_to_v2_and_does_not_claim_a_running_server() {
+fn unavailable_session_states_do_not_claim_a_running_server() {
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.session.list.json")).unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
@@ -33,9 +33,13 @@ fn recoverable_session_is_closed_to_v2_and_does_not_claim_a_running_server() {
     document["result"]["sessions"][0]["state"] = json!("stopped");
     assert!(validator.is_valid(&document));
     document["version"] = json!(2);
-    document["result"]["sessions"][0]["state"] = json!("recoverable");
-    document["result"]["sessions"][0]["running"] = json!(true);
-    assert!(!validator.is_valid(&document));
+    for (state, running) in [("recoverable", json!(false)), ("unreadable", json!(null))] {
+        document["result"]["sessions"][0]["state"] = json!(state);
+        document["result"]["sessions"][0]["running"] = running;
+        assert!(validator.is_valid(&document));
+        document["result"]["sessions"][0]["running"] = json!(true);
+        assert!(!validator.is_valid(&document));
+    }
 }
 
 #[test]

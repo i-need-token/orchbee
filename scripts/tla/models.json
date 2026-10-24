@@ -524,8 +524,6 @@
 				"crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md"
 			],
 			"requiredCoverage": [
-				"PublishCatalogV5",
-				"RefuseOldCohort",
 				"Prepare",
 				"Flush",
 				"PreserveInvalid",

@@ -67,8 +67,8 @@ export const WorkbenchTabGroupLabelSchema = z
 	);
 
 export const WorkbenchLabelSchema = WorkbenchTabGroupLabelSchema.refine(
-	(value) => value.length > 0,
-	'Label must not be empty',
+	(value) => /[^\p{White_Space}]/u.test(value),
+	'Label must not be empty or whitespace-only',
 );
 
 const WorkbenchPanelCustomLabelSchema = WorkbenchLabelSchema.refine(
@@ -173,7 +173,7 @@ export const WorkbenchPresentationLaunchFailureSchema = z
 export const WorkbenchPresentationSchema = z
 	.strictObject({
 		binding: WorkbenchPresentationBindingSchema.nullable(),
-		customLabel: WorkbenchPanelCustomLabelSchema.optional(),
+		customLabel: WorkbenchPanelCustomLabelSchema.nullable(),
 		label: WorkbenchLabelSchema,
 		launchFailure: WorkbenchPresentationLaunchFailureSchema.optional(),
 		presentationId: TerminalPresentationIdSchema,

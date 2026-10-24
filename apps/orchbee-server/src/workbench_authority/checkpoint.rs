@@ -14,6 +14,8 @@ use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod agent_sessions;
+mod contexts;
+use contexts::StoredContext;
 mod navigation;
 use navigation::StoredNavigation;
 mod managed_names;
@@ -28,15 +30,7 @@ pub const MAXIMUM_WORKBENCH_CHECKPOINT_BYTES: usize = 2 * 1024 * 1024;
 pub enum WorkbenchCheckpointError {
     RetiredAuthority,
     ForeignWorker,
-    EncodedTooLarge {
-        actual: usize,
-        maximum: usize,
-    },
-    HistoricalMigrationTooLarge {
-        version: u32,
-        actual: usize,
-        maximum: usize,
-    },
+    EncodedTooLarge { actual: usize, maximum: usize },
     InvalidDocument,
     UnsupportedVersion(u32),
     InvalidProjection(ContractError),
@@ -46,7 +40,6 @@ pub enum WorkbenchCheckpointError {
     InvalidAgentSession,
     InvalidTerminalDirectory,
     InvalidManagedName,
-    InvalidSplitRatio,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -58,18 +51,10 @@ impl fmt::Display for WorkbenchCheckpointError {
                 formatter,
                 "checkpoint uses {actual} bytes; maximum is {maximum}"
             ),
-            Self::HistoricalMigrationTooLarge {
-                version,
-                actual,
-                maximum,
-            } => write!(
-                formatter,
-                "checkpoint version {version} migration requires {actual} Snapshot bytes; maximum is {maximum}; automatic restoration refused and committed checkpoints retained"
-            ),
             Self::InvalidDocument => formatter.write_str("invalid Workbench checkpoint document"),
             Self::UnsupportedVersion(version) => write!(
                 formatter,
-                "unsupported Workbench checkpoint version {version}"
+                "unsupported Workbench checkpoint version {version}; expected version 1"
             ),
             Self::InvalidProjection(error) => error.fmt(formatter),
             Self::InvalidIdentity => {
@@ -87,9 +72,6 @@ impl fmt::Display for WorkbenchCheckpointError {
             Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
             Self::InvalidManagedName => {
                 formatter.write_str("invalid checkpoint managed Agent name")
-            }
-            Self::InvalidSplitRatio => {
-                formatter.write_str("invalid checkpoint split ratio version")
             }
         }
     }
@@ -153,26 +135,11 @@ struct Checkpoint {
     version: u32,
     last_identity: Counter,
     navigation: StoredNavigation,
-    terminal_contexts: Vec<TerminalContext>,
+    terminal_contexts: Vec<StoredContext>,
     profiles: Vec<StoredProfile>,
-    #[serde(
-        default,
-        deserialize_with = "agent_sessions::deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
-    agent_sessions: Option<Vec<agent_sessions::StoredAgentSession>>,
-    #[serde(
-        default,
-        deserialize_with = "directories::deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
-    terminal_directories: Option<Vec<directories::StoredDirectory>>,
-    #[serde(
-        default,
-        deserialize_with = "managed_names::deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
-    managed_names: Option<Vec<ManagedAgentRestart>>,
+    agent_sessions: Vec<agent_sessions::StoredAgentSession>,
+    terminal_directories: Vec<directories::StoredDirectory>,
+    managed_names: Vec<ManagedAgentRestart>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -259,14 +226,18 @@ impl WorkbenchAuthority {
         let navigation = StoredNavigation::capture(snapshot.navigation, local_worker)?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 7,
+            version: 1,
             last_identity,
             navigation,
-            terminal_contexts: snapshot.terminal_contexts,
+            terminal_contexts: snapshot
+                .terminal_contexts
+                .into_iter()
+                .map(StoredContext::from)
+                .collect(),
             profiles,
-            agent_sessions: Some(agent_sessions),
-            terminal_directories: Some(terminal_directories),
-            managed_names: Some(managed.to_vec()),
+            agent_sessions,
+            terminal_directories,
+            managed_names: managed.to_vec(),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -293,35 +264,16 @@ pub struct WorkbenchCheckpoint {
 impl WorkbenchCheckpoint {
     /// Immutable intent is consumed by native startup planning before reconstruction.
     pub fn managed_names(&self) -> &[ManagedAgentRestart] {
-        self.checkpoint.managed_names.as_deref().unwrap_or_default()
+        &self.checkpoint.managed_names
     }
     pub fn parse(encoded: &[u8]) -> Result<Self, WorkbenchCheckpointError> {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if !matches!(checkpoint.version, 1..=7) {
+        if checkpoint.version != 1 {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));
-        }
-        if (checkpoint.version >= 2) != checkpoint.agent_sessions.is_some() {
-            return Err(WorkbenchCheckpointError::InvalidAgentSession);
-        }
-        if (checkpoint.version >= 3) != checkpoint.terminal_directories.is_some() {
-            return Err(WorkbenchCheckpointError::InvalidTerminalDirectory);
-        }
-        if (checkpoint.version >= 4) != checkpoint.managed_names.is_some() {
-            return Err(WorkbenchCheckpointError::InvalidManagedName);
-        }
-        if checkpoint.version < 5
-            && checkpoint.terminal_contexts.iter().any(|context| {
-                context
-                    .tabs
-                    .iter()
-                    .any(|tab| has_nondefault_ratio(&tab.root))
-            })
-        {
-            return Err(WorkbenchCheckpointError::InvalidSplitRatio);
         }
         // These values only validate the shared graph shape. No authority is constructed,
         // retained or published; actual boot identities arrive during reconstruction.
@@ -347,32 +299,16 @@ impl WorkbenchCheckpoint {
         authority.pending_agent_sessions = self
             .checkpoint
             .agent_sessions
-            .unwrap_or_default()
             .into_iter()
             .map(|row| (row.presentation_id, row.session))
             .collect();
         authority.restart_directories = self
             .checkpoint
             .terminal_directories
-            .unwrap_or_default()
             .into_iter()
             .map(|r| (r.presentation_id, r.path))
             .collect();
         Ok(authority)
-    }
-}
-
-fn has_nondefault_ratio(node: &PanelNode) -> bool {
-    match node {
-        PanelNode::Panel { .. } => false,
-        PanelNode::Split {
-            children, ratio, ..
-        } => {
-            !ratio.is_half()
-                || children
-                    .iter()
-                    .any(|child| has_nondefault_ratio(&child.node))
-        }
     }
 }
 
@@ -410,42 +346,23 @@ fn checkpoint_parts(
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(0),
         site_id: site_id.clone(),
-        navigation: checkpoint
-            .navigation
-            .restore(checkpoint.version, local_worker)?,
-        terminal_contexts: checkpoint.terminal_contexts.clone(),
+        navigation: checkpoint.navigation.restore(local_worker)?,
+        terminal_contexts: checkpoint
+            .terminal_contexts
+            .iter()
+            .cloned()
+            .map(TerminalContext::from)
+            .collect(),
     };
-    let projection = validate_projection(snapshot).map_err(|error| match error {
-        WorkbenchCheckpointError::InvalidProjection(ContractError::EncodedValueTooLarge {
-            actual,
-            maximum,
-        }) if checkpoint.version <= 5 => WorkbenchCheckpointError::HistoricalMigrationTooLarge {
-            version: checkpoint.version,
-            actual,
-            maximum,
-        },
-        other => other,
-    })?;
+    let projection = validate_projection(snapshot)?;
     validate_identities(
         projection.snapshot(),
         &checkpoint.profiles,
         checkpoint.last_identity,
     )?;
-    agent_sessions::validate(
-        checkpoint.agent_sessions.as_deref().unwrap_or_default(),
-        projection.snapshot(),
-    )?;
-    managed_names::validate(
-        checkpoint.managed_names.as_deref().unwrap_or_default(),
-        checkpoint.agent_sessions.as_deref().unwrap_or_default(),
-    )?;
-    directories::validate(
-        checkpoint
-            .terminal_directories
-            .as_deref()
-            .unwrap_or_default(),
-        projection.snapshot(),
-    )?;
+    agent_sessions::validate(&checkpoint.agent_sessions, projection.snapshot())?;
+    managed_names::validate(&checkpoint.managed_names, &checkpoint.agent_sessions)?;
+    directories::validate(&checkpoint.terminal_directories, projection.snapshot())?;
     Ok(CheckpointParts {
         projection,
         catalog,

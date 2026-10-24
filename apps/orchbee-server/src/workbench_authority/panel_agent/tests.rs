@@ -25,7 +25,7 @@ fn physical(n: u128, generation: u64) -> TerminalAgentBinding {
     }
 }
 fn tree() -> Value {
-    json!({"kind":"workbench.snapshot","protocolVersion":1,"revision":"9","siteId":format!("{:032x}",80),"navigation":{"workspaceOrder":[],"projects":[],"directories":[],"workspaces":[],"standaloneTerminalContextId":format!("{:032x}",1)},"terminalContexts":[{"terminalContextId":format!("{:032x}",1),"groups":[],"tabs":[{"tabId":format!("{:032x}",2),"label":"tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":format!("{:032x}",3),"primaryPresentation":{"presentationId":format!("{:032x}",4),"label":"main","binding":binding(1)},"childPresentations":[{"presentationId":format!("{:032x}",5),"label":"child","binding":binding(2)}]}}]}]})
+    json!({"kind":"workbench.snapshot","protocolVersion":1,"revision":"9","siteId":format!("{:032x}",80),"navigation":{"workspaceOrder":[],"projects":[],"directories":[],"workspaces":[],"standaloneTerminalContextId":format!("{:032x}",1)},"terminalContexts":[{"terminalContextId":format!("{:032x}",1),"groups":[],"tabs":[{"tabId":format!("{:032x}",2),"label":"tab","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":format!("{:032x}",3),"primaryPresentation":{"customLabel":null,"presentationId":format!("{:032x}",4),"label":"main","binding":binding(1)},"childPresentations":[{"customLabel":null,"presentationId":format!("{:032x}",5),"label":"child","binding":binding(2)}]}}]}]})
 }
 fn install(a: &mut WorkbenchAuthority, doc: &Value) {
     let snap = parse_snapshot(&serde_json::to_vec(doc).unwrap()).unwrap();

@@ -7,13 +7,13 @@ membership, Client view state and read-only terminal facts. The pinned Herdr ref
 ## Export
 
 `layout export [--tab <target> | --panel <target> | --current] [--client <id>]
-[--timeout <milliseconds>] [--format text|json]` emits `orchbee.layout.export` v2/v3 JSON in either
+[--timeout <milliseconds>] [--format text|json]` emits `orchbee.layout.export` v1 JSON in either
 format on success; failures follow the requested format. The default total timeout is 30,000 ms.
 Ctrl+C exits 130 and releases owned temporary viewers and the admitted session.
 
-An explicit Tab/Panel without `--client` reads canonical shared structure without a TUI (v3).
+An explicit Tab/Panel without `--client` reads canonical shared structure without a TUI.
 Its source has `scope:shared`, null `clientId`/`viewRevision`, and null zoom/focus observations.
-With `--client` or an omitted target, select the explicit, caller-matched or sole Ready Client (v2).
+With `--client` or an omitted target, select the explicit, caller-matched or sole Ready Client; its source uses `scope:client`.
 Missing or ambiguous required Client observations fail. Ratios always come from the shared tree. An omitted target uses the validated caller Panel or
 selected Client Panel. Explicit targets ignore caller metadata. Tab targets admit ID, suffix or
 unique label; Panel targets admit ID or suffix. Exporting a Panel exports its containing Tab.
@@ -22,9 +22,9 @@ Export never activates a Tab, changes focus, resizes a Host or acquires terminal
 The result contains `layout:{workspaceId,terminalContextId,tabId,zoomed,focusedPanelId,root}`.
 Standalone workspaceId is null. Splits contain `type:split`, `direction:right|down`, `ratio`,
 `first` and `second`. Panels contain `type:panel`, descriptive `panelId`, `rightClick`, `primary`
-and ordered `children`. Members contain descriptive `presentationId`, fallback `name`, optional
-manual `label`, `start` and empty `env`. Bound members add available observed cwd and immutable
-explicit command argv; default-shell launches omit command. Unbound members have `start:false`
+and ordered `children`. Members contain descriptive `presentationId`, fallback `name`, required-nullable
+manual `label`, `cwd` and `command`, plus `start` and empty `env`. Bound members carry available cwd
+and immutable explicit command argv; unavailable cwd and default-shell command are null. Unbound members have `start:false`
 and cause neither terminal reads nor a later default-shell launch. No environment values are exported.
 
 At most 24 Panels, 16 levels including the root, 16 children per Panel and 1 MiB are admitted.
@@ -47,8 +47,9 @@ replacing that selected Client's active Tab selects the new Tab. Explicit label 
 otherwise the old custom Tab label is retained or numbering remains automatic.
 
 Acquire the entire file or inherited noninteractive stdin before effects, with optional UTF-8 BOM
-and the export bounds. Accept v1/v2/v3 native export envelopes, descriptions containing root or bare
-nodes. Legacy flat leaves and Herdr `type:pane`/`pane_id` normalize to one starting primary with
+and the export bounds. Accept only current v1 native export envelopes, descriptions containing root or bare
+nodes. Native envelopes require all fields and exact current shapes; other versions/shapes return a
+typed layout-input error with an expected-version-1 diagnostic. No migration occurs. Legacy flat leaves and Herdr `type:pane`/`pane_id` normalize to one starting primary with
 numeric fallback names. Structured members preserve their fallback names, labels and start intent.
 Description IDs and focus/zoom remain descriptive; new layouts start unzoomed. Mixing flat launch
 fields with structured members, duplicate/unknown fields and malformed nested children is invalid.
@@ -92,9 +93,9 @@ remain localized. Group/pin roundtrip and complete saved-focus restoration remai
 The pure template/projector owns shape, bounds, member intent and identity-free reconstruction.
 The Server owns canonical membership and launches; the Client owns view observations. The Windows
 adapter owns exact binding joins, send-once submission, ownership fences, cancellation and cleanup.
-Shared ratios were introduced in checkpoint v5/catalog v4 and persist in the current checkpoint v6; no dependency is introduced. Mixed releases require a matched private cohort.
+Shared ratios persist in the current version 1 checkpoint and catalog; no dependency is introduced. Mixed releases require a matched private cohort.
 
-Focused tests cover old/new inputs, child/unbound roundtrip, literal launch data, every pre-readiness
+Focused tests cover current exports, incompatible-export refusal and template inputs, child/unbound roundtrip, literal launch data, every pre-readiness
 failure boundary, exact binding deltas, stale metadata and response correlation. Controlled Windows
 CLI peers exercise actual process dispatch and receipts, not a real provider or interactive Client.
 Full packaged Windows/TUI, provider and multi-Client acceptance and the complete regression gate

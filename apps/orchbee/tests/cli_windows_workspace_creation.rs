@@ -14,7 +14,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn context(context: u64, tab: u64, panel: u64, bound: bool) -> Value {
-    json!({"terminalContextId":id(context),"groups":[],"tabs":[{"tabId":id(tab),"label":"shell","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(panel),"primaryPresentation":{"presentationId":id(panel+1),"label":"shell","binding":if bound {json!({"terminalId":id(12),"workerId":id(9)})} else {Value::Null}},"childPresentations":[]}}]})
+    json!({"terminalContextId":id(context),"groups":[],"tabs":[{"tabId":id(tab),"label":"shell","pinned":false,"groupId":null,"root":{"kind":"panel","panelId":id(panel),"primaryPresentation":{"customLabel":null,"presentationId":id(panel+1),"label":"shell","binding":if bound {json!({"terminalId":id(12),"workerId":id(9)})} else {Value::Null}},"childPresentations":[]}}]})
 }
 fn state(count: u64, source: bool, created: bool, revision: u64) -> Snapshot {
     let mut contexts = vec![json!({"terminalContextId":id(10),"groups":[],"tabs":[]})];

@@ -165,7 +165,6 @@ impl<'a> Provision<'a> {
         })
     }
     fn persist(&mut self) -> Result<(), PluginProvisionFailure> {
-        self.catalog.version = 2;
         let bytes = serde_json::to_vec(&self.catalog).map_err(|_| Error::InvalidRegistry)?;
         if bytes.len() > REGISTRY_LIMIT {
             return Err(Error::LimitExceeded.into());

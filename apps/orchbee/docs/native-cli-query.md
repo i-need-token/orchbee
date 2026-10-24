@@ -570,22 +570,23 @@ deletion intent and an explicit failure; repeat delete to finish, never start to
 Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruption. Completed removals are not rolled back; a pending intent remains resumable. The `interrupted` result reports whether an intent remains, including cancellation after cleanup completed.
 
 List emits `orchbee.session.list` v2; v1 remains closed to its original states. `recoverable` means
-a guarded observation found complete v2/v3 registration, all exact identities gone and idle resources;
+a guarded observation found complete current registration, all exact identities gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
 `orchbee.session.delete` v1. The embedded schema catalog is v148.
 
 The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
 runtime leaf is removed; `session attach`/`server start` recreates its route and restores the checkpoint.
-`server start` and TUI startup automatically recover a complete, proved-dead v2/v3 Active generation,
+`server start` and TUI startup automatically recover a complete, proved-dead current Active generation,
 including after runtime-leaf loss, while preserving the last checkpoint. The first stage refuses
-live Host, unknown or incomplete identity and legacy Active without deleting data. No old process
+live Host, unknown or incomplete identity and unreadable records without deleting data. No old process
 is terminated and no clean-stop receipt is invented. Run `orchbee server diagnose` with the same
 `--session` selection to inspect a refusal, or `orchbee --session recovery-work server start` to use another
-name. A new activation publishes catalog v3 before marker, Server or checkpoint-store publication.
-Stopped v1/v2 records require the primary checkpoint; stopped v3 records admit the fixed slots and
-exact owned corrupt-original names. Readers limited to v1/v2 refuse v3 before effects, even after a
-clean stop. See the
+name. A new activation publishes the current version 1 catalog before marker, Server or storage
+publication. Stopped records admit fixed slots and exact owned corrupt originals. Other record
+versions/shapes remain unreadable without migration. `session list` exposes an admitted named record
+as `unreadable` with unknown running state; confirmed `session delete` can remove it after all existing
+owner/storage guards pass. See the
 [recovery contract](../../../crates/local-site-runtime/docs/windows-crash-recovery.md).
 Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
 command. Listing remains read-only. The runtime base itself is not implicitly recreated.

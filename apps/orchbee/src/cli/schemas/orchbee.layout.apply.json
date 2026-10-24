@@ -259,12 +259,12 @@
 					"const": "orchbee.layout.export"
 				},
 				"version": {
-					"enum": [2, 3]
+					"const": 1
 				},
 				"source": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "siteId", "revision", "clientId", "viewRevision"],
+					"required": ["kind", "siteId", "revision", "clientId", "viewRevision", "scope"],
 					"properties": {
 						"kind": {
 							"const": "layout-observation"
@@ -296,7 +296,7 @@
 							]
 						},
 						"scope": {
-							"const": "shared"
+							"enum": ["client", "shared"]
 						}
 					}
 				},
@@ -420,38 +420,59 @@
 				"member": {
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["presentationId", "name", "start", "env"],
+					"required": ["label", "cwd", "command", "env", "presentationId", "name", "start"],
 					"properties": {
 						"label": {
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 512
-						},
-						"cwd": {
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 4096
-						},
-						"command": {
-							"type": "array",
-							"minItems": 1,
-							"maxItems": 129,
-							"prefixItems": [
+							"anyOf": [
 								{
-									"title": "Absolute launch executable",
 									"type": "string",
 									"minLength": 1,
-									"maxLength": 30720,
-									"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
-									"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
+									"maxLength": 512
+								},
+								{
+									"type": "null"
 								}
-							],
-							"items": {
-								"type": "string",
-								"pattern": "^[^\\u0000]*$",
-								"maxLength": 30720
-							},
-							"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
+							]
+						},
+						"cwd": {
+							"anyOf": [
+								{
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"command": {
+							"anyOf": [
+								{
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 129,
+									"prefixItems": [
+										{
+											"title": "Absolute launch executable",
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 30720,
+											"pattern": "^(?:/|(?:\\\\\\\\\\?\\\\)?[A-Za-z]:[/\\\\])[^\\u0000]*$",
+											"$comment": "The authoritative executable plus arguments bound is 30720 UTF-8 bytes and worst-case JSON string-content bytes."
+										}
+									],
+									"items": {
+										"type": "string",
+										"pattern": "^[^\\u0000]*$",
+										"maxLength": 30720
+									},
+									"$comment": "A variadic argv tuple: one absolute executable followed by zero to 128 literal arguments."
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"env": {
 							"type": "object",
@@ -479,15 +500,13 @@
 								}
 							},
 							"then": {
-								"not": {
-									"anyOf": [
-										{
-											"required": ["cwd"]
-										},
-										{
-											"required": ["command"]
-										}
-									]
+								"properties": {
+									"cwd": {
+										"type": "null"
+									},
+									"command": {
+										"type": "null"
+									}
 								}
 							}
 						}
@@ -499,17 +518,18 @@
 				{
 					"if": {
 						"properties": {
-							"version": {
-								"const": 2
+							"source": {
+								"properties": {
+									"scope": {
+										"const": "client"
+									}
+								}
 							}
 						}
 					},
 					"then": {
 						"properties": {
 							"source": {
-								"not": {
-									"required": ["scope"]
-								},
 								"properties": {
 									"clientId": {
 										"$ref": "#/$defs/export/$defs/id"
@@ -535,7 +555,6 @@
 					"else": {
 						"properties": {
 							"source": {
-								"required": ["scope"],
 								"properties": {
 									"clientId": {
 										"type": "null"

@@ -14,7 +14,7 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 fn context(context: u64, tab: u64, panel: u64) -> Value {
-    json!({"terminalContextId":id(context),"groups":[],"tabs":[{"tabId":id(tab),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(panel),"primaryPresentation":{"presentationId":id(panel+1),"label":"shell","binding":{"terminalId":id(12),"workerId":id(9)}},"childPresentations":[]}}]})
+    json!({"terminalContextId":id(context),"groups":[],"tabs":[{"tabId":id(tab),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(panel),"primaryPresentation":{"customLabel":null,"presentationId":id(panel+1),"label":"shell","binding":{"terminalId":id(12),"workerId":id(9)}},"childPresentations":[]}}]})
 }
 fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, standalone: bool) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {

@@ -28,9 +28,26 @@ impl Member {
 pub(in crate::cli::layouts) fn parse(
     mut fields: Object,
     structured: bool,
+    current_export: bool,
 ) -> Result<Member, &'static str> {
+    if current_export {
+        fields.require(&[
+            "presentationId",
+            "name",
+            "start",
+            "label",
+            "cwd",
+            "command",
+            "env",
+        ])?;
+    }
     let (name, start) = if structured {
-        fields.optional_string("presentationId")?;
+        if current_export {
+            fields
+                .decode::<orchbee_workbench_protocol::TerminalPresentationId>("presentationId")?;
+        } else {
+            fields.optional_string("presentationId")?;
+        }
         (
             fields.decode::<WorkbenchLabel>("name")?,
             fields.decode::<bool>("start")?,
@@ -46,6 +63,9 @@ pub(in crate::cli::layouts) fn parse(
     } else {
         None
     };
+    if current_export && let Some(label) = &label {
+        orchbee_workbench_protocol::PanelCustomLabel::parse(label).map_err(|_| "invalid-layout")?;
+    }
     let label = PanelLabelUpdate::parse(label.as_deref()).map_err(|_| "invalid-layout")?;
     let cwd = fields.optional_string("cwd")?;
     if cwd
@@ -53,6 +73,10 @@ pub(in crate::cli::layouts) fn parse(
         .is_some_and(|path| path.is_empty() || path.len() > 4096)
     {
         return Err("invalid-layout");
+    }
+    if current_export && let Some(cwd) = &cwd {
+        orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(cwd)
+            .map_err(|_| "invalid-layout")?;
     }
     let command = if let Some(raw) = fields.remove("command") {
         serde_json::from_str::<Option<Vec<String>>>(raw.get()).map_err(|_| "invalid-layout")?
@@ -77,6 +101,10 @@ pub(in crate::cli::layouts) fn parse(
     {
         return Err("invalid-layout");
     }
+    if current_export && let Some(argv) = &command {
+        orchbee_client_server_protocol::LaunchSelection::new(argv[0].clone(), argv[1..].to_vec())
+            .map_err(|_| "invalid-layout")?;
+    }
     let environment = if let Some(raw) = fields.remove("env") {
         let mut env = Object::parse(&raw)?;
         let names = env.names();
@@ -93,6 +121,9 @@ pub(in crate::cli::layouts) fn parse(
     };
 
     fields.finish()?;
+    if current_export && !environment.entries().is_empty() {
+        return Err("invalid-layout");
+    }
     if !start && (cwd.is_some() || command.is_some() || !environment.entries().is_empty()) {
         return Err("invalid-layout");
     }

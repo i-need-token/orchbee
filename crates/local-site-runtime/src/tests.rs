@@ -287,7 +287,7 @@ fn native_cohort_rejects_tampering_and_manifest_version() {
         "agent-observation-adapters".to_owned(),
         "a".repeat(64).into(),
     );
-    let manifest = serde_json::json!({"schemaVersion": 2, "artifacts": artifacts});
+    let manifest = serde_json::json!({"schemaVersion": 1, "artifacts": artifacts});
     fs::write(
         fixture.0.join("cohort.json"),
         serde_json::to_vec(&manifest).unwrap(),
@@ -299,7 +299,7 @@ fn native_cohort_rejects_tampering_and_manifest_version() {
     assert!(NativeCohort::load(&fixture.0, deadline()).is_err());
     fs::write(fixture.0.join("orchbee-worker.exe"), b"orchbee-worker").unwrap();
     let mut invalid_version = manifest;
-    invalid_version["schemaVersion"] = 1.into();
+    invalid_version["schemaVersion"] = 2.into();
     fs::write(
         fixture.0.join("cohort.json"),
         serde_json::to_vec(&invalid_version).unwrap(),

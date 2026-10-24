@@ -552,7 +552,7 @@ fn validate_presentation_structure(presentation: &Presentation) -> Result<(), Va
 
 fn validate_label(label: &str) -> Result<(), ValidationError> {
     let character_count = label.chars().count();
-    if character_count == 0 || character_count > MAXIMUM_LABEL_LENGTH {
+    if label.trim().is_empty() || character_count > MAXIMUM_LABEL_LENGTH {
         return Err(ValidationError);
     }
     Ok(())

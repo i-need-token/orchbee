@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::WorkbenchPanelTerminalTarget;
 fn layout_command() -> WorkbenchCommand {
     workbench_command(FIRST_REQUEST_ID,7,WorkbenchAction::TabCreateLayout { terminal_context_id: context_id(30),
         label: workbench_label(),automatic_label:false,
-        layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty"},"children":[],"rightClick":"orchbee"})).unwrap() })
+        layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty","customLabel":null},"children":[],"rightClick":"orchbee"})).unwrap() })
 }
 fn bind_command() -> WorkbenchCommand {
     workbench_command(

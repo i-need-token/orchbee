@@ -325,7 +325,7 @@ impl TestCohort {
         fs::write(
             &manifest,
             format!(
-                r#"{{"schemaVersion":2,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}","agent-observation-adapters":"{}"}}}}"#,
+                r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}","agent-observation-adapters":"{}"}}}}"#,
                 ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256, ADAPTERS_SHA256
             ),
         )?;
@@ -1547,7 +1547,7 @@ impl TestCohort {
         fs::write(
             &manifest,
             format!(
-                r#"{{"schemaVersion":2,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}","agent-observation-adapters":"{}"}}}}"#,
+                r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}","agent-observation-adapters":"{}"}}}}"#,
                 hashes[0], hashes[1], hashes[2], hashes[3], ADAPTERS_SHA256
             ),
         )?;
