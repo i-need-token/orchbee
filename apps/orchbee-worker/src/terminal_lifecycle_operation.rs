@@ -275,19 +275,15 @@ fn inventory_outcome(
             target = Some(LifecycleTargetObservation {
                 revision: core.revision,
                 phase,
-                close_activity: if request.authorization.capability_version.get() < 2 {
-                    LifecycleCloseActivity::Unknown
-                } else {
-                    match core.close_activity {
-                        Some(orchbee_terminal_protocol::TerminalCloseActivity::Idle) => {
-                            LifecycleCloseActivity::Idle
-                        }
-                        Some(orchbee_terminal_protocol::TerminalCloseActivity::Active) => {
-                            LifecycleCloseActivity::Active
-                        }
-                        Some(orchbee_terminal_protocol::TerminalCloseActivity::Unknown) | None => {
-                            LifecycleCloseActivity::Unknown
-                        }
+                close_activity: match core.close_activity {
+                    Some(orchbee_terminal_protocol::TerminalCloseActivity::Idle) => {
+                        LifecycleCloseActivity::Idle
+                    }
+                    Some(orchbee_terminal_protocol::TerminalCloseActivity::Active) => {
+                        LifecycleCloseActivity::Active
+                    }
+                    Some(orchbee_terminal_protocol::TerminalCloseActivity::Unknown) | None => {
+                        LifecycleCloseActivity::Unknown
                     }
                 },
             });

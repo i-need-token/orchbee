@@ -1124,7 +1124,7 @@ mod terminal_read {
         bytes.extend_from_slice(
             &(u32::from(frame.geometry.columns) * u32::from(frame.geometry.rows)).to_le_bytes(),
         );
-        bytes.push(3); // OBTF version byte checked by the route inspector
+        bytes.push(0); // OBTF format patch checked by the route inspector
         bytes.extend_from_slice(&frame.theme_revision.to_le_bytes());
         bytes.extend_from_slice(&[0; 7]); // trailing reserved header
         for text in &strings {

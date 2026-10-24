@@ -727,6 +727,8 @@ closed viewers cannot add Host requests to a lifecycle step. Preflight Host loss
 result delivery, including Host or Server loss after that observation. Inventory requests ask for
 at most 128 terminals in one page, also subject to the Host control-record byte bound. Every decoded
 row, identity collision, cursor generation and offset is checked before projecting the target.
+The current lifecycle capability preserves Host-reported `idle`, `active`, and `unknown` close
+activity; absent activity remains `unknown`, without a historical-version fallback.
 
 [Target cleanup](src/host_connection/target_cleanup.rs) captures up to eight exact viewer IDs and
 one exact controller ID before Host I/O. It reserves one generation-local retired-target cell,

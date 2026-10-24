@@ -275,7 +275,7 @@ fn capacity_rejection_preserves_authority_and_start_identity_priority() -> TestR
         ),
         (
             AuthorizationSpec {
-                capability: 1,
+                capability: 2,
                 ..AuthorizationSpec::standard(9, 203)
             },
             ExpectedAdmissionRejection::UnsupportedCapability,

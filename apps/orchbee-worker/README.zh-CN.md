@@ -651,6 +651,8 @@ step 增加 Host 请求。Preflight Host 丢失是已知的 `HostUnavailableBefo
 是 Unknown。精确 ACK 知识在 result 交付前保留，包括观察 ACK 后 Host 或 Server 丢失的情况。
 Inventory 请求每次只查询一页，最多 128 个 terminal，同时受 Host control-record byte bound 限制。
 投影目标前检查每个解码 row、identity collision、cursor generation 和 offset。
+当前生命周期能力保留 Host 报告的 `idle`、`active` 和 `unknown` 关闭活动；缺失活动仍为
+`unknown`，不提供历史版本回退。
 
 [Target cleanup](src/host_connection/target_cleanup.rs) 在 Host I/O 前捕获最多八个精确 viewer ID 和
 一个精确 controller ID，并预留一个 generation-local retired-target cell，受现有 1,024 个 binding
