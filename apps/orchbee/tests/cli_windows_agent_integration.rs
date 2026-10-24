@@ -1670,6 +1670,8 @@ fn copilot_current_commands_join_exact_origin_and_deliver_exec_hook_events() {
         assert_eq!(calls(), previous_calls);
         assert_eq!(fs::read_to_string(&state_path).unwrap(), bytes);
     }
+    fs::write(&state_path, &current).unwrap();
+    assert_eq!(inspect("explain")["result"]["state"], "enabled");
     let output = Command::new("node.exe")
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
