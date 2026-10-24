@@ -3,6 +3,7 @@
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod support;
+use orchbee_client_server_protocol::PROTOCOL_VERSION as TERMINAL_PROTOCOL_VERSION;
 use orchbee_local_client_protocol::{
     ClientHello, LocalClientMessage, RejectionReason, ServerMetadata, ServerMode, read_message,
     write_message,
@@ -230,9 +231,9 @@ fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
     .identity()
     .to_owned();
     for (cohort, protocol, compatible) in [
-        (matching.as_str(), 2, true),
-        ("other-server", 2, false),
-        (matching.as_str(), 3, false),
+        (matching.as_str(), TERMINAL_PROTOCOL_VERSION, true),
+        ("other-server", TERMINAL_PROTOCOL_VERSION, false),
+        (matching.as_str(), 2, false),
     ] {
         let reply = metadata(cohort, protocol);
         let handle = peer(&fixture, move |stream| {
@@ -256,7 +257,7 @@ fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
         assert_eq!(result["compatibility"]["restartRequired"], !compatible);
     }
     fs::remove_file(fixture.cohort_directory().join("cohort.json")).unwrap();
-    let reply = metadata(&matching, 2);
+    let reply = metadata(&matching, TERMINAL_PROTOCOL_VERSION);
     let handle = peer(&fixture, move |stream| {
         write_message(stream, &reply).unwrap()
     });
@@ -418,7 +419,10 @@ fn localized_text_escapes_peer_control_data_and_json_is_locale_independent() {
         ("en_US.UTF-8", "Server version"),
         ("zh_CN.UTF-8", "Server 版本"),
     ] {
-        let reply = metadata("unsafe\x1b]52;c;bad\x07\r\ncohort", 2);
+        let reply = metadata(
+            "unsafe\x1b]52;c;bad\x07\r\ncohort",
+            TERMINAL_PROTOCOL_VERSION,
+        );
         let handle = peer(&fixture, move |stream| {
             write_message(stream, &reply).unwrap()
         });
