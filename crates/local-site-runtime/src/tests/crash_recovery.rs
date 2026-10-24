@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     ActivationState, WindowsNamedSiteCatalog as Catalog, WindowsRetainedSessionRecord as Retained,
     WindowsSessionStore, WindowsSiteName,
-    durable_sessions_windows::{Directory, Lifecycle, Record},
+    durable_sessions_windows::{Directory, Lifecycle},
     process_registration::{Creator, ProcessIdentity, ProcessRole},
 };
 use std::io;

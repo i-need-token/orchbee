@@ -8,7 +8,7 @@ Windows 干净停止检查点按稳定的 Workbench Presentation 身份保留外
 
 ## 存储与转换模型
 
-检查点版本 2 增加必需的 `agentSessions` 列表。每条记录携带 `presentationId` 和 `session`，后者包含精确官方来源、规范化 Agent 标签及 provider 引用种类／值。版本 1 仍可读取，但不允许此字段。未知字段、重复记录、成员缺失、不支持的版本、错误来源／Agent 组合、控制字符、引用越界或非绝对本机路径均拒绝整个检查点。沿用既有 2 MiB 编码上限。
+当前版本 1 检查点要求必填的 `agentSessions` 列表。每条记录携带 `presentationId` 和 `session`，后者包含精确官方来源、规范化 Agent 标签及 provider 引用种类／值。缺失列表及其他历史形状均不可读。未知字段、重复记录、成员缺失、不支持的版本、错误来源／Agent 组合、控制字符、引用越界或非绝对本机路径均拒绝整个检查点。沿用既有 2 MiB 编码上限。
 
 | 转换               | 必需观察                                                  | 结果                                 |
 | ------------------ | --------------------------------------------------------- | ------------------------------------ |
@@ -39,7 +39,7 @@ Server 选择当前 Windows provider 命令及字面恢复参数，然后在既�
 
 Workbench/OBCS/OBCN 启动选择接受 executable/argument 合计 30 KiB UTF-8 字节和 128 个参数，另有 30 KiB 最坏 JSON 字符串内容预算：ASCII 控制字符计六字节，引号／反斜杠计两字节，其他 UTF-8 字节计一字节。OBCS JSON 帧在既有 u16 头内允许 63 KiB；OBCN 二进制帧允许 40 KiB，Workbench 启动请求允许 96 KiB。独立的 Host 64 KiB 控制文档及 Windows 命令行限制仍适用。编码后的恢复参数为 ASCII，限制为 30,000 字符；batch 分派拒绝超过 8,000 字符的命令行。旧 peer 拒绝更大的 payload；必须整体启用及回退匹配 cohort。
 
-已知创建失败和结果未知均保守地保留预留。Herdr 在可证明尚未启动进程时尝试另一个重复面板的行为仍未实现。逐终端 cwd 由检查点版本 1 保留，见 [Workbench 重启检查点](workbench-checkpoint.md)。已完成托管名称通过 [Names 所有者](agent-canonical-model.zh-CN.md#托管名称重启)及
+已知创建失败和结果未知均保守地保留预留。Herdr 在可证明尚未启动进程时尝试另一个重复面板的行为仍未实现。逐终端 cwd 由检查点版本 1 保留，见 [Workbench 重启检查点](workbench-checkpoint.zh-CN.md)。已完成托管名称通过 [Names 所有者](agent-canonical-model.zh-CN.md#托管名称重启)及
 检查点版本 1 恢复；禁用恢复、去重后的未启动项及普通手工名称不恢复名称。
 
 ## 证据与兼容性

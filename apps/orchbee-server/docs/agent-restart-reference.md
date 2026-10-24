@@ -8,7 +8,7 @@ The selected reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `per
 
 ## Storage and transition model
 
-Checkpoint version 2 adds a required `agentSessions` list. Each record carries `presentationId` and `session` with exact official source, normalized Agent label, and provider reference kind/value. Version 1 remains readable only without this field. Unknown fields, duplicate records, missing membership, unsupported versions, invalid source/Agent combinations, control characters, invalid reference bounds or nonabsolute native paths reject the entire checkpoint. The existing 2 MiB encoded limit remains.
+The current version 1 checkpoint requires the `agentSessions` list. Each record carries `presentationId` and `session` with exact official source, normalized Agent label, and provider reference kind/value. Missing lists and all other historical shapes are unreadable. Unknown fields, duplicate records, missing membership, unsupported versions, invalid source/Agent combinations, control characters, invalid reference bounds or nonabsolute native paths reject the entire checkpoint. The existing 2 MiB encoded limit remains.
 
 | Transition                     | Required observation                                                      | Result                                                                |
 | ------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
