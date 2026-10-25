@@ -20,7 +20,6 @@ const foreignDependencies = [
 	['apps/orchbee-worker', 'apps/terminal-host'],
 	['apps/desktop', 'apps/terminal-host'],
 	['apps/desktop', 'apps/web'],
-	['crates/terminal-protocol', 'packages/terminal-protocol'],
 ];
 const foreignPaths = [
 	['apps/desktop/resources/', 'apps/orchbee'],
@@ -260,6 +259,19 @@ export function selectVerificationScope(graph, paths, pairingVersions) {
 			if (manifestName.test(changed)) throw new Error(`Dependency manifest changed: ${changed}`);
 			if (rootToolInputs.has(changed)) {
 				reasons.push(`root tooling <- ${changed}`);
+				continue;
+			}
+			if (changed.startsWith('schemas/terminal/')) {
+				for (const root of [
+					'crates/terminal-protocol',
+					'packages/terminal-protocol',
+					'apps/terminal-host',
+				]) {
+					if (!graph.some((entry) => entry.root === root))
+						throw new Error(`Missing terminal contract consumer ${root}`);
+					selected.add(root);
+					reasons.push(`${root} <- ${changed}`);
+				}
 				continue;
 			}
 			const owner = graph.find((entry) =>

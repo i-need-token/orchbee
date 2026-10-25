@@ -1,5 +1,10 @@
 # Terminal protocol Rust binding
 
+The language-neutral [Terminal authority](../../schemas/terminal/README.md) owns the wire
+reference, version policy, constant registry and fixtures. This independent Rust binding reads
+those fixtures directly; its private registry test compares production constants without adding
+public test-only exports.
+
 ## Shared SGR style projection
 
 `terminal_sgr_style` formats one validated cell style without allocation. Native CLI terminal

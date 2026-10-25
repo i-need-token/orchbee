@@ -1,6 +1,6 @@
 # Terminal Protocol Version Policy and Release History
 
-This file is the authority for semantic versions owned by `@orchbee/terminal-protocol` and, after
+This file is the authority for semantic versions owned by `schemas/terminal` and, after
 the first public release, their release history.
 
 ## Version domains
@@ -22,7 +22,7 @@ and do not advance with these five contracts automatically.
 ## Before the first public release
 
 Follow the repository [pre-release version rule](../../../docs/ARCHITECTURE.md#data-boundaries).
-Update the Rust, TypeScript, and Zig constants, encoders, decoders, fixtures, exports, tests, and
+Update `v1/constants.json` and the Rust, TypeScript, and Zig constants, encoders, decoders, fixtures, exports, tests, and
 current protocol reference together whenever the current contract changes.
 
 ## Public release and later

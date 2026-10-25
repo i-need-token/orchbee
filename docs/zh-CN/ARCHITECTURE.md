@@ -57,6 +57,10 @@ OBTP 的五个版本域保持为 `0.1.0`。形状变化直接修改当前契约�
 其他形状的对端和文件由 cohort 准入或严格解析拒绝；若两者都无法保护版本号复用，
 则更换 magic 或 schema 标识，而不保留旧契约。
 
+语言中立的 Terminal 权威位于 [`schemas/terminal`](../../schemas/terminal/README.zh-CN.md)。
+其参考、版本政策、常量注册表和规范夹具管理独立的 Rust、Zig 和 TypeScript 绑定。
+语言包负责实现和夹具生产，不建立竞争的线协议契约。
+
 共享领域状态与 Client 本地呈现遵循 [`INTERFACE-DESIGN.md`](INTERFACE-DESIGN.md) 的职责边界。
 GUI 和 TUI 投影所属契约；渲染器不同不构成对同一产品含义分别建立权威的理由。
 

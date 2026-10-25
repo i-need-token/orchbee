@@ -1,36 +1,64 @@
 import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url);
-const frameFixture = require.resolve('@orchbee/terminal-protocol/fixtures/terminal-frame.bin');
-const projectionFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-projection-buffer.bin');
-const packedProjectionConformanceFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/packed-projection-conformance.json');
-const envelopeFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/transport-envelope.bin');
-const inputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/write-input.bin');
-const keyInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/key-input.bin');
-const textInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/text-input.bin');
-const mouseInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/mouse-input.bin');
-const focusInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/focus-input.bin');
-const pasteInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/paste-input.bin');
-const pasteAutoInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/paste-auto-input.bin');
-const terminalFailedFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-failed.json');
-const controlFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/control-conformance.json');
-const utf8BomFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/utf8-bom-conformance.json');
-const rowWindowFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-row-window.bin');
+const constantsRegistry = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/constants.json', import.meta.url),
+);
+const frameFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/terminal-frame.bin', import.meta.url),
+);
+const projectionFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/terminal-projection-buffer.bin', import.meta.url),
+);
+const packedProjectionConformanceFixture = fileURLToPath(
+	new URL(
+		'../../../schemas/terminal/v1/fixtures/packed-projection-conformance.json',
+		import.meta.url,
+	),
+);
+const envelopeFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/transport-envelope.bin', import.meta.url),
+);
+const inputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/write-input.bin', import.meta.url),
+);
+const keyInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/key-input.bin', import.meta.url),
+);
+const textInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/text-input.bin', import.meta.url),
+);
+const mouseInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/mouse-input.bin', import.meta.url),
+);
+const focusInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/focus-input.bin', import.meta.url),
+);
+const pasteInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/paste-input.bin', import.meta.url),
+);
+const pasteAutoInputFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/paste-auto-input.bin', import.meta.url),
+);
+const terminalFailedFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/terminal-failed.json', import.meta.url),
+);
+const controlFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/control-conformance.json', import.meta.url),
+);
+const utf8BomFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/utf8-bom-conformance.json', import.meta.url),
+);
+const rowWindowFixture = fileURLToPath(
+	new URL('../../../schemas/terminal/v1/fixtures/terminal-row-window.bin', import.meta.url),
+);
 
 const child = spawn(
 	'zig',
 	[
 		'build',
 		'test-protocol',
+		`-Dconstants-registry=${constantsRegistry}`,
 		`-Dframe-fixture=${frameFixture}`,
 		`-Dprojection-fixture=${projectionFixture}`,
 		`-Dpacked-projection-conformance-fixture=${packedProjectionConformanceFixture}`,

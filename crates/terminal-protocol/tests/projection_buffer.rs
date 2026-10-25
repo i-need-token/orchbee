@@ -6,9 +6,9 @@ use orchbee_terminal_protocol::{ProtocolErrorCode, decode_terminal_projection_bu
 use std::error::Error;
 
 const CORPUS: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/packed-projection-conformance.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/packed-projection-conformance.json");
 const PROJECTION: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-projection-buffer.bin");
+    include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-projection-buffer.bin");
 
 #[test]
 fn shared_obpb_corpus_has_identical_admission_and_observations() -> Result<(), Box<dyn Error>> {

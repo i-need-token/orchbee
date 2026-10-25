@@ -114,7 +114,7 @@ test "launch environment identity follows the target operating system" {
     // `Path` and `PATH` as distinct variables on a POSIX target and rejects
     // them as duplicates on a Windows target with the typed InvalidLaunch
     // failure before any Host dispatch. This mirrors prepareLaunchEnvironment
-    // in packages/terminal-protocol/src/control.ts.
+    // in schemas/terminal/references/protocol.md.
     const environment_aliases = [_]EnvironmentEntry{
         .{ .name = "Path", .value = "first" },
         .{ .name = "PATH", .value = "second" },

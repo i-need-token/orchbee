@@ -17,8 +17,5 @@
 		"test:surface-fixtures": "node scripts/run-surface-fixture-conformance.mjs",
 		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace apps/terminal-host",
 		"test:cross": "node scripts/test-cross.mjs"
-	},
-	"devDependencies": {
-		"@orchbee/terminal-protocol": "workspace:^"
 	}
 }

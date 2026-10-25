@@ -1,12 +1,11 @@
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking, decode_terminal_text_frame};
 use std::{error::Error, io};
-const FRAME: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame.bin");
+const FRAME: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
 
 #[test]
 fn canonical_text_matches_the_encoding_owner_and_real_ghostty() -> Result<(), Box<dyn Error>> {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../packages/terminal-protocol/fixtures/canonical.json"
+        "../../../schemas/terminal/v1/fixtures/canonical.json"
     ))?;
     let frame = decode_terminal_text_frame(FRAME)?;
     assert_eq!(frame.title.as_deref(), expected["frame"]["title"].as_str());
@@ -29,12 +28,9 @@ fn canonical_text_matches_the_encoding_owner_and_real_ghostty() -> Result<(), Bo
         }
     }
     for bytes in [
-        include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin")
+        include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-surface.bin").as_slice(),
+        include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-alternate-surface.bin")
             .as_slice(),
-        include_bytes!(
-            "../../../packages/terminal-protocol/fixtures/ghostty-alternate-surface.bin"
-        )
-        .as_slice(),
     ] {
         let frame = decode_terminal_text_frame(bytes)?;
         assert_eq!(frame.rows.len(), usize::from(frame.geometry.rows));
@@ -87,7 +83,7 @@ fn nullable_metadata_distinguishes_clear_empty_and_invalid_string_indexes()
 fn malformed_owner_corpus_and_every_truncation_reject_without_partial_rows()
 -> Result<(), Box<dyn Error>> {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../packages/terminal-protocol/fixtures/malformed-frame.json"
+        "../../../schemas/terminal/v1/fixtures/malformed-frame.json"
     ))?;
     for case in corpus["cases"].as_array().ok_or("cases")? {
         let bytes = base64(case["bytesBase64"].as_str().ok_or("bytes")?)?;

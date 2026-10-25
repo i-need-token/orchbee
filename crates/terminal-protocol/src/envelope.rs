@@ -5,7 +5,7 @@ use crate::{
     message::message_contract,
 };
 
-const TRANSPORT_ENVELOPE_MAGIC: [u8; 4] = *b"OBTP";
+const TRANSPORT_ENVELOPE_MAGIC: [u8; 4] = *crate::wire_constants::TRANSPORT_MAGIC;
 const OPTIONAL_MESSAGE_FLAG: u16 = 1;
 const RESPONSE_FLAG: u16 = 1 << 1;
 const EVENT_FLAG: u16 = 1 << 2;

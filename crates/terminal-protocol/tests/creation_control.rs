@@ -15,7 +15,7 @@ use orchbee_terminal_protocol::{
 use serde_json::{Map, Value, json};
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/control-conformance.json");
 
 #[test]
 fn editor_capture_round_trips_full_u64_fences_and_retains_the_ordinary_request()
@@ -500,49 +500,8 @@ fn environment_collections_preserve_null_empty_and_wire_name_identity() -> Resul
 }
 
 #[test]
-fn creation_collection_and_text_bounds_match_the_canonical_fixture() -> Result<(), Box<dyn Error>> {
+fn creation_collection_and_text_bounds_enforce_declared_limits() -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/launch_arguments",
-        MAXIMUM_LAUNCH_ARGUMENTS,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/launch_environment_entries",
-        MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/environment_overlay_entries",
-        MAXIMUM_ENVIRONMENT_OVERLAY_ENTRIES,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/environment_name_bytes",
-        MAXIMUM_ENVIRONMENT_NAME_BYTES,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/environment_overlay_value_bytes",
-        MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/terminal_profile_features",
-        MAXIMUM_TERMINAL_PROFILE_FEATURES,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/terminal_response_bytes",
-        MAXIMUM_TERMINAL_RESPONSE_BYTES,
-    )?;
-    assert_fixture_limit(
-        &fixture,
-        "/protocol_limits/terminal_profile_palette_entries",
-        TERMINAL_THEME_PALETTE_ENTRIES,
-    )?;
-
     let canonical = fixture_string(&fixture, "/commands/create_terminal")?;
     assert_array_bound(
         canonical,
@@ -997,19 +956,6 @@ fn assert_string_bound(
     assert!(decode_value(MessageRole::Request, exact.clone()).is_ok());
     set_pointer(&mut exact, pointer, Value::String("x".repeat(maximum + 1)))?;
     assert_value_code(MessageRole::Request, exact, ProtocolErrorCode::InvalidField);
-    Ok(())
-}
-
-fn assert_fixture_limit(
-    fixture: &Value,
-    pointer: &str,
-    actual: usize,
-) -> Result<(), Box<dyn Error>> {
-    let expected = fixture
-        .pointer(pointer)
-        .and_then(Value::as_u64)
-        .ok_or_else(|| fixture_error(&format!("fixture limit {pointer} is missing")))?;
-    assert_eq!(u64::try_from(actual)?, expected);
     Ok(())
 }
 

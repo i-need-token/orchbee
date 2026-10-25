@@ -1,6 +1,5 @@
 use orchbee_terminal_protocol::{TerminalProgress, decode_terminal_text_frame};
-const FRAME: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame.bin");
+const FRAME: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
 fn u16_at(bytes: &[u8], n: usize) -> usize {
     usize::from(u16::from_le_bytes(bytes[n..n + 2].try_into().unwrap()))
 }

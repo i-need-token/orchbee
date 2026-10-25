@@ -57,7 +57,7 @@ const CREATED_PRESENTATION_ID: &str = "77777777777777777777777777777777";
 const NATIVE_TEST_IDENTITY_SEED: u128 = 0x100;
 const FRAME: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../packages/terminal-protocol/fixtures/ghostty-surface.bin"
+    "/../../schemas/terminal/v1/fixtures/ghostty-surface.bin"
 ));
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 fn geometry() -> Result<Geometry, Box<dyn std::error::Error>> {

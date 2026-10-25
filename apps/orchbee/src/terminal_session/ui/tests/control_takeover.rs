@@ -20,7 +20,7 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::sync::atomic::Ordering;
 
 const SNAPSHOT: &[u8] =
-    include_bytes!("../../../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+    include_bytes!("../../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 
 fn poll_snapshot(
     ui: &mut NativeUi,

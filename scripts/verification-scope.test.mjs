@@ -78,7 +78,6 @@ test('real workspace selection retains foreign fixture, resource, process and di
 		['apps/orchbee-worker', ['apps/orchbee', 'apps/orchbee-server']],
 		['apps/orchbee-server', ['apps/orchbee']],
 		['apps/web', ['apps/desktop', 'apps/storybook']],
-		['packages/terminal-protocol', ['crates/terminal-protocol']],
 	]) {
 		const selected = selectVerificationScope(actual, [provider + '/src/changed']);
 		assert.equal(selected.all, false);
@@ -87,11 +86,29 @@ test('real workspace selection retains foreign fixture, resource, process and di
 			assert.ok(selected[entry.kind].includes(entry.name), provider + ' must select ' + consumer);
 		}
 	}
-	const protocol = selectVerificationScope(actual, [
-		'packages/terminal-protocol/fixtures/sample.bin',
-	]);
-	assert.ok(protocol.cargo.includes('orchbee-terminal-protocol'));
-	assert.ok(protocol.cargo.includes('orchbee'));
+	for (const changed of [
+		'schemas/terminal/v1/fixtures/sample.bin',
+		'schemas/terminal/v1/constants.json',
+		'schemas/terminal/README.md',
+		'schemas/terminal/references/protocol.md',
+	]) {
+		const protocol = selectVerificationScope(actual, [changed]);
+		assert.equal(protocol.all, false, protocol.reasons.join('\n'));
+		for (const name of ['orchbee-terminal-protocol', 'orchbee', 'orchbee-server', 'orchbee-worker'])
+			assert.ok(protocol.cargo.includes(name), changed + ' must select ' + name);
+		for (const name of [
+			'@orchbee/terminal-protocol',
+			'@orchbee/terminal-host',
+			'@orchbee/terminal',
+			'@orchbee/desktop',
+			'@orchbee/web',
+		])
+			assert.ok(protocol.pnpm.includes(name), changed + ' must select ' + name);
+	}
+	const binding = selectVerificationScope(actual, ['packages/terminal-protocol/src/version.ts']);
+	assert.equal(binding.all, false);
+	assert.equal(binding.cargo.length, 0);
+	assert.ok(!binding.pnpm.includes('@orchbee/terminal-host'));
 	const resources = selectVerificationScope(actual, [
 		'apps/desktop/resources/agent-observation-adapters/capsule.json',
 	]);

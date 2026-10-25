@@ -165,7 +165,7 @@ settles, and leaves the shared control transport and unrelated requests availabl
 transferred port, conflicting identity, or duplicate open remains invalid control traffic and retires
 the affected control transport.
 
-It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. Current shared-document and legacy TerminalPresentation semantics remain with `@orchbee/workbench` until their accepted migration; the additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
+It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, authentication, PTY, or VT implementation. Current shared-document and legacy TerminalPresentation semantics remain with `@orchbee/workbench` until their accepted migration; the additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics belong to [`schemas/terminal`](../../schemas/terminal/README.md); `@orchbee/terminal-protocol` is the TypeScript binding.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.
 

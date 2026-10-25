@@ -77,6 +77,11 @@ full fallback. Final evidence remains tied to unchanged checked inputs under the
 All host suites remain available to catch mapping omissions; CI continues running that baseline.
 This policy does not waive change-triggered TLA checks or establish a fixed latency guarantee.
 
+Changes under `schemas/terminal/` select the Rust protocol crate, TypeScript protocol package,
+and Terminal Host, then their normal consumer closure. Their existing test commands each run one
+independent check against `schemas/terminal/v1/constants.json`; fixture generators do not produce
+that registry. Canonical payload and native surface checks continue to read the same authority.
+
 ## Execution and evidence
 
 - Do not overlap `pnpm verify` with another root gate, `pnpm test`, or a build in the same checkout.

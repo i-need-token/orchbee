@@ -4,7 +4,9 @@ use crate::{
     AttachmentId, HostEpoch, MAXIMUM_TERMINAL_FRAME_BYTES, ProtocolError, ProtocolErrorCode,
 };
 
-pub const TERMINAL_FRAME_HEADER_BYTES: usize = 160;
+use crate::wire_constants::FRAME;
+
+pub const TERMINAL_FRAME_HEADER_BYTES: usize = FRAME.header_bytes;
 
 /// Routing facts only. Success does not validate cells, presentation fields, or payload tables.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -25,13 +27,11 @@ pub fn inspect_terminal_frame_route(bytes: &[u8]) -> Result<TerminalFrameRoute, 
     if bytes.len() > MAXIMUM_TERMINAL_FRAME_BYTES {
         return Err(error(ProtocolErrorCode::LimitExceeded));
     }
-    if &bytes[..4] != b"OBTF" {
+    if &bytes[..4] != FRAME.magic {
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
-    if bytes[4] != 0
-        || bytes[5] != 1
-        || bytes[144] != 0
-        || u16::from_le_bytes(array(bytes, 12)?) != 160
+    if [bytes[4], bytes[5], bytes[144]] != FRAME.version
+        || usize::from(u16::from_le_bytes(array(bytes, 12)?)) != FRAME.header_bytes
     {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }

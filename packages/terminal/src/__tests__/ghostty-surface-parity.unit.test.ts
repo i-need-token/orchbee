@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 
 import {
 	ActiveScreen,
@@ -32,15 +31,17 @@ import { type PackedRendererSource, WebGPURenderer } from '../rendering';
 import { findTerminalBufferMatches } from '../search';
 import { detectTerminalRowLinks } from '../terminal-row-links';
 
-const moduleRequire = createRequire(import.meta.url);
-const surfaceFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-surface.bin',
+const surfaceFixturePath = new URL(
+	'../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin',
+	import.meta.url,
 );
-const alternateSurfaceFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface.bin',
+const alternateSurfaceFixturePath = new URL(
+	'../../../../schemas/terminal/v1/fixtures/ghostty-alternate-surface.bin',
+	import.meta.url,
 );
-const renderRowWindowFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-render-row-window.bin',
+const renderRowWindowFixturePath = new URL(
+	'../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin',
+	import.meta.url,
 );
 
 const RENDER_ATTACHMENT_ID = '44444444444444444444444444444444';

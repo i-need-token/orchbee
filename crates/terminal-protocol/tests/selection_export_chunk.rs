@@ -10,7 +10,7 @@ use orchbee_terminal_protocol::{
 };
 
 const FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/selection-export-chunk.bin");
+    include_bytes!("../../../schemas/terminal/v1/fixtures/selection-export-chunk.bin");
 
 #[test]
 fn canonical_chunk_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>> {

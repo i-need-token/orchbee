@@ -7,7 +7,7 @@ use std::num::NonZeroU64;
 #[test]
 fn viewport_response_detail_must_match_the_request() {
     let bytes = include_bytes!(
-        "../../../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin"
+        "../../../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin"
     );
     let route = decode_terminal_render_row_window(bytes).unwrap().route();
     let service = super::super::tests::service();

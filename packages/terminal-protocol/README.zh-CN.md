@@ -1,6 +1,6 @@
 # 终端协议
 
-`@orchbee/terminal-protocol` 是 Orchbee 原生 Terminal Host 与本地客户端之间私有且不依赖传输方式的线协议契约。它负责协议标识、当前版本的精确校验、协议安全限制、控制 Schema、带附件前缀的二进制输入、打包终端帧与传输信封编解码器、打包行窗口与选择导出编解码器，以及语言无关的一致性夹具。
+`@orchbee/terminal-protocol` 是原生 Terminal Host 与本地客户端之间语言中立的[终端契约](../../schemas/terminal/README.zh-CN.md)的 TypeScript 绑定。它实现协议标识、当前版本精确校验、安全限额、控制 schema、带附件前缀的二进制输入，以及终端帧、传输信封、行窗口和选择导出 codec。
 
 它不会打开套接字或命名管道、生成进程、解析 VT、路由 Electron IPC、渲染终端或拥有终端生命周期、交付、恢复、项目、工作区、工作台、选项卡、面板、代理或产品会话状态。
 
@@ -11,8 +11,7 @@ OBTP transport envelope，以及 `Hello`、`HelloAccepted`、`ProtocolRejected`�
 response、nested inventory fact、现有 kind 12 到 19 的非创建 lifecycle control、kind 20 到 25
 的 attachment control、kind 30 和 31 的 raw `WriteInput`/`InputAccepted` 交换，以及 kind 32 和 33
 的 `ResizeTerminal`/`ResizeAccepted` control 交换，以及 kind 34 到 39 的 semantic `KeyInput`、
-`TextInput`、`MouseInput`、`FocusInput`、`PasteInput` 与 `PasteAutoInput` request。本 package、其 reference 与
-fixture 仍是唯一 wire authority。尚未发布的
+`TextInput`、`MouseInput`、`FocusInput`、`PasteInput` 与 `PasteAutoInput` request。`schemas/terminal` 拥有线协议参考、常量注册表及规范夹具。尚未发布的
 [`orchbee-worker`](../../apps/orchbee-worker/README.zh-CN.md) application 消费 Rust envelope、connection、launch/lifecycle、attachment、projection-demand
 和 feedback codec，供实际 Host broker 使用。Socket authentication、handshake state、connection
 liveness 与查看附件 relay behavior 归 Worker 所有。Binding 包含 kind-11 `CreateTerminal` 与
@@ -168,38 +167,15 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 
 ## 夹具
 
-该包显式导出：
+规范夹具位于 [`schemas/terminal/v1/fixtures/`](../../schemas/terminal/v1/fixtures/)。独立的[常量注册表](../../schemas/terminal/v1/constants.json)拥有版本、magic、消息契约、信封枚举编码与限额；三种绑定均将真实实现与其对拍。
 
-- `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance.json`
-- `@orchbee/terminal-protocol/fixtures/focus-input.bin`
-- `@orchbee/terminal-protocol/fixtures/malformed-frame.json`
-- `@orchbee/terminal-protocol/fixtures/malformed-row-window.json`
-- `@orchbee/terminal-protocol/fixtures/packed-projection-conformance.json`
-- `@orchbee/terminal-protocol/fixtures/terminal-frame.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed.json`
-- `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-row-window.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-auto-input.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input.bin`
-- `@orchbee/terminal-protocol/fixtures/selection-export-chunk.bin`
-- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance.json`
-- `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface.bin`
-- `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window.bin`
-- `@orchbee/terminal-protocol/fixtures/ghostty-surface.bin`
+`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance.json` 包含由 Schema 生成的原生类型适配器使用的命令、回复、事件、可辨识联合和失败用例。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、protocol-`0.1.0` selection-export-chunk 记录、当前 OBTF format-`0.1.0`、OBPB format-`0.1.0`、OBRW format-`0.1.0` 与 OBKG format-`0.1.0` 夹具、其严格一致性语料库，以及帧和行窗口畸形语料库。`test:fixtures` 会拒绝任何缺失或字节已过时的生成输出。夹具名稳定且不带版本号；其内容和实现常量携带所属线协议或格式的精确版本。
 
-`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、protocol-`0.1.0` selection-export-chunk 记录、当前 OBTF format-`0.1.0`、OBPB format-`0.1.0`、OBRW format-`0.1.0` 与 OBKG format-`0.1.0` 夹具、其严格一致性语料库，以及帧和行窗口畸形语料库。`test:fixtures` 会拒绝任何缺失或字节已过时的生成输出。夹具名稳定且不带版本号；其内容和实现常量携带所属线协议或格式的精确版本。
-
-`packed-projection-conformance.json` 是 OBPB format `0.1.0` 与 OBRW format `0.1.0` 的语言无关严格边界判定语料。每个命名用例都保存完整规范字节、负责该用例的严格边界以及依据契约编写的结果；被接受的用例还保存语料 Schema 要求的全部观察值。预期结果不由任一解码器生成。TypeScript 严格解码器会消费每个用例；`apps/terminal-host` 则解析已声明的包导出，把有界 JSON 字节传入 Zig 一致性测试，并通过匹配的原生严格验证器运行每个用例。
+`packed-projection-conformance.json` 是 OBPB format `0.1.0` 与 OBRW format `0.1.0` 的语言无关严格边界判定语料。每个命名用例都保存完整规范字节、负责该用例的严格边界以及依据契约编写的结果；被接受的用例还保存语料 Schema 要求的全部观察值。预期结果不由任一解码器生成。TypeScript 严格解码器会消费每个用例；`apps/terminal-host` 则读取语言中立的夹具路径，把有界 JSON 字节传入 Zig 一致性测试，并通过匹配的原生严格验证器运行每个用例。
 
 `TerminalProfile` 携带显式的 `defaultCursorShape` 和 `defaultCursorBlinking` 值。缺失字段会规范化为 `block` 和 `false`，使先前持久化的配置对象保留产品默认值；当前编码器始终发出这两个字段。运行时转义序列可以覆盖活动光标；Terminal Host 负责在 RIS 或应用重置时重新应用这些配置默认值。
 
-`ghostty-surface.bin`、`ghostty-alternate-surface.bin` 和 `ghostty-render-row-window.bin` 是 TypeScript 夹具生成流程的例外。Terminal Host 使用同一个固定版本的原生 Ghostty VT 及真实投影编码器生成 OBTF 夹具对；另一个原生终端会重放主语料，加入真实 DECSCA 受保护/未受保护单元，并通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 生成 OBRW 夹具。Host 一致性检查会重新生成并逐字节比较全部三个夹具。`@orchbee/terminal` 通过两个渲染器后端和打包存储消费 OBTF 夹具对，并通过严格解码器、可信结构视图和打包存储消费 OBRW 字节。其依据契约编写的 6x8 判定会检查每个行与单元列、原始字符串范围、解码字符串、颜色、样式标志、下划线类型、宽度、语义值、受保护标志和提交元数据；线协议有效的语义变异证明仅有严格准入无法满足该判定。协议包负责稳定字节及导出，Terminal Host 负责原生生产，terminal 包负责消费者语义。该证据不向协议包授予 VT、生命周期、历史或信任边界权威。
+`ghostty-surface.bin`、`ghostty-alternate-surface.bin` 和 `ghostty-render-row-window.bin` 是 TypeScript 夹具生成流程的例外。Terminal Host 使用同一个固定版本的原生 Ghostty VT 及真实投影编码器生成 OBTF 夹具对；另一个原生终端会重放主语料，加入真实 DECSCA 受保护/未受保护单元，并通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 生成 OBRW 夹具。Host 一致性检查会重新生成并逐字节比较全部三个夹具。`@orchbee/terminal` 通过两个渲染器后端和打包存储消费 OBTF 夹具对，并通过严格解码器、可信结构视图和打包存储消费 OBRW 字节。其依据契约编写的 6x8 判定会检查每个行与单元列、原始字符串范围、解码字符串、颜色、样式标志、下划线类型、宽度、语义值、受保护标志和提交元数据；线协议有效的语义变异证明仅有严格准入无法满足该判定。`schemas/terminal` 负责稳定字节，Terminal Host 负责原生生产，terminal 包负责消费者语义。该证据不向协议包授予 VT、生命周期、历史或信任边界权威。
 
 实时 OBTF 快照和增量可能携带可选扩展类型 `1`，其一字节有效负载将关闭活动报告为 `idle=1` 或 `active=2`。当观察结果未知时，生产者会省略扩展。该扩展仅是瞬态投影元数据；生命周期和关闭策略仍然由消费者拥有。`NeedSnapshot` 原因 `activity-stale` 用于消费者已在本地使关闭活动观察失效、且无法证明在途帧晚于失效输入时，放弃精确的在途帧；替换帧为完整快照。这一顺序只证明替换帧反映失效后的 Host 缓存，不证明 Host 已接受输入，也不证明终端进程已消费输入。在协议 `0.1.0` 中，Host 接受的非焦点输入会立即使缓存观察失效。后续有界当前状态采样可以发布 `active`、`idle` 或 `unknown`，因此因果替换帧可以在同一终端生命周期内合法恢复新鲜的 `idle`。这不会改变任何线协议值或 codec。
 
@@ -220,14 +196,14 @@ provider identity、Agent lifecycle、attention、idle、outcome、notification 
 
 ## 所有权
 
-该包定义值在线协议中的表示与校验方式。它刻意不定义哪些生命周期转换合法、效果何时发生、交付如何提交或产品如何恢复。这些权威分别归属其状态所有者：
+该包实现 `schemas/terminal` 定义的表示与校验方式。它刻意不定义哪些生命周期转换合法、效果何时发生、交付如何提交或产品如何恢复。这些权威分别归属其状态所有者：
 
 - [`apps/terminal-host/docs/runtime-model.md`](../../apps/terminal-host/docs/runtime-model.md) 拥有终端生命周期、运行时遏制、附件传送、重试和主机并发。
 - `apps/desktop` 拥有产品绑定、关闭升级、重连、发布和更新策略。
 
 协议 Schema 尽可能使非法的线协议组合无法表示。由消费者拥有的模型与测试负责判断一个有效线协议值在消费者当前状态下是否合法。
 
-完整的线协议布局、消息注册表、边界及证据限制见 [`references/protocol.md`](references/protocol.md)。[`docs/version-history.md`](docs/version-history.md) 负责预发布策略，并从 `1.0.0` 起记录每次已发布线协议或二进制格式版本变更。NPM 包版本是独立的发布元数据，并非线协议兼容版本。
+完整的线协议布局、消息注册表、边界及证据限制见 [`schemas/terminal/references/protocol.md`](../../schemas/terminal/references/protocol.md)。[`schemas/terminal/docs/version-history.md`](../../schemas/terminal/docs/version-history.md) 负责预发布策略，并从 `1.0.0` 起记录每次已发布线协议或二进制格式版本变更。NPM 包版本是独立的发布元数据，并非线协议兼容版本。
 
 ## 开发
 
@@ -242,7 +218,7 @@ pnpm --filter @orchbee/terminal-host test:protocol
 pnpm verify
 ```
 
-仅在有意审核 TypeScript 所有的夹具更改后运行 `pnpm --filter @orchbee/terminal-protocol fixtures:generate`。对于三个原生表面夹具，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`。各自的一致性检查只比较已跟踪文件，不会重写它们。
+仅在有意审核 TypeScript 生产的夹具更改后运行 `pnpm --filter @orchbee/terminal-protocol fixtures:generate`。对于三个原生表面夹具，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`。各自的一致性检查只比较已跟踪文件，不会重写它们。
 
 ## Rust render 行窗口 binding
 

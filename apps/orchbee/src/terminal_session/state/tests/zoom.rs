@@ -20,7 +20,7 @@ use ratatui::{Terminal, backend::TestBackend};
 /// The shared ghostty surface fixture: a real encoded terminal frame the
 /// projections can receive so the zoomed paint has live cells to draw.
 const SNAPSHOT: &[u8] =
-    include_bytes!("../../../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+    include_bytes!("../../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 
 /// A projection carrying the fixture frame — the live-paint stand-in the
 /// renderer's single-pane path requires.

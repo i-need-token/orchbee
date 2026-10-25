@@ -1,20 +1,20 @@
 //! Complete OBKG resource-snapshot validation without copying decoded pixels.
 use super::super::Reader;
-use crate::{ProtocolError, ProtocolErrorCode};
+use crate::{ProtocolError, ProtocolErrorCode, wire_constants::GRAPHICS};
 use std::collections::HashMap;
 
 pub(super) fn validate_snapshot(bytes: &[u8]) -> Result<(u16, u16), ProtocolError> {
-    if bytes.len() < 40 {
+    if bytes.len() < GRAPHICS.header_bytes {
         return Err(error(ProtocolErrorCode::Truncated));
     }
     if bytes.len() > 33 * 1024 * 1024 {
         return Err(error(ProtocolErrorCode::LimitExceeded));
     }
-    if &bytes[..4] != b"OBKG" {
+    if &bytes[..4] != GRAPHICS.magic {
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
     let mut reader = Reader::new(&bytes[4..]);
-    if reader.take(3)? != [0, 1, 0] {
+    if reader.take(3)? != GRAPHICS.version {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }
     let kind = reader.u8()?;

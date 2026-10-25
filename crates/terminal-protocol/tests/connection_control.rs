@@ -11,7 +11,7 @@ use orchbee_terminal_protocol::{
 use serde_json::Value;
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/control-conformance.json");
 
 #[test]
 fn every_canonical_connection_payload_decodes_and_reencodes_byte_for_byte()

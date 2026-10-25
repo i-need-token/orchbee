@@ -528,11 +528,39 @@ const ProtocolLimitsFixture = struct {
     write_input_payload_bytes: u64,
 };
 
+const RegistryFormat = struct {
+    magic: []const u8,
+    version: struct { major: u16, minor: u16, patch: u16 },
+    header_bytes: usize,
+};
+
+const ConstantsRegistry = struct {
+    formats: struct {
+        wire: RegistryFormat,
+        frame: RegistryFormat,
+        projection_buffer: RegistryFormat,
+        row_window: RegistryFormat,
+        graphics: RegistryFormat,
+    },
+    enums: struct {
+        payload_encoding: std.json.Value,
+        message_role: struct { request: u16, response: u16, event: u16 },
+    },
+    message_contracts: []const ControlMessageContractFixture,
+    protocol_limits: ProtocolLimitsFixture,
+};
+
+fn expectRegistryFormat(expected: RegistryFormat, magic: []const u8, major: u16, minor: u16, patch: u16, header_bytes: usize) !void {
+    try std.testing.expectEqualStrings(expected.magic, magic);
+    try std.testing.expectEqual(expected.version.major, major);
+    try std.testing.expectEqual(expected.version.minor, minor);
+    try std.testing.expectEqual(expected.version.patch, patch);
+    try std.testing.expectEqual(expected.header_bytes, header_bytes);
+}
+
 const ControlConformanceFixture = struct {
     commands: ControlCommandsFixture,
-    message_contracts: []const ControlMessageContractFixture,
     outputs: ControlOutputsFixture,
-    protocol_limits: ProtocolLimitsFixture,
     raw_cases: []const ControlRawCaseFixture,
 };
 
@@ -1146,9 +1174,9 @@ test "canonical TypeScript TerminalFailed fixture matches the native encoder" {
     }
 }
 
-test "TypeScript and native message contracts are identical" {
+test "constants match the language-neutral registry" {
     const allocator = std.testing.allocator;
-    const fixture = try parseControlFixture(allocator);
+    const fixture = try std.json.parseFromSlice(ConstantsRegistry, allocator, options.constants_registry, .{});
     defer fixture.deinit();
 
     var seen = [_]bool{false} ** 65_536;
@@ -1175,16 +1203,35 @@ test "TypeScript and native message contracts are identical" {
         const kind: u16 = @intCast(value);
         try std.testing.expectEqual(seen[value], protocol.isKnownMessageKind(kind));
     }
-}
-
-test "TypeScript and native protocol limits are identical" {
-    const fixture = try parseControlFixture(std.testing.allocator);
-    defer fixture.deinit();
-
     inline for (@typeInfo(ProtocolLimitsFixture).@"struct".fields) |field| {
         const expected = @field(fixture.value.protocol_limits, field.name);
         const actual: u64 = @intCast(@field(protocol.Limits, field.name));
         try std.testing.expectEqual(expected, actual);
+    }
+
+    const formats = fixture.value.formats;
+    try expectRegistryFormat(formats.frame, protocol.terminal_frame_magic, protocol.terminal_frame_format_major, protocol.terminal_frame_format_minor, protocol.terminal_frame_format_patch, protocol.terminal_frame_header_bytes);
+    try expectRegistryFormat(formats.projection_buffer, protocol.terminal_projection_buffer_magic, protocol.terminal_projection_buffer_format_major, protocol.terminal_projection_buffer_format_minor, protocol.terminal_projection_buffer_format_patch, protocol.terminal_projection_buffer_header_bytes);
+    try expectRegistryFormat(formats.row_window, protocol.terminal_row_window_magic, protocol.terminal_row_window_format_major, protocol.terminal_row_window_format_minor, protocol.terminal_row_window_format_patch, protocol.terminal_row_window_header_bytes);
+    try expectRegistryFormat(formats.graphics, protocol.terminal_graphics_magic, protocol.terminal_graphics_format_major, protocol.terminal_graphics_format_minor, protocol.terminal_graphics_format_patch, protocol.terminal_graphics_header_bytes);
+
+    const encodings = fixture.value.enums.payload_encoding.object;
+    try std.testing.expectEqual(@typeInfo(protocol.PayloadEncoding).@"enum".fields.len, encodings.count());
+    inline for (@typeInfo(protocol.PayloadEncoding).@"enum".fields) |field| {
+        const actual = @field(protocol.PayloadEncoding, field.name);
+        const expected = encodings.get(payloadEncodingName(actual)) orelse return error.TestUnexpectedResult;
+        try std.testing.expectEqual(expected.integer, @as(i64, @intFromEnum(actual)));
+    }
+    inline for (.{
+        .{ "request", protocol.MessageKind.ping, false, false },
+        .{ "response", protocol.MessageKind.ping, true, false },
+        .{ "event", protocol.MessageKind.terminal_bell, false, true },
+    }) |role| {
+        const bytes = try protocol.encodeTransportEnvelope(allocator, role[1], .control_json, "{}", [_]u8{0x22} ** 16, [_]u8{0x11} ** 16, role[2], role[3]);
+        defer allocator.free(bytes);
+        try std.testing.expectEqual(@field(fixture.value.enums.message_role, role[0]), std.mem.readInt(u16, bytes[6..8], .little));
+        // The magic is private to the real envelope codec, so compare its output.
+        try expectRegistryFormat(formats.wire, bytes[0..4], protocol.current_protocol_major, protocol.current_protocol_minor, protocol.current_protocol_patch, protocol.transport_envelope_header_bytes);
     }
 }
 

@@ -315,7 +315,7 @@ fn read_rows_record_at_the_requested_budget_is_delivered() {
 fn frame_record(sequence: u64) -> Vec<u8> {
     let mut payload = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "/../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .to_vec();
     payload[6] = 1;

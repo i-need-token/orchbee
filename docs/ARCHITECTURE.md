@@ -60,6 +60,11 @@ versions, compatibility readers, or migrations. Cohort admission or strict parsi
 and files with other shapes; where neither protects version reuse, replace the magic or schema
 identifier instead of retaining an older contract.
 
+The language-neutral Terminal authority is [`schemas/terminal`](../schemas/terminal/README.md).
+Its reference, version policy, constant registry and canonical fixtures govern the independent
+Rust, Zig and TypeScript bindings. Language packages own implementation and fixture production,
+not competing wire contracts.
+
 Shared domain state and Client-local presentation follow the responsibility boundaries in
 [`INTERFACE-DESIGN.md`](INTERFACE-DESIGN.md). GUI and TUI project the owning contracts; their
 different renderers do not establish separate authority over the same product meaning.

@@ -19,7 +19,7 @@ fn cell(text: &str, width: u8) -> TerminalTextCell {
 fn frame(rows: Vec<Vec<TerminalTextCell>>) -> TerminalTextFrame {
     let mut frame = decode_terminal_text_frame(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/ghostty-surface.bin"
+        "/../../schemas/terminal/v1/fixtures/ghostty-surface.bin"
     )))
     .expect("Host fixture");
     let columns = rows.iter().map(Vec::len).max().unwrap_or(1);

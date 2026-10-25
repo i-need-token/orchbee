@@ -86,13 +86,13 @@ conforms to every invariant; conformance requires the evidence defined below.
 
 Authority is divided deliberately:
 
-| Concern                                                                                 | Authority                                                                                  |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Host runtime ownership, lifecycle, delivery, retry, and concurrency semantics           | This document                                                                              |
-| Operator-facing purpose, launcher usage, and development commands                       | `../README.md`                                                                             |
-| Transport records, message schemas, codecs, format versions, and protocol safety limits | [`@orchbee/terminal-protocol`](../../../packages/terminal-protocol/references/protocol.md) |
-| Product topology, recovery policy, update policy, rendering, and platform effects       | Desktop                                                                                    |
-| Platform process, PTY, and endpoint behavior                                            | The owning native adapter plus its native tests                                            |
+| Concern                                                                                 | Authority                                                                        |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Host runtime ownership, lifecycle, delivery, retry, and concurrency semantics           | This document                                                                    |
+| Operator-facing purpose, launcher usage, and development commands                       | `../README.md`                                                                   |
+| Transport records, message schemas, codecs, format versions, and protocol safety limits | [`@orchbee/terminal-protocol`](../../../schemas/terminal/references/protocol.md) |
+| Product topology, recovery policy, update policy, rendering, and platform effects       | Desktop                                                                          |
+| Platform process, PTY, and endpoint behavior                                            | The owning native adapter plus its native tests                                  |
 
 An implementation comment, source layout description, or protocol codec must not define a second
 version of a fact owned here.

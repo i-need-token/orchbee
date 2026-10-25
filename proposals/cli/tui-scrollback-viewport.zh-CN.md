@@ -1,13 +1,13 @@
 # TUI Scrollback 视口
 
-| 字段     | 值                                                                                                                                                                                                                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 提案评审中；下文 wire 语义已对照 `crates/terminal-protocol`、`packages/terminal-protocol/references/protocol.md` 与 `apps/terminal-host` 核实；Client-local 视口模型将 `packages/terminal` projected-terminal 已验证的行为移植到 TUI；键位、剪贴板途径与呈现细节保持 provisional |
-| 负责人   | TUI 视口体验，以及 Rust `orchbee` Client、OBCS/OBCN relay 词汇与 `packages/terminal` 的维护者                                                                                                                                                                                    |
-| 现行权威 | `crates/terminal-protocol` 与 `apps/terminal-host/docs/runtime-model.md` 拥有 wire 与 Host 语义；`apps/orchbee/README.md` 拥有 TUI 不变量                                                                                                                                        |
-| 父设计   | [`native-command-surface.md`](native-command-surface.zh-CN.md) 拥有 TUI-as-peer-Client contract；[`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有 Client/Server/Worker/Host relay 拓扑                                                          |
-| 决策权威 | 产品决策人通过 `m3-input-design` 裁决键位、剪贴板途径与呈现细节；本提案只决定视口模型及其对既有 wire 语义的使用                                                                                                                                                                  |
-| 退出条件 | TUI 用户可以在不改 wire 协议、不改共享状态的前提下上翻已保留的 terminal 历史并复制历史文本；当实现面写入所属 package 指南后删除本提案                                                                                                                                            |
+| 字段     | 值                                                                                                                                                                                                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态     | 提案评审中；下文 wire 语义已对照 `crates/terminal-protocol`、`schemas/terminal/references/protocol.md` 与 `apps/terminal-host` 核实；Client-local 视口模型将 `packages/terminal` projected-terminal 已验证的行为移植到 TUI；键位、剪贴板途径与呈现细节保持 provisional |
+| 负责人   | TUI 视口体验，以及 Rust `orchbee` Client、OBCS/OBCN relay 词汇与 `packages/terminal` 的维护者                                                                                                                                                                          |
+| 现行权威 | `schemas/terminal` 与 `apps/terminal-host/docs/runtime-model.md` 拥有 wire 与 Host 语义；`apps/orchbee/README.md` 拥有 TUI 不变量                                                                                                                                      |
+| 父设计   | [`native-command-surface.md`](native-command-surface.zh-CN.md) 拥有 TUI-as-peer-Client contract；[`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有 Client/Server/Worker/Host relay 拓扑                                                |
+| 决策权威 | 产品决策人通过 `m3-input-design` 裁决键位、剪贴板途径与呈现细节；本提案只决定视口模型及其对既有 wire 语义的使用                                                                                                                                                        |
+| 退出条件 | TUI 用户可以在不改 wire 协议、不改共享状态的前提下上翻已保留的 terminal 历史并复制历史文本；当实现面写入所属 package 指南后删除本提案                                                                                                                                  |
 
 英文规范原文：
 [tui-scrollback-viewport.md](tui-scrollback-viewport.md)。

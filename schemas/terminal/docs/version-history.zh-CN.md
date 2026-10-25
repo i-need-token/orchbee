@@ -1,6 +1,6 @@
 # 终端协议版本政策及发布历史
 
-本文档是 `@orchbee/terminal-protocol` 所拥有各语义版本的权威来源，也记录首次公开发布后的版本历史。
+本文档是 `schemas/terminal` 所拥有各语义版本的权威来源，也记录首次公开发布后的版本历史。
 
 ## 版本域
 
@@ -19,7 +19,7 @@ NPM 包版本、Terminal Host 可执行文件版本、Zig 工具链版本和第�
 ## 在第一次公开发布之前
 
 遵循仓库的[发布前版本规则](../../../docs/zh-CN/ARCHITECTURE.md#数据边界)。当前契约变化时，
-必须同时更新 Rust、TypeScript 和 Zig 常量、编码器、解码器、夹具、导出、测试及当前协议参考。
+必须同时更新 `v1/constants.json` 及 Rust、TypeScript 和 Zig 常量、编码器、解码器、夹具、导出、测试及当前协议参考。
 
 ## 公开发布及以后
 

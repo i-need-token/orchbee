@@ -76,7 +76,7 @@
 
 ## 宿主衍生的投影语料库
 
-`@orchbee/terminal-protocol/fixtures/ghostty-surface.bin`、`ghostty-alternate-surface.bin` 和 `ghostty-render-row-window.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
+`schemas/terminal/v1/fixtures/ghostty-surface.bin`、`ghostty-alternate-surface.bin` 和 `ghostty-render-row-window.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
 
 Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影渲染器测试会解码主 OBTF 字节作为 Canvas 和 WebGPU 证据，再通过打包存储提交两个 OBTF 快照以获得转换证据。OBRW 消费者独立固定完整的六行乘八单元格判定：行索引、标志、提示类、字素与超链接字符串及其原始字节范围、全部三个颜色列、每个样式标志和下划线类型、宽度拓扑、语义内容、受保护标志和提交元数据。它要求严格解码与可信结构视图匹配同一矩阵，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并按相同语义列检查每一存储行。线协议有效的内存变更覆盖前景/背景交换、受支持样式变化、受支持语义变化、清除受保护单元格、规范移除超链接、协调行换行和有效宽度拓扑替换。
 

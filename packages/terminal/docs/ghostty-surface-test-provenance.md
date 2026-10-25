@@ -142,7 +142,7 @@ caches. The package renderer never becomes a second Kitty parser or animation st
 
 ## Host-derived projection corpus
 
-`@orchbee/terminal-protocol/fixtures/ghostty-surface.bin`,
+`schemas/terminal/v1/fixtures/ghostty-surface.bin`,
 `ghostty-alternate-surface.bin`, and `ghostty-render-row-window.bin` form one
 Host-owned native surface evidence set. `apps/terminal-host` generates the OBTF pair from one pinned
 native Ghostty VT and one Host Projection: it feeds the primary stream, captures its snapshot,

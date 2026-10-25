@@ -3125,11 +3125,10 @@ fn completion_scripts_execute_in_bash_and_zsh() -> TestResult {
 // viewer protocol on the same socket, so attach, poll, feedback, detach,
 // rejection, and disconnect paths all run against production code.
 
-const OBTF: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+const OBTF: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 
 const OBTF_ALT: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-alternate-surface.bin");
+    include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-alternate-surface.bin");
 
 const TERMINAL_ID: &str = "00000000000000000000000000000001";
 

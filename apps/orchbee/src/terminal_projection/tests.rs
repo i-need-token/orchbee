@@ -4,7 +4,7 @@ use orchbee_terminal_protocol::{
     encode_history_control, encode_projection_demand_control, encode_transport_envelope,
 };
 const SNAPSHOT: &[u8] =
-    include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+    include_bytes!("../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 mod routing;
 

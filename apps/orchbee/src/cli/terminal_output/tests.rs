@@ -20,7 +20,7 @@ fn output_cursor_excludes_existing_content_below_the_cursor_and_alternate_screen
     use orchbee_terminal_protocol::{TerminalCommandObservation, decode_terminal_text_frame};
     let mut frame = decode_terminal_text_frame(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "/../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     )))
     .unwrap();
     frame.command_observation = Some(TerminalCommandObservation {

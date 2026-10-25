@@ -12,8 +12,7 @@ use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_terminal_protocol::*;
 use peer_support::*;
 use serde_json::Value;
-const OBTF: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+const OBTF: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 const ID: &str = "33333333333333333333333333333333";
 
 #[path = "cli_windows_terminal_output/ansi.rs"]

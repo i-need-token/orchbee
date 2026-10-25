@@ -1,126 +1,15 @@
 use std::error::Error;
 
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, GRAPHICS_DECODE_RESULT_HEADER_BYTES,
-    HostEpoch, MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_GRAPHICS_RGBA_BYTES, MAXIMUM_RAW_PAYLOAD_BYTES,
-    MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES, MAXIMUM_TRANSPORT_RECORD_BYTES,
-    MESSAGE_CONTRACTS, MessageRole, PayloadEncoding, ProtocolError, ProtocolErrorCode,
-    TRANSPORT_ENVELOPE_HEADER_BYTES, decode_transport_envelope, encode_transport_envelope,
-    message_contract,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MAXIMUM_ROW_WINDOW_BYTES,
+    MAXIMUM_TRANSPORT_RECORD_BYTES, MessageRole, PayloadEncoding, ProtocolError, ProtocolErrorCode,
+    decode_transport_envelope, encode_transport_envelope,
 };
-use serde::Deserialize;
 
-const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance.json");
 const ENVELOPE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/transport-envelope.bin");
+    include_bytes!("../../../schemas/terminal/v1/fixtures/transport-envelope.bin");
 const FRAME_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame.bin");
-
-#[derive(Deserialize)]
-struct ControlFixture {
-    message_contracts: Vec<FixtureMessageContract>,
-    protocol_limits: FixtureProtocolLimits,
-    #[serde(flatten)]
-    _remaining: serde_json::Map<String, serde_json::Value>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FixtureMessageContract {
-    event_encoding: Option<String>,
-    kind: u16,
-    name: String,
-    request: Option<FixtureRequestContract>,
-    response_encoding: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FixtureRequestContract {
-    payload_encoding: String,
-    success_kind: u16,
-}
-
-#[derive(Deserialize)]
-struct FixtureProtocolLimits {
-    control_json_bytes: usize,
-    frame_bytes: usize,
-    graphics_image_bytes: usize,
-    raw_payload_bytes: usize,
-    row_window_bytes: usize,
-    transport_record_bytes: usize,
-}
-
-#[test]
-fn complete_message_registry_matches_the_canonical_fixture() -> Result<(), Box<dyn Error>> {
-    let fixture = read_control_fixture()?;
-    assert_eq!(MESSAGE_CONTRACTS.len(), fixture.message_contracts.len());
-
-    for (actual, expected) in MESSAGE_CONTRACTS.iter().zip(&fixture.message_contracts) {
-        assert_eq!(actual.kind, expected.kind);
-        assert_eq!(actual.name, expected.name);
-        assert_eq!(
-            actual.event_encoding,
-            expected
-                .event_encoding
-                .as_deref()
-                .map(fixture_payload_encoding)
-                .transpose()?
-        );
-        assert_eq!(
-            actual.response_encoding,
-            expected
-                .response_encoding
-                .as_deref()
-                .map(fixture_payload_encoding)
-                .transpose()?
-        );
-        match (actual.request, &expected.request) {
-            (Some(actual_request), Some(expected_request)) => {
-                assert_eq!(
-                    actual_request.payload_encoding,
-                    fixture_payload_encoding(&expected_request.payload_encoding)?
-                );
-                assert_eq!(actual_request.success_kind, expected_request.success_kind);
-            }
-            (None, None) => {}
-            _ => panic!("request contract differs for kind {}", actual.kind),
-        }
-        assert_eq!(message_contract(actual.kind), Some(actual));
-    }
-
-    for kind in 0..=u16::MAX {
-        let expected = fixture
-            .message_contracts
-            .binary_search_by_key(&kind, |contract| contract.kind)
-            .is_ok();
-        assert_eq!(message_contract(kind).is_some(), expected, "kind {kind}");
-    }
-    Ok(())
-}
-
-#[test]
-fn envelope_limits_match_the_canonical_fixture() -> Result<(), Box<dyn Error>> {
-    let limits = read_control_fixture()?.protocol_limits;
-    assert_eq!(MAXIMUM_CONTROL_JSON_BYTES, limits.control_json_bytes);
-    assert_eq!(MAXIMUM_RAW_PAYLOAD_BYTES, limits.raw_payload_bytes);
-    assert_eq!(MAXIMUM_TERMINAL_FRAME_BYTES, limits.frame_bytes);
-    assert_eq!(
-        MAXIMUM_GRAPHICS_RGBA_BYTES + GRAPHICS_DECODE_RESULT_HEADER_BYTES,
-        limits.graphics_image_bytes
-    );
-    assert_eq!(MAXIMUM_ROW_WINDOW_BYTES, limits.row_window_bytes);
-    assert_eq!(
-        MAXIMUM_TRANSPORT_RECORD_BYTES,
-        limits.transport_record_bytes
-    );
-    assert_eq!(
-        MAXIMUM_TRANSPORT_RECORD_BYTES,
-        TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_ROW_WINDOW_BYTES
-    );
-    Ok(())
-}
+    include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
 
 #[test]
 fn canonical_envelope_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>> {
@@ -380,21 +269,6 @@ fn aggregate_record_boundary_is_exact() -> Result<(), Box<dyn Error>> {
         ProtocolErrorCode::LimitExceeded,
     );
     Ok(())
-}
-
-fn read_control_fixture() -> Result<ControlFixture, serde_json::Error> {
-    serde_json::from_str(CONTROL_FIXTURE)
-}
-
-fn fixture_payload_encoding(value: &str) -> Result<PayloadEncoding, Box<dyn Error>> {
-    match value {
-        "control-json" => Ok(PayloadEncoding::ControlJson),
-        "raw-bytes" => Ok(PayloadEncoding::RawBytes),
-        "terminal-frame" => Ok(PayloadEncoding::TerminalFrame),
-        "row-window" => Ok(PayloadEncoding::RowWindow),
-        "graphics-image" => Ok(PayloadEncoding::GraphicsImage),
-        _ => Err(format!("unknown fixture payload encoding {value}").into()),
-    }
 }
 
 fn correlation_id(byte: u8) -> Result<CorrelationId, Box<dyn Error>> {

@@ -9,7 +9,7 @@ use orchbee_terminal_protocol::{
 
 fn observed() -> Read {
     let frame = decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     let info = TerminalProcessInfo {

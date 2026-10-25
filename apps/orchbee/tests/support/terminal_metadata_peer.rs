@@ -52,8 +52,7 @@ pub(crate) fn unavailable(stream: &mut LocalStream) {
 }
 fn frame_bytes() -> Vec<u8> {
     let mut bytes =
-        include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin")
-            .to_vec();
+        include_bytes!("../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin").to_vec();
     let count = u32::from_le_bytes(bytes[124..128].try_into().unwrap());
     let mut end = 160;
     for _ in 0..count {

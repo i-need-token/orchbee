@@ -8,7 +8,9 @@ use crate::{
     TerminalPixelGeometry, TerminalTextStyle,
 };
 
-const HEADER: usize = 320;
+use crate::wire_constants::PROJECTION_BUFFER;
+
+const HEADER: usize = PROJECTION_BUFFER.header_bytes;
 const ELEMENT_BYTES: [usize; 16] = [2, 1, 1, 4, 2, 4, 2, 4, 4, 4, 2, 1, 1, 1, 1, 1];
 
 /// Immutable, validated sections borrow the wire record. Repeated string aliases
@@ -144,10 +146,12 @@ pub fn decode_terminal_projection_buffer(
     if bytes.len() > MAXIMUM_TERMINAL_FRAME_BYTES {
         return Err(error(ProtocolErrorCode::LimitExceeded));
     }
-    if &bytes[..4] != b"OBPB" {
+    if &bytes[..4] != PROJECTION_BUFFER.magic {
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
-    if bytes[4] != 0 || bytes[5] != 1 || bytes[144] != 0 || u16_at(bytes, 12) != 320 {
+    if [bytes[4], bytes[5], bytes[144]] != PROJECTION_BUFFER.version
+        || usize::from(u16_at(bytes, 12)) != HEADER
+    {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }
     if u32_at(bytes, 8) as usize != bytes.len() {

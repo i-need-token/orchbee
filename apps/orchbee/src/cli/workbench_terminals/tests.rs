@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 fn observed(title: &str, current_directory: &str) -> Read {
     let frame = decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     Read {

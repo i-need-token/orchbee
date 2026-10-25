@@ -2,7 +2,7 @@
 use super::*;
 
 const RENDER: &[u8] =
-    include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin");
+    include_bytes!("../../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin");
 const SCHEMA: &str = include_str!("../../src/cli/schemas/orchbee.terminal.output.json");
 
 fn render_window() -> Vec<u8> {

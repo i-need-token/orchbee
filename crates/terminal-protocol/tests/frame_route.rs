@@ -1,9 +1,7 @@
 use orchbee_terminal_protocol::{ProtocolErrorCode, inspect_terminal_frame_route};
 
-const FRAME: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-frame.bin");
-const GHOSTTY: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+const FRAME: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-frame.bin");
+const GHOSTTY: &[u8] = include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 
 #[test]
 fn reads_existing_typescript_and_real_ghostty_routes_without_touching_payload()

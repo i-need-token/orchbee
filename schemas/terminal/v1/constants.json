@@ -1,0 +1,733 @@
+{
+	"formats": {
+		"wire": {
+			"magic": "OBTP",
+			"version": {
+				"major": 0,
+				"minor": 1,
+				"patch": 0
+			},
+			"header_bytes": 64
+		},
+		"frame": {
+			"magic": "OBTF",
+			"version": {
+				"major": 0,
+				"minor": 1,
+				"patch": 0
+			},
+			"header_bytes": 160
+		},
+		"projection_buffer": {
+			"magic": "OBPB",
+			"version": {
+				"major": 0,
+				"minor": 1,
+				"patch": 0
+			},
+			"header_bytes": 320
+		},
+		"row_window": {
+			"magic": "OBRW",
+			"version": {
+				"major": 0,
+				"minor": 1,
+				"patch": 0
+			},
+			"header_bytes": 112
+		},
+		"graphics": {
+			"magic": "OBKG",
+			"version": {
+				"major": 0,
+				"minor": 1,
+				"patch": 0
+			},
+			"header_bytes": 40
+		}
+	},
+	"enums": {
+		"payload_encoding": {
+			"control-json": 1,
+			"raw-bytes": 2,
+			"terminal-frame": 3,
+			"row-window": 4,
+			"graphics-image": 5
+		},
+		"message_role": {
+			"request": 0,
+			"response": 2,
+			"event": 4
+		}
+	},
+	"message_contracts": [
+		{
+			"event_encoding": null,
+			"kind": 1,
+			"name": "Hello",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 2
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 2,
+			"name": "HelloAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 3,
+			"name": "ProtocolRejected",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 4,
+			"name": "Ping",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 4
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 5,
+			"name": "TypedFailure",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 10,
+			"name": "ListTerminals",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 10
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 11,
+			"name": "CreateTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 11
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 12,
+			"name": "TerminateTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 12
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 13,
+			"name": "DisposeTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 13
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 14,
+			"name": "TerminalStarted",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 15,
+			"name": "TerminalExited",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 16,
+			"name": "StartTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 17
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 17,
+			"name": "TerminalStartAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 18,
+			"name": "ForceTerminateTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 18
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 19,
+			"name": "TerminalFailed",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 20,
+			"name": "AttachTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 22
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 21,
+			"name": "DetachTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 21
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 22,
+			"name": "AttachmentCapabilities",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 23,
+			"name": "ResizeLeaseChanged",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 24,
+			"name": "UpdateAttachmentInputCapability",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 22
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 25,
+			"name": "ClaimResizeLease",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 22
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 30,
+			"name": "WriteInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 31,
+			"name": "InputAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 32,
+			"name": "ResizeTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 33
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 33,
+			"name": "ResizeAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 34,
+			"name": "KeyInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 35,
+			"name": "TextInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 36,
+			"name": "MouseInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 37,
+			"name": "FocusInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 38,
+			"name": "PasteInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 39,
+			"name": "PasteAutoInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "terminal-frame",
+			"kind": 41,
+			"name": "SnapshotFrame",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "terminal-frame",
+			"kind": 42,
+			"name": "DeltaFrame",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 43,
+			"name": "FrameApplied",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 43
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 44,
+			"name": "NeedSnapshot",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 44
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 45,
+			"name": "ReadRows",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 46
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 46,
+			"name": "RowsSnapshot",
+			"request": null,
+			"response_encoding": "row-window"
+		},
+		{
+			"event_encoding": null,
+			"kind": 47,
+			"name": "SetProjectionDemand",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 48
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 48,
+			"name": "ProjectionDemandAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 49,
+			"name": "ProjectionBlocked",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 50,
+			"name": "RowsApplied",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 50
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 51,
+			"name": "SetHistoryDemand",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 52
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 52,
+			"name": "HistoryDemandAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 53,
+			"name": "HistoryChanged",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 54,
+			"name": "HistoryObserved",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 54
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 55,
+			"name": "TerminalBell",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 56,
+			"name": "TerminalClipboardWriteRequest",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 57,
+			"name": "TerminalMetadataChanged",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 58,
+			"name": "TerminalApplicationSignal",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 60,
+			"name": "SelectionGesture",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 62
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 61,
+			"name": "SelectionCommand",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 62
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 62,
+			"name": "SelectionChanged",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 63,
+			"name": "SelectionExport",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 64
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 64,
+			"name": "SelectionExportStarted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "raw-bytes",
+			"kind": 65,
+			"name": "SelectionExportChunk",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 66,
+			"name": "SelectionExportChunkApplied",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 66
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 67,
+			"name": "SelectionExportFinished",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 68,
+			"name": "SelectionExportCancel",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 67
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 70,
+			"name": "SetTerminalDefaults",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 71
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 71,
+			"name": "TerminalDefaultsAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 72,
+			"name": "UpdateTerminalConfiguration",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 73
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 73,
+			"name": "TerminalConfigurationAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 74,
+			"name": "ClearTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 76
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 75,
+			"name": "ResetTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 76
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 76,
+			"name": "TerminalControlAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 77,
+			"name": "ApplyTerminalTheme",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 78
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 78,
+			"name": "TerminalThemeResult",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 79,
+			"name": "ReadProcessInfo",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 79
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 80,
+			"name": "DecodeGraphicsPng",
+			"request": {
+				"payload_encoding": "graphics-image",
+				"success_kind": 81
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 81,
+			"name": "GraphicsPngDecoded",
+			"request": null,
+			"response_encoding": "graphics-image"
+		},
+		{
+			"event_encoding": null,
+			"kind": 82,
+			"name": "TerminateTerminalIfIdle",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 82
+			},
+			"response_encoding": "control-json"
+		}
+	],
+	"protocol_limits": {
+		"control_json_bytes": 65536,
+		"extension_bytes": 34603008,
+		"frame_bytes": 37748736,
+		"frame_cells": 262144,
+		"frame_columns": 4096,
+		"frame_extensions": 64,
+		"frame_rows": 4096,
+		"frame_strings": 4096,
+		"frame_styles": 1024,
+		"cell_pixel_dimension": 4096,
+		"clipboard_text_bytes": 16384,
+		"input_bytes": 1048576,
+		"input_accepted_bytes": 1048576,
+		"inventory_page_terminals": 128,
+		"key_text_bytes": 4096,
+		"launch_arguments": 4096,
+		"launch_environment_entries": 1024,
+		"environment_overlay_entries": 16,
+		"environment_name_bytes": 32768,
+		"environment_overlay_value_bytes": 4096,
+		"optional_feature_name_bytes": 64,
+		"optional_features": 64,
+		"pending_input_bytes": 4194304,
+		"pty_read_batch_bytes": 262144,
+		"row_window_bytes": 46137344,
+		"row_window_rows": 4096,
+		"search_query_bytes": 16384,
+		"selection_export_bytes": 16777216,
+		"selection_export_chunk_bytes": 1048576,
+		"selection_preview_bytes": 4096,
+		"terminal_profile_features": 64,
+		"terminal_application_signal_bytes": 4096,
+		"terminal_response_bytes": 256,
+		"terminal_graphics_destination_pixels": 65535,
+		"terminal_graphics_dimension": 4096,
+		"terminal_graphics_extension_bytes": 34603008,
+		"terminal_graphics_images": 256,
+		"terminal_graphics_placements": 1024,
+		"terminal_graphics_resource_bytes": 33554432,
+		"terminal_profile_palette_entries": 256,
+		"scrollback_bytes": 1000000000,
+		"string_bytes": 16384,
+		"transport_record_bytes": 46137408,
+		"raw_payload_bytes": 1048608,
+		"graphics_image_bytes": 33554488,
+		"paste_auto_input_bytes": 262144,
+		"paste_auto_input_payload_bytes": 262176,
+		"semantic_input_payload_bytes": 1048608,
+		"write_input_payload_bytes": 1048600
+	}
+}

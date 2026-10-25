@@ -22,7 +22,7 @@ fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
 #[test]
 fn a_smaller_live_grid_keeps_terminal_background_across_the_entire_pane() {
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     source.geometry.columns = 2;
@@ -82,7 +82,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
     }
 
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     source.foreground = 0x123456;
@@ -187,7 +187,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
 fn captured_regional_indicator_cells_survive_paint_and_clear_their_entire_footprint() {
     use ratatui::buffer::{Buffer, CellDiffOption, CellWidth};
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     let mut style = frame.rows[0].cells[0].style;
@@ -245,7 +245,7 @@ fn captured_regional_indicator_cells_survive_paint_and_clear_their_entire_footpr
 #[test]
 fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() {
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     source.geometry.columns = 104;
@@ -321,7 +321,7 @@ fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() 
 #[test]
 fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     source.geometry.rows = 36;
@@ -388,7 +388,7 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
 #[test]
 fn cropping_into_a_wide_tail_erases_old_cells_without_painting_half_a_glyph() {
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     source.cursor.visible = true;
@@ -425,7 +425,7 @@ fn cropping_into_a_wide_tail_erases_old_cells_without_painting_half_a_glyph() {
 #[test]
 fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
     let mut live = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     live.cursor = orchbee_terminal_protocol::TerminalTextCursor {
@@ -481,7 +481,7 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
         UserPreferencesValues,
     };
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     frame.foreground = 0xabcdef;
@@ -549,7 +549,7 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
 fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))?;
     // The Worker launch profile supplies these light RGB defaults even inside a dark host.
     frame.foreground = 0x14_14_14;
@@ -673,7 +673,7 @@ fn default_markers_follow_the_theme_without_recoloring_explicit_cells()
 fn renders_unicode_width_styles_and_cursor_without_emitting_control_text()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))?;
     let mut terminal = Terminal::new(TestBackend::new(10, 4))?;
     let area = Rect::new(1, 1, 6, 2);

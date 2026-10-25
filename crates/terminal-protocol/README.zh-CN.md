@@ -1,5 +1,9 @@
 # Terminal protocol Rust 绑定
 
+语言中立的[终端权威](../../schemas/terminal/README.zh-CN.md)拥有线协议参考、版本政策、
+常量注册表及夹具。本独立 Rust 绑定直接读取这些夹具；私有注册表测试比较生产常量，
+不为测试增加公共导出。
+
 ## 共享 SGR 样式投影
 
 `terminal_sgr_style` 无分配地格式化一份有效 cell 样式。原生 CLI 终端导出与 Server 事件匹配

@@ -24,7 +24,7 @@ fn sample() -> TerminalProcessInfo {
 #[test]
 fn typescript_process_fixtures_refine_to_the_same_typed_rust_contract() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../packages/terminal-protocol/fixtures/control-conformance.json"
+        "../../../schemas/terminal/v1/fixtures/control-conformance.json"
     ))
     .unwrap();
     for (pointer, role) in [

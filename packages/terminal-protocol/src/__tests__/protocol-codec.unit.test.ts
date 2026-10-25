@@ -39,16 +39,28 @@ import { CURRENT_PROTOCOL_VERSION } from '../version';
 const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
 if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
-const frameFixtureUrl = new URL('../../fixtures/terminal-frame.bin', import.meta.url);
-const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope.bin', import.meta.url);
-const malformedFixtureUrl = new URL('../../fixtures/malformed-frame.json', import.meta.url);
-const rowWindowFixtureUrl = new URL('../../fixtures/terminal-row-window.bin', import.meta.url);
+const frameFixtureUrl = new URL(
+	'../../../../schemas/terminal/v1/fixtures/terminal-frame.bin',
+	import.meta.url,
+);
+const envelopeFixtureUrl = new URL(
+	'../../../../schemas/terminal/v1/fixtures/transport-envelope.bin',
+	import.meta.url,
+);
+const malformedFixtureUrl = new URL(
+	'../../../../schemas/terminal/v1/fixtures/malformed-frame.json',
+	import.meta.url,
+);
+const rowWindowFixtureUrl = new URL(
+	'../../../../schemas/terminal/v1/fixtures/terminal-row-window.bin',
+	import.meta.url,
+);
 const malformedRowWindowFixtureUrl = new URL(
-	'../../fixtures/malformed-row-window.json',
+	'../../../../schemas/terminal/v1/fixtures/malformed-row-window.json',
 	import.meta.url,
 );
 const packedProjectionConformanceFixtureUrl = new URL(
-	'../../fixtures/packed-projection-conformance.json',
+	'../../../../schemas/terminal/v1/fixtures/packed-projection-conformance.json',
 	import.meta.url,
 );
 

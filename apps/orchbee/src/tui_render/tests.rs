@@ -1779,7 +1779,7 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     use ratatui::style::{Color, Modifier};
 
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
-        "../../../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "../../../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .unwrap();
     source.foreground = 0x141414;

@@ -27,7 +27,6 @@ import {
 	InputAcceptedSchema,
 	KEY_INPUT_HEADER_BYTES,
 	ListTerminalsSchema,
-	MESSAGE_CONTRACTS,
 	MessageKind,
 	PROTOCOL_LIMITS,
 	ProjectionBlockedSchema,
@@ -61,7 +60,7 @@ import {
 } from '../dist/index.js';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const fixturesDirectory = path.join(packageRoot, 'fixtures');
+const fixturesDirectory = path.resolve(packageRoot, '../../schemas/terminal/v1/fixtures');
 
 function versionText(version) {
 	return `${version.major}.${version.minor}.${version.patch}`;
@@ -437,17 +436,6 @@ function createUtf8BomConformanceFixture() {
 	};
 }
 
-function protocolLimitName(name) {
-	const semanticName = name.startsWith('max') ? name.slice(3) : name;
-	return semanticName.replaceAll(/([a-z\d])([A-Z])/g, '$1_$2').toLowerCase();
-}
-
-function protocolLimitsFixture() {
-	return Object.fromEntries(
-		Object.entries(PROTOCOL_LIMITS).map(([name, value]) => [protocolLimitName(name), value]),
-	);
-}
-
 function createControlConformanceFixture() {
 	const attachmentId = '22'.repeat(16);
 	const creationId = '33'.repeat(16);
@@ -546,27 +534,6 @@ function createControlConformanceFixture() {
 		['terminal-reply', 'admit-terminal-reply'],
 		['worker-integrity', 'synchronize-worker'],
 	];
-	const registeredMessageKinds = Object.values(MessageKind).sort((left, right) => left - right);
-	if (new Set(registeredMessageKinds).size !== registeredMessageKinds.length) {
-		throw new Error('The message-kind registry contains duplicate numeric values');
-	}
-	const messageContracts = registeredMessageKinds.map((kind) => {
-		const contract = MESSAGE_CONTRACTS[kind];
-		return {
-			event_encoding: contract.eventEncoding,
-			kind,
-			name: contract.name,
-			request:
-				contract.request === null
-					? null
-					: {
-							payload_encoding: contract.request.payloadEncoding,
-							success_kind: contract.request.successKind,
-						},
-			response_encoding: contract.responseEncoding,
-		};
-	});
-
 	const commands = {
 		apply_terminal_theme: controlRequestText(
 			MessageKind.applyTerminalTheme,
@@ -1177,9 +1144,7 @@ function createControlConformanceFixture() {
 
 	return {
 		commands,
-		message_contracts: messageContracts,
 		outputs,
-		protocol_limits: protocolLimitsFixture(),
 		raw_cases: rawControlCases(),
 	};
 }

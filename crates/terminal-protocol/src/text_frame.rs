@@ -298,7 +298,8 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
             }
             graphics_present = Some(
                 !(bytes.len() == 40
-                    && &bytes[..7] == b"OBKG\0\x01\0"
+                    && &bytes[..4] == crate::wire_constants::GRAPHICS.magic
+                    && bytes[4..7] == crate::wire_constants::GRAPHICS.version
                     && matches!(bytes[7], 1 | 2)
                     && bytes[8..12] == 40_u32.to_le_bytes()
                     && bytes[28..].iter().all(|byte| *byte == 0)),

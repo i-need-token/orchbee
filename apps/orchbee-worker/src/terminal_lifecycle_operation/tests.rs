@@ -474,7 +474,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
         .map_err(|e| format!("{e:?}"))?;
     let mut payload = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/terminal-protocol/fixtures/terminal-frame.bin"
+        "/../../schemas/terminal/v1/fixtures/terminal-frame.bin"
     ))
     .to_vec();
     payload[6] = 1;

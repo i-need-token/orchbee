@@ -2,8 +2,7 @@ use super::*;
 use orchbee_local_ipc::LocalStream;
 use orchbee_terminal_protocol as obtp;
 
-const FRAME: &[u8] =
-    include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+const FRAME: &[u8] = include_bytes!("../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 const TERMINAL: &str = "33333333333333333333333333333333";
 
 fn request(stream: &mut LocalStream) -> TerminalViewerRequest {

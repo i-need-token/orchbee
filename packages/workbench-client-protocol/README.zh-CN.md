@@ -117,7 +117,7 @@ Resume 失败目标回显仅重复已提交身份，Denied 亦如此；不确认
 附件流关闭后，Projection release 仍保持相关联。客户端会保留请求标识，直到 Main 返回 `terminal-projection-released` 或确切的类型化清理失败。成功确认不会传输任何端口；因此，迟到的清理结果只会结算其已释放请求，不会被误认为会使无关投影退役的未知消息。
 由于命令交付与异步 open 完成是独立调度的，相关联的 `terminal-projection-opened` 可能在客户端请求 release 后才到达。客户端只关闭被转移的 attachment 端口，保留已释放请求标识直到清理结算，并让共享控制传输与无关请求继续可用。缺失或多出的转移端口、冲突标识或重复 open 仍属于无效控制流量，并会退役受影响的控制传输。
 
-它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、身份验证、PTY 或 VT 实现。当前 shared-document 与 legacy TerminalPresentation 语义在已接受 migration 前仍属于 `@orchbee/workbench`；增量 version-1 projection 语义来自语言中立 schema 权威。Terminal Host wire 语义仍属于 `@orchbee/terminal-protocol`。
+它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、身份验证、PTY 或 VT 实现。当前 shared-document 与 legacy TerminalPresentation 语义在已接受 migration 前仍属于 `@orchbee/workbench`；增量 version-1 projection 语义来自语言中立 schema 权威。Terminal Host 线协议语义属于 [`schemas/terminal`](../../schemas/terminal/README.zh-CN.md)；`@orchbee/terminal-protocol` 是 TypeScript 绑定。
 
 应用程序在第一个可信边界处使用这些模式解析每个不可信的 IPC 或网络值。传输所有者仍然负责成帧、身份验证、二进制传输、背压和连接退役。
 

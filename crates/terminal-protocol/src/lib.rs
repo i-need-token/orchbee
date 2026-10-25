@@ -41,6 +41,7 @@ mod terminal_effect;
 mod terminal_fact;
 mod theme_control;
 mod version;
+mod wire_constants;
 
 pub use attachment::{
     AttachTerminal, AttachmentCapabilities, AttachmentCapabilityState, AttachmentControl,

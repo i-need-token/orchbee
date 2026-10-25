@@ -8,12 +8,12 @@ mod encoded_fixture;
 use encoded_fixture::base64;
 
 const WINDOW: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-row-window.bin");
-const CANONICAL: &str = include_str!("../../../packages/terminal-protocol/fixtures/canonical.json");
+    include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-row-window.bin");
+const CANONICAL: &str = include_str!("../../../schemas/terminal/v1/fixtures/canonical.json");
 const MALFORMED: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/malformed-row-window.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/malformed-row-window.json");
 const PACKED: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/packed-projection-conformance.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/packed-projection-conformance.json");
 
 #[test]
 fn canonical_text_window_matches_the_encoding_owner() -> Result<(), Box<dyn Error>> {
@@ -292,9 +292,8 @@ fn size_bound_rejects_before_magic_is_read() -> Result<(), Box<dyn Error>> {
 fn legal_render_window_fails_closed_as_text_only() -> Result<(), Box<dyn Error>> {
     // The real Host-produced render window completes full header validation,
     // then fails closed: the text decoder never interprets render payloads.
-    let render = include_bytes!(
-        "../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin"
-    );
+    let render =
+        include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin");
     let error = decode_terminal_text_row_window(render)
         .err()
         .ok_or("render window accepted by text decoder")?;

@@ -736,6 +736,12 @@ pub fn build(builder: *std.Build) void {
     }
 
     const conformance_options = builder.addOptions();
+    conformance_options.addOption([]const u8, "constants_registry", readFixture(
+        builder,
+        "constants-registry",
+        "Language-neutral terminal constants registry path",
+        64 * 1024,
+    ));
     conformance_options.addOption([]const u8, "frame_fixture", readFixture(
         builder,
         "frame-fixture",

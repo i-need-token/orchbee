@@ -628,7 +628,7 @@ The [`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.md) 
 Server-Worker framing. The
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.md) crate owns the
 kernel same-user proof used for both local connections. The
-[`orchbee-terminal-protocol`](../../packages/terminal-protocol/references/protocol.md) package owns
+[`orchbee-terminal-protocol`](../../schemas/terminal/references/protocol.md) package owns
 the Host wire; its independent Rust binding supplies the consumed control, envelope, and routing codecs.
 The capability-node protocol crate owns OBCN semantic values and framing without importing either
 local-Site or Terminal Host types. Worker owns admission order, the Host broker connection, coupled

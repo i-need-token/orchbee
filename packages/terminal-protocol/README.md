@@ -1,6 +1,6 @@
 # Terminal Protocol
 
-`@orchbee/terminal-protocol` is Orchbee's private, transport-neutral wire contract between the native Terminal Host and its local clients. It owns protocol identities, exact current-version validation, protocol safety limits, control schemas, attachment-prefixed binary input, packed terminal-frame and transport-envelope codecs, packed row-window and selection-export codecs, and language-neutral conformance fixtures.
+`@orchbee/terminal-protocol` is the TypeScript binding for the language-neutral [Terminal contract](../../schemas/terminal/README.md) between the native Terminal Host and its local clients. It implements protocol identities, exact current-version validation, safety limits, control schemas, attachment-prefixed binary input, and terminal-frame, transport-envelope, row-window and selection-export codecs.
 
 It does not open sockets or named pipes, spawn processes, parse VT, route Electron IPC, render a terminal, or own terminal lifecycle, delivery, recovery, Project, Workspace, Workbench, Tab, Panel, agent, or product-session state.
 
@@ -12,8 +12,7 @@ registry, fixed OBTP transport envelope, and the `Hello`, `HelloAccepted`, `Prot
 and observations for kinds 12 through 19, attachment controls for kinds 20 through 25, the raw
 `WriteInput`/`InputAccepted` exchange for kinds 30 and 31, and the `ResizeTerminal`/
 `ResizeAccepted` control exchange for kinds 32 and 33, plus the semantic `KeyInput`, `TextInput`,
-`MouseInput`, `FocusInput`, `PasteInput`, and `PasteAutoInput` requests for kinds 34 through 39. This package, its
-reference, and its fixtures remain the sole wire authority. The unshipped
+`MouseInput`, `FocusInput`, `PasteInput`, and `PasteAutoInput` requests for kinds 34 through 39. `schemas/terminal` owns the wire reference, constant registry and canonical fixtures. The unshipped
 [`orchbee-worker`](../../apps/orchbee-worker/README.md) application consumes the Rust envelope, connection, launch/lifecycle, attachment, projection-demand,
 and feedback codecs for its actual Host broker. Worker owns socket authentication, handshake state,
 connection liveness, and viewer relay behavior. The binding includes kind-11 `CreateTerminal` and
@@ -208,34 +207,11 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 
 ## Fixtures
 
-The package explicitly exports:
+Canonical fixtures live under [`schemas/terminal/v1/fixtures/`](../../schemas/terminal/v1/fixtures/). The independent [constant registry](../../schemas/terminal/v1/constants.json) owns versions, magic, message contracts, envelope enum codes and limits; all three bindings compare their real implementation against it.
 
-- `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance.json`
-- `@orchbee/terminal-protocol/fixtures/focus-input.bin`
-- `@orchbee/terminal-protocol/fixtures/malformed-frame.json`
-- `@orchbee/terminal-protocol/fixtures/malformed-row-window.json`
-- `@orchbee/terminal-protocol/fixtures/packed-projection-conformance.json`
-- `@orchbee/terminal-protocol/fixtures/terminal-frame.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed.json`
-- `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-row-window.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-auto-input.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input.bin`
-- `@orchbee/terminal-protocol/fixtures/selection-export-chunk.bin`
-- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance.json`
-- `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface.bin`
-- `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window.bin`
-- `@orchbee/terminal-protocol/fixtures/ghostty-surface.bin`
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance.json` contains schema-produced command, reply, event, discriminated-union and failure cases consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the protocol-`0.1.0` selection-export-chunk record, the current OBTF format-`0.1.0`, OBPB format-`0.1.0`, OBRW format-`0.1.0`, and OBKG format-`0.1.0` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Fixture names are stable and unversioned; their contents and implementation constants carry the exact owning wire or format version.
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the protocol-`0.1.0` selection-export-chunk record, the current OBTF format-`0.1.0`, OBPB format-`0.1.0`, OBRW format-`0.1.0`, and OBKG format-`0.1.0` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Fixture names are stable and unversioned; their contents and implementation constants carry the exact owning wire or format version.
-
-`packed-projection-conformance.json` is the language-neutral strict-boundary oracle for OBPB format `0.1.0` and OBRW format `0.1.0`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` resolves the declared package export, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
+`packed-projection-conformance.json` is the language-neutral strict-boundary oracle for OBPB format `0.1.0` and OBRW format `0.1.0`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` reads the language-neutral fixture path, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
 
 `TerminalProfile` carries explicit `defaultCursorShape` and `defaultCursorBlinking` values. Missing
 fields normalize to `block` and `false` so previously persisted profile objects retain the product
@@ -253,7 +229,7 @@ consumes the OBRW bytes through the strict decoder, trusted structural view, and
 contract-authored 6x8 oracle checks every row and cell column, raw string range, decoded string,
 color, style flag, underline kind, width, semantic value, protected flag, and commit metadata;
 wire-valid semantic mutations prove that strict admission alone cannot satisfy that oracle. The
-protocol package owns the stable bytes and exports, Terminal Host owns native production, and the
+`schemas/terminal` owns the stable bytes, Terminal Host owns native production, and the
 terminal package owns consumer semantics. This evidence does not grant VT, lifecycle, history, or
 trust-boundary authority to the protocol package.
 
@@ -306,14 +282,14 @@ or action semantics. An application must apply its separately owned stricter pay
 
 ## Ownership
 
-This package defines how a value is represented and validated on the wire. It deliberately does not define which lifecycle transition is legal, when an effect occurs, how delivery is committed, or how a product recovers. Those authorities live with their state owners:
+This package implements the representation and validation defined by `schemas/terminal`. It deliberately does not define which lifecycle transition is legal, when an effect occurs, how delivery is committed, or how a product recovers. Those authorities live with their state owners:
 
 - [`apps/terminal-host/docs/runtime-model.md`](../../apps/terminal-host/docs/runtime-model.md) owns terminal lifecycle, runtime containment, attachment delivery, retry, and Host concurrency.
 - `apps/desktop` owns product binding, close escalation, reconnection, publication, and update policy.
 
 Protocol schemas make illegal wire combinations unrepresentable where possible. Consumer-owned models and tests decide whether a valid wire value is legal in the consumer's current state.
 
-The complete wire layouts, message registry, bounds, and evidence limits are in [`references/protocol.md`](references/protocol.md). [`docs/version-history.md`](docs/version-history.md) owns the pre-release policy and, beginning with `1.0.0`, every released wire-protocol and binary-format version change. The NPM package version is independent release metadata and is not a wire-compatibility version.
+The complete wire layouts, message registry, bounds, and evidence limits are in [`schemas/terminal/references/protocol.md`](../../schemas/terminal/references/protocol.md). [`schemas/terminal/docs/version-history.md`](../../schemas/terminal/docs/version-history.md) owns the pre-release policy and, beginning with `1.0.0`, every released wire-protocol and binary-format version change. The NPM package version is independent release metadata and is not a wire-compatibility version.
 
 ## Development
 
@@ -329,7 +305,7 @@ pnpm verify
 ```
 
 Run `pnpm --filter @orchbee/terminal-protocol fixtures:generate` only after an intentional reviewed
-TypeScript-owned fixture change. For the three native surface fixtures, run
+TypeScript-produced fixture change. For the three native surface fixtures, run
 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`. Their respective conformance
 checks compare tracked files without rewriting them.
 

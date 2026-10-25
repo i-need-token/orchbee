@@ -13,7 +13,7 @@ use std::io::{self, Read};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 const FRAME: &[u8] =
-    include_bytes!("../../../../../packages/terminal-protocol/fixtures/ghostty-surface.bin");
+    include_bytes!("../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin");
 fn id(value: u64) -> String {
     format!("{value:032x}")
 }

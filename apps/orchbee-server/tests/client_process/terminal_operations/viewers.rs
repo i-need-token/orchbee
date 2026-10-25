@@ -511,8 +511,7 @@ fn blocked_client_output_releases_worker_before_publication_and_times_out_only_i
 fn large_record(request: WorkerRequest) -> TestResult<Vec<u8>> {
     // This fixture exercises opaque routing and socket pressure, not a presentation decoder.
     let mut payload =
-        include_bytes!("../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin")
-            .to_vec();
+        include_bytes!("../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin").to_vec();
     payload.resize(4 * 1024 * 1024, 0);
     let length = u32::try_from(payload.len())?;
     payload[8..12].copy_from_slice(&length.to_le_bytes());

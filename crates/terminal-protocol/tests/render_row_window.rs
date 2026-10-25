@@ -9,11 +9,11 @@ use orchbee_terminal_protocol::{
 use std::error::Error;
 
 const WINDOW: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-render-row-window.bin");
+    include_bytes!("../../../schemas/terminal/v1/fixtures/ghostty-render-row-window.bin");
 const PACKED: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/packed-projection-conformance.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/packed-projection-conformance.json");
 const MALFORMED: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/malformed-row-window.json");
+    include_str!("../../../schemas/terminal/v1/fixtures/malformed-row-window.json");
 
 #[test]
 fn host_render_snapshot_is_borrowed_and_all_prefixes_reject() -> Result<(), Box<dyn Error>> {
@@ -114,8 +114,7 @@ fn every_nested_route_pin_must_agree_with_the_outer_snapshot() {
             .code(),
         ProtocolErrorCode::InvalidField
     );
-    let text =
-        include_bytes!("../../../packages/terminal-protocol/fixtures/terminal-row-window.bin");
+    let text = include_bytes!("../../../schemas/terminal/v1/fixtures/terminal-row-window.bin");
     assert_eq!(
         decode_terminal_render_row_window(text).unwrap_err().code(),
         ProtocolErrorCode::InvalidField

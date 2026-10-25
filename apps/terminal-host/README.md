@@ -7,7 +7,7 @@ The application is private and experimentally versioned. It installs an executab
 ## Contract authority
 
 - [Runtime contract and correctness model](docs/runtime-model.md) owns Host lifecycle, state, delivery, retry, failure, concurrency, and evidence requirements.
-- [Terminal protocol reference](../../packages/terminal-protocol/references/protocol.md) owns wire records, codecs, message schemas, format versions, and protocol safety limits.
+- [Terminal protocol reference](../../schemas/terminal/references/protocol.md) owns wire records, codecs, message schemas, format versions, and protocol safety limits.
 - [Desktop](../desktop/README.md) owns product topology, recovery policy, presentation, and platform effects.
 - [Worker](../orchbee-worker/README.md) owns its unshipped Server-first local broker connection and coupled peer liveness; it owns no terminal semantics.
 
@@ -342,8 +342,8 @@ events and malformed metadata remain failures. `test:protocol` runs protocol con
 temporary directory. The primary/alternate OBTF pair comes from one Ghostty terminal and Projection
 across a real alternate-screen transition. A separate Ghostty terminal replays the rich primary
 corpus, adds DECSCA protected and unprotected sentinels, and reaches the render-detail OBRW fixture
-only through `row_encoding.encode` and `projection_buffer.encodeRenderSnapshot`. The protocol
-package owns the tracked bytes and exports; `@orchbee/terminal` owns the exact strict-view,
+only through `row_encoding.encode` and `projection_buffer.encodeRenderSnapshot`. `schemas/terminal`
+owns the tracked bytes; `@orchbee/terminal` owns the exact strict-view,
 trusted-view, and packed-store semantic oracle. This evidence covers the deterministic native
 projection mapping, not PTY delivery, history anchoring, or authorization of another trust path.
 After an intentional reviewed corpus or encoder change, run

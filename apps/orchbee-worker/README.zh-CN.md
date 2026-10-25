@@ -563,7 +563,7 @@ state。文件系统元数据调用为同步调用，carrier deadline 不会使�
 Server-Worker framing。
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.zh-CN.md) crate 拥有两条
 本机 connection 使用的 kernel same-user proof。
-[`orchbee-terminal-protocol`](../../packages/terminal-protocol/references/protocol.zh-CN.md) package
+[`orchbee-terminal-protocol`](../../schemas/terminal/references/protocol.zh-CN.md) package
 拥有 Host wire；其独立 Rust binding 提供本次消费的 control、envelope 与 routing codec。Capability-node
 protocol crate 拥有 OBCN semantic value 与 framing，不导入 local-Site 或 Terminal Host type。Worker
 拥有 admission order、Host broker connection、coupled liveness、已集成的 deterministic

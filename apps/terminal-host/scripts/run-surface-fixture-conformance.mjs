@@ -15,9 +15,7 @@ const temporaryDirectory = await mkdtemp(join(tmpdir(), 'orchbee-ghostty-surface
 const fixtures = fixtureNames.map((name) => ({
 	generated: join(temporaryDirectory, name),
 	name,
-	tracked: fileURLToPath(
-		new URL(`../../../packages/terminal-protocol/fixtures/${name}`, import.meta.url),
-	),
+	tracked: fileURLToPath(new URL(`../../../schemas/terminal/v1/fixtures/${name}`, import.meta.url)),
 }));
 
 try {

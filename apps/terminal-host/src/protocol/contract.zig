@@ -1,5 +1,5 @@
-// Keep these synchronized with Rust and TypeScript. Released changes (>= 1.0.0) also update
-// packages/terminal-protocol/docs/version-history.md in the same change.
+// Keep these synchronized with schemas/terminal/v1/constants.json, Rust and TypeScript. Released changes (>= 1.0.0) also update
+// schemas/terminal/docs/version-history.md in the same change.
 pub const terminal_frame_header_bytes = 160;
 pub const terminal_frame_magic = "OBTF";
 pub const terminal_frame_format_major: u8 = 0;

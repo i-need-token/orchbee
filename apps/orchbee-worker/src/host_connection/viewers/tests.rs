@@ -878,8 +878,7 @@ fn frame_sized(
     record_bytes: usize,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut payload =
-        include_bytes!("../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin")
-            .to_vec();
+        include_bytes!("../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin").to_vec();
     let probe = envelope(41, PayloadEncoding::TerminalFrame, &payload, epoch)?;
     let payload_bytes = record_bytes - (probe.len() - payload.len());
     // Grow through a real optional extension record: the canonical full
@@ -921,8 +920,7 @@ fn request(id: u8) -> Result<TerminalViewerRequest, Box<dyn Error>> {
 
 fn frame(id: u8, sequence: u64, epoch: HostEpoch) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut payload =
-        include_bytes!("../../../../../packages/terminal-protocol/fixtures/terminal-frame.bin")
-            .to_vec();
+        include_bytes!("../../../../../schemas/terminal/v1/fixtures/terminal-frame.bin").to_vec();
     payload[6] = 1;
     payload[56..64].fill(255);
     payload[16..32].copy_from_slice(epoch.as_bytes());

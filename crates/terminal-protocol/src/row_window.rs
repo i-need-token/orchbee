@@ -12,9 +12,11 @@ mod selection;
 pub use render::{TerminalRenderRowWindow, decode_terminal_render_row_window};
 pub use selection::extract_terminal_text_selection;
 
-pub const TERMINAL_ROW_WINDOW_HEADER_BYTES: usize = 112;
+use crate::wire_constants::{GRAPHICS, ROW_WINDOW};
 
-const TERMINAL_GRAPHICS_HEADER_BYTES: u64 = 40;
+pub const TERMINAL_ROW_WINDOW_HEADER_BYTES: usize = ROW_WINDOW.header_bytes;
+
+const TERMINAL_GRAPHICS_HEADER_BYTES: u64 = GRAPHICS.header_bytes as u64;
 const DETAIL_RENDER: u8 = 1;
 const DETAIL_TEXT: u8 = 2;
 const ROW_FLAG_WRAP: u8 = 0x01;
@@ -171,7 +173,7 @@ fn decode_header(bytes: &[u8]) -> Result<Header, ProtocolError> {
     if bytes.len() > MAXIMUM_ROW_WINDOW_BYTES {
         return Err(error(ProtocolErrorCode::LimitExceeded));
     }
-    if !bytes.starts_with(b"OBRW") {
+    if !bytes.starts_with(ROW_WINDOW.magic) {
         return Err(error(ProtocolErrorCode::InvalidMagic));
     }
     let mut reader = Reader::new(&bytes[4..TERMINAL_ROW_WINDOW_HEADER_BYTES]);
@@ -197,7 +199,9 @@ fn decode_header(bytes: &[u8]) -> Result<Header, ProtocolError> {
     let projection_length = reader.u32()?;
     let graphics_length = reader.u32()?;
     let reserved_tail = reader.array::<3>()?;
-    if format_major != 0 || format_minor != 1 || format_patch != 0 || header_length != 112 {
+    if [format_major, format_minor, format_patch] != ROW_WINDOW.version
+        || usize::from(header_length) != ROW_WINDOW.header_bytes
+    {
         return Err(error(ProtocolErrorCode::UnsupportedVersion));
     }
     if u64::from(total_length) != bytes.len() as u64
