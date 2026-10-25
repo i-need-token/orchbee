@@ -8,7 +8,7 @@ Paths are relative to the package root. These are maintained test obligations, n
 
 | Claim                                                                   | Executable evidence                                                                                                    |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Renderer retirement, device loss and visibility fence every completion  | `src/rendering/__tests__/renderer.unit.test.ts`                                                                        |
+| Renderer retirement, device loss and visibility fence every completion  | `src/rendering/__tests__/WebGPURenderer.unit.test.ts`                                                                  |
 | Only the newest live presentation configuration publishes all fields    | `src/projected/__tests__/projected-terminal.unit.test.ts`                                                              |
 | Late image reads cannot revive a stale preview                          | `src/projected/__tests__/TerminalImagePreviewController.unit.test.ts`                                                  |
 | Input release and repair preserve ordering and ownership                | `src/input/__tests__/terminal-input-state.unit.test.ts`, `src/input/__tests__/OrderedInputDispatcher.unit.test.ts`     |

@@ -1,3 +1,4 @@
+import type { ProjectedSearchWorkerFactory } from '../../search';
 import {
 	AttachmentIdSchema,
 	HostEpochSchema,
@@ -36,7 +37,7 @@ import type {
 } from '../../buffer-rows';
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
 import { WebGPURenderer } from '../../rendering';
-import type { ProjectedSearchWorkerLike } from '../../search';
+
 import {
 	ProjectedHistoryPhase,
 	ProjectedTerminal,
@@ -131,8 +132,6 @@ const interaction = {
 	mouseUrxvt: false,
 	mouseX10: false,
 };
-
-
 
 function canonicalText(value: string): CanonicalUint64Text {
 	return CanonicalUint64TextSchema.parse(value);
@@ -550,12 +549,12 @@ function searchWorkerWithMatch(
 	row: number,
 	onStart?: (
 		message: Extract<
-			Parameters<ProjectedSearchWorkerLike['postMessage']>[0],
+			Parameters<ReturnType<ProjectedSearchWorkerFactory>['postMessage']>[0],
 			{ readonly kind: 'start' }
 		>,
 	) => void,
-): ProjectedSearchWorkerLike {
-	type SearchWorkerRequest = Parameters<ProjectedSearchWorkerLike['postMessage']>[0];
+): ReturnType<ProjectedSearchWorkerFactory> {
+	type SearchWorkerRequest = Parameters<ReturnType<ProjectedSearchWorkerFactory>['postMessage']>[0];
 	const messageListeners: Array<(event: { readonly data: unknown }) => void> = [];
 	let start: Extract<SearchWorkerRequest, { kind: 'start' }> | undefined;
 	const worker = {
@@ -593,7 +592,7 @@ function searchWorkerWithMatch(
 		},
 		terminate: () => {},
 	};
-	return worker as unknown as ProjectedSearchWorkerLike;
+	return worker as unknown as ReturnType<ProjectedSearchWorkerFactory>;
 }
 
 /**

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	buildTextShapingPlan,
-	type TextShapingCell,
-	type TextShapingSpan,
-} from '../buildTextShapingPlan';
+import { buildTextShapingPlan, type TextShapingCell } from '../buildTextShapingPlan';
 
 describe('buildTextShapingPlan', () => {
 	it('keeps programming ligatures inside one complete style run', () => {
@@ -52,7 +48,7 @@ describe('buildTextShapingPlan', () => {
 
 		expect(plan[0]).toBeNull();
 		expect(plan[1]).toBeNull();
-		expect((plan[2] as TextShapingSpan | null)?.text).toBe(' -');
+		expect(plan[2]?.text).toBe(' -');
 		expect(plan[4]).toBeNull();
 		expect(plan[6]).toBeNull();
 	});
@@ -61,9 +57,9 @@ describe('buildTextShapingPlan', () => {
 		const plan = buildTextShapingPlan(cells('fi fl st www'));
 
 		expect(plan[0]).toBeNull();
-		expect((plan[1] as TextShapingSpan | null)?.text).toBe('i f');
-		expect((plan[4] as TextShapingSpan | null)?.text).toBe('l s');
-		expect((plan[7] as TextShapingSpan | null)?.text).toBe('t www');
+		expect(plan[1]?.text).toBe('i f');
+		expect(plan[4]?.text).toBe('l s');
+		expect(plan[7]?.text).toBe('t www');
 	});
 
 	it('keeps adjacent programming ligatures in one style run', () => {
@@ -77,8 +73,8 @@ describe('buildTextShapingPlan', () => {
 		const repeated = buildTextShapingPlan(cells('************'));
 		const standalone = buildTextShapingPlan(cells(' *** '));
 
-		expect((repeated[0] as TextShapingSpan | null)?.text).toBe('************');
-		expect((standalone[0] as TextShapingSpan | null)?.text).toBe(' *** ');
+		expect(repeated[0]?.text).toBe('************');
+		expect(standalone[0]?.text).toBe(' *** ');
 	});
 
 	it('does not require a hardcoded ligature candidate at the end of a row', () => {

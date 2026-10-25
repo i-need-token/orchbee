@@ -8,4 +8,4 @@ export {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
 	type TerminalThemeOverlayPresentation,
-} from './renderer';
+} from './WebGPURenderer';

@@ -43,18 +43,6 @@ export function calculateSurfaceGrid(
 	};
 }
 
-/** Match Ghostty's balanced surface padding after explicit padding determines the grid. */
-export function balanceSurfacePadding(
-	screen: SurfaceSize,
-	cell: SurfaceSize,
-	explicit: SurfacePadding,
-	mode: Exclude<PaddingBalance, false>,
-): SurfacePadding {
-	const grid = calculateSurfaceGrid(screen, cell, explicit);
-	if (grid === undefined) return { ...explicit };
-	return balanceGridPadding(screen, cell, explicit, grid, mode);
-}
-
 /** Balance padding around an already selected grid and any reserved scrollbar space. */
 export function balanceGridPadding(
 	screen: SurfaceSize,

@@ -6,7 +6,7 @@ import {
 	type PackedRendererRow,
 	type PackedRendererSource,
 	WebGPURenderer,
-} from '../renderer';
+} from '../WebGPURenderer';
 
 const BENCHMARK_COLUMNS = 160;
 const BENCHMARK_ROWS = 50;

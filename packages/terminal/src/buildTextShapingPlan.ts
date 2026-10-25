@@ -5,7 +5,7 @@ export interface TextShapingCell {
 	readonly eligible: boolean;
 }
 
-export interface TextShapingSpan {
+interface TextShapingSpan {
 	readonly start: number;
 	readonly end: number;
 	readonly columns: number;

@@ -228,26 +228,6 @@ export function recordTerminalKeyInput<MouseSample>(
 	return { ...state, key: input };
 }
 
-export function recordTerminalBeforeInput<MouseSample>(
-	state: TerminalInputState<MouseSample>,
-	input: TerminalInputCorrelation,
-): TerminalInputState<MouseSample> {
-	return {
-		...state,
-		beforeInput: input,
-		compositionTextPublished:
-			state.compositionPhase === TerminalCompositionPhase.eligible ||
-			state.compositionTextPublished,
-	};
-}
-
-export function recordTerminalComposition<MouseSample>(
-	state: TerminalInputState<MouseSample>,
-	input: TerminalInputCorrelation,
-): TerminalInputState<MouseSample> {
-	return { ...state, composition: input };
-}
-
 export function recordTerminalPaste<MouseSample>(
 	state: TerminalInputState<MouseSample>,
 	paste: TerminalPasteCorrelation,

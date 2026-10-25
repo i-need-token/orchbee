@@ -66,7 +66,7 @@ export type ProjectedFrameConnectionTerminal =
 			readonly maximum: number;
 	  };
 
-export const MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES = PROTOCOL_LIMITS.maxFrameBytes;
+const MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES = PROTOCOL_LIMITS.maxFrameBytes;
 
 export type ProjectedSnapshotReplaceResult =
 	| {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	balanceGridPadding,
 	addUniformSurfacePadding,
-	balanceSurfacePadding,
 	calculateSurfaceGrid,
 } from '../surface-size';
 
@@ -45,12 +45,13 @@ describe('addUniformSurfacePadding', () => {
 	});
 });
 
-describe('balanceSurfacePadding', () => {
+describe('balanceGridPadding', () => {
 	it('distributes whitespace equally after explicit padding', () => {
-		const padding = balanceSurfacePadding(
+		const padding = balanceGridPadding(
 			{ width: 1_050, height: 850 },
 			{ width: 10, height: 20 },
 			{ top: 4, bottom: 4, left: 4, right: 4 },
+			{ columns: 104, rows: 42 },
 			'equal',
 		);
 
@@ -61,10 +62,11 @@ describe('balanceSurfacePadding', () => {
 	});
 
 	it('shifts excess top padding to the bottom in the capped mode', () => {
-		const padding = balanceSurfacePadding(
+		const padding = balanceGridPadding(
 			{ width: 1_090, height: 1_070 },
 			{ width: 20, height: 40 },
 			{ top: 0, bottom: 0, left: 0, right: 0 },
+			{ columns: 54, rows: 26 },
 			true,
 		);
 
@@ -73,14 +75,13 @@ describe('balanceSurfacePadding', () => {
 		expect(padding).toEqual({ top: 10, bottom: 20, left: 5, right: 5 });
 	});
 
-	it('never returns negative padding for a zero-sized surface', () => {
+	it('refuses a grid for a zero-sized surface', () => {
 		expect(
-			balanceSurfacePadding(
+			calculateSurfaceGrid(
 				{ width: 0, height: 0 },
 				{ width: 10, height: 20 },
 				{ top: 0, bottom: 0, left: 0, right: 0 },
-				'equal',
 			),
-		).toEqual({ top: 0, bottom: 0, left: 0, right: 0 });
+		).toBeUndefined();
 	});
 });

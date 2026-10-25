@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-	applyFontMetricModifier,
 	applyFontMetricModifiers,
-	fontSizeAdjustmentScale,
 	parseFontMetricModifier,
 	type DetailedFontMetrics,
-	type FontFaceMetrics,
-} from '../font-metrics';
+} from '../font-metric-modifiers';
 
 describe('font metric modifiers', () => {
 	it('applies metric modifiers', () => {
@@ -98,48 +95,48 @@ describe('font metric modifiers', () => {
 		expect(parseFontMetricModifier('20%')).toEqual({ kind: 'percent', factor: 1.2 });
 		expect(parseFontMetricModifier('-20%')).toEqual({ kind: 'percent', factor: 0.8 });
 		expect(parseFontMetricModifier('0%')).toEqual({ kind: 'percent', factor: 1 });
-		expect(applyFontMetricModifier(100, '-20%', { integer: true })).toBe(80);
-		expect(applyFontMetricModifier(100, '80%', { integer: true })).toBe(180);
+		expect(
+			applyFontMetricModifiers(createMetrics({ cellBaseline: 100 }), { fontBaseline: '-20%' })
+				.cellBaseline,
+		).toBe(80);
+		expect(
+			applyFontMetricModifiers(createMetrics({ cellBaseline: 100 }), { fontBaseline: '80%' })
+				.cellBaseline,
+		).toBe(180);
 	});
 
 	it('parses and saturates absolute modifiers', () => {
 		expect(parseFontMetricModifier('100')).toEqual({ kind: 'absolute', delta: 100 });
 		expect(parseFontMetricModifier('-100')).toEqual({ kind: 'absolute', delta: -100 });
-		expect(applyFontMetricModifier(100, -100, { integer: true })).toBe(0);
-		expect(applyFontMetricModifier(100, -120, { integer: true })).toBe(0);
-		expect(applyFontMetricModifier(100, 100, { integer: true })).toBe(200);
+		expect(
+			applyFontMetricModifiers(createMetrics({ cellBaseline: 100 }), { fontBaseline: -100 })
+				.cellBaseline,
+		).toBe(0);
+		expect(
+			applyFontMetricModifiers(createMetrics({ cellBaseline: 100 }), { fontBaseline: -120 })
+				.cellBaseline,
+		).toBe(0);
+		expect(
+			applyFontMetricModifiers(createMetrics({ cellBaseline: 100 }), { fontBaseline: 100 })
+				.cellBaseline,
+		).toBe(200);
 	});
 
 	it('rejects non-finite parsed and applied metric results', () => {
 		expect(() => parseFontMetricModifier(`${'9'.repeat(400)}%`)).toThrow(TypeError);
 		expect(() => parseFontMetricModifier('9'.repeat(400))).toThrow(TypeError);
-		expect(() => applyFontMetricModifier(Number.MAX_VALUE, '100%')).toThrow(TypeError);
-		expect(() => applyFontMetricModifier(Number.POSITIVE_INFINITY, 0)).toThrow(TypeError);
-	});
-
-	it('keeps fallback size adjustments stable across font sizes and metric fallbacks', () => {
-		const primary = faceMetrics({
-			pixelsPerEm: 16,
-			exHeight: 8,
-			capHeight: 11,
-		});
-		const fallback = faceMetrics({
-			pixelsPerEm: 20,
-			exHeight: 12,
-			capHeight: 15,
-		});
-		const exScale = fontSizeAdjustmentScale(primary, fallback, 'ex-height');
-		const capScale = fontSizeAdjustmentScale(primary, fallback, 'cap-height');
-		expect(12 * exScale).toBeCloseTo(10, 8);
-		expect(37 * exScale).toBeCloseTo(37 * (10 / 12), 8);
-		expect(capScale).toBeCloseTo(11 / 16 / (15 / 20), 8);
-		expect(fontSizeAdjustmentScale(primary, fallback, 'none')).toBe(1);
-
-		const symbol = faceMetrics({ pixelsPerEm: 20 });
-		expect(fontSizeAdjustmentScale(primary, symbol, 'ex-height')).toBeCloseTo(
-			20 / 16 / (20 / 20),
-			8,
-		);
+		expect(
+			() =>
+				applyFontMetricModifiers(createMetrics({ cellBaseline: Number.MAX_VALUE }), {
+					fontBaseline: '100%',
+				}).cellBaseline,
+		).toThrow(TypeError);
+		expect(
+			() =>
+				applyFontMetricModifiers(createMetrics({ cellBaseline: Number.POSITIVE_INFINITY }), {
+					fontBaseline: 0,
+				}).cellBaseline,
+		).toThrow(TypeError);
 	});
 });
 
@@ -162,17 +159,6 @@ function createMetrics(overrides: Partial<DetailedFontMetrics> = {}): DetailedFo
 		faceWidth: 9.6,
 		faceHeight: 21.12,
 		faceY: 0.2,
-		...overrides,
-	};
-}
-
-function faceMetrics(overrides: Partial<FontFaceMetrics>): FontFaceMetrics {
-	return {
-		pixelsPerEm: 16,
-		cellWidth: 8,
-		ascent: 15,
-		descent: -5,
-		lineGap: 0,
 		...overrides,
 	};
 }

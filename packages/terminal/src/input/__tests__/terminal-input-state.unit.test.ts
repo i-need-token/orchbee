@@ -8,8 +8,6 @@ import {
 	finishTerminalComposition,
 	observeTerminalBeforeInput,
 	observeTerminalPaste,
-	recordTerminalBeforeInput,
-	recordTerminalComposition,
 	recordTerminalKeyInput,
 	recordTerminalMouseSample,
 	recordTerminalPaste,
@@ -146,13 +144,17 @@ function replayConformanceTrace(trace: ConformanceTrace, window: number): readon
 	let state = createTerminalInputState<string>();
 	switch (trace.record.kind) {
 		case 'beforeinput':
-			state = recordTerminalBeforeInput(beginTerminalComposition(state), trace.record);
+			state = {
+				...beginTerminalComposition(state),
+				beforeInput: trace.record,
+				compositionTextPublished: true,
+			};
 			break;
 		case 'clipboard':
 			state = recordTerminalPaste(state, { ...trace.record, source: 'clipboard' });
 			break;
 		case 'composition':
-			state = recordTerminalComposition(state, trace.record);
+			state = { ...state, composition: trace.record };
 			break;
 		case 'key':
 			state = recordTerminalKeyInput(state, trace.record);
@@ -465,10 +467,13 @@ describe('terminal input state', () => {
 	});
 
 	it('consumes only matching composition, beforeinput, and cross-source paste correlations', () => {
-		const composition = recordTerminalComposition(createTerminalInputState<string>(), {
-			text: 'x',
-			time: 0,
-		});
+		const composition = {
+			...createTerminalInputState<string>(),
+			composition: {
+				text: 'x',
+				time: 0,
+			},
+		};
 		const mismatch = observeTerminalBeforeInput(composition, 'y', 1, deduplicationWindow);
 		expect(mismatch.duplicate).toBe(false);
 		expect(mismatch.state.composition).toEqual({ text: 'x', time: 0 });
@@ -476,10 +481,11 @@ describe('terminal input state', () => {
 		expect(match.duplicate).toBe(true);
 		expect(match.state.composition).toBeUndefined();
 
-		const beforeInput = recordTerminalBeforeInput(
-			beginTerminalComposition(createTerminalInputState<string>()),
-			{ text: 'x', time: 0 },
-		);
+		const beforeInput = {
+			...beginTerminalComposition(createTerminalInputState<string>()),
+			beforeInput: { text: 'x', time: 0 },
+			compositionTextPublished: true,
+		};
 		expect(
 			finishTerminalComposition(beforeInput, 'y', 1, deduplicationWindow).state.beforeInput,
 		).toEqual({ text: 'x', time: 0 });
@@ -522,8 +528,12 @@ describe('terminal input state', () => {
 	it('clears every correlation while returning the one mouse repair sample', () => {
 		let state = beginTerminalComposition(createTerminalInputState<string>());
 		state = recordTerminalKeyInput(state, { text: 'key', time: 1 });
-		state = recordTerminalComposition(state, { text: 'composition', time: 2 });
-		state = recordTerminalBeforeInput(state, { text: 'beforeinput', time: 3 });
+		state = { ...state, composition: { text: 'composition', time: 2 } };
+		state = {
+			...state,
+			beforeInput: { text: 'beforeinput', time: 3 },
+			compositionTextPublished: true,
+		};
 		state = recordTerminalPaste(state, {
 			source: 'clipboard',
 			text: 'paste',

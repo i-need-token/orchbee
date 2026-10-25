@@ -1,3 +1,4 @@
+import { projectedCellDisplayWidth, PackedTerminalStore } from '../packed-terminal-store';
 import { readFile } from 'node:fs/promises';
 
 import {
@@ -23,13 +24,13 @@ import {
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AccessibleTextModel, buildAccessibleRow } from '../accessibility';
-import type { TerminalBufferRenderCell, TerminalBufferRow } from '../buffer-rows';
-import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../presentation-configuration';
-import { PackedTerminalStore, projectedCellDisplayWidth } from '../projected';
-import { type PackedRendererSource, WebGPURenderer } from '../rendering';
-import { findTerminalBufferMatches } from '../search';
-import { detectTerminalRowLinks } from '../terminal-row-links';
+import { AccessibleTextModel, buildAccessibleRow } from '../../accessibility';
+import type { TerminalBufferRenderCell, TerminalBufferRow } from '../../buffer-rows';
+import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
+
+import { type PackedRendererSource, WebGPURenderer } from '../../rendering';
+
+import { detectTerminalRowLinks } from '../../terminal-row-links';
 
 const surfaceFixturePath = new URL(
 	'../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin',
@@ -1527,21 +1528,6 @@ describe('Ghostty surface parity', () => {
 		const store = await loadSurfaceStore();
 		const rows = bufferRows(store).slice(0, 3);
 
-		expect(findTerminalBufferMatches(rows, 'x界')).toEqual([
-			{
-				end: { column: 0, row: 1 },
-				start: { column: 6, row: 0 },
-				text: 'x界',
-			},
-		]);
-		expect(findTerminalBufferMatches(rows, '界H')).toEqual([]);
-		expect(findTerminalBufferMatches(rows, '界\nH', { spanLines: true })).toEqual([
-			{
-				end: { column: 0, row: 2 },
-				start: { column: 0, row: 1 },
-				text: '界\nH',
-			},
-		]);
 		expect(detectTerminalRowLinks(rows)).toEqual([
 			expect.objectContaining({
 				range: { end: { x: 0, y: 1 }, start: { x: 0, y: 0 } },

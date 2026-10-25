@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import type { ProjectedTerminalMetadata } from '../packed-terminal-store';
-import { trailingBlankRowsToTrim, type TrailingBlankRow } from '../trailingBlankRowsToTrim';
+import { trailingBlankRowsToTrim } from '../trailingBlankRowsToTrim';
 
 const interaction: ProjectedTerminalMetadata['interaction'] = {
 	alternateScroll: false,
@@ -67,8 +67,10 @@ function metadata(
 
 function row(
 	text = '',
-	overrides: Partial<Omit<TrailingBlankRow, 'grapheme'>> = {},
-): TrailingBlankRow {
+	overrides: Partial<
+		Omit<Parameters<typeof trailingBlankRowsToTrim>[0]['rows'][number], 'grapheme'>
+	> = {},
+): Parameters<typeof trailingBlankRowsToTrim>[0]['rows'][number] {
 	return {
 		backgroundColors: new Uint32Array(2).fill(TerminalColorEncoding.default),
 		grapheme: (column) => (column === 0 ? text : ''),

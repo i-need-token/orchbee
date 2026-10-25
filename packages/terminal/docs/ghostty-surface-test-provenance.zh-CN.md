@@ -27,17 +27,17 @@
 
 ## Orchbee 证据
 
-| 代码         | 证据                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `E-RENDER`   | `src/rendering/__tests__/renderer.unit.test.ts` 和投影终端集成测试                                           |
-| `E-FIT`      | `src/__tests__/surface-size.unit.test.ts`                                                                    |
-| `E-SHAPE`    | `src/__tests__/buildTextShapingPlan.unit.test.ts` 和投影渲染器测试                                           |
-| `E-LINK`     | `src/__tests__/terminal-row-links.unit.test.ts`、投影终端测试和投影渲染器测试                                |
-| `E-IME`      | `src/input/__tests__/preedit.unit.test.ts` 和投影终端测试                                                    |
-| `E-SELECT`   | `src/projected/__tests__/projected-terminal.unit.test.ts` 和投影渲染器测试                                   |
-| `E-FONT`     | 字体度量、字形约束、完整的 Ghostty sprite 路由、生成的光栅/约束数据、整形及投影渲染器测试                    |
-| `E-GRAPHICS` | 严格 OBKG/OBRW store、`src/rendering/__tests__/renderer.unit.test.ts` 与 Terminal Host 投影/动画差分测试     |
-| `E-ENV`      | 精确的有界面 `terminal-parity/CF-03-visual-environment` 系统见证，以及每个具名视觉见证所断言的控制条件与限制 |
+| 代码         | 证据                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `E-RENDER`   | `src/rendering/__tests__/WebGPURenderer.unit.test.ts` 和投影终端集成测试                                       |
+| `E-FIT`      | `src/__tests__/surface-size.unit.test.ts`                                                                      |
+| `E-SHAPE`    | `src/__tests__/buildTextShapingPlan.unit.test.ts` 和投影渲染器测试                                             |
+| `E-LINK`     | `src/__tests__/terminal-row-links.unit.test.ts`、投影终端测试和投影渲染器测试                                  |
+| `E-IME`      | `src/input/__tests__/preedit.unit.test.ts` 和投影终端测试                                                      |
+| `E-SELECT`   | `src/projected/__tests__/projected-terminal.unit.test.ts` 和投影渲染器测试                                     |
+| `E-FONT`     | 字体度量、字形约束、完整的 Ghostty sprite 路由、生成的光栅/约束数据、整形及投影渲染器测试                      |
+| `E-GRAPHICS` | 严格 OBKG/OBRW store、`src/rendering/__tests__/WebGPURenderer.unit.test.ts` 与 Terminal Host 投影/动画差分测试 |
+| `E-ENV`      | 精确的有界面 `terminal-parity/CF-03-visual-environment` 系统见证，以及每个具名视觉见证所断言的控制条件与限制   |
 
 下方每项声明恰有一种处置。`<unnamed@line>` 标识固定提交中未命名的上游测试。
 
@@ -109,7 +109,9 @@ Canvas 和 WebGPU 拥有等效的呈现规则：
 - 粗体和斜体影响两个后端的字形光栅化；和
 - 字形遥测计数提交或绘制的字形，而不是隐藏的字素。
 
-更改 surface 透明度属于合成（composition）策略变更。即使打包存储没有脏行，它也会请求渲染并强制一次完整的 Canvas 重新绘制，因此在删除默认背景填充时会保留显式背景。 `src/__tests__/ghostty-surface-parity.unit.test.ts` 拥有这些规则的本机到两个后端的回归。
+更改 surface 透明度属于合成（composition）策略变更。即使打包存储没有脏行，它也会请求渲染并强制一次完整的 Canvas 重新绘制，因此在删除默认背景填充时会保留显式背景。 `src/projected/__tests__/ghostty-surface-parity.unit.test.ts` 拥有这些规则的本机到两个后端的回归。
+
+同一份已签入的 native fixture 也由 `src/search/__tests__/terminal-search.unit.test.ts` 解码，交给真实 search visitor 验证软换行、硬边界和跨行搜索。Store 与 Canvas/WebGPU 全字段 parity 仍由 projected 所有者维护。
 
 ## 打包呈现颜色
 
@@ -171,7 +173,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - 光标文本反转读取并剪切宽单元头字素；它从不尝试将间隔尾部呈现为独立字形。
 - IME 锚定、输入编码、可访问性和主机确认的规范光标坐标保持不变。
 
-参考是固定的 Ghostty 提交处的 `src/terminal/render.zig` 和 `src/renderer/generic.zig`。 `src/rendering/__tests__/renderer.unit.test.ts` 拥有确定性 Canvas 和 WebGPU 回归。这种纯呈现（presentation）投影没有长期状态、异步转换或 TLA+ 属性；仅当两个后端都执行真正的宽头/间隔尾排时，`PR-03` 才是完整的。
+参考是固定的 Ghostty 提交处的 `src/terminal/render.zig` 和 `src/renderer/generic.zig`。 `src/rendering/__tests__/WebGPURenderer.unit.test.ts` 拥有确定性 Canvas 和 WebGPU 回归。这种纯呈现（presentation）投影没有长期状态、异步转换或 TLA+ 属性；仅当两个后端都执行真正的宽头/间隔尾排时，`PR-03` 才是完整的。
 
 ## 渲染器清单
 

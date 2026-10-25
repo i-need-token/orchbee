@@ -7,7 +7,7 @@ import {
 
 import type { ProjectedTerminalMetadata } from './packed-terminal-store';
 
-export interface TrailingBlankRow {
+interface TrailingBlankRow {
 	readonly backgroundColors: Uint32Array;
 	readonly promptClass: number;
 	readonly rowFlags: number;

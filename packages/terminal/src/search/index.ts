@@ -1,5 +1,4 @@
 export {
-	findTerminalBufferMatches,
 	searchMatchContainsCell,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
@@ -9,7 +8,4 @@ export {
 	ProjectedSearchController,
 	type ProjectedTerminalSearchEvent,
 } from './projected-search-controller';
-export type {
-	ProjectedSearchWorkerFactory,
-	ProjectedSearchWorkerLike,
-} from './projected-search-protocol';
+export type { ProjectedSearchWorkerFactory } from './projected-search-protocol';

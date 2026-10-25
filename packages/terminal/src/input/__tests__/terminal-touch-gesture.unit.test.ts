@@ -2,16 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createTerminalTouchGestureState,
-	TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX,
 	transitionTerminalTouchGesture,
 	type TerminalTouchGestureState,
 } from '../terminal-touch-gesture';
 
 describe('terminal touch gesture', () => {
 	it.each([
-		{ distance: TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX - 1, expected: 'pending-tap' },
-		{ distance: TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX, expected: 'scrolling' },
-		{ distance: TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX + 1, expected: 'scrolling' },
+		{ distance: 8 - 1, expected: 'pending-tap' },
+		{ distance: 8, expected: 'scrolling' },
+		{ distance: 8 + 1, expected: 'scrolling' },
 	] as const)('classifies vertical movement at $distance CSS pixels', ({ distance, expected }) => {
 		const state = begin(4, 20, 30);
 		const result = transitionTerminalTouchGesture(state, {

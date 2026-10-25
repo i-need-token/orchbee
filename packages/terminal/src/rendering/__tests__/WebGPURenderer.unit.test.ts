@@ -1,3 +1,4 @@
+import { resolvePackedPresentationColors, DEFAULT_THEME } from '../terminal-presentation-colors';
 import {
 	TerminalCellWidthCode,
 	TerminalColorEncoding,
@@ -8,14 +9,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
 import {
-	DEFAULT_THEME,
 	type PackedRendererMetadata,
 	type PackedRendererRow,
 	type PackedRendererSource,
 	type RendererFrameTelemetry,
-	resolvePackedPresentationColors,
 	WebGPURenderer,
-} from '../renderer';
+} from '../WebGPURenderer';
 
 type AtlasDrawImage = (image: CanvasImageSource, dx: number, dy: number) => void;
 

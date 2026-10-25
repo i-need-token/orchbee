@@ -85,7 +85,6 @@ export type {
 export type {
 	FontMetricModifier,
 	FontMetricModifiers,
-	FontSizeAdjustment,
 	FontWeight,
 	ITheme,
 	PaddingBalance,

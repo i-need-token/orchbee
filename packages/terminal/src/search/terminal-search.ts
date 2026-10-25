@@ -60,22 +60,6 @@ export function searchMatchContainsCell(
 	return true;
 }
 
-/** Search source-neutral bounded rows and preserve their absolute terminal coordinates. */
-export function findTerminalBufferMatches(
-	rows: readonly TerminalBufferRow[],
-	query: string,
-	options: TerminalSearchOptions = {},
-): readonly TerminalSearchMatch[] {
-	const maxResults = resolveTerminalSearchResultLimit(options.maxResults);
-	if (maxResults === 0) return [];
-	const matches: TerminalSearchMatch[] = [];
-	visitTerminalBufferMatches(rows, query, options, (match) => {
-		matches.push(match);
-		return matches.length >= maxResults;
-	});
-	return matches;
-}
-
 interface BufferSearchRow {
 	readonly mappingIndices: Uint16Array | null;
 	readonly text: string;

@@ -36,14 +36,14 @@ Declaration counts are provenance metrics, not user-visible feature percentages.
 
 | Code         | Evidence                                                                                                                                  |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `E-RENDER`   | `src/rendering/__tests__/renderer.unit.test.ts` and projected-terminal integration tests                                                  |
+| `E-RENDER`   | `src/rendering/__tests__/WebGPURenderer.unit.test.ts` and projected-terminal integration tests                                            |
 | `E-FIT`      | `src/__tests__/surface-size.unit.test.ts`                                                                                                 |
 | `E-SHAPE`    | `src/__tests__/buildTextShapingPlan.unit.test.ts` and projected renderer tests                                                            |
 | `E-LINK`     | `src/__tests__/terminal-row-links.unit.test.ts`, projected-terminal tests, and projected renderer tests                                   |
 | `E-IME`      | `src/input/__tests__/preedit.unit.test.ts` and projected-terminal tests                                                                   |
 | `E-SELECT`   | `src/projected/__tests__/projected-terminal.unit.test.ts` and projected renderer tests                                                    |
 | `E-FONT`     | font metrics, glyph constraints, complete Ghostty sprite routing, generated raster/constraint data, shaping, and projected renderer tests |
-| `E-GRAPHICS` | strict OBKG/OBRW stores, `src/rendering/__tests__/renderer.unit.test.ts`, and Terminal Host projection/animation differential tests       |
+| `E-GRAPHICS` | strict OBKG/OBRW stores, `src/rendering/__tests__/WebGPURenderer.unit.test.ts`, and Terminal Host projection/animation differential tests |
 | `E-ENV`      | exact headed `terminal-parity/CF-03-visual-environment` system witness and each named visual witness's asserted controls and limits       |
 
 Each declaration below has exactly one disposition. `<unnamed@line>` identifies an unnamed
@@ -221,8 +221,10 @@ Canvas and WebGPU own equivalent presentation rules:
 
 Changing surface transparency is a composition-policy change. It requests a render and forces one
 complete Canvas repaint even when the packed store has no dirty rows, so explicit backgrounds are
-preserved while the default background fill is removed. `src/__tests__/ghostty-surface-parity.unit.test.ts`
+preserved while the default background fill is removed. `src/projected/__tests__/ghostty-surface-parity.unit.test.ts`
 owns the native-to-both-backends regression for these rules.
+
+The same checked-in native fixture is decoded by `src/search/__tests__/terminal-search.unit.test.ts` and passed to the real search visitor to verify soft wraps, hard boundaries, and cross-line search. The projected owner retains Store and Canvas/WebGPU field parity.
 
 ## Packed presentation colors
 
@@ -364,7 +366,7 @@ The projected range owns these invariants:
   and Host acknowledgements.
 
 The reference is `src/terminal/render.zig` and `src/renderer/generic.zig` at the pinned Ghostty
-commit. `src/rendering/__tests__/renderer.unit.test.ts` owns deterministic Canvas and WebGPU
+commit. `src/rendering/__tests__/WebGPURenderer.unit.test.ts` owns deterministic Canvas and WebGPU
 regressions. This pure presentation projection has no long-lived state, async transition, or TLA+
 property; `PR-03` is complete only when both backends exercise a real wide-head/spacer-tail row.
 

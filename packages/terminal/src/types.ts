@@ -65,9 +65,6 @@ export interface FontMetricModifiers {
 	readonly iconHeight?: FontMetricModifier;
 }
 
-/** Metric used to normalize a fallback face to a primary face. */
-export type FontSizeAdjustment = 'none' | 'ic-width' | 'ex-height' | 'cap-height' | 'line-height';
-
 /** CSS font weight used for regular or bold terminal cells. */
 export type FontWeight = number | 'normal' | 'bold';
 

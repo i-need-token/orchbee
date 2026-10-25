@@ -1,4 +1,5 @@
 import {
+	PROTOCOL_LIMITS,
 	AttachmentIdSchema,
 	HostEpochSchema,
 	decodeTerminalProjectionBuffer,
@@ -26,13 +27,7 @@ import { readFileSync } from 'node:fs';
 import * as fc from 'fast-check';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-	MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES,
-	PackedTerminalStore,
-	ProjectedStorePhase,
-} from '../packed-terminal-store';
-
-
+import { PackedTerminalStore, ProjectedStorePhase } from '../packed-terminal-store';
 
 const hostEpoch = HostEpochSchema.parse('11111111111111111111111111111111');
 const attachmentId = AttachmentIdSchema.parse('22222222222222222222222222222222');
@@ -1162,10 +1157,10 @@ describe('PackedTerminalStore', () => {
 			if (result.kind !== 'committed') {
 				throw new Error(`Unexpected sparse budget transition: ${result.kind}`);
 			}
-			if (store.retainedSnapshotBytes > MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES) {
+			if (store.retainedSnapshotBytes > PROTOCOL_LIMITS.maxFrameBytes) {
 				throw new Error('Committed sparse presentation exceeds its canonical byte budget');
 			}
-			if (store.retainedAggregateBytes > MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES) {
+			if (store.retainedAggregateBytes > PROTOCOL_LIMITS.maxFrameBytes) {
 				throw new Error('Committed sparse presentation exceeds its aggregate byte budget');
 			}
 			committedBatches += 1;
@@ -1178,7 +1173,7 @@ describe('PackedTerminalStore', () => {
 		expect(failure.reason).toMatchObject({
 			kind: 'presentation-limit-exceeded',
 			limit: 'aggregate-bytes',
-			maximum: MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES,
+			maximum: PROTOCOL_LIMITS.maxFrameBytes,
 		});
 		expect(failure.reason.actual).toBeGreaterThan(failure.reason.maximum);
 		expect(store.metadata?.revision).toBe(failure.beforeRevision);
@@ -1219,7 +1214,7 @@ describe('PackedTerminalStore', () => {
 				if (store.retainedSnapshotBytes >= 128 * 1024) {
 					throw new Error('Repeated values unexpectedly expanded the canonical snapshot');
 				}
-				if (store.retainedAggregateBytes > MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES) {
+				if (store.retainedAggregateBytes > PROTOCOL_LIMITS.maxFrameBytes) {
 					throw new Error('Committed repeated values exceeded the aggregate budget');
 				}
 				continue;
@@ -1229,7 +1224,7 @@ describe('PackedTerminalStore', () => {
 				reason: {
 					kind: 'presentation-limit-exceeded',
 					limit: 'aggregate-bytes',
-					maximum: MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES,
+					maximum: PROTOCOL_LIMITS.maxFrameBytes,
 				},
 			});
 			if (result.kind !== 'connection-terminal') {

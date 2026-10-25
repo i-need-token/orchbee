@@ -1,4 +1,3 @@
-export { PackedTerminalStore, projectedCellDisplayWidth } from './packed-terminal-store';
 export type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalCloseActivity,

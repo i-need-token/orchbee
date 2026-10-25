@@ -1,4 +1,4 @@
-export const TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX = 8;
+const TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX = 8;
 
 export type TerminalTouchGestureState =
 	| { readonly kind: 'idle' }

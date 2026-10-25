@@ -11,11 +11,6 @@ export interface GlyphSize {
 	readonly y: number;
 }
 
-export interface ConstraintCell {
-	readonly codepoint: number;
-	readonly width: number;
-}
-
 export interface GlyphConstraint {
 	readonly size: 'none' | 'fit' | 'cover' | 'fit_cover1' | 'stretch';
 	readonly alignVertical: 'none' | 'start' | 'end' | 'center' | 'center1';
@@ -33,7 +28,7 @@ export interface GlyphConstraint {
 	readonly height: 'cell' | 'icon';
 }
 
-export const NO_GLYPH_CONSTRAINT: GlyphConstraint = {
+const NO_GLYPH_CONSTRAINT: GlyphConstraint = {
 	size: 'none',
 	alignVertical: 'none',
 	alignHorizontal: 'none',
@@ -57,7 +52,7 @@ const nerdFontConstraintCache = new Map<number, GlyphConstraint | null>();
 const SYMBOL = /\p{Symbol}/u;
 
 /** Return the Ghostty-generated Nerd Font constraint for a codepoint. */
-export function getNerdFontConstraint(codepoint: number): GlyphConstraint | null {
+function getNerdFontConstraint(codepoint: number): GlyphConstraint | null {
 	const cached = nerdFontConstraintCache.get(codepoint);
 	if (cached !== undefined) return cached;
 	for (const rule of NERD_FONT_CONSTRAINT_RULES) {
@@ -75,20 +70,6 @@ export function glyphConstraintForCodepoint(codepoint: number): GlyphConstraint 
 	return (
 		getNerdFontConstraint(codepoint) ??
 		(isSymbolCodepoint(codepoint) ? FIT_SYMBOL_CONSTRAINT : NO_GLYPH_CONSTRAINT)
-	);
-}
-
-/** Match Ghostty's extra-cell allowance for symbol-like glyphs. */
-export function cellConstraintWidth(
-	cells: readonly ConstraintCell[],
-	column: number,
-	columns: number,
-): 1 | 2 {
-	return cellConstraintWidthFromReader(
-		column,
-		columns,
-		(index) => cells[index]?.codepoint ?? 0,
-		(index) => cells[index]?.width ?? 0,
 	);
 }
 

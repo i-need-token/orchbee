@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DetailedFontMetrics } from '../font-metrics';
 import {
-	cellConstraintWidth,
+	glyphConstraintForCodepoint,
+	cellConstraintWidthFromReader,
 	constrainGlyph,
-	getNerdFontConstraint,
-	NO_GLYPH_CONSTRAINT,
-	type ConstraintCell,
 	type GlyphSize,
 } from '../glyph-constraints';
 
@@ -33,10 +31,14 @@ describe('Ghostty glyph constraints', () => {
 
 	it("matches Ghostty's symbol, emoji, Nerd Font, and Powerline geometry", () => {
 		const ascii: GlyphSize = { width: 6.784, height: 15.28, x: 1.408, y: 4.84 };
-		expect(constrainGlyph(ascii, metrics, NO_GLYPH_CONSTRAINT, 1)).toEqual(ascii);
-		expect(constrainGlyph(ascii, metrics, NO_GLYPH_CONSTRAINT, 2)).toEqual(ascii);
+		expect(
+			constrainGlyph(ascii, metrics, glyphConstraintForCodepoint('A'.codePointAt(0) ?? 65), 1),
+		).toEqual(ascii);
+		expect(
+			constrainGlyph(ascii, metrics, glyphConstraintForCodepoint('A'.codePointAt(0) ?? 65), 2),
+		).toEqual(ascii);
 
-		const fit = { ...NO_GLYPH_CONSTRAINT, size: 'fit' } as const;
+		const fit = { ...glyphConstraintForCodepoint('A'.codePointAt(0) ?? 65), size: 'fit' } as const;
 		const square = { width: 10.272, height: 10.272, x: 2.864, y: 5.304 };
 		expectGlyph(constrainGlyph(square, metrics, fit, 1), {
 			width: metrics.faceWidth,
@@ -47,7 +49,7 @@ describe('Ghostty glyph constraints', () => {
 		expectGlyph(constrainGlyph(square, metrics, fit, 2), square);
 
 		const emoji = {
-			...NO_GLYPH_CONSTRAINT,
+			...glyphConstraintForCodepoint('A'.codePointAt(0) ?? 65),
 			size: 'cover',
 			alignHorizontal: 'center',
 			alignVertical: 'center',
@@ -61,7 +63,7 @@ describe('Ghostty glyph constraints', () => {
 			y: 1.4,
 		});
 
-		const nerd = getNerdFontConstraint(0xea61);
+		const nerd = glyphConstraintForCodepoint(0xea61);
 		expect(nerd).toMatchObject({
 			size: 'fit_cover1',
 			height: 'icon',
@@ -83,7 +85,7 @@ describe('Ghostty glyph constraints', () => {
 			y: 4.7483690308988775,
 		});
 
-		const powerline = getNerdFontConstraint(0xe0c0);
+		const powerline = glyphConstraintForCodepoint(0xe0c0);
 		expect(powerline).toMatchObject({
 			size: 'stretch',
 			height: 'cell',
@@ -128,12 +130,17 @@ const metrics: DetailedFontMetrics = {
 };
 
 function widthFor(text: string, column: number): 1 | 2 {
-	const cells: ConstraintCell[] = [...text].map((character) => ({
+	const cells: { codepoint: number; width: number }[] = [...text].map((character) => ({
 		codepoint: character.codePointAt(0) ?? 0,
 		width: 1,
 	}));
 	while (cells.length < 4) cells.push({ codepoint: 0, width: 1 });
-	return cellConstraintWidth(cells, column, 4);
+	return cellConstraintWidthFromReader(
+		column,
+		4,
+		(index) => cells[index]?.codepoint ?? 0,
+		(index) => cells[index]?.width ?? 0,
+	);
 }
 
 function expectGlyph(actual: GlyphSize, expected: GlyphSize): void {

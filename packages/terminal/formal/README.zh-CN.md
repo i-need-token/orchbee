@@ -8,7 +8,7 @@ Client 所有的异步流程使用受控实现测试。共享跨进程 attachmen
 
 | 声明                                        | 可执行证据                                                                                                             |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Renderer 退役、设备丢失和可见性隔离所有完成 | `src/rendering/__tests__/renderer.unit.test.ts`                                                                        |
+| Renderer 退役、设备丢失和可见性隔离所有完成 | `src/rendering/__tests__/WebGPURenderer.unit.test.ts`                                                                  |
 | 只有最新且存活的显示配置才能发布全部字段    | `src/projected/__tests__/projected-terminal.unit.test.ts`                                                              |
 | 迟到图像读取不能恢复过期预览                | `src/projected/__tests__/TerminalImagePreviewController.unit.test.ts`                                                  |
 | 输入释放与修复保留顺序和所有权              | `src/input/__tests__/terminal-input-state.unit.test.ts`、`src/input/__tests__/OrderedInputDispatcher.unit.test.ts`     |
