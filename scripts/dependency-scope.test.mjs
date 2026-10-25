@@ -65,7 +65,8 @@ function writeDependency(root, name) {
 	write(root, `node_modules/${name}/index.js`, 'exports.value = 7;\n');
 }
 
-function withFixture(inspect) {
+function withFixture(inspect, additionalWorkspaces = []) {
+	const workspaces = [...fixtureWorkspaces, ...additionalWorkspaces];
 	const temporaryRoot = resolve(tmpdir());
 	const root = mkdtempSync(join(temporaryRoot, 'orchbee-dependency-scope-'));
 	try {
@@ -76,7 +77,7 @@ function withFixture(inspect) {
 			JSON.stringify({
 				...configuration,
 				workspaces: Object.fromEntries(
-					fixtureWorkspaces.map((workspace) => [workspace, fixtureScope(workspace)]),
+					workspaces.map((workspace) => [workspace, fixtureScope(workspace)]),
 				),
 			}),
 		);
@@ -86,7 +87,7 @@ function withFixture(inspect) {
 			JSON.stringify({
 				name: 'dependency-scope-fixture',
 				private: true,
-				workspaces: fixtureWorkspaces,
+				workspaces,
 			}),
 		);
 		writeWorkspace(root, 'packages/workbench', { exports: { '.': './src/index.ts' } });
@@ -409,3 +410,68 @@ export const Default = { render: StoryOnly };
 		]);
 	});
 });
+
+for (const [workspace, helper] of [
+	['packages/workbench-client-protocol', 'src/__tests__/conformance/bindings.ts'],
+	['packages/terminal-protocol', 'src/__tests__/conformance/input-decoders.ts'],
+	['packages/tab-strip', 'src/tab-strip/dragging/__tests__/horizontal-group-drag-invariants.ts'],
+]) {
+	test(`${workspace} conformance scope preserves complete-graph orphans and strict production exports`, () => {
+		withFixture(
+			(root) => {
+				// Clone the actual workspace fields through fixtureScope. Only the package payload is
+				// synthetic: the production exclusion must be the one governing the real helper.
+				if (!fixtureWorkspaces.includes(workspace)) {
+					const name = `@orchbee/${basename(workspace)}`;
+					writeWorkspace(root, workspace, { exports: { '.': './src/index.ts' } });
+					write(root, `${workspace}/src/index.ts`, 'export const runtime = 7;\n');
+					write(root, `${workspace}/config.ts`, 'export {};\n');
+					write(
+						root,
+						`${workspace}/src/__tests__/runtime.unit.test.ts`,
+						"import '../../config';\n",
+					);
+					if (workspace === 'packages/terminal-protocol') {
+						write(root, `${workspace}/scripts/fixture.mjs`, 'export {};\n');
+					}
+					const manifestPath = 'apps/web/package.json';
+					const manifest = JSON.parse(readFileSync(join(root, manifestPath), 'utf8'));
+					manifest.dependencies[name] = 'workspace:*';
+					write(root, manifestPath, JSON.stringify(manifest));
+					const entry = 'apps/web/src/composition/entry.ts';
+					write(
+						root,
+						entry,
+						`${readFileSync(join(root, entry), 'utf8')}\nimport { runtime } from '${name}';\nvoid runtime;\n`,
+					);
+				}
+				const helperPath = `${workspace}/${helper}`;
+				const suitePath = `${workspace}/${dirname(helper).replaceAll('\\', '/')}/conformance.unit.test.ts`;
+				const consumer = `import { witness } from './${basename(helper, '.ts')}';\nvoid witness;\n`;
+				write(root, helperPath, 'export function witness() { return 7; }\n');
+				write(root, suitePath, consumer);
+				for (const production of [false, true]) assertIssues(analyze(root, production));
+
+				write(root, suitePath, 'export {};\n');
+				assertIssues(analyze(root), [`files:${helperPath}:${helperPath}`]);
+				assertIssues(analyze(root, true));
+
+				write(root, suitePath, consumer);
+				const source = `${workspace}/src/index.ts`;
+				write(
+					root,
+					source,
+					`${readFileSync(join(root, source), 'utf8')}\nexport const testOnly = 9;\n`,
+				);
+				write(
+					root,
+					`${workspace}/src/__tests__/entry.unit.test.ts`,
+					"import { testOnly } from '../index';\nvoid testOnly;\n",
+				);
+				assertIssues(analyze(root));
+				assertIssues(analyze(root, true), [`exports:${source}:testOnly`]);
+			},
+			fixtureWorkspaces.includes(workspace) ? [] : [workspace],
+		);
+	});
+}
