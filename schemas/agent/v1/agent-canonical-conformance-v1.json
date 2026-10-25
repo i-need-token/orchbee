@@ -16,6 +16,10 @@
 				"sha256": "20ba32843d96addd1324381c35568387cee8d0e2c750a0cdfd6257f8131745a2"
 			},
 			{
+				"path": "__tests__/agent-reference.unit.test.ts",
+				"sha256": "3abe6162ddd40b642aedf1721efaee38923d6be3ffdac832e69627833a4a60ef"
+			},
+			{
 				"path": "__tests__/agent-runtime.unit.test.ts",
 				"sha256": "6479c6d77e50c68a1f91f7f7fb1d368162db9a3088836871733cfacd71574266"
 			},
@@ -36,6 +40,14 @@
 				"sha256": "c60511ff6c383d7e568e1afa6be29466491e4978f67790f59518bb06fe5777be"
 			},
 			{
+				"path": "__tests__/conformance/agent-reference-contracts.ts",
+				"sha256": "50e7605509b537c95fd7f48edcd92f848d70873736cfab8bbf647555a6534bda"
+			},
+			{
+				"path": "__tests__/conformance/agent-reference.ts",
+				"sha256": "a58c0e453f94f99afcafad79c5168da44d09b2ddc60e6f2f1b36edfa1f720a39"
+			},
+			{
 				"path": "__tests__/projection.unit.test.ts",
 				"sha256": "0a091232b5264fd74782974e6b7e29d1f36c45534a88d06886adfd0ba8cbd7ee"
 			},
@@ -53,7 +65,7 @@
 			},
 			{
 				"path": "index.ts",
-				"sha256": "c9e9df5f22da81afc077ddad747291540ade99d4307d7f69bfd88318bbf33cf9"
+				"sha256": "69da20cbf9bc5d6b91abf9415b59534a2c3f4ea1b39d9d47205de0224b0d0cd4"
 			},
 			{
 				"path": "model.ts",
@@ -66,22 +78,6 @@
 			{
 				"path": "reducer.ts",
 				"sha256": "8724c357b62b2d581dbecd9b7cd92452b454bd5ec0e0b3c674ae5748c50c15a1"
-			},
-			{
-				"path": "semantic-commands/__tests__/agent-semantic-read-model.unit.test.ts",
-				"sha256": "92a52b7421cf3feeb755520cc8b8ce436422c5ca2a70254d67aef50011c6612e"
-			},
-			{
-				"path": "semantic-commands/agent-semantic-command-contracts.ts",
-				"sha256": "d519884e831c37b1c4feb88d776dd565003c97c92a3843b2941f8a1022f4680f"
-			},
-			{
-				"path": "semantic-commands/agent-semantic-read-model.ts",
-				"sha256": "8af9291f1e23e68fc9cf7a6a8d0ce2eabdadea642eddc4b42fda9c36f0876826"
-			},
-			{
-				"path": "semantic-commands/index.ts",
-				"sha256": "7a57aaaf072a2e60bd176b6b1c0733a136af6af9e92a391b60f99cefa571f9fb"
 			}
 		],
 		"zod": "4.4.3"
@@ -2582,7 +2578,7 @@
 			"purpose": "observation-became-stale flips freshness while the projected status stays working; semantic wait conditions stop matching but freshness conditions match.",
 			"sourceRefs": [
 				"packages/agent/src/reducer.ts:372-386",
-				"packages/agent/src/semantic-commands/agent-semantic-read-model.ts:46-57"
+				"packages/agent/src/__tests__/conformance/agent-reference.ts:46-57"
 			]
 		},
 		{
