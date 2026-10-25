@@ -25,7 +25,7 @@
 			},
 			{
 				"path": "__tests__/canonical-boundary.unit.test.ts",
-				"sha256": "3be6601f4a8d8842853ce51d76d8f8f9988f717074e10e8245f9212674fde742"
+				"sha256": "baeedc6e1aab941c733f288918f7fe3acae9e1baaeb538902ee686c61e418510"
 			},
 			{
 				"path": "__tests__/canonical-order-locale.unit.test.ts",
@@ -41,7 +41,7 @@
 			},
 			{
 				"path": "__tests__/conformance/agent-reference-contracts.ts",
-				"sha256": "50e7605509b537c95fd7f48edcd92f848d70873736cfab8bbf647555a6534bda"
+				"sha256": "a73d1ed16777c7891e5ff4206db8954b4b280fe83f60904beae217c2bd4d205b"
 			},
 			{
 				"path": "__tests__/conformance/agent-reference.ts",
@@ -69,7 +69,7 @@
 			},
 			{
 				"path": "model.ts",
-				"sha256": "843dd27000f9f03124c3b4264434d1dd9cf79e3f7100d73f52307c0f96053de8"
+				"sha256": "310259c67e3ef7e899772f3a62732ce2300176485d24b29d7e7c0e473856039f"
 			},
 			{
 				"path": "projection.ts",
