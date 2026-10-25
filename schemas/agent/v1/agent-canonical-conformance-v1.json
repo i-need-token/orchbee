@@ -21,7 +21,7 @@
 			},
 			{
 				"path": "__tests__/canonical-boundary.unit.test.ts",
-				"sha256": "dc9b2ab844bcd40a6f637cfa40734a327a283a691d3faed33a8301e65614f580"
+				"sha256": "3be6601f4a8d8842853ce51d76d8f8f9988f717074e10e8245f9212674fde742"
 			},
 			{
 				"path": "__tests__/canonical-order-locale.unit.test.ts",
@@ -61,7 +61,7 @@
 			},
 			{
 				"path": "projection.ts",
-				"sha256": "fa1c3cf3d889f220fd4e7077760c9aa2560292a06d36204be98acd0a40e0425b"
+				"sha256": "014f9658e7d3dc336368c9fb6b59bddb3a3d9bb3139f8b72ac3e05c9ae88a66a"
 			},
 			{
 				"path": "reducer.ts",
@@ -69,15 +69,15 @@
 			},
 			{
 				"path": "semantic-commands/__tests__/agent-semantic-read-model.unit.test.ts",
-				"sha256": "da02da12af9bbee6e6c6458d21ab5aff2e39402aebeb3ba0b137f55a47631b70"
+				"sha256": "92a52b7421cf3feeb755520cc8b8ce436422c5ca2a70254d67aef50011c6612e"
 			},
 			{
 				"path": "semantic-commands/agent-semantic-command-contracts.ts",
-				"sha256": "bf093ba52b28b8d9591b14961f37f7d6a85e76f000c76151c00fea00cd01b916"
+				"sha256": "d519884e831c37b1c4feb88d776dd565003c97c92a3843b2941f8a1022f4680f"
 			},
 			{
 				"path": "semantic-commands/agent-semantic-read-model.ts",
-				"sha256": "3d0eff648a963d230f6e9c17e0fe7750daa41f13c3294e1a354d6b4654d8b825"
+				"sha256": "8af9291f1e23e68fc9cf7a6a8d0ce2eabdadea642eddc4b42fda9c36f0876826"
 			},
 			{
 				"path": "semantic-commands/index.ts",

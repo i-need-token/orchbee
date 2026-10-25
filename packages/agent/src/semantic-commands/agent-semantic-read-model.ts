@@ -2,7 +2,6 @@ import type { AgentSessionSnapshot } from '../model';
 import { projectAgentSession } from '../projection';
 import type {
 	AgentFreshnessMeaning,
-	AgentSessionDetail,
 	AgentSessionExplanation,
 	AgentSessionSummary,
 	AgentStatusBasis,
@@ -21,10 +20,6 @@ export function projectAgentSessionSummary(session: AgentSessionSnapshot): Agent
 		sessionId: session.sessionId,
 		status: projectAgentSession(session).status,
 	};
-}
-
-export function projectAgentSessionDetail(session: AgentSessionSnapshot): AgentSessionDetail {
-	return { snapshot: session, status: projectAgentSession(session).status };
 }
 
 export function explainAgentSession(session: AgentSessionSnapshot): AgentSessionExplanation {

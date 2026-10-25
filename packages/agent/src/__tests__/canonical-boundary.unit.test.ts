@@ -15,7 +15,7 @@ import {
 	type AgentRuntimeSnapshot,
 	type AgentSessionSnapshot,
 } from '../model';
-import { projectAgentLocation, projectAgentLocations } from '../projection';
+import { projectAgentPresentationGroup, projectAgentLocation } from '../projection';
 import { createAgentRuntimeSnapshot, transitionAgentRuntime } from '../reducer';
 
 const providerId = AgentProviderIdSchema.parse('claude-code');
@@ -149,7 +149,7 @@ describe('canonical UTF-16 code-unit ordering', () => {
 		]);
 	});
 
-	it('orders projected locations by code-unit presentationId then generation ascending', () => {
+	it('projects each attached presentation and counts the shared Session once', () => {
 		const snapshot = apply(
 			createAgentRuntimeSnapshot(),
 			observeSession('session-canonical', [
@@ -160,10 +160,17 @@ describe('canonical UTF-16 code-unit ordering', () => {
 				attachment('p:x', 'g:a'),
 			]),
 		);
-		const locations = projectAgentLocations(snapshot);
 		expect(
-			locations.map((entry) => `${entry.location.presentationId}@${entry.location.generation}`),
-		).toEqual(['p:1@g:a', 'p:A@g:a', 'p:b@g:a', 'p:x@g:a', 'p:x@g:b']);
+			['p:b', 'p:A', 'p:x', 'p:1'].map((id) => projectAgentLocation(snapshot, id)?.location),
+		).toEqual([
+			{ presentationId: 'p:b', generation: 'g:a', navigable: false, visibility: 'visible' },
+			{ presentationId: 'p:A', generation: 'g:a', navigable: false, visibility: 'visible' },
+			{ presentationId: 'p:x', generation: 'g:b', navigable: false, visibility: 'visible' },
+			{ presentationId: 'p:1', generation: 'g:a', navigable: false, visibility: 'visible' },
+		]);
+		expect(
+			projectAgentPresentationGroup(snapshot, ['p:b', 'p:A', 'p:x', 'p:1'])?.sessionCount,
+		).toBe(1);
 	});
 
 	it('prefers the higher presentation generation on an exact tie (descending)', () => {

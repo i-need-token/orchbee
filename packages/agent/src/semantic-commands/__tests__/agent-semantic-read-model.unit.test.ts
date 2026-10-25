@@ -1,87 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import { AgentSessionSnapshotSchema, type AgentSessionSnapshot } from '../../model';
-import {
-	AgentSessionChangesInputSchema,
-	AgentSessionChangesPageSchema,
-	AgentSessionListInputSchema,
-	AgentSessionWaitInputSchema,
-	AgentSessionWaitOutputSchema,
-	DEFAULT_AGENT_WAIT_CONDITIONS,
-} from '../agent-semantic-command-contracts';
+
 import {
 	explainAgentSession,
 	matchingAgentWaitConditions,
-	projectAgentSessionDetail,
 	projectAgentSessionSummary,
 } from '../agent-semantic-read-model';
 
-describe('Agent semantic command contracts', () => {
-	it('canonicalizes bounded list and wait defaults', () => {
-		expect(AgentSessionChangesInputSchema.parse({})).toEqual({
-			limit: 50,
-			timeoutMilliseconds: 30_000,
-		});
-		expect(AgentSessionListInputSchema.parse({})).toEqual({
-			includeEnded: false,
-			limit: 50,
-		});
-		expect(AgentSessionWaitInputSchema.parse({ sessionId: 'session-semantic' })).toEqual({
-			sessionId: 'session-semantic',
-			timeoutMilliseconds: 600_000,
-			until: DEFAULT_AGENT_WAIT_CONDITIONS,
-		});
-	});
-
-	it('rejects invalid bounded command inputs and outputs', () => {
-		expect(AgentSessionChangesInputSchema.safeParse({ timeoutMilliseconds: 600_001 }).success).toBe(
-			false,
-		);
-		expect(
-			AgentSessionChangesPageSchema.safeParse({
-				hasMore: false,
-				items: [],
-				kind: 'baseline',
-				nextCursor: 'cursor',
-				observedThroughRevision: 0,
-				runtimeRevision: 1,
-			}).success,
-		).toBe(false);
-		expect(
-			AgentSessionWaitInputSchema.safeParse({
-				sessionId: 'session-semantic',
-				timeoutMilliseconds: 3_600_001,
-				until: ['idle'],
-			}).success,
-		).toBe(false);
-		expect(
-			AgentSessionWaitInputSchema.safeParse({
-				sessionId: 'session-semantic',
-				until: ['idle', 'idle'],
-			}).success,
-		).toBe(false);
-		expect(
-			AgentSessionWaitOutputSchema.safeParse({
-				matchedConditions: ['fresh', 'fresh'],
-				revision: 1,
-				session: projectAgentSessionDetail(sessionSnapshot()),
-			}).success,
-		).toBe(false);
-	});
-});
-
 describe('Agent semantic read model', () => {
-	it('projects bounded summaries and exact detail from the canonical Session', () => {
+	it('projects bounded summaries from the canonical Session', () => {
 		const session = sessionSnapshot();
 
 		expect(projectAgentSessionSummary(session)).toMatchObject({
 			pendingRequestCount: 1,
 			providerId: 'codex',
 			sessionId: 'session-semantic',
-			status: { count: 1, kind: 'needs-attention' },
-		});
-		expect(projectAgentSessionDetail(session)).toEqual({
-			snapshot: session,
 			status: { count: 1, kind: 'needs-attention' },
 		});
 	});

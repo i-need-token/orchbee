@@ -62,7 +62,7 @@ export function projectAgentSession(session: AgentSessionSnapshot): AgentSession
 	};
 }
 
-export function projectAgentLocations(
+function projectAgentLocations(
 	snapshot: AgentRuntimeSnapshot,
 ): readonly AgentLocationPresentation[] {
 	const byLocation = new Map<

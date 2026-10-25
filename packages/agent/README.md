@@ -52,7 +52,7 @@ The reducer does not parse arbitrary external values. Every provider, IPC, stora
 
 ## Projection
 
-`projectAgentSession(...)`, `projectAgentLocation(...)`, and `projectAgentLocations(...)` derive compact read models with this semantic priority:
+`projectAgentSession(...)`, `projectAgentLocation(...)`, and `projectAgentPresentationGroup(...)` derive compact read models with this semantic priority:
 
 ```text
 open attention > failed/canceled/interrupted > succeeded > active Turn > idle > unknown > ended
@@ -62,44 +62,18 @@ Freshness remains a separate overlay and cannot silently turn stale work into id
 
 ## Semantic command read model
 
-The package owns strict version-1 contracts for `agent.session.list`, `agent.session.get`,
-`agent.session.explain`, `agent.session.wait`, and `agent.session.changes`. These descriptors,
-schemas, and deterministic projection helpers are transport- and application-independent. Desktop
-application composition may admit point-in-time reads and waits over an `AgentSnapshotSource` and
-the change feed over an `AgentChangeSource`; the CLI may expose a high-level projection only after
-the complete live descriptor matches this package's contract.
+The package retains three deterministic reference projections used by the canonical corpus generator: `projectAgentSessionSummary`, `explainAgentSession`, and `matchingAgentWaitConditions`. The generator executes the owning package build; these references remain available through the existing entry until a private development build boundary is admitted. They do not restore the retired TypeScript CLI or Desktop semantic-command coordinator.
 
-`agent.session.list` projects stable summaries from one runtime revision, defaults to live Sessions,
-optionally includes retained ended Sessions, and caps one page at 100 items. `agent.session.get`
-returns the exact retained canonical Session snapshot plus its semantic status.
-`agent.session.explain` adds source, fidelity, freshness meaning, generation, sequence, capability
-ceiling, and the canonical status basis. Explanation remains `navigate-only` and content-free: it
-never fabricates prompt, transcript, command, tool, path, provider-error, adapter-correlation, or
-screen-matcher evidence.
+Summaries project canonical Session state. Explanations preserve source, fidelity, freshness meaning, generation, sequence, capability ceiling and status basis, remain `navigate-only`, and contain no provider content. Semantic wait conditions match only fresh observations; explicit health conditions match the requested freshness value. These pure projections own no subscription, timer or command lifecycle.
 
-`agent.session.wait` defines exact-Session matching, but does not own a clock, subscription,
-execution ledger, timeout effect, or coordinator lifecycle. Its default conditions are attention,
-all outcomes, idle, and ended. Explicit conditions can select any semantic status or the `fresh`,
-`stale`, and `disconnected` health values. A semantic status matches only while its observation is
-fresh; health matches only its exact requested value. An optional `afterRevision` requires a
-strictly newer global runtime revision. The application-owned asynchronous handler must subscribe
-before its decisive recheck and return one exact matching snapshot or an explicit missing, ahead,
-timeout, cancellation, or coordinator-retirement outcome.
-
-`agent.session.changes` defines a global, content-free change-page contract. An application returns
-an empty baseline at the current revision when no cursor is supplied. A signed cursor then selects
-the next revision after that baseline; one page contains at most 100 ordered records. A current
-cursor may long-poll, timeout completes as an empty `current` page, and retention loss completes as
-an empty `reset-required` page with a cursor at the current revision. Consumers must refresh the
-canonical Session snapshot before continuing after reset. The journal and cursors are volatile and
-claim no continuity across Desktop or future Hub restart.
+The bounded runtime change journal and its revision/reset behavior remain owned by `AgentRuntime` and `changes.ts`. Removing retired CLI envelopes does not remove this runtime evidence or promise durable history across restarts.
 
 ## Current application composition
 
 Desktop owns one volatile `DesktopAgentObservationRuntime` for the application lifetime, including
 the bounded change journal. Renderer document replacement retires only the previous broker; the
 runtime and journal remain alive, and the next renderer requests a fresh full snapshot through the
-strict `@orchbee/desktop-client-protocol` Agent-observation port. Version 2 of that port also
+strict `@orchbee/desktop-client-protocol` Agent-observation port. Version 1 of that port also
 publishes exact semantic events after their snapshot update so a renderer can evaluate one
 notification effect without reconstructing an event from state. The Web adapter rejects malformed
 or uncorrelated messages and ignores non-increasing revisions. Workbench consumes the narrow
@@ -108,8 +82,7 @@ all terminal presentations in a Tab into a provider identity icon plus one local
 status adornment. It also derives live Session summaries for every Workspace without mounting
 inactive terminal surfaces. Retained ended state is excluded from panel, Tab, Workspace summary,
 and Workspace detail presentation, so the ordinary terminal or layout identity returns immediately.
-Desktop semantic-command composition alone consumes `AgentChangeSource` for signed cursor reads and
-long polling.
+The retired Desktop semantic-command coordinator is not a current consumer of the change journal.
 
 Desktop admits two deliberately different observation classes. An exact private-APC v3 launch envelope from shell integration can create only a fresh heuristic Session with no capabilities and unknown status. It emits no semantic event or notification candidate, becomes stale after 30 seconds, and retires after 120 seconds unless refreshed. Retirement disconnects and ends only the local heuristic presence projection without emitting a semantic Session-end event. A successfully admitted rich observation for the same provider, presentation, and terminal generation retires the heuristic projection before taking over; later passive evidence remains suppressed while that exact rich route is live. Explicitly installed, provider-bound adapters for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code each validate their own upstream contract before stripping prompts, tool content, transcript paths, working directories, error text, and unknown fields. They send the shared normalized v3 rich allowlist, including bounded correlation visibility, over a private Unix-domain socket. Only after at least one candidate returns the exact acceptance ACK do they write the separate content-free private-APC correlation hint to every resolved outer TTY. A closed application registry grants provider provenance, accepted events, and maximum capabilities; no adapter payload grants itself authority. Neither rich transport half has enough authority alone: Desktop accepts rich semantics only after an exact bounded event/correlation join for a live terminal generation. The shared resolver covers direct terminals, every attached tmux client, Zellij clients conservatively, and nested mux targets. The shell integration gives eligible interactive SSH sessions a random remote socket through OpenSSH reverse Unix-socket forwarding; there is no HTTP port, Bearer credential, inherited terminal secret, automatic remote installation, durable remote cache, or public terminal-notification channel. Any path may fail without affecting the Agent or terminal.
 
@@ -119,12 +92,7 @@ One Session may attach to several presentations without duplicating its Turn, re
 
 Unit and property tests cover transition guards, exact attention capability admission, durable requests, outcome cleanup, outcome-free idle settlement, stale overlays, semantic Session end, nonsemantic heuristic retirement and rich takeover, source capability ceilings, reconnect, presentation-generation fencing, multi-attachment fan-out and retirement, schema invariants, runtime disposal, and deterministic projections.
 
-Semantic-command contract and projection tests additionally cover default and explicit wait
-conditions, fresh-only semantic matching, health matching, status-basis explanations, content
-absence, ended filtering, bounded schemas, ordered change batching, current reads, overflow, and
-explicit reset. Desktop operation tests refine pagination, exact-identity reads, both
-subscribe-before-recheck waits, revision fencing, signed change cursors, timeout, cancellation,
-overflow/reset, and synchronous subscription races.
+Projection tests preserve fresh-only semantic matching, explicit health matching, status-basis explanations and content absence. Runtime journal tests preserve ordered changes, current reads, overflow and reset. The canonical corpus executes the retained reference projections and is consumed independently by the Rust Server.
 
 ## Verification
 

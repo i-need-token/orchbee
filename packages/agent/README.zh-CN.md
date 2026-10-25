@@ -50,7 +50,7 @@ Reducer 不解析 arbitrary external value。每个 provider、IPC、storage 或
 
 ## Projection
 
-`projectAgentSession(...)`、`projectAgentLocation(...)` 与 `projectAgentLocations(...)` 按以下 semantic priority 派生 compact read model：
+`projectAgentSession(...)`、`projectAgentLocation(...)` 与 `projectAgentPresentationGroup(...)` 按以下 semantic priority 派生 compact read model：
 
 ```text
 open attention > failed/canceled/interrupted > succeeded > active Turn > idle > unknown > ended
@@ -60,46 +60,24 @@ Freshness 保持为独立 overlay，不能把 stale work 静默变成 idle。每
 
 ## Semantic command read model
 
-该 package 拥有 `agent.session.list`、`agent.session.get`、`agent.session.explain`、
-`agent.session.wait` 与 `agent.session.changes` 的严格 version-1 契约。这些 descriptor、schema 与
-确定性 projection helper 独立于 transport 与 application。Desktop application composition 可以在
-`AgentSnapshotSource` 上准入 point-in-time read 与 wait，并在 `AgentChangeSource` 上准入 change feed；
-CLI 只有在完整 live descriptor 匹配该 package 契约后，才能公开高层 projection。
+该包保留规范语料生成器使用的三个确定性参考投影：`projectAgentSessionSummary`、`explainAgentSession` 和 `matchingAgentWaitConditions`。生成器执行所属包的构建产物；在私有开发构建边界准入前，这些参考仍通过现有入口提供。它们不恢复已退役的 TypeScript CLI 或 Desktop semantic-command coordinator。
 
-`agent.session.list` 从一个 runtime revision 投影稳定 summary，默认只包含 live Session，可选包含保留的
-ended Session，并把一页限制在 100 项。`agent.session.get` 返回精确保留的 canonical Session snapshot 与
-其 semantic status。`agent.session.explain` 额外提供 source、fidelity、freshness meaning、generation、
-sequence、capability ceiling 与 canonical status basis。Explanation 保持 `navigate-only` 且不含内容：
-它绝不伪造 prompt、transcript、command、tool、path、provider error、adapter correlation 或
-screen-matcher evidence。
+Summary 投影规范 Session 状态。Explanation 保留 source、fidelity、freshness meaning、generation、sequence、capability ceiling 和 status basis，保持 `navigate-only` 且不含 provider 内容。Semantic wait condition 仅匹配 fresh observation；显式 health condition 匹配所请求的 freshness 值。这些纯投影不拥有订阅、计时器或命令生命周期。
 
-`agent.session.wait` 定义 exact-Session matching，但不拥有 clock、subscription、execution ledger、
-timeout effect 或 coordinator lifecycle。其默认 condition 包含 attention、全部 outcome、idle 与 ended。
-显式 condition 可以选择任意 semantic status，或 `fresh`、`stale` 与 `disconnected` health value。
-Semantic status 只在 observation fresh 时匹配；health 只匹配精确请求的值。可选 `afterRevision` 要求严格
-更新的全局 runtime revision。Application-owned asynchronous handler 必须先 subscribe 再进行 decisive
-recheck，并返回一个精确 matching snapshot，或显式 missing、ahead、timeout、cancellation 或
-coordinator-retirement outcome。
-
-`agent.session.changes` 定义 global、content-free change-page 契约。没有提供 cursor 时，application 会在
-当前 revision 返回空 baseline。随后，签名 cursor 选择该 baseline 之后的下一个 revision；一页最多包含
-100 条有序 record。Current cursor 可以长轮询，timeout 以空 `current` page 完成，retention loss 以空
-`reset-required` page 完成，并提供位于当前 revision 的 cursor。Consumer 必须在 reset 后刷新 canonical
-Session snapshot，再继续跟随。Journal 与 cursor 都是易失的，不声明跨 Desktop 或未来 Hub restart 连续性。
+有界 runtime change journal 及其 revision／reset 行为仍由 `AgentRuntime` 和 `changes.ts` 负责。删除退役 CLI 信封不删除这些运行证据，也不承诺跨重启的持久历史。
 
 ## 当前应用组合
 
 Desktop 在 application lifetime 内拥有一个 volatile `DesktopAgentObservationRuntime`，包括有界 change
 journal。Renderer document replacement 只退役旧 broker；runtime 与 journal 保持存活，下一个 renderer
 通过严格的 `@orchbee/desktop-client-protocol` Agent-observation port 请求 fresh full snapshot。该 port
-的 version 2 还会在 snapshot 更新后发布精确 semantic event，使 renderer 可以评估一次 notification
+的 version 1 还会在 snapshot 更新后发布精确 semantic event，使 renderer 可以评估一次 notification
 effect，而不用从状态重建事件。Web adapter 拒绝 malformed 或 uncorrelated message，并忽略
 non-increasing revision。Workbench 消费狭窄的 `AgentSnapshotSource`，把非 ended 状态投影到精确
 terminal panel header，并把一个 Tab 内的全部 terminal presentation 去重为一个 provider identity icon
 与一个本地化的非 ended status adornment。它还会在不挂载非活动 terminal surface 的前提下，为每个
 Workspace 派生 live Session 摘要。保留的 ended state 会从 panel、Tab、Workspace 摘要与 Workspace
-详情展示中排除，因此普通 terminal 或 layout identity 会立即恢复。只有 Desktop semantic-command
-composition 会为 signed cursor read 与 long polling 消费 `AgentChangeSource`。
+详情展示中排除，因此普通 terminal 或 layout identity 会立即恢复。已退役的 Desktop semantic-command coordinator 不是 change journal 的当前消费者。
 
 Desktop 准入两类有意区分的 observation。Shell integration 发出的准确 private-APC v3 launch envelope 只能创建 fresh heuristic Session；它没有 capability，status 为 unknown，不发 semantic event 或 notification candidate，并会在未刷新时于 30 秒后 stale、120 秒后 retire。Retirement 只会断开并结束本地 heuristic presence projection，不会发出 semantic Session-end event。相同 provider、presentation 与 terminal generation 的 rich observation 成功准入后，会先 retire heuristic projection 再接管；当该准确 rich route 仍为 live 时，后续 passive evidence 会保持 suppressed。需要显式安装且分别绑定 provider 的 Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code adapter，会各自验证 upstream contract，再剥离 prompt、tool content、transcript path、working directory、error text 与未知字段。它们通过私有 Unix-domain socket 发送共享的 normalized v3 rich allowlist，其中包含有界 correlation visibility。只有至少一个 candidate 返回准确 acceptance ACK 后，它们才向每个解析出的 outer TTY 单独写入不含内容的 private-APC correlation hint。封闭的应用 registry 授予 provider provenance、accepted event 与 maximum capability；adapter payload 不能给自己授予权威。任一 rich transport half 单独都没有足够权威：Desktop 只有对 live terminal generation 完成准确、有界的 event/correlation join 后，才接受 rich semantics。共享 resolver 覆盖 direct terminal、每个已 attached 的 tmux client、保守解析 Zellij client，以及 nested mux target。Shell integration 会通过 OpenSSH reverse Unix-socket forwarding，为符合条件的交互式 SSH session 提供一个随机 remote socket；不存在 HTTP port、Bearer credential、继承的 terminal secret、automatic remote installation、durable remote cache 或公开 terminal-notification channel。任一路径都可以失败，而不影响 Agent 或 terminal。
 
@@ -109,11 +87,7 @@ Desktop 准入两类有意区分的 observation。Shell integration 发出的准
 
 Unit 与 property test 覆盖 transition guard、精确 attention capability 准入、durable request、outcome cleanup、无 outcome 的 idle settlement、stale overlay、semantic Session end、nonsemantic heuristic retirement 与 rich takeover、source capability ceiling、reconnect、presentation-generation fencing、multi-attachment fan-out 与 retirement、schema invariant、runtime disposal 与 deterministic projection。
 
-Semantic-command contract 与 projection test 还覆盖默认和显式 wait condition、fresh-only semantic
-matching、health matching、status-basis explanation、content absence、ended filtering、bounded schema、
-ordered change batching、current read、overflow 与 explicit reset。Desktop operation test refinement
-覆盖 pagination、exact-identity read、两种 subscribe-before-recheck wait、revision fencing、signed
-change cursor、timeout、cancellation、overflow/reset 与 synchronous subscription race。
+Projection 测试保留 fresh-only semantic matching、显式 health matching、status-basis explanation 和 content absence。Runtime journal 测试保留有序变化、current read、overflow 和 reset。规范语料执行所保留的参考投影，并由 Rust Server 独立消费。
 
 ## 验证
 
