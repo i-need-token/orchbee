@@ -23,7 +23,7 @@ import {
 	explainAgentSession,
 	matchingAgentWaitConditions,
 	projectAgentSessionSummary,
-} from '#conformance-reference';
+} from '../dist/__tests__/conformance/agent-reference.js';
 
 const require = createRequire(import.meta.url);
 const conformanceDir = dirname(fileURLToPath(import.meta.url));

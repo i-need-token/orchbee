@@ -26,6 +26,11 @@
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
 		"packages/agent": {
+			"paths": {
+				"../dist/__tests__/conformance/agent-reference.js": [
+					"./src/__tests__/conformance/agent-reference.ts"
+				]
+			},
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"ignoreBinaries": ["java!"],
 			"project": [

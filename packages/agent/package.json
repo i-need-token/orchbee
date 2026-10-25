@@ -13,9 +13,6 @@
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"imports": {
-		"#conformance-reference": "./dist/__tests__/conformance/agent-reference.js"
-	},
 	"exports": {
 		".": {
 			"@orchbee/source": "./src/index.ts",

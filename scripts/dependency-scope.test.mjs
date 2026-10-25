@@ -240,7 +240,6 @@ test('Agent private compiled references resolve to source with and without outpu
 			}
 			writeWorkspace(root, workspace, {
 				exports: actual.exports,
-				imports: actual.imports,
 				devDependencies: {
 					'@rslib/core': actual.devDependencies['@rslib/core'],
 					vitest: actual.devDependencies.vitest,
@@ -268,7 +267,7 @@ test('Agent private compiled references resolve to source with and without outpu
 			const helper =
 				"import type { ReferenceValue } from './agent-reference-contracts';\nexport function projectAgentSessionSummary(value: ReferenceValue): number { return value.amount; }\n";
 			const consumer =
-				"import { projectAgentSessionSummary } from '#conformance-reference';\nvoid projectAgentSessionSummary({ amount: 7 });\n";
+				"import { projectAgentSessionSummary } from '../dist/__tests__/conformance/agent-reference.js';\nvoid projectAgentSessionSummary({ amount: 7 });\n";
 			write(root, source, helper);
 			write(root, contracts, 'export interface ReferenceValue { amount: number }\n');
 			write(root, generator, consumer);
@@ -303,7 +302,7 @@ test('Agent private compiled references resolve to source with and without outpu
 			for (const production of [false, true]) assertIssues(analyze(root, production));
 			write(
 				root,
-				`${workspace}/${actual.imports['#conformance-reference'].slice(2)}`,
+				`${workspace}/dist/__tests__/conformance/agent-reference.js`,
 				'export function projectAgentSessionSummary(value) { return value.amount; }\n',
 			);
 			for (const production of [false, true]) assertIssues(analyze(root, production));
