@@ -4967,7 +4967,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	const identityBeforeRestart = await terminalDocumentIdentity(firstRoot);
 	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
 	expect(
-		JSON.parse(await readFile(path.join(runtimeDirectory, 'bindings-v3.json'), 'utf8')),
+		JSON.parse(await readFile(path.join(runtimeDirectory, 'bindings-v1.json'), 'utf8')),
 	).toMatchObject({
 		bindings: [
 			{

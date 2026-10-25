@@ -26,6 +26,7 @@ export {
 	isControlRequestKind,
 	isInputRequestKind,
 	messagePayloadEncoding,
+	MESSAGE_CONTRACTS,
 	MessageKind,
 	PayloadEncoding,
 	requestMessageContract,

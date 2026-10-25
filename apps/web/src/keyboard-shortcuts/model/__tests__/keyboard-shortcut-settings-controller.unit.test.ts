@@ -84,7 +84,7 @@ describe('KeyboardShortcutSettingsController', () => {
 			modifiers: ['mod'],
 		});
 		expect(controller.getSnapshot().overrides).toEqual([]);
-		expect(records.at(-1)).toBe('{"overrides":[],"version":21}');
+		expect(records.at(-1)).toBe('{"overrides":[],"version":1}');
 		expect(controller.resetShortcut('terminal.search.open')).toEqual({ kind: 'unchanged' });
 	});
 

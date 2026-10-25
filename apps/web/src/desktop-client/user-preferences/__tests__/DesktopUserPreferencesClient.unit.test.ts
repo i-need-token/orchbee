@@ -199,6 +199,7 @@ describe('Desktop common preference consumer', () => {
 	it('does not reset drafts after a refresh receipt retires the client synchronously', async () => {
 		const test = fixture();
 		await initialize(test);
+		const initialResetRevision = test.client.getSnapshot().draftResetRevision;
 		let retired: ReturnType<DesktopUserPreferencesClient['getSnapshot']> | undefined;
 		test.client.subscribe(() => {
 			const state = test.client.getSnapshot();
@@ -212,7 +213,7 @@ describe('Desktop common preference consumer', () => {
 		expect((await refreshed).kind).toBe('snapshot');
 		expect(retired).toBeDefined();
 		expect(test.client.getSnapshot()).toBe(retired);
-		expect(test.client.getSnapshot().draftResetRevision).toBe(0);
+		expect(test.client.getSnapshot().draftResetRevision).toBe(initialResetRevision);
 	});
 
 	it('does not repeat a subscriber re-registered during its current notification', async () => {
@@ -383,6 +384,7 @@ describe('Desktop common preference consumer', () => {
 	it('keeps an unknown write visible through polling and clears it only after an explicit read', async () => {
 		const test = fixture();
 		await initialize(test);
+		const initialResetRevision = test.client.getSnapshot().draftResetRevision;
 		const result = test.client.reset(['copyOnSelect']);
 		await vi.waitFor(() => expect(test.commands).toHaveLength(2));
 		test.reply(2, { kind: 'outcome-unknown' });
@@ -390,12 +392,16 @@ describe('Desktop common preference consumer', () => {
 		test.reply(null, { kind: 'snapshot', snapshot: initial, changed: false });
 		await vi.waitFor(() => expect(test.client.getSnapshot().available).toBe(true));
 		expect(test.client.getSnapshot().failure).toBe('outcome-unknown');
+		expect(test.client.getSnapshot().draftResetRevision).toBe(initialResetRevision);
 		expect(test.commands).toHaveLength(2);
 		const read = test.client.refresh();
 		await vi.waitFor(() => expect(test.commands).toHaveLength(3));
 		test.reply(3, { kind: 'snapshot', snapshot: initial, changed: false });
 		await read;
-		expect(test.client.getSnapshot()).toMatchObject({ failure: null, draftResetRevision: 1 });
+		expect(test.client.getSnapshot()).toMatchObject({
+			failure: null,
+			draftResetRevision: initialResetRevision + 1,
+		});
 	});
 
 	it('retires a malformed response with an uncertain save, without resubmission', async () => {
@@ -410,5 +416,20 @@ describe('Desktop common preference consumer', () => {
 			available: false,
 			failure: 'outcome-unknown',
 		});
+		const retired = test.client.getSnapshot();
+		const listener = vi.fn<() => void>();
+		test.client.subscribe(listener);
+		expect(await test.client.update({ copyOnSelect: true })).toEqual({
+			kind: 'refused',
+			reason: 'unavailable',
+		});
+		expect(await test.client.reset(['copyOnSelect'])).toEqual({
+			kind: 'refused',
+			reason: 'unavailable',
+		});
+		expect(await test.client.refresh()).toEqual({ kind: 'refused', reason: 'unavailable' });
+		expect(test.client.getSnapshot()).toBe(retired);
+		expect(listener).not.toHaveBeenCalled();
+		expect(test.commands).toHaveLength(2);
 	});
 });

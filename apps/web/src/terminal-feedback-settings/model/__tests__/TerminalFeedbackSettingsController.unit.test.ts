@@ -27,7 +27,7 @@ function storage(initial: string | null = null): {
 	setItem(key: string, value: string): void;
 } {
 	const values = new Map<string, string>();
-	if (initial !== null) values.set('orchbee:web:terminal-feedback:v2', initial);
+	if (initial !== null) values.set('orchbee:web:terminal-feedback:v1', initial);
 	return {
 		values,
 		getItem: (key) => values.get(key) ?? null,

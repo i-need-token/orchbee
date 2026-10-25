@@ -57,7 +57,7 @@ import {
 	TerminalTargetSchema,
 	TypedFailureSchema,
 	UpdateAttachmentInputCapabilitySchema,
-} from '../dist/index.js';
+} from '@orchbee/terminal-protocol';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixturesDirectory = path.resolve(packageRoot, '../../schemas/terminal/v1/fixtures');

@@ -1173,6 +1173,27 @@ export const TypedFailureSchema = z.strictObject({
 	retryable: z.boolean(),
 });
 
+export const TerminalStartedSchema = z.strictObject({
+	creationId: CreationIdSchema,
+	hostEpoch: HostEpochSchema,
+	terminalId: TerminalIdSchema,
+});
+
+export const TerminalConfigurationAcceptedSchema = z.strictObject({
+	configuration: TerminalConfigurationSchema,
+	configurationRevision: CanonicalUint64TextSchema,
+	generation: positiveCanonicalUint64TextSchema,
+	historyRowsEvicted: CanonicalUint64TextSchema,
+	revision: CanonicalUint64TextSchema,
+	terminalId: TerminalIdSchema,
+});
+
+export const ProtocolRejectedSchema = z.strictObject({
+	client: ProtocolVersionSchema,
+	host: ProtocolVersionSchema,
+	reason: z.literal('version-mismatch'),
+});
+
 export const HelloSchema = z.strictObject({
 	clientId: ClientIdSchema,
 	frameBytes: boundedSizeSchema(PROTOCOL_LIMITS.maxFrameBytes),

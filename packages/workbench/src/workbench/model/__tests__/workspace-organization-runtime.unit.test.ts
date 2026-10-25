@@ -73,80 +73,22 @@ function runtime() {
 	return result;
 }
 
-function historicalDocument() {
-	const original = runtime().getSharedDocument(workbenchSharedDocumentRevision('27'));
-	const graph = original.projectWorkspace;
-	return {
-		...original,
-		version: 2,
-		projectWorkspace: {
-			nextProjectSequence: graph.nextProjectSequence,
-			nextWorkspaceSequence: graph.nextWorkspaceSequence,
-			nextTerminalContextSequence: graph.nextTerminalContextSequence,
-			standaloneTerminalContextId: graph.standaloneTerminalContextId,
-			projects: graph.projects.map((project, index) => {
-				const resources = graph.resourceScopes[index];
-				if (resources === undefined) throw new Error('Expected a resource namespace.');
-				return {
-					id: index === 0 ? 'resource-scope-1' : project.id,
-					name: project.name,
-					directories: resources.directories,
-					primaryDirectoryId: resources.primaryDirectoryId,
-					launchConfigurations: resources.launchConfigurations,
-					workspaces: graph.workspaces
-						.filter((workspace) => workspace.projectId === project.id)
-						.map(({ id, name, primaryDirectoryId, launchConfigurationId, terminalContextId }) => ({
-							id,
-							name,
-							primaryDirectoryId,
-							launchConfigurationId,
-							terminalContextId,
-						})),
-				};
-			}),
-		},
-	};
-}
-
-describe('Workspace organization migration and live publication', () => {
-	it('migrates strict v2 graphs without flattening scoped IDs or dropping unused resources', () => {
-		const old = historicalDocument();
-		const migrated = parseWorkbenchSharedDocument(old);
-		expect(migrated.version).toBe(3);
-		expect(migrated.revision).toBe(old.revision);
-		expect(migrated.terminalContexts).toEqual(old.terminalContexts);
-		expect(migrated.projectWorkspace.resourceScopes).toEqual(
-			old.projectWorkspace.projects.map(
-				({ id, name, directories, primaryDirectoryId, launchConfigurations }) => ({
-					id,
-					name,
-					directories,
-					primaryDirectoryId,
-					launchConfigurations,
-				}),
-			),
-		);
-		expect(
-			migrated.projectWorkspace.workspaces.map((workspace) => [
-				workspace.id,
-				workspace.resourceScopeId,
-				workspace.launchConfigurationId,
-			]),
-		).toEqual([
-			['workspace-1', 'resource-scope-1', 'launch'],
-			['workspace-2', 'project-2', 'launch'],
-		]);
+describe('Workspace organization restoration and live publication', () => {
+	it('restores scoped resources and allocates new scopes without dropping unused resources', () => {
+		const original = runtime().getSharedDocument(workbenchSharedDocumentRevision('27'));
+		const restored = parseWorkbenchSharedDocument(JSON.parse(JSON.stringify(original)));
+		expect(restored).toEqual(original);
 		const client = new WorkbenchProjectWorkspaceRuntime({
-			initialDocument: migrated,
+			initialDocument: restored,
 			standaloneCwd: '/home',
 			standaloneTerminalTitle: 'Shell',
-			terminalPresentation: composition('migrated'),
+			terminalPresentation: composition('restored'),
 		});
 		client.createDefaultWorkspace('Workspace', 'Shell');
-		expect(client.getSnapshot().workspaces[2]?.resourceScopeId).toBe('resource-scope-2');
+		expect(client.getSnapshot().workspaces[2]?.resourceScopeId).toBe('resource-scope-3');
 		expect(
-			client.getSharedDocument(migrated.revision).projectWorkspace.resourceScopes.slice(0, 2),
-		).toEqual(migrated.projectWorkspace.resourceScopes);
+			client.getSharedDocument(restored.revision).projectWorkspace.resourceScopes.slice(0, 2),
+		).toEqual(original.projectWorkspace.resourceScopes);
 	});
 
 	it('uses available localized one-click names while explicit names remain unchanged', () => {
@@ -180,56 +122,43 @@ describe('Workspace organization migration and live publication', () => {
 		expect(client.getSnapshot().workspaces[2]?.name).toBe('Workspace (4)');
 	});
 
-	it('rejects malformed historical structure and views before migration instead of resetting them', () => {
-		const old = historicalDocument();
+	it('rejects malformed current structure and views instead of resetting them', () => {
+		const current = runtime().getSharedDocument(workbenchSharedDocumentRevision('27'));
 		expect(() =>
 			parseWorkbenchSharedDocument({
-				...old,
+				...current,
 				projectWorkspace: {
-					...old.projectWorkspace,
-					projects: old.projectWorkspace.projects.map((project) => ({
-						...project,
-						workspaces: project.workspaces.map((workspace) => ({
-							...workspace,
-							primaryDirectoryId: 'missing',
-						})),
+					...current.projectWorkspace,
+					workspaces: current.projectWorkspace.workspaces.map((workspace) => ({
+						...workspace,
+						primaryDirectoryId: 'missing',
 					})),
 				},
 			}),
-		).toThrow('Historical Workspace workspace-1 has a missing Directory.');
+		).toThrow('Workspace workspace-1 has a missing primary Directory.');
 		expect(() =>
 			parseWorkbenchSharedDocument({
-				...old,
+				...current,
 				projectWorkspace: {
-					...old.projectWorkspace,
-					projects: old.projectWorkspace.projects.map((project) => ({
-						...project,
-						directories: [...project.directories, project.directories[0]],
+					...current.projectWorkspace,
+					resourceScopes: current.projectWorkspace.resourceScopes.map((scope) => ({
+						...scope,
+						directories: [...scope.directories, scope.directories[0]],
 					})),
 				},
 			}),
-		).toThrow('Duplicate historical Directory directory.');
+		).toThrow('Resource scope resource-scope-1 has duplicate Directory ID directory.');
 		const currentView = runtime().getClientView();
-		const oldView = {
-			...currentView,
-			version: 1,
-			activeLocation: { kind: 'workspace', projectId: 'project-2', workspaceId: 'workspace-2' },
-		};
-		expect(parseWorkbenchClientView(oldView)).toEqual({
-			...currentView,
-			version: 2,
-			activeLocation: { kind: 'workspace', workspaceId: 'workspace-2' },
-		});
 		expect(() =>
 			parseWorkbenchClientView({
-				...oldView,
-				activeLocation: { kind: 'workspace', workspaceId: 'workspace-2' },
+				...currentView,
+				activeLocation: { kind: 'workspace', projectId: 'project-2', workspaceId: 'workspace-2' },
 			}),
 		).toThrow('projectId');
 		expect(() =>
 			parseWorkbenchClientView({
-				...oldView,
-				terminalContexts: [...oldView.terminalContexts, oldView.terminalContexts[0]],
+				...currentView,
+				terminalContexts: [...currentView.terminalContexts, currentView.terminalContexts[0]],
 			}),
 		).toThrow('Client terminal contexts must use unique canonical identity order.');
 	});

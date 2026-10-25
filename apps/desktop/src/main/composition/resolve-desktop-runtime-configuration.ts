@@ -235,7 +235,7 @@ export function resolveDesktopRuntimeConfiguration(
 		),
 		runtimeDirectory,
 		terminalArchiveDirectory: platformPath.join(recoveryDirectory, 'terminal-archives-v1'),
-		terminalBindingStorePath: platformPath.join(recoveryDirectory, 'bindings-v3.json'),
+		terminalBindingStorePath: platformPath.join(recoveryDirectory, 'bindings-v1.json'),
 		terminalExitPublicationLedgerPath: platformPath.join(
 			recoveryDirectory,
 			'terminal-exit-publications-v1.json',
