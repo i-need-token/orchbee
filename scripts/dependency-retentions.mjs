@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 const knipVersion = '6.26.0';
 const analysisInputs = [
 	{
-		file: 'knip.json',
-		sha256: 'd7203d2488234ca4801ab8b87f17a20db89dec196ee8f3a0feae0ad794f4fc70',
+		file: 'knip.config.mjs',
+		sha256: '8d90893f7367f280773934dafe3be9d39976ce809ad21c4ca01b19f2f671e053',
 	},
 	{
 		file: 'pnpm-workspace.yaml',
@@ -279,7 +279,7 @@ function parseRun(run, production) {
 	]);
 	requireCondition(
 		evidence.version === 1 &&
-			evidence.configFile === 'knip.json' &&
+			evidence.configFile === 'knip.config.mjs' &&
 			evidence.production === production,
 		'Unexpected Knip analysis mode/configuration',
 	);
@@ -383,6 +383,8 @@ function captureKnip(root, logRoot, mode) {
 	const stderrPath = join(logRoot, `${mode}.stderr.log`);
 	const argv = [
 		join(root, 'node_modules/knip/bin/knip.js'),
+		'--config',
+		'knip.config.mjs',
 		...(mode === 'strict' ? ['--strict'] : []),
 		'--reporter',
 		'json',

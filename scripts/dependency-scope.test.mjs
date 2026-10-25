@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import createKnipConfiguration from '../knip.config.mjs';
 import { assessDependencyReports, readRetentionPolicy } from './dependency-retentions.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const knipBinary = join(repositoryRoot, 'node_modules/knip/bin/knip.js');
-const configuration = JSON.parse(readFileSync(join(repositoryRoot, 'knip.json'), 'utf8'));
+const configuration = createKnipConfiguration({});
 const fixtureWorkspaces = [
 	'packages/workbench',
 	'packages/tab-strip',
@@ -21,6 +22,10 @@ function write(root, path, source) {
 	const target = join(root, path);
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, source);
+}
+
+function writeConfiguration(root, configured) {
+	write(root, 'knip.config.mjs', `export default ${JSON.stringify(configured)};\n`);
 }
 
 function fixtureScope(workspace) {
@@ -72,16 +77,13 @@ function withFixture(inspect, additionalWorkspaces = []) {
 	const root = mkdtempSync(join(temporaryRoot, 'orchbee-dependency-scope-'));
 	try {
 		assert.equal(configuration.treatConfigHintsAsErrors, true);
-		write(
-			root,
-			'knip.json',
-			JSON.stringify({
-				...configuration,
-				workspaces: Object.fromEntries(
-					workspaces.map((workspace) => [workspace, fixtureScope(workspace)]),
-				),
-			}),
-		);
+		const configured = structuredClone({
+			...configuration,
+			workspaces: Object.fromEntries(
+				workspaces.map((workspace) => [workspace, fixtureScope(workspace)]),
+			),
+		});
+		writeConfiguration(root, configured);
 		write(
 			root,
 			'package.json',
@@ -186,7 +188,7 @@ pendingActionExecution();
 `,
 			);
 		}
-		inspect(root);
+		inspect(root, configured);
 	} finally {
 		assert.equal(dirname(root), temporaryRoot);
 		assert.ok(basename(root).startsWith('orchbee-dependency-scope-'));
@@ -197,7 +199,16 @@ pendingActionExecution();
 function analyze(root, production = false) {
 	const result = spawnSync(
 		process.execPath,
-		[knipBinary, '--directory', root, '--reporter', 'json', ...(production ? ['--strict'] : [])],
+		[
+			knipBinary,
+			'--directory',
+			root,
+			'--config',
+			'knip.config.mjs',
+			'--reporter',
+			'json',
+			...(production ? ['--strict'] : []),
+		],
 		{ cwd: root, encoding: 'utf8', timeout: 30_000, windowsHide: true },
 	);
 	assert.ifError(result.error);
@@ -648,7 +659,7 @@ function retentionProcessReport(rows, production) {
 	}
 	const evidence = {
 		version: 1,
-		configFile: 'knip.json',
+		configFile: 'knip.config.mjs',
 		production,
 		configHintsDisabled: production,
 		configHintsAsErrors: true,
@@ -757,7 +768,7 @@ test('retention fingerprints reject missing or disconnected real consumer and di
 		);
 	}
 	for (const config of [
-		'knip.json',
+		'knip.config.mjs',
 		'apps/storybook/.storybook/main.ts',
 		'packages/tab-strip/vitest.config.ts',
 	]) {
@@ -775,7 +786,7 @@ function retentionEvidenceEnvelope(result) {
 }
 
 test('retention evidence reporter accepts exact fixture diagnostics and rejects config and tag hints', () => {
-	withFixture((root) => {
+	withFixture((root, configured) => {
 		const run = (production) => {
 			const child = spawnSync(
 				process.execPath,
@@ -783,6 +794,8 @@ test('retention evidence reporter accepts exact fixture diagnostics and rejects 
 					knipBinary,
 					'--directory',
 					root,
+					'--config',
+					'knip.config.mjs',
 					...(production ? ['--strict'] : []),
 					'--reporter',
 					'json',
@@ -812,16 +825,15 @@ test('retention evidence reporter accepts exact fixture diagnostics and rejects 
 		const strict = run(true);
 		assert.equal(strict.status, 1);
 		assert.equal(assessDependencyReports(full, strict, expected).accepted, true);
-		const configured = JSON.parse(readFileSync(join(root, 'knip.json'), 'utf8'));
 		configured.workspaces['packages/workbench'].entry.push('src/missing-retention-entry.ts');
-		write(root, 'knip.json', JSON.stringify(configured));
+		writeConfiguration(root, configured);
 		const stale = run(false);
 		assert.equal(stale.status, 1);
 		assert.ok(retentionEvidenceEnvelope(stale).configurationHints.length > 0);
 		assert.throws(() => assessDependencyReports(stale, strict, expected), /Full Knip/u);
 		configured.workspaces['packages/workbench'].entry.pop();
 		configured.workspaces['packages/workbench'].ignoreBinaries = ['retention-fixture-unused'];
-		write(root, 'knip.json', JSON.stringify(configured));
+		writeConfiguration(root, configured);
 		const staleStrict = run(true);
 		assert.equal(staleStrict.status, 1);
 		assert.equal(retentionEvidenceEnvelope(staleStrict).configHintsDisabled, true);
@@ -831,7 +843,7 @@ test('retention evidence reporter accepts exact fixture diagnostics and rejects 
 			/configurationHints/u,
 		);
 		delete configured.workspaces['packages/workbench'].ignoreBinaries;
-		write(root, 'knip.json', JSON.stringify(configured));
+		writeConfiguration(root, configured);
 		write(
 			root,
 			'packages/workbench/src/index.ts',

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-/** @internal Exact source inputs consumed by the development Host build. */
+/** Exact source inputs consumed by the development Host build. */
 export async function terminalHostInputDigest(terminalHostRoot: string): Promise<string> {
 	const sourcePaths = await collectTerminalHostInputPaths(path.join(terminalHostRoot, 'src'));
 	const inputPaths = [
