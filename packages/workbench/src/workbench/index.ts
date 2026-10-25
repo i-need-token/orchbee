@@ -31,8 +31,6 @@ export type { WorkbenchRemoteTerminalCreationCapability } from './types/workbenc
 export type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
-	WorkbenchTerminalSessionStopRequestResult,
-	WorkbenchTerminalSessionRestartStageResult,
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';

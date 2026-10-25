@@ -31,8 +31,6 @@ export type {
 	WorkbenchProjectWorktreeFailureCode,
 	WorkbenchRemoteTerminalCreationCapability,
 	WorkbenchPanelPosition,
-	WorkbenchTerminalSessionStopRequestResult,
-	WorkbenchTerminalSessionRestartStageResult,
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 	WorkbenchAgentEventObservation,

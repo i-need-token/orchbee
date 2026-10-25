@@ -1,6 +1,5 @@
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,
-	type DesktopAgentIntegrationAvailability,
 	type DesktopAgentIntegrationId,
 	type DesktopAgentIntegrationManagementMode,
 	type DesktopAgentIntegrationState,
@@ -190,7 +189,8 @@ describe('DesktopAgentIntegrationManagementController', () => {
 });
 
 class FakeAdapter implements AgentIntegrationAdapter {
-	availability: DesktopAgentIntegrationAvailability = 'available';
+	availability: Awaited<ReturnType<AgentIntegrationAdapter['inspect']>>['availability'] =
+		'available';
 	disableCount = 0;
 	disableEffect: () => Promise<AgentIntegrationMutationAttempt> = () =>
 		Promise.resolve({ kind: 'attempted' });

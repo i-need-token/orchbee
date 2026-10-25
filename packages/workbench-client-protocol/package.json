@@ -29,12 +29,12 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
-		"@orchbee/agent": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
+		"@orchbee/agent": "workspace:^",
 		"@rslib/core": "catalog:",
 		"@types/node": "catalog:",
 		"ajv": "8.20.0",

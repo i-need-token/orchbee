@@ -1,6 +1,5 @@
 import type {
-	WorkbenchTerminalSessionRestartStageResult,
-	WorkbenchTerminalSessionStopRequestResult,
+	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
@@ -36,19 +35,23 @@ function createHarness(sessionCount = 2, initialCloseConfirmationCount = session
 		getRestartableTerminalPresentationIds: vi.fn<() => typeof restartPresentationIds>(
 			() => restartPresentationIds,
 		),
-		requestAllTerminalSessionsStop: vi.fn<() => WorkbenchTerminalSessionStopRequestResult>(() => ({
+		requestAllTerminalSessionsStop: vi.fn<
+			WorkbenchProjectWorkspaceRuntime['requestAllTerminalSessionsStop']
+		>(() => ({
 			commandCount: sessionCount,
 			kind: sessionCount === 0 ? ('unchanged' as const) : ('started' as const),
 			snapshot,
 		})),
-		retryFailedTerminalSessionStops: vi.fn<() => WorkbenchTerminalSessionStopRequestResult>(() => ({
+		retryFailedTerminalSessionStops: vi.fn<
+			WorkbenchProjectWorkspaceRuntime['retryFailedTerminalSessionStops']
+		>(() => ({
 			commandCount: 1,
 			kind: 'started' as const,
 			snapshot,
 		})),
-		stageStoppedTerminalSessionsForRestart: vi.fn<() => WorkbenchTerminalSessionRestartStageResult>(
-			() => ({ kind: 'staged', presentationCount: restartPresentationIds.length }),
-		),
+		stageStoppedTerminalSessionsForRestart: vi.fn<
+			WorkbenchProjectWorkspaceRuntime['stageStoppedTerminalSessionsForRestart']
+		>(() => ({ kind: 'staged', presentationCount: restartPresentationIds.length })),
 		subscribeDocument: (listener: () => void) => {
 			documentListener = listener;
 			return () => {

@@ -17,5 +17,4 @@ export const DesktopUserPreferencesEventSchema = z.strictObject({
 	applicationIssue: z.enum(['host-rejected']).nullable(),
 });
 
-export type DesktopUserPreferencesCommand = z.infer<typeof DesktopUserPreferencesCommandSchema>;
 export type DesktopUserPreferencesEvent = z.infer<typeof DesktopUserPreferencesEventSchema>;

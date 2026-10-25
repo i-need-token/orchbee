@@ -1,4 +1,4 @@
-import type { ActionExecution, ActionExecutionSnapshot, ActionResult } from '@orchbee/actions';
+import type { ActionExecution, ActionResult } from '@orchbee/actions';
 import { act } from '@testing-library/react';
 
 export function pendingActionExecution(executionId: string): {
@@ -6,7 +6,7 @@ export function pendingActionExecution(executionId: string): {
 	settle(result: ActionResult): Promise<void>;
 } {
 	let resolveCompletion: ((result: ActionResult) => void) | undefined;
-	let snapshot: ActionExecutionSnapshot = {
+	let snapshot: ReturnType<ActionExecution['getSnapshot']> = {
 		progress: null,
 		result: null,
 		state: 'running',

@@ -1,7 +1,6 @@
 import {
 	DesktopUserPreferencesCommandSchema,
 	DesktopUserPreferencesEventSchema,
-	type DesktopUserPreferencesCommand,
 } from '@orchbee/desktop-client-protocol';
 import {
 	DEFAULT_USER_PREFERENCES,
@@ -28,7 +27,7 @@ const initial = UserPreferencesSnapshotSchema.parse({
 
 function fixture() {
 	const channel = new MessageChannel();
-	const commands: DesktopUserPreferencesCommand[] = [];
+	const commands: ReturnType<typeof DesktopUserPreferencesCommandSchema.parse>[] = [];
 	channel.port2.addEventListener('message', (event: MessageEvent<unknown>) => {
 		commands.push(DesktopUserPreferencesCommandSchema.parse(event.data));
 	});

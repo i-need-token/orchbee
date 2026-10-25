@@ -1,7 +1,6 @@
 import {
 	DesktopClipboardMainEventSchema,
 	DesktopClipboardRendererCommandSchema,
-	type DesktopClipboardRendererCommand,
 } from '@orchbee/desktop-client-protocol';
 import type { MessageEvent, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
@@ -51,7 +50,7 @@ describe('DesktopClipboardBroker', () => {
 	});
 });
 
-function readRequest(requestId: string): DesktopClipboardRendererCommand {
+function readRequest(requestId: string) {
 	return DesktopClipboardRendererCommandSchema.parse({
 		requestId,
 		type: 'desktop-clipboard-read-text-requested',

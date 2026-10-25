@@ -9,7 +9,6 @@ export type {
 	ActionDisposable,
 	ActionExecution,
 	ActionExecutionContext,
-	ActionExecutionSnapshot,
 	ActionInputFor,
 	ActionInputValidation,
 	ActionInvocation,

@@ -7,7 +7,6 @@ export {
 	DesktopAgentIntegrationManagementSnapshotSchema,
 } from './desktop-agent-integration-management-contract';
 export type {
-	DesktopAgentIntegrationAvailability,
 	DesktopAgentIntegrationId,
 	DesktopAgentIntegrationManagementFailureCode,
 	DesktopAgentIntegrationManagementMainEvent,
@@ -34,7 +33,6 @@ export {
 } from './desktop-clipboard-contract';
 export type {
 	DesktopClipboardReadResult,
-	DesktopClipboardRendererCommand,
 	DesktopClipboardRequestId,
 } from './desktop-clipboard-contract';
 export {
@@ -126,7 +124,4 @@ export {
 	DesktopUserPreferencesCommandSchema,
 	DesktopUserPreferencesEventSchema,
 } from './desktop-user-preferences-contract';
-export type {
-	DesktopUserPreferencesCommand,
-	DesktopUserPreferencesEvent,
-} from './desktop-user-preferences-contract';
+export type { DesktopUserPreferencesEvent } from './desktop-user-preferences-contract';

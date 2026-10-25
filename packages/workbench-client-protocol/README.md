@@ -2,6 +2,10 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
+`@orchbee/agent` is a development dependency for the independent Client-view conformance binding.
+The published JavaScript entry and its declarations do not depend on Agent. Adding an admitted
+runtime consumer of that binding must also update the dependency classification.
+
 ## Project and Workspace organization
 
 The matched-cohort projection uses global Directory, Project and Workspace registries. Project is

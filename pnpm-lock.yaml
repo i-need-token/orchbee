@@ -745,9 +745,6 @@ importers:
 
   packages/workbench-client-protocol:
     dependencies:
-      '@orchbee/agent':
-        specifier: workspace:^
-        version: link:../agent
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol
@@ -758,6 +755,9 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@orchbee/agent':
+        specifier: workspace:^
+        version: link:../agent
       '@rslib/core':
         specifier: 'catalog:'
         version: 0.23.2(typescript@7.0.2)

@@ -138,9 +138,6 @@ export const DesktopAgentIntegrationManagementMainEventSchema = z.discriminatedU
 	}),
 ]);
 
-export type DesktopAgentIntegrationAvailability = z.infer<
-	typeof DesktopAgentIntegrationAvailabilitySchema
->;
 export type DesktopAgentIntegrationId = z.infer<typeof DesktopAgentIntegrationIdSchema>;
 
 export type DesktopAgentIntegrationManagementFailureCode = z.infer<

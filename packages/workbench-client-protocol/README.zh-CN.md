@@ -2,6 +2,10 @@
 
 私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
 
+`@orchbee/agent` 是独立 Client-view 一致性绑定的开发依赖。
+发布的 JavaScript 入口及其声明不依赖 Agent。为该绑定添加已准入的运行时消费者时，
+也必须同步更新依赖分类。
+
 ## Project 与 Workspace 组织
 
 同批升级投影使用全局 Directory、Project 与 Workspace 注册表。Project 只是可选分组：Workspace 的

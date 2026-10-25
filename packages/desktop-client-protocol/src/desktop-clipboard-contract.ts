@@ -51,7 +51,6 @@ export const DesktopClipboardMainEventSchema = z.strictObject({
 });
 
 export type DesktopClipboardReadResult = z.infer<typeof DesktopClipboardReadResultSchema>;
-export type DesktopClipboardRendererCommand = z.infer<typeof DesktopClipboardRendererCommandSchema>;
 export type DesktopClipboardRequestId = z.infer<typeof DesktopClipboardRequestIdSchema>;
 
 function containsUnpairedSurrogate(value: string): boolean {
