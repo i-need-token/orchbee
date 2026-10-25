@@ -1,3 +1,4 @@
+import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../src/terminal-settings/model/terminal-appearance-preferences';
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,
 	DesktopTerminalLaunchProfileIdSchema,
@@ -9,10 +10,7 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
-import {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-	TerminalSettingsController,
-} from '../src/terminal-settings';
+import { TerminalSettingsController } from '../src/terminal-settings';
 import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
 import {

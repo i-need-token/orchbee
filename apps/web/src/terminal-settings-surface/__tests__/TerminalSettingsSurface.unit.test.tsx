@@ -15,10 +15,7 @@ import { ApplicationLocaleProvider } from '../../application-locale-provider';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
-import {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-	TerminalSettingsController,
-} from '../../terminal-settings';
+import { TerminalSettingsController } from '../../terminal-settings';
 import { REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND } from '../constants/remote-development-diagnostic';
 import type {
 	DesktopTerminalDefaultSettingsClientSnapshot,
@@ -112,6 +109,7 @@ describe('TerminalSettingsSurface', () => {
 				storage,
 			}),
 		);
+		const initialPreferences = controller.getSnapshot().preferences;
 		const presentationListener =
 			vi.fn<(configuration: ReturnType<typeof controller.current>) => void>();
 		controller.subscribe(presentationListener);
@@ -236,7 +234,7 @@ describe('TerminalSettingsSurface', () => {
 			),
 		);
 		await act(async () => reset.click());
-		expect(controller.getSnapshot().preferences).toEqual(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
+		expect(controller.getSnapshot().preferences).toEqual(initialPreferences);
 		await act(async () =>
 			requiredElement<HTMLButtonElement>(
 				container.querySelector("button[data-settings-category='appearance']"),

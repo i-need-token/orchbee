@@ -1,10 +1,10 @@
+import { TerminalTextViewer } from '../src/workbench-client/terminal-text-viewer/TerminalTextViewer';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 import {
 	commandOutputViewerDocument,
 	scrollbackViewerDocument,
-	TerminalTextViewer,
 	TerminalTextViewerController,
 } from '../src/workbench-client/terminal-text-viewer';
 

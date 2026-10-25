@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { DesktopApplicationExitRequestIdSchema } from '@orchbee/desktop-client-protocol';
-import type { DesktopApplicationLifetimeState } from '../../model/DesktopApplicationLifetimeCoordinator';
+
 import type { DesktopApplicationLifetimeDialogController } from '../../types/desktop-application-lifetime-dialog';
 import { useDesktopApplicationLifetimeDialog } from '../useDesktopApplicationLifetimeDialog';
 
@@ -35,7 +35,9 @@ function TestHarness({
 describe('useDesktopApplicationLifetimeDialog', () => {
 	it('subscribes the dialog to the coordinator external store', async () => {
 		let listener: (() => void) | undefined;
-		let state: DesktopApplicationLifetimeState = { kind: 'idle' };
+		let state: ReturnType<DesktopApplicationLifetimeDialogController['getSnapshot']> = {
+			kind: 'idle',
+		};
 		const controller: DesktopApplicationLifetimeDialogController = {
 			choose: vi.fn<DesktopApplicationLifetimeDialogController['choose']>(),
 			getSnapshot: () => state,

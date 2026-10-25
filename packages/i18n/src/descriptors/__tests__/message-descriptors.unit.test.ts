@@ -1,7 +1,7 @@
 import type { MessageDescriptor } from 'react-intl';
 import { describe, expect, it } from 'vitest';
 
-import { enUSMessages, type OrchbeeMessageId } from '../../locales';
+import { enUSMessages } from '../../locales';
 import { agentIntegrationMessages } from '../agent-integrations';
 import { agentObservationMessages } from '../agent-observation';
 import { applicationRoutingMessages } from '../application-routing';
@@ -50,7 +50,9 @@ describe('Orchbee message descriptors', () => {
 				if (!Object.hasOwn(enUSMessages, messageId)) {
 					throw new Error(`${owner} descriptor ${messageId} is absent from the English catalog`);
 				}
-				expect(descriptor.defaultMessage).toBe(enUSMessages[messageId as OrchbeeMessageId]);
+				expect(descriptor.defaultMessage).toBe(
+					enUSMessages[messageId as keyof typeof enUSMessages],
+				);
 			}
 		}
 	});

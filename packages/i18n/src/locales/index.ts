@@ -12,6 +12,6 @@ export {
 	enUSTerminalSettingsCatalogMessages,
 	enUSWorkbenchMessages,
 } from './en-US';
-export type { OrchbeeMessageId, TerminalSettingsCatalogMessageId } from './en-US';
+export type { TerminalSettingsCatalogMessageId } from './en-US';
 export { zhCNMessages } from './zh-CN';
 export { enUSWebsiteMessages } from './en-US';

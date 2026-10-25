@@ -1,5 +1,4 @@
 export {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	normalizeTerminalHexColor,
 	TERMINAL_FONT_WEIGHT_OPTIONS,
 } from './terminal-appearance-preferences';

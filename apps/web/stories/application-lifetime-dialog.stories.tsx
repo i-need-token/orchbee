@@ -5,18 +5,18 @@ import { DesktopApplicationExitRequestIdSchema } from '@orchbee/desktop-client-p
 import {
 	DesktopApplicationLifetimeDialog,
 	type DesktopApplicationLifetimeDialogController,
-	type DesktopApplicationLifetimeState,
 } from '../src/desktop-client/desktop-application-lifetime-dialog';
 
 class StoryController implements DesktopApplicationLifetimeDialogController {
-	readonly state: DesktopApplicationLifetimeState;
+	readonly state: ReturnType<DesktopApplicationLifetimeDialogController['getSnapshot']>;
 
-	constructor(state: DesktopApplicationLifetimeState) {
+	constructor(state: ReturnType<DesktopApplicationLifetimeDialogController['getSnapshot']>) {
 		this.state = state;
 	}
 
 	choose(): void {}
-	getSnapshot = (): DesktopApplicationLifetimeState => this.state;
+	getSnapshot = (): ReturnType<DesktopApplicationLifetimeDialogController['getSnapshot']> =>
+		this.state;
 	quitAnyway(): void {}
 	retry(): void {}
 	subscribe = (): (() => void) => () => undefined;

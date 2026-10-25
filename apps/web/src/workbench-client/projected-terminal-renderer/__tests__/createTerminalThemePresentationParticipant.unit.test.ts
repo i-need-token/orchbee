@@ -1,3 +1,4 @@
+import type { TerminalAppearancePreferences } from '../../../terminal-settings';
 import type { ProjectedTerminal } from '@orchbee/terminal';
 import {
 	ProjectedAttachmentBootstrapSchema,
@@ -6,7 +7,6 @@ import {
 import { CanonicalUint64TextSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../../../terminal-settings';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import { createTerminalThemePresentationParticipant } from '../createTerminalThemePresentationParticipant';
 
@@ -72,7 +72,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 			}),
 		});
 		const preparation = participant.prepareThemePresentation({
-			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+			...appearancePreferences,
 			applicationTheme: 'light',
 			terminalDisplayTheme: 'host',
 		});
@@ -109,7 +109,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 		});
 
 		const preparation = participant.prepareThemePresentation({
-			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+			...appearancePreferences,
 			applicationTheme: 'dark',
 			terminalDisplayTheme: 'dark',
 		});
@@ -178,7 +178,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 
 		await expect(
 			participant.prepareThemePresentation({
-				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+				...appearancePreferences,
 				applicationTheme: 'light',
 				terminalDisplayTheme: 'dark',
 			}),
@@ -202,7 +202,7 @@ describe('createTerminalThemePresentationParticipant', () => {
 		});
 
 		const preparation = participant.prepareThemePresentation({
-			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+			...appearancePreferences,
 			applicationTheme: 'dark',
 		});
 		expect(terminal.prepareThemePresentation).toHaveBeenCalledWith(
@@ -245,3 +245,17 @@ function transportFixture(
 		subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
 	};
 }
+
+const appearancePreferences: TerminalAppearancePreferences = {
+	applicationTheme: 'system',
+	backgroundOpacityPercent: 100,
+	customBackground: '#fcfcfc',
+	customForeground: '#141414',
+	fontFamily: 'monospace',
+	fontLigatures: true,
+	fontSize: 14,
+	fontWeight: 400,
+	fontWeightBold: 700,
+	terminalPadding: 0,
+	terminalDisplayTheme: 'host',
+};

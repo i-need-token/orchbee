@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import { ApplicationLocaleController } from '../../../application-locale';
 import {
-	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
 	type TerminalAppearancePreferences,
 } from '../../../terminal-settings';
@@ -15,10 +14,8 @@ import { useTerminalSettingsSurface } from '../useTerminalSettingsSurface';
 
 describe('useTerminalSettingsSurface', () => {
 	it('prepares localized display data and Custom-mode control availability from the controller snapshot', () => {
-		const controller = createController({
-			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
-			terminalDisplayTheme: 'custom',
-		});
+		const controller = createController();
+		controller.update({ ...controller.getSnapshot().preferences, terminalDisplayTheme: 'custom' });
 		controller.open();
 
 		expect(renderView(controller, 'en-US')).toBe('Settings|7|custom-enabled');
@@ -49,10 +46,10 @@ function SurfaceProbe({
 	return `${view.messages.title}|${categoryCount}|${view.customColorsEnabled ? 'custom-enabled' : 'custom-disabled'}`;
 }
 
-function createController(preferences: TerminalAppearancePreferences): TerminalSettingsController {
+function createController(preferences?: TerminalAppearancePreferences): TerminalSettingsController {
 	return new TerminalSettingsController({
 		storage: {
-			getItem: () => JSON.stringify(preferences),
+			getItem: () => (preferences === undefined ? null : JSON.stringify(preferences)),
 			setItem: () => undefined,
 		},
 		themeTarget: { dataset: {} },
