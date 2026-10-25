@@ -122,7 +122,7 @@ function listFiles(directory, extension) {
 }
 
 function extractZigDeclarations(file) {
-	const relative = path.relative(GHOSTTY_ROOT, file);
+	const relative = path.relative(GHOSTTY_ROOT, file).split(path.sep).join('/');
 	const fileDeclarations = [];
 	for (const [index, line] of readLines(file).entries()) {
 		const match = line.match(ZIG_TEST);
@@ -136,7 +136,7 @@ function extractZigDeclarations(file) {
 }
 
 function extractSwiftDeclarations(file) {
-	const relative = path.relative(GHOSTTY_ROOT, file);
+	const relative = path.relative(GHOSTTY_ROOT, file).split(path.sep).join('/');
 	const lines = readLines(file);
 	const fileDeclarations = [];
 	const capturedLines = new Set();
