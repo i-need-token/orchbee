@@ -553,7 +553,7 @@ fn layout_structure_uses_navigation_only_without_a_worker() {
         site_id: snapshot.site_id, expected_revision: snapshot.revision,
         action: WorkbenchAction::TabCreateLayout { terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
             label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: false,
-            layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty"},"children":[],"rightClick":"orchbee"})).unwrap() } };
+            layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty","customLabel":null},"children":[],"rightClick":"orchbee"})).unwrap() } };
     let response = response(service.execute(WorkbenchRequest::Command(command)));
     assert!(matches!(
         response,
