@@ -9,7 +9,7 @@
 		"sourceFingerprints": [
 			{
 				"path": "AgentRuntime.ts",
-				"sha256": "a72986259d398d1f99b38c44b53ece3535ac5eec7c2501492ffb3664ee19049b"
+				"sha256": "c2489f4eaabe7140ee9e77a0dbfad754d4b8799e1d5f901e9726d1db8317ca4c"
 			},
 			{
 				"path": "__tests__/AgentRuntime.unit.test.ts",
@@ -45,7 +45,7 @@
 			},
 			{
 				"path": "changes.ts",
-				"sha256": "24289746ce79c13e0118ca1b4b7f896c7cc941d548d85859f1790ae5431c00e5"
+				"sha256": "7806e6259eed3b4066bc0eaa0cf9bd0bfa6a36fd5b056e10b9c3f7cd3cee86cb"
 			},
 			{
 				"path": "events.ts",
@@ -53,19 +53,19 @@
 			},
 			{
 				"path": "index.ts",
-				"sha256": "9e3a5c8173042aad6e555ddb5867033253453b84c2df684ab756e83a4690896f"
+				"sha256": "c9e9df5f22da81afc077ddad747291540ade99d4307d7f69bfd88318bbf33cf9"
 			},
 			{
 				"path": "model.ts",
-				"sha256": "7be6c452b1018abb24f3c882647f58ca0d43f23c32bebb69e9db5fe30c50d8cf"
+				"sha256": "843dd27000f9f03124c3b4264434d1dd9cf79e3f7100d73f52307c0f96053de8"
 			},
 			{
 				"path": "projection.ts",
-				"sha256": "f17a81813ef7d47d70740fdbf43c850b1bac40d133e4cf83feec284e63c41786"
+				"sha256": "fa1c3cf3d889f220fd4e7077760c9aa2560292a06d36204be98acd0a40e0425b"
 			},
 			{
 				"path": "reducer.ts",
-				"sha256": "eea36191a1bb56131944053c0e4c133c0c068554c1c8305ba44e942627957b87"
+				"sha256": "8724c357b62b2d581dbecd9b7cd92452b454bd5ec0e0b3c674ae5748c50c15a1"
 			},
 			{
 				"path": "semantic-commands/__tests__/agent-semantic-read-model.unit.test.ts",
@@ -73,15 +73,15 @@
 			},
 			{
 				"path": "semantic-commands/agent-semantic-command-contracts.ts",
-				"sha256": "d35eb42ab9b0d3b46ffa77e787522a96b073e791e8b17300a3c2c3f3102051fc"
+				"sha256": "bf093ba52b28b8d9591b14961f37f7d6a85e76f000c76151c00fea00cd01b916"
 			},
 			{
 				"path": "semantic-commands/agent-semantic-read-model.ts",
-				"sha256": "66879afe58538d663c813ef8a1ca5ea42c1db7074a5a712c97589ff0dcffd6ad"
+				"sha256": "3d0eff648a963d230f6e9c17e0fe7750daa41f13c3294e1a354d6b4654d8b825"
 			},
 			{
 				"path": "semantic-commands/index.ts",
-				"sha256": "24668d235c592d394f5db1033880ed12183451788e31ac90d2f3c5b21f20e641"
+				"sha256": "7a57aaaf072a2e60bd176b6b1c0733a136af6af9e92a391b60f99cefa571f9fb"
 			}
 		],
 		"zod": "4.4.3"
