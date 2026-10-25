@@ -2,6 +2,10 @@
 
 Private package entries export only symbols consumed in this repository, enforced by Knip `includeEntryExports`. Internal contracts, generated assets and independent conformance evidence retain their owners; their presence does not automatically expand the public entry. New clients add exports for admitted uses.
 
+The `document` and `semantic-commands` package subpaths emit JavaScript and declarations under
+`dist/workbench/`, preserving their source-relative layout for dependency analysis. Consumers use
+the package subpaths; the build paths do not introduce a separate public import surface.
+
 Shared product-semantic React shell for Orchbee applications.
 
 ## Scope

@@ -219,6 +219,69 @@ function assertIssues(result, expected = []) {
 	assert.deepEqual(result.issues.toSorted(), expected.toSorted(), result.output);
 }
 
+test('bundled subpaths resolve to their declared sources without hiding private exports or missing dependencies', () => {
+	withFixture((root) => {
+		// Match the real output exclusion and declaration-to-source layout before exercising
+		// the JavaScript subpaths from the owning package manifest.
+		for (const path of ['.gitignore', 'tsconfig.base.json', 'packages/workbench/tsconfig.json']) {
+			write(root, path, readFileSync(join(repositoryRoot, path), 'utf8'));
+		}
+		const packagePath = 'packages/workbench/package.json';
+		const manifest = JSON.parse(readFileSync(join(root, packagePath), 'utf8'));
+		const actual = JSON.parse(readFileSync(join(repositoryRoot, packagePath), 'utf8'));
+		for (const [subpath, name] of [
+			['document', 'documentValue'],
+			['semantic-commands', 'semanticValue'],
+		]) {
+			const targets = actual.exports[`./${subpath}`];
+			manifest.exports[`./${subpath}`] = targets;
+			for (const [condition, target] of Object.entries(targets)) {
+				let contents = `export const ${name} = 11;\n`;
+				if (condition === 'require') contents = `exports.${name} = 11;\n`;
+				else if (condition === 'types') contents = `export declare const ${name}: number;\n`;
+				write(root, `packages/workbench/${target.slice(2)}`, contents);
+			}
+		}
+		write(root, packagePath, JSON.stringify(manifest));
+		const consumerPath = 'packages/tab-strip/src/runtime.ts';
+		write(
+			root,
+			consumerPath,
+			`${readFileSync(join(root, consumerPath), 'utf8')}
+import { documentValue } from '@orchbee/workbench/document';
+import { semanticValue } from '@orchbee/workbench/semantic-commands';
+void documentValue;
+void semanticValue;
+`,
+		);
+		for (const production of [false, true]) assertIssues(analyze(root, production));
+
+		const source = 'packages/workbench/src/workbench/document/index.ts';
+		write(
+			root,
+			source,
+			'export const documentValue = 11;\nexport const unusedDocumentValue = 12;\n',
+		);
+		for (const production of [false, true]) {
+			assertIssues(analyze(root, production), [`exports:${source}:unusedDocumentValue`]);
+		}
+
+		write(root, source, 'export const documentValue = 11;\n');
+		const consumerManifestPath = 'packages/tab-strip/package.json';
+		const consumerManifest = JSON.parse(readFileSync(join(root, consumerManifestPath), 'utf8'));
+		delete consumerManifest.dependencies['@orchbee/workbench'];
+		write(root, consumerManifestPath, JSON.stringify(consumerManifest));
+		const rootManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+		rootManifest.dependencies = { '@orchbee/workbench': 'workspace:*' };
+		write(root, 'package.json', JSON.stringify(rootManifest));
+		assertIssues(analyze(root));
+		assertIssues(analyze(root, true), [
+			'dependencies:package.json:@orchbee/workbench',
+			`unlisted:${consumerPath}:@orchbee/workbench`,
+		]);
+	});
+});
+
 test('runtime value and type consumers stay reachable while orphan test helpers fail', () => {
 	withFixture((root) => {
 		for (const production of [false, true]) {

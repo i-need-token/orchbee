@@ -67,7 +67,7 @@ used for types.
 
 `pnpm test:dependency-scope` uses the current workspace graph and plugin settings, including
 `includeEntryExports`. Its isolated application consumes private values and types through a
-non-entry implementation, and its Storybook host exercises configuration-based discovery. Negative
+non-entry implementation, including bundled subpaths, and its Storybook host exercises configuration-based discovery. Negative
 witnesses reject unconsumed private entries, test-only entry consumers in strict mode, orphan
 helpers, production modules consumed only by tests or Stories, and borrowed runtime dependencies.
 These fixtures verify graph policy, not the repository's current dependency results.

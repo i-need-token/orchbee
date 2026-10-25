@@ -31,8 +31,8 @@
 		"./document": {
 			"@orchbee/source": "./src/workbench/document/index.ts",
 			"types": "./dist/workbench/document/index.d.ts",
-			"import": "./dist/document/index.js",
-			"require": "./dist/document/index.cjs"
+			"import": "./dist/workbench/document/index.js",
+			"require": "./dist/workbench/document/index.cjs"
 		},
 		"./project-workspace": {
 			"@orchbee/source": "./src/project-workspace/index.ts",
@@ -43,8 +43,8 @@
 		"./semantic-commands": {
 			"@orchbee/source": "./src/workbench/semantic-commands/index.ts",
 			"types": "./dist/workbench/semantic-commands/index.d.ts",
-			"import": "./dist/semantic-commands/index.js",
-			"require": "./dist/semantic-commands/index.cjs"
+			"import": "./dist/workbench/semantic-commands/index.js",
+			"require": "./dist/workbench/semantic-commands/index.cjs"
 		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",
