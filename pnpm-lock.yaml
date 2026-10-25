@@ -614,9 +614,6 @@ importers:
       '@orchbee/design-tokens':
         specifier: workspace:^
         version: link:../design-tokens
-      '@orchbee/foundation':
-        specifier: workspace:^
-        version: link:../foundation
       '@vscode/codicons':
         specifier: 'catalog:'
         version: 0.0.45

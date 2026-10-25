@@ -33,7 +33,7 @@
 			},
 			{
 				"path": "__tests__/changes.unit.test.ts",
-				"sha256": "f2275ba3678beedad553cc84378380649d4eb598349effb19a30a37a0abec67e"
+				"sha256": "c60511ff6c383d7e568e1afa6be29466491e4978f67790f59518bb06fe5777be"
 			},
 			{
 				"path": "__tests__/projection.unit.test.ts",
@@ -45,7 +45,7 @@
 			},
 			{
 				"path": "changes.ts",
-				"sha256": "7806e6259eed3b4066bc0eaa0cf9bd0bfa6a36fd5b056e10b9c3f7cd3cee86cb"
+				"sha256": "b66a4e1a53de313fafa334e64212b666160e43781647b5b18ac1fd0695fae176"
 			},
 			{
 				"path": "events.ts",

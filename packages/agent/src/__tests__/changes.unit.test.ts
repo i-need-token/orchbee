@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AgentRuntime } from '../AgentRuntime';
-import { AgentRuntimeChangeReadResultSchema } from '../changes';
+import { readAgentRuntimeChanges } from '../changes';
 import type { AgentObservationEvent } from '../events';
 import {
 	AgentEventIdSchema,
@@ -49,9 +49,9 @@ describe('Agent runtime changes', () => {
 			observedThroughRevision: 1,
 			runtimeRevision: 2,
 		});
-		expect(AgentRuntimeChangeReadResultSchema.safeParse({ ...first, hasMore: false }).success).toBe(
-			false,
-		);
+		expect(() =>
+			readAgentRuntimeChanges(first.runtimeRevision, first.changes, { afterRevision: 0, limit: 1 }),
+		).toThrow('Agent change page continuation must match the runtime revision');
 
 		expect(runtime.readChanges({ afterRevision: 1, limit: 100 })).toMatchObject({
 			changes: [

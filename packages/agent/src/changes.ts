@@ -11,7 +11,7 @@ import {
 import { AgentSemanticStatusSchema, projectAgentSession } from './projection';
 
 const AGENT_RUNTIME_CHANGE_RETENTION = 512;
-export const MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE = 100;
+const MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE = 100;
 
 const AgentObservationTransitionKindSchema = z.enum(
 	completeAgentObservationTransitionKinds([
@@ -41,7 +41,7 @@ const AgentRuntimeChangeSessionSchema = z.strictObject({
 	status: AgentSemanticStatusSchema,
 });
 
-export const AgentRuntimeChangeSchema = z.strictObject({
+const AgentRuntimeChangeSchema = z.strictObject({
 	revision: z.number().int().positive().safe(),
 	session: AgentRuntimeChangeSessionSchema,
 	transition: AgentObservationTransitionKindSchema,
@@ -58,7 +58,7 @@ const commonReadResultShape = {
 	runtimeRevision: z.number().int().nonnegative().safe(),
 };
 
-export const AgentRuntimeChangeReadResultSchema = z
+const AgentRuntimeChangeReadResultSchema = z
 	.discriminatedUnion('kind', [
 		z.strictObject({
 			...commonReadResultShape,

@@ -1,6 +1,6 @@
 type WorkbenchDirectorySource = 'created' | 'discovered' | 'selected';
 
-export type WorkbenchDirectoryPlacement =
+type WorkbenchDirectoryPlacement =
 	| { readonly kind: 'local' }
 	| { readonly environmentId: string; readonly kind: 'environment' };
 

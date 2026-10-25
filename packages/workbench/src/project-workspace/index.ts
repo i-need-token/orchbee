@@ -13,7 +13,6 @@ export type {
 	TerminalContextCommand,
 	WorkbenchActiveLocation,
 	WorkbenchDirectory,
-	WorkbenchDirectoryPlacement,
 	WorkbenchProject,
 	WorkbenchResourceScope,
 	WorkbenchWorkspace,
