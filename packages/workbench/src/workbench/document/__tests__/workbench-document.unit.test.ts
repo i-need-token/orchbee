@@ -9,7 +9,6 @@ import {
 	WorkbenchSharedDocumentRevisionSchema,
 	WorkbenchSharedDocumentSchema,
 	createDefaultWorkbenchClientView,
-	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchClientView,
 	createWorkbenchSharedDocument,
 	parseWorkbenchClientView,
@@ -18,11 +17,12 @@ import {
 	workbenchSharedDocumentRevision,
 	type WorkbenchClientView,
 	type WorkbenchSharedDocument,
-	type WorkbenchSharedDocumentInput,
 	type WorkbenchSharedPanelNode,
 } from '..';
 
-function inputWithTabs(panelCounts: readonly number[] = [1]): WorkbenchSharedDocumentInput {
+function inputWithTabs(
+	panelCounts: readonly number[] = [1],
+): Parameters<typeof createWorkbenchSharedDocument>[0] {
 	const terminalContextId = 'terminal-context-1';
 	const tabs = panelCounts.map((_, index) => ({
 		customTitle: null,
@@ -130,22 +130,6 @@ function parsedViewJson(view: WorkbenchClientView): WorkbenchClientView {
 }
 
 describe('Workbench shared document and Client View', () => {
-	it('creates a canonical empty terminal context without terminal presentation intent', () => {
-		expect(createEmptyWorkbenchSharedTerminalContext('terminal-context-remote')).toEqual({
-			nextTabSequence: 1,
-			panelWorkspace: {
-				nextPanelSequence: 1,
-				nextPanelSlotSequence: 1,
-				nextSplitSequence: 1,
-				nextTerminalSequence: 1,
-				pendingRemovals: [],
-				tabs: [],
-			},
-			tabCollection: { groups: [], tabs: [] },
-			terminalContextId: 'terminal-context-remote',
-		});
-	});
-
 	it('round-trips only shared product structure and terminal lifecycle intent', () => {
 		const document = createWorkbenchSharedDocument(inputWithTabs([1, 3]));
 		const serialized = JSON.stringify(document);

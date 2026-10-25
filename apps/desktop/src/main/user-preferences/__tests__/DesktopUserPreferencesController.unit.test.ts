@@ -1,8 +1,9 @@
 import {
+	UserPreferencesResponseSchema,
 	DEFAULT_USER_PREFERENCES,
-	UserPreferencesSnapshotSchema,
 	type UserPreferencesRequest,
 } from '@orchbee/workbench-client-protocol';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -12,7 +13,7 @@ import {
 import type { UserPreferencesExchange } from '../NativeUserPreferencesClient';
 
 const source = 'a'.repeat(64);
-const saved = UserPreferencesSnapshotSchema.parse({
+const saved = UserPreferencesResponseSchema.options[0].shape.snapshot.parse({
 	source,
 	values: DEFAULT_USER_PREFERENCES,
 	claimed: [],

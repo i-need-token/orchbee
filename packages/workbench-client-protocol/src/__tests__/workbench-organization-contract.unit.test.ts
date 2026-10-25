@@ -1,9 +1,12 @@
 import { expect, it } from 'vitest';
-import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
-import { WorkbenchNavigationSchema } from '../workbench-semantic-contract';
-import { WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES } from '../workbench-terminal-launch-contract';
-import { WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES } from '../workbench-workspace-close-contract';
-import { WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES } from '../workbench-workspace-group-close-contract';
+import {
+	WorkbenchRequestSchema,
+	WorkbenchResponseSchema,
+} from './conformance/workbench-command-contract';
+import { WorkbenchNavigationSchema } from './conformance/workbench-semantic-contract';
+import { WORKBENCH_MAXIMUM_ENCODED_LAUNCH_COMMAND_BYTES } from './conformance/workbench-terminal-launch-contract';
+import { WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_CLOSE_READ_RESULT_BYTES } from './conformance/workbench-workspace-close-contract';
+import { WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_GROUP_CLOSE_RESULT_BYTES } from './conformance/workbench-workspace-group-close-contract';
 
 const id = (value: number) => value.toString(16).padStart(32, '0');
 const encodedBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;

@@ -6,14 +6,17 @@ import {
 	type WorkbenchRevision,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
-} from '../workbench-semantic-contract';
-import { parseWorkbenchRequest, parseWorkbenchResponse } from '../workbench-command-contract';
+} from './conformance/workbench-semantic-contract';
+import {
+	parseWorkbenchRequest,
+	parseWorkbenchResponse,
+} from './conformance/workbench-command-contract';
 import {
 	WorkbenchTabCloseAttemptGenerationSchema,
 	WorkbenchTabCloseStatusSchema,
 	type WorkbenchTabCloseResume,
 	type WorkbenchTabCloseResumeResult,
-} from '../workbench-tab-close-contract';
+} from './conformance/workbench-tab-close-contract';
 
 describe('Workbench Tab Close contract', () => {
 	it('keeps generation distinct from revision and preserves both u64 boundaries', () => {

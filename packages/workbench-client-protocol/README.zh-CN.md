@@ -6,6 +6,8 @@
 发布的 JavaScript 入口及其声明不依赖 Agent。为该绑定添加已准入的运行时消费者时，
 也必须同步更新依赖分类。
 
+独立 Workbench 绑定位于 `src/__tests__/conformance/`，由现有 schema／语料套件到达。产品 session、projection、preference 和 launch schema 仍位于 `src/`。完整依赖分析包含这些一致性源码并拒绝孤儿 helper；生产分析仅排除该开发目录。
+
 ## Project 与 Workspace 组织
 
 同批升级投影使用全局 Directory、Project 与 Workspace 注册表。Project 只是可选分组：Workspace 的

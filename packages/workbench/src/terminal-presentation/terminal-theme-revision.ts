@@ -11,7 +11,7 @@ const rgbSchema = z.number().int().min(0).max(0xff_ff_ff);
 const TerminalThemeOperationIdSchema = opaqueIdentitySchema.brand<'TerminalThemeOperationId'>();
 export type TerminalThemeOperationId = z.infer<typeof TerminalThemeOperationIdSchema>;
 
-export const TerminalThemeRevisionSchema = z
+const TerminalThemeRevisionSchema = z
 	.string()
 	.regex(/^(?:0|[1-9][0-9]{0,19})$/u)
 	.refine(
@@ -47,7 +47,7 @@ const terminalThemeHostSnapshotSchema = z
 	})
 	.readonly();
 
-export const TerminalThemeSnapshotSchema = z
+const TerminalThemeSnapshotSchema = z
 	.strictObject({
 		application: terminalThemeApplicationSchema,
 		overlays: terminalThemeOverlaySchema,
@@ -75,7 +75,7 @@ const TerminalThemeHostStateSchema = z
 	.readonly();
 export type TerminalThemeHostState = z.infer<typeof TerminalThemeHostStateSchema>;
 
-export const TerminalThemeFailureSchema = z
+const TerminalThemeFailureSchema = z
 	.strictObject({
 		code: z.string().min(1).max(128),
 		outcome: z.enum(['known-unchanged', 'unknown']),
@@ -234,26 +234,6 @@ export function normalizeTerminalThemeHostState(input: unknown): TerminalThemeHo
 
 export function terminalThemeOperationId(value: string): TerminalThemeOperationId {
 	return TerminalThemeOperationIdSchema.parse(value);
-}
-
-export function terminalThemeRevision(value: string): TerminalThemeRevision {
-	return TerminalThemeRevisionSchema.parse(value);
-}
-
-export function createTerminalThemeRevisionState(
-	initialSnapshot: TerminalThemeSnapshot,
-): TerminalThemeRevisionState {
-	const revision = terminalThemeRevision('0');
-	return freezeState({
-		active: null,
-		current: Object.freeze({ operationId: null, revision, snapshot: initialSnapshot }),
-		host: Object.freeze({
-			operationId: null,
-			revision,
-			terminal: initialSnapshot.terminal,
-		}),
-		mode: 'active',
-	});
 }
 
 /** Restore the presentation coordinator from the complete Host recovery state. */
@@ -720,7 +700,7 @@ function compareRevisions(left: TerminalThemeRevision, right: TerminalThemeRevis
 }
 
 function freezeFailure(failure: TerminalThemeFailure): TerminalThemeFailure {
-	return Object.freeze({ ...failure });
+	return TerminalThemeFailureSchema.parse(failure);
 }
 
 function freezeActive(active: ActiveTerminalThemeRevision): ActiveTerminalThemeRevision {

@@ -30,7 +30,7 @@ const WorkbenchClientSessionSequenceSchema = z
 	.regex(/^(?:0|[1-9][0-9]*)$/u)
 	.brand<'WorkbenchClientSessionSequence'>();
 
-export const WorkbenchTerminalMetadataSchema = z.strictObject({
+const WorkbenchTerminalMetadataSchema = z.strictObject({
 	currentDirectory: z.string().nullable(),
 	identity: TerminalIdentitySchema,
 	presentationId: TerminalPresentationIdSchema,

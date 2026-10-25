@@ -62,6 +62,8 @@ A stale, failed, cancelled, hidden, or suspended path never writes a subset of e
 client field set. Host commit may lead the visible presentation while client preparation is pending;
 the prior complete presentation remains visible until the exact latest operation can publish.
 
+The reducer validates retained failure objects against the owned strict failure shape before publishing a new state: a non-empty code of at most 128 characters, a known outcome, and a boolean retry flag. Invalid retained failures throw without mutating the prior state; stale operation results remain no-ops.
+
 ## Results and retry
 
 | Result                      | Meaning                                                                        | Retry rule                                                                                      |

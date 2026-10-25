@@ -1,3 +1,4 @@
+import { WorkbenchClientSessionBootstrapSchema } from '@orchbee/workbench-client-protocol';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
@@ -8,7 +9,7 @@ import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 } from '@orchbee/workbench/terminal-presentation';
-import { WorkbenchTerminalMetadataSchema } from '@orchbee/workbench-client-protocol';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchDocumentStore } from '../../workbench-document';
@@ -377,17 +378,19 @@ describe('DesktopClientSessionCoordinator', () => {
 	it('bootstraps the latest terminal metadata and publishes only current revisions', async () => {
 		const coordinator = coordinatorWith(storeWith({ kind: 'missing' }));
 		await coordinator.start();
-		const first = WorkbenchTerminalMetadataSchema.parse({
-			currentDirectory: 'file://orchbee-host/workspace',
-			identity: {
-				creationId: '11'.repeat(16),
-				hostEpoch: '22'.repeat(16),
-				terminalId: '33'.repeat(16),
-			},
-			presentationId: 'presentation-1',
-			revision: '7',
-			title: 'first title',
-		});
+		const first = WorkbenchClientSessionBootstrapSchema.shape.terminalMetadata
+			.unwrap()
+			.element.parse({
+				currentDirectory: 'file://orchbee-host/workspace',
+				identity: {
+					creationId: '11'.repeat(16),
+					hostEpoch: '22'.repeat(16),
+					terminalId: '33'.repeat(16),
+				},
+				presentationId: 'presentation-1',
+				revision: '7',
+				title: 'first title',
+			});
 
 		expect(coordinator.publishTerminalMetadata(first)).toBe(true);
 		const publications: DesktopClientSessionPublication[] = [];
@@ -397,7 +400,7 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(coordinator.publishTerminalMetadata(first)).toBe(true);
 		expect(
 			coordinator.publishTerminalMetadata(
-				WorkbenchTerminalMetadataSchema.parse({
+				WorkbenchClientSessionBootstrapSchema.shape.terminalMetadata.unwrap().element.parse({
 					...first,
 					currentDirectory: 'file://orchbee-host/workspace/conflict',
 					title: 'conflicting equal revision',
@@ -409,7 +412,7 @@ describe('DesktopClientSessionCoordinator', () => {
 
 		expect(
 			coordinator.publishTerminalMetadata(
-				WorkbenchTerminalMetadataSchema.parse({
+				WorkbenchClientSessionBootstrapSchema.shape.terminalMetadata.unwrap().element.parse({
 					...first,
 					revision: '6',
 					title: 'stale title',
@@ -418,22 +421,26 @@ describe('DesktopClientSessionCoordinator', () => {
 		).toBe(true);
 		expect(publications).toEqual([]);
 
-		const current = WorkbenchTerminalMetadataSchema.parse({
-			...first,
-			revision: '8',
-			title: 'current title',
-		});
+		const current = WorkbenchClientSessionBootstrapSchema.shape.terminalMetadata
+			.unwrap()
+			.element.parse({
+				...first,
+				revision: '8',
+				title: 'current title',
+			});
 		expect(coordinator.publishTerminalMetadata(current)).toBe(true);
 		expect(publications).toMatchObject([
 			{ metadata: current, sequence: '2', type: 'terminal-metadata-published' },
 		]);
 
-		const replacement = WorkbenchTerminalMetadataSchema.parse({
-			...first,
-			identity: { ...first.identity, terminalId: '44'.repeat(16) },
-			revision: '1',
-			title: 'replacement terminal',
-		});
+		const replacement = WorkbenchClientSessionBootstrapSchema.shape.terminalMetadata
+			.unwrap()
+			.element.parse({
+				...first,
+				identity: { ...first.identity, terminalId: '44'.repeat(16) },
+				revision: '1',
+				title: 'replacement terminal',
+			});
 		expect(coordinator.publishTerminalMetadata(replacement)).toBe(true);
 		expect(publications).toMatchObject([
 			{ metadata: current, sequence: '2', type: 'terminal-metadata-published' },

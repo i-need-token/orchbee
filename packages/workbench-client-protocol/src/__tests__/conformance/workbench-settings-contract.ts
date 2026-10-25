@@ -1,10 +1,11 @@
-import { z } from 'zod';
 import {
+	UserPreferencesResponseSchema,
 	MAXIMUM_USER_PREFERENCES_BYTES,
 	UserPreferencesPatchSchema,
-	UserPreferencesSnapshotSchema,
 	UserPreferencesSourceSchema,
-} from './user-preferences-contract';
+} from '../../user-preferences-contract';
+import { z } from 'zod';
+
 import {
 	SiteIdSchema,
 	WorkbenchRequestIdSchema,
@@ -40,10 +41,13 @@ export const NativeSettingsResultSchema = z
 		kind: z.literal('workbench.settings.result'),
 		...correlation,
 		outcome: z.discriminatedUnion('kind', [
-			z.strictObject({ kind: z.literal('opened'), snapshot: UserPreferencesSnapshotSchema }),
+			z.strictObject({
+				kind: z.literal('opened'),
+				snapshot: UserPreferencesResponseSchema.options[0].shape.snapshot,
+			}),
 			z.strictObject({
 				kind: z.literal('saved'),
-				snapshot: UserPreferencesSnapshotSchema,
+				snapshot: UserPreferencesResponseSchema.options[0].shape.snapshot,
 				changed: z.boolean(),
 			}),
 			z.strictObject({ kind: z.literal('outcome-unknown') }),

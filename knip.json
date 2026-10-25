@@ -61,7 +61,7 @@
 		},
 		"packages/workbench-client-protocol": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts", "!src/__tests__/conformance/**!"],
 			"includeEntryExports": true
 		},
 		"packages/terminal": {

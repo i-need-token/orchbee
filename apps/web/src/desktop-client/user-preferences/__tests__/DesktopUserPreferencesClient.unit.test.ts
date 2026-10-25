@@ -1,12 +1,13 @@
 import {
+	UserPreferencesResponseSchema,
+	DEFAULT_USER_PREFERENCES,
+	type UserPreferencesResponse,
+} from '@orchbee/workbench-client-protocol';
+import {
 	DesktopUserPreferencesCommandSchema,
 	DesktopUserPreferencesEventSchema,
 } from '@orchbee/desktop-client-protocol';
-import {
-	DEFAULT_USER_PREFERENCES,
-	UserPreferencesSnapshotSchema,
-	type UserPreferencesResponse,
-} from '@orchbee/workbench-client-protocol';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopUserPreferencesClient } from '../DesktopUserPreferencesClient';
@@ -19,7 +20,7 @@ const cleanup: (() => void)[] = [];
 afterEach(() => {
 	for (const dispose of cleanup.splice(0)) dispose();
 });
-const initial = UserPreferencesSnapshotSchema.parse({
+const initial = UserPreferencesResponseSchema.options[0].shape.snapshot.parse({
 	source: 'a'.repeat(64),
 	values: DEFAULT_USER_PREFERENCES,
 	claimed: [],
@@ -147,7 +148,7 @@ describe('Desktop common preference consumer', () => {
 		test.reply(2, {
 			kind: 'snapshot',
 			changed: true,
-			snapshot: UserPreferencesSnapshotSchema.parse({
+			snapshot: UserPreferencesResponseSchema.options[0].shape.snapshot.parse({
 				...initial,
 				source: 'b'.repeat(64),
 				claimed: ['applicationTheme'],
@@ -180,7 +181,7 @@ describe('Desktop common preference consumer', () => {
 		test.reply(2, {
 			kind: 'snapshot',
 			changed: true,
-			snapshot: UserPreferencesSnapshotSchema.parse({
+			snapshot: UserPreferencesResponseSchema.options[0].shape.snapshot.parse({
 				...initial,
 				source: 'b'.repeat(64),
 				claimed: ['applicationTheme'],
@@ -348,7 +349,7 @@ describe('Desktop common preference consumer', () => {
 		test.reply(2, { kind: 'refused', reason: 'write-failed' });
 		await vi.waitFor(() => expect(test.client.getSnapshot().failure).toBe('write-failed'));
 		expect(documentElement.dataset).toEqual({ theme: 'light' });
-		const snapshot = UserPreferencesSnapshotSchema.parse({
+		const snapshot = UserPreferencesResponseSchema.options[0].shape.snapshot.parse({
 			...initial,
 			source: 'b'.repeat(64),
 			values: {

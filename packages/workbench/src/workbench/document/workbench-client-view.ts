@@ -63,13 +63,11 @@ const workbenchClientViewBaseSchema = z.strictObject({
 	version: z.literal(1),
 });
 
-export const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefine(
-	(view, context) => {
-		for (const issue of validateClientView(view)) {
-			context.addIssue({ code: 'custom', message: issue });
-		}
-	},
-);
+const WorkbenchClientViewSchema = workbenchClientViewBaseSchema.superRefine((view, context) => {
+	for (const issue of validateClientView(view)) {
+		context.addIssue({ code: 'custom', message: issue });
+	}
+});
 
 export type WorkbenchClientView = z.infer<typeof WorkbenchClientViewSchema>;
 type WorkbenchClientViewInput = Omit<WorkbenchClientView, 'version'>;

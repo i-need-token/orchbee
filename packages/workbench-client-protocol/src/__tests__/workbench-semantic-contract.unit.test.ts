@@ -22,7 +22,7 @@ import {
 	applyWorkbenchDelta,
 	parseWorkbenchDelta,
 	parseWorkbenchSnapshot,
-} from '../workbench-semantic-contract';
+} from './conformance/workbench-semantic-contract';
 
 const schemaUrl = new URL(
 	'../../../../schemas/workbench/v1/workbench.schema.json',

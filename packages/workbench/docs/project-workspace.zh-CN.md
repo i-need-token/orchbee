@@ -75,9 +75,9 @@ Workspace 资源 scope 内的显式 Directory
 
 ### 语义命令投影与终端创建
 
-`@orchbee/workbench/semantic-commands` 读取已验证共享文档，通过权威运行时修改。Directory 列表接收 `resourceScopeId`；Workspace 列表接受可空 Project 过滤，返回成员关系和资源 scope。精确终端位置只包含 Workspace 身份。读取快照保留规范顺序和输入修订，不查询 Client View，分页由应用负责。
+`@orchbee/workbench/semantic-commands` 提供当前终端创建操作及其位置契约。精确终端位置只包含 Workspace 身份；已退役的 TypeScript CLI 列表投影不属于此包。
 
-`executeWorkbenchTerminalCreate` 只改变精确上下文，保留当前 Workspace 及既有 Tab 选择。空上下文的唯一首 Tab 是有效性回退。结果含精确 context/Tab/Panel/presentation 和 preview/provision 身份。应用分配修订，在进程协调前持久提交，并拥有分页、效果及导航。缺失身份或无效启动目标拒绝且不修改状态。
+`executeWorkbenchTerminalCreate` 只改变精确上下文，保留当前 Workspace 及既有 Tab 选择。空上下文的唯一首 Tab 是有效性回退。结果含精确 context/Tab/Panel/presentation 和 preview/provision 身份。应用分配修订，在进程协调前持久提交，并拥有效果及导航。缺失身份或无效启动目标拒绝且不修改状态。
 
 ### 投影的终端元数据和选项卡标题
 

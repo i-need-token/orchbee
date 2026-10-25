@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	WorkbenchClientViewSchema,
 	createDefaultWorkbenchClientView,
 	createWorkbenchClientView,
 	createWorkbenchSharedDocument,
@@ -89,8 +88,6 @@ describe('Workbench Client View', () => {
 		expect(reconcileWorkbenchClientView(document, stale)).toEqual(
 			createDefaultWorkbenchClientView(document),
 		);
-		expect(
-			WorkbenchClientViewSchema.safeParse({ ...stale, attachmentId: 'forbidden' }).success,
-		).toBe(false);
+		expect(() => parseWorkbenchClientView({ ...stale, attachmentId: 'forbidden' })).toThrow(/attachmentId/u);
 	});
 });

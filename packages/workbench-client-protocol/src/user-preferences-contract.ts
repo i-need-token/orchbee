@@ -28,7 +28,7 @@ const completionReminderMode = z.enum(['never', 'unfocused', 'always']);
 const completionReminderMinimumSeconds = z.number().int().min(1).max(3600);
 const scrollbackBytes = z.number().int().min(0).max(1_000_000_000);
 
-export const UserPreferencesValuesSchema = z.strictObject({
+const UserPreferencesValuesSchema = z.strictObject({
 	locale,
 	applicationTheme,
 	terminalDisplayTheme,
@@ -86,7 +86,7 @@ export const UserPreferencesPatchSchema = z.strictObject({
 });
 
 export const UserPreferencesSourceSchema = z.string().regex(/^(?:missing|[\da-f]{64})$/u);
-export const UserPreferencesSnapshotSchema = z.strictObject({
+const UserPreferencesSnapshotSchema = z.strictObject({
 	source: UserPreferencesSourceSchema,
 	values: UserPreferencesValuesSchema,
 	claimed: z

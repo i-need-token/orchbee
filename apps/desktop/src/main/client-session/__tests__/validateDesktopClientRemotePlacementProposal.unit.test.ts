@@ -1,5 +1,4 @@
 import {
-	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
@@ -92,7 +91,19 @@ function remoteDocument(): WorkbenchSharedDocument {
 		},
 		terminalContexts: [
 			...empty.terminalContexts,
-			createEmptyWorkbenchSharedTerminalContext('terminal-context-2'),
+			{
+				nextTabSequence: 1,
+				panelWorkspace: {
+					nextPanelSequence: 1,
+					nextPanelSlotSequence: 1,
+					nextSplitSequence: 1,
+					nextTerminalSequence: 1,
+					pendingRemovals: [],
+					tabs: [],
+				},
+				tabCollection: { groups: [], tabs: [] },
+				terminalContextId: 'terminal-context-2',
+			} satisfies WorkbenchSharedDocument['terminalContexts'][number],
 		],
 	};
 }
@@ -186,7 +197,19 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 			).toBe(false);
 		}
 
-		const duplicateContext = createEmptyWorkbenchSharedTerminalContext('terminal-context-3');
+		const duplicateContext = {
+			nextTabSequence: 1,
+			panelWorkspace: {
+				nextPanelSequence: 1,
+				nextPanelSlotSequence: 1,
+				nextSplitSequence: 1,
+				nextTerminalSequence: 1,
+				pendingRemovals: [],
+				tabs: [],
+			},
+			tabCollection: { groups: [], tabs: [] },
+			terminalContextId: 'terminal-context-3',
+		} satisfies WorkbenchSharedDocument['terminalContexts'][number];
 		const duplicated = createWorkbenchSharedDocument({
 			projectWorkspace: {
 				...canonical.projectWorkspace,

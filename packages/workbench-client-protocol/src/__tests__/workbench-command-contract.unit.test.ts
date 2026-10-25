@@ -7,7 +7,7 @@ import type {
 	WorkbenchCommand,
 	WorkbenchCommandResult,
 	WorkbenchTabMoveDirection,
-} from '../workbench-command-contract';
+} from './conformance/workbench-command-contract';
 import {
 	SiteIdSchema,
 	WorkbenchDirectoryIdSchema,
@@ -18,14 +18,14 @@ import {
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	WorkerIdSchema,
-} from '../workbench-semantic-contract';
+} from './conformance/workbench-semantic-contract';
 import {
 	WorkbenchRequestSchema,
 	WorkbenchResponseSchema,
 	WorkbenchTerminalGeometrySchema,
 	parseWorkbenchRequest,
 	parseWorkbenchResponse,
-} from '../workbench-command-contract';
+} from './conformance/workbench-command-contract';
 
 const caseSchema = z.object({
 	name: z.string(),

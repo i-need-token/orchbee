@@ -6,6 +6,8 @@ Private package entries export only symbols consumed in this repository, enforce
 The published JavaScript entry and its declarations do not depend on Agent. Adding an admitted
 runtime consumer of that binding must also update the dependency classification.
 
+The independent Workbench bindings live under `src/__tests__/conformance/` and are reached by the existing schema/corpus suites. Product session, projection, preference and launch schemas remain in `src/`. Full dependency analysis includes the conformance sources and rejects orphan helpers; production analysis excludes only that development directory.
+
 ## Project and Workspace organization
 
 The matched-cohort projection uses global Directory, Project and Workspace registries. Project is

@@ -14,7 +14,6 @@ export type {
 	WorkbenchActiveLocation,
 	WorkbenchDirectory,
 	WorkbenchDirectoryPlacement,
-	WorkbenchFolderDirectory,
 	WorkbenchProject,
 	WorkbenchResourceScope,
 	WorkbenchWorkspace,

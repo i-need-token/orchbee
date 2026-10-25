@@ -42,7 +42,6 @@ export type {
 	WorkbenchShortcutBindings,
 	WorkbenchShortcutId,
 	WorkbenchTabPosition,
-	WorkbenchSearchProvider,
 	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalActionCatalog,
 	WorkbenchTerminalActionShortcutLabels,

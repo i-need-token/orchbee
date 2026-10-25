@@ -9,7 +9,6 @@ import {
 	UserPreferencesPatchSchema,
 	UserPreferencesRequestSchema,
 	UserPreferencesResponseSchema,
-	UserPreferencesValuesSchema,
 } from '../user-preferences-contract';
 
 const caseSchema = z.strictObject({
@@ -56,7 +55,7 @@ describe('shared device preference contract', () => {
 		const schemas = {
 			request: UserPreferencesRequestSchema,
 			response: UserPreferencesResponseSchema,
-			values: UserPreferencesValuesSchema,
+			values: UserPreferencesResponseSchema.options[0].shape.snapshot.shape.values,
 		};
 		for (const fixture of corpus.valid) {
 			expect({
@@ -79,9 +78,11 @@ describe('shared device preference contract', () => {
 		}
 	});
 	it('keeps the editable inventory complete and null resets distinct from omitted fields', () => {
-		expect(Object.keys(UserPreferencesValuesSchema.shape).sort()).toEqual(
-			[...USER_PREFERENCE_KEYS].sort(),
-		);
+		expect(
+			Object.keys(
+				UserPreferencesResponseSchema.options[0].shape.snapshot.shape.values.shape,
+			).sort(),
+		).toEqual([...USER_PREFERENCE_KEYS].sort());
 		expect(Object.keys(UserPreferencesPatchSchema.shape).sort()).toEqual(
 			[...USER_PREFERENCE_KEYS].sort(),
 		);

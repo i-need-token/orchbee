@@ -68,5 +68,3 @@ export type {
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
 } from './types/workbench-terminal-surface';
-
-export type { WorkbenchSearchProvider } from './types/workbench-search-provider';

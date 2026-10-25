@@ -1,6 +1,6 @@
+import type { WorkbenchDirectory } from '../../../project-workspace';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WorkbenchFolderDirectory } from '../../../project-workspace';
 import { workbenchSharedDocumentRevision } from '../../document';
 import {
 	terminalPresentationId,
@@ -19,7 +19,7 @@ function createTestTerminalPresentationComposition(scope: string) {
 	);
 }
 
-const DIRECTORY: WorkbenchFolderDirectory = {
+const DIRECTORY: Extract<WorkbenchDirectory, { kind: 'folder' }> = {
 	available: true,
 	git: null,
 	id: 'directory-1',
@@ -30,7 +30,7 @@ const DIRECTORY: WorkbenchFolderDirectory = {
 	source: 'selected',
 };
 
-const FEATURE_DIRECTORY: WorkbenchFolderDirectory = {
+const FEATURE_DIRECTORY: Extract<WorkbenchDirectory, { kind: 'folder' }> = {
 	...DIRECTORY,
 	id: 'directory-2',
 	name: 'feature',
@@ -39,7 +39,7 @@ const FEATURE_DIRECTORY: WorkbenchFolderDirectory = {
 
 const REMOTE_ENVIRONMENT_ID = 'environment:00000000000000000000000000000001';
 
-const REMOTE_DIRECTORY: WorkbenchFolderDirectory = {
+const REMOTE_DIRECTORY: Extract<WorkbenchDirectory, { kind: 'folder' }> = {
 	...DIRECTORY,
 	available: false,
 	id: 'environment-directory:00000000000000000000000000000001',
@@ -50,7 +50,7 @@ const REMOTE_DIRECTORY: WorkbenchFolderDirectory = {
 	},
 };
 
-const REPOSITORY_DIRECTORY: WorkbenchFolderDirectory = {
+const REPOSITORY_DIRECTORY: Extract<WorkbenchDirectory, { kind: 'folder' }> = {
 	...DIRECTORY,
 	git: {
 		branch: 'main',

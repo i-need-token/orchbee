@@ -27,12 +27,12 @@ interface WorkbenchDirectoryBase {
 	readonly source: WorkbenchDirectorySource;
 }
 
-export interface WorkbenchFolderDirectory extends WorkbenchDirectoryBase {
+interface WorkbenchFolderDirectory extends WorkbenchDirectoryBase {
 	readonly git: WorkbenchRepositoryDirectoryGitMetadata | null;
 	readonly kind: 'folder';
 }
 
-export interface WorkbenchWorktreeDirectory extends WorkbenchDirectoryBase {
+interface WorkbenchWorktreeDirectory extends WorkbenchDirectoryBase {
 	readonly git: WorkbenchWorktreeDirectoryGitMetadata;
 	readonly kind: 'worktree';
 }

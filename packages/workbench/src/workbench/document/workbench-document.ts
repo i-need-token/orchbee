@@ -243,25 +243,7 @@ const terminalContextSchema = z.strictObject({
 	terminalContextId: identifierSchema,
 });
 
-export type WorkbenchSharedTerminalContext = z.infer<typeof terminalContextSchema>;
-
-export function createEmptyWorkbenchSharedTerminalContext(
-	terminalContextId: string,
-): WorkbenchSharedTerminalContext {
-	return terminalContextSchema.parse({
-		nextTabSequence: 1,
-		panelWorkspace: {
-			nextPanelSequence: 1,
-			nextPanelSlotSequence: 1,
-			nextSplitSequence: 1,
-			nextTerminalSequence: 1,
-			pendingRemovals: [],
-			tabs: [],
-		},
-		tabCollection: { groups: [], tabs: [] },
-		terminalContextId,
-	});
-}
+type WorkbenchSharedTerminalContext = z.infer<typeof terminalContextSchema>;
 
 export const WorkbenchSharedDocumentRevisionSchema = z
 	.string()
@@ -285,7 +267,7 @@ export const WorkbenchSharedDocumentSchema = workbenchSharedDocumentBaseSchema.s
 );
 
 export type WorkbenchSharedDocument = z.infer<typeof WorkbenchSharedDocumentSchema>;
-export type WorkbenchSharedDocumentInput = Omit<WorkbenchSharedDocument, 'version'>;
+type WorkbenchSharedDocumentInput = Omit<WorkbenchSharedDocument, 'version'>;
 
 export function createWorkbenchSharedDocument(
 	input: WorkbenchSharedDocumentInput,

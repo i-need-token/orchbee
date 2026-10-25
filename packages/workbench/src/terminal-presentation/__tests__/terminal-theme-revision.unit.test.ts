@@ -1,19 +1,14 @@
-import { describe, expect, it } from 'vitest';
-
 import {
-	createTerminalThemeRevisionState,
+	normalizeTerminalThemeHostState,
 	createTerminalThemeRevisionStateFromHost,
 	normalizeTerminalThemeSnapshot,
 	terminalThemeOperationId,
-	terminalThemeRevision,
-	TerminalThemeFailureSchema,
-	TerminalThemeRevisionSchema,
-	TerminalThemeSnapshotSchema,
 	transitionTerminalThemeRevision,
 	type TerminalThemeHostState,
 	type TerminalThemeRevisionState,
 	type TerminalThemeSnapshot,
 } from '../terminal-theme-revision';
+import { describe, expect, it } from 'vitest';
 
 const palette = Array.from({ length: 256 }, (_value, index) => index * 0x01_01_01);
 
@@ -45,11 +40,11 @@ function hostState(
 	revision: string,
 	snapshot: TerminalThemeSnapshot,
 ): TerminalThemeHostState {
-	return {
+	return normalizeTerminalThemeHostState({
 		operationId: operation === null ? null : terminalThemeOperationId(operation),
-		revision: terminalThemeRevision(revision),
+		revision,
 		terminal: snapshot.terminal,
-	};
+	});
 }
 
 function request(
@@ -82,28 +77,51 @@ describe('terminal theme revision contract', () => {
 		inputPalette[0] = 0xff_ff_ff;
 		expect(snapshot.terminal.palette[0]).toBe(0);
 
-		expect(
-			TerminalThemeSnapshotSchema.safeParse({
+		expect(() =>
+			normalizeTerminalThemeSnapshot({
 				...snapshot,
 				terminal: { ...snapshot.terminal, palette: snapshot.terminal.palette.slice(1) },
-			}).success,
-		).toBe(false);
-		expect(
-			TerminalThemeSnapshotSchema.safeParse({
+			}),
+		).toThrow(/palette/u);
+		expect(() =>
+			normalizeTerminalThemeSnapshot({
 				...snapshot,
 				overlays: { ...snapshot.overlays, cursorAccentRgb: 0x01_00_00_00 },
-			}).success,
-		).toBe(false);
-		expect(TerminalThemeSnapshotSchema.safeParse({ ...snapshot, extra: true }).success).toBe(false);
-		expect(TerminalThemeRevisionSchema.safeParse('01').success).toBe(false);
-		expect(TerminalThemeRevisionSchema.safeParse('18446744073709551616').success).toBe(false);
-		expect(
-			TerminalThemeFailureSchema.safeParse({
-				code: '',
-				outcome: 'known-unchanged',
-				retryable: true,
-			}).success,
-		).toBe(false);
+			}),
+		).toThrow(/cursorAccentRgb/u);
+		expect(() => normalizeTerminalThemeSnapshot({ ...snapshot, extra: true })).toThrow(/extra/u);
+		expect(() =>
+			normalizeTerminalThemeHostState({
+				operationId: 'theme:invalid',
+				revision: '01',
+				terminal: snapshot.terminal,
+			}),
+		).toThrow(/revision/u);
+		expect(() =>
+			normalizeTerminalThemeHostState({
+				operationId: 'theme:invalid',
+				revision: '18446744073709551616',
+				terminal: snapshot.terminal,
+			}),
+		).toThrow(/revision/u);
+		expect(() =>
+			transitionTerminalThemeRevision(
+				request(
+					createTerminalThemeRevisionStateFromHost(snapshot, hostState(null, '0', snapshot)),
+					'theme:invalid',
+					theme({ application: { colorScheme: 'dark' } }),
+				).state,
+				{
+					type: 'host-failed',
+					operationId: terminalThemeOperationId('theme:invalid'),
+					failure: {
+						code: '',
+						outcome: 'known-unchanged',
+						retryable: true,
+					},
+				},
+			),
+		).toThrow(/code/u);
 	});
 
 	it('restores the visible coordinator revision from the complete Host bootstrap state', () => {
@@ -117,7 +135,7 @@ describe('terminal theme revision contract', () => {
 		expect(state.host).toEqual(host);
 		expect(state.current).toEqual({
 			operationId: terminalThemeOperationId('theme:restored:4'),
-			revision: terminalThemeRevision('4'),
+			revision: host.revision,
 			snapshot: { ...initial, terminal: hostTheme.terminal },
 		});
 		expect(state.active).toBeNull();
@@ -134,7 +152,8 @@ describe('terminal theme revision contract', () => {
 				defaultForegroundRgb: 0xd4_d4_d4,
 			},
 		});
-		let state = createTerminalThemeRevisionState(initial);
+		let state = createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial));
+		const presentedBeforeRequest = state.current.snapshot;
 		const started = request(state, 'theme:dark:1', dark);
 		state = started.state;
 
@@ -159,7 +178,7 @@ describe('terminal theme revision contract', () => {
 		});
 		state = clientPrepared.state;
 		expect(clientPrepared.commands).toEqual([]);
-		expect(state.current.snapshot).toBe(initial);
+		expect(state.current.snapshot).toBe(presentedBeforeRequest);
 
 		const hostCommitted = transitionTerminalThemeRevision(state, {
 			operationId: terminalThemeOperationId('theme:dark:1'),
@@ -175,11 +194,11 @@ describe('terminal theme revision contract', () => {
 				type: 'publish-theme',
 			},
 		]);
-		expect(state.current.snapshot).toBe(initial);
+		expect(state.current.snapshot).toBe(presentedBeforeRequest);
 
 		const completed = transitionTerminalThemeRevision(state, {
 			operationId: terminalThemeOperationId('theme:dark:1'),
-			revision: terminalThemeRevision('1'),
+			revision: hostState('theme:dark:1', '1', dark).revision,
 			type: 'presentation-committed',
 		});
 
@@ -198,7 +217,11 @@ describe('terminal theme revision contract', () => {
 		const latest = theme({
 			terminal: { ...initial.terminal, defaultBackgroundRgb: 0x12_34_56 },
 		});
-		let state = request(createTerminalThemeRevisionState(initial), 'theme:first', first).state;
+		let state = request(
+			createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial)),
+			'theme:first',
+			first,
+		).state;
 		state = request(state, 'theme:latest', latest).state;
 
 		state = transitionTerminalThemeRevision(state, {
@@ -241,7 +264,11 @@ describe('terminal theme revision contract', () => {
 	it('supersedes an unpresented Host commit when the latest intent returns to the visible theme', () => {
 		const initial = theme();
 		const dark = theme({ application: { colorScheme: 'dark' } });
-		let state = request(createTerminalThemeRevisionState(initial), 'theme:dark', dark).state;
+		let state = request(
+			createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial)),
+			'theme:dark',
+			dark,
+		).state;
 		state = transitionTerminalThemeRevision(state, {
 			operationId: terminalThemeOperationId('theme:dark'),
 			state: hostState('theme:dark', '1', dark),
@@ -270,7 +297,11 @@ describe('terminal theme revision contract', () => {
 	it('reconciles an unknown Host outcome and retries only known unchanged failures', () => {
 		const initial = theme();
 		const next = theme({ application: { colorScheme: 'dark' } });
-		let state = request(createTerminalThemeRevisionState(initial), 'theme:unknown', next).state;
+		let state = request(
+			createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial)),
+			'theme:unknown',
+			next,
+		).state;
 
 		state = transitionTerminalThemeRevision(state, {
 			operationId: terminalThemeOperationId('theme:unknown'),
@@ -313,7 +344,11 @@ describe('terminal theme revision contract', () => {
 	it('retries a known unchanged Host failure without discarding prepared client state', () => {
 		const initial = theme();
 		const next = theme({ application: { colorScheme: 'dark' } });
-		let state = request(createTerminalThemeRevisionState(initial), 'theme:host-retry', next).state;
+		let state = request(
+			createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial)),
+			'theme:host-retry',
+			next,
+		).state;
 		state = transitionTerminalThemeRevision(state, {
 			operationId: terminalThemeOperationId('theme:host-retry'),
 			type: 'client-prepared',
@@ -356,7 +391,7 @@ describe('terminal theme revision contract', () => {
 	it('does not publish while hidden or suspended and resumes only the latest complete operation', () => {
 		const initial = theme();
 		const next = theme({ application: { colorScheme: 'dark' } });
-		let state = createTerminalThemeRevisionState(initial);
+		let state = createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial));
 		state = transitionTerminalThemeRevision(state, { mode: 'hidden', type: 'mode-changed' }).state;
 		state = request(state, 'theme:hidden', next).state;
 		state = transitionTerminalThemeRevision(state, {
@@ -392,7 +427,11 @@ describe('terminal theme revision contract', () => {
 	it('rejects conflicting identities and non-retryable failures without partial publication', () => {
 		const initial = theme();
 		const next = theme({ application: { colorScheme: 'dark' } });
-		let state = request(createTerminalThemeRevisionState(initial), 'theme:fixed', next).state;
+		let state = request(
+			createTerminalThemeRevisionStateFromHost(initial, hostState(null, '0', initial)),
+			'theme:fixed',
+			next,
+		).state;
 		const conflict = request(
 			state,
 			'theme:fixed',

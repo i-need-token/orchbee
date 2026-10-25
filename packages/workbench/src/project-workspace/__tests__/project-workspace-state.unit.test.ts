@@ -6,12 +6,10 @@ import {
 	transitionProjectWorkspace,
 	type ProjectWorkspaceState,
 	type WorkbenchDirectory,
-	type WorkbenchFolderDirectory,
-	type WorkbenchWorktreeDirectory,
 } from '../project-workspace-state';
 
-function directory(id: string, kind: 'worktree'): WorkbenchWorktreeDirectory;
-function directory(id: string, kind?: 'folder'): WorkbenchFolderDirectory;
+function directory(id: string, kind: 'worktree'): Extract<WorkbenchDirectory, { kind: 'worktree' }>;
+function directory(id: string, kind?: 'folder'): Extract<WorkbenchDirectory, { kind: 'folder' }>;
 function directory(id: string, kind: WorkbenchDirectory['kind'] = 'folder'): WorkbenchDirectory {
 	const base = {
 		available: true,
@@ -36,7 +34,7 @@ function directory(id: string, kind: WorkbenchDirectory['kind'] = 'folder'): Wor
 		: { ...base, git: null, kind };
 }
 
-function repositoryDirectory(id: string): WorkbenchFolderDirectory {
+function repositoryDirectory(id: string): Extract<WorkbenchDirectory, { kind: 'folder' }> {
 	return {
 		available: true,
 		git: {
@@ -58,7 +56,7 @@ function remoteDirectory(
 	id: string,
 	environmentId = 'environment:00000000000000000000000000000001',
 	path = '/srv/orchbee',
-): WorkbenchFolderDirectory {
+): Extract<WorkbenchDirectory, { kind: 'folder' }> {
 	return {
 		available: false,
 		git: null,

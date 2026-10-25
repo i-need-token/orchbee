@@ -25,7 +25,6 @@ export {
 	WorkbenchClientSessionCommandSchema,
 	WorkbenchClientSessionEventSchema,
 	WorkbenchClientSessionRequestIdSchema,
-	WorkbenchTerminalMetadataSchema,
 } from './workbench-client-session-contract';
 export type {
 	WorkbenchClientSessionBootstrap,
@@ -50,7 +49,6 @@ export {
 	USER_PREFERENCE_KEYS,
 	UserPreferencesPatchSchema,
 	UserPreferencesSourceSchema,
-	UserPreferencesSnapshotSchema,
 	UserPreferencesRequestSchema,
 	UserPreferencesResponseSchema,
 } from './user-preferences-contract';

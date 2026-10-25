@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
 import { AgentEventIdSchema, AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
@@ -12,7 +13,6 @@ import {
 import type {
 	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchProjectWorktreeCapability,
-	WorkbenchSearchProvider,
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalSurfaceProps,
@@ -32,7 +32,9 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const unavailableSearchProvider: WorkbenchSearchProvider = {
+const unavailableSearchProvider: NonNullable<
+	ComponentProps<typeof Workbench>['searchProviders']
+>[number] = {
 	filters: ['all', 'agents'],
 	getDefaultSections: () => Promise.reject(new Error('Story provider unavailable')),
 	id: 'remote-agents',

@@ -1,15 +1,13 @@
-import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
-
 import {
+	type WorkbenchDirectory,
 	createProjectWorkspaceState,
 	transitionProjectWorkspace,
 	type ProjectWorkspaceState,
-	type WorkbenchFolderDirectory,
-	type WorkbenchWorktreeDirectory,
 } from '../project-workspace-state';
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 
-function directory(path: string): WorkbenchFolderDirectory {
+function directory(path: string): Extract<WorkbenchDirectory, { kind: 'folder' }> {
 	return {
 		id: 'shared-id',
 		name: path,
@@ -34,7 +32,7 @@ function create(state: ProjectWorkspaceState, path: string): ProjectWorkspaceSta
 	}).state;
 }
 
-const worktree: WorkbenchWorktreeDirectory = {
+const worktree: Extract<WorkbenchDirectory, { kind: 'worktree' }> = {
 	...directory('/worktrees/feature'),
 	id: 'worktree',
 	kind: 'worktree',

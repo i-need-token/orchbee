@@ -1,5 +1,4 @@
 import {
-	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
@@ -462,7 +461,23 @@ function document(
 				},
 				terminalContextId: 'terminal-context-1',
 			},
-			...(remote ? [createEmptyWorkbenchSharedTerminalContext('terminal-context-2')] : []),
+			...(remote
+				? [
+						{
+							nextTabSequence: 1,
+							panelWorkspace: {
+								nextPanelSequence: 1,
+								nextPanelSlotSequence: 1,
+								nextSplitSequence: 1,
+								nextTerminalSequence: 1,
+								pendingRemovals: [],
+								tabs: [],
+							},
+							tabCollection: { groups: [], tabs: [] },
+							terminalContextId: 'terminal-context-2',
+						} satisfies WorkbenchSharedDocument['terminalContexts'][number],
+					]
+				: []),
 		],
 	});
 }

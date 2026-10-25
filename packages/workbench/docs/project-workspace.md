@@ -75,9 +75,9 @@ Invalid explicit Directories reject. Unavailable local defaults are skipped. Rem
 
 ### Semantic command projections and terminal creation
 
-`@orchbee/workbench/semantic-commands` reads a validated shared document and mutates through the authoritative runtime. Directory listing accepts `resourceScopeId`; Workspace listing accepts a nullable Project filter and returns both membership and resource scope. Exact terminal locations contain only Workspace identity. Read snapshots preserve canonical order and input revision, never consult Client View, and leave pagination to the application.
+`@orchbee/workbench/semantic-commands` exposes the current terminal creation operation and its location contract. Exact terminal locations contain only Workspace identity; the retired TypeScript CLI list projections are not part of this package.
 
-`executeWorkbenchTerminalCreate` changes one exact context, preserving current Workspace and existing Tab selections. The sole first Tab is the empty-context validity fallback. Results contain exact context/Tab/Panel/presentation and preview/provision identities. Application owners assign the revision, durably commit before process reconciliation and handle pagination, effects and navigation. Missing identities or invalid launch targets reject without mutation.
+`executeWorkbenchTerminalCreate` changes one exact context, preserving current Workspace and existing Tab selections. The sole first Tab is the empty-context validity fallback. Results contain exact context/Tab/Panel/presentation and preview/provision identities. Application owners assign the revision, durably commit before process reconciliation and handle effects and navigation. Missing identities or invalid launch targets reject without mutation.
 
 ### Projected terminal metadata and Tab titles
 
