@@ -72,14 +72,7 @@
 										]
 									},
 									"workspaceId": {
-										"anyOf": [
-											{
-												"$ref": "#/$defs/id"
-											},
-											{
-												"type": "null"
-											}
-										]
+										"$ref": "#/$defs/id"
 									},
 									"label": {
 										"type": "string"
@@ -657,14 +650,7 @@
 										]
 									},
 									"workspaceId": {
-										"anyOf": [
-											{
-												"$ref": "#/$defs/id"
-											},
-											{
-												"type": "null"
-											}
-										]
+										"$ref": "#/$defs/id"
 									},
 									"label": {
 										"type": "string"

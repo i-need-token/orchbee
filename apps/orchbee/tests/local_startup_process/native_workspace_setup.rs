@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -14,13 +14,15 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
         "1",
         ReadyMode::Controlling,
     );
-    client.send(shell_identity_command(&fixture, "standalone", "setup-before", true).as_bytes());
-    let standalone = wait_file(
+    client.send(
+        shell_identity_command(&fixture, "initial_workspace", "setup-before", true).as_bytes(),
+    );
+    let initial_workspace = wait_file(
         &fixture.base.join("setup-before"),
         &mut [&mut client],
         Instant::now() + OBSERVATION_TIMEOUT,
     );
-    let standalone_pid = require_shell_identity(&standalone, "standalone");
+    let initial_workspace_pid = require_shell_identity(&initial_workspace, "initial_workspace");
     let mut observer = SnapshotObserver::connect(&fixture)?;
     let initial = observer.snapshot()?;
     assert!(
@@ -37,9 +39,9 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     assert_eq!(created.navigation.projects.len(), 1);
     let project = &created.navigation.projects[0];
     assert_eq!(project.label, "Setup process");
-    assert_eq!(created.navigation.workspaces.len(), 1);
-    assert!(created.navigation.directories.is_empty());
-    let workspace = &created.navigation.workspaces[0];
+    assert_eq!(created.navigation.workspaces.len(), 2);
+    assert_eq!(created.navigation.directories.len(), 1);
+    let workspace = &created.navigation.workspaces[1];
     assert_eq!(workspace.project_id.as_ref(), Some(&project.project_id));
     assert_eq!(workspace.label, "Chosen workspace");
     assert!(workspace.primary_directory_id.is_none());
@@ -51,14 +53,14 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
         .ok_or("created Workspace context missing")?;
     assert!(empty_context.tabs.is_empty());
     assert!(empty_context.groups.is_empty());
-    let retained_standalone = created
+    let retained_initial_workspace = created
         .terminal_contexts
         .iter()
         .find(|context| {
-            context.terminal_context_id == initial.navigation.standalone_terminal_context_id
+            context.terminal_context_id == initial.navigation.workspaces[0].terminal_context_id
         })
-        .ok_or("standalone context missing")?;
-    assert_eq!(retained_standalone, &initial.terminal_contexts[0]);
+        .ok_or("initial_workspace context missing")?;
+    assert_eq!(retained_initial_workspace, &initial.terminal_contexts[0]);
 
     // A shell-looking suffix stays literal. The missing parent makes it invalid even if
     // a buggy implementation tries to expand "$HOME" or otherwise choose a fallback.
@@ -92,15 +94,15 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     let configured_project = &configured.navigation.projects[0];
     assert_eq!(configured.navigation.projects.len(), 1);
     assert_eq!(configured_project.project_id, project.project_id);
-    assert_eq!(configured.navigation.workspaces.len(), 1);
-    assert_eq!(configured.navigation.directories.len(), 1);
-    let configured_workspace = &configured.navigation.workspaces[0];
+    assert_eq!(configured.navigation.workspaces.len(), 2);
+    assert_eq!(configured.navigation.directories.len(), 2);
+    let configured_workspace = &configured.navigation.workspaces[1];
     assert_eq!(configured_workspace.workspace_id, workspace.workspace_id);
     assert_eq!(
         configured_workspace.terminal_context_id,
         workspace.terminal_context_id
     );
-    let accepted_directory = &configured.navigation.directories[0];
+    let accepted_directory = &configured.navigation.directories[1];
     assert_eq!(
         configured_workspace.primary_directory_id.as_ref(),
         Some(&accepted_directory.directory_id)
@@ -112,7 +114,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     let mut expected_configured = created.clone();
     expected_configured.revision = configured.revision;
     expected_configured.navigation.directories = configured.navigation.directories.clone();
-    expected_configured.navigation.workspaces[0].primary_directory_id =
+    expected_configured.navigation.workspaces[1].primary_directory_id =
         Some(accepted_directory.directory_id.clone());
     assert_eq!(
         configured, expected_configured,
@@ -143,7 +145,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     );
     assert_ne!(
         require_shell_identity(&workspace_shell, "workspace"),
-        standalone_pid
+        initial_workspace_pid
     );
     client.send(format!("pwd -P > {}/setup-cwd\r", fixture.base.display()).as_bytes());
     assert_eq!(
@@ -181,7 +183,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[WORKSPACE_LOCATION, EMPTY],
         &[],
@@ -194,8 +196,8 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
             &mut [&mut client],
             Instant::now() + OBSERVATION_TIMEOUT,
         ),
-        standalone,
-        "native setup retains the exact standalone PID and shell-local variable",
+        initial_workspace,
+        "native setup retains the exact initial_workspace PID and shell-local variable",
     );
     assert_eq!(observer.snapshot()?, launched);
     client.close_before(Instant::now() + EXIT_TIMEOUT);
@@ -205,7 +207,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
 #[test]
 fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shell() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -215,12 +217,12 @@ fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shel
         ReadyMode::Controlling,
     );
     client.send(shell_identity_command(&fixture, "cancel", "cancel-before", true).as_bytes());
-    let standalone = wait_file(
+    let initial_workspace = wait_file(
         &fixture.base.join("cancel-before"),
         &mut [&mut client],
         Instant::now() + OBSERVATION_TIMEOUT,
     );
-    require_shell_identity(&standalone, "cancel");
+    require_shell_identity(&initial_workspace, "cancel");
     seed_empty_workspace(&fixture, &mut client)?;
     let mut observer = SnapshotObserver::connect(&fixture)?;
     let committed = observer.snapshot()?;
@@ -245,13 +247,13 @@ fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shel
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready · controlling"],
         &[WORKSPACE_LOCATION, EMPTY],
         &[],
         &mut [],
     );
-    assert_shell_survives(&fixture, &mut client, &standalone, "cancel-after");
+    assert_shell_survives(&fixture, &mut client, &initial_workspace, "cancel-after");
     assert_eq!(observer.snapshot()?, committed);
     client.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())

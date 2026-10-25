@@ -1,11 +1,10 @@
-//! Windows preparation owns Client discovery and the one proven root-process cwd read.
+//! Windows preparation resolves Client membership to an explicit Workspace source.
 use crate::cli::source_context as context;
 use crate::{
     cli::{
         Failure, FailureKind,
         caller_context::PanelTarget,
         client_control::{selection, windows as control},
-        query,
         source::{ArmedSignals, SignalWatch},
     },
     invocation::Target,
@@ -15,7 +14,7 @@ use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewOutcome, ClientViewPhase, ClientViewRecord, Snapshot,
     WorkbenchClientId, WorkbenchDirectoryPath, WorkbenchProjectId, WorktreeSource,
 };
-use std::{path::Path, time::Instant};
+use std::time::Instant;
 
 pub(in crate::cli) struct Request<'a> {
     pub project: &'a Option<Target>,
@@ -83,28 +82,15 @@ pub(in crate::cli) fn prepare(
     };
     let workspace = request.workspace.clone().or_else(|| {
         if implicit {
-            origin.as_ref().and_then(|origin| origin.workspace.clone())
+            origin.as_ref().map(|origin| origin.workspace.clone())
         } else {
             None
         }
     });
-    let mut cwd = request.cwd.clone();
-    if implicit
-        && workspace.is_none()
-        && let Some(origin) = &origin
-    {
-        cwd = Some(root_directory(
-            client,
-            snapshot,
-            origin.panel.as_ref(),
-            deadline,
-            signals,
-        )?);
-    }
     let (project, source) = super::resolve(
         request.project,
         &workspace,
-        &cwd,
+        request.cwd,
         snapshot,
         std::env::current_dir,
     )?;
@@ -113,36 +99,6 @@ pub(in crate::cli) fn prepare(
         source,
         client: selected,
     })
-}
-
-fn root_directory(
-    client: &mut LocalClient,
-    snapshot: &Snapshot,
-    panel: Option<&Target>,
-    deadline: Instant,
-    signals: &mut ArmedSignals,
-) -> Result<WorkbenchDirectoryPath, Failure> {
-    check(signals, deadline)?;
-    let panel = panel.ok_or_else(|| Failure::new(FailureKind::NotFound))?;
-    let terminal = query::primary_terminal(snapshot, panel)?;
-    let sample = query::read_terminal_processes_cancellable(
-        client,
-        deadline,
-        snapshot,
-        &terminal,
-        signals.poll_fd(),
-    );
-    check(signals, deadline)?;
-    let (_, sample) = sample?;
-    let path = sample
-        .info
-        .processes
-        .iter()
-        .find(|process| process.pid == sample.info.root_pid)
-        .and_then(|process| process.current_directory.as_deref())
-        .filter(|path| Path::new(path).is_absolute())
-        .ok_or_else(|| Failure::new(FailureKind::ServiceUnavailable))?;
-    WorkbenchDirectoryPath::parse(path).map_err(|_| Failure::new(FailureKind::ProtocolInvalid))
 }
 
 pub(in crate::cli) fn check(signals: &mut ArmedSignals, deadline: Instant) -> Result<(), Failure> {

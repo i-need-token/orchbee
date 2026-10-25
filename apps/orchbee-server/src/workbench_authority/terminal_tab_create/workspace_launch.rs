@@ -183,7 +183,7 @@ impl WorkbenchAuthority {
                 panel_id: ids.panel_id,
                 presentation_id: ids.presentation_id,
                 geometry,
-                target: WorkbenchTabCreateTarget::Workspace { worker_id, path },
+                target: WorkbenchTabCreateTarget { worker_id, path },
             },
             last_identity,
             profile_use,

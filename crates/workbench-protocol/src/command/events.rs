@@ -189,8 +189,16 @@ impl SemanticEvent {
                     navigation: crate::Navigation {
                         directories: Vec::new(),
                         projects: Vec::new(),
-                        workspaces: Vec::new(),
-                        standalone_terminal_context_id: terminal_context_id.clone(),
+                        workspaces: vec![crate::Workspace {
+                            workspace_id: crate::WorkbenchWorkspaceId::parse(
+                                terminal_context_id.as_str(),
+                            )
+                            .map_err(|_| ContractError::InvalidDocument)?,
+                            label: "Layout".into(),
+                            project_id: None,
+                            primary_directory_id: None,
+                            terminal_context_id: terminal_context_id.clone(),
+                        }],
                         workspace_order: Vec::new(),
                         project_order: Vec::new(),
                     },

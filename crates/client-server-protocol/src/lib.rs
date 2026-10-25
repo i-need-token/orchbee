@@ -11,7 +11,6 @@ mod launch_read;
 mod launch_selection;
 mod model;
 mod number;
-mod open;
 mod paste_record;
 mod record_identities;
 mod send;
@@ -81,8 +80,6 @@ pub use viewer::{
 pub use working_directory::{
     MAXIMUM_WORKING_DIRECTORY_BYTES, WorkingDirectory, WorkingDirectoryError,
 };
-
-pub use open::{OpenOutcome, TerminalOpenRequest, TerminalOpenResult};
 
 mod launch_environment;
 pub use launch_environment::{

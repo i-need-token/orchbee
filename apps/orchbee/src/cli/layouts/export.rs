@@ -189,11 +189,12 @@ fn observe(
         .navigation
         .workspaces
         .iter()
-        .find(|workspace| workspace.terminal_context_id == context.terminal_context_id);
+        .find(|workspace| workspace.terminal_context_id == context.terminal_context_id)
+        .ok_or_else(|| failure(FailureKind::ProtocolInvalid, "workspace-unavailable"))?;
     let document = json!({"schema":"orchbee.layout.export","version":1,
         "source":{"kind":"layout-observation","scope":if selected.is_some() {"client"} else {"shared"},"siteId":snapshot.site_id,"revision":snapshot.revision,
             "clientId":selected.as_ref().map(|client| &client.client_id),"viewRevision":selected.as_ref().map(|client| client.view_revision)},
-        "result":{"layout":{"workspaceId":workspace.map(|workspace| &workspace.workspace_id),
+        "result":{"layout":{"workspaceId":&workspace.workspace_id,
             "terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,
             "zoomed":layout.as_ref().map(|layout| layout.zoomed),"focusedPanelId":layout.as_ref().and_then(|layout| layout.focused_panel_id.as_ref()),"root":root}}});
     if !crate::cli::output::encode_document(&document)

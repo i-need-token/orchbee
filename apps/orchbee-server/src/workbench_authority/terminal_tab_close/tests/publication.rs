@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 
 #[test]
 fn close_publication_cleans_only_vacated_source_group_and_preserves_peer_empty_groups() {
@@ -94,7 +95,7 @@ fn finalization_removes_only_current_exact_member_after_create_move_and_rename()
         panic!()
     };
     let _pending = prepared.commit().into_pending();
-    let membership = authority.standalone_membership().unwrap();
+    let membership = authority.fixture_membership().unwrap();
     let move_command = command(
         &authority,
         10002,
@@ -131,7 +132,7 @@ fn finalization_removes_only_current_exact_member_after_create_move_and_rename()
         .unwrap();
     assert_eq!(prepared.before_membership().members().len(), 3);
     assert_eq!(prepared.after_membership().members().len(), 2);
-    let removed = prepared.exact_removed_member().unwrap().clone();
+    let removed = prepared.exact_removed_members().first().unwrap().clone();
     assert_eq!(
         prepared.after_membership().members(),
         prepared
@@ -189,7 +190,7 @@ fn finalization_removes_only_current_exact_member_after_create_move_and_rename()
             ..
         })
     ));
-    authority.retire_standalone_composition();
+    authority.retire_terminal_membership();
     assert!(matches!(
         status(&authority, &grant, &close),
         WorkbenchTabCloseReadOutcome::Available {
@@ -210,7 +211,7 @@ fn publication_rechecks_deadline_and_retirement_preserves_disposal_membership_an
         let before = authority.projection.snapshot().clone();
         let bytes = authority.ledger_bytes;
         if retire {
-            authority.retire_standalone_composition();
+            authority.retire_terminal_membership();
         }
         let result = authority.prepare_terminal_tab_close_publication(
             &close.request_id,

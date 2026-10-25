@@ -33,12 +33,9 @@ pub struct StagedWorkbenchPanelCreateMetadata {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum WorkbenchPanelCreateTarget {
-    Standalone(WorkbenchTerminalMembership),
-    Workspace {
-        worker_id: WorkerId,
-        path: orchbee_workbench_protocol::WorkbenchDirectoryPath,
-    },
+struct WorkbenchPanelCreateTarget {
+    worker_id: WorkerId,
+    path: orchbee_workbench_protocol::WorkbenchDirectoryPath,
 }
 
 impl StagedWorkbenchPanelCreateMetadata {
@@ -83,24 +80,13 @@ impl StagedWorkbenchPanelCreateMetadata {
     }
 
     #[must_use]
-    pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
-        match &self.target {
-            WorkbenchPanelCreateTarget::Standalone(membership) => Some(membership),
-            WorkbenchPanelCreateTarget::Workspace { .. } => None,
-        }
-    }
-
-    #[must_use]
     pub fn workspace_launch(
         &self,
-    ) -> Option<(
-        &WorkerId,
+    ) -> (
+        &orchbee_workbench_protocol::WorkerId,
         &orchbee_workbench_protocol::WorkbenchDirectoryPath,
-    )> {
-        match &self.target {
-            WorkbenchPanelCreateTarget::Standalone(_) => None,
-            WorkbenchPanelCreateTarget::Workspace { worker_id, path } => Some((worker_id, path)),
-        }
+    ) {
+        (&self.target.worker_id, &self.target.path)
     }
 }
 
@@ -115,7 +101,6 @@ pub struct CommittedWorkbenchPanelCreateMetadata {
     presentation_id: orchbee_workbench_protocol::TerminalPresentationId,
     binding: PresentationBinding,
     geometry: WorkbenchTerminalGeometry,
-    standalone: bool,
 }
 
 impl CommittedWorkbenchPanelCreateMetadata {
@@ -167,11 +152,6 @@ impl CommittedWorkbenchPanelCreateMetadata {
     #[must_use]
     pub const fn direction(&self) -> Option<WorkbenchPanelSplitDirection> {
         self.placement.direction()
-    }
-
-    #[must_use]
-    pub const fn is_standalone(&self) -> bool {
-        self.standalone
     }
 }
 
@@ -303,7 +283,6 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
                 return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
             }
         };
-        let standalone = staged.standalone_membership().is_some();
         let metadata = CommittedWorkbenchPanelCreateMetadata {
             request_id: command.request_id.clone(),
             revision: staged.revision,
@@ -314,7 +293,6 @@ impl<'a> WorkbenchPanelCreateAdmission<'a> {
             presentation_id: staged.presentation_id,
             binding,
             geometry: staged.geometry,
-            standalone,
         };
         let Some(results) = PanelCreateResultTable::new(&command, &metadata) else {
             return WorkbenchPanelCreatePreparation::Ready(retire(authority, &command));
@@ -699,13 +677,7 @@ impl WorkbenchAuthority {
                 return WorkbenchPanelCreateBegin::Ready(retire(self, &command));
             }
         };
-        let target = if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
-            let membership = match tree_terminal_membership(snapshot, &terminal_context_id) {
-                Ok(membership) => membership,
-                Err(_error) => return WorkbenchPanelCreateBegin::Ready(retire(self, &command)),
-            };
-            WorkbenchPanelCreateTarget::Standalone(membership)
-        } else {
+        let target = {
             let Some(workspace) = snapshot
                 .navigation
                 .workspaces
@@ -729,7 +701,7 @@ impl WorkbenchAuthority {
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
             };
-            WorkbenchPanelCreateTarget::Workspace {
+            WorkbenchPanelCreateTarget {
                 worker_id: directory.worker_id.clone(),
                 path: directory.path.clone(),
             }

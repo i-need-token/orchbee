@@ -3,8 +3,10 @@ use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspace
 
 fn workspace_snapshot(revision: u64) -> Snapshot {
     let mut snapshot = snapshot(2, revision);
-    let work_context = snapshot.navigation.standalone_terminal_context_id.clone();
-    snapshot.navigation.standalone_terminal_context_id = context_id(99);
+    let work_context = snapshot.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
+    snapshot.navigation.workspaces[0].terminal_context_id = context_id(99);
     snapshot.terminal_contexts.push(terminal_context(99, 0));
     snapshot.navigation.workspaces.extend(vec![Workspace {
         project_id: Some((WorkbenchProjectId::parse(&id(90)).unwrap()).clone()),
@@ -20,7 +22,7 @@ fn workspace_snapshot(revision: u64) -> Snapshot {
     snapshot
 }
 fn projected(snapshot: &Snapshot) -> NativeContextTabs {
-    let workspace = &snapshot.navigation.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[1];
     project_native_context_tabs(
         snapshot,
         &NativeContextLocation::Workspace {
@@ -79,11 +81,11 @@ fn workspace_replacement_requires_fresh_presentation_and_terminal_and_retains_wo
             .is_ok_and(|candidate| validate_canonical_refresh(&current, candidate).is_ok());
         assert_eq!(accepted, case == 0, "case {case}");
     }
-    let mut standalone = snapshot(2, 11);
+    let mut initial_workspace = snapshot(2, 11);
     let PanelNode::Panel {
         primary_presentation,
         ..
-    } = &mut standalone.terminal_contexts[0].tabs[0].root
+    } = &mut initial_workspace.terminal_contexts[0].tabs[0].root
     else {
         panic!("panel")
     };
@@ -91,8 +93,8 @@ fn workspace_replacement_requires_fresh_presentation_and_terminal_and_retains_wo
     primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(9001);
     assert!(
         validate_canonical_refresh(
-            &project_native_standalone_tabs(&snapshot(2, 10)).unwrap(),
-            project_native_standalone_tabs(&standalone).unwrap()
+            &project_preferred_workspace(&snapshot(2, 10)).unwrap(),
+            project_preferred_workspace(&initial_workspace).unwrap()
         )
         .is_err()
     );

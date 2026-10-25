@@ -6,10 +6,7 @@
 
 ## 结果与范围
 
-已准入的本地 Client 显式把空且未配置的 Workspace 关联到选定本地 Worker 上的目录。
-Worker 验证目录后 Server 才接受关联。后续该 Workspace 的 `tab.create` 使用已接受的路径和
-确切 Worker；缺少配置或 Worker 不可用时绝不回退 home。普通独立终端启动不变。首个消费者是
-本地协议及进程测试，不是新增 TUI 或 Desktop 界面。
+已准入本地 Client 将空且未配置 Workspace 关联到所选 Worker 上的目录。Worker 在 Server 接受前校验路径。之后 Tab／Panel 创建使用准确已接受路径及 Worker；缺少配置或 Worker 不可用不回退到 home。Workspace 可未分组，仍独立拥有 Context 及目录。
 
 Navigation 拥有按身份排序的全局 `Directory { directoryId, workerId, path }` 记录池。
 Workspace 必须包含可为 null 的 `primaryDirectoryId`，引用该全局池；另以必需且可为 null 的
@@ -51,20 +48,11 @@ Directory ID 和 Worker ID。缺配置为 `workspace-directory-unavailable`；�
 `workspace-directory-conflict`；无效/不可用目录观察为 `directory-unavailable`。载体/Worker 不可用
 继续使用既有类型化 unavailable 结果。
 
-Workspace Create 不读、替换、完成或通知独立终端 first-Open 槽。成员 binding 通过既有已授权
-Snapshot 和 OBCS AttachBinding 暴露。既有 pending/final Create 账本、不可变完成 token 和未知
-结果规则继续有效。目录在关联后被移除会产生如实的启动失败，并保留已提交成员；绝不再尝试从
-home 启动。关联只验证一个时间点，不保证将来可访问。Server 准入/结果截止时间不使任意文件系统
-调用变为可中断；进程声明仍限于支持的本地 Linux 文件系统 cohort。不新增跨 generation 的重启/
-接管保证。
+创建成员通过已授权快照和 `attach-binding` 暴露。待完成／最终命令结果、不可变完成 token 和未知结果规则仍是权威。关联后路径被删除时报告真实启动失败并保留已提交成员，不随后在 home 再启动。关联只验证一个时间点，不保证未来可访问。期限不能使任意文件系统调用可中断，进程证据限于支持的宿主／文件系统 cohort。
 
 ## 正确性与证据
 
-Server 是 Directory 身份、选择、修订和保留命令结果的唯一写入者。Worker 仅拥有 cwd 点时验证及
-既有启动准入；Client 两者都不拥有。关联测试须覆盖两个 Client、并发验证、修订变化、Worker
-替换、结果丢失/重放、资源耗尽及至多一次提交。Workspace Create 测试须覆盖确切规范 Worker/cwd、
-联合提交、pending/final 完成和独立槽不变。既有独立终端行为及验证义务仍为必需。
-这些流程不保留独立 TLA 模型或 cwd-validation 模型配置。
+只有 Server 写入 Directory 身份、选择、修订和保留命令结果。Worker 拥有时间点路径校验及启动准入。测试须覆盖两个 Client、并发校验、修订变化、Worker 替换、结果丢失／重放、容量、准确 cwd／Worker、联合提交及最多一次执行。无关 Workspace 和终端必须不变。此流程没有单独保留 TLA 模型。
 
 严格 schema 及独立 Rust/TypeScript binding 必须拒绝悬空 Directory 或 Project 引用、重复身份、
 缺失必需可空字段、无效路径和越界。跨 Project 分组的 Directory 引用是有效的。保留检查点仅准入
@@ -73,14 +61,11 @@ Server 是 Directory 身份、选择、修订和保留命令结果的唯一写�
 结果。进程测试须覆盖真实目录、两个已授权观察者、Workspace Create 和 AttachBinding、独立槽不变、
 缺失/被删除目录及 Worker 丢失且不从 home 启动。纯核心测试本身不证明文件系统或载体行为。
 
-| 声明                                                          | 可执行证据                                                                                                                                                                                                                                                                | 限制                                                                                                                                                          |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 并发关联、精确重放及重新验证保留唯一规范接受结果              | [权威目录测试](../src/workbench_authority/tests/workspace_directory.rs)、[service 目录测试](../src/local_terminal_service/workspace_directory/tests.rs)                                                                                                                   | 有界请求 flight；仅内存 Site                                                                                                                                  |
-| 全局 Directory 准入及编码投影、身份、修订和账本限制保持原子性 | `former_project_directory_limit_is_allowed_and_encoded_capacity_still_refuses_atomically`、`association_capacity_failures_preserve_canonical_state_and_ledger`、`exact_association_replay_survives_both_full_ledger_limits`                                               | 第 257 个 Directory 可接纳；传输上限可先于全局数量上限触发拒绝                                                                                                |
-| Workspace Create 使用规范 placement 并保持独立终端所有权      | [Site Create 测试](../src/site_coordinator/tests/tab_create.rs)：`workspace_create_uses_canonical_worker_and_cwd_without_touching_standalone`、`workspace_completion_does_not_settle_a_pending_first_open`、`workspace_completion_preserves_a_settled_first_open`         | 独立终端 Empty、Creating 和 Settled 情形；不含迁移或恢复                                                                                                      |
-| Worker 回执保持确切请求关联及载体停用                         | [严格 cwd 协议测试](../../../crates/capability-node-protocol/tests/cwd_validation.rs)及[carrier 测试](../src/worker_obcn_carrier/tests.rs)：`carries_an_exact_cwd_validation_on_the_existing_serialized_wire`、`cwd_validation_result_requires_the_complete_request_echo` | 既有队列及载体截止时间；不声明文件系统调用可中断                                                                                                              |
-| Host 启动前可以重复验证                                       | [`validation_before_first_launch_uses_real_socket_and_never_creates_host_runtime`](../../orchbee-worker/src/terminal_operations/lazy/tests.rs)                                                                                                                            | 真实 lazy Worker 循环和 Unix socket，使用 fixture cohort；未启动 shell                                                                                        |
-| 两个 Client 观察唯一关联并使用真实 Workspace shell            | [`real_server_worker_workspace_directory_association_and_tab_lifecycle`](../tests/client_process/workspace_directory.rs)                                                                                                                                                  | 真实本地 Server、Worker 及预启动 Host；缺路径重试、确切 cwd marker、AttachBinding/Detach、独立终端互不干扰、删除路径后失败且保留成员关系、Worker 丢失后不回退 |
+| 声明                                                | 保留证据                                                                                                                                            | 限制                                  |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| 准入、重新验证和重放保留准确 Directory 所有权       | [权威目录测试](../src/workbench_authority/tests/workspace_directory.rs)及[服务目录测试](../src/local_terminal_service/workspace_directory/tests.rs) | 确定性内存／传输夹具                  |
+| Tab 创建使用 Workspace Worker／cwd 并保留无关成员   | [Site 创建测试](../src/site_coordinator/tests/tab_create.rs)                                                                                        | 准确准备与保留操作事实                |
+| 两个 Client 观察同一真实 Workspace shell 及失败结果 | [Workspace 目录进程证据](../tests/client_process/workspace_directory.rs)                                                                            | 支持的 Linux cohort；其他平台独立验证 |
 
 Unix socket 与 Linux shell 见证需要对应原生主机及已构建的进程前置产物。
 Windows 主机门禁或交叉目标编译不会执行这些见证。

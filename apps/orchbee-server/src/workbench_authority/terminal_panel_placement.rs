@@ -1,6 +1,6 @@
 use super::{
-    CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant,
-    WorkbenchTerminalMembership, allocate, identity, result, unavailable,
+    CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant, allocate,
+    identity, result, unavailable,
 };
 use orchbee_workbench_protocol::{
     ContractError, PanelNode, PanelOrientation, PanelSlot, WorkbenchAction, WorkbenchCommand,
@@ -20,7 +20,6 @@ pub struct WorkbenchPanelPlacementAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     terminal_context_id: WorkbenchTerminalContextId,
-    membership: Option<WorkbenchTerminalMembership>,
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
     target_panel_id: WorkbenchPanelId,
@@ -55,16 +54,10 @@ impl PreparedWorkbenchPanelPlacement<'_> {
 
 impl<'a> WorkbenchPanelPlacementAdmission<'a> {
     #[must_use]
-    pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
-        self.membership.as_ref()
-    }
-
-    #[must_use]
     pub fn retire_composition_failure(self) -> WorkbenchCommandResult {
         self.authority.retire(&self.command)
     }
 
-    /// Site validates standalone bootstrap composition before resolving its target or no-op.
     #[must_use]
     pub fn finish(self) -> WorkbenchPanelPlacementPreparation<'a> {
         let plan = match self.plan() {
@@ -284,12 +277,11 @@ impl WorkbenchAuthority {
             Some(WorkbenchRejectionReason::SiteMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
-        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-            && !snapshot
-                .navigation
-                .workspaces
-                .iter()
-                .any(|workspace| workspace.terminal_context_id == terminal_context_id)
+        } else if !snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.terminal_context_id == terminal_context_id)
         {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {
@@ -298,30 +290,15 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchPanelPlacementBegin::Ready(self.retain_rejection(command, reason));
         }
-        // Tree membership admits Split-bearing contexts; the standalone composition check
-        // compares it against Site composition only for the standalone context.
-        let membership = if terminal_context_id
-            == snapshot.navigation.standalone_terminal_context_id
+        if super::terminal_membership::tree_terminal_membership(snapshot, &terminal_context_id)
+            .is_err()
         {
-            match self.tree_standalone_membership() {
-                Ok(membership) => Some(membership),
-                Err(_invariant) => {
-                    return WorkbenchPanelPlacementBegin::Ready(self.retire(&command));
-                }
-            }
-        } else {
-            if super::terminal_membership::tree_terminal_membership(snapshot, &terminal_context_id)
-                .is_err()
-            {
-                return WorkbenchPanelPlacementBegin::Ready(self.retire(&command));
-            }
-            None
-        };
+            return WorkbenchPanelPlacementBegin::Ready(self.retire(&command));
+        }
         WorkbenchPanelPlacementBegin::Admitted(Box::new(WorkbenchPanelPlacementAdmission {
             authority: self,
             command,
             terminal_context_id,
-            membership,
             tab_id,
             panel_id,
             target_panel_id,

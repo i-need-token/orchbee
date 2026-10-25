@@ -31,7 +31,7 @@ fn start(words: &[&str]) -> Box<WorktreeStartCommand> {
 }
 fn snapshot() -> Snapshot {
     parse_snapshot(&serde_json::to_vec(&json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":id(1),"revision":"2",
-        "navigation":{"standaloneTerminalContextId":id(2), "projects":[{"projectId":id(3), "label":"project"}], "directories":[], "workspaces":[{"workspaceId":id(4), "label":"work", "primaryDirectoryId":null, "terminalContextId":id(5), "projectId":id(3)}]},
+        "navigation":{ "projects":[{"projectId":id(3), "label":"project"}], "directories":[], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(4), "label":"work", "primaryDirectoryId":null, "terminalContextId":id(5), "projectId":id(3)}]},
         "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[]},{"terminalContextId":id(5),"groups":[],"tabs":[{
             "tabId":id(6),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(7),
                 "primaryPresentation":{"customLabel":null,"presentationId":id(8),"label":"shell","binding":{"terminalId":id(9),"workerId":id(10)}},"childPresentations":[]}}]}]})).unwrap()).unwrap()
@@ -121,7 +121,7 @@ fn canonical_workspace_source_keeps_identity_and_directory_source_has_optional_p
     for grouped in [true, false] {
         let mut snapshot = snapshot();
         if !grouped {
-            snapshot.navigation.workspaces[0].project_id = None;
+            snapshot.navigation.workspaces[1].project_id = None;
         }
         let explicit = start(&["worktree", "create", "--workspace=work"]);
         let (project, intent) = selection::intent(&explicit, &snapshot, || {

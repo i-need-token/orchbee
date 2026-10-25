@@ -1,3 +1,4 @@
+use crate::test_support::WorkbenchFixture;
 use std::{
     num::NonZeroU64,
     time::{Duration, Instant},
@@ -73,11 +74,12 @@ fn receipt_identity_reads_the_exact_retained_close_and_checks_the_site_grant() {
 }
 
 pub(super) fn fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
-    let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(100)).unwrap()).unwrap();
+    let mut authority =
+        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
         .with_terminal_lifecycle();
     if count > 0 {
-        authority.commit_standalone_intent(binding(700)).unwrap();
+        authority.append_fixture_tab(binding(700)).unwrap();
     }
     for index in 1..count {
         let command = create_command(&authority, 500 + index, &format!("tab {index}"));
@@ -133,11 +135,8 @@ fn create_command(authority: &WorkbenchAuthority, id: u128, label: &str) -> Work
         WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: authority
-                .projection
-                .snapshot()
-                .navigation
-                .standalone_terminal_context_id
+            terminal_context_id: authority.projection.snapshot().navigation.workspaces[0]
+                .terminal_context_id
                 .clone(),
             label: WorkbenchLabel::parse(label).unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
@@ -153,7 +152,7 @@ pub(super) fn close_command(
     id: u128,
     member: usize,
 ) -> WorkbenchCommand {
-    let membership = authority.standalone_membership().unwrap();
+    let membership = authority.fixture_membership().unwrap();
     command(
         authority,
         id,
@@ -418,7 +417,7 @@ fn alias_keeps_primary_revision_and_replays_after_retirement_without_runtime_loo
     assert_eq!(joined.request_id, alias.request_id);
     assert_ne!(alias.expected_revision, close.expected_revision);
     assert_eq!(authority.outstanding_close_credits().ok(), Some(1));
-    authority.retire_standalone_composition();
+    authority.retire_terminal_membership();
     for (request, expected) in [(close.clone(), accepted), (alias, joined)] {
         let WorkbenchTabCloseBegin::Ready(replayed) =
             authority.begin_terminal_tab_close(Some(&grant), request)
@@ -458,7 +457,7 @@ fn runtime_member_mismatch_retires_before_acceptance_and_busy_allocates_nothing(
         }
     ));
     assert_eq!(authority.ledger.len(), initial_entries);
-    let other = runtime(&authority.standalone_membership().unwrap().members()[1]);
+    let other = runtime(&authority.fixture_membership().unwrap().members()[1]);
     assert!(matches!(
         primary(&mut authority, &grant, close).finish(other, None, now),
         WorkbenchTabClosePreparation::Ready(WorkbenchCommandResult {

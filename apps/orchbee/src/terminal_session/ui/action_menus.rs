@@ -140,27 +140,10 @@ fn action_availability(
             | MenuAction::NewTabInRecentGroup
             | MenuAction::NewTabWithProfile(_)
     ) && state.is_some_and(|state| {
-        matches!(
-            state.cache().location(),
-            NativeContextLocation::Standalone(_)
-        ) && state.cache().tabs().is_empty()
+        matches!(state.cache().location(), NativeContextLocation::NoWorkspace)
+            && state.cache().tabs().is_empty()
     }) {
         return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
-    }
-    if matches!(
-        target,
-        Target::Workspace {
-            source: NativeMenuContextSource::Standalone,
-            ..
-        }
-    ) && matches!(
-        action,
-        MenuAction::WorkspaceDirectory
-            | MenuAction::RenameWorkspace
-            | MenuAction::MoveWorkspace
-            | MenuAction::CloseWorkspace
-    ) {
-        return ActionAvailability::Disabled(MenuUnavailable::LegacyWorkspace);
     }
     if action == MenuAction::NewTabInRecentGroup
         && state
@@ -219,8 +202,7 @@ fn action_availability(
         ))
         || matches!(
             action,
-            MenuAction::MoveWorkspace
-                | MenuAction::WorkspaceProjects
+            MenuAction::WorkspaceProjects
                 | MenuAction::CreateWorkspaceProject
                 | MenuAction::LeaveWorkspaceProject
                 | MenuAction::JoinWorkspaceProject(_)
@@ -771,11 +753,7 @@ impl NativeUi {
                 let Some(source) = state.cache().menu_context_source(&location) else {
                     return false;
                 };
-                let actions = if matches!(source, NativeMenuContextSource::Standalone) {
-                    crate::action_menu::LEGACY_WORKSPACE_ACTIONS
-                } else {
-                    crate::action_menu::WORKSPACE_ACTIONS
-                };
+                let actions = crate::action_menu::WORKSPACE_ACTIONS;
                 (
                     Target::Workspace { location, source },
                     context
@@ -1291,8 +1269,7 @@ impl NativeUi {
             Target::Workspace { .. }
                 if matches!(
                     action,
-                    MenuAction::MoveWorkspace
-                        | MenuAction::CloseWorkspace
+                    MenuAction::CloseWorkspace
                         | MenuAction::WorkspaceProjects
                         | MenuAction::WorkspaceWorktrees
                         | MenuAction::CreateWorkspaceProject
@@ -1402,8 +1379,7 @@ impl NativeUi {
                         if matches!(
                             self.menus.menu.confirmed(),
                             Some(
-                                MenuAction::MoveWorkspace
-                                    | MenuAction::CloseWorkspace
+                                MenuAction::CloseWorkspace
                                     | MenuAction::WorkspaceProjects
                                     | MenuAction::WorkspaceWorktrees
                                     | MenuAction::CreateWorkspaceProject
@@ -1752,20 +1728,6 @@ impl NativeUi {
                 },
                 MenuAction::CloseWorkspace,
             ) => ClientAction::RequestWorkspaceCloseAt(workspace_id.clone()),
-            (
-                Target::Workspace {
-                    location: NativeContextLocation::Workspace { workspace_id, .. },
-                    ..
-                },
-                MenuAction::MoveWorkspace,
-            ) => {
-                let request = crate::terminal_session::WorkspaceOrganizationRequest::workspace(
-                    self.state.as_ref()?,
-                    workspace_id,
-                    intent.stage.deadline()?,
-                )?;
-                ClientAction::RequestWorkspaceOrganization(Box::new(request))
-            }
             (Target::Project { project, .. }, MenuAction::CloseProjectWorkspaces) => {
                 ClientAction::RequestProjectCloseAll(Some(project.project_id.clone()))
             }

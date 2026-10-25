@@ -29,8 +29,8 @@ fn project_listing_uses_display_order_while_identity_lookup_stays_stable() {
 fn workspace_numbers_survive_filtering_and_counts_exclude_child_presentations() {
     let mut state = snapshot();
     state.navigation.workspace_order = vec![
+        state.navigation.workspaces[2].workspace_id.clone(),
         state.navigation.workspaces[1].workspace_id.clone(),
-        state.navigation.workspaces[0].workspace_id.clone(),
     ];
     let all = project(&QueryCommand::WorkspaceList { project: None }, &state)
         .unwrap()
@@ -68,15 +68,9 @@ fn workspace_numbers_survive_filtering_and_counts_exclude_child_presentations() 
 fn tab_numbers_follow_context_order_and_leaf_counts_follow_the_tree() {
     let mut state = snapshot();
     state.terminal_contexts[0].tabs.rotate_left(1);
-    let all = project(
-        &QueryCommand::TabList {
-            workspace: None,
-            standalone: false,
-        },
-        &state,
-    )
-    .unwrap()
-    .result();
+    let all = project(&QueryCommand::TabList { workspace: None }, &state)
+        .unwrap()
+        .result();
     for (position, id) in DUP_TABS
         .iter()
         .cycle()
@@ -161,10 +155,7 @@ fn topology_documents_validate_and_text_escapes_labels_in_both_locales() {
     for command in [
         QueryCommand::WorkspaceList { project: None },
         QueryCommand::WorkspaceGet(Target::Id(hex(0x40))),
-        QueryCommand::TabList {
-            workspace: None,
-            standalone: false,
-        },
+        QueryCommand::TabList { workspace: None },
         QueryCommand::TabGet(Target::Id(hex(DUP_TABS[0]))),
         QueryCommand::PanelList {
             tab: None,
@@ -228,7 +219,7 @@ fn workspace_grouping_is_nullable_metadata_and_global_scope_survives_regrouping(
     let command = QueryCommand::WorkspaceGet(Target::Id(hex(0x40)));
     let before = project(&command, &state).unwrap().result();
     for destination in [None, Some(state.navigation.projects[1].project_id.clone())] {
-        state.navigation.workspaces[0].project_id = destination.clone();
+        state.navigation.workspaces[1].project_id = destination.clone();
         let after = project(&command, &state).unwrap().result();
         for key in [
             "workspaceId",

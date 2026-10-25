@@ -358,41 +358,6 @@
 		},
 		{
 			"direction": "client-to-server",
-			"name": "open-standalone",
-			"payload": "{\"kind\":\"terminal.open\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-opened",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"opened\",\"terminalCreateRequestId\":\"22222222222222222222222222222222\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-unavailable-no-compatible-worker",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"no-compatible-worker\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-unavailable-terminal-runtime-unavailable",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-unavailable-server-busy",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-failed",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"failed\",\"reason\":\"terminal-create-failed\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-outcome-unknown",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\"}}"
-		},
-		{
-			"direction": "client-to-server",
 			"name": "viewer-read-rows",
 			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"startRow\":\"400\",\"rowCount\":100,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"1\",\"maximumBytes\":8388608}}"
 		},
@@ -1373,72 +1338,6 @@
 			"name": "control-release-not-admitted",
 			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"release\",\"controllerId\":\"22222222222222222222222222222222\"}}",
 			"boundary": "schema"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "open-missing-geometry",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\"}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "open-null-geometry",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"geometry\":null}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "open-zero-geometry",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"geometry\":{\"columns\":0,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "open-extra-cwd",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"cwd\":null}"
-		},
-		{
-			"direction": "client-to-server",
-			"name": "open-extra-geometry-field",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18,\"foo\":1}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-zero-reference",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"opened\",\"terminalCreateRequestId\":\"00000000000000000000000000000000\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-missing-reference",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"opened\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-unknown-extra",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\",\"extra\":true}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-rejected",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"not-authorized\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-unavailable-reason",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"disconnected\"}}"
-		},
-		{
-			"direction": "server-to-client",
-			"name": "open-failed-reason",
-			"boundary": "schema",
-			"payload": "{\"kind\":\"terminal.open.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"failed\",\"reason\":\"not-authorized\"}}"
 		},
 		{
 			"boundary": "schema",

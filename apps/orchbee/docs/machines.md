@@ -236,7 +236,7 @@ refusal beyond 128 scalars or for control-bearing text. Query changes preserve a
 identity and invalidate old painted targets; filtering never changes the main sidebar. The query
 field's position does not move when the number of matches changes. Workspaces combines Local's last accepted canonical
 navigation with fresh enabled remote observations; rows carry machine identity,
-Session ID and either a standalone context ID or a stable Workspace/context ID pair.
+Session ID and a stable Workspace/context ID pair.
 Nullable Project membership is metadata, not part of selection identity. Labels
 and row positions never route a selection. Same-named Workspaces on one Session carry the
 shortest unique ID suffix used by the Sidebar; as there, only the name truncates so the suffix
@@ -255,12 +255,10 @@ removal invalidates painted hits and cannot retarget a pending selection.
 Context selection inside an explicitly opened picker uses a separately admitted native lane, including
 when the destination machine is already active or cached. The candidate reads a
 fresh snapshot and verifies the exact Session and context before any attachment.
-This path never opens or creates a standalone terminal as a navigation side
-effect. A vanished/replaced target fails without selecting a fallback. An empty
+This path never creates a terminal as a navigation side effect. A vanished/replaced target fails without selecting a fallback. An empty
 context bootstraps Empty membership with no viewer or terminal; normal create
 actions remain available after switching. The mailbox allocates a fresh generation
-for empty and populated bootstrap alike. Legacy standalone startup still opens
-its normal standalone context. Every machine candidate supplies an explicit
+for empty and populated bootstrap alike. Startup reads canonical Workspace membership. Every machine candidate supplies an explicit
 startup deadline; remote observation deadlines never become terminal startup
 authority implicitly.
 
@@ -338,7 +336,7 @@ freshness expires ten seconds after worker completion, including time spent
 waiting for the UI to consume the result. Only explicit activation opens a terminal.
 The candidate revalidates the selected snapshot and physical checkpoint, starts
 at the exact member, and checks the returned Host identity before taking control.
-No standalone creation or first-pane attachment precedes that selection. Old
+No terminal creation or unrelated attachment precedes that selection. Old
 surfaces survive failure, cancellation and target replacement; commit still
 requires drawable content. There is no replay of terminal input or mutations.
 
@@ -424,7 +422,7 @@ Unknown. Sequence is an observation version, not a shared wall clock.
 The active machine's stable source specification filters the merged list and
 global Agent cycle; other machines' overrides do not stack. ID operands and
 current-context values are qualified by that active machine. Workspace IDs are
-native workspace identities (absent for standalone terminals), Tab IDs are native
+native workspace identities (required for every terminal), Tab IDs are native
 Tab identities, and pane IDs are exact Presentation identities, including child
 Presentations. Placement order comes from the snapshot's ordered workspace, Tab
 and pane placement. A missing context operand compares as missing, including the

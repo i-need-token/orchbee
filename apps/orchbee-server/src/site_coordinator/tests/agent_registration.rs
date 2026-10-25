@@ -1,8 +1,7 @@
 use super::super::agent_registration::RegistrationFact;
-use super::panel_split::{close_leaf, standalone_leaf};
+use super::panel_split::{close_leaf, workspace_leaf};
 use super::tab_create::{
-    configure_workspace, context_tab_command, dispatch_tab, immediate_completion,
-    pending_first_open,
+    configure_workspace, context_tab_command, dispatch_tab, immediate_completion, pending_first_tab,
 };
 use super::*;
 use crate::terminal_coordinator::TerminalPhase;
@@ -13,11 +12,11 @@ use orchbee_server::WorkbenchTerminalInvariantError;
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 fn complete_opened_member(coordinator: &mut SiteCoordinator) -> TerminalOperationAuthorization {
-    let pending = pending_first_open(coordinator, 1, 101);
-    let authorization = launch_authorization(&pending);
+    let pending = pending_first_tab(coordinator, 1, 101);
+    let authorization = launch_authorization(pending.command());
     let completion = immediate_completion(pending.command());
     coordinator
-        .complete(pending, completion, Some(worker(1)))
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
         .unwrap();
     authorization
 }
@@ -57,12 +56,12 @@ fn pending_joint_creates_commit_membership_without_registration() {
     // The member is already committed while the retained create is still Creating.
     assert_eq!(coordinator.agent_registration_snapshot(), Ok(vec![]));
 
-    let _standalone = pending_first_open(&mut coordinator, 2, 801);
+    let _initial_workspace = pending_first_tab(&mut coordinator, 2, 801);
     assert_eq!(coordinator.agent_registration_snapshot(), Ok(vec![]));
 }
 
 #[test]
-fn accepted_standalone_member_registers_one_typed_fact() {
+fn accepted_initial_workspace_member_registers_one_typed_fact() {
     let mut coordinator = site();
     let authorization = complete_opened_member(&mut coordinator);
     let (presentation_id, binding) = member_binding(&mut coordinator);
@@ -186,8 +185,8 @@ fn removed_membership_disappears_from_the_snapshot() {
     let mut coordinator = site();
     let _authorization = complete_opened_member(&mut coordinator);
     assert_eq!(coordinator.agent_registration_snapshot().unwrap().len(), 1);
-    let (context, tab, panel) = standalone_leaf(&mut coordinator);
-    let (_close, _closed) = close_leaf(&mut coordinator, context, tab, panel, 900);
+    let (context, tab, panel) = workspace_leaf(&mut coordinator);
+    let _close = close_leaf(&mut coordinator, context, tab, panel, 900);
     assert_eq!(coordinator.agent_registration_snapshot(), Ok(vec![]));
 }
 

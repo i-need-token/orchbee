@@ -103,7 +103,8 @@ fn create_public_terminal(fixture: &Fixture, label: &str, excluded: &str) -> Str
         &[
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "Workspace",
             "--label",
             label,
             "--cols",
@@ -199,7 +200,7 @@ fn assert_absent_while(fixture: &Fixture, filename: &str, client: &mut Client, w
 #[test]
 fn send_text_executes_while_tui_keeps_input_and_resize() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -274,7 +275,7 @@ fn send_text_executes_while_tui_keeps_input_and_resize() -> TestResult {
 #[test]
 fn sends_to_two_terminals_keep_independent_markers() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -329,7 +330,7 @@ fn sends_to_two_terminals_keep_independent_markers() -> TestResult {
 #[test]
 fn text_without_enter_stages_then_one_semantic_enter_executes() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -377,7 +378,7 @@ fn text_without_enter_stages_then_one_semantic_enter_executes() -> TestResult {
 #[test]
 fn ctrl_c_interrupts_only_the_target_terminal_foreground() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,

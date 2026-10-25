@@ -81,8 +81,8 @@ fn mixed_history_snapshot(revision: u64) -> Snapshot {
 
 #[test]
 fn canonical_refresh_accepts_a_mixed_folded_split_close_and_move_history() {
-    let current = project_native_standalone_tabs(&baseline_split_snapshot(10)).unwrap();
-    let candidate = project_native_standalone_tabs(&mixed_history_snapshot(13)).unwrap();
+    let current = project_preferred_workspace(&baseline_split_snapshot(10)).unwrap();
+    let candidate = project_preferred_workspace(&mixed_history_snapshot(13)).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -91,8 +91,8 @@ fn canonical_refresh_accepts_a_mixed_folded_split_close_and_move_history() {
 
 #[test]
 fn canonical_refresh_rejects_a_folded_shaped_candidate_at_the_same_revision() {
-    let current = project_native_standalone_tabs(&baseline_split_snapshot(10)).unwrap();
-    let candidate = project_native_standalone_tabs(&mixed_history_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&baseline_split_snapshot(10)).unwrap();
+    let candidate = project_preferred_workspace(&mixed_history_snapshot(10)).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate),
         Err(NativeProjectionDivergence)
@@ -101,7 +101,7 @@ fn canonical_refresh_rejects_a_folded_shaped_candidate_at_the_same_revision() {
 
 #[test]
 fn canonical_refresh_rejects_identity_reassignment_inside_a_folded_history() {
-    let current = project_native_standalone_tabs(&baseline_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&baseline_split_snapshot(10)).unwrap();
 
     // A retained Panel identity whose complete member tuple changed: "right" kept its Panel and
     // Presentation identities but re-bound to another terminal.
@@ -120,7 +120,7 @@ fn canonical_refresh_rejects_identity_reassignment_inside_a_folded_history() {
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&mutated_member).unwrap()
+            project_preferred_workspace(&mutated_member).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -135,17 +135,14 @@ fn canonical_refresh_rejects_identity_reassignment_inside_a_folded_history() {
     };
     children[0].node = panel(35, 99, 100, 101, "middle");
     assert_eq!(
-        validate_canonical_refresh(
-            &current,
-            project_native_standalone_tabs(&resurrected).unwrap()
-        ),
+        validate_canonical_refresh(&current, project_preferred_workspace(&resurrected).unwrap()),
         Err(NativeProjectionDivergence)
     );
 }
 
 #[test]
 fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
-    let current = project_native_standalone_tabs(&baseline_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&baseline_split_snapshot(10)).unwrap();
 
     // The retained S40 kept its ordered Slot identities but changed orientation.
     let mut flipped = mixed_history_snapshot(13);
@@ -157,7 +154,7 @@ fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
     };
     *orientation = PanelOrientation::Vertical;
     assert_eq!(
-        validate_canonical_refresh(&current, project_native_standalone_tabs(&flipped).unwrap()),
+        validate_canonical_refresh(&current, project_preferred_workspace(&flipped).unwrap()),
         Err(NativeProjectionDivergence)
     );
 
@@ -193,10 +190,7 @@ fn canonical_refresh_rejects_structure_mutation_inside_a_folded_history() {
         split_id: split_id(70),
     };
     assert_eq!(
-        validate_canonical_refresh(
-            &current,
-            project_native_standalone_tabs(&reparented).unwrap()
-        ),
+        validate_canonical_refresh(&current, project_preferred_workspace(&reparented).unwrap()),
         Err(NativeProjectionDivergence)
     );
 }
@@ -245,8 +239,8 @@ fn publication_fold_then_canonical_refresh_accepts_delta_batches_and_snapshot_fa
     )
     .unwrap();
     assert_eq!(folded, final_snapshot);
-    let current = project_native_standalone_tabs(&baseline_snapshot).unwrap();
-    let candidate = project_native_standalone_tabs(&folded).unwrap();
+    let current = project_preferred_workspace(&baseline_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&folded).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -258,7 +252,7 @@ fn publication_fold_then_canonical_refresh_accepts_delta_batches_and_snapshot_fa
         &[WorkbenchPublicationDocument::Snapshot(final_snapshot)],
     )
     .unwrap();
-    let candidate = project_native_standalone_tabs(&folded).unwrap();
+    let candidate = project_preferred_workspace(&folded).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -280,9 +274,9 @@ fn publication_fold_then_canonical_refresh_still_rejects_identity_reassignment()
         &[WorkbenchPublicationDocument::Snapshot(tampered)],
     )
     .unwrap();
-    let current = project_native_standalone_tabs(&baseline_snapshot).unwrap();
+    let current = project_preferred_workspace(&baseline_snapshot).unwrap();
     assert_eq!(
-        validate_canonical_refresh(&current, project_native_standalone_tabs(&folded).unwrap()),
+        validate_canonical_refresh(&current, project_preferred_workspace(&folded).unwrap()),
         Err(NativeProjectionDivergence)
     );
 }

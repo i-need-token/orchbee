@@ -9,9 +9,17 @@ fn target() -> DrawnTabCreate {
             site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
             revision: WorkbenchRevision::new(1),
         },
-        location: NativeContextLocation::Standalone(
-            WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
-        ),
+        location: {
+            let fixture_context_id =
+                WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        },
     }
 }
 fn map(target: DrawnTabCreate, area: Rect) -> FrameHitMap {

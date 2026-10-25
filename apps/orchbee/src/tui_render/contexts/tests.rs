@@ -35,7 +35,7 @@ fn rendered_with_focus(
                 active: context.active,
                 project_label: context.project_label,
                 workspace_label: context.workspace_label,
-                standalone_label: "Standalone terminal",
+                no_workspace_label: "No workspace",
             })
         };
         render_navigator(
@@ -160,9 +160,9 @@ fn navigator_label_handles_standalone_and_workspace_locations() {
             active: true,
             project_label: None,
             workspace_label: None,
-            standalone_label: "Standalone terminal",
+            no_workspace_label: "No workspace",
         }),
-        "Standalone terminal"
+        "No workspace"
     );
     assert_eq!(
         context_label(ContextDisplay {
@@ -170,7 +170,7 @@ fn navigator_label_handles_standalone_and_workspace_locations() {
             active: false,
             project_label: Some("Project"),
             workspace_label: Some("Workspace"),
-            standalone_label: "Standalone terminal",
+            no_workspace_label: "No workspace",
         }),
         "Project / Workspace"
     );
@@ -244,7 +244,7 @@ fn navigator_pointer_surface_keeps_current_and_provisional_context_tracks_indepe
                     active: context.active,
                     project_label: context.project_label,
                     workspace_label: context.workspace_label,
-                    standalone_label: "Standalone terminal",
+                    no_workspace_label: "No workspace",
                 })
             },
             &theme,
@@ -291,7 +291,7 @@ fn navigator_preflights_the_complete_visible_source_before_paint_and_hits() {
                     active: true,
                     project_label: Some("Only"),
                     workspace_label: None,
-                    standalone_label: "Standalone terminal",
+                    no_workspace_label: "No workspace",
                 })
             },
             &crate::tui_theme::Theme::rgb_test_dark(),

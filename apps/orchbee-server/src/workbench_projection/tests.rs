@@ -375,14 +375,8 @@ fn evicted_or_unknown_revisions_fall_back_to_the_current_snapshot() -> Result<()
 
 fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
     let template = parse_snapshot(&document_bytes("snapshot-empty-r1")?)?;
-    let standalone_terminal_context_id =
-        WorkbenchTerminalContextId::parse(&prefixed_identity('1', 0))?;
-    let mut terminal_contexts = vec![TerminalContext {
-        groups: Vec::new(),
-        tabs: Vec::new(),
-        terminal_context_id: standalone_terminal_context_id.clone(),
-    }];
-    let workspace_count = MAXIMUM_TERMINAL_CONTEXTS - 1;
+    let mut terminal_contexts = Vec::new();
+    let workspace_count = MAXIMUM_TERMINAL_CONTEXTS;
     let project_count = workspace_count.div_ceil(MAXIMUM_WORKSPACES_PER_PROJECT);
     let mut projects = Vec::with_capacity(project_count);
     let mut all_workspaces = Vec::with_capacity(workspace_count);
@@ -431,7 +425,6 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
             directories: Vec::new(),
             workspaces: all_workspaces,
             projects,
-            standalone_terminal_context_id,
         },
         protocol_version: template.protocol_version,
         revision: WorkbenchRevision::new(1),

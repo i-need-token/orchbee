@@ -353,12 +353,11 @@ identities return not-found; compact identities retain every significant digit, 
 columns; `tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. An ambiguous target's
 text diagnostic lists up to eight candidates as these handles with their quoted labels,
 plus the true total; JSON keeps the identifier `candidates` and `totalCount` details.
-Project and Workspace ownership cells show their canonical names; standalone Tabs
-show a localized standalone label. Name cells are quoted, control-safe, and clipped
+Project and Workspace ownership cells show their canonical names. Name cells are quoted, control-safe, and clipped
 to keep each table within 80 terminal cells. These lists do not treat a Workspace's
 primary directory as a process CWD or expose internal context IDs as names.
 
-`panel list` includes `workspaceId` (null for standalone), plus the primary
+`panel list` includes `workspaceId`, plus the primary
 presentation's `label`, nullable `customLabel`, and `displayLabel`. These are the
 same canonical values returned by `panel get`, not inferred process or Agent titles.
 JSON preserves labels exactly; text escapes them and bounds list display width.
@@ -882,8 +881,6 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   performs no directory-membership precheck — membership is the running Session's authority, and
   a well-formed but absent directory answers `not-found` with `{resource:"directory"}` under
   the worktree failure envelope.
-- `--standalone`: valueless boolean flag, single use, only on `tab list` and `tab create`;
-  mutually exclusive with `--workspace` on both.
 - `--label <label>`: single-use value flag, required on `project create`, `project rename`, non-Windows `workspace create`, `workspace rename` and `tab rename`. Windows `tab create` and `panel split` allow omission, using the preflight Tab/Panel count plus one. Explicit values are nonempty protocol-bounded Workbench labels; empty or oversized values are `invalid-usage`.
 - `--path <path>`: single-use value flag. On `workspace accept-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
@@ -1044,8 +1041,8 @@ orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-
 orchbee workspace close-status --workspace <id>
 orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
-orchbee tab list [--workspace <target> | --standalone] | tab get <target>
-orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
+orchbee tab list [--workspace <target>] | tab get <target>
+orchbee tab create [--workspace <target>] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> (--order previous|next|first|last | --insert-index N)
 orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
@@ -1795,10 +1792,10 @@ disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}
   is scope-level only), `attemptGeneration` is the decimal-string attempt fence, and the
   record stays answerable after the Workspace leaves the active projection.
 - `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
-context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
-workspaceId}}]}`; `workspaceId` is absent on standalone, never null. `tab get` adds `root`, the
+context:{kind:"workspace",terminalContextId,
+workspaceId}}]}`; `workspaceId` is always required. `tab get` adds `root`, the
   typed `PanelNode` subtree re-encoded without losing semantic fields.
-- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId|null,tabId,terminalContextId,primaryPresentationId,
+- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId,tabId,terminalContextId,primaryPresentationId,
 presentationCount,primaryTerminalId|null}]}` where `primaryTerminalId` reflects only
   `primaryPresentation.binding`; `panel get` → `{panel:{panelId,tabId,context,slotPath,
 primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs from root to leaf
@@ -1812,8 +1809,7 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   aligned `HANDLE`, `TITLE`, `AGENT`, `STATE`, `WORKSPACE`, `PANEL`, `CWD` table. Other platforms
   keep the same identity table and render unavailable runtime columns as `-`. `HANDLE`,
   `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
-  changes to other members cannot affect resolution. All significant digits remain copyable. A standalone terminal shows the localized
-  standalone label under `WORKSPACE`. The text-only enrichment shares one five-second deadline and cancellation watch
+  changes to other members cannot affect resolution. All significant digits remain copyable. Every terminal reports its Workspace under `WORKSPACE`. The text-only enrichment shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
   reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title; a title
   that is only an absolute path to an `.exe`, `.com`, `.cmd`, `.bat` or `.ps1` program shows that
@@ -2856,7 +2852,7 @@ contains 80 embedded schemas at this contract revision.
 
 ```text
 panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <number>]
-panel move <panel> --new-tab [--workspace <workspace> | --standalone] [--label <text>]
+panel move <panel> --new-tab [--workspace <workspace>] [--label <text>]
 panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
 ```
 

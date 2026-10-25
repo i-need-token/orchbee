@@ -54,7 +54,6 @@ pub(super) fn parse(
             new_workspace: true,
             tab_label: true,
             workspace: true,
-            standalone: true,
             project: true,
             ratio: true,
             focus: true,
@@ -98,9 +97,6 @@ pub(super) fn parse(
     if options.focus && options.no_focus {
         return Err(conflict("--focus", "--no-focus"));
     }
-    if options.standalone && options.workspace.is_some() {
-        return Err(conflict("--standalone", "--workspace"));
-    }
     let invalid = [
         (
             "--direction",
@@ -116,7 +112,6 @@ pub(super) fn parse(
             "--workspace",
             options.workspace.is_some() && mode != "--new-tab",
         ),
-        ("--standalone", options.standalone && mode != "--new-tab"),
         (
             "--project",
             options.project.is_some() && mode != "--new-workspace",
@@ -168,11 +163,8 @@ pub(super) fn parse(
                 .transpose()?,
         },
         "--new-tab" => PanelRelocationDestination::NewTab {
-            context: if options.standalone {
-                Some(TabContext::Standalone)
-            } else {
-                parse_target(&options.workspace, Resource::Workspace)?.map(TabContext::Workspace)
-            },
+            context: parse_target(&options.workspace, Resource::Workspace)?
+                .map(TabContext::Workspace),
             label: label(&options.label, "--label")?,
         },
         _ => PanelRelocationDestination::NewWorkspace {

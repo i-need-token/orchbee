@@ -5,8 +5,8 @@ use crate::terminal_session::workbench_projection::project_native_context_tabs;
 #[test]
 fn query_active_tabs_uses_private_surviving_memory_without_visiting() {
     let snapshot = contexts(2, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
-    let other = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    let other = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     assert!(state.start_context_selection_at(10, 1, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 10);
     switch(&mut state, 1, 30);
@@ -93,10 +93,10 @@ fn focus_second_panel(state: &mut NativeSessionState) -> WorkbenchPanelId {
 #[test]
 fn navigation_memory_restores_nonfirst_tabs_per_context_and_per_client() {
     let snapshot = contexts(2, 1);
-    let mut first = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
-    let second = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut first = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    let second = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     switch(&mut first, 1, 2);
-    let standalone_tab = first.active().unwrap().key().anchor().tab_id().clone();
+    let initial_workspace_tab = first.active().unwrap().key().anchor().tab_id().clone();
     assert!(first.start_context_selection(10, true, deadlines()));
     finish_selection(&mut first, snapshot.clone(), 10);
     switch(&mut first, 1, 30);
@@ -108,7 +108,7 @@ fn navigation_memory_restores_nonfirst_tabs_per_context_and_per_client() {
     finish_selection(&mut first, snapshot.clone(), 50);
     assert_eq!(
         first.active().unwrap().key().anchor().tab_id(),
-        &standalone_tab
+        &initial_workspace_tab
     );
     assert!(first.start_context_selection_at(60, 1, deadlines()));
     finish_selection(&mut first, snapshot, 60);
@@ -128,7 +128,7 @@ fn navigation_memory_restores_nonfirst_tabs_per_context_and_per_client() {
 #[test]
 fn navigation_memory_restores_panel_through_tab_and_context_departure() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let panel = focus_second_panel(&mut state);
     switch(&mut state, 1, 2);
     assert_eq!(
@@ -150,7 +150,7 @@ fn navigation_memory_restores_panel_through_tab_and_context_departure() {
 #[test]
 fn navigation_memory_reentry_resolves_reordered_ids_and_removed_tab_to_empty() {
     let mut snapshot = contexts(2, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     switch(&mut state, 1, 2);
     let remembered = state.active().unwrap().key().anchor().tab_id().clone();
     assert!(state.start_context_selection(10, true, deadlines()));
@@ -192,7 +192,7 @@ fn navigation_memory_reentry_resolves_reordered_ids_and_removed_tab_to_empty() {
 #[test]
 fn navigation_memory_explicit_panel_overrides_history_and_supersession_does_not_visit_target() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let remembered = focus_second_panel(&mut state);
     switch(&mut state, 1, 2);
     let first_panel = state.tab(0).unwrap().panel(0).unwrap().panel_id().clone();
@@ -229,7 +229,7 @@ fn navigation_memory_explicit_panel_overrides_history_and_supersession_does_not_
 fn navigation_memory_reordered_panel_uses_identity_and_removed_panel_uses_first() {
     for remove in [false, true] {
         let mut snapshot = split_contexts();
-        let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
         let remembered = focus_second_panel(&mut state);
         assert!(state.start_context_selection(10, true, deadlines()));
         finish_selection(&mut state, snapshot.clone(), 10);
@@ -259,7 +259,7 @@ fn navigation_memory_reordered_panel_uses_identity_and_removed_panel_uses_first(
 #[test]
 fn navigation_memory_does_not_turn_nonattachable_create_into_permission() {
     let snapshot = contexts(2, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     switch(&mut state, 1, 2);
     state.provenance[1] = CreateTerminalProvenance::OutcomeUnknown;
     let tab = state.desired().unwrap().anchor().tab_id().clone();
@@ -283,7 +283,7 @@ fn navigation_memory_does_not_turn_nonattachable_create_into_permission() {
 fn navigation_memory_switch_install_resolves_captured_panel_in_new_candidate() {
     for remove in [false, true] {
         let mut snapshot = split_contexts();
-        let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
         let panel = focus_second_panel(&mut state);
         switch(&mut state, 1, 2);
         let tab = state.tab(0).unwrap().tab_id().clone();
@@ -345,7 +345,7 @@ fn navigation_memory_switch_install_resolves_captured_panel_in_new_candidate() {
 #[test]
 fn navigation_memory_prunes_removed_context_even_when_create_facts_are_retained() {
     let mut snapshot = contexts(2, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     assert!(state.start_context_selection(10, true, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 10);
     let location = state.cache.location().clone();
@@ -354,7 +354,7 @@ fn navigation_memory_prunes_removed_context_even_when_create_facts_are_retained(
     finish_selection(&mut state, snapshot.clone(), 20);
     assert!(state.navigation_memory.tab(&location).is_some());
     snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.workspaces.remove(0);
+    snapshot.navigation.workspaces.remove(1);
     snapshot.terminal_contexts.remove(1);
     assert!(state.start_context_selection(30, true, deadlines()));
     finish_selection(&mut state, snapshot, 30);
@@ -370,7 +370,7 @@ fn navigation_memory_prunes_removed_context_even_when_create_facts_are_retained(
 #[test]
 fn navigation_memory_creation_admission_keeps_the_departure_not_the_future_member() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     focus_second_panel(&mut state);
     let operation = create_operation(&state, 2, 20, "New Tab");
     assert!(state.begin_create(operation));
@@ -390,7 +390,7 @@ fn navigation_memory_creation_admission_keeps_the_departure_not_the_future_membe
 #[test]
 fn navigation_memory_remembers_ready_focus_across_a_transient_frame_proof_gap() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let panel = focus_second_panel(&mut state);
     let selected = state.desired().unwrap().clone();
     assert!(state.invalidate_projection_frame_t(&selected));

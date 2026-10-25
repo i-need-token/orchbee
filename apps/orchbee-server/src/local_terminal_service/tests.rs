@@ -213,3 +213,16 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
         }
     }
 }
+
+impl LocalTerminalService {
+    pub(crate) fn workspace_fixture(workers: Arc<Mutex<WorkerRegistry>>) -> Self {
+        use crate::test_support::WorkbenchFixture;
+        Self::from_workbench(
+            workers,
+            Some(
+                orchbee_server::WorkbenchAuthority::workspace_fixture(random_site_id().unwrap())
+                    .unwrap(),
+            ),
+        )
+    }
+}

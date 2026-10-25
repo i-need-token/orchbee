@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, Project, Snapshot,
     TerminalPresentationId, WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchSplitId,
@@ -208,8 +209,8 @@ fn workspace_replay_keeps_its_revision_after_other_contexts_move_and_context_cha
     let (mut authority, grant) = workspace_authority(3);
     let first = workspace_command(&authority, 10, 0, WorkbenchTabMoveDirection::Last);
     let response = submit(&mut authority, &grant, first.clone());
-    let standalone = command(&authority, 11, 0, WorkbenchTabMoveDirection::Last);
-    submit(&mut authority, &grant, standalone);
+    let initial_workspace = command(&authority, 11, 0, WorkbenchTabMoveDirection::Last);
+    submit(&mut authority, &grant, initial_workspace);
     let mut other = workspace_command(&authority, 12, 0, WorkbenchTabMoveDirection::Last);
     let WorkbenchAction::TabMove {
         terminal_context_id,
@@ -237,7 +238,7 @@ fn workspace_replay_keeps_its_revision_after_other_contexts_move_and_context_cha
     else {
         unreachable!()
     };
-    *terminal_context_id = before.navigation.standalone_terminal_context_id.clone();
+    *terminal_context_id = before.navigation.workspaces[0].terminal_context_id.clone();
     assert!(matches!(
         submit(&mut authority, &grant, conflict).outcome,
         WorkbenchCommandOutcome::Rejected {
@@ -259,7 +260,7 @@ fn dropping_workspace_preparation_preserves_every_owner_fact() {
     else {
         panic!("admission expected")
     };
-    assert!(admission.standalone_membership().is_none());
+    assert!(admission.fixture_membership().is_none());
     drop(admission);
     let WorkbenchTabMoveBegin::Admitted(admission) =
         authority.begin_terminal_tab_move(Some(&grant), request)

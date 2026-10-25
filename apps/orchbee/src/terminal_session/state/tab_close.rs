@@ -788,7 +788,7 @@ impl super::NativeSessionState {
         }
         Some(CloseTarget::new(
             self.cache.site_id().clone(),
-            self.cache.terminal_context_id().clone(),
+            self.cache.terminal_context_id()?.clone(),
             tab_id.clone(),
         ))
     }
@@ -914,7 +914,7 @@ impl super::NativeSessionState {
             .ok_or(CloseStateError::UnknownTarget)?;
         let target = CloseTarget::new(
             self.cache.site_id().clone(),
-            self.cache.terminal_context_id().clone(),
+            self.cache.terminal_context_id()?.clone(),
             tab.tab_id().clone(),
         );
         let selection = CloseSelection::new(
@@ -965,7 +965,7 @@ impl super::NativeSessionState {
             return false;
         };
         self.cache.site_id() == selection.target().site_id()
-            && self.cache.terminal_context_id() == selection.target().terminal_context_id()
+            && self.cache.terminal_context_id() == Some(selection.target().terminal_context_id())
             && self.cache.revision() == selection.base_revision()
             && tab.tab_id() == selection.target().tab_id()
             && self.selected_presentation(panel).binding() == selection.binding()
@@ -1077,7 +1077,7 @@ impl<'a> super::NativeSessionView<'a> {
         if let Some(selected) = self.state.active() {
             let target = CloseTarget::new(
                 self.state.cache.site_id().clone(),
-                self.state.cache.terminal_context_id().clone(),
+                self.state.cache.terminal_context_id()?.clone(),
                 selected.key().anchor().tab_id().clone(),
             );
             if let Some(status) = self.state.close.status(&target) {

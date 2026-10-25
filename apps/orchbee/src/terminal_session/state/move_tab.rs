@@ -93,7 +93,8 @@ impl PendingMoveCommit {
         index != destination
             && self.operation.baseline.revision().value().checked_add(1)
                 == Some(self.commit.revision.value())
-            && self.operation.baseline.terminal_context_id() == &self.commit.terminal_context_id
+            && self.operation.baseline.terminal_context_id()
+                == Some(&self.commit.terminal_context_id)
             && self.operation.target.tab_id() == &self.commit.tab_id
             && self
                 .operation

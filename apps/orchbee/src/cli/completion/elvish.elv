@@ -5,7 +5,7 @@
   var grammar = (print '__ORCHBEE_GRAMMAR__' | from-json)
   var groups = [
     [--timeout --forever] [--agent-session --name --panel --terminal] [--panel --current]
-    [--workspace --standalone] [--exec --profile] [--arg --profile]
+    [--exec --profile] [--arg --profile]
     [--into-tab --new-tab] [--target-panel --new-tab]
     [--text --file --stdin --key] [--key --enter] [--key --paste]
     [--text --paste] [--match --regex]

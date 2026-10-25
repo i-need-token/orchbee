@@ -564,7 +564,7 @@ fn captures_whole_shell_agent_board_alignment_frames() {
     assert!(wide_text.contains(crate::localization::Locale::EnUs.shell().board.title));
     assert!(wide_text.contains("agent-review"));
     assert!(wide_text.contains("agent-validation"));
-    assert!(wide_text.contains(crate::localization::Locale::EnUs.shell().board.standalone));
+    assert!(wide_text.contains("Workspace"));
     let board = ui.agent_board_view().unwrap();
     assert!(
         wide_text

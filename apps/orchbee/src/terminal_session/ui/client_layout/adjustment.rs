@@ -53,7 +53,11 @@ impl NativeUi {
             },
         )?;
         let layout = ClientPanelLayout {
-            terminal_context_id: state.cache().terminal_context_id().clone(),
+            terminal_context_id: state
+                .cache()
+                .terminal_context_id()
+                .ok_or(Reason::TargetUnavailable)?
+                .clone(),
             tab_id: tab.tab_id().clone(),
             source_panel_id: source.clone(),
             workbench_revision: state.cache().revision(),
@@ -210,7 +214,7 @@ impl NativeUi {
                 }) {
                     return Err(Reason::StaleView);
                 }
-                let selected = state.cache().terminal_context_id() == terminal_context_id
+                let selected = state.cache().terminal_context_id() == Some(terminal_context_id)
                     && state
                         .active()
                         .is_some_and(|active| active.key().anchor().tab_id() == tab_id);

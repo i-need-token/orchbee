@@ -43,9 +43,9 @@ fn reorder_projects_before_dequeue_and_settles_without_a_metadata_poll() {
         let original_order = order(&picker);
         let selection = ui.state.as_ref().unwrap().desired().cloned();
         let operation = NavigationConfiguration::MoveWorkspace {
-            workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
+            workspace_id: snapshot.navigation.workspaces[2].workspace_id.clone(),
             project_id: None,
-            before_workspace_id: Some(snapshot.navigation.workspaces[0].workspace_id.clone()),
+            before_workspace_id: Some(snapshot.navigation.workspaces[1].workspace_id.clone()),
         };
         let source = ui.sidebar_reorder_source().unwrap();
         ui.commit_sidebar_reorder(&source, operation.clone());

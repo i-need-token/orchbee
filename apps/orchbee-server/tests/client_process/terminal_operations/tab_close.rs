@@ -41,9 +41,9 @@ fn tabs(snapshot: &Snapshot) -> TestResult<&[Tab]> {
         .terminal_contexts
         .iter()
         .find(|context| {
-            context.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
+            context.terminal_context_id == snapshot.navigation.workspaces[0].terminal_context_id
         })
-        .ok_or("standalone context")?
+        .ok_or("initial_workspace context")?
         .tabs)
 }
 
@@ -80,7 +80,7 @@ fn create_tab(client: &mut UnixStream, value: u128) -> TestResult<(Snapshot, Tab
         WorkbenchAction::TabCreate {
             automatic_label: false,
             placement: None,
-            terminal_context_id: before.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: before.navigation.workspaces[0].terminal_context_id.clone(),
             label: WorkbenchLabel::parse("idle Close capacity")?,
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
             launch: None,
@@ -111,7 +111,7 @@ fn attach(
         ..
     } = &tab.root
     else {
-        return Err("standalone panel".into());
+        return Err("initial_workspace panel".into());
     };
     let binding = primary_presentation
         .binding
@@ -200,7 +200,9 @@ fn close_tab(client: &mut UnixStream, snapshot: &Snapshot, tab: &Tab, value: u12
         snapshot,
         value,
         WorkbenchAction::TabClose {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             tab_id: tab.tab_id.clone(),
         },
     )?;
@@ -220,7 +222,9 @@ fn close_tab(client: &mut UnixStream, snapshot: &Snapshot, tab: &Tab, value: u12
                 protocol_version: ProtocolVersion,
                 request_id: request_id.clone(),
                 site_id: snapshot.site_id.clone(),
-                terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+                terminal_context_id: snapshot.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone(),
                 tab_id: tab.tab_id.clone(),
             }),
         )?;
@@ -380,7 +384,7 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
         connect_bounded_client(server.client_endpoint())
     );
     let initial = stage!("initial snapshot", snapshot(&mut client, 1));
-    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
     let created = stage!(
         "tab.create",
@@ -601,7 +605,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
         connect_bounded_client(server.client_endpoint())
     );
     let initial = stage!("initial snapshot", snapshot(&mut client, 1));
-    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
     let created = stage!(
         "tab.create",
@@ -660,7 +664,7 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
         outcome => return Err(format!("real panel.split did not start: {outcome:?}").into()),
     };
     let after_split = stage!("snapshot after panel.split", snapshot(&mut client, 5));
-    // Standalone create admission evaluates tree membership, so it still admits on a
+    // Workspace create admission evaluates tree membership, so it still admits on a
     // context whose first Tab is already split.
     let other = stage!(
         "unrelated tab.create",
@@ -1041,7 +1045,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
         connect_bounded_client(server.client_endpoint())
     );
     let initial = stage!("initial snapshot", snapshot(&mut first, 1));
-    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
 
     let created = stage!(
@@ -1116,7 +1120,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
         PanelNode::Panel { panel_id: child, .. } if *child == new_panel_id
     )));
 
-    // Standalone create admission on multileaf membership must not retire the authority.
+    // Workspace create admission on multileaf membership must not retire the authority.
     let second_create = stage!(
         "multileaf tab.create",
         command(
@@ -1148,7 +1152,7 @@ fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> 
     let after_second = stage!("snapshot after second create", snapshot(&mut second, 7));
     assert_eq!(tabs(&after_second)?.len(), 2);
 
-    // Standalone TabMove admission on the same multileaf membership.
+    // Workspace TabMove admission on the same multileaf membership.
     let moved = stage!(
         "multileaf tab.move",
         command(

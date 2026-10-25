@@ -15,7 +15,7 @@ fn snapshot(stream: &mut LocalStream, unbound: bool, revision: u64) {
     let mut leaf = panel(6);
     leaf["primaryPresentation"]["binding"] = Value::Null;
     let source: Snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),
-        "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},
+        "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"tab","pinned":false,"groupId":null,"root":leaf}]}]})).unwrap();
     write_workbench_response(
         stream,

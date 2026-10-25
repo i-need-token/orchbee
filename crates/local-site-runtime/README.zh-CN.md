@@ -170,7 +170,7 @@ Client 从 TTY 准入到首个有效 Host 帧应用到投影，共用一个 20 �
 | 标记存在、生命周期锁空闲；或无标记但生命周期锁被持有 | RecoveryRequired；不启动                                    |
 | socket / cohort / 权限无效，不兼容或准入结果不明确   | 明确失败；无回退                                            |
 | 创建标记后启动失败                                   | 保留标记；本次和后续尝试均需显式恢复                        |
-| Server + Worker 就绪                                 | 释放激活锁，提交一次独立 Open，附加 viewer，决定 controller |
+| Server + Worker 就绪                                 | 释放激活锁，读取 Workspace 成员，有所选绑定时附着           |
 | 截止前应用首个有效帧                                 | 将同一继承 TTY 和已准备 Session 交给 TUI                    |
 | Client 退出 / 到期                                   | 释放 Client 资源；保留 Server、Worker、Host 和终端          |
 | Worker / Host 丢失                                   | 不可用或结果未知；不重启、不接管、不重放                    |

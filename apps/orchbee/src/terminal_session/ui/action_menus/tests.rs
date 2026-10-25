@@ -179,7 +179,7 @@ fn empty_ui_without_focused_panel() -> NativeUi {
         Geometry::new(120, 40, 8, 16).unwrap(),
     ));
     let mut ui = NativeUi::new(std::sync::Arc::clone(&mailbox), clock.clone());
-    let cache = crate::terminal_session::workbench_projection::project_native_standalone_tabs(
+    let cache = crate::terminal_session::workbench_projection::project_preferred_workspace(
         &super::super::tests::membership::snapshot(0, 1),
     )
     .unwrap();
@@ -201,7 +201,7 @@ fn empty_ui_without_focused_panel() -> NativeUi {
         ui.state
             .as_ref()
             .is_some_and(|state| state.focus_pane_ref().is_none()),
-        "the empty standalone context keeps its live carrier without a focused panel"
+        "the empty initial_workspace context keeps its live carrier without a focused panel"
     );
     ui
 }
@@ -324,79 +324,6 @@ fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
     activate_row(&mut ui, token, row);
     assert_eq!(ui.take_action_menu_action(false), None);
     assert!(ui.action_menu_active());
-}
-
-#[test]
-fn legacy_workspace_menu_keeps_tab_actions_and_refuses_canonical_workspace_effects() {
-    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
-    let location = ui.state.as_ref().unwrap().cache().location().clone();
-    assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
-    assert_eq!(
-        ui.view().action_menu().unwrap().actions,
-        crate::action_menu::LEGACY_WORKSPACE_ACTIONS
-    );
-    assert!(ui.menus.sidebar.is_none());
-    ui.cancel_action_menu();
-    for action in [
-        MenuAction::WorkspaceDirectory,
-        MenuAction::RenameWorkspace,
-        MenuAction::MoveWorkspace,
-        MenuAction::CloseWorkspace,
-    ] {
-        assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
-        let row = action_row(&ui, action);
-        assert_eq!(
-            ui.view().action_menu().unwrap().unavailable[row],
-            Some(MenuUnavailable::LegacyWorkspace)
-        );
-        let token = arm(&mut ui);
-        activate_row(&mut ui, token, row);
-        assert!(ui.take_action_menu_action(false).is_none());
-        assert!(mailbox.try_recv().unwrap().is_none());
-        ui.cancel_action_menu();
-    }
-    for action in [
-        ClientAction::RequestWorkspaceRename,
-        ClientAction::RequestWorkspaceMove,
-        ClientAction::RequestWorkspaceDirectory,
-        ClientAction::RequestWorkspaceClose,
-    ] {
-        ui.apply_client_action(action);
-        assert_eq!(
-            ui.view().notice(),
-            Some(NativeSessionNotice::LegacyWorkspace)
-        );
-        assert!(mailbox.try_recv().unwrap().is_none());
-    }
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        assert!(
-            !locale
-                .menu_unavailable(MenuUnavailable::LegacyWorkspace, false)
-                .is_empty()
-        );
-        assert!(
-            !locale
-                .native_notice(NativeSessionNotice::LegacyWorkspace)
-                .is_empty()
-        );
-    }
-    assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
-    let row = action_row(&ui, MenuAction::NewTab);
-    assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
-    let token = arm(&mut ui);
-    activate_row(&mut ui, token, row);
-    assert_eq!(
-        ui.take_action_menu_action(false),
-        Some(ClientAction::CreateTab)
-    );
-    ui.apply_client_action(ClientAction::CreateTab);
-    assert!(matches!(
-        mailbox.try_recv().unwrap().unwrap().record(),
-        QueuedCommand::Create(_)
-    ));
-    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
-    assert!(ui.state.as_ref().unwrap().invariant_holds());
-    mailbox.close(CarrierFailure::Closed);
 }
 
 #[test]
@@ -1135,9 +1062,9 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
         worker_id: WorkerId::parse("00000000000000000000000000000902").unwrap(),
         path: WorkbenchDirectoryPath::parse("C:/project").unwrap(),
     });
-    snapshot.navigation.workspaces[0].primary_directory_id = Some(directory_id);
+    snapshot.navigation.workspaces[1].primary_directory_id = Some(directory_id);
     let cache =
-        crate::terminal_session::workbench_projection::project_native_standalone_tabs(&snapshot)
+        crate::terminal_session::workbench_projection::project_preferred_workspace(&snapshot)
             .unwrap();
     ui.state = Some(
         NativeSessionState::bootstrap(cache, 1, Geometry::new(80, 24, 8, 16).unwrap())
@@ -1659,9 +1586,9 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 let (mut ui, _, _, _) = tests::move_membership::ready_ui();
                 let geometry = Geometry::new(width, height, 8, 16).unwrap();
                 let mut snapshot = tests::context_selection::snapshot(true);
-                snapshot.navigation.workspaces[0].label = "猫 🐝 workspace".into();
+                snapshot.navigation.workspaces[1].label = "猫 🐝 workspace".into();
                 let cache =
-                    crate::terminal_session::workbench_projection::project_native_standalone_tabs(
+                    crate::terminal_session::workbench_projection::project_preferred_workspace(
                         &snapshot,
                     )
                     .unwrap();
@@ -1788,7 +1715,7 @@ fn drawn_snapshot_source_and_owned_workspace_directory_replacement_are_fenced() 
         worker_id: WorkerId::parse("00000000000000000000000000000902").unwrap(),
         path: WorkbenchDirectoryPath::parse("C:/other-project").unwrap(),
     });
-    replacement.navigation.workspaces[0].primary_directory_id = Some(directory_id);
+    replacement.navigation.workspaces[1].primary_directory_id = Some(directory_id);
     let baseline = Origin::capture(ui.state.as_ref());
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Refresh(marker) = lease.record() else {

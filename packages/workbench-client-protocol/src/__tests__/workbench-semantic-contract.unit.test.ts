@@ -133,9 +133,16 @@ function snapshotWithPanelDepth(depth: number): unknown {
 		kind: 'workbench.snapshot',
 		navigation: {
 			directories: [],
-			workspaces: [],
+			workspaces: [
+				{
+					workspaceId: '22222222222222222222222222222222',
+					terminalContextId: '33333333333333333333333333333333',
+					label: 'Workspace',
+					projectId: null,
+					primaryDirectoryId: null,
+				},
+			],
 			projects: [],
-			standaloneTerminalContextId: '33333333333333333333333333333333',
 		},
 		protocolVersion: 1,
 		revision: '1',
@@ -266,7 +273,6 @@ describe('Workbench cross-language semantic contract', () => {
 				directories: [],
 				workspaces: [],
 				projects,
-				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
 			}).success,
 		).toBe(true);
 		expect(
@@ -274,7 +280,6 @@ describe('Workbench cross-language semantic contract', () => {
 				directories: [],
 				workspaces: [],
 				projects: [...projects, { label: 'Overflow', projectId: opaqueIdentity(257) }],
-				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
 			}).success,
 		).toBe(false);
 
@@ -312,7 +317,6 @@ describe('Workbench cross-language semantic contract', () => {
 			directories,
 			projects: [],
 			workspaces: [],
-			standaloneTerminalContextId: opaqueIdentity(1),
 		};
 		expect(WorkbenchNavigationSchema.safeParse(navigation).success).toBe(true);
 		expect(

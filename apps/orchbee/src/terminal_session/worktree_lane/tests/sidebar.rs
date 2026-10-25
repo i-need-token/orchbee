@@ -364,7 +364,7 @@ fn non_git_first_project_member_never_queries_a_later_repository_or_starts_an_op
         &SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone()),
     )
     .unwrap();
-    let expected_workspace = canonical.navigation.workspaces[0].workspace_id.clone();
+    let expected_workspace = canonical.navigation.workspaces[1].workspace_id.clone();
     let server = FakeServer::start_connections(2, move |index, mut stream| {
         handshake(&mut stream, index as u64 + 1)?;
         if index == 0 {

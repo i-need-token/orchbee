@@ -174,9 +174,9 @@ pub(crate) fn project(
             .iter()
             .enumerate()
             .find(|(_, p)| p.member.as_str() == id)
-            .map(|(order, p)| {
+            .and_then(|(order, p)| {
                 let (context, workspace) = match &p.context.location {
-                    NativeContextLocation::Standalone(context) => (context.to_string(), None),
+                    NativeContextLocation::NoWorkspace => return None,
                     NativeContextLocation::Workspace {
                         workspace_id,
                         terminal_context_id,
@@ -185,7 +185,7 @@ pub(crate) fn project(
                         Some(workspace_id.to_string()),
                     ),
                 };
-                Placement {
+                Some(Placement {
                     panel: p.panel.to_string(),
                     presentation: p.member.to_string(),
                     terminal: p.terminal.terminal_id.to_string(),
@@ -193,7 +193,7 @@ pub(crate) fn project(
                     workspace,
                     tab: p.tab.to_string(),
                     order,
-                }
+                })
             })
     };
     let edges: Vec<Vec<usize>> = canonical

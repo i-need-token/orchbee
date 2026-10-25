@@ -61,7 +61,7 @@ fn projector_rejects_duplicate_structural_ids_in_any_member() {
             }
         }
         assert_eq!(
-            project_native_standalone_tabs(&candidate),
+            project_preferred_workspace(&candidate),
             Err(NativeProjectionError),
             "field {field}"
         );
@@ -80,7 +80,7 @@ fn projector_rejects_a_terminal_bound_twice_even_with_distinct_workers() {
     };
     primary_presentation.binding.as_mut().unwrap().terminal_id = terminal_id(tab_seed(0) + 4);
     assert_eq!(
-        project_native_standalone_tabs(&candidate),
+        project_preferred_workspace(&candidate),
         Err(NativeProjectionError)
     );
 }
@@ -179,7 +179,7 @@ fn workspace_order_changes_navigation_without_changing_selected_context() {
             .terminal_contexts
             .push(terminal_context(value + 2, 0));
     }
-    let old = project_native_standalone_tabs(&source).unwrap();
+    let old = project_preferred_workspace(&source).unwrap();
     let selected = old.navigation[1].location.clone();
     let before = project_native_context_tabs(&source, &selected).unwrap();
     source.navigation.workspace_order = source

@@ -1,5 +1,6 @@
 //! Close must account for every physical Presentation in its canonical scope.
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{Snapshot, TabGroup, TabGroupColor, WorkbenchTabGroupId};
 
 fn load(authority: &mut WorkbenchAuthority, snapshot: Snapshot) {
@@ -212,7 +213,7 @@ fn mixed_panel_close_preserves_unbound_sibling_and_accepts_bound_child_of_unboun
         );
         assert!(
             authority
-                .standalone_presentation_membership()
+                .fixture_presentation_membership()
                 .unwrap()
                 .is_empty()
         );
@@ -520,7 +521,7 @@ fn panel_tab_and_workspace_close_capture_all_children_and_preserve_survivors() {
 fn only_panel_with_multiple_presentations_is_a_whole_tab_scope() {
     let (mut authority, grant) = fixture(1);
     decorate(&mut authority, 0);
-    let membership = authority.standalone_presentation_membership().unwrap();
+    let membership = authority.fixture_presentation_membership().unwrap();
     let member = &membership.members()[0];
     let close = command(
         &authority,
@@ -551,7 +552,7 @@ fn panel_publication_rejects_child_membership_changes_after_disposal() {
     for change in 0..4 {
         let (mut authority, grant) = split_fixture(1);
         decorate(&mut authority, 0);
-        let membership = authority.standalone_presentation_membership().unwrap();
+        let membership = authority.fixture_presentation_membership().unwrap();
         let member = &membership.members()[0];
         let close = command(
             &authority,

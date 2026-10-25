@@ -115,7 +115,7 @@ fn receipt(target: Target, revision: u64, unchanged: bool) -> WorkbenchSetupComm
 fn set_label(snapshot: &mut Snapshot, target: Target, label: &str) {
     match target {
         Target::Project => snapshot.navigation.projects[0].label = label.into(),
-        Target::Workspace => snapshot.navigation.workspaces[0].label = label.into(),
+        Target::Workspace => snapshot.navigation.workspaces[1].label = label.into(),
     }
 }
 #[test]
@@ -152,9 +152,9 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
     }
 }
 #[test]
-fn standalone_location_rename_refuses_locally_with_the_requested_target_and_busy_does_not_claim_absence()
+fn ungrouped_workspace_project_rename_refuses_locally_with_the_requested_target_and_busy_does_not_claim_absence()
  {
-    for target in [Target::Project, Target::Workspace] {
+    for target in [Target::Project] {
         let mut state = ready(1);
         assert!(
             state
@@ -311,8 +311,8 @@ fn exact_location_label_snapshot_rejects_other_project_workspace_and_terminal_ch
                     "Unrelated",
                 ),
                 2 => snapshot.terminal_contexts[1].tabs[0].label = "Unrelated Tab".into(),
-                3 => snapshot.navigation.workspaces[0].terminal_context_id = context_id(99),
-                _ => snapshot.navigation.standalone_terminal_context_id = context_id(99),
+                3 => snapshot.navigation.workspaces[1].terminal_context_id = context_id(99),
+                _ => snapshot.navigation.workspaces[0].terminal_context_id = context_id(99),
             };
             assert!(matches!(
                 state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot }),
@@ -418,7 +418,7 @@ fn settled_noop_and_new_queued_rename_retirement_evidence_are_consumed_independe
     assert!(state.invariant_holds());
 }
 
-fn targeted_source(standalone: bool, empty: bool) -> (NativeSessionState, Snapshot) {
+fn targeted_source(initial_workspace: bool, empty: bool) -> (NativeSessionState, Snapshot) {
     let mut snapshot = workspace_snapshot(1, usize::from(!empty));
     if empty {
         snapshot.terminal_contexts[0].tabs.clear();
@@ -426,10 +426,19 @@ fn targeted_source(standalone: bool, empty: bool) -> (NativeSessionState, Snapsh
     let mut target = snapshot.navigation.projects[0].clone();
     target.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
     snapshot.navigation.projects.push(target);
-    let source = if standalone {
-        NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        )
+    let source = if initial_workspace {
+        {
+            let fixture_context_id = snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        }
     } else {
         location()
     };
@@ -480,10 +489,10 @@ fn targeted_operation(state: &mut NativeSessionState, changed: bool) -> SetupOpe
 
 #[test]
 fn targeted_project_rename_preserves_source_and_validates_receipts_and_exact_deltas() {
-    for standalone in [false, true] {
+    for initial_workspace in [false, true] {
         for empty in [false, true] {
             for changed in [false, true] {
-                let (mut state, snapshot) = targeted_source(standalone, empty);
+                let (mut state, snapshot) = targeted_source(initial_workspace, empty);
                 let source = state.cache().location().clone();
                 let desired = state.desired().cloned();
                 let focus = state.focus_pane_ref();
@@ -530,8 +539,8 @@ fn targeted_project_rename_preserves_source_and_validates_receipts_and_exact_del
                     match corruption {
                         0 => wrong.navigation.projects[0].label = "Unrelated".into(),
                         1 => wrong.navigation.projects[1].label = "Forged".into(),
-                        2 => wrong.navigation.workspaces[0].label = "Other".into(),
-                        _ => wrong.terminal_contexts[usize::from(!standalone)]
+                        2 => wrong.navigation.workspaces[1].label = "Other".into(),
+                        _ => wrong.terminal_contexts[usize::from(!initial_workspace)]
                             .tabs
                             .push(tab(91)),
                     }

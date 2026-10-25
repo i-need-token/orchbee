@@ -161,45 +161,14 @@ fn lost_worker_after_delivery_returns_unknown_and_never_retargets_create_referen
 #[test]
 fn real_clients_server_worker_host_start_view_and_disconnect_retain_one_running_terminal()
 -> TestResult {
-    run_real_terminal_vertical(false)
+    run_real_terminal_vertical()
 }
 
-#[test]
-fn real_standalone_opens_share_and_reopen_one_retained_shell() -> TestResult {
-    run_real_terminal_vertical(true)
-}
-
-fn run_real_terminal_vertical(standalone: bool) -> TestResult {
+fn run_real_terminal_vertical() -> TestResult {
     let server = RunningServer::start()?;
     let mut real = RealTerminalRuntime::start(&server)?;
     let runtime = real.directory.0.as_path();
-    let (mut second, reference) = if standalone {
-        let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
-        let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
-        write_client_message(&mut first, &standalone::open(1, geometry()?)?)?;
-        write_client_message(&mut second, &standalone::open(2, geometry()?)?)?;
-        let reference = standalone::opened(read_server_message(&mut first)?, 1)?;
-        assert_eq!(
-            standalone::opened(read_server_message(&mut second)?, 2)?,
-            reference
-        );
-        assert_ne!(reference, id(1)?);
-        assert_ne!(reference, id(2)?);
-        drop(first);
-        drop(second);
-        let (mut reopened, _) = connect_bounded_client(server.client_endpoint())?;
-        assert_eq!(
-            standalone::opened(
-                exchange(
-                    &mut reopened,
-                    &standalone::open(3, Geometry::new(100, 30, 8, 16)?)?
-                )?,
-                3
-            )?,
-            reference
-        );
-        (reopened, reference)
-    } else {
+    let (mut second, reference) = {
         let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
         assert!(
             matches!(exchange(&mut first,&create(1)?)?,ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Accepted {state:CreateAcceptedState::AwaitingStart})
@@ -215,7 +184,7 @@ fn run_real_terminal_vertical(standalone: bool) -> TestResult {
 
         (second, id(1)?)
     };
-    viewers::exercise_real_viewers(&server, &mut second, runtime, &reference, !standalone)?;
+    viewers::exercise_real_viewers(&server, &mut second, runtime, &reference, true)?;
     drop(second);
     drop(real.worker.take());
     assert_eq!(
@@ -438,8 +407,8 @@ impl Drop for HostDirectory {
 #[path = "terminal_operations/viewers.rs"]
 mod viewers;
 
-#[path = "terminal_operations/standalone.rs"]
-mod standalone;
+#[path = "terminal_operations/workspace.rs"]
+mod workspace;
 
 #[path = "terminal_operations/tab_close.rs"]
 mod tab_close;

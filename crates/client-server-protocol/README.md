@@ -236,18 +236,11 @@ strict payload decoding, construction invariants, partial I/O, and no-flush beha
 prove a transport, Server state machine, authorization policy, Worker or Host mapping, terminal
 lifecycle, or end-to-end execution.
 
-## Standalone opening binding
+## Workspace creation boundary
 
-`TerminalOpenRequest`, `TerminalOpenResult` and `OpenOutcome` implement the unshipped
-[standalone opening contract](../../schemas/client-server/README.md#standalone-terminal-opening).
-The request carries only correlation and complete geometry; Opened returns the independent
-Server-created reference retained by legacy viewer attachment. AttachBinding does not change the
-Open result. The binding owns strict encoding and validation, while Server owns singleton selection,
-creation and lifetime.
-Canonical fixtures cover every open outcome and reject absent, extra, malformed and wrong-direction
-messages through both the JSON schema and independent Rust decoder.
+Terminal creation is a Workspace-owned Workbench command. OBCS contains no `terminal.open` request/result or singleton Open identity. Clients select exact bindings from the canonical Workbench snapshot and use `attach-binding`; normal viewer/controller admission remains required. The closed schema and independent Rust decoder reject removed message kinds.
 
-Open and AttachBinding are additive, unpublished OBCS v1 source contracts. They retain the existing
+AttachBinding is an additive, unpublished OBCS v1 source contract. It retains the existing
 frame version and limits. The installed exact runtime cohort is Client, Server, Worker, and Host;
 this Rust source binding is a contract input rather than an installed cohort artifact. Before
 publication, its source contract and the runtime cohort roll back together, with no persisted state

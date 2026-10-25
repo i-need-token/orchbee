@@ -36,7 +36,6 @@ pub(super) fn resolve(
     match &command.kind {
         CreationKind::Tab { context } => {
             let context_id = match context {
-                Some(TabContext::Standalone) => &snapshot.navigation.standalone_terminal_context_id,
                 Some(TabContext::Workspace(target)) => {
                     let workspace = results::resolve_or_fail(
                         snapshot.navigation.workspaces.iter().map(|workspace| {
@@ -64,18 +63,14 @@ pub(super) fn resolve(
                 .iter()
                 .find(|context| &context.terminal_context_id == context_id)
                 .ok_or_else(unavailable)?;
+            let workspace = snapshot
+                .navigation
+                .workspaces
+                .iter()
+                .find(|workspace| &workspace.terminal_context_id == context_id)
+                .ok_or_else(unavailable)?;
             let target_context =
-                if context_id == &snapshot.navigation.standalone_terminal_context_id {
-                    TabContext::Standalone
-                } else {
-                    let workspace = snapshot
-                        .navigation
-                        .workspaces
-                        .iter()
-                        .find(|workspace| &workspace.terminal_context_id == context_id)
-                        .ok_or_else(unavailable)?;
-                    TabContext::Workspace(Target::Id(workspace.workspace_id.to_string()))
-                };
+                TabContext::Workspace(Target::Id(workspace.workspace_id.to_string()));
             Ok(canonical(
                 command,
                 Some(target_context),

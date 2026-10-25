@@ -43,7 +43,7 @@ const WORKSPACE_LABEL: &str = "main";
 #[test]
 fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -343,7 +343,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
 #[test]
 fn duplicate_project_labels_stay_id_addressable() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let _server = spawn_real_server(&fixture);
 
     let mut project_ids = Vec::new();
@@ -444,7 +444,7 @@ fn duplicate_project_labels_stay_id_addressable() -> TestResult {
 #[test]
 fn project_rename_commits_against_the_live_server() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let _server = spawn_real_server(&fixture);
     let validators = validators(&fixture);
 

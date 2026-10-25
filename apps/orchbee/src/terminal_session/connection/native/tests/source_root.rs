@@ -7,7 +7,7 @@ use crate::local_client::tests::server::FakeServer;
 use crate::terminal_session::primary_directory::tests::process_record;
 use crate::terminal_session::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
 use crate::terminal_session::workbench_projection::{
-    NativeContextTabs, NativeTerminalBinding, project_native_standalone_tabs,
+    NativeContextTabs, NativeTerminalBinding, project_preferred_workspace,
 };
 use crate::terminal_session::{
     mailbox::CommandMailbox,
@@ -21,7 +21,7 @@ use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchSnapshotOutcom
 use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
 
-/// The source facts a primary-root carrier samples from one standalone snapshot.
+/// The source facts a primary-root carrier samples from one initial_workspace snapshot.
 pub(in crate::terminal_session::connection::native) struct SourceFixture {
     pub(in crate::terminal_session::connection::native) generation: u64,
     pub(in crate::terminal_session::connection::native) baseline: NativeContextTabs,
@@ -32,7 +32,7 @@ pub(in crate::terminal_session::connection::native) struct SourceFixture {
 
 fn preparation() -> TestResult<(SourceFixture, WorkbenchSnapshotOutcome)> {
     let snapshot = snapshot(1, 1);
-    let baseline = project_native_standalone_tabs(&snapshot).unwrap();
+    let baseline = project_preferred_workspace(&snapshot).unwrap();
     let primary = baseline.tabs()[0]
         .panel(0)
         .unwrap()

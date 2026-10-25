@@ -164,7 +164,6 @@ impl TerminalStartRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientMessage {
-    TerminalOpen(crate::TerminalOpenRequest),
     TerminalControl(crate::TerminalControlRequest),
     TerminalCreate(TerminalCreateRequest),
     TerminalStart(TerminalStartRequest),
@@ -329,7 +328,6 @@ impl TerminalStartResult {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServerMessage {
-    TerminalOpenResult(crate::TerminalOpenResult),
     TerminalControlResult(crate::TerminalControlResult),
     TerminalCreateResult(TerminalCreateResult),
     TerminalStartResult(TerminalStartResult),

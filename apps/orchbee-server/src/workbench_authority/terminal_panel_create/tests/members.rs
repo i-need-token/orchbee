@@ -1,10 +1,12 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{TerminalPresentationId, WorkbenchPanelTerminalTarget};
 
 fn fixture() -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchCommand) {
-    let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(700)).unwrap()).unwrap();
-    authority.commit_standalone_intent(binding(1)).unwrap();
+    let mut authority =
+        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(700)).unwrap()).unwrap();
+    authority.append_fixture_tab(binding(1)).unwrap();
     let snapshot = authority.snapshot();
     let context = &snapshot.terminal_contexts[0];
     let tab = &context.tabs[0];

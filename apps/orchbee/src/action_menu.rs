@@ -114,7 +114,6 @@ pub(crate) enum MenuAction {
     WorkspaceDirectory,
     RenameWorkspace,
     RenameProject,
-    MoveWorkspace,
     WorkspaceProjects,
     WorkspaceWorktrees,
     CreateWorkspaceProject,
@@ -146,7 +145,6 @@ pub(crate) enum MenuUnavailable {
     EmptyWorkspaceRequired,
     WorkspaceRequired,
     FocusedPanelRequired,
-    LegacyWorkspace,
     ProjectWorkspaceRequired,
     OperationBusy,
     PointerReleased,
@@ -228,7 +226,6 @@ impl MenuAction {
             Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
             Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
             Self::RenameProject => ClientAction::RequestProjectRename,
-            Self::MoveWorkspace => ClientAction::RequestWorkspaceMove,
             Self::CloseProjectWorkspaces => ClientAction::RequestProjectCloseAll(None),
             Self::CloseWorkspace => ClientAction::RequestWorkspaceClose,
             Self::NewWorkspace => ClientAction::RequestWorkspaceCreate,
@@ -282,17 +279,6 @@ pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::WorkspaceWorktrees,
     MenuAction::RenameWorkspace,
     MenuAction::DeleteWorkspace,
-];
-/// Retained compatibility contexts have no Workspace ID for canonical sidebar operations.
-pub(crate) const LEGACY_WORKSPACE_ACTIONS: &[MenuAction] = &[
-    MenuAction::QuickWorkspace,
-    MenuAction::NewTab,
-    MenuAction::WorkspaceDirectory,
-    MenuAction::RenameWorkspace,
-    MenuAction::MoveWorkspace,
-    MenuAction::NewWorktree,
-    MenuAction::OpenWorktree,
-    MenuAction::CloseWorkspace,
 ];
 pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::QuickWorkspace,

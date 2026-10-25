@@ -125,13 +125,27 @@ fn project_rename_fixture(
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&id(2)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            standalone_terminal_context_id: context.clone(),
-            workspace_order: Vec::new(),
-            projects: vec![project.clone()],
+        navigation: {
+            let fixture_context_id = context.clone();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: vec![project.clone()],
+            }
         },
         terminal_contexts: vec![TerminalContext {
             terminal_context_id: context,
@@ -140,7 +154,7 @@ fn project_rename_fixture(
         }],
     };
     let state = NativeSessionState::bootstrap(
-        project_native_standalone_tabs(&snapshot).unwrap(),
+        project_preferred_workspace(&snapshot).unwrap(),
         1,
         geometry(80),
     )

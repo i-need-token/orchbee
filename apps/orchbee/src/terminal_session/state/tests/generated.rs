@@ -1557,7 +1557,7 @@ fn reject_reused_committed_tuple(trace: &mut TraceState) -> Result<(), &'static 
             &second_key,
             WorkbenchTabCreateCommit::Pending {
                 revision: WorkbenchRevision::new(3),
-                terminal_context_id: session.cache().terminal_context_id().clone(),
+                terminal_context_id: session.cache().terminal_context_id().unwrap().clone(),
                 tab_id: reused.tab_id().clone(),
                 panel_id: reused.panel_id().clone(),
                 presentation_id: reused.presentation_id().clone(),
@@ -1972,7 +1972,7 @@ fn shadow_holds(trace: &TraceState) -> bool {
         trace.delivered_tabs.clone(),
         trace.session.cache().revision().value(),
     );
-    project_native_standalone_tabs(&snapshot)
+    project_preferred_workspace(&snapshot)
         .is_ok_and(|projected| projected == *trace.session.cache())
 }
 
@@ -2180,7 +2180,7 @@ fn commit_edit(
         .value()
         .checked_add(1)
         .ok_or("commit revision")?;
-    let terminal_context_id = baseline.terminal_context_id().clone();
+    let terminal_context_id = baseline.terminal_context_id().unwrap().clone();
     let tab_id = operation.target().tab_id().clone();
     let mut tabs = server_tabs.to_vec();
     let Some(tab) = tabs.iter_mut().find(|tab| tab.tab_id == tab_id) else {
@@ -2430,7 +2430,7 @@ fn panel_settle(
     // removal the Server performs lands at server_revision + 1 — not merely
     // baseline + 1, which could collide with an existing peer revision.
     let commit_revision = trace.server_revision.checked_add(1).ok_or("revision")?;
-    let terminal_context_id = operation.baseline().terminal_context_id().clone();
+    let terminal_context_id = operation.baseline().terminal_context_id().unwrap().clone();
     let tab_id = operation.target().tab_id().clone();
     let result = match class {
         PanelSettleClass::NotSubmitted => PanelResult::NotSubmitted,
@@ -3448,7 +3448,7 @@ fn anchor_membership_gates() -> Result<(), &'static str> {
     let rebuild = |session: &NativeSessionState| {
         session
             .prepare_membership_candidate(
-                project_native_standalone_tabs(&snapshot).map_err(|_| "candidate projection")?,
+                project_preferred_workspace(&snapshot).map_err(|_| "candidate projection")?,
                 Some(operation.target().tab_id()),
                 operation.baseline().tab_index(operation.target().tab_id()),
                 None,
@@ -3631,7 +3631,7 @@ fn anchor_retire_with_pending() -> Result<(), &'static str> {
 /// with the retired incarnation must refuse while the live record settles.
 fn anchor_reincarnation_fence() -> Result<(), &'static str> {
     let mut session =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+        ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let retired = attach_nonfirst_leaf(&mut session);
     let pane = retired.pane().clone();
     let active = session.active().ok_or("active")?.index();

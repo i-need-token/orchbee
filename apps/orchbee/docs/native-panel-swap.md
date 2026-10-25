@@ -29,12 +29,7 @@ Presentation identities, creation/custom labels, child Presentations and termina
 with the leaves. No identity is allocated, no Host lifecycle effect occurs, and other Tabs and
 contexts remain unchanged. Existing shared split ratios therefore retain their values.
 
-Admission uses the navigation grant, retained-command precedence, canonical revision, context/tree
-and standalone registry composition checks of structural Panel placement. A changed exchange is
-fenced by aggregate close. Candidate encoding, projection admission and ledger capacity complete
-before the one commit. Equal source/target returns `unchanged` without changing revision or
-identity allocation. Missing targets, stale revision, denied grants and capacity refusal do not
-change the tree. Retained replay returns the original result; conflicting reuse cannot replace it.
+Admission uses the navigation grant, retained-command precedence, canonical revision and exact Workspace Context/tree checks. Aggregate Close fences a changed exchange. Candidate encoding, projection admission and ledger capacity precede the one commit. Equal source/target is unchanged without revision or identity allocation. Missing targets, stale revision, denied grants and exhausted capacity preserve the tree. Exact replay returns its original result; conflicting reuse cannot replace it.
 
 The committed result is `panel-swapped`, with the new revision and exact context/Tab/Panel pair.
 The carrier checks that action-specific kind, all identities and the one-step revision; a move

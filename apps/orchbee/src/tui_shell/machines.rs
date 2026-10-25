@@ -8,8 +8,8 @@ use crate::{
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
     terminal_session::{
-        ContextNavigationAdmission, NativeContextTarget, NativeStartupTarget, TerminalIntent,
-        TerminalSession, TerminalSessionView, TerminalStatus,
+        ContextNavigationAdmission, NativeContextTarget, NativeStartupTarget, TerminalSession,
+        TerminalSessionView, TerminalStatus,
     },
 };
 use std::{
@@ -354,11 +354,7 @@ impl Manager {
                                 Some(context) => {
                                     TerminalSession::start_target(client, context, geometry)
                                 }
-                                None => TerminalSession::start(
-                                    client,
-                                    TerminalIntent::Standalone,
-                                    geometry,
-                                ),
+                                None => TerminalSession::start(client, geometry),
                             }
                         })();
                         match candidate {

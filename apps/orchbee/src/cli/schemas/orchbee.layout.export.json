@@ -69,14 +69,7 @@
 					],
 					"properties": {
 						"workspaceId": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/id"
-								},
-								{
-									"type": "null"
-								}
-							]
+							"$ref": "#/$defs/id"
 						},
 						"terminalContextId": {
 							"$ref": "#/$defs/id"

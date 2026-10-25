@@ -22,22 +22,25 @@ fn quick_workspace_defaults_ungrouped_and_selects_only_an_explicit_project() {
     assert_eq!(fields.name(), "项目 space");
     assert_eq!(fields.directory(), "C:/项目 space");
     let mut snapshot = workspace_setup::workspace_snapshot(1, 0);
-    let standalone = project_native_standalone_tabs(&snapshot).unwrap();
+    let initial_workspace = project_preferred_workspace(&snapshot).unwrap();
     assert_eq!(
-        QuickWorkspaceFields::new(&standalone, cwd.clone(), Locale::EnUs).project(),
+        QuickWorkspaceFields::new(&initial_workspace, cwd.clone(), Locale::EnUs).project(),
         &QuickProject::Ungrouped
     );
     let mut second = snapshot.navigation.projects[0].clone();
     second.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
     snapshot.navigation.projects.push(second);
-    let standalone = project_native_standalone_tabs(&snapshot).unwrap();
-    let mut fields = QuickWorkspaceFields::new(&standalone, cwd.clone(), Locale::EnUs);
+    let initial_workspace = project_preferred_workspace(&snapshot).unwrap();
+    let mut fields = QuickWorkspaceFields::new(&initial_workspace, cwd.clone(), Locale::EnUs);
     assert_eq!(fields.project(), &QuickProject::Ungrouped);
     assert_eq!(fields.plan().unwrap().project, QuickProject::Ungrouped);
-    assert!(fields.select_project(&standalone.projects()[1].project_id, &standalone));
+    assert!(fields.select_project(
+        &initial_workspace.projects()[1].project_id,
+        &initial_workspace
+    ));
     assert_eq!(
         fields.plan().unwrap().project,
-        QuickProject::Existing(standalone.projects()[1].project_id.clone())
+        QuickProject::Existing(initial_workspace.projects()[1].project_id.clone())
     );
     let source = workspace_setup::workspace_state();
     assert_eq!(
@@ -132,7 +135,7 @@ fn targeted_source() -> (NativeSessionState, Snapshot, Project, PaneRef) {
     target.project_id = WorkbenchProjectId::parse(&id(79)).unwrap();
     snapshot.navigation.projects.push(target.clone());
     let location = NativeContextLocation::Workspace {
-        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
+        workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
         terminal_context_id: snapshot.terminal_contexts[1].terminal_context_id.clone(),
     };
     let mut state = ready_with_cache(project_native_context_tabs(&snapshot, &location).unwrap());
@@ -273,7 +276,7 @@ fn project_quick_never_substitutes_a_removed_or_same_id_replaced_target() {
             assert!(!state.setup_blocks_structure());
             assert!(
                 matches!(state.cache().location(), NativeContextLocation::Workspace { workspace_id, .. }
-                if workspace_id == &snapshot.navigation.workspaces[0].workspace_id)
+                if workspace_id == &snapshot.navigation.workspaces[1].workspace_id)
             );
         }
     }
@@ -493,7 +496,7 @@ fn project_quick_return_retires_mismatched_identity_even_if_restored_before_read
         let (mut state, key, _, mut snapshot) = project_quick_entering(|_| {});
         let cache = state.cache().clone();
         if mismatch == "source" {
-            state.cache = project_native_standalone_tabs(&snapshot).unwrap();
+            state.cache = project_preferred_workspace(&snapshot).unwrap();
         } else if mismatch == "desired" {
             state.desired = Some(PaneKey::new(
                 AttachmentKey::new(key.anchor().generation() + 1, key.anchor().tab_id().clone()),
@@ -772,7 +775,7 @@ fn revoked_launch_landing_keeps_current_focus_and_still_validates_the_known_reso
                         };
                         primary_presentation.presentation_id = presentation_id(9901);
                     }
-                    _ => forged.navigation.workspaces[0].terminal_context_id = context_id(9999),
+                    _ => forged.navigation.workspaces[1].terminal_context_id = context_id(9999),
                 }
                 assert!(
                     matches!(
@@ -822,8 +825,8 @@ fn default_names_avoid_global_collisions_and_reserve_suffix_space_without_editin
             )
         };
         let mut snapshot = workspace_setup::workspace_snapshot(1, 0);
-        snapshot.navigation.workspaces[0].label = basename.clone();
-        let mut second = snapshot.navigation.workspaces[0].clone();
+        snapshot.navigation.workspaces[1].label = basename.clone();
+        let mut second = snapshot.navigation.workspaces[1].clone();
         second.workspace_id =
             orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(81)).unwrap();
         second.terminal_context_id = context_id(82);
@@ -838,7 +841,7 @@ fn default_names_avoid_global_collisions_and_reserve_suffix_space_without_editin
         let baseline = snapshot.clone();
         let cwd = WorkbenchDirectoryPath::parse(&format!("C:/{basename}")).unwrap();
         for targeted in [false, true] {
-            let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+            let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
             let preparation = if targeted {
                 begin_targeted(&mut state, &snapshot.navigation.projects[0])
             } else {
@@ -860,7 +863,7 @@ fn default_names_avoid_global_collisions_and_reserve_suffix_space_without_editin
             assert!(label.as_str().chars().count() <= 512);
             assert_eq!(state.cache().canonical_snapshot(), &baseline);
         }
-        let cache = project_native_standalone_tabs(&snapshot).unwrap();
+        let cache = project_preferred_workspace(&snapshot).unwrap();
         let mut fields = QuickWorkspaceFields::new(&cache, cwd, Locale::EnUs);
         fields.name_editor().clear();
         fields.name_editor().insert(&basename).unwrap();
@@ -869,11 +872,11 @@ fn default_names_avoid_global_collisions_and_reserve_suffix_space_without_editin
             basename,
             "explicit labels are not rewritten"
         );
-        let removed = snapshot.navigation.workspaces.remove(0);
+        let removed = snapshot.navigation.workspaces.remove(1);
         snapshot
             .terminal_contexts
             .retain(|context| context.terminal_context_id != removed.terminal_context_id);
-        let cache = project_native_standalone_tabs(&snapshot).unwrap();
+        let cache = project_preferred_workspace(&snapshot).unwrap();
         assert_eq!(
             QuickWorkspaceFields::new(
                 &cache,

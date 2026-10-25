@@ -64,7 +64,7 @@ fn close_uses_independent_grants_and_authority_preconditions_without_host_work()
                 protocol_version: ProtocolVersion,
                 request_id: request_id.clone(),
                 site_id: site.clone(),
-                terminal_context_id: before.navigation.standalone_terminal_context_id.clone(),
+                terminal_context_id: before.navigation.workspaces[0].terminal_context_id.clone(),
                 tab_id: WorkbenchTabId::parse(&format!("{:032x}", 20)).unwrap(),
             };
             let close = WorkbenchRequest::Command(WorkbenchCommand {

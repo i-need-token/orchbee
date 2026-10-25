@@ -239,17 +239,17 @@ fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release()
     assert!(source.has_part(&context_target, SidebarPart::Menu));
     assert!(!source.has_part(&context_target, SidebarPart::Create));
     assert!(!source.has_part(&agent_target, SidebarPart::Menu));
-    let standalone = SidebarTarget::Context {
+    let initial_workspace = SidebarTarget::Context {
         machine: Choice::Local,
         target: context(11).target,
     };
     assert!(
         source
-            .drawn(standalone.clone(), SidebarPart::Menu, window)
+            .drawn(initial_workspace.clone(), SidebarPart::Menu, window)
             .is_some()
     );
-    assert!(source.has_part(&standalone, SidebarPart::Menu));
-    assert!(!source.has_part(&standalone, SidebarPart::Create));
+    assert!(source.has_part(&initial_workspace, SidebarPart::Menu));
+    assert!(!source.has_part(&initial_workspace, SidebarPart::Create));
 
     picker.open = true;
     let covered = picker.sidebar_source();
@@ -368,14 +368,14 @@ fn agent_children_default_expanded_keep_projection_order_and_independent_disclos
     let mut picker = picker();
     let first = workspace(1, 21).target;
     let second = workspace(1, 22).target;
-    let standalone = context(11).target;
+    let initial_workspace = context(11).target;
     observe_agents(
         &mut picker,
         vec![
             agent(first.clone(), 23),
             agent(second.clone(), 24),
             agent(first.clone(), 25),
-            agent(standalone.clone(), 26),
+            agent(initial_workspace.clone(), 26),
         ],
     );
     let agents = |picker: &Picker| {
@@ -407,21 +407,21 @@ fn agent_children_default_expanded_keep_projection_order_and_independent_disclos
         machine: Choice::Local,
         target: first,
     };
-    let standalone = SidebarTarget::Context {
+    let initial_workspace = SidebarTarget::Context {
         machine: Choice::Local,
-        target: standalone,
+        target: initial_workspace,
     };
     assert!(picker.sidebar_context_agents_expanded(&first));
-    assert!(picker.sidebar_context_agents_expanded(&standalone));
+    assert!(picker.sidebar_context_agents_expanded(&initial_workspace));
     assert!(picker.toggle_sidebar_context_agents(&first));
     assert_eq!(agents(&picker), members(&[26, 24]));
-    assert!(picker.sidebar_context_agents_expanded(&standalone));
-    assert!(picker.toggle_sidebar_context_agents(&standalone));
+    assert!(picker.sidebar_context_agents_expanded(&initial_workspace));
+    assert!(picker.toggle_sidebar_context_agents(&initial_workspace));
     assert_eq!(agents(&picker), members(&[24]));
     assert!(picker.toggle_sidebar_context_agents(&first));
     assert_eq!(agents(&picker), members(&[23, 25, 24]));
     picker.observe_focus(Choice::Local, Some(second), None);
-    assert!(!picker.sidebar_context_agents_expanded(&standalone));
+    assert!(!picker.sidebar_context_agents_expanded(&initial_workspace));
     assert!(picker.sidebar_context_agents_expanded(&first));
     assert!(picker.request.is_none());
 }
@@ -571,12 +571,20 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
     let local_workspace = workspace(1, 21).target;
     let mut remote_site_workspace = local_workspace.clone();
     remote_site_workspace.site_id = SiteId::parse(&format!("{:032x}", 10)).unwrap();
-    let standalone = Context {
+    let initial_workspace = Context {
         target: NativeContextTarget {
             site_id: local_workspace.site_id.clone(),
-            location: NativeContextLocation::Standalone(
-                WorkbenchTerminalContextId::parse(&format!("{:032x}", 21)).unwrap(),
-            ),
+            location: {
+                let fixture_context_id =
+                    WorkbenchTerminalContextId::parse(&format!("{:032x}", 21)).unwrap();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
         },
         project_id: None,
         project: None,
@@ -589,7 +597,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
             project: Some("same Project".into()),
             workspace: Some("same 工作区".into()),
         },
-        standalone.clone(),
+        initial_workspace.clone(),
     ]);
     let remote_a = profile(1, "same machine", true);
     let remote_b = profile(2, "same machine", true);
@@ -616,10 +624,10 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
             Choice::Local,
             checkpoint(
                 &local_workspace.site_id,
-                vec![local_workspace.clone(), standalone.target.clone()],
+                vec![local_workspace.clone(), initial_workspace.target.clone()],
                 vec![
                     agent(local_workspace.clone(), 23),
-                    agent(standalone.target.clone(), 24),
+                    agent(initial_workspace.target.clone(), 24),
                 ],
             ),
         ),
@@ -656,7 +664,7 @@ fn agent_join_uses_choice_site_and_full_context_location_across_colliding_ids() 
     }
     for (choice, context, member) in [
         (Choice::Local, local_workspace, 23_u64),
-        (Choice::Local, standalone.target, 24),
+        (Choice::Local, initial_workspace.target, 24),
         (choice_a, workspace(1, 21).target, 25),
         (choice_b, remote_site_workspace, 26),
     ] {

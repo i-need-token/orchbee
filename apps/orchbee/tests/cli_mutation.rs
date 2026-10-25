@@ -312,7 +312,7 @@ fn fixture_document() -> &'static [u8] {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -710,7 +710,8 @@ fn tab_create_against_standalone_context_reports_terminal() -> TestResult {
         &[
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "Workspace",
             "--label",
             "scratch",
             "--cols",
@@ -861,7 +862,8 @@ fn tab_create_without_geometry_requests_the_default() -> TestResult {
         &[
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "Workspace",
             "--label",
             "scratch",
             "--format=json",
@@ -2428,7 +2430,7 @@ fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"pa"}, {"projectId":"00000000000000000000000000000011", "label":"pb"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000012", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}, {"workspaceId":"00000000000000000000000000000013", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000021", "projectId":"00000000000000000000000000000011"}]},
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"pa"}, {"projectId":"00000000000000000000000000000011", "label":"pb"}], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000012", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}, {"workspaceId":"00000000000000000000000000000013", "label":"dup", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000021", "projectId":"00000000000000000000000000000011"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -2634,7 +2636,7 @@ fn ambiguous_label_never_reaches_a_command() -> TestResult {
   "protocolVersion": 1,
   "revision": "3",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {"projects":[], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[]},
+  "navigation": {"projects":[], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",

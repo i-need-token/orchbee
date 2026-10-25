@@ -15,7 +15,7 @@ fn source(
 
 fn move_to_root(snapshot: &Snapshot) -> NavigationConfiguration {
     NavigationConfiguration::MoveWorkspace {
-        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
+        workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
         project_id: None,
         before_workspace_id: None,
     }
@@ -28,7 +28,7 @@ fn pending_order_rolls_back_without_mutating_either_authority_and_a_newer_commit
     let observed = Checkpoint::project_navigation(&baseline, None).unwrap();
     let pending = source(snapshot.clone(), Some(move_to_root(&snapshot)));
     let projected = Checkpoint::project_navigation(&pending, Some(&observed)).unwrap();
-    let moved = &snapshot.navigation.workspaces[0];
+    let moved = &snapshot.navigation.workspaces[1];
     assert_eq!(
         projected.rows.last().unwrap().target.location,
         NativeContextLocation::Workspace {

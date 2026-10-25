@@ -229,7 +229,7 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
         "protocolVersion": 1,
         "revision": "9",
         "siteId": tid(0, 0xaa00),
-        "navigation": {"projects":[{"projectId":tid(0, 0xbb), "label":"p"}], "standaloneTerminalContextId":tid(0, 0x01), "directories":[], "workspaces":[{"workspaceId":tid(0, 0xdd), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}]},
+        "navigation": {"projects":[{"projectId":tid(0, 0xbb), "label":"p"}], "directories":[], "workspaces":[{"workspaceId":tid(0, 0x01),"terminalContextId":tid(0, 0x01),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":tid(0, 0xdd), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}]},
         "terminalContexts": [
             {
                 "terminalContextId": tid(0, 0x01),
@@ -292,7 +292,7 @@ fn panel_move_scopes_target_panel_to_the_source_tab() {
     let failure = action(&move_command("@panel:f2"), &snapshot).expect_err("in-scope collision");
     assert_eq!(failure.kind, FailureKind::Ambiguous);
 
-    // `ff` exists globally (the standalone tab) but not inside the
+    // `ff` exists globally (the initial_workspace tab) but not inside the
     // source tab — no global fallback.
     let failure =
         action(&move_command("@panel:ff"), &snapshot).expect_err("out-of-scope tail must miss");

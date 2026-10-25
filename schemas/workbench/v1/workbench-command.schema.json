@@ -776,7 +776,7 @@
 						"insertIndex": {
 							"type": "integer",
 							"minimum": 0,
-							"maximum": 1023
+							"maximum": 1024
 						}
 					},
 					"required": ["kind", "workspaceId", "insertIndex"],
@@ -791,7 +791,7 @@
 						"workspaceIds": {
 							"type": "array",
 							"minItems": 1,
-							"maxItems": 1023,
+							"maxItems": 1024,
 							"uniqueItems": true,
 							"items": {
 								"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
@@ -2082,7 +2082,7 @@
 						"workspaceOrder": {
 							"type": "array",
 							"minItems": 1,
-							"maxItems": 1023,
+							"maxItems": 1024,
 							"uniqueItems": true,
 							"items": {
 								"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"

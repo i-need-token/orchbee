@@ -9,11 +9,11 @@
 ## Project 组织与稳定 Workspace 身份
 
 Navigation 持有全局按身份排序的 `directories`、`projects` 和 `workspaces`，以及
-`standaloneTerminalContextId` 与独立的 `projectOrder`、`workspaceOrder`。每个非空顺序必须是其
+独立的 `projectOrder`、`workspaceOrder`。每个非空顺序必须是其
 注册表的完整排列；省略或空顺序使用规范 ID 顺序。Project 只包含 `projectId` 与 `label`。Workspace 的 `projectId` 和
 `primaryDirectoryId` 必须存在且可为 null；其 ID、Terminal Context 与物理 Directory 独立于分组。
-引用必须能解析，每个 Terminal Context 恰有一个导航所有者。容量为 256 个 Project、65,536 个
-全局 Directory、每个 Project 最多 256 个 Workspace、全局最多 1,023 个 Workspace。现有 1 MiB
+引用必须能解析，每个 Terminal Context 恰有一个 Workspace 所有者；零 Workspace／零 Context 状态合法。容量为 256 个 Project、65,536 个
+全局 Directory、每个 Project 最多 256 个 Workspace、全局最多 1,024 个 Workspace。现有 1 MiB
 投影字节预算是独立于集合容量的额外上限。
 
 `workspace.create` 必须携带 `projectId`，允许 null。纯命令 `workspace.set-project` 改变一个已有

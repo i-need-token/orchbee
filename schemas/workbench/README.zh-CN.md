@@ -91,7 +91,7 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 `workbench.snapshot` 是一个 Site revision 的完整 authorized product projection。它包含：
 
 - 有序 Project、全局 Directory，以及 Project 归属可为空的独立 Workspace；
-- 恰好一个 standalone Terminal Context，以及每个 Workspace 各一个 Terminal Context；
+- 每个 Workspace 恰好一个 Terminal Context，允许零 Workspace／零 Context；
 - 有序 Tab group 与 Tab；
 - 每个 Tab 的完整 binary Panel/Split topology；
 - 每个 Panel 的一个 primary Terminal Presentation 与零个或多个 child Terminal Presentation；以及
@@ -253,7 +253,7 @@ completion 只结算该保留 create 结果，不改变 projection 或任一 lab
 | 依赖         | 既有 OBWP framing、Workbench label/identity 校验和纯 Server Workbench grant。该操作不引入 Worker、Host、OBCS、terminal-create grant、clock、entropy、persistence、retry、renderer 或 selection 权威。       |
 | 验证与限制   | 共享 Rust/TypeScript corpus 与 codec 测试建立 wire 一致性。Server 有状态测试、有界并发/重放模型、projection 测试及 create/rename/completion 进程见证，在单进程及有界 ledger 范围内建立 runtime refinement。 |
 
-## 独立 Tab 创建契约
+## Workspace Tab 创建契约
 
 `tab.create` 必须携带 `terminalContextId`、`label` 和 `geometry`，可选 `automaticLabel`、下文的
 launch／profile／options 字段以及 `placement`。Context 必须是已接入的独立或已配置本地 Workspace
@@ -323,7 +323,7 @@ action/result。回退时一起恢复整组 source/runtime cohort；不提供混
 
 ## 已接受的 Tab 移动契约
 
-本地未发布 Move 扩展已在 schema、语料、两个 binding 及 Server 中实现；原生 standalone Client 交互已集成，
+本地未发布 Move 扩展已在 schema、语料、两个 binding 及 Server 中实现；原生 Workspace Client 交互已集成，
 其有界 Linux cohort 证据见[原生 Session 契约](../../apps/orchbee/docs/native-tab-session.zh-CN.md)。它使用现有 OBWP v1
 命令 envelope 和 navigation-mutation 授权。action 为
 `tab.move { terminalContextId, tabId, direction }`，direction 严格为
@@ -332,14 +332,14 @@ first/last 将完整 Tab 移到该边界。单成员或目标已在请求边界�
 `Unchanged { revision }`。实际置换产生 `TabMoved { revision, terminalContextId, tabId }`
 （线上 outcome 为 `tab-moved`），恰好推进一个修订。不允许新产品/终端身份或终端/查看器效果。
 
-现有 `TabUnavailable` / `tab-unavailable` 仅在精确 standalone 或 Workspace 上下文及完整支持布局
-通过后表示目标缺失；仅 standalone 要求 Site 组合。Workspace Move 不要求 Directory 或在线 Worker。
+现有 `TabUnavailable` / `tab-unavailable` 仅在精确 Workspace 上下文及完整支持布局
+通过后表示目标缺失。Workspace Move 不要求 Directory 或在线 Worker。
 schema 有效但原生不支持的布局属于内部权威分歧，不是产品拒绝。完整已验证命令
 相等性，包括 Site、预期修订、上下文、Tab 和方向，是重放指纹。保留的精确重放返回固定原结果/
 修订；同 ID 内容改变则冲突。
 [Server 优先级及提交](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#已接受的规范-tab-移动模型)
 拥有授权、退役、容量和发布。严格语料在两个语言 binding 中覆盖每个方向及错误/额外字段。
-消费 adapter 单独校验请求/结果关联及 action 兼容性。OBCS Open 不变。此扩展和两种二进制及两个 binding 作为一个未发布批次激活
+消费 adapter 单独校验请求/结果关联及 action 兼容性。此扩展和两种二进制及两个 binding 作为一个未发布批次激活
 及回退，不提供旧 action 别名或混合版本兼容性。
 
 ## 已接受的 Panel Move 线协议契约
@@ -395,7 +395,7 @@ Command Unavailable 额外准入 `terminal-busy` 和 `terminal-runtime-unavailab
 | Project                   | 每个 snapshot 256 个                        |
 | Directory                 | 每个 snapshot 65,536 个                     |
 | Directory path            | 4,096 个编码 UTF-8 字节                     |
-| Workspace                 | 每个 snapshot 1,023 个；每个 Project 256 个 |
+| Workspace                 | 每个 snapshot 1,024 个；每个 Project 256 个 |
 | Terminal Context          | 每个 snapshot 1,024 个                      |
 | Tab group                 | 每个 Terminal Context 64 个                 |
 | Tab                       | 每个 Terminal Context 256 个                |
@@ -512,7 +512,7 @@ Directory ID 在全局 Directory 池中解析，与 Project 成员关系无关�
 `createdWorkspaceId`。跨上下文移动或移除源 Tab 时提供该对象；新 Workspace 迁移使用 new-Tab
 结果并提供新 Workspace 身份。原有同上下文且不移除源 Tab 的结果省略 transfer。全部终端绑定保留。
 [Server 迁移模型](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#已接受的-panel-迁移模型)
-拥有源移除、候选容量、发布和 standalone 组合；Client 比例与焦点不属于此次原子结构结果。
+拥有源移除、候选容量、发布和 Workspace 绑定守恒；Client 比例与焦点不属于此次原子结构结果。
 共享命令夹具覆盖新旧形式、缺省标签及非法／null 可选值。
 
 ## Workspace 元数据

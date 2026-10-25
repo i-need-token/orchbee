@@ -4,7 +4,7 @@ use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_session::{
     mailbox::{CommandLease, EventDeadline},
     state::{CloseWorkerReturn, retired_membership::UnavailablePoll},
-    workbench_projection::project_native_standalone_tabs,
+    workbench_projection::project_preferred_workspace,
 };
 use orchbee_client_server_protocol::ControllerId;
 use orchbee_workbench_protocol::{
@@ -17,7 +17,7 @@ fn ready(
 ) -> (NativeUi, Arc<CommandMailbox>, CommandLease, UnavailablePoll) {
     ready_with_cache(
         elapsed,
-        project_native_standalone_tabs(&snapshot(3, 1)).unwrap(),
+        project_preferred_workspace(&snapshot(3, 1)).unwrap(),
     )
 }
 
@@ -80,12 +80,12 @@ fn removed(count: usize) -> Snapshot {
 }
 
 /// The origin's whole terminal context is absent: navigation names a
-/// different surviving standalone context whose tabs never reuse the removed
+/// different surviving initial_workspace context whose tabs never reuse the removed
 /// context's identities.
 fn context_removed(count: usize) -> Snapshot {
     let mut value = snapshot(count.max(1), 2);
     let landing = WorkbenchTerminalContextId::parse(&format!("{:032x}", 9)).unwrap();
-    value.navigation.standalone_terminal_context_id = landing.clone();
+    value.navigation.workspaces[0].terminal_context_id = landing.clone();
     let context = &mut value.terminal_contexts[0];
     context.terminal_context_id = landing;
     for (index, tab) in context.tabs.iter_mut().enumerate() {
@@ -106,7 +106,7 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
         let elapsed = Arc::new(AtomicU64::new(0));
         let (mut ui, _old, _lease, evidence) = if canonical {
             let source = super::context_selection::snapshot(false);
-            let workspace = &source.navigation.workspaces[0];
+            let workspace = &source.navigation.workspaces[1];
             let cache = crate::terminal_session::workbench_projection::project_native_context_tabs(
                 &source,
                 &crate::terminal_session::NativeContextLocation::Workspace {
@@ -123,7 +123,7 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
             let mut snapshot = super::context_selection::snapshot(true);
             snapshot.revision = orchbee_workbench_protocol::WorkbenchRevision::new(2);
             snapshot.terminal_contexts[0].tabs.truncate(count);
-            let workspace = &mut snapshot.navigation.workspaces[0];
+            let workspace = &mut snapshot.navigation.workspaces[1];
             workspace.workspace_id =
                 orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!("{:032x}", 73))
                     .unwrap();
@@ -161,7 +161,7 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
         };
         let state = ui.state.as_ref().unwrap();
         assert_eq!(
-            state.cache().terminal_context_id(),
+            state.cache().terminal_context_id().unwrap(),
             &WorkbenchTerminalContextId::parse(&format!("{:032x}", if canonical { 74 } else { 9 }))
                 .unwrap()
         );
@@ -201,10 +201,10 @@ fn malformed_removal_snapshot_parks_the_attempt_truthfully() {
         panic!("Snapshot flight");
     };
     mailbox.mark_refresh_in_flight(marker.generation()).unwrap();
-    // Navigation still names the removed context as standalone while the
+    // Navigation still names the removed context as initial_workspace while the
     // context payload is gone — never a permit, never a landing.
     let mut broken = context_removed(1);
-    broken.navigation.standalone_terminal_context_id =
+    broken.navigation.workspaces[0].terminal_context_id =
         WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
     mailbox
         .publish_refresh_result_before(
@@ -476,7 +476,7 @@ fn ready_controlling(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: project_native_standalone_tabs(&snapshot(3, 1)).unwrap(),
+                cache: project_preferred_workspace(&snapshot(3, 1)).unwrap(),
             },
             EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
@@ -1007,15 +1007,17 @@ fn retired_workspace_replacement_attaches_same_panel_only_with_fresh_physical_id
     };
     for replace_presentation in [true, false] {
         let mut baseline = snapshot(3, 1);
-        let workspace_context = baseline.navigation.standalone_terminal_context_id.clone();
-        let standalone = WorkbenchTerminalContextId::parse(&format!("{:032x}", 90)).unwrap();
+        let workspace_context = baseline.navigation.workspaces[0]
+            .terminal_context_id
+            .clone();
+        let initial_workspace = WorkbenchTerminalContextId::parse(&format!("{:032x}", 90)).unwrap();
         let project_id = WorkbenchProjectId::parse(&format!("{:032x}", 91)).unwrap();
         let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 92)).unwrap();
-        baseline.navigation.standalone_terminal_context_id = standalone.clone();
+        baseline.navigation.workspaces[0].terminal_context_id = initial_workspace.clone();
         baseline.terminal_contexts.push(TerminalContext {
             groups: Vec::new(),
             tabs: Vec::new(),
-            terminal_context_id: standalone,
+            terminal_context_id: initial_workspace,
         });
         baseline.navigation.workspaces.extend(vec![Workspace {
             project_id: Some((project_id.clone()).clone()),

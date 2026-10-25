@@ -1,4 +1,4 @@
-use super::{SiteCoordinator, StandaloneTerminal, presentation_binding};
+use super::{SiteCoordinator, presentation_binding};
 use crate::terminal_coordinator::{PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
 use orchbee_client_server_protocol::{
@@ -192,9 +192,6 @@ impl SiteCoordinator {
             .map_err(io::Error::other)?;
         let pending = terminal.commit();
         let _revision = rebind.commit();
-        if target.is_standalone() && matches!(self.standalone, StandaloneTerminal::Empty) {
-            self.standalone = StandaloneTerminal::Creating(reference);
-        }
         Ok(pending)
     }
 }

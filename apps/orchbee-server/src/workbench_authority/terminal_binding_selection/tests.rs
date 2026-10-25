@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{
     PanelOrientation, PanelSlot, Presentation, TerminalId, TerminalPresentationId,
@@ -22,7 +23,7 @@ fn binding(terminal: u128, worker: u128) -> PresentationBinding {
 }
 
 fn authority() -> WorkbenchAuthority {
-    WorkbenchAuthority::new(site(91)).unwrap()
+    WorkbenchAuthority::workspace_fixture(site(91)).unwrap()
 }
 
 #[test]
@@ -33,9 +34,7 @@ fn active_exposure_requires_the_exact_current_site_worker_and_terminal_without_m
         authority.terminal_binding_exposure(&site(91), &selected),
         WorkbenchBindingExposure::NotExposed
     );
-    authority
-        .commit_standalone_intent(selected.clone())
-        .unwrap();
+    authority.append_fixture_tab(selected.clone()).unwrap();
     let before = authority.projection.snapshot().clone();
     let cursor = authority.last_identity;
     let ledger_bytes = authority.ledger_bytes;
@@ -70,7 +69,7 @@ fn active_exposure_requires_the_exact_current_site_worker_and_terminal_without_m
     assert_eq!(authority.projection.snapshot(), &before);
     assert_eq!(authority.last_identity, cursor);
     assert_eq!(authority.ledger_bytes, ledger_bytes);
-    assert!(authority.ledger.is_empty());
+    assert_eq!(authority.ledger.len(), 1);
 }
 
 #[test]
@@ -85,7 +84,7 @@ fn retired_authority_is_unavailable_before_site_or_tuple_interpretation() {
         );
     }
     assert_eq!(authority.projection.snapshot(), &before);
-    assert_eq!(authority.last_identity, 1);
+    assert_eq!(authority.last_identity, 4);
     assert!(authority.ledger.is_empty());
 }
 

@@ -223,13 +223,27 @@ fn respond_with_read(
 fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshotOutcome {
     WorkbenchSnapshotOutcome::Available {
         snapshot: Snapshot {
-            navigation: Navigation {
-                project_order: Vec::new(),
-                directories: Vec::new(),
-                workspaces: Vec::new(),
-                workspace_order: Vec::new(),
-                projects: Vec::new(),
-                standalone_terminal_context_id: WorkbenchTerminalContextId::parse(ID).unwrap(),
+            navigation: {
+                let fixture_context_id = WorkbenchTerminalContextId::parse(ID).unwrap();
+                let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap();
+                Navigation {
+                    project_order: Vec::new(),
+                    directories: Vec::new(),
+                    workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                        workspace_id: fixture_workspace_id.clone(),
+                        terminal_context_id: fixture_context_id.clone(),
+                        project_id: None,
+                        primary_directory_id: None,
+                        label: "Workspace".into(),
+                    })
+                    .chain(Vec::new())
+                    .collect(),
+                    workspace_order: Vec::new(),
+                    projects: Vec::new(),
+                }
             },
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(1),
@@ -239,7 +253,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
                 tabs: vec![Tab {
                     automatic_label: false,
                     group_id: None,
-                    label: "standalone".into(),
+                    label: "initial_workspace".into(),
                     pinned: false,
                     root: PanelNode::Panel {
                         right_click: Default::default(),
@@ -350,36 +364,17 @@ fn serve_native_controlling_frame_with_snapshot(
     initial: WorkbenchSnapshotOutcome,
 ) -> io::Result<()> {
     admit(stream)?;
-    let ClientMessage::TerminalOpen(open) =
-        read_client_message(stream).map_err(io::Error::other)?
-    else {
-        return Err(io::Error::other("expected Open"));
-    };
-    assert_eq!(open.request_id().as_str(), native_identity(0x101));
-    assert_eq!(open.geometry(), geometry);
-    write_server_message(
-        stream,
-        &ServerMessage::TerminalOpenResult(
-            orchbee_client_server_protocol::TerminalOpenResult::new(
-                open.request_id().clone(),
-                orchbee_client_server_protocol::OpenOutcome::Opened {
-                    terminal_create_request_id: RequestId::parse(ID).map_err(io::Error::other)?,
-                },
-            ),
-        ),
-    )
-    .map_err(io::Error::other)?;
 
     assert_eq!(
         respond_with_snapshot(stream, initial)?,
-        native_identity(0x102)
+        native_identity(0x101)
     );
     let ClientMessage::TerminalViewer(attach) =
         read_client_message(stream).map_err(io::Error::other)?
     else {
         return Err(io::Error::other("expected AttachBinding"));
     };
-    assert_eq!(attach.request_id().as_str(), native_identity(0x103));
+    assert_eq!(attach.request_id().as_str(), native_identity(0x102));
     assert_eq!(
         attach.action(),
         &TerminalViewerAction::AttachBinding {
@@ -405,7 +400,7 @@ fn serve_native_controlling_frame_with_snapshot(
     else {
         return Err(io::Error::other("expected Acquire"));
     };
-    assert_eq!(acquire.request_id().as_str(), native_identity(0x104));
+    assert_eq!(acquire.request_id().as_str(), native_identity(0x103));
     assert_eq!(
         acquire.action(),
         &TerminalControlAction::Acquire {
@@ -429,7 +424,7 @@ fn serve_native_controlling_frame_with_snapshot(
     else {
         return Err(io::Error::other("expected setup Resize"));
     };
-    assert_eq!(resize.request_id().as_str(), native_identity(0x105));
+    assert_eq!(resize.request_id().as_str(), native_identity(0x104));
     assert!(matches!(
         resize.action(),
         TerminalControlAction::Resize {
@@ -455,7 +450,7 @@ fn serve_native_controlling_frame_with_snapshot(
     else {
         return Err(io::Error::other("expected setup Poll"));
     };
-    assert_eq!(poll.request_id().as_str(), native_identity(0x106));
+    assert_eq!(poll.request_id().as_str(), native_identity(0x105));
     assert_eq!(
         poll.action(),
         &TerminalViewerAction::Poll {
@@ -481,7 +476,7 @@ fn accept_native_frame_feedback(stream: &mut UnixStream) -> io::Result<()> {
     else {
         return Err(io::Error::other("expected FrameApplied"));
     };
-    assert_eq!(feedback.request_id().as_str(), native_identity(0x107));
+    assert_eq!(feedback.request_id().as_str(), native_identity(0x106));
     assert!(matches!(
         feedback.action(),
         TerminalViewerAction::FrameApplied { .. }
@@ -688,7 +683,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         else {
             return Err(io::Error::other("expected ordinary Poll"));
         };
-        assert_eq!(poll.request_id().as_str(), native_identity(0x108));
+        assert_eq!(poll.request_id().as_str(), native_identity(0x107));
         assert_eq!(
             poll.action(),
             &TerminalViewerAction::Poll {
@@ -712,7 +707,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
             return Err(io::Error::other("expected tab.create"));
         };
         assert_eq!(command.protocol_version, ProtocolVersion);
-        assert_eq!(command.request_id.as_str(), native_identity(0x109));
+        assert_eq!(command.request_id.as_str(), native_identity(0x108));
         assert_eq!(command.site_id.as_str(), SITE_ID);
         assert_eq!(command.expected_revision, WorkbenchRevision::new(1));
         let WorkbenchAction::TabCreate {
@@ -778,12 +773,12 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     let before_feedback = render_native_session(&session, &client_view)?;
     assert!(
         before_feedback.contains(&format!(
-            "{}standalone",
+            "{}initial_workspace",
             crate::tui_theme::Theme::terminal_native().current_context_marker()
         )),
         "{before_feedback}"
     );
-    assert!(before_feedback.contains("standalone · Connecting"));
+    assert!(before_feedback.contains("initial_workspace · Connecting"));
     assert!(session.startup_draw_ready());
     session.after_draw();
     assert!(spin_with_draw(&mut session, |session| {
@@ -1183,7 +1178,7 @@ fn taken_forward_expiry_fixture() -> Result<TakenForwardExpiryFixture, Box<dyn s
         else {
             return Err(io::Error::other("expected tab.create"));
         };
-        assert_eq!(command.request_id.as_str(), native_identity(0x109));
+        assert_eq!(command.request_id.as_str(), native_identity(0x108));
         assert!(matches!(command.action, WorkbenchAction::TabCreate { .. }));
         write_workbench_response(
             &mut stream,
@@ -1395,7 +1390,7 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
         else {
             return Err(io::Error::other("expected tab.create"));
         };
-        assert_eq!(command.request_id.as_str(), native_identity(0x109));
+        assert_eq!(command.request_id.as_str(), native_identity(0x108));
         write_workbench_response(
             &mut stream,
             &WorkbenchResponse::Command(WorkbenchCommandResult {
@@ -1822,82 +1817,50 @@ fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
 }
 
 #[test]
-fn standalone_selects_the_snapshot_binding_and_never_replays_unknown_open() -> TestResult {
-    for unknown in [false, true] {
-        let server = FakeServer::start(move |mut stream| {
-            admit(&mut stream)?;
-            let ClientMessage::TerminalOpen(request) =
-                read_client_message(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("expected Open"));
-            };
-            assert_eq!(
-                request.geometry(),
-                Geometry::new(80, 24, 8, 16).map_err(io::Error::other)?
-            );
-            let open_request_id = request.request_id().as_str().to_owned();
-            let reference = RequestId::parse(ID).map_err(io::Error::other)?;
-            let outcome = if unknown {
-                orchbee_client_server_protocol::OpenOutcome::OutcomeUnknown {}
-            } else {
-                orchbee_client_server_protocol::OpenOutcome::Opened {
-                    terminal_create_request_id: reference.clone(),
-                }
-            };
-            write_server_message(
-                &mut stream,
-                &ServerMessage::TerminalOpenResult(
-                    orchbee_client_server_protocol::TerminalOpenResult::new(
-                        request.request_id().clone(),
-                        outcome,
-                    ),
-                ),
-            )
-            .map_err(io::Error::other)?;
-            if !unknown {
-                let workbench_request_id =
-                    respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
-                assert_ne!(workbench_request_id, open_request_id);
-                let ClientMessage::TerminalViewer(request) =
-                    read_client_message(&mut stream).map_err(io::Error::other)?
-                else {
-                    return Err(io::Error::other("expected AttachBinding"));
-                };
-                assert_eq!(
-                    request.action(),
-                    &TerminalViewerAction::AttachBinding {
-                        site_id: orchbee_client_server_protocol::SiteId::parse(SITE_ID)
-                            .map_err(io::Error::other)?,
-                        worker_id: orchbee_client_server_protocol::WorkerId::parse(WORKER_ID)
-                            .map_err(io::Error::other)?,
-                        terminal_id: orchbee_client_server_protocol::TerminalId::parse(TERMINAL_ID)
-                            .map_err(io::Error::other)?,
-                    }
-                );
-                assert_ne!(request.request_id().as_str(), open_request_id);
-                assert_ne!(request.request_id().as_str(), workbench_request_id);
-                assert_ne!(TERMINAL_ID, reference.as_str());
-                write_server_message(&mut stream, &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(request.request_id().clone(), TerminalViewerOutcome::Rejected { reason: orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable }))).map_err(io::Error::other)?;
-            }
-            let mut rest = Vec::new();
-            stream.read_to_end(&mut rest)?;
-            assert!(rest.is_empty(), "no second Open or implicit Create");
-            Ok(())
-        })?;
-        let mut session = TerminalSession::start(
-            native_client(&server)?,
-            TerminalIntent::Standalone,
-            geometry()?,
-        )?;
-        let expected = if unknown {
-            TerminalStatus::OutcomeUnknown
-        } else {
-            TerminalStatus::Unavailable
+fn workspace_startup_attaches_only_the_snapshot_binding() -> TestResult {
+    let server = FakeServer::start(move |mut stream| {
+        admit(&mut stream)?;
+        let snapshot_request =
+            respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
+        let ClientMessage::TerminalViewer(request) =
+            read_client_message(&mut stream).map_err(io::Error::other)?
+        else {
+            return Err(io::Error::other("expected AttachBinding"));
         };
-        spin(&mut session, |session| session.status() == expected);
-        drop(session);
-        server.finish()?;
-    }
+        assert_eq!(
+            request.action(),
+            &TerminalViewerAction::AttachBinding {
+                site_id: orchbee_client_server_protocol::SiteId::parse(SITE_ID)
+                    .map_err(io::Error::other)?,
+                worker_id: orchbee_client_server_protocol::WorkerId::parse(WORKER_ID)
+                    .map_err(io::Error::other)?,
+                terminal_id: orchbee_client_server_protocol::TerminalId::parse(TERMINAL_ID)
+                    .map_err(io::Error::other)?,
+            }
+        );
+        assert_ne!(request.request_id().as_str(), snapshot_request);
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                request.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason:
+                        orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable,
+                },
+            )),
+        )
+        .map_err(io::Error::other)?;
+        let mut rest = Vec::new();
+        stream.read_to_end(&mut rest)?;
+        assert!(rest.is_empty(), "startup must not create a terminal");
+        Ok(())
+    })?;
+    let mut session = TerminalSession::start(native_client(&server)?, geometry()?)?;
+    spin(&mut session, |session| {
+        session.status() == TerminalStatus::Unavailable
+    });
+    drop(session);
+    server.finish()?;
     Ok(())
 }
 
@@ -1910,7 +1873,7 @@ enum SnapshotFailure {
 }
 
 #[test]
-fn standalone_snapshot_failures_are_unavailable_without_an_attachment_fallback() -> TestResult {
+fn workspace_snapshot_failures_are_unavailable_without_an_attachment_fallback() -> TestResult {
     for failure in [
         SnapshotFailure::Denied,
         SnapshotFailure::Unavailable,
@@ -1919,24 +1882,6 @@ fn standalone_snapshot_failures_are_unavailable_without_an_attachment_fallback()
     ] {
         let server = FakeServer::start(move |mut stream| {
             admit(&mut stream)?;
-            let ClientMessage::TerminalOpen(request) =
-                read_client_message(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("expected Open"));
-            };
-            write_server_message(
-                &mut stream,
-                &ServerMessage::TerminalOpenResult(
-                    orchbee_client_server_protocol::TerminalOpenResult::new(
-                        request.request_id().clone(),
-                        orchbee_client_server_protocol::OpenOutcome::Opened {
-                            terminal_create_request_id: RequestId::parse(ID)
-                                .map_err(io::Error::other)?,
-                        },
-                    ),
-                ),
-            )
-            .map_err(io::Error::other)?;
             match failure {
                 SnapshotFailure::Denied => {
                     respond_with_snapshot(&mut stream, WorkbenchSnapshotOutcome::Denied {})?;
@@ -1977,11 +1922,7 @@ fn standalone_snapshot_failures_are_unavailable_without_an_attachment_fallback()
             );
             Ok(())
         })?;
-        let mut session = TerminalSession::start(
-            native_client(&server)?,
-            TerminalIntent::Standalone,
-            geometry()?,
-        )?;
+        let mut session = TerminalSession::start(native_client(&server)?, geometry()?)?;
         spin(&mut session, |session| {
             session.status() == TerminalStatus::Unavailable
         });
@@ -1992,7 +1933,7 @@ fn standalone_snapshot_failures_are_unavailable_without_an_attachment_fallback()
 }
 
 #[test]
-fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResult {
+fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResult {
     for controlling in [false, true] {
         let (resized, observed_resize) = mpsc::sync_channel(1);
         let initial_geometry = fixture_geometry()?;
@@ -2004,28 +1945,9 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         )?;
         let server = FakeServer::start(move |mut stream| {
             admit(&mut stream)?;
-            let ClientMessage::TerminalOpen(request) =
-                read_client_message(&mut stream).map_err(io::Error::other)?
-            else {
-                return Err(io::Error::other("expected Open"));
-            };
-            let geometry = request.geometry();
-            assert_eq!(geometry, initial_geometry);
-            write_server_message(
-                &mut stream,
-                &ServerMessage::TerminalOpenResult(
-                    orchbee_client_server_protocol::TerminalOpenResult::new(
-                        request.request_id().clone(),
-                        orchbee_client_server_protocol::OpenOutcome::Opened {
-                            terminal_create_request_id: RequestId::parse(ID)
-                                .map_err(io::Error::other)?,
-                        },
-                    ),
-                ),
-            )
-            .map_err(io::Error::other)?;
             respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
             attach_binding(&mut stream)?;
+            let geometry = initial_geometry;
             if controlling {
                 acquire(&mut stream, &binding_viewer_id()?)?;
                 let ClientMessage::TerminalControl(request) =
@@ -2152,11 +2074,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
                 }
             }
         })?;
-        let mut session = TerminalSession::start(
-            native_client(&server)?,
-            TerminalIntent::Standalone,
-            initial_geometry,
-        )?;
+        let mut session = TerminalSession::start(native_client(&server)?, initial_geometry)?;
         let expected = if controlling {
             TerminalStatus::Controlling
         } else {
@@ -2178,7 +2096,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         let rendered = render_native_session(&session, &client_view)?;
         assert!(
             rendered.contains(&format!(
-                "{}standalone",
+                "{}initial_workspace",
                 crate::tui_theme::Theme::terminal_native().current_context_marker()
             )),
             "{rendered}"
@@ -2186,7 +2104,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         if !controlling {
             assert!(session.forward(b"never submitted").is_err());
             assert!(
-                rendered.contains("standalone · Ready · view only"),
+                rendered.contains("initial_workspace · Ready · view only"),
                 "{rendered}"
             );
             #[cfg(windows)]
@@ -2198,7 +2116,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         assert_ready_prefix_session(&session, &prefixed, 1, expected);
         open_navigator(&mut client_view);
         let navigator = render_native_session(&session, &client_view)?;
-        assert!(navigator.contains("* 1 standalone"), "{navigator}");
+        assert!(navigator.contains("* 1 initial_workspace"), "{navigator}");
         assert!(
             navigator.contains("Navigator · Esc return · Enter open"),
             "{navigator}"
@@ -2221,31 +2139,13 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
-fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestResult {
+fn workspace_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestResult {
     let (sent, received) = mpsc::sync_channel(1);
     let (release, released) = mpsc::sync_channel(1);
     let expired = Arc::new(AtomicBool::new(false));
     let client_expired = expired.clone();
     let server = FakeServer::start(move |mut stream| {
         admit(&mut stream)?;
-        let ClientMessage::TerminalOpen(request) =
-            read_client_message(&mut stream).map_err(io::Error::other)?
-        else {
-            return Err(io::Error::other("expected Open"));
-        };
-        write_server_message(
-            &mut stream,
-            &ServerMessage::TerminalOpenResult(
-                orchbee_client_server_protocol::TerminalOpenResult::new(
-                    request.request_id().clone(),
-                    orchbee_client_server_protocol::OpenOutcome::Opened {
-                        terminal_create_request_id: RequestId::parse(ID)
-                            .map_err(io::Error::other)?,
-                    },
-                ),
-            ),
-        )
-        .map_err(io::Error::other)?;
         respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
         attach_binding(&mut stream)?;
         let ClientMessage::TerminalControl(request) =
@@ -2291,7 +2191,7 @@ fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> Test
         client_expired,
     )?;
     client.set_submission_deadline(Some(Instant::now() + Duration::from_secs(10)));
-    let mut session = TerminalSession::start(client, TerminalIntent::Standalone, geometry()?)?;
+    let mut session = TerminalSession::start(client, geometry()?)?;
     spin(&mut session, |_session| received.try_recv().is_ok());
     assert!(session.projection().is_some());
     assert!(!session.startup_draw_ready());

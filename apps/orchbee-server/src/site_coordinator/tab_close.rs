@@ -21,7 +21,7 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceCloseResumeResult,
 };
 
-use super::{PostcommitCoordinationError, SiteCoordinator, tree_composition_matches};
+use super::{PostcommitCoordinationError, SiteCoordinator};
 use crate::terminal_coordinator::WorkerPlacement;
 
 impl SiteCoordinator {
@@ -132,7 +132,6 @@ impl SiteCoordinator {
         let Self {
             terminals,
             workbench,
-            standalone,
             ..
         } = self;
         let workbench = workbench.as_mut()?;
@@ -142,11 +141,6 @@ impl SiteCoordinator {
             WorkbenchTabCloseBegin::Ready(result) => return Some(result),
             WorkbenchTabCloseBegin::Admitted(admission) => admission,
         };
-        if admission.terminal_membership().is_standalone()
-            && !tree_composition_matches(admission.terminal_membership(), standalone, terminals)
-        {
-            return Some(admission.retire_composition_failure());
-        }
         let admission = match admission.resolve_after_composition() {
             WorkbenchTabCloseResolution::Ready(result) => return Some(result),
             WorkbenchTabCloseResolution::Primary(admission) => admission,
@@ -173,7 +167,7 @@ impl SiteCoordinator {
     }
 
     /// `workspace.close` execution: the Workspace Close admits a Context
-    /// scope — never standalone — then shares the identical runtime
+    /// scope, then shares the identical runtime
     /// resolution, admission finish, and commit as the leaf scopes. The
     /// contract is all-or-nothing at admission: an empty membership asks for
     /// no runtime; a populated one fails fast on the first unresolvable
@@ -533,33 +527,11 @@ impl SiteCoordinator {
         &mut self,
         close_id: &WorkbenchRequestId,
         now: Instant,
-    ) -> Result<bool, PostcommitCoordinationError> {
-        let Self {
-            terminals,
-            workbench,
-            standalone,
-            ..
-        } = self;
-        let workbench = workbench.as_mut().ok_or(PostcommitCoordinationError)?;
-        let Ok(prepared) = workbench.prepare_terminal_tab_close_publication(close_id, now) else {
-            return Ok(false);
-        };
-        if !prepared.before_membership().is_standalone() {
+    ) -> Result<(), PostcommitCoordinationError> {
+        let workbench = self.workbench.as_mut().ok_or(PostcommitCoordinationError)?;
+        if let Ok(prepared) = workbench.prepare_terminal_tab_close_publication(close_id, now) {
             let _closed = prepared.commit();
-            return Ok(false);
         }
-        let retarget = super::standalone::prepare_standalone_close_settlement_members(
-            standalone,
-            terminals,
-            prepared.before_membership(),
-            prepared.after_membership(),
-            prepared.exact_removed_members(),
-        );
-        let Ok(retarget) = retarget else {
-            prepared.retire_composition_failure();
-            return Ok(false);
-        };
-        let _closed = prepared.commit();
-        Ok(retarget.commit())
+        Ok(())
     }
 }

@@ -6,8 +6,7 @@ Server owns `Tab.label` and optional boolean `Tab.automaticLabel`. Omission mean
 serialization omits `false`. A legacy Tab keeps its exact name, including an explicitly chosen
 number. Readers never infer automatic naming from text.
 
-Windows `tab create` without `--label`, native TUI Tab creation, the first implicit standalone
-Tab, and the first Tab of `workspace.launch` request automatic naming. Workspace launch keeps its
+Windows `tab create` without `--label`, native TUI Tab creation, and the first Tab of `workspace.launch` request automatic naming. Workspace launch keeps its
 Workspace label separate and initializes the Tab and primary Presentation with raw label `1`.
 Explicit Tab labels and Panel relocation labels keep their existing fixed-name behavior.
 `tab.create` carries the same optional boolean;

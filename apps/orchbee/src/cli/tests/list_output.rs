@@ -45,13 +45,12 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         pinned: true,
         group_id: Some("group-id".to_owned()),
         context: ContextRef {
-            standalone: false,
             terminal_context_id: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_owned(),
             workspace_id: Some(workspace_id.to_owned()),
             workspace_label: Some("\u{1b}Workspace label that needs clipping".to_owned()),
         },
     };
-    let standalone_tab = TabRow {
+    let initial_workspace_tab = TabRow {
         number: 1,
         panel_count: 1,
         tab_id: "11111111111111111111111111111111".to_owned(),
@@ -60,10 +59,9 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         pinned: false,
         group_id: None,
         context: ContextRef {
-            standalone: true,
             terminal_context_id: "22222222222222222222222222222222".to_owned(),
-            workspace_id: None,
-            workspace_label: None,
+            workspace_id: "22222222222222222222222222222222".to_owned(),
+            workspace_label: "Workspace".to_owned(),
         },
     };
     let unavailable_owner_tab = TabRow {
@@ -75,10 +73,9 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         pinned: false,
         group_id: None,
         context: ContextRef {
-            standalone: false,
             terminal_context_id: "44444444444444444444444444444444".to_owned(),
-            workspace_id: Some("55555555555555555555555555555555".to_owned()),
-            workspace_label: None,
+            workspace_id: "55555555555555555555555555555555".to_owned(),
+            workspace_label: "Workspace".to_owned(),
         },
     };
 
@@ -144,14 +141,11 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         let tab_output = success_output(
             Projection::TabList(vec![
                 tab.clone(),
-                standalone_tab.clone(),
+                initial_workspace_tab.clone(),
                 unavailable_owner_tab.clone(),
             ]),
             json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"}),
-            &QueryCommand::TabList {
-                workspace: None,
-                standalone: false,
-            },
+            &QueryCommand::TabList { workspace: None },
             OutputFormat::Text,
             locale,
         );
@@ -182,8 +176,7 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         );
         assert!(tab_text.contains("\"终端 🐝\""));
         assert!(tab_text.contains("\"\\u{001b}Wo…\""));
-        assert!(tab_text.contains(locale.cli_labels().standalone));
-        assert!(tab_text.contains("-"));
+        assert!(tab_text.contains("Workspace"));
         assert!(!tab_text.contains(&tab.context.terminal_context_id));
         assert!(!tab_text.contains(workspace_id));
         assert!(!tab_text.contains('\u{1b}'));
@@ -228,10 +221,7 @@ fn empty_workspace_and_tab_lists_keep_localized_table_headers() {
         let tab_output = success_output(
             Projection::TabList(vec![]),
             json!({"kind":"workbench-snapshot","siteId":ID,"revision":"9"}),
-            &QueryCommand::TabList {
-                workspace: None,
-                standalone: false,
-            },
+            &QueryCommand::TabList { workspace: None },
             OutputFormat::Text,
             locale,
         );
@@ -425,16 +415,12 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         pinned: true,
         group_id: Some("group".to_owned()),
         context: ContextRef {
-            standalone: false,
             terminal_context_id: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_owned(),
-            workspace_id: Some(workspace_id.to_owned()),
-            workspace_label: Some("Work".to_owned()),
+            workspace_id: workspace_id.to_owned(),
+            workspace_label: "Work".to_owned(),
         },
     };
-    let tab_command = QueryCommand::TabList {
-        workspace: None,
-        standalone: false,
-    };
+    let tab_command = QueryCommand::TabList { workspace: None };
     let tab_output = success_output(
         Projection::TabList(vec![tab.clone()]),
         source.clone(),

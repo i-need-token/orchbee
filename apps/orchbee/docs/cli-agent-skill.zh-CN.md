@@ -147,7 +147,7 @@ orchbee workspace list --format json | ConvertFrom-Json
 显式目标使共享布局操作无需 TUI。省略 `--client`，使用 `panel layout <panel>`、
 `layout export --tab <tab>`、`layout set-split-ratio --tab <tab> --path root --ratio 0.6`
 以及 `panel swap <panel> --with <other-panel>`。共享回执保留规范身份及结果，不声明视口或焦点。
-`layout apply --file layout.json --standalone` 也可无头运行；支持显式 Workspace 和已确认的 Tab 目的地。
+`layout apply --file layout.json --workspace <workspace>` 也可无头运行；支持显式 Workspace 和已确认的 Tab 目的地。
 添加 `--client` 可获取 Client 几何／观察，应用时添加 `--focus` 可请求 Client 聚焦。
 方向邻居、resize 和 zoom 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
 修改结果未知时，先检查回执再重新提交。

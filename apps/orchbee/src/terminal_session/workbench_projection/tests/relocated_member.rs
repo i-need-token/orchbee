@@ -59,7 +59,7 @@ fn grafted_destination(direction_moved_first: bool) -> PanelNode {
 
 #[test]
 fn canonical_refresh_accepts_a_member_relocated_into_a_sibling_tab() {
-    let current = project_native_standalone_tabs(&two_tab_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&two_tab_split_snapshot(10)).unwrap();
 
     // Move `right` below Tab 2's leaf: Tab 1 collapses onto `left`; Tab 2's
     // root becomes a fresh Split(previous, moved). Every moved identity is
@@ -67,7 +67,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_sibling_tab() {
     let mut candidate_snapshot = two_tab_split_snapshot(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
     candidate_snapshot.terminal_contexts[0].tabs[1].root = grafted_destination(false);
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -76,7 +76,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_sibling_tab() {
 
 #[test]
 fn canonical_refresh_accepts_a_member_relocated_into_a_fresh_tab() {
-    let current = project_native_standalone_tabs(&two_tab_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&two_tab_split_snapshot(10)).unwrap();
 
     // Move `right` into a brand-new Tab: the appended Tab's root is exactly the
     // retained leaf and its Tab identity is fresh — no baseline comparison.
@@ -90,7 +90,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_fresh_tab() {
         root: panel(35, 36, 37, 38, "right"),
         tab_id: tab_id(7000),
     });
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -99,7 +99,7 @@ fn canonical_refresh_accepts_a_member_relocated_into_a_fresh_tab() {
 
 #[test]
 fn canonical_refresh_rejects_a_relocated_member_whose_identity_mutated() {
-    let current = project_native_standalone_tabs(&two_tab_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&two_tab_split_snapshot(10)).unwrap();
 
     // The moved leaf landed under the destination Tab but its binding changed:
     // the Panel identity overlaps a baseline member while the tuple differs.
@@ -129,7 +129,7 @@ fn canonical_refresh_rejects_a_relocated_member_whose_identity_mutated() {
         assert_eq!(
             validate_canonical_refresh(
                 &current,
-                project_native_standalone_tabs(&candidate_snapshot).unwrap()
+                project_preferred_workspace(&candidate_snapshot).unwrap()
             ),
             Err(NativeProjectionDivergence),
             "mutated member fields must diverge"
@@ -139,7 +139,7 @@ fn canonical_refresh_rejects_a_relocated_member_whose_identity_mutated() {
 
 #[test]
 fn canonical_refresh_rejects_a_surviving_tab_that_keeps_no_member() {
-    let current = project_native_standalone_tabs(&two_tab_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&two_tab_split_snapshot(10)).unwrap();
 
     // Tab 1's identity survives but both original members left: `right` moved
     // into Tab 2 and `left` was replaced by a fresh leaf. The consumer cannot
@@ -151,7 +151,7 @@ fn canonical_refresh_rejects_a_surviving_tab_that_keeps_no_member() {
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&candidate_snapshot).unwrap()
+            project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -159,7 +159,7 @@ fn canonical_refresh_rejects_a_surviving_tab_that_keeps_no_member() {
 
 #[test]
 fn canonical_refresh_rejects_a_retained_split_identity_reparented_across_tabs() {
-    let current = project_native_standalone_tabs(&two_tab_split_snapshot(10)).unwrap();
+    let current = project_preferred_workspace(&two_tab_split_snapshot(10)).unwrap();
 
     // The moved leaf stayed exact but the SOURCE Split identity reappeared as
     // the destination's graft: structural tuples stay bound to their owning
@@ -184,7 +184,7 @@ fn canonical_refresh_rejects_a_retained_split_identity_reparented_across_tabs() 
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&candidate_snapshot).unwrap()
+            project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );

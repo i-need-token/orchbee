@@ -59,13 +59,27 @@ fn split_root() -> PanelNode {
 
 fn panel_snapshot(revision: u64, root: PanelNode) -> Snapshot {
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(3)).unwrap(),
+        navigation: {
+            let fixture_context_id = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
@@ -89,7 +103,7 @@ fn panel_snapshot(revision: u64, root: PanelNode) -> Snapshot {
 /// panel.move has a real focus target and a superseding leaf-loss projection stays reachable.
 fn split_ready_state() -> NativeSessionState {
     let (mut state, _target) = NativeSessionState::starting(
-        project_native_standalone_tabs(&panel_snapshot(1, split_root())).unwrap(),
+        project_preferred_workspace(&panel_snapshot(1, split_root())).unwrap(),
         1,
         geometry(80),
     )
@@ -154,7 +168,7 @@ fn move_commit(operation: &PanelOperation, revision: u64) -> PanelCommit {
     };
     PanelCommit::Move(WorkbenchPanelPlacementCommit {
         revision: WorkbenchRevision::new(revision),
-        terminal_context_id: operation.baseline().terminal_context_id().clone(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
         tab_id: operation.target().tab_id().clone(),
         panel_id: operation.panel_id().clone(),
         target_panel_id: target_panel_id.clone(),
@@ -853,7 +867,7 @@ fn panel_close_accepted_receipt_preserves_committed_fact_and_publication_debt() 
     mailbox.mark_panel_in_flight(&second).unwrap();
     let accepted = WorkbenchPanelCloseAccepted {
         close_request_id: second.request_id().clone(),
-        terminal_context_id: second.baseline().terminal_context_id().clone(),
+        terminal_context_id: second.baseline().terminal_context_id().unwrap().clone(),
         tab_id: second.target().tab_id().clone(),
         panel_id: second.panel_id().clone(),
         accepted_revision: second.baseline().revision(),
@@ -875,7 +889,11 @@ fn panel_close_accepted_receipt_preserves_committed_fact_and_publication_debt() 
                     &second,
                     PanelResult::CloseAccepted(WorkbenchPanelCloseAccepted {
                         close_request_id: second.request_id().clone(),
-                        terminal_context_id: second.baseline().terminal_context_id().clone(),
+                        terminal_context_id: second
+                            .baseline()
+                            .terminal_context_id()
+                            .unwrap()
+                            .clone(),
                         tab_id: second.target().tab_id().clone(),
                         panel_id: second.panel_id().clone(),
                         accepted_revision: second.baseline().revision(),
@@ -980,7 +998,7 @@ fn panel_commit_facts_stay_attributed_to_their_own_request_at_retirement() {
     let split_commit = |revision: u64| {
         PanelCommit::Split(WorkbenchPanelSplitCommit::Pending {
             revision: WorkbenchRevision::new(revision),
-            terminal_context_id: second.baseline().terminal_context_id().clone(),
+            terminal_context_id: second.baseline().terminal_context_id().unwrap().clone(),
             tab_id: second.target().tab_id().clone(),
             panel_id: second.panel_id().clone(),
             new_panel_id: WorkbenchPanelId::parse(&id(4_010)).unwrap(),

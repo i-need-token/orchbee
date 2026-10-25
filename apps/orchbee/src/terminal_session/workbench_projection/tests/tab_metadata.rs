@@ -20,7 +20,7 @@ fn grouped() -> Snapshot {
 #[test]
 fn metadata_is_retained_and_only_newer_canonical_revisions_can_change_it() {
     let original = grouped();
-    let baseline = project_native_standalone_tabs(&original).unwrap();
+    let baseline = project_preferred_workspace(&original).unwrap();
     assert_eq!(baseline.groups(), &original.terminal_contexts[0].groups);
     assert!(baseline.tabs()[0].pinned());
     assert_eq!(baseline.tabs()[0].group_label(), None);
@@ -32,7 +32,7 @@ fn metadata_is_retained_and_only_newer_canonical_revisions_can_change_it() {
             1 => next.terminal_contexts[0].groups[0].color = TabGroupColor::Blue,
             _ => next.terminal_contexts[0].tabs[0].pinned = false,
         }
-        let candidate = project_native_standalone_tabs(&next).unwrap();
+        let candidate = project_preferred_workspace(&next).unwrap();
         assert!(validate_canonical_refresh(&baseline, candidate.clone()).is_err());
         assert!(
             validate_retained_context(
@@ -46,7 +46,7 @@ fn metadata_is_retained_and_only_newer_canonical_revisions_can_change_it() {
             .is_err()
         );
         next.revision = WorkbenchRevision::new(2);
-        let candidate = project_native_standalone_tabs(&next).unwrap();
+        let candidate = project_preferred_workspace(&next).unwrap();
         assert!(validate_canonical_refresh(&baseline, candidate).is_ok());
     }
 }
@@ -77,7 +77,7 @@ fn metadata_rejects_duplicate_missing_fragmented_and_pinned_group_records() {
             }
         }
         assert_eq!(
-            project_native_standalone_tabs(&value),
+            project_preferred_workspace(&value),
             Err(NativeProjectionError),
             "{change}"
         );
@@ -90,7 +90,7 @@ fn exact_move_receipt_cannot_also_change_group_or_pin_metadata() {
     // Two pinned Tabs allow a legal one-position move.
     original.terminal_contexts[0].tabs[1].group_id = None;
     original.terminal_contexts[0].tabs[1].pinned = true;
-    let baseline = project_native_standalone_tabs(&original).unwrap();
+    let baseline = project_preferred_workspace(&original).unwrap();
     let expected = MovedTabExpectation::new(
         WorkbenchRevision::new(2),
         context_id(2),
@@ -104,7 +104,7 @@ fn exact_move_receipt_cannot_also_change_group_or_pin_metadata() {
         validate_moved_tab(
             &baseline,
             &expected,
-            project_native_standalone_tabs(&moved).unwrap()
+            project_preferred_workspace(&moved).unwrap()
         )
         .is_ok()
     );
@@ -113,7 +113,7 @@ fn exact_move_receipt_cannot_also_change_group_or_pin_metadata() {
         validate_moved_tab(
             &baseline,
             &expected,
-            project_native_standalone_tabs(&moved).unwrap()
+            project_preferred_workspace(&moved).unwrap()
         )
         .is_err()
     );
@@ -122,7 +122,7 @@ fn exact_move_receipt_cannot_also_change_group_or_pin_metadata() {
         validate_moved_tab(
             &baseline,
             &expected,
-            project_native_standalone_tabs(&moved).unwrap()
+            project_preferred_workspace(&moved).unwrap()
         )
         .is_ok()
     );

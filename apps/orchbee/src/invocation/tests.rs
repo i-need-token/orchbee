@@ -523,13 +523,7 @@ fn accepts_every_query_path_with_default_text() {
             &["workspace", "get", "main"],
             QueryCommand::WorkspaceGet(Target::Label("main".into())),
         ),
-        (
-            &["tab", "list"],
-            QueryCommand::TabList {
-                workspace: None,
-                standalone: false,
-            },
-        ),
+        (&["tab", "list"], QueryCommand::TabList { workspace: None }),
         (
             &["tab", "get", ID],
             QueryCommand::TabGet(Target::Id(ID.into())),
@@ -1038,17 +1032,15 @@ fn filters_have_declared_scope_single_use_and_values() {
         Ok(query(
             QueryCommand::TabList {
                 workspace: Some(Target::Id(ID.into())),
-                standalone: false,
             },
             OutputFormat::Text
         ))
     );
     assert_eq!(
-        parse(&["tab", "list", "--standalone"]),
+        parse(&["tab", "list", "--workspace", "Workspace"]),
         Ok(query(
             QueryCommand::TabList {
-                workspace: None,
-                standalone: true,
+                workspace: Some(Target::Label("Workspace".into()))
             },
             OutputFormat::Text
         ))
@@ -1083,7 +1075,7 @@ fn filters_have_declared_scope_single_use_and_values() {
         &["workspace", "list", "--tab", "x"],
         &["workspace", "list", "--standalone"],
         &["workspace", "list", "--project", "x", "--workspace", "y"],
-        // `tab list` declares only --workspace/--standalone.
+        // `tab list` declares only --workspace.
         &["tab", "list", "--project", "x"],
         &["tab", "list", "--tab", "x"],
         // `panel list` declares only --tab/--workspace, one at a time.
@@ -1246,7 +1238,7 @@ fn suffix_help_resolves_any_recognized_help_path() {
             HelpTopic::Command(CommandPath::WorkspaceList),
         ),
         (
-            &["tab", "list", "--standalone", "--help"],
+            &["tab", "list", "--workspace", "x", "--help"],
             HelpTopic::Command(CommandPath::TabList),
         ),
         (
@@ -1912,14 +1904,14 @@ fn accepts_every_mutation_path() {
 
 #[test]
 fn geometry_bearing_commands_require_the_whole_geometry() {
-    let mut arguments = vec!["tab", "create", "--standalone", "--label", "t"];
+    let mut arguments = vec!["tab", "create", "--workspace", "main", "--label", "t"];
     arguments.extend(GEOMETRY_ARGS);
     assert_eq!(
         parse(&arguments),
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: geometry(),
                 launch: None,
@@ -1954,7 +1946,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
     // alone, which keeps its geometry meaning here (never history's).
     for present in 1u8..0b1111 {
         for prefix in [
-            vec!["tab", "create", "--standalone", "--label", "t"],
+            vec!["tab", "create", "--workspace", "main", "--label", "t"],
             vec!["panel", "split", ID, "--direction", "right", "--label", "p"],
         ] {
             let mut arguments = prefix;
@@ -1978,15 +1970,8 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
     // logical grid with the paired-zero (unknown) cell pixel pair.
     let default =
         WorkbenchTerminalGeometry::new(80, 24, 0, 0).expect("default geometry is protocol-valid");
-    for arguments in [
-        vec!["tab", "create", "--standalone", "--label", "t"],
-        vec!["tab", "create", "--workspace", "main", "--label", "t"],
-    ] {
-        let context = if arguments.contains(&"--standalone") {
-            TabContext::Standalone
-        } else {
-            TabContext::Workspace(Target::Label("main".into()))
-        };
+    for arguments in [vec!["tab", "create", "--workspace", "main", "--label", "t"]] {
+        let context = TabContext::Workspace(Target::Label("main".into()));
         assert_eq!(
             parse(&arguments),
             Ok(mutation(
@@ -2040,7 +2025,8 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         parse(&[
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "main",
             "--label",
             "t",
             "--exec",
@@ -2051,7 +2037,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: default,
                 launch: launch("/bin/sh", &["-lc"]),
@@ -2065,7 +2051,8 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         parse(&[
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "main",
             "--label",
             "t",
             "--profile",
@@ -2076,7 +2063,7 @@ fn geometry_bearing_commands_default_the_whole_geometry() {
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: default,
                 launch: None,
@@ -2128,7 +2115,14 @@ fn tab_create_admits_at_most_one_explicit_context() {
     both.extend(GEOMETRY_ARGS);
     assert_eq!(parse(&both), Err(usage(FailureEnvelope::Text)));
 
-    let mut swapped = vec!["tab", "create", "--standalone", "--workspace", "main"];
+    let mut swapped = vec![
+        "tab",
+        "create",
+        "--workspace",
+        "main",
+        "--workspace",
+        "main",
+    ];
     swapped.extend(["--label", "t"]);
     swapped.extend(GEOMETRY_ARGS);
     assert_eq!(parse(&swapped), Err(usage(FailureEnvelope::Text)));
@@ -2148,7 +2142,7 @@ fn launch(executable: &str, arguments: &[&str]) -> Option<LaunchSelection> {
 }
 
 fn tab_create_invocation(launch_args: &[&str]) -> Vec<String> {
-    let mut arguments: Vec<String> = ["tab", "create", "--standalone", "--label", "t"]
+    let mut arguments: Vec<String> = ["tab", "create", "--workspace", "main", "--label", "t"]
         .iter()
         .map(|word| (*word).to_owned())
         .collect();
@@ -2174,7 +2168,7 @@ fn windows_launch_paths_preserve_arguments_and_reject_ambiguous_roots() {
             Ok(mutation(
                 MutationCommand::TabCreate {
                     automatic_label: false,
-                    context: TabContext::Standalone,
+                    context: TabContext::Workspace(Target::Label("main".into())),
                     label: label("t"),
                     geometry: geometry(),
                     launch: launch(executable, &["two words", "中文"]),
@@ -2206,7 +2200,7 @@ fn launch_selection_options_parse_in_every_spelling() {
             Ok(mutation(
                 MutationCommand::TabCreate {
                     automatic_label: false,
-                    context: TabContext::Standalone,
+                    context: TabContext::Workspace(Target::Label("main".into())),
                     label: label("t"),
                     geometry: geometry(),
                     launch: launch("/bin/sh", arguments),
@@ -2422,7 +2416,8 @@ fn joined_value_spelling_is_equivalent() {
             &[
                 "tab",
                 "create",
-                "--standalone",
+                "--workspace",
+                "main",
                 "--exec",
                 "/x",
                 "--arg",
@@ -2433,7 +2428,8 @@ fn joined_value_spelling_is_equivalent() {
             &[
                 "tab",
                 "create",
-                "--standalone",
+                "--workspace",
+                "main",
                 "--exec=/x",
                 "--arg=a",
                 "--arg=b",
@@ -2814,7 +2810,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: geometry(),
                 launch: None,
@@ -2831,7 +2827,7 @@ fn profile_option_threads_into_launch_bearing_mutations() {
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: geometry(),
                 launch: None,
@@ -3330,7 +3326,8 @@ fn mutation_values_are_bounded() {
         let arguments = [
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "main",
             "--label",
             "t",
             "--cols",
@@ -3353,7 +3350,8 @@ fn mutation_values_are_bounded() {
     let arguments = [
         "tab",
         "create",
-        "--standalone",
+        "--workspace",
+        "main",
         "--label",
         "t",
         "--cols",
@@ -3370,7 +3368,7 @@ fn mutation_values_are_bounded() {
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: WorkbenchTerminalGeometry::new(512, 512, 64, 63)
                     .expect("geometry inside bounds"),
@@ -3386,7 +3384,8 @@ fn mutation_values_are_bounded() {
     let arguments = [
         "tab",
         "create",
-        "--standalone",
+        "--workspace",
+        "main",
         "--label",
         "t",
         "--cols",
@@ -3403,7 +3402,7 @@ fn mutation_values_are_bounded() {
         Ok(mutation(
             MutationCommand::TabCreate {
                 automatic_label: false,
-                context: TabContext::Standalone,
+                context: TabContext::Workspace(Target::Label("main".into())),
                 label: label("t"),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0)
                     .expect("paired-zero geometry is protocol-valid"),
@@ -3833,12 +3832,6 @@ fn usage_failures_carry_their_concrete_reason() {
                 option: "--project",
             },
         ),
-        (
-            &["tab", "list", "--standalone", "--standalone"],
-            UsageReason::DuplicateOption {
-                option: "--standalone",
-            },
-        ),
         // Word-structure failures.
         (
             &["bogus"],
@@ -4007,14 +4000,6 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &["tab", "list", "--workspace", "x", "--standalone"],
-            UsageReason::ConflictingOptions {
-                context: path("tab list"),
-                first: "--workspace",
-                second: "--standalone",
-            },
-        ),
-        (
             &["tui", "--format", "text"],
             UsageReason::UnexpectedOption {
                 context: path("tui"),
@@ -4076,36 +4061,13 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &[
-                "tab",
-                "create",
-                "--standalone",
-                "--workspace",
-                "w",
-                "--label",
-                "t",
-                "--cols",
-                "80",
-                "--rows",
-                "24",
-                "--cell-width",
-                "8",
-                "--cell-height",
-                "16",
-            ],
-            UsageReason::ConflictingOptions {
-                context: path("tab create"),
-                first: "--workspace",
-                second: "--standalone",
-            },
-        ),
-        (
             // A partial geometry set still refuses with the fixed
             // first-missing-flag diagnostic: `--cols` precedes `--rows`.
             &[
                 "tab",
                 "create",
-                "--standalone",
+                "--workspace",
+                "main",
                 "--label",
                 "t",
                 "--rows",
@@ -4120,7 +4082,8 @@ fn usage_failures_carry_their_concrete_reason() {
             &[
                 "tab",
                 "create",
-                "--standalone",
+                "--workspace",
+                "main",
                 "--label",
                 "t",
                 "--cols",
@@ -4137,7 +4100,8 @@ fn usage_failures_carry_their_concrete_reason() {
             &[
                 "tab",
                 "create",
-                "--standalone",
+                "--workspace",
+                "main",
                 "--label",
                 "t",
                 "--cols",
@@ -4156,7 +4120,8 @@ fn usage_failures_carry_their_concrete_reason() {
             &[
                 "tab",
                 "create",
-                "--standalone",
+                "--workspace",
+                "main",
                 "--label",
                 "t",
                 "--cols",
@@ -6325,7 +6290,7 @@ fn per_launch_options_support_default_explicit_and_profile_launches() {
             let mut words = if panel {
                 vec!["panel", "split", ID, "--direction", "right", "--label", "p"]
             } else {
-                vec!["tab", "create", "--standalone", "--label", "t"]
+                vec!["tab", "create", "--workspace", "main", "--label", "t"]
             };
             words.extend(selection.iter().copied());
             words.extend([
@@ -6365,7 +6330,7 @@ fn per_launch_options_reject_bad_values_and_scope_without_echoing_secrets() {
         vec!["--env", "TERM=TOKEN_SECRET"],
         vec!["--env", "Path=TOKEN_SECRET", "--env=PATH=other"],
     ] {
-        let mut words = vec!["tab", "create", "--standalone", "--label", "t"];
+        let mut words = vec!["tab", "create", "--workspace", "main", "--label", "t"];
         words.extend(extras);
         let failure = parse(&words).unwrap_err();
         assert!(!format!("{failure:?}").contains("TOKEN_SECRET"));
@@ -6381,7 +6346,8 @@ fn per_launch_options_reject_bad_values_and_scope_without_echoing_secrets() {
         vec![
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "main",
             "--label",
             "t",
             "--cwd",
@@ -6390,7 +6356,8 @@ fn per_launch_options_reject_bad_values_and_scope_without_echoing_secrets() {
         vec![
             "tab",
             "create",
-            "--standalone",
+            "--workspace",
+            "main",
             "--label",
             "t",
             "--cwd",
@@ -7406,7 +7373,8 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
     let launch = parse(&[
         "tab",
         "create",
-        "--standalone",
+        "--workspace",
+        "main",
         "--exec",
         r"C:\Windows\System32\cmd.exe",
         "--arg=--session",
@@ -7606,7 +7574,8 @@ fn reusable_layout_apply_requires_a_source_and_confirmed_exclusive_destination()
             "apply",
             "--file",
             "中文 file.json",
-            "--standalone",
+            "--workspace",
+            "main",
             "--focus",
         ],
         vec![

@@ -171,7 +171,6 @@ fn source(
         MutationCommand::PanelSplit { target, .. } => Ok(Some(target.clone())),
         MutationCommand::TabCreate { context, .. } => {
             let context_id = match context {
-                TabContext::Standalone => &snapshot.navigation.standalone_terminal_context_id,
                 TabContext::Workspace(workspace) => {
                     &snapshot
                         .navigation

@@ -202,7 +202,8 @@ impl PendingPanelCommit {
         let tab = &self.operation.baseline.tabs()[index];
         self.operation.baseline.revision().value().checked_add(1)
             == Some(self.commit.revision().value())
-            && self.operation.baseline.terminal_context_id() == self.commit.terminal_context_id()
+            && self.operation.baseline.terminal_context_id()
+                == Some(self.commit.terminal_context_id())
             && self.operation.target.tab_id() == self.commit.tab_id()
             && &self.operation.panel_id == self.commit.panel_id()
             && tab.panel_index(&self.operation.panel_id).is_some()
@@ -589,7 +590,7 @@ impl NativeSessionState {
             }
             PanelResult::Unchanged(_) => PreparedPanelResult::Divergent { pending: None },
             PanelResult::CloseAccepted(accepted) => {
-                if &accepted.terminal_context_id == operation.baseline.terminal_context_id()
+                if Some(&accepted.terminal_context_id) == operation.baseline.terminal_context_id()
                     && &accepted.tab_id == operation.target.tab_id()
                     && accepted.panel_id == operation.panel_id
                     && accepted.accepted_revision <= operation.baseline.revision()

@@ -83,9 +83,7 @@ pub struct ClientViewObservation {
 }
 impl ClientViewObservation {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if (self.phase == ClientViewPhase::Ready || self.split_revision.is_some())
-            && self.selection.is_none()
-        {
+        if self.split_revision.is_some() && self.selection.is_none() {
             return Err(ContractError::InvalidDocument);
         }
         if self.selection.as_ref().is_some_and(|selection| {

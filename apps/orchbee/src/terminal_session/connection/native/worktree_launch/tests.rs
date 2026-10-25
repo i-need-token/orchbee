@@ -28,7 +28,7 @@ fn prepare(
         .map(|source| match source {
             Some(WorktreeSource::Directory { path }) => Some(path),
             None => None,
-            _ => panic!("standalone source must use the sampled primary root"),
+            _ => panic!("initial_workspace source must use the sampled primary root"),
         })
 }
 #[test]

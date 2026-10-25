@@ -146,7 +146,7 @@ TAB=$(orchbee tab create --workspace "$WS" --label shell \
 加 `--exec /abs/path [--arg v]...` 可以为这一次
 请求替换默认 shell——每个逐字参数重复一次 `--arg`，不做 shell 分词；
 已安装的 provider 可执行文件也经由此途径启动，参数以该程序自身接受
-的为准。用 `--standalone` 代替 `--workspace` 可以选择独立上下文，或
+的为准。用 `--workspace` 选择准确 Workspace，或
 用 `panel split <panel-id> --direction right ...` 创建相邻 Panel；两
 者接受相同的 `--exec`/`--arg` 选择。
 

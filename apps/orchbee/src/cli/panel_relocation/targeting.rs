@@ -73,9 +73,6 @@ pub(super) fn context(
 ) -> Result<WorkbenchTerminalContextId, Failure> {
     match target {
         None => Ok(source.terminal_context_id.clone()),
-        Some(TabContext::Standalone) => {
-            Ok(snapshot.navigation.standalone_terminal_context_id.clone())
-        }
         Some(TabContext::Workspace(target)) => results::resolve_or_fail(
             snapshot.navigation.workspaces.iter().map(|workspace| {
                 (
@@ -151,8 +148,19 @@ pub(super) fn follows_original(
                     .is_none_or(|id| !context.tabs.iter().any(|tab| &tab.tab_id == id))
                     || current.tab_id == before.tab_id)
         }
-        // Removed Workspace repair lands in standalone, not an arbitrary peer Workspace.
-        None => current.terminal_context_id == snapshot.navigation.standalone_terminal_context_id,
+        // Context removal follows the first surviving Workspace in canonical navigation order.
+        None => {
+            snapshot
+                .navigation
+                .ordered_workspaces()
+                .ok()
+                .and_then(|workspaces| {
+                    workspaces
+                        .first()
+                        .map(|(_, workspace)| &workspace.terminal_context_id)
+                })
+                == Some(&current.terminal_context_id)
+        }
     }
 }
 

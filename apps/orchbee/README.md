@@ -425,7 +425,7 @@ without cancelling the draft. A known rename with unavailable projection uses th
 explicit `w` recovery without resubmitting the command. The [native Session contract](docs/native-tab-session.md)
 owns admission, geometry, feedback, failure, recovery and evidence bounds. Close requires a separate
 lifecycle grant, including for a view-only Client. Closing the last Tab leaves Empty; explicit `c`
-creates a new terminal, while ordinary Client exit preserves it for later bare Open. A peer whose
+creates a new terminal, while ordinary Client exit preserves it for later binding attachment. A peer whose
 terminal was closed uses explicit `w` to recover the current membership. Linux process evidence
 covers this sequence. Canonical split-panel projection, local panel focus, and `panel.split` /
 `panel.close` / `panel.move` submission preserve canonical Tab grouping and pinned metadata; production
@@ -478,7 +478,7 @@ incompatible result, wrong result kind, or wrong correlation makes the effect ou
 replay. A correctly correlated Server `outcome-unknown` result remains a valid OBCS result rather
 than a transport ambiguity.
 
-Bare Linux and macOS startup consume this transport for standalone Open, viewer, and control intent.
+Bare Linux and macOS startup consume this transport for canonical Workspace selection, viewer and control intent.
 Its close-only `LocalClientShutdown` handle stops a blocked exchange without acquiring another
 stream reader or writer. Reconnection and reconciliation remain separate boundaries.
 
@@ -828,84 +828,13 @@ A case edit is a semantic contract change and belongs in the same reviewed
 change as the engine behavior it pins; a new provider adds one file under
 `provider-conformance/cases/`.
 
-## Standalone terminal intent
+## Workspace terminal startup
 
-The private connected TUI accepts `TerminalIntent::Standalone`. It submits one
-`submit_terminal_open` and requires Opened, then reads a correlated OBWP snapshot on that same
-admitted connection. It uses the snapshot's exact Session/Worker/Server-terminal binding to submit
-OBCS `attach-binding`; the Open create reference remains an explicit legacy value and does not
-select this viewer. Bare Linux and macOS invocation consume this path through verified local Session
-activation and Worker lazy Host startup. Explicit Create and Attach intents keep their existing
-Create-reference attachment behavior.
+The connected TUI reads a correlated OBWP snapshot before choosing a location. Selection uses an exact Workspace/Context pair, remembered selection when available, or the first canonical Workspace in display order, including an empty one. Windows eligible directory startup may explicitly launch the first Workspace; other empty Workbenches remain empty. There is no `TerminalIntent::Standalone`, `terminal.open` request or Workspace-ID-less selection.
 
-Bare Windows startup first reads canonical membership and resolves its saved selection or
-eligible empty-Session [directory creation](docs/native-directory-startup.md). Existing Sessions without
-a saved position select the first canonical Workspace, including an empty one, before nonempty legacy content. This path sends no standalone Open. These paths share this
-bootstrap/attachment owner and the original deadline.
+An identity-less `NoWorkspace` is only the Client's empty landing state: it owns no Context, creates no terminal, appears in no navigation row and is never saved as a Workspace position. Workspace Project membership remains nullable. Empty Workspaces preserve their identity and support explicit configuration/creation.
 
-The pure projector resolves exactly one canonical context by stable identity and admits zero through
-256 ordered Tabs. It retains labels, pinned state, group metadata, membership identities, split/slot
-topology, presentations and terminal bindings. Pinned Tabs form a prefix and group members remain
-contiguous; unsupported membership rejects the complete projection. Canonical OBWP validation owns
-global uniqueness and reference integrity. Refresh and created-member validators enforce revision,
-immutable member and correlated creation facts. The [native Tab group contract](docs/native-tab-groups.md)
-owns group headers, local disclosure, configuration menus and the actual GUI/TUI capability coverage.
-
-The terminal projection adapter also provides the native Session's controlling full-frame geometry
-gate. A supplied expected geometry must match all four fields; mismatch clears the visible frame
-and requests a snapshot without resetting sequence, revision, or blocked-revision fences. Native
-controlling setup consumes this gate; the retained explicit Create/Attach adapter passes no expected
-geometry. Focused tests cover each field and recovery with a fresh matching full frame.
-
-Open, snapshot read, attach, controller acquisition, initial controller-authorized Resize and
-the first validated terminal projection frame share the existing startup ceiling. An observer
-does not resize. The snapshot exchange keeps one carrier and the existing nonblocking deadline
-I/O owner; Workbench request IDs remain distinct from OBCS correlation and logical terminal IDs.
-
-| Condition                                                                                                      | Carrier state and standalone behavior                                                                                    |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Local encoding or definite pre-first-write failure                                                             | Retain the carrier and return a definite not-submitted failure; the workflow exits unavailable without retry.            |
-| I/O after possible handoff; malformed, excessive, truncated, wrong-kind or wrong-correlation snapshot response | Retire the mixed carrier and report snapshot-read failure; an already successful Open does not become an unknown launch. |
-| Valid denied or unavailable snapshot result                                                                    | Return the typed result without protocol retirement; the workflow exits unavailable and drops its Session.               |
-| Valid snapshot with unsupported standalone shape                                                               | Exit unavailable without another selection or fallback to the Open reference.                                            |
-| Known-unchanged viewer server-busy result                                                                      | Existing retry retains the exact binding tuple, uses a fresh OBCS request ID and keeps the same logical deadline.        |
-| Unknown Open/submission or ambiguous attachment result                                                         | Stop without replaying Open, substituting Create or falling back to Create-reference attachment.                         |
-
-There is no snapshot-read retry. Existing controller and projection admission still follow
-attachment, and binding possession grants no controller authority. Equal encoded bytes across
-distinct Session/Worker/Terminal identity domains remain valid; each field is independently typed
-and validated.
-
-The [Server-owned record](../orchbee-server/docs/workbench-authority.md#terminal-selection-from-workbench-bindings)
-defines exact membership lookup, failure precedence, retained Worker generation and attachment
-linearization. This Client neither owns the standalone terminal nor writes Workbench membership.
-Session traces cover the mixed request order, exact selected tuple, structural refusal, bounded
-I/O and absence of fallback; fresh release PTY tests cover first open and retained-shell reentry.
-Carrier and Client deadline tests own progress and settlement. Remote access, restart
-adoption, persistence and a full Workbench Client remain outside this slice.
-
-The accepted [native Tab Session contract](docs/native-tab-session.md) owns the multi-Tab
-creation, local selection and explicit refresh refinement, its shared-carrier barriers, and
-the required implementation and process evidence. Its pure projection and classified TabCreate
-adapter are implemented. The adapter distinguishes definite precommit, committed and unknown
-outcomes; caller-deadline methods use the earliest ordinary, caller and startup deadline from one
-shared injected clock. The deterministic Session state and bounded mailbox implement atomic
-selection admission, Create/refresh barriers, exact event settlement, geometry gating, and carrier
-retirement. Retirement preserves the first cause and distinguishes explicitly unknown outcomes
-from definite failures. These kernels are integrated with the native connection executor and UI
-consumers. Generated barrier tests, scripted-carrier traces, and the Linux two-Client Tab/refresh
-process witness provide implementation evidence; the contract's
-[claim/evidence matrix](docs/native-tab-session.md#claimevidence-matrix) records the checked claims
-and their limits. This process evidence does not establish other operating systems, installation,
-restart recovery or remote access.
-
-`tab create` and `panel split` also accept per-launch `--cwd <absolute-path>` and repeated
-`--env NAME=VALUE`, including with `--profile` or the default shell. An explicit cwd overrides
-the Workspace directory. Windows omission follows the resolved source root process when available;
-`--cwd workspace` keeps Workspace/Worker-home defaults. Environment values are literal
-and bounded; see command help and [the native CLI contract](docs/native-cli-query.md).
-
-Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional Panel ID. Session IDs and names take precedence over positional Panel fallback. Panels select their primary terminal and require one live Agent; waits pin the selected Session.
+The Client attaches only the snapshot's exact Site/Worker/Terminal binding through `attach-binding`. Known pending, failed, unavailable or outcome-unknown creation provenance cannot be replaced by attachment permission. View-only, controller, Resize and first-frame readiness keep their existing authority and deadlines. Client exit preserves shared membership and live terminals; last-Tab Close leaves an empty Workspace and later startup does not recreate it. [Context selection](docs/native-context-selection.md) and [terminal creation](docs/native-terminal-creation.md) own the detailed rules.
 
 ## Windows explicit Session stop
 

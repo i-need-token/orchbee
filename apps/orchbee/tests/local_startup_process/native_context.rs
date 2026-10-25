@@ -18,7 +18,7 @@ const EMPTY: &str = "No terminal tabs";
 const CONFIGURED_EMPTY_ACTION: &str = "Ctrl+b c Create a Tab (requires session)";
 const UNCONFIGURED_EMPTY_FACT: &str = "No directory configured.";
 const UNCONFIGURED_EMPTY_ACTION: &str = "Ctrl+b e Configure an empty Workspace's first directory";
-const STANDALONE_LOCATION: &str = "Standalone terminal";
+const INITIAL_WORKSPACE_LOCATION: &str = "Workspace";
 const CONFIGURED_LOCATION: &str = "Context process / Configured";
 const UNCONFIGURED_LOCATION: &str = "Context process / Unconfigured";
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(45);
@@ -96,6 +96,11 @@ impl WorkbenchPeer {
             deadline,
             next: 1,
         })
+    }
+
+    pub(super) fn reserve_fixture_request_range(&mut self) {
+        // Fixture bootstrap must not collide with later independent test commands.
+        self.next = 1_u128 << 64;
     }
 
     fn request_id(&mut self) -> Result<WorkbenchRequestId, Box<dyn Error>> {
@@ -187,7 +192,7 @@ fn select_context(
 ) {
     let checkpoint = client.checkpoint();
     client.send(command);
-    // The sidebar always says "Standalone terminal". Only the active header distinguishes
+    // The sidebar always says "Workspace". Only the active header distinguishes
     // a completed context switch from a fresh draw of the previous Ready Workspace.
     let directory_fact = match expected {
         ExpectedContext::ConfiguredEmpty(path) => Some(format!("Directory: {path}")),
@@ -229,7 +234,7 @@ fn select_context(
     );
 }
 
-fn observe_independent_standalone(client: &mut Client, revision: u64, active: &mut Client) {
+fn observe_independent_initial_workspace(client: &mut Client, revision: u64, active: &mut Client) {
     let deadline = Instant::now() + SWITCH_TIMEOUT;
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
@@ -237,12 +242,8 @@ fn observe_independent_standalone(client: &mut Client, revision: u64, active: &m
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
-        &[
-            "Workbench navigator",
-            &refreshed,
-            "  * 1 Standalone terminal",
-        ],
+        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        &["Workbench navigator", &refreshed, "  * 1 Workspace"],
         &[],
         &[],
         &mut [active],
@@ -252,8 +253,8 @@ fn observe_independent_standalone(client: &mut Client, revision: u64, active: &m
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready ·", "STANDALONE_PEER_BINDING"],
+        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready ·", "INITIAL_WORKSPACE_PEER_BINDING"],
         &[
             "Workbench navigator",
             CONFIGURED_LOCATION,
@@ -266,9 +267,10 @@ fn observe_independent_standalone(client: &mut Client, revision: u64, active: &m
 }
 
 #[test]
-fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves() -> TestResult {
+fn native_initial_workspace_panel_split_refreshes_and_moves_focus_between_live_leaves() -> TestResult
+{
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -289,9 +291,8 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
     let split_deadline = Instant::now() + CLOSE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
     let before_split = peer.snapshot(split_deadline)?;
-    let terminal_context_id = before_split
-        .navigation
-        .standalone_terminal_context_id
+    let terminal_context_id = before_split.navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let context = before_split
         .terminal_contexts
@@ -429,7 +430,7 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
     client.wait_close_prompt_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        STANDALONE_LOCATION,
+        INITIAL_WORKSPACE_LOCATION,
         &[
             "Close Tab?",
             "",
@@ -446,7 +447,7 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + CLOSE_TIMEOUT,
-        NativeHeader::empty(STANDALONE_LOCATION),
+        NativeHeader::empty(INITIAL_WORKSPACE_LOCATION),
         &["No terminal tabs", "Ctrl+b c create Tab"],
         &["Close Tab?", "Workbench navigator"],
         &[],
@@ -464,9 +465,10 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
 }
 
 #[test]
-fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shell() -> TestResult {
+fn native_initial_workspace_panel_close_collapses_the_split_and_releases_only_that_shell()
+-> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -491,9 +493,8 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
     let split_deadline = Instant::now() + CLOSE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
     let before_split = peer.snapshot(split_deadline)?;
-    let terminal_context_id = before_split
-        .navigation
-        .standalone_terminal_context_id
+    let terminal_context_id = before_split.navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let context = before_split
         .terminal_contexts
@@ -623,7 +624,7 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &["Tab 1 · Ready"],
         &["Terminal 2 · Split peer", "Terminal disconnected"],
         &[],
@@ -691,9 +692,10 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
 }
 
 #[test]
-fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell() -> TestResult {
+fn native_initial_workspace_panel_move_relocates_a_leaf_without_touching_either_shell() -> TestResult
+{
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -718,9 +720,8 @@ fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell()
     let split_deadline = Instant::now() + CLOSE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
     let before_split = peer.snapshot(split_deadline)?;
-    let terminal_context_id = before_split
-        .navigation
-        .standalone_terminal_context_id
+    let terminal_context_id = before_split.navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let context = before_split
         .terminal_contexts
@@ -884,9 +885,9 @@ fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell()
 }
 
 #[test]
-fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> TestResult {
+fn native_initial_workspace_refresh_catches_up_across_two_committed_peer_splits() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -899,7 +900,9 @@ fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> Te
     let deadline = Instant::now() + CLOSE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
     let baseline = peer.snapshot(deadline)?;
-    let terminal_context_id = baseline.navigation.standalone_terminal_context_id.clone();
+    let terminal_context_id = baseline.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let context = baseline
         .terminal_contexts
         .iter()
@@ -1031,7 +1034,7 @@ fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> Te
 #[test]
 fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -1040,14 +1043,21 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         "1",
         ReadyMode::Controlling,
     );
-    client
-        .send(shell_identity_command(&fixture, "standalone", "standalone-before", true).as_bytes());
-    let standalone = wait_file(
-        &fixture.base.join("standalone-before"),
+    client.send(
+        shell_identity_command(
+            &fixture,
+            "initial_workspace",
+            "initial_workspace-before",
+            true,
+        )
+        .as_bytes(),
+    );
+    let initial_workspace = wait_file(
+        &fixture.base.join("initial_workspace-before"),
         &mut [&mut client],
         Instant::now() + OBSERVATION_TIMEOUT,
     );
-    let standalone_pid = require_shell_identity(&standalone, "standalone");
+    let initial_workspace_pid = require_shell_identity(&initial_workspace, "initial_workspace");
     let deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
     let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = peer.prepare(
@@ -1128,11 +1138,11 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     // A second native Client observes the retained binding without acquiring control.
     // The joined output token does not occur in the input command's shell echo.
     let checkpoint = client.checkpoint();
-    client.send(b"printf '%s%s\\n' STANDALONE _PEER_BINDING\r");
+    client.send(b"printf '%s%s\\n' INITIAL_WORKSPACE _PEER_BINDING\r");
     client.wait_terminal_output_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        "STANDALONE_PEER_BINDING",
+        "INITIAL_WORKSPACE_PEER_BINDING",
     );
     let mut independent = Client::spawn(&fixture, "en_US.UTF-8");
     independent.wait_ready_after(
@@ -1148,7 +1158,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         CONFIGURED_LOCATION,
         ExpectedContext::ConfiguredEmpty(directory_text),
     );
-    observe_independent_standalone(&mut independent, baseline.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, baseline.revision.value(), &mut client);
     assert_eq!(
         peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?,
         baseline
@@ -1157,7 +1167,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     select_context(
         &mut client,
         b"\x02[",
-        STANDALONE_LOCATION,
+        INITIAL_WORKSPACE_LOCATION,
         ExpectedContext::Ready,
     );
     select_context(
@@ -1188,7 +1198,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         Instant::now() + OBSERVATION_TIMEOUT,
     );
     let workspace_pid = require_shell_identity(&workspace, "workspace");
-    assert_ne!(workspace_pid, standalone_pid);
+    assert_ne!(workspace_pid, initial_workspace_pid);
     let workspace_shell = pidfd_open(
         Pid::from_raw(i32::try_from(workspace_pid)?).ok_or("invalid Workspace shell PID")?,
         PidfdFlags::empty(),
@@ -1223,22 +1233,22 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         created, expected,
         "Create changes only active Workspace membership"
     );
-    observe_independent_standalone(&mut independent, created.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, created.revision.value(), &mut client);
 
     select_context(
         &mut client,
         b"\x02[",
-        STANDALONE_LOCATION,
+        INITIAL_WORKSPACE_LOCATION,
         ExpectedContext::Ready,
     );
-    client.send(shell_identity_command(&fixture, "", "standalone-after", false).as_bytes());
+    client.send(shell_identity_command(&fixture, "", "initial_workspace-after", false).as_bytes());
     assert_eq!(
         wait_file(
-            &fixture.base.join("standalone-after"),
+            &fixture.base.join("initial_workspace-after"),
             &mut [&mut client],
             Instant::now() + OBSERVATION_TIMEOUT,
         ),
-        standalone
+        initial_workspace
     );
     select_context(
         &mut client,
@@ -1300,7 +1310,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         .clear();
     assert_eq!(
         closed, expected_closed,
-        "Close removes only the Workspace Tab and preserves standalone membership"
+        "Close removes only the Workspace Tab and preserves initial_workspace membership"
     );
     loop {
         let mut descriptor = [PollFd::new(workspace_shell.as_fd(), PollFlags::POLLIN)];
@@ -1319,7 +1329,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         independent.collect();
         thread::yield_now();
     }
-    observe_independent_standalone(&mut independent, closed.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, closed.revision.value(), &mut client);
 
     select_context(
         &mut client,
@@ -1327,7 +1337,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         UNCONFIGURED_LOCATION,
         ExpectedContext::UnconfiguredEmpty,
     );
-    observe_independent_standalone(&mut independent, closed.revision.value(), &mut client);
+    observe_independent_initial_workspace(&mut independent, closed.revision.value(), &mut client);
     assert_eq!(peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?, closed);
     let checkpoint = client.checkpoint();
     client.send(b"\x02c");
@@ -1353,18 +1363,20 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     select_context(
         &mut client,
         b"\x02]",
-        STANDALONE_LOCATION,
+        INITIAL_WORKSPACE_LOCATION,
         ExpectedContext::Ready,
     );
-    client.send(shell_identity_command(&fixture, "", "standalone-after-close", false).as_bytes());
+    client.send(
+        shell_identity_command(&fixture, "", "initial_workspace-after-close", false).as_bytes(),
+    );
     assert_eq!(
         wait_file(
-            &fixture.base.join("standalone-after-close"),
+            &fixture.base.join("initial_workspace-after-close"),
             &mut [&mut client, &mut independent],
             Instant::now() + OBSERVATION_TIMEOUT,
         ),
-        standalone,
-        "Workspace Close preserves the exact standalone shell and its variable"
+        initial_workspace,
+        "Workspace Close preserves the exact initial_workspace shell and its variable"
     );
     assert_eq!(peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?, closed);
     client.close_before(Instant::now() + EXIT_TIMEOUT);
@@ -1375,7 +1387,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
 #[test]
 fn native_bare_reentry_replays_the_settled_anchor_across_a_split_leaf() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -1397,9 +1409,8 @@ fn native_bare_reentry_replays_the_settled_anchor_across_a_split_leaf() -> TestR
     let deadline = Instant::now() + CLOSE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
     let before_split = peer.snapshot(deadline)?;
-    let terminal_context_id = before_split
-        .navigation
-        .standalone_terminal_context_id
+    let terminal_context_id = before_split.navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let context = before_split
         .terminal_contexts

@@ -293,12 +293,20 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
                     "11111111111111111111111111111111",
                 )
                 .unwrap(),
-                location: crate::terminal_session::NativeContextLocation::Standalone(
-                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
-                        "22222222222222222222222222222222",
-                    )
-                    .unwrap(),
-                ),
+                location: {
+                    let fixture_context_id =
+                        orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                            "22222222222222222222222222222222",
+                        )
+                        .unwrap();
+                    crate::terminal_session::NativeContextLocation::Workspace {
+                        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                            fixture_context_id.as_str(),
+                        )
+                        .unwrap(),
+                        terminal_context_id: fixture_context_id,
+                    }
+                },
             })),
         };
         view.machines.request = Some(request.clone());

@@ -9,7 +9,7 @@ const id = (value: number) => value.toString(16).padStart(32, '0');
 const encodedBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
 
 it('bounds grouped and ungrouped membership independently and preserves display order', () => {
-	const workspaces = Array.from({ length: 1023 }, (_, index) => ({
+	const workspaces = Array.from({ length: 1024 }, (_, index) => ({
 		workspaceId: id(index + 1),
 		terminalContextId: id(index + 2),
 		label: 'Workspace',
@@ -20,7 +20,6 @@ it('bounds grouped and ungrouped membership independently and preserves display 
 		directories: [],
 		projects: [{ projectId: id(1), label: 'Group' }],
 		workspaces,
-		standaloneTerminalContextId: id(1),
 		workspaceOrder: workspaces.map((_workspace, index) => id(workspaces.length - index)),
 	};
 	expect(WorkbenchNavigationSchema.safeParse(navigation).success).toBe(true);
@@ -46,14 +45,14 @@ it('bounds grouped and ungrouped membership independently and preserves display 
 			workspaces: [
 				...workspaces,
 				{
-					workspaceId: id(1024),
-					terminalContextId: id(1025),
+					workspaceId: id(1025),
+					terminalContextId: id(1026),
 					projectId: null,
 					primaryDirectoryId: null,
 					label: 'Overflow',
 				},
 			],
-			workspaceOrder: [...navigation.workspaceOrder, id(1024)],
+			workspaceOrder: [...navigation.workspaceOrder, id(1025)],
 		}).success,
 	).toBe(false);
 	expect(

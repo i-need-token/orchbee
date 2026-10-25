@@ -12,7 +12,7 @@ fn group(value: u128) -> TabGroup {
 #[test]
 fn tab_configuration_selected_set_receipt_requires_every_member_and_keeps_unselected_data() {
     let baseline = snapshot(3, 1, None);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let ids = vec![
         baseline.terminal_contexts[0].tabs[0].tab_id.clone(),
         baseline.terminal_contexts[0].tabs[2].tab_id.clone(),
@@ -95,7 +95,7 @@ fn tab_configuration_receipts_validate_new_identity_noop_bit_and_revision() {
     let mut baseline = workspace_snapshot(1, 1);
     baseline.terminal_contexts[1].groups.push(group(73));
     baseline.terminal_contexts[1].tabs[0].group_id = Some(group(73).group_id);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let operation = plan(&mut state, true);
     for (revision, group_id, unchanged) in [
         (2, None, false),
@@ -129,7 +129,7 @@ fn tab_configuration_receipts_validate_new_identity_noop_bit_and_revision() {
 fn tab_configuration_exact_receipt_rejects_unrelated_metadata_and_later_revision_remains_recoverable()
  {
     let baseline = workspace_snapshot(1, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let old = state.desired().cloned();
     let operation = plan(&mut state, true);
     let known = operation

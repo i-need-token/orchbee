@@ -788,7 +788,7 @@ pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snaps
     use orchbee_workbench_protocol::parse_snapshot;
     let document = json!({
         "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "navigation":{"projects":[], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[]},
+        "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":"00000000000000000000000000000001", "groups":[], "tabs":[{
             "tabId":"00000000000000000000000000000002", "label":"tab", "pinned":false, "groupId":null,
             "root":{"kind":"panel", "panelId":"22222222222222222222222222222222",

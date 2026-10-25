@@ -128,7 +128,7 @@ impl SidebarReorder {
         {
             return None;
         }
-        // Reuse the existing row capability instead of admitting agents or Standalone.
+        // Reuse the Workspace row capability for reordering.
         if !paint.source.has_part(target.target(), SidebarPart::Menu) {
             return None;
         }

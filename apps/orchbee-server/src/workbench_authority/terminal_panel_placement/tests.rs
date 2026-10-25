@@ -1,3 +1,4 @@
+use crate::test_support::WorkbenchFixture;
 use std::{num::NonZeroU64, time::Instant};
 
 mod swap;
@@ -22,9 +23,10 @@ use orchbee_workbench_protocol::{
 };
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
-    let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(100)).unwrap()).unwrap();
+    let mut authority =
+        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
-    authority.commit_standalone_intent(binding(700)).unwrap();
+    authority.append_fixture_tab(binding(700)).unwrap();
     (authority, grant)
 }
 
@@ -45,12 +47,9 @@ fn command(authority: &WorkbenchAuthority, id: u128, action: WorkbenchAction) ->
     }
 }
 
-fn standalone_context(authority: &WorkbenchAuthority) -> WorkbenchTerminalContextId {
-    authority
-        .projection
-        .snapshot()
-        .navigation
-        .standalone_terminal_context_id
+fn initial_workspace_context(authority: &WorkbenchAuthority) -> WorkbenchTerminalContextId {
+    authority.projection.snapshot().navigation.workspaces[0]
+        .terminal_context_id
         .clone()
 }
 
@@ -85,7 +84,7 @@ fn split(
             command_id,
             WorkbenchAction::PanelSplit {
                 right_click: orchbee_workbench_protocol::PanelRightClickTarget::Panel,
-                terminal_context_id: standalone_context(authority),
+                terminal_context_id: initial_workspace_context(authority),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
                 direction,
@@ -128,7 +127,7 @@ fn move_command(
         authority,
         id,
         WorkbenchAction::PanelMove {
-            terminal_context_id: standalone_context(authority),
+            terminal_context_id: initial_workspace_context(authority),
             tab_id: tab_id.clone(),
             panel_id: panel_id.clone(),
             target_panel_id: target_panel_id.clone(),
@@ -179,7 +178,7 @@ fn slot_ids(node: &PanelNode, output: &mut Vec<WorkbenchPanelSlotId>) {
 #[test]
 fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let tab_id = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -191,7 +190,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
         &panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let members: Vec<_> = membership.members_for_tab(&tab_id).cloned().collect();
     let panel_b = members
         .iter()
@@ -243,7 +242,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
         panic!("expected panel-moved: {:?}", result.outcome)
     };
     assert_eq!(revision.value(), before.revision.value() + 1);
-    assert_eq!(terminal_context_id, &standalone_context(&authority));
+    assert_eq!(terminal_context_id, &initial_workspace_context(&authority));
     assert_eq!(outcome_tab, &tab_id);
     assert_eq!(outcome_panel, &panel_a);
     assert_eq!(outcome_target, &panel_b);
@@ -279,7 +278,7 @@ fn panel_move_relocates_a_leaf_right_with_fresh_graft_identities() {
 #[test]
 fn panel_move_is_unchanged_when_the_placement_is_already_satisfied() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let tab_id = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -291,7 +290,7 @@ fn panel_move_is_unchanged_when_the_placement_is_already_satisfied() {
         &panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&tab_id)
         .find(|member| member.panel_id() != &panel_a)
@@ -349,7 +348,7 @@ fn panel_move_is_unchanged_when_the_placement_is_already_satisfied() {
 #[test]
 fn panel_move_rejects_missing_members_and_unknown_scopes() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let tab_id = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -361,7 +360,7 @@ fn panel_move_rejects_missing_members_and_unknown_scopes() {
         &panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&tab_id)
         .find(|member| member.panel_id() != &panel_a)
@@ -442,7 +441,7 @@ fn panel_move_rejects_missing_members_and_unknown_scopes() {
 #[test]
 fn panel_move_restructures_nested_subtrees_and_preserves_untouched_identities() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let tab_id = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -455,7 +454,7 @@ fn panel_move_restructures_nested_subtrees_and_preserves_untouched_identities() 
         WorkbenchPanelSplitDirection::Right,
     );
     let panel_b = {
-        let membership = authority.tree_standalone_membership().unwrap();
+        let membership = authority.fixture_tree_membership().unwrap();
         membership
             .members_for_tab(&tab_id)
             .find(|member| member.panel_id() != &panel_a)
@@ -472,7 +471,7 @@ fn panel_move_restructures_nested_subtrees_and_preserves_untouched_identities() 
         WorkbenchPanelSplitDirection::Right,
     );
     // Tree is now Split(A, Split(B, C)).
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_c = membership
         .members_for_tab(&tab_id)
         .find(|member| member.panel_id() != &panel_a && member.panel_id() != &panel_b)
@@ -553,7 +552,7 @@ fn panel_move_restructures_nested_subtrees_and_preserves_untouched_identities() 
 #[test]
 fn panel_move_without_navigation_grant_is_denied() {
     let (mut authority, _grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let tab_id = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -567,7 +566,7 @@ fn panel_move_without_navigation_grant_is_denied() {
         &panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&tab_id)
         .find(|member| member.panel_id() != &panel_a)
@@ -748,7 +747,7 @@ fn revision_gate_precedes_membership_after_a_legal_peer_close() {
     let (mut authority, grant) = authority();
     let lifecycle =
         WorkbenchGrant::read_only(authority.site_id().clone()).with_terminal_lifecycle();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let tab_id = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -760,14 +759,14 @@ fn revision_gate_precedes_membership_after_a_legal_peer_close() {
         &panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&tab_id)
         .find(|member| member.panel_id() != &panel_a)
         .unwrap()
         .panel_id()
         .clone();
-    let context = standalone_context(&authority);
+    let context = initial_workspace_context(&authority);
     let stale_revision = authority.projection.snapshot().revision;
     // Minted while the target leaf is still projected; the unique request id keeps the
     // ledger from replaying an older entry into this control flow.

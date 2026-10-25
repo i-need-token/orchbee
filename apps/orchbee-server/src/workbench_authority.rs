@@ -54,7 +54,6 @@ mod worktree_operation;
 pub use workspace_group_close::{WorkspaceGroupCloseMemberPlan, WorkspaceGroupClosePlan};
 mod worktree_query;
 pub use terminal_membership::{
-    PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
     WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
 };
 pub use worktree_operation::{
@@ -310,8 +309,6 @@ pub struct WorkbenchAuthority {
 
 impl WorkbenchAuthority {
     pub fn new(site_id: SiteId) -> Result<Self, ContractError> {
-        let context_id = WorkbenchTerminalContextId::parse("00000000000000000000000000000001")
-            .map_err(|_error| ContractError::InvalidDocument)?;
         let snapshot = Snapshot {
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(0),
@@ -322,9 +319,8 @@ impl WorkbenchAuthority {
                 workspaces: Vec::new(),
                 workspace_order: Vec::new(),
                 projects: Vec::new(),
-                standalone_terminal_context_id: context_id.clone(),
             },
-            terminal_contexts: vec![empty_context(context_id)],
+            terminal_contexts: Vec::new(),
         };
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot))?;
         Ok(Self {

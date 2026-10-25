@@ -434,15 +434,12 @@ impl PresentationIndex {
 }
 
 /// Every `NativeContextLocation` a snapshot's navigation declares, in
-/// canonical order (standalone first, then all Workspaces).
+/// canonical Workspace order.
 fn navigation_locations(
     snapshot: &orchbee_workbench_protocol::Snapshot,
 ) -> Vec<super::workbench_projection::NativeContextLocation> {
     use super::workbench_projection::NativeContextLocation;
-    let mut locations = Vec::with_capacity(snapshot.navigation.workspaces.len() + 1);
-    locations.push(NativeContextLocation::Standalone(
-        snapshot.navigation.standalone_terminal_context_id.clone(),
-    ));
+    let mut locations = Vec::with_capacity(snapshot.navigation.workspaces.len());
     if let Ok(ordered) = snapshot.navigation.ordered_workspaces() {
         for (_, workspace) in ordered {
             locations.push(NativeContextLocation::Workspace {

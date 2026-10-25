@@ -67,7 +67,7 @@ fn failed_tab_closes_without_worker_and_replays_original_acknowledgment() {
     coordinator
         .complete_terminal_tab_create(pending, completion, Some(worker(1)))
         .unwrap();
-    let (context, tab, _) = super::panel_split::standalone_leaf(&mut coordinator);
+    let (context, tab, _) = super::panel_split::workspace_leaf(&mut coordinator);
     let close = close_command(
         &mut coordinator,
         102,
@@ -127,7 +127,7 @@ fn unknown_launch_and_stopped_maintenance_cannot_remove_the_tab() {
                 Some(worker(1)),
             )
             .unwrap();
-        let (context, tab, _) = super::panel_split::standalone_leaf(&mut coordinator);
+        let (context, tab, _) = super::panel_split::workspace_leaf(&mut coordinator);
         let close = close_command(
             &mut coordinator,
             102,
@@ -163,7 +163,7 @@ fn failed_split_panel_closes_without_disposing_its_running_sibling() {
     coordinator
         .complete_terminal_tab_create(pending, completion, Some(worker(1)))
         .unwrap();
-    let (context, tab, panel) = super::panel_split::standalone_leaf(&mut coordinator);
+    let (context, tab, panel) = super::panel_split::workspace_leaf(&mut coordinator);
     let split = super::panel_split::split_command(
         &mut coordinator,
         102,
@@ -207,7 +207,7 @@ fn failed_split_panel_closes_without_disposing_its_running_sibling() {
         WorkbenchCommandOutcome::PanelCloseAccepted { .. }
     ));
     publish_without_host(&mut coordinator, &close);
-    let (_, _, surviving_panel) = super::panel_split::standalone_leaf(&mut coordinator);
+    let (_, _, surviving_panel) = super::panel_split::workspace_leaf(&mut coordinator);
     assert_eq!(surviving_panel, panel);
 }
 

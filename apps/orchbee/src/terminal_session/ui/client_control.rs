@@ -91,7 +91,7 @@ impl NativeUi {
         snapshot: &orchbee_workbench_protocol::Snapshot,
     ) -> Result<(), Reason> {
         use crate::terminal_session::workbench_projection::{
-            project_native_context_tabs, project_native_standalone_tabs,
+            project_native_context_tabs, project_preferred_workspace,
         };
         let ClientViewIntent::Panel {
             terminal_context_id,
@@ -109,11 +109,11 @@ impl NativeUi {
             return Err(Reason::ProjectionUnavailable);
         }
         let navigation =
-            project_native_standalone_tabs(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
+            project_preferred_workspace(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
         let location = &navigation
             .navigation()
             .iter()
-            .find(|entry| entry.location.terminal_context_id() == terminal_context_id)
+            .find(|entry| entry.location.terminal_context_id() == Some(terminal_context_id))
             .ok_or(Reason::TargetUnavailable)?
             .location;
         let candidate = project_native_context_tabs(snapshot, location)
@@ -286,18 +286,20 @@ impl NativeUi {
             }
         };
         let panel_count = u16::try_from(tab.map_or(0, |tab| tab.panel_count())).ok()?;
-        let selection = ClientViewSelection {
-            terminal_context_id: cache.terminal_context_id().clone(),
-            tab_id: tab.map(|tab| tab.tab_id().clone()),
-            panel_id: state.focus_panel_id().cloned(),
-            zoomed: state.zoom_active(),
-            panel_count,
-        };
+        let selection = cache
+            .terminal_context_id()
+            .map(|context| ClientViewSelection {
+                terminal_context_id: context.clone(),
+                tab_id: tab.map(|tab| tab.tab_id().clone()),
+                panel_id: state.focus_panel_id().cloned(),
+                zoomed: state.zoom_active(),
+                panel_count,
+            });
         let observation = ClientViewObservation {
             workbench_revision: cache.revision(),
-            split_revision: Some(state.split_revision()),
+            split_revision: selection.as_ref().map(|_| state.split_revision()),
             phase,
-            selection: Some(selection),
+            selection,
         };
         observation.validate().ok()?;
         Some((cache.site_id().clone(), observation))
@@ -469,7 +471,7 @@ impl NativeUi {
         let Some(state) = self.state.as_ref() else {
             return ControlStep::Failed(Reason::ProjectionUnavailable);
         };
-        if state.cache().terminal_context_id() != context_id {
+        if state.cache().terminal_context_id() != Some(context_id) {
             if progress.context_attempted {
                 return ControlStep::Failed(Reason::ProjectionUnavailable);
             }
@@ -477,7 +479,7 @@ impl NativeUi {
                 .cache()
                 .navigation()
                 .iter()
-                .position(|context| context.location.terminal_context_id() == context_id)
+                .position(|context| context.location.terminal_context_id() == Some(context_id))
             else {
                 return ControlStep::Failed(Reason::TargetUnavailable);
             };

@@ -43,13 +43,13 @@ pub(super) fn framed_projection() -> TerminalProjection {
 }
 
 fn zoom_ready() -> NativeSessionState {
-    ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap())
+    ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap())
 }
 
 fn split_two_tab_ready() -> NativeSessionState {
     let mut baseline = split_panel_baseline();
     baseline.terminal_contexts[0].tabs.push(tab(1));
-    ready_with_cache(project_native_standalone_tabs(&baseline).unwrap())
+    ready_with_cache(project_preferred_workspace(&baseline).unwrap())
 }
 
 fn deadlines() -> OperationDeadlines {
@@ -100,7 +100,7 @@ fn split_contexts() -> Snapshot {
     snapshot
 }
 
-/// The stale-current-location fixture: the standalone context's first Tab
+/// The stale-current-location fixture: the initial_workspace context's first Tab
 /// is also split (a legitimate departed-context flag target), and context
 /// 72 keeps a single-leaf sibling beside its split Tab so a fresh return
 /// candidate can drop the split Tab without emptying the context. The
@@ -115,11 +115,14 @@ fn split_contexts_at(revision: u64) -> Snapshot {
 
 /// Drive the fixture into context 72 (the Workspace holding the split
 /// Tab), one `start_context_selection`/`finish_selection` round away from
-/// the standalone context the cache opens on.
+/// the initial_workspace context the cache opens on.
 fn into_split_context(state: &mut NativeSessionState, snapshot: &Snapshot) {
     assert!(state.start_context_selection(1, true, deadlines()));
     finish_selection(state, snapshot.clone(), 1);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert_eq!(state.tab(0).unwrap().panel_count(), 2);
 }
 
@@ -333,7 +336,7 @@ fn deleting_a_zoomed_background_tab_collects_the_flag() {
 #[test]
 fn a_context_round_trip_preserves_the_flag_through_retained_truth() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     into_split_context(&mut state, &snapshot);
     let zoomed_id = state.tab(0).unwrap().tab_id().clone();
     assert!(state.toggle_zoom());
@@ -343,14 +346,20 @@ fn a_context_round_trip_preserves_the_flag_through_retained_truth() {
     // membership — it cannot paint on another context's cache.
     assert!(state.start_context_selection(2, true, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 2);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(74));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(74)
+    );
     assert!(!state.zoom_active());
     assert!(state.zoomed_tabs.contains(&zoomed_id));
 
     // The return install restores the same truth: the flag paints again.
     assert!(state.start_context_selection(3, false, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 3);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert!(state.zoom_active());
     assert!(state.invariant_holds());
 }
@@ -358,7 +367,7 @@ fn a_context_round_trip_preserves_the_flag_through_retained_truth() {
 #[test]
 fn a_stale_retained_flag_drops_at_the_next_install() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     into_split_context(&mut state, &snapshot);
     let zoomed_id = state.tab(0).unwrap().tab_id().clone();
     assert!(state.toggle_zoom());
@@ -377,7 +386,10 @@ fn a_stale_retained_flag_drops_at_the_next_install() {
     ));
     assert!(state.start_context_selection(3, false, deadlines()));
     finish_selection(&mut state, shrunk, 3);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert!(state.zoomed_tabs.is_empty());
     assert!(!state.zoom_active());
     assert!(state.invariant_holds());
@@ -386,7 +398,7 @@ fn a_stale_retained_flag_drops_at_the_next_install() {
 #[test]
 fn navigation_removal_evicts_the_retained_flag() {
     let snapshot = split_contexts();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     into_split_context(&mut state, &snapshot);
     assert!(state.toggle_zoom());
     assert!(state.start_context_selection(2, true, deadlines()));
@@ -407,7 +419,7 @@ fn navigation_removal_evicts_the_retained_flag() {
         .retain(|context| context.terminal_context_id != context_id(72));
     assert!(state.start_context_selection(3, true, deadlines()));
     finish_selection(&mut state, shrunk, 3);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(2));
+    assert_eq!(state.cache().terminal_context_id().unwrap(), &context_id(2));
     assert!(state.zoomed_tabs.is_empty());
     assert!(!state.zoom_active());
     assert!(state.invariant_holds());
@@ -420,10 +432,10 @@ fn navigation_removal_evicts_the_retained_flag() {
 #[test]
 fn the_return_install_collects_a_flag_the_stale_current_entry_still_lists() {
     let snapshot = split_contexts_at(1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
-    // The standalone context's split Tab mints the departed-context flag
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    // The initial_workspace context's split Tab mints the departed-context flag
     // that keeps its own retained truth through the whole trace.
-    let standalone_id = state.tab(0).unwrap().tab_id().clone();
+    let initial_workspace_id = state.tab(0).unwrap().tab_id().clone();
     assert!(state.toggle_zoom());
 
     into_split_context(&mut state, &snapshot);
@@ -434,9 +446,12 @@ fn the_return_install_collects_a_flag_the_stale_current_entry_still_lists() {
     // context-72 entry that still lists the soon-to-be-deleted Tab.
     assert!(state.start_context_selection(2, true, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 2);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(74));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(74)
+    );
     assert!(state.zoomed_tabs.contains(&deleted_id));
-    assert!(state.zoomed_tabs.contains(&standalone_id));
+    assert!(state.zoomed_tabs.contains(&initial_workspace_id));
 
     // Remote truth removes the Tab: the fresh context-72 candidate carries
     // only the sibling, while the raw retained entry for this same location
@@ -447,7 +462,10 @@ fn the_return_install_collects_a_flag_the_stale_current_entry_still_lists() {
         .retain(|tab| tab.tab_id != tab_id(1_100));
     assert!(state.start_context_selection(3, false, deadlines()));
     finish_selection(&mut state, returned, 3);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert!(
         state
             .cache()
@@ -463,7 +481,7 @@ fn the_return_install_collects_a_flag_the_stale_current_entry_still_lists() {
                 .any(|tab| tab.tab_id() == &deleted_id)
     }));
     assert!(!state.zoomed_tabs.contains(&deleted_id));
-    assert!(state.zoomed_tabs.contains(&standalone_id));
+    assert!(state.zoomed_tabs.contains(&initial_workspace_id));
     assert!(!state.zoom_active());
     assert!(state.invariant_holds());
 }
@@ -475,8 +493,8 @@ fn the_return_install_collects_a_flag_the_stale_current_entry_still_lists() {
 #[test]
 fn a_same_context_merge_does_not_fall_back_to_the_stale_current_entry() {
     let snapshot = split_contexts_at(1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
-    let standalone_id = state.tab(0).unwrap().tab_id().clone();
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
+    let initial_workspace_id = state.tab(0).unwrap().tab_id().clone();
     assert!(state.toggle_zoom());
     into_split_context(&mut state, &snapshot);
     let shrunk_id = state.tab(0).unwrap().tab_id().clone();
@@ -488,7 +506,10 @@ fn a_same_context_merge_does_not_fall_back_to_the_stale_current_entry() {
     finish_selection(&mut state, snapshot.clone(), 2);
     assert!(state.start_context_selection(3, false, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 3);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert!(state.zoomed_tabs.contains(&shrunk_id));
 
     // The next same-context refresh shrinks the zoomed Tab to one leaf:
@@ -505,7 +526,7 @@ fn a_same_context_merge_does_not_fall_back_to_the_stale_current_entry() {
     );
     assert_eq!(state.tab(0).unwrap().panel_count(), 1);
     assert!(!state.zoomed_tabs.contains(&shrunk_id));
-    assert!(state.zoomed_tabs.contains(&standalone_id));
+    assert!(state.zoomed_tabs.contains(&initial_workspace_id));
     assert!(!state.zoom_active());
     assert!(state.invariant_holds());
 }

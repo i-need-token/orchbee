@@ -235,7 +235,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
     mailbox.mark_move_in_flight(&first).unwrap();
     let commit = crate::local_client::workbench::WorkbenchTabMoveCommit {
         revision: WorkbenchRevision::new(2),
-        terminal_context_id: first.baseline().terminal_context_id().clone(),
+        terminal_context_id: first.baseline().terminal_context_id().unwrap().clone(),
         tab_id: first.target().tab_id().clone(),
     };
     let tabs = [1, 0, 2]
@@ -277,13 +277,28 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                 protocol_version: ProtocolVersion,
                 revision: commit.revision,
                 site_id: first.baseline().site_id().clone(),
-                navigation: Navigation {
-                    project_order: Vec::new(),
-                    directories: Vec::new(),
-                    workspaces: Vec::new(),
-                    workspace_order: Vec::new(),
-                    projects: vec![],
-                    standalone_terminal_context_id: commit.terminal_context_id.clone(),
+                navigation: {
+                    let fixture_context_id = commit.terminal_context_id.clone();
+                    let fixture_workspace_id =
+                        orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                            fixture_context_id.as_str(),
+                        )
+                        .unwrap();
+                    Navigation {
+                        project_order: Vec::new(),
+                        directories: Vec::new(),
+                        workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                            workspace_id: fixture_workspace_id.clone(),
+                            terminal_context_id: fixture_context_id.clone(),
+                            project_id: None,
+                            primary_directory_id: None,
+                            label: "Workspace".into(),
+                        })
+                        .chain(Vec::new())
+                        .collect(),
+                        workspace_order: Vec::new(),
+                        projects: vec![],
+                    }
                 },
                 terminal_contexts: vec![TerminalContext {
                     terminal_context_id: commit.terminal_context_id.clone(),

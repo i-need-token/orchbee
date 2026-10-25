@@ -274,16 +274,18 @@ fn workspace_move_refusals_preserve_all_state() {
 }
 
 #[test]
-fn workspace_order_supports_the_complete_1023_member_domain() {
+fn workspace_order_supports_the_complete_1024_member_domain() {
     let (mut owner, grant) = authority();
     let mut source = owner.snapshot().clone();
+    source.navigation.workspaces.clear();
+    source.terminal_contexts.clear();
     let mut ids = Vec::new();
     for project_index in 0..4 {
         let project = Project {
             project_id: WorkbenchProjectId::parse(&identity(10 + project_index)).unwrap(),
             label: format!("project {project_index}"),
         };
-        for index in 0..if project_index == 3 { 255 } else { 256 } {
+        for index in 0..256 {
             let value = project_index * 256 + index;
             let workspace_id = WorkbenchWorkspaceId::parse(&identity(1000 + value)).unwrap();
             let terminal_context_id =

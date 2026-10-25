@@ -104,7 +104,9 @@ impl Fixture {
             action: WorkbenchAction::TabCreate {
                 placement: None,
                 automatic_label: false,
-                terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+                terminal_context_id: snapshot.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone(),
                 label: WorkbenchLabel::parse("send routing")?,
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
                 launch: None,
@@ -161,7 +163,9 @@ impl Fixture {
             site_id: snapshot.site_id,
             expected_revision: snapshot.revision,
             action: WorkbenchAction::TabClose {
-                terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+                terminal_context_id: snapshot.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone(),
                 tab_id,
             },
         })

@@ -6,7 +6,7 @@ fn wait_for_members(client: &mut UnixStream, count: usize, limit: Instant) -> Te
     let mut request = 8000;
     loop {
         let snapshot = read_snapshot(client, request, limit)?;
-        let actual = standalone_context(&snapshot)?.tabs.len();
+        let actual = initial_workspace_context(&snapshot)?.tabs.len();
         if actual == count {
             return Ok(snapshot);
         }
@@ -50,7 +50,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
     let (mut second_client, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut lost_response, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = read_snapshot(&mut observer, 100, deadline())?;
+    let initial = create_workspace(&mut observer, 0x100_000, "/tmp", deadline())?;
     let first_id = workbench_id(101)?;
     let first_request = command(
         first_id.clone(),
@@ -58,7 +58,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         WorkbenchAction::TabCreate {
             automatic_label: false,
             placement: None,
-            terminal_context_id: initial.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: initial.navigation.workspaces[0].terminal_context_id.clone(),
             label: WorkbenchLabel::parse("A creation")?,
             geometry: workbench_geometry()?,
             launch: None,
@@ -77,7 +77,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
     let first_pending =
         exchange_command(&mut observer, &first_request, &first_id, parked_deadline)?;
     let first_tuple = pending_tab(&first_pending.outcome)?;
-    let first_binding = primary_presentation(&standalone_context(&one)?.tabs[0])?
+    let first_binding = primary_presentation(&initial_workspace_context(&one)?.tabs[0])?
         .0
         .binding
         .as_ref()
@@ -90,7 +90,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         WorkbenchAction::TabCreate {
             automatic_label: false,
             placement: None,
-            terminal_context_id: one.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: one.navigation.workspaces[0].terminal_context_id.clone(),
             label: WorkbenchLabel::parse("B creation")?,
             geometry: workbench_geometry()?,
             launch: None,
@@ -152,7 +152,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
     else {
         return Err("second Launch expected".into());
     };
-    let second_binding = primary_presentation(&standalone_context(&two)?.tabs[1])?
+    let second_binding = primary_presentation(&initial_workspace_context(&two)?.tabs[1])?
         .0
         .binding
         .as_ref()
@@ -181,7 +181,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         WorkbenchAction::TabCreate {
             automatic_label: false,
             placement: None,
-            terminal_context_id: moved.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: moved.navigation.workspaces[0].terminal_context_id.clone(),
             label: WorkbenchLabel::parse("C creation")?,
             geometry: workbench_geometry()?,
             launch: None,
@@ -207,7 +207,7 @@ fn tab_move_preserves_pending_first_create_and_exact_replay_after_lost_response(
         second_launch.authorization().terminal_id()
     );
     let three = read_snapshot(&mut observer, 108, deadline())?;
-    let original_tabs = standalone_context(&three)?.tabs.clone(); // B, A, C
+    let original_tabs = initial_workspace_context(&three)?.tabs.clone(); // B, A, C
     assert_eq!(original_tabs[2].tab_id, third_tuple.tab_id);
     let third_binding = primary_presentation(&original_tabs[2])?
         .0

@@ -88,7 +88,7 @@ fn process_witness_guard() -> MutexGuard<'static, ()> {
 #[test]
 fn native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell() {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     let identities = create_three_shells(&fixture, &mut client);
     let checkpoint = client.checkpoint();
@@ -126,7 +126,7 @@ fn native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell
 #[test]
 fn two_tabs_keep_distinct_shells_across_previous_next_and_numbered_switches() {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(0, startup_deadline, 1, "1", ReadyMode::Controlling);
@@ -215,7 +215,7 @@ fn two_tabs_keep_distinct_shells_across_previous_next_and_numbered_switches() {
 #[test]
 fn second_live_client_refreshes_shared_tabs_and_preserves_independent_selection() {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut creator = Client::spawn(&fixture, "en_US.UTF-8");
     creator.wait_ready_after(0, startup_deadline, 1, "1", ReadyMode::Controlling);
@@ -309,7 +309,7 @@ fn second_live_client_refreshes_shared_tabs_and_preserves_independent_selection(
 #[test]
 fn moving_tabs_in_both_directions_and_across_boundaries_preserves_shells_and_resize() {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     let identities = create_three_shells(&fixture, &mut client);
     assert_shell_survives(&fixture, &mut client, &identities[2], "before-first-move");
@@ -368,7 +368,7 @@ fn moving_tabs_in_both_directions_and_across_boundaries_preserves_shells_and_res
 #[test]
 fn moved_order_refresh_preserves_peer_selection_and_reopen_selects_new_canonical_first() {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut mover = Client::spawn(&fixture, "en_US.UTF-8");
     let identities = create_three_shells(&fixture, &mut mover);
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
@@ -602,7 +602,7 @@ fn require_shell_identity(value: &str, expected_marker: &str) -> u32 {
 #[test]
 fn simultaneous_bare_clients_share_one_site_and_reopen_the_same_shell() {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut first = Client::spawn(&fixture, "en_US.UTF-8");
     let mut second = Client::spawn(&fixture, "en_US.UTF-8");
@@ -872,7 +872,7 @@ fn managed_process_loss_never_starts_a_replacement() -> TestResult {
     let _process_witness = process_witness_guard();
     for failed_role in ["orchbee-server", "orchbee-worker", "orchbee-terminal-host"] {
         eprintln!("managed process loss partition: {failed_role}");
-        let fixture = Fixture::new();
+        let fixture = Fixture::with_workspace();
         let mut client = Client::spawn(&fixture, "en_US.UTF-8");
         client.ready_before(Instant::now() + STARTUP_OR_CREATE_TIMEOUT);
         client.close_before(Instant::now() + EXIT_TIMEOUT);
@@ -977,13 +977,13 @@ fn help_version_and_non_tty_use_no_runtime_or_processes() -> TestResult {
 #[test]
 fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_site() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut first = Client::spawn(&fixture, "en_US.UTF-8");
     first.ready_before(Instant::now() + STARTUP_OR_CREATE_TIMEOUT);
     first.close_before(Instant::now() + EXIT_TIMEOUT);
     let server = one_process(&fixture, "orchbee-server");
     let host = one_process(&fixture, "orchbee-terminal-host");
-    let other = Fixture::new();
+    let other = Fixture::with_workspace();
     fs::OpenOptions::new()
         .append(true)
         .open(other.cohort.join("orchbee-terminal-host"))?

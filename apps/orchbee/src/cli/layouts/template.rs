@@ -208,7 +208,7 @@ fn export_description(mut fields: Object, shared: bool) -> Result<Box<RawValue>,
     use orchbee_workbench_protocol::{
         WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
     };
-    fields.decode::<Option<WorkbenchWorkspaceId>>("workspaceId")?;
+    fields.decode::<WorkbenchWorkspaceId>("workspaceId")?;
     fields.decode::<WorkbenchTerminalContextId>("terminalContextId")?;
     fields.decode::<WorkbenchTabId>("tabId")?;
     let focus = fields.decode::<Option<WorkbenchPanelId>>("focusedPanelId")?;

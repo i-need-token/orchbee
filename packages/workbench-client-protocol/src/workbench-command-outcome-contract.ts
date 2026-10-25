@@ -18,7 +18,7 @@ import {
 export const WorkbenchWorkspaceListSchema = z
 	.array(WorkbenchWorkspaceIdSchema)
 	.min(1)
-	.max(1023)
+	.max(1024)
 	.refine((ids) => new Set(ids).size === ids.length, 'Workspace IDs must be unique')
 	.readonly();
 

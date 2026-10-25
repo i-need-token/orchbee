@@ -68,7 +68,7 @@ fn run(trace: &[Step]) -> Result<BTreeSet<&'static str>, String> {
     let mut coverage = BTreeSet::new();
     for (index, [action, target, direction, previous]) in trace.iter().copied().enumerate() {
         if action == 5 {
-            authority.retire_standalone_composition();
+            authority.retire_terminal_membership();
             retired = true;
             continue;
         }
@@ -159,9 +159,8 @@ fn run(trace: &[Step]) -> Result<BTreeSet<&'static str>, String> {
                     revision = WorkbenchRevision::new(revision.value() + 1);
                     WorkbenchCommandOutcome::TabMoved {
                         revision,
-                        terminal_context_id: baseline
-                            .navigation
-                            .standalone_terminal_context_id
+                        terminal_context_id: baseline.navigation.workspaces[0]
+                            .terminal_context_id
                             .clone(),
                         tab_id: baseline.terminal_contexts[0].tabs[usize::from(target)]
                             .tab_id

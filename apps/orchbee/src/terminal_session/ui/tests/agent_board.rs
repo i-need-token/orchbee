@@ -49,7 +49,7 @@ fn bootstrap(ui: &mut NativeUi, mailbox: &CommandMailbox, clock: &LocalOperation
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_preferred_workspace(
                     &super::super::tests::membership::snapshot(1, 1),
                 )
                 .unwrap(),

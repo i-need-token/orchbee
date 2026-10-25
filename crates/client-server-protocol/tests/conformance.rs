@@ -330,14 +330,6 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "create-unavailable-no-compatible-worker",
         "create-unavailable-server-busy",
         "create-unavailable-terminal-runtime-unavailable",
-        "message-terminal-open",
-        "message-terminal-open-result",
-        "open-opened",
-        "open-unavailable-no-compatible-worker",
-        "open-unavailable-terminal-runtime",
-        "open-unavailable-server-busy",
-        "open-failed",
-        "open-outcome-unknown",
         "message-terminal-create",
         "message-terminal-create-result",
         "message-terminal-start",
@@ -775,28 +767,6 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     ViewerUnavailableReason::WorkbenchUnavailable => "viewer-unavailable-workbench",
                 },
                 TerminalViewerOutcome::Record(_) => "viewer-binary-record",
-            });
-        }
-        DecodedMessage::Client(ClientMessage::TerminalOpen(_)) => {
-            reached.insert("message-terminal-open");
-        }
-        DecodedMessage::Server(ServerMessage::TerminalOpenResult(result)) => {
-            reached.insert("message-terminal-open-result");
-            reached.insert(match result.outcome() {
-                orchbee_client_server_protocol::OpenOutcome::Opened { .. } => "open-opened",
-                orchbee_client_server_protocol::OpenOutcome::Unavailable {
-                    reason: CreateUnavailableReason::NoCompatibleWorker,
-                } => "open-unavailable-no-compatible-worker",
-                orchbee_client_server_protocol::OpenOutcome::Unavailable {
-                    reason: CreateUnavailableReason::TerminalRuntimeUnavailable,
-                } => "open-unavailable-terminal-runtime",
-                orchbee_client_server_protocol::OpenOutcome::Unavailable {
-                    reason: CreateUnavailableReason::ServerBusy,
-                } => "open-unavailable-server-busy",
-                orchbee_client_server_protocol::OpenOutcome::Failed { .. } => "open-failed",
-                orchbee_client_server_protocol::OpenOutcome::OutcomeUnknown {} => {
-                    "open-outcome-unknown"
-                }
             });
         }
         DecodedMessage::Client(ClientMessage::TerminalCreate(request)) => {

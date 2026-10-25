@@ -14,32 +14,47 @@ fn workspace(value: usize) -> WorkbenchWorkspaceId {
     WorkbenchWorkspaceId::parse(&id(20 + value)).unwrap()
 }
 fn navigation(groups: &[Option<usize>]) -> Navigation {
-    Navigation {
-        directories: vec![Directory {
-            directory_id: WorkbenchDirectoryId::parse(&id(1000)).unwrap(),
-            path: WorkbenchDirectoryPath::parse("C:/shared-checkout").unwrap(),
-            worker_id: WorkerId::parse(&id(8888)).unwrap(),
-        }],
-        projects: (1..=2)
-            .map(|value| Project {
-                project_id: project(value),
-                label: format!("Project {value}"),
+    {
+        let fixture_context_id = WorkbenchTerminalContextId::parse(&id(9000)).unwrap();
+        let fixture_workspace_id =
+            crate::WorkbenchWorkspaceId::parse(fixture_context_id.as_str()).unwrap();
+        Navigation {
+            directories: vec![Directory {
+                directory_id: WorkbenchDirectoryId::parse(&id(1000)).unwrap(),
+                path: WorkbenchDirectoryPath::parse("C:/shared-checkout").unwrap(),
+                worker_id: WorkerId::parse(&id(8888)).unwrap(),
+            }],
+            projects: (1..=2)
+                .map(|value| Project {
+                    project_id: project(value),
+                    label: format!("Project {value}"),
+                })
+                .collect(),
+            workspaces: std::iter::once(crate::Workspace {
+                workspace_id: fixture_workspace_id.clone(),
+                terminal_context_id: fixture_context_id.clone(),
+                project_id: None,
+                primary_directory_id: None,
+                label: "Workspace".into(),
             })
+            .chain(
+                groups
+                    .iter()
+                    .enumerate()
+                    .map(|(index, group)| Workspace {
+                        workspace_id: workspace(index),
+                        project_id: group.map(project),
+                        label: format!("Workspace {index}"),
+                        primary_directory_id: Some(WorkbenchDirectoryId::parse(&id(1000)).unwrap()),
+                        terminal_context_id: WorkbenchTerminalContextId::parse(&id(2000 + index))
+                            .unwrap(),
+                    })
+                    .collect(),
+            )
             .collect(),
-        workspaces: groups
-            .iter()
-            .enumerate()
-            .map(|(index, group)| Workspace {
-                workspace_id: workspace(index),
-                project_id: group.map(project),
-                label: format!("Workspace {index}"),
-                primary_directory_id: Some(WorkbenchDirectoryId::parse(&id(1000)).unwrap()),
-                terminal_context_id: WorkbenchTerminalContextId::parse(&id(2000 + index)).unwrap(),
-            })
-            .collect(),
-        standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(9000)).unwrap(),
-        workspace_order: vec![],
-        project_order: vec![],
+            workspace_order: Vec::new(),
+            project_order: vec![],
+        }
     }
 }
 fn members(
@@ -107,8 +122,8 @@ fn bounded_group_and_order_traces_preserve_membership_resources_and_noops() {
                         assert_eq!(after.project_order, before.project_order);
                         assert_eq!(after.directories, before.directories);
                         assert_eq!(
-                            after.standalone_terminal_context_id,
-                            before.standalone_terminal_context_id
+                            after.workspaces[0].terminal_context_id.clone(),
+                            before.workspaces[0].terminal_context_id.clone()
                         );
                         for (old, new) in before.workspaces.iter().zip(&after.workspaces) {
                             let mut expected = old.clone();

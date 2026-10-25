@@ -1002,7 +1002,6 @@ pub(crate) enum QueryCommand {
     },
     TabList {
         workspace: Option<Target>,
-        standalone: bool,
     },
     TabGet(Target),
     PanelList {
@@ -1098,12 +1097,10 @@ impl PartialEq for WaitPattern {
 
 impl Eq for WaitPattern {}
 
-/// The `tab create` context selector: exactly one Workspace context or the
-/// standalone Terminal Context.
+/// The Workspace selector for a new Tab.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TabContext {
     Workspace(Target),
-    Standalone,
 }
 
 /// The `terminal send` payload the grammar admits: literal UTF-8 text, an
@@ -2059,7 +2056,7 @@ struct Options {
     directory: Option<String>,
     workspace: Option<String>,
     tab: Option<String>,
-    standalone: bool,
+
     label: Option<String>,
     direction: Option<String>,
     order: Option<String>,
@@ -2622,7 +2619,6 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--clear-display-agent"
             | "--clear-state-labels"
             | "--group"
-            | "--standalone"
             | "--confirm"
             | "--enter"
             | "--stdin"
@@ -2691,8 +2687,6 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                     (&mut options.force, "--force")
                 } else if token == "--trust-repository" {
                     (&mut options.trust_repository, "--trust-repository")
-                } else if token == "--standalone" {
-                    (&mut options.standalone, "--standalone")
                 } else if token == "--current" {
                     (&mut options.current, "--current")
                 } else if token == "--forever" {
@@ -3198,7 +3192,6 @@ fn resolve_words(
                 || options.project.is_some()
                 || options.workspace.is_some()
                 || options.tab.is_some()
-                || options.standalone
                 || options.mouse.is_some()
                 || business_options(options)
             {
@@ -4029,21 +4022,13 @@ fn resolve_words(
                 UsageContext::Path("tab list"),
                 envelope,
             )?;
-            reject_conflict(
-                options.standalone && options.workspace.is_some(),
-                UsageContext::Path("tab list"),
-                envelope,
-            )?;
             let workspace = options
                 .workspace
                 .clone()
                 .map(|value| target(value, Resource::Workspace, envelope))
                 .transpose()?;
             client_query(
-                QueryCommand::TabList {
-                    workspace,
-                    standalone: options.standalone,
-                },
+                QueryCommand::TabList { workspace },
                 options,
                 UsageContext::Path("tab list"),
                 envelope,
@@ -4079,7 +4064,16 @@ fn resolve_words(
                 context,
                 envelope,
             )?;
-            reject_conflict(options.clear && options.label.is_some(), context, envelope)?;
+            if options.clear && options.label.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first: "--clear",
+                        second: "--label",
+                    },
+                    envelope,
+                ));
+            }
             if !options.clear && options.label.is_none() {
                 return Err(missing_required(
                     context,
@@ -5460,7 +5454,7 @@ struct Scope {
     directory: bool,
     workspace: bool,
     tab: bool,
-    standalone: bool,
+
     label: bool,
     direction: bool,
     order: bool,
@@ -5614,7 +5608,7 @@ const NO_OPTIONS: Scope = Scope {
     directory: false,
     workspace: false,
     tab: false,
-    standalone: false,
+
     label: false,
     direction: false,
     order: false,
@@ -5737,7 +5731,7 @@ const WORKSPACE_LIST_SCOPE: Scope = Scope {
 const TAB_LIST_SCOPE: Scope = Scope {
     client: cfg!(windows),
     workspace: true,
-    standalone: true,
+
     ..NO_OPTIONS
 };
 
@@ -5798,7 +5792,7 @@ const TAB_CREATE_SCOPE: Scope = Scope {
     no_focus: true,
     timeout: true,
     workspace: true,
-    standalone: true,
+
     label: true,
     geometry: true,
     exec: true,
@@ -6215,9 +6209,6 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.tab.is_some() && !scope.tab {
         return Some("--tab");
-    }
-    if options.standalone && !scope.standalone {
-        return Some("--standalone");
     }
     if options.label.is_some() && !scope.label {
         return Some("--label");
@@ -7631,26 +7622,6 @@ fn panel_direction(
             },
             envelope,
         )),
-    }
-}
-
-/// Reject the `--workspace`/`--standalone` combination when it actually fires.
-fn reject_conflict(
-    conflict: bool,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<(), ParseFailure> {
-    if conflict {
-        Err(usage_with(
-            UsageReason::ConflictingOptions {
-                context,
-                first: "--workspace",
-                second: "--standalone",
-            },
-            envelope,
-        ))
-    } else {
-        Ok(())
     }
 }
 

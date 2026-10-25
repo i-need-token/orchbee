@@ -1,5 +1,6 @@
 use super::super::{MAXIMUM_LEDGER_ENTRIES, WorkbenchReadOrNavigationRequest};
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_authority::terminal_membership::append_simple_tab;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::MAXIMUM_TABS_PER_CONTEXT;
@@ -20,7 +21,7 @@ fn identity(value: u128) -> String {
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
     let site_id = SiteId::parse(&identity(100)).unwrap();
     (
-        WorkbenchAuthority::new(site_id.clone()).unwrap(),
+        WorkbenchAuthority::workspace_fixture(site_id.clone()).unwrap(),
         WorkbenchGrant::manage_navigation_and_terminal_create(site_id),
     )
 }
@@ -70,11 +71,8 @@ fn tab_command(
     command(
         request,
         revision,
-        authority
-            .projection
-            .snapshot()
-            .navigation
-            .standalone_terminal_context_id
+        authority.projection.snapshot().navigation.workspaces[0]
+            .terminal_context_id
             .clone(),
         label,
         geometry(80),
@@ -225,7 +223,7 @@ fn site_revision_and_context_preflight_precedence_is_retained_and_atomic() {
 fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
     let (mut authority, grant) = authority();
     let (context_id, worker_id, path) = install_workspace(&mut authority, true);
-    let standalone_before = authority.projection.snapshot().terminal_contexts[0].clone();
+    let initial_workspace_before = authority.projection.snapshot().terminal_contexts[0].clone();
     let request = command(4, 0, context_id.clone(), "workspace tab", geometry(80));
 
     let WorkbenchTabCreateBegin::Admitted(admission) =
@@ -233,23 +231,21 @@ fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
     else {
         panic!("configured Workspace was not admitted")
     };
-    assert_eq!(admission.staged_metadata().standalone_membership(), None);
+
     assert_eq!(
         admission.staged_metadata().workspace_launch(),
-        Some((&worker_id, &path))
+        (&worker_id, &path)
     );
-    assert!(!admission.staged_metadata().is_first());
 
     let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(20)) else {
         panic!("configured Workspace did not prepare")
     };
-    assert!(!prepared.metadata().is_standalone());
-    assert!(!prepared.metadata().is_first());
+
     let pending = prepared.commit().into_pending();
 
     let snapshot = authority.projection.snapshot();
     assert_eq!(snapshot.revision, WorkbenchRevision::new(1));
-    assert_eq!(snapshot.terminal_contexts[0], standalone_before);
+    assert_eq!(snapshot.terminal_contexts[0], initial_workspace_before);
     let workspace_context = snapshot
         .terminal_contexts
         .iter()
@@ -257,8 +253,6 @@ fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
         .unwrap();
     assert_eq!(workspace_context.tabs.len(), 1);
     assert_eq!(workspace_context.tabs[0].label, "workspace tab");
-    assert!(!pending.metadata().is_standalone());
-    assert!(!pending.metadata().is_first());
 }
 
 #[test]
@@ -559,7 +553,7 @@ fn combined_grant_precedes_retirement_and_settlement_remains_valid_after_retirem
     let (mut authority, grant) = authority();
     let request = tab_command(&authority, 1, 0, "one");
     let (pending, _metadata) = commit(&mut authority, &grant, request.clone(), binding(20));
-    authority.retire_standalone_composition();
+    authority.retire_terminal_membership();
     let navigation_only = WorkbenchGrant::manage_navigation(authority.site_id().clone());
 
     let WorkbenchTabCreateBegin::Ready(denied) =
@@ -696,8 +690,7 @@ fn two_pending_entries_settle_out_of_order_without_changing_membership_revision(
     let (first, first_metadata) = commit(&mut authority, &grant, first_request, binding(20));
     let second_request = tab_command(&authority, 2, 1, "two");
     let (second, second_metadata) = commit(&mut authority, &grant, second_request, binding(21));
-    assert!(first_metadata.is_first());
-    assert!(!second_metadata.is_first());
+
     let before = authority.projection.snapshot().clone();
 
     let _second_result = authority
@@ -801,7 +794,7 @@ fn transient_runtime_refusal_is_unretained_and_composition_failure_only_retires_
             WorkbenchCommandOutcome::Unavailable { .. }
         ));
         assert_eq!(authority.projection.snapshot(), &before);
-        assert_eq!(authority.last_identity, 1);
+        assert_eq!(authority.last_identity, 4);
         assert!(authority.ledger.is_empty());
         assert!(!authority.retired);
     }
@@ -820,7 +813,7 @@ fn transient_runtime_refusal_is_unretained_and_composition_failure_only_retires_
     );
     assert!(authority.retired);
     assert_eq!(authority.projection.snapshot(), &before);
-    assert_eq!(authority.last_identity, 1);
+    assert_eq!(authority.last_identity, 4);
     assert!(authority.ledger.is_empty());
 }
 
@@ -863,7 +856,7 @@ fn request_classification_routes_tab_create_without_authorization_or_state_inter
             label: WorkbenchLabel::parse("renamed workspace").unwrap(),
         },
         WorkbenchAction::TabRename {
-            terminal_context_id: before.navigation.standalone_terminal_context_id,
+            terminal_context_id: before.navigation.workspaces[0].terminal_context_id.clone(),
             tab_id: WorkbenchTabId::parse(&identity(62)).unwrap(),
             label: WorkbenchLabel::parse("renamed tab").unwrap(),
         },
@@ -1147,7 +1140,7 @@ fn run_trace(steps: &[TraceStep]) -> Result<(), String> {
                     )?;
                 }
             }
-            TraceStep::Retire => authority.retire_standalone_composition(),
+            TraceStep::Retire => authority.retire_terminal_membership(),
         }
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(
             authority.projection.snapshot().clone(),
@@ -1189,11 +1182,8 @@ fn trace_command(
     command(
         request_id,
         authority.projection.snapshot().revision.value(),
-        authority
-            .projection
-            .snapshot()
-            .navigation
-            .standalone_terminal_context_id
+        authority.projection.snapshot().navigation.workspaces[0]
+            .terminal_context_id
             .clone(),
         &format!("tab-{selector}"),
         geometry(80 + u16::from(selector % 3)),
@@ -1302,10 +1292,10 @@ fn workspace_launch_commits_one_revision_and_replays_pending_and_failed_terminal
     };
     assert_eq!(
         admission.staged_metadata().workspace_launch(),
-        Some((
+        (
             &worker,
             &WorkbenchDirectoryPath::parse(r"C:\project space").unwrap()
-        ))
+        )
     );
     let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(900)) else {
         panic!("prepared");

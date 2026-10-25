@@ -155,11 +155,6 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, false) => "暂无可用的 Git 来源",
             (Self::EnUs, MenuUnavailable::WorktreeUnavailable, true) => "Git unavailable",
             (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, true) => "Git 不可用",
-            (_, MenuUnavailable::LegacyWorkspace, false) => {
-                self.legacy_workspace_action_unavailable()
-            }
-            (Self::EnUs, MenuUnavailable::LegacyWorkspace, true) => "New workspace",
-            (Self::ZhCn, MenuUnavailable::LegacyWorkspace, true) => "需新工作区",
             (Self::EnUs, MenuUnavailable::NoRecentGroup, _) => "No recent group",
             (Self::ZhCn, MenuUnavailable::NoRecentGroup, _) => "暂无最近使用的分组",
             (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
@@ -357,8 +352,6 @@ impl Locale {
             (Self::ZhCn, QuickWorkspace) => "新建工作区",
             (Self::EnUs, WorkspaceAtDirectory) => "New Workspace in directory…",
             (Self::ZhCn, WorkspaceAtDirectory) => "在指定目录新建工作区…",
-            (Self::EnUs, MoveWorkspace) => "Move to Project…",
-            (Self::ZhCn, MoveWorkspace) => "移入项目…",
             (Self::EnUs, WorkspaceProjects) => "Project",
             (Self::ZhCn, WorkspaceProjects) => "项目",
             (Self::EnUs, WorkspaceWorktrees) => "Worktree",

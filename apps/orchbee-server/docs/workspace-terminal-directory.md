@@ -7,11 +7,7 @@ owns the Server's Directory association and Workspace terminal-creation behavior
 
 ## Outcome and scope
 
-An admitted local Client explicitly associates an empty, unconfigured Workspace with a directory
-on the selected local Worker. The Worker validates that directory before Server accepts the
-association. Later `tab.create` in that Workspace uses the accepted path and exact Worker. Missing
-configuration or an unavailable Worker never falls back to home. Ordinary standalone startup is
-unchanged. The first consumer is the local protocol and process tests, not a new TUI or Desktop UI.
+An admitted local Client associates an empty unconfigured Workspace with a directory on the selected Worker. The Worker validates the path before Server accepts it. Later Tab/Panel creation uses that exact accepted path and Worker; missing configuration or unavailable Worker never falls back to home. A Workspace can be ungrouped and still owns its Context and directory independently.
 
 Navigation owns a global, identity-sorted pool of `Directory { directoryId, workerId, path }`
 records. Workspace holds a required nullable `primaryDirectoryId` referencing that pool, and a
@@ -59,24 +55,11 @@ ID. Missing configuration is `workspace-directory-unavailable`; an already confi
 nonempty context is `workspace-directory-conflict`. Invalid/unavailable directory observation uses
 `directory-unavailable`; carrier/Worker unavailability retains existing typed unavailable results.
 
-Workspace Create does not read, replace, complete or notify the standalone first-Open slot. Its
-member bindings are exposed through the existing authorized Snapshot and OBCS AttachBinding path.
-The existing pending/final Create ledger, immutable completion tokens and unknown-outcome rules
-remain authoritative. A path removed after association produces a truthful launch failure and
-retains the committed membership; it never triggers another launch in home. Association validates
-one point in time, not future accessibility. Server admission/result deadlines do not make arbitrary
-filesystem syscalls interruptible; the process claim remains the supported local Linux filesystem
-cohort. No new cross-generation restart/adoption guarantee is introduced.
+Created members are exposed through authorized snapshots and `attach-binding`. Pending/final command results, immutable completion tokens and unknown-outcome rules remain authoritative. A path removed after association produces a truthful launch failure and retains committed membership; no second home launch follows. Association validates one point in time, not future accessibility. Deadlines do not make arbitrary filesystem syscalls interruptible; process claims remain bounded by the supported host/filesystem cohort.
 
 ## Correctness and evidence
 
-Server is the sole writer of Directory identities, selection, revision and retained command results.
-Worker owns only point-in-time cwd validation and existing launch admission. Client owns neither.
-Association tests must cover two Clients, concurrent validation, revision changes, Worker
-replacement, result loss/replay, resource exhaustion and at-most-once commit. Workspace Create
-tests must cover exact canonical Worker/cwd, joint commit, pending/final completion and an unchanged
-standalone slot. Existing standalone behavior and verification obligations remain required.
-These workflows have no separate retained TLA model or cwd-validation model configuration.
+Server alone writes Directory identities, selection, revision and retained command results. Worker owns point-in-time path validation and launch admission. Tests must cover two Clients, concurrent validation, revision changes, Worker replacement, result loss/replay, capacity, exact cwd/Worker, joint commit and at-most-once execution. Unrelated Workspaces and terminals must survive unchanged. This workflow has no separate retained TLA model.
 
 Strict schema and independent Rust/TypeScript bindings must reject dangling Directory or Project
 references, duplicate identities, missing required nullable fields, invalid paths and bounds.
@@ -85,17 +68,14 @@ normalized navigation; historical per-Project shapes are unreadable, as defined 
 [checkpoint contract](workbench-checkpoint.md#current-normalized-navigation).
 Deterministic and stateful tests must map each admission/revalidation branch to its state-preserving
 or committing result. Process tests must exercise a real directory, two authorized observers,
-Workspace Create and AttachBinding, an unchanged standalone slot, missing/deleted directories and
+Workspace Create and AttachBinding, preserved unrelated Workspace membership, missing/deleted directories and
 Worker loss without a home launch. Pure core tests alone do not establish filesystem or carrier behavior.
 
-| Claim                                                                                                      | Executable evidence                                                                                                                                                                                                                                                                   | Limit                                                                                                                                                                                                          |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Concurrent association, exact replay and revalidation preserve one canonical acceptance                    | [Authority directory tests](../src/workbench_authority/tests/workspace_directory.rs), [service directory tests](../src/local_terminal_service/workspace_directory/tests.rs)                                                                                                           | Bounded request flights; in-memory Site only                                                                                                                                                                   |
-| Global Directory admission and encoded projection, identity, revision and ledger limits preserve atomicity | `former_project_directory_limit_is_allowed_and_encoded_capacity_still_refuses_atomically`, `association_capacity_failures_preserve_canonical_state_and_ledger`, `exact_association_replay_survives_both_full_ledger_limits`                                                           | The 257th Directory is accepted; the wire bound can refuse before the global count limit                                                                                                                       |
-| Workspace Create uses canonical placement and preserves standalone ownership                               | [Site Create tests](../src/site_coordinator/tests/tab_create.rs): `workspace_create_uses_canonical_worker_and_cwd_without_touching_standalone`, `workspace_completion_does_not_settle_a_pending_first_open`, `workspace_completion_preserves_a_settled_first_open`                    | Empty, Creating and Settled standalone cases; no migration or recovery                                                                                                                                         |
-| Worker replies retain exact request correlation and carrier retirement                                     | [Strict cwd protocol tests](../../../crates/capability-node-protocol/tests/cwd_validation.rs) and [carrier tests](../src/worker_obcn_carrier/tests.rs): `carries_an_exact_cwd_validation_on_the_existing_serialized_wire`, `cwd_validation_result_requires_the_complete_request_echo` | Existing queue and wire deadlines; no interruptible filesystem-call claim                                                                                                                                      |
-| Validation can repeat before any Host startup                                                              | [`validation_before_first_launch_uses_real_socket_and_never_creates_host_runtime`](../../orchbee-worker/src/terminal_operations/lazy/tests.rs)                                                                                                                                        | Real lazy Worker loop and Unix socket with a fixture cohort; no launched shell                                                                                                                                 |
-| Two Clients observe one association and use a real Workspace shell                                         | [`real_server_worker_workspace_directory_association_and_tab_lifecycle`](../tests/client_process/workspace_directory.rs)                                                                                                                                                              | Real local Server, Worker and prestarted Host; missing-path retry, exact cwd marker, AttachBinding/Detach, independent standalone, deleted-path failure with retained membership, Worker loss without fallback |
+| Claim                                                                         | Maintained evidence                                                                                                                                                            | Limit                                                   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Admission, revalidation and replay preserve exact Directory ownership         | [Authority directory tests](../src/workbench_authority/tests/workspace_directory.rs) and [service directory tests](../src/local_terminal_service/workspace_directory/tests.rs) | Deterministic in-memory/transport fixtures              |
+| Tab creation uses the Workspace Worker/cwd and preserves unrelated membership | [Site creation tests](../src/site_coordinator/tests/tab_create.rs)                                                                                                             | Exact prepared and retained operation facts             |
+| Two Clients observe the same real Workspace shell and failure outcomes        | [Workspace directory process witness](../tests/client_process/workspace_directory.rs)                                                                                          | Supported Linux cohort; other platforms remain separate |
 
 The Unix socket and Linux shell witnesses require their native host and built process prerequisites.
 A Windows host gate or cross-target compilation does not execute those witnesses.

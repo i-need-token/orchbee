@@ -30,7 +30,7 @@ pub(in crate::terminal_session) fn ready()
 pub(in crate::terminal_session) fn ready_after_guard_refusal()
 -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let (mut ui, mailbox, clock, snapshot) = ready();
-    let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+    let workspace = snapshot.navigation.workspaces[1].workspace_id.clone();
     assert_eq!(
         ui.apply_client_action(crate::client_view::ClientAction::RequestWorkspaceClose),
         crate::client_view::SessionActionDisposition::DismissNavigator
@@ -123,19 +123,30 @@ fn ready_with_background_target(
         label: "项目 space 界".into(),
         primary_directory_id: None,
     });
-    snapshot
+    snapshot.navigation.workspace_order = snapshot
         .navigation
-        .workspace_order
-        .push(workspace_id.clone());
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: terminal_context_id.clone(),
         tabs: Vec::new(),
         groups: Vec::new(),
     });
     let location = if background {
-        NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        )
+        {
+            let fixture_context_id = snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        }
     } else {
         NativeContextLocation::Workspace {
             workspace_id,
@@ -351,7 +362,7 @@ fn alnum(text: &str) -> String {
 fn keyboard_and_addressed_workspace_close_share_conditional_admission_without_a_local_prompt() {
     for addressed in [false, true] {
         let (mut ui, mailbox, _, snapshot) = ready();
-        let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+        let workspace = snapshot.navigation.workspaces[1].workspace_id.clone();
         let action = if addressed {
             ClientAction::RequestWorkspaceCloseAt(workspace.clone())
         } else {
@@ -378,7 +389,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for cancel in [false, true] {
             let (mut ui, mailbox, clock, mut snapshot) = ready_with_background_target(true);
-            let target = snapshot.navigation.workspaces[0].clone();
+            let target = snapshot.navigation.workspaces[1].clone();
             let state = ui.state.as_ref().unwrap();
             let origin = state.cache().location().clone();
             let desired = state.desired().unwrap().clone();
@@ -440,8 +451,14 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
                 );
                 assert!(mailbox.retain_workspace_close_result(operation, receipt(operation, true)));
                 snapshot.revision = WorkbenchRevision::new(2);
-                snapshot.navigation.workspaces.clear();
-                snapshot.navigation.workspace_order.clear();
+                snapshot
+                    .navigation
+                    .workspaces
+                    .retain(|workspace| workspace.workspace_id != target.workspace_id);
+                snapshot
+                    .navigation
+                    .workspace_order
+                    .retain(|workspace| workspace != &target.workspace_id);
                 snapshot
                     .terminal_contexts
                     .retain(|context| context.terminal_context_id != target.terminal_context_id);
@@ -733,7 +750,7 @@ fn dispatch(
 fn workspace_close_dispatcher_requires_draw_and_consumes_the_whole_confirmation_packet() {
     for cancel in [false, true] {
         let (mut ui, mailbox, _, snapshot) = ready_after_guard_refusal();
-        let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+        let workspace = snapshot.navigation.workspaces[1].workspace_id.clone();
         let mut view = ClientView::new(120);
         let mut dispatcher = InputDispatcher::default();
         let mut forwarded = Vec::new();

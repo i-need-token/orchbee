@@ -659,11 +659,6 @@ impl Locale {
                     "Command specification; see the command's accepted input form.",
                     "命令定义；输入形式见本命令说明。",
                 ),
-                "--standalone" => (
-                    "",
-                    "Use the standalone tabs outside any workspace.",
-                    "使用不属于任何工作区的独立标签页。",
-                ),
                 "--state" => ("<state>", "Agent state to report.", "要报告的 Agent 状态。"),
                 "--state-label" => (
                     "<state=text>",

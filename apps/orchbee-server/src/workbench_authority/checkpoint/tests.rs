@@ -1,5 +1,6 @@
 use super::super::WorkbenchGrant;
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     LaunchProfileSelector, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchLabel, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
@@ -53,12 +54,10 @@ fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value
         "kind": "workbench.snapshot", "protocolVersion": 1,
         "siteId": site_id, "revision": revision.to_string(),
         "navigation": {
-            "standaloneTerminalContextId": identity(1),
             "projects": [{"projectId": identity(2), "label": "项目"}],
             "directories": [{"directoryId": identity(3), "workerId": owner, "path": "C:\\work space\\项目"}],
-            "workspaces": [{"workspaceId": identity(4), "projectId": identity(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
-            "workspaceOrder": [identity(4)]
-        },
+            "workspaces":[{"workspaceId":identity(1),"terminalContextId":identity(1),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId": identity(4), "projectId": identity(2), "label": "workspace", "primaryDirectoryId": identity(3), "terminalContextId": identity(5)}],
+            "workspaceOrder":[identity(1),identity(4)]},
         "terminalContexts": [
             {"terminalContextId": identity(1), "groups": [], "tabs": []},
             {"terminalContextId": identity(5),
@@ -86,7 +85,7 @@ fn graph(site_id: SiteId, owner: &WorkerId, bound: bool, revision: u64) -> Value
 }
 
 fn fixture() -> WorkbenchAuthority {
-    let mut authority = WorkbenchAuthority::new(site(100)).unwrap();
+    let mut authority = WorkbenchAuthority::workspace_fixture(site(100)).unwrap();
     authority.projection = WorkbenchProjectionStore::load(
         &serde_json::to_vec(&graph(site(100), &worker(200), true, 99)).unwrap(),
     )
@@ -228,6 +227,7 @@ fn preserves_deleted_identity_high_water_and_rejects_exhaustion() {
 #[test]
 fn deleted_profile_is_not_resurrected_and_its_counter_is_not_reused() {
     let mut source = WorkbenchAuthority::new(site(100)).unwrap();
+    source.seed_fixture_workspace(worker(200));
     let action = || WorkbenchAction::LaunchProfileCreate {
         name: LaunchProfileName::parse("profile").unwrap(),
         launch: LaunchSelection::new(r"C:\tools\pwsh.exe".to_owned(), vec![]).unwrap(),
@@ -261,13 +261,16 @@ fn deleted_profile_is_not_resurrected_and_its_counter_is_not_reused() {
 #[test]
 fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
     let mut source = WorkbenchAuthority::new(site(100)).unwrap();
+    source.seed_fixture_workspace(worker(200));
     let membership = source
-        .prepare_standalone_intent(orchbee_workbench_protocol::PresentationBinding {
+        .prepare_fixture_tab(orchbee_workbench_protocol::PresentationBinding {
             terminal_id: orchbee_workbench_protocol::TerminalId::parse(&identity(900)).unwrap(),
             worker_id: worker(200),
         })
         .unwrap()
-        .commit();
+        .commit()
+        .metadata()
+        .clone();
     command(
         &mut source,
         WorkbenchAction::ProjectCreate {
@@ -282,7 +285,7 @@ fn restores_actual_committed_membership_with_new_grants_and_an_empty_journal() {
         ..
     } = &retained.root
     else {
-        panic!("expected standalone panel");
+        panic!("expected initial_workspace panel");
     };
     assert!(primary_presentation.binding.is_none());
     assert_eq!(

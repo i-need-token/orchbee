@@ -5,7 +5,7 @@ use orchbee_workbench_protocol::{
     WorkbenchSplitId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
     WorkbenchWorkspaceId, WorkerId,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 mod closed;
 mod created;
@@ -24,7 +24,7 @@ pub(crate) use presentations::{NativePanel, NativePresentation};
 pub(super) struct NativeContextTabs {
     // Retain the bounded input once for exact receipts, including non-selected contexts.
     canonical: std::sync::Arc<Snapshot>,
-    canonical_context: usize,
+    canonical_context: Option<usize>,
     site_id: SiteId,
     revision: WorkbenchRevision,
     tabs: Vec<NativeSimpleTab>,
@@ -40,9 +40,9 @@ pub(super) struct NativeContextTabs {
     serde(tag = "kind", content = "identity", deny_unknown_fields)
 )]
 pub(crate) enum NativeContextLocation {
-    // Historical wire/checkpoint identity. Only a nonempty context is a visible compatibility
-    // Workspace. An empty context remains valid for explicit targets and no-Workspace landing.
-    Standalone(WorkbenchTerminalContextId),
+    /// No Workspace is open. This UI location has no terminal Context or persistent identity.
+    #[cfg_attr(windows, serde(skip))]
+    NoWorkspace,
     Workspace {
         workspace_id: WorkbenchWorkspaceId,
         terminal_context_id: WorkbenchTerminalContextId,
@@ -131,13 +131,13 @@ pub(super) struct NativeMemberSelection {
 }
 
 impl NativeContextLocation {
-    pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
+    pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
         match self {
-            Self::Standalone(id) => id,
+            Self::NoWorkspace => None,
             Self::Workspace {
                 terminal_context_id,
                 ..
-            } => terminal_context_id,
+            } => Some(terminal_context_id),
         }
     }
 }
@@ -151,8 +151,9 @@ pub(super) struct NativeContext {
 }
 
 impl NativeContextTabs {
-    pub(super) fn canonical_context(&self) -> &orchbee_workbench_protocol::TerminalContext {
-        &self.canonical.terminal_contexts[self.canonical_context]
+    pub(super) fn canonical_context(&self) -> Option<&orchbee_workbench_protocol::TerminalContext> {
+        self.canonical_context
+            .and_then(|index| self.canonical.terminal_contexts.get(index))
     }
     #[cfg(windows)]
     pub(super) fn shared_canonical_snapshot(&self) -> std::sync::Arc<Snapshot> {
@@ -162,7 +163,8 @@ impl NativeContextTabs {
         &self.canonical
     }
     pub(super) fn groups(&self) -> &[orchbee_workbench_protocol::TabGroup] {
-        &self.canonical_context().groups
+        self.canonical_context()
+            .map_or(&[], |context| context.groups.as_slice())
     }
 
     pub(super) fn projects(&self) -> &[orchbee_workbench_protocol::Project] {
@@ -209,7 +211,7 @@ impl NativeContextTabs {
         self.revision
     }
 
-    pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
+    pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
         self.location.terminal_context_id()
     }
 
@@ -784,91 +786,66 @@ impl MovedPanelExpectation {
     }
 }
 
-pub(super) fn project_native_standalone_tabs(
-    snapshot: &Snapshot,
-) -> Result<NativeContextTabs, NativeProjectionError> {
-    project_native_context_tabs(
-        snapshot,
-        &NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        ),
-    )
-}
-
-/// Resolves the legacy Workspace only when it owns content. Its identity remains a Context,
-/// never a fabricated canonical Workspace ID. The required compatibility slot is always checked.
-pub(crate) fn compatibility_workspace(
-    snapshot: &Snapshot,
-) -> Result<Option<NativeContextLocation>, NativeProjectionError> {
-    let id = &snapshot.navigation.standalone_terminal_context_id;
-    let mut contexts = snapshot
-        .terminal_contexts
-        .iter()
-        .filter(|context| &context.terminal_context_id == id);
-    let context = contexts.next().ok_or(NativeProjectionError)?;
-    if contexts.next().is_some() {
-        return Err(NativeProjectionError);
-    }
-    Ok((!context.tabs.is_empty()).then(|| NativeContextLocation::Standalone(id.clone())))
-}
-
-/// Ordinary entry and removal prefer canonical Workspaces, including empty ones. The
-/// compatibility slot is the last landing and may represent the explicit no-Workspace state.
+/// Select a real Workspace, or a UI landing with no terminal Context when none remain.
 pub(super) fn preferred_workspace_location(
     snapshot: &Snapshot,
 ) -> Result<NativeContextLocation, NativeProjectionError> {
-    compatibility_workspace(snapshot)?;
     Ok(snapshot
         .navigation
         .ordered_workspaces()
         .map_err(|_| NativeProjectionError)?
         .first()
-        .map_or_else(
-            || {
-                NativeContextLocation::Standalone(
-                    snapshot.navigation.standalone_terminal_context_id.clone(),
-                )
-            },
-            |(_, workspace)| NativeContextLocation::Workspace {
+        .map_or(NativeContextLocation::NoWorkspace, |(_, workspace)| {
+            NativeContextLocation::Workspace {
                 workspace_id: workspace.workspace_id.clone(),
                 terminal_context_id: workspace.terminal_context_id.clone(),
-            },
-        ))
+            }
+        }))
+}
+
+pub(super) fn project_preferred_workspace(
+    snapshot: &Snapshot,
+) -> Result<NativeContextTabs, NativeProjectionError> {
+    project_native_context_tabs(snapshot, &preferred_workspace_location(snapshot)?)
 }
 
 pub(super) fn project_native_context_tabs(
     snapshot: &Snapshot,
     location: &NativeContextLocation,
 ) -> Result<NativeContextTabs, NativeProjectionError> {
-    // Visibility does not relax the mandatory disjoint compatibility slot or its capacity.
-    if snapshot.navigation.workspaces.len() >= MAXIMUM_TERMINAL_CONTEXTS {
+    if snapshot.navigation.workspaces.len() > MAXIMUM_TERMINAL_CONTEXTS {
+        return Err(NativeProjectionError);
+    }
+    let contexts: HashSet<_> = snapshot
+        .terminal_contexts
+        .iter()
+        .map(|context| &context.terminal_context_id)
+        .collect();
+    if contexts.len() != snapshot.terminal_contexts.len()
+        || contexts.len() != snapshot.navigation.workspaces.len()
+        || snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| !contexts.contains(&workspace.terminal_context_id))
+    {
         return Err(NativeProjectionError);
     }
     let mut navigation = Vec::new();
-    if let Some(location) = compatibility_workspace(snapshot)? {
-        navigation.push(NativeContext {
-            location,
-            project_id: None,
-            project_label: None,
-            workspace_label: None,
-        });
-    }
     for (project, workspace) in snapshot
         .navigation
         .ordered_workspaces()
         .map_err(|_| NativeProjectionError)?
     {
-        if workspace.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
-            || workspace.primary_directory_id.as_ref().is_some_and(|id| {
-                snapshot
-                    .navigation
-                    .directories
-                    .iter()
-                    .filter(|directory| &directory.directory_id == id)
-                    .count()
-                    != 1
-            })
-        {
+        if workspace.primary_directory_id.as_ref().is_some_and(|id| {
+            snapshot
+                .navigation
+                .directories
+                .iter()
+                .filter(|directory| &directory.directory_id == id)
+                .count()
+                != 1
+        }) {
             return Err(NativeProjectionError);
         }
         if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
@@ -890,9 +867,7 @@ pub(super) fn project_native_context_tabs(
         });
     }
     let admitted_location = match location {
-        NativeContextLocation::Standalone(id) => {
-            id == &snapshot.navigation.standalone_terminal_context_id
-        }
+        NativeContextLocation::NoWorkspace => snapshot.navigation.workspaces.is_empty(),
         NativeContextLocation::Workspace { .. } => {
             navigation.iter().any(|entry| &entry.location == location)
         }
@@ -906,22 +881,32 @@ pub(super) fn project_native_context_tabs(
     {
         return Err(NativeProjectionError);
     }
-    let mut contexts = snapshot
-        .terminal_contexts
-        .iter()
-        .enumerate()
-        .filter(|(_, context)| &context.terminal_context_id == location.terminal_context_id());
-    let (canonical_context, context) = contexts.next().ok_or(NativeProjectionError)?;
-    if contexts.next().is_some() || context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT {
-        return Err(NativeProjectionError);
-    }
-    tab_metadata::validate(context)?;
-
-    let tabs = context
-        .tabs
-        .iter()
-        .map(|tab| project_tab(tab, &context.groups))
-        .collect::<Result<Vec<_>, _>>()?;
+    let (canonical_context, tabs) = match location.terminal_context_id() {
+        Some(context_id) => {
+            let mut contexts = snapshot
+                .terminal_contexts
+                .iter()
+                .enumerate()
+                .filter(|(_, context)| &context.terminal_context_id == context_id);
+            let (index, context) = contexts.next().ok_or(NativeProjectionError)?;
+            if contexts.next().is_some() || context.tabs.len() > MAXIMUM_TABS_PER_CONTEXT {
+                return Err(NativeProjectionError);
+            }
+            tab_metadata::validate(context)?;
+            let tabs = context
+                .tabs
+                .iter()
+                .map(|tab| project_tab(tab, &context.groups))
+                .collect::<Result<Vec<_>, _>>()?;
+            (Some(index), tabs)
+        }
+        None => {
+            if !snapshot.terminal_contexts.is_empty() {
+                return Err(NativeProjectionError);
+            }
+            (None, Vec::new())
+        }
+    };
     if !unique_structural_ids(&tabs) {
         return Err(NativeProjectionError);
     }
@@ -960,7 +945,7 @@ pub(super) fn validate_moved_tab(
     validate_canonical_candidate(baseline, &candidate)?;
     tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || &expected.terminal_context_id != baseline.terminal_context_id()
+        || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
         return Err(NativeProjectionDivergence);
@@ -1000,7 +985,7 @@ pub(super) fn validate_split_panel(
     validate_canonical_candidate(baseline, &candidate)?;
     tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || &expected.terminal_context_id != baseline.terminal_context_id()
+        || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
         return Err(NativeProjectionDivergence);
@@ -1041,7 +1026,7 @@ pub(super) fn validate_moved_panel(
     validate_canonical_candidate(baseline, &candidate)?;
     tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || &expected.terminal_context_id != baseline.terminal_context_id()
+        || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
         return Err(NativeProjectionDivergence);
@@ -1627,7 +1612,7 @@ fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>>
 
 /// Surviving Presentation and Terminal identities retain their Panel, label and binding.
 /// A Workspace Panel may instead acquire a fresh Presentation and Terminal on the same Worker;
-/// standalone Panels retain the original complete tuple. The owning Tab field may differ
+/// unreplaced Panels retain the original complete tuple. The owning Tab field may differ
 /// — exactly the authorized same-context relocation delta, expressed per member identity
 /// rather than per Tab roster. A Tab whose identity survives must still own at least one of
 /// its own original members inside that same Tab: genuinely removed members and entirely

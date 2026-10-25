@@ -846,7 +846,7 @@ impl Picker {
         }
         if let Some(context) = &row.context {
             return Some(match &context.target.location {
-                crate::terminal_session::NativeContextLocation::Standalone(id) => id.as_str(),
+                crate::terminal_session::NativeContextLocation::NoWorkspace => return None,
                 crate::terminal_session::NativeContextLocation::Workspace {
                     workspace_id, ..
                 } => workspace_id.as_str(),
@@ -1197,7 +1197,7 @@ impl Picker {
                     context
                         .workspace
                         .as_deref()
-                        .unwrap_or(locale.machine_picker_text("standalone")),
+                        .unwrap_or(locale.machine_picker_text("no-workspace")),
                 )
             } else {
                 name.to_owned()
@@ -1425,7 +1425,7 @@ impl Picker {
                 .and_then(|r| r.agent.as_ref())
             {
                 lines.push(if agent.workspace.is_empty() {
-                    locale.machine_picker_text("standalone").into()
+                    locale.machine_picker_text("no-workspace").into()
                 } else {
                     agent.workspace.clone()
                 });
@@ -1467,7 +1467,7 @@ impl Picker {
                             truncate_display(workspace, budget, theme.glyphs.ellipsis)
                         )
                     }
-                    None => locale.machine_picker_text("standalone").to_owned(),
+                    None => locale.machine_picker_text("no-workspace").to_owned(),
                 });
                 // The directory explains which checkout a same-named result opens; its
                 // distinguishing tail survives truncation.

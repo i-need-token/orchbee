@@ -200,34 +200,6 @@ impl LocalClient {
             .map(ClientSessionConnection::generation)
     }
 
-    pub(crate) fn submit_terminal_open(
-        &mut self,
-        request: orchbee_client_server_protocol::TerminalOpenRequest,
-    ) -> Result<orchbee_client_server_protocol::TerminalOpenResult, SubmissionError> {
-        let request_id = request.request_id().clone();
-        let result = self.exchange(ClientMessage::TerminalOpen(request), &request_id)?;
-        let ServerMessage::TerminalOpenResult(result) = result else {
-            return self.retire_with_unknown(
-                request_id,
-                OutcomeUnknownReason::UnexpectedResult {
-                    expected: ResultKind::Open,
-                    received: result_kind(&result),
-                },
-            );
-        };
-        if result.request_id() != &request_id {
-            let received = result.request_id().clone();
-            return self.retire_with_unknown(
-                request_id.clone(),
-                OutcomeUnknownReason::CorrelationMismatch {
-                    expected: request_id,
-                    received,
-                },
-            );
-        }
-        Ok(result)
-    }
-
     pub(crate) fn submit_terminal_viewer_before(
         &mut self,
         request: TerminalViewerRequest,
@@ -698,7 +670,6 @@ impl std::error::Error for OutcomeUnknownReason {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ResultKind {
-    Open,
     Create,
     Start,
     Viewer,
@@ -710,7 +681,6 @@ pub(crate) enum ResultKind {
 impl fmt::Display for ResultKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
-            Self::Open => "terminal.open.result",
             Self::Create => "terminal.create.result",
             Self::Start => "terminal.start.result",
             Self::Viewer => "terminal.viewer.result",
@@ -723,7 +693,6 @@ impl fmt::Display for ResultKind {
 
 fn result_kind(result: &ServerMessage) -> ResultKind {
     match result {
-        ServerMessage::TerminalOpenResult(_) => ResultKind::Open,
         ServerMessage::TerminalCreateResult(_) => ResultKind::Create,
         ServerMessage::TerminalStartResult(_) => ResultKind::Start,
         ServerMessage::TerminalViewerResult(_) => ResultKind::Viewer,

@@ -165,13 +165,7 @@ fn tab_list(
         .max(display_width(text.tab_headers[0]));
     let widths = [handle_width, NAME_WIDTH, PANELS_WIDTH, WORKSPACE_WIDTH];
     compact_table(out, &text.tab_headers, &widths, rows, |row| {
-        let owner = if row.context.standalone {
-            text.standalone.to_owned()
-        } else if let Some(workspace) = &row.context.workspace_label {
-            table_label_width(workspace, WORKSPACE_WIDTH)
-        } else {
-            "-".to_owned()
-        };
+        let owner = table_label_width(&row.context.workspace_label, WORKSPACE_WIDTH);
         vec![
             row.handle.clone(),
             table_label_width(&row.label, NAME_WIDTH),
@@ -203,14 +197,7 @@ fn field(out: &mut Bounded, name: &str, value: &str) -> Result<(), TooLarge> {
 }
 
 fn context_text(context: &ContextRef) -> String {
-    if context.standalone {
-        "standalone".to_owned()
-    } else {
-        format!(
-            "workspace {}",
-            context.workspace_id.as_deref().unwrap_or("-")
-        )
-    }
+    format!("workspace {}", context.workspace_id)
 }
 
 fn presentation_cells(row: &PresentationRow) -> Vec<String> {
@@ -320,14 +307,7 @@ fn terminal_list_cells(
             .map_or_else(|| "-".to_owned(), terminal_title),
         details.agent.clone().unwrap_or_else(|| "-".to_owned()),
         state.to_owned(),
-        placement.map_or_else(
-            || "-".to_owned(),
-            |p| {
-                p.workspace
-                    .clone()
-                    .unwrap_or_else(|| text.standalone.to_owned())
-            },
-        ),
+        placement.map_or_else(|| "-".to_owned(), |p| p.workspace.clone()),
         placement.map_or_else(|| "-".to_owned(), |p| p.panel.clone()),
         details.cwd.clone().unwrap_or_else(|| "-".to_owned()),
     ]
@@ -753,7 +733,7 @@ pub(crate) fn render(
             vec![
                 row.panel_id.clone(),
                 table_label(&row.display_label),
-                row.workspace_id.clone().unwrap_or_else(|| "-".to_owned()),
+                row.workspace_id.clone(),
                 row.tab_id.clone(),
                 row.terminal_context_id.clone(),
                 row.primary_presentation_id.clone(),

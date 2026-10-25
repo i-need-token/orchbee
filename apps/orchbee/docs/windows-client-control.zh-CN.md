@@ -8,7 +8,7 @@
 
 经认证的 Client Session 可发布一个交互视图。Client 身份是已接纳的非零 Session generation，编码为 32 位小写十六进制，作用域为 Session。身份由 Server 分配，generation 在一次 Server 生命周期内不重复。普通 CLI 连接不发布视图。同步不接受调用者指定的 Client 身份，不能确认其他 Session 的操作。
 
-视图报告已观测 Workbench 修订、阶段（`starting`、`ready`、`busy`、`unavailable`）及必填可空的选择。选择包含 TerminalContext 身份、必填可空的 Tab／Panel 身份、显式缩放标记和活动 Tab 的 Panel 数（没有 Tab 时为零，有 Tab 时为正）。有 Panel 必须有 Tab；缩放必须有 Panel。这些是 Client 观测，不是新增的规范 Workbench 字段。
+视图报告已观测 Workbench 修订、阶段（`starting`、`ready`、`busy`、`unavailable`）及必填可空的选择。选择包含 TerminalContext 身份、必填可空的 Tab／Panel 身份、显式缩放标记和活动 Tab 的 Panel 数（没有 Tab 时为零，有 Tab 时为正）。有 Panel 必须有 Tab；缩放必须有 Panel。就绪的空 Workbench 报告 `selection: null`；空 Workspace 报告其真实 Context，Tab／Panel 为 null。两种状态都不虚构 Context 身份。这些是 Client 观测，不是新增的规范 Workbench 字段。
 
 每个 UI 样本携带非零规范 u64 文本 heartbeat 和视图修订。heartbeat 随 UI 采样推进；报告的视图改变时视图修订推进。合并样本可以跳号。相同修订要求视图内容相同；更旧的修订或 heartbeat 冲突。没有新 UI heartbeat 的重复网络同步不延长新鲜期。新 UI 样本到达 Server 后五秒内视图为 current，之后为 stale，直到新样本到达。
 

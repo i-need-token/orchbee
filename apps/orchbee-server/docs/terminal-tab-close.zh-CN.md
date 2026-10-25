@@ -8,7 +8,7 @@ Server/Worker 执行、保留维护、精确会话清理及规范发布已集成
 Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些有界检查不证明发布就绪或生产
 重启恢复。这份归 Server 所有的参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
 工作流、跨所有者结算及细化义务。它随这些实现及证据维护。
-[Workbench 权威](workbench-authority.zh-CN.md) 继续规定当前规范投影及严格独立成员关系。
+[Workbench 权威](workbench-authority.zh-CN.md) 继续规定当前规范投影及Workspace 成员关系。
 
 ## 用户结果与生命周期授权
 
@@ -22,31 +22,15 @@ Close 先从规范树解析精确 Context／Tab／Panel，再收集已绑定成�
 或运行时所有者：保留正常 ledger／revision 额度，沿用排队发布、重放／加入、状态、发布失败及
 Resume 流程，不发送 Dispose。
 
-重叠的 Tab／Panel／Workspace 范围是否冲突不依赖已绑定成员数量。迁移对正在关闭的指定 Panel
-设置栅栏，包括未绑定 Panel；兄弟结构操作仍遵循既有规则。发布重新证明有序精确已绑定成员及
-规范范围，只移除该范围，并根据全部存续绑定协调 standalone 引用。移除绑定集合为空时，保留
-既有 Open 引用或 Empty 槽位。范围缺失保留既有类型化拒绝行为。定向权威与 Site 用例覆盖混合
-成员、仅子项绑定、纯发布关闭、重放、范围栅栏以及无关绑定的保留。
+重叠 Tab／Panel／Workspace 范围不论已绑定成员数量均冲突。迁移围栏覆盖被关闭的准确 Panel，包括无绑定 Panel。发布重新证明有序准确已绑定成员与规范范围，只移除该范围。范围缺失保留类型化拒绝。混合成员、仅子绑定、仅发布 Close、重放、范围围栏和无关绑定保留仍须证据。
 
 ### Workspace 生命周期扩展
 
-本地 Server 接受规范 Workspace 所有的简单 Terminal Context 中的 Close，沿用 standalone 的
-授权、精确绑定/运行时身份、确认、保留 Read/Resume、续行预算以及先清理后移除契约。不增加
-线协议字段或 Worker 操作。原生 Workspace UI 不在此扩展范围内。Directory 可用性既不授权
-也不阻塞 Close；新的主操作仍要求精确的活动运行时身份。
+本地 Server 仅接受 Workspace 所有上下文的 Close。生命周期授权、准确绑定／运行时身份、保留 Read／Resume、续作预算及先清理后移除同样适用于已分组与未分组 Workspace。目录是否可用既不授予也不阻止 Close；新主操作仍要求准确在线运行时身份。
 
-`WorkbenchTerminalMembership` 和 `WorkbenchTerminalTab` 为既有操作描述严格单 leaf 成员，
-为已接受的 PanelSplit/聚合 Close 路径描述两类上下文中的确切树成员。成员关系携带从规范导航派生的
-不可变上下文类型，是读取结果而非另一份权威。规范分组、固定／分组 Tab 及子项均可接受。未绑定成员保留在规范树中，运行时成员集合
-仅包含已绑定成员，并显式记录主成员身份。除调用方条件分支外，standalone 组合 helper 自身也拒绝 Workspace 成员关系，使未发布库
-使用通用类型名后仍保留所有者边界。
+`WorkbenchTerminalMembership` 枚举规范主／子绑定并显式标记主成员；无绑定成员保留在树中。分组及固定／组内 Tab 保留各自结构契约。不再存在上下文类型标志或 bootstrap 槽位。
 
-Workspace 准入和发布不读取、重定向或结算 standalone 引导槽位。已知 Dispose 和精确目标清理
-后，发布重新提取当前目标上下文成员关系，仅移除保留的 Tab/Panel/Presentation/绑定元组。
-同级 Create、Rename、Move 及其他上下文变化均保留。待完成的同级 Create 通过原 token 结算并
-保留原结果 revision。Workspace 发布不返回 standalone-change 通知。移除最后一个 Tab 保留
-Workspace 及 Directory 引用，留下空上下文，不自动启动替补。后续显式 Workspace Create
-遵循既有目录校验并分配新身份。
+发布在清理后重新提取当前目标成员，仅移除捕获范围。同级 Create／Rename／Move 和其他 Context 保留。待完成创建通过原 token 结算，不重写历史修订。最后一个 Tab 移除后 Workspace 及 Directory 引用保留；之后显式 Tab 创建重新检查目录准入并分配新身份。
 
 Close 主操作容量和 revision credit 作用于整个 Site：每个非 Closed 主操作在共享 ledger 中
 保留一个未来 revision；发布恰好消耗该 credit 并增加一次 revision。准入、别名和精确重放
@@ -54,17 +38,13 @@ Close 主操作容量和 revision credit 作用于整个 Site：每个非 Closed
 Dispose 不能发布移除；已知 Dispose 但清理阻塞时保留状态，沿用既有显式 Resume 路径。
 不增加持久化、远程执行、跨上下文转移或未确立运行时身份的恢复。
 
-`Ctrl+B x` 关闭选中的规范独立 Tab，先以本地化确认明确其终端执行将对**所有已挂接 Client**结束。
+`Ctrl+B x` 关闭选中的规范 Workspace Tab，先以本地化确认明确其终端执行将对**所有已挂接 Client**结束。
 取消不改变任何状态。独立的受信本地生命周期授权允许此效果；仅有导航权限或 Input controller
 所有权并不足够。只读 Viewer 所属 Client 若有生命周期授权，也可 Close。目标是精确保留绑定，
 从不使用序号。Creating/Starting 目标在取得已结算身份前，明确返回效果前 `terminal-busy`。
 无法确定活动 Worker 代次或精确 Host 身份时，不允许终止或规范移除。
 
-Closed 表示已知 Host Dispose、精确 Worker/Server 目标缓存清理及规范移除均已完成；不是隐藏
-Tab 并留下无法寻址的进程。没有自动替代终端。移除最后一个 Tab 后，原生 Workbench 保持可用的
-**Empty**：无选择、Viewer、controller 或来源记录，仍可 Refresh 及手动 `c`。后续裸 Open
-是独立操作，可引导新终端。远程授权、未知身份接管及改变 epoch 后的恢复不在范围内。Server
-重启持久化属于单独的持久化工作。
+Closed 表示已知 Host 释放、准确 Worker／Server 清理及规范移除，不自动替换。移除最后一个 Tab 留下可用空 Workspace，没有所选成员、查看器或控制者；仍可 Refresh 和显式 `c`。启动观察此空成员关系，不重新创建终端。远端接管、代际变化恢复及持久化保留各自契约。
 
 本地传输集成将 `manage_terminal_lifecycle` 授权独立于读取、导航、Create、Viewer 和
 controller 权限；仅受信本地组合显式设置它。Close 和 Resume 需要此授权；状态 Read 需要
@@ -441,34 +421,11 @@ Resume 在任何状态变更前实测真实候选回执：它必须装入其预�
 Workbench 退役仍允许读取清理状态。成功准备后，成员关系、活动 Site 关联、额度消耗及 Closed
 共同提交，不再执行可能失败的工作。响应丢失不撤销该提交。
 
-## 跟随当前引用的 Site 完成
+## 准确 Site 完成
 
-本节引用重定向仅适用于 standalone 成员关系。Workspace 发布提交规范移除，不进入此槽位结算路径。
+Close 发布在已知释放及准确运行时清理后，只移除捕获的 Workspace 成员范围。它基于当前规范成员关系重新计算，保留所有无关绑定及元数据。移除最后一个 Tab 留下空 Workspace；移除最后一个 Workspace 留下空 Workbench。不参与 Open 槽位、引用重定向或变化通知。
 
-保留 `Empty | Creating(reference) | Settled {reference,outcome}`，保留历史 Terminal
-创建结果/已关闭身份，不复用 ID。Create 完成时，为每个引用保留精确独立结算值，不从当前有损
-终端阶段重构。Closing/Disposed 事实与原完成分类分离。既有原生规范 Create 使用立即 Start。
-
-若活动引用在移除后存活，保留它。否则选择**当前移除后顺序**首个成员：无成员 → Empty；
-Creating B → Creating(B.reference)；已结算 B → Settled(B.reference, retained B outcome)。
-Closing B 在自身移除前仍是可见候选引用。树形组合要求每个剩余 leaf 都匹配保留 binding；
-当前引用仍只为 standalone 重定向选择一个 anchor。
-
-B 的原 Create seal、请求、元数据、绑定、历史 `is_first` 及重放结果保持不可变。在共同门锁
-内验证其精确 Workbench token 及 Terminal 关联，并结算两者记录；**仅当 Site 当前 Creating
-引用为 B.reference 时**同时结算 Site，否则保持不变。历史 `settles_first` 不拥有当前结算
-或通知权威。向 service 返回显式 `standalone_changed`，释放锁后通知。这覆盖 B 先完成再移除
-A，以及先移除 A 再完成 B。Close 期间其他 Create 继续；关闭 Creating/Starting B 仍为 Busy。
-Empty 后新 C 使用新 ID；旧完成同时受 seal 及当前引用检查保护，无法覆盖 C。
-
-Site 细化在每个 Terminal 绑定上保留 `Option<CreateOutcome>`：精确 Create 完成只写入一次，
-后续 Start/生命周期阶段不覆盖。None 仅在 Creating 中表示待完成；其他阶段缺少原结果属于
-协调失败。共同 Create 完成返回 `CompletedTerminalTabCreate {result, standalone_changed}`，
-同时保留历史首成员关联检查。预备 Close 重定向 helper 仅借用 Site 槽位，消费权威计划的当前
-移除前成员关系、预备移除后成员关系及精确移除成员。准备下一槽位前，验证移除前组合、唯一
-精确移除元组、严格移除视图及所选绑定唯一保留引用。两个所有者提交在同一 Site 门锁内保持
-不可失败，通知在释放门锁后发生。维护 finalizer 已消费该 helper。实际载体轨迹覆盖 B
-分别在 A 的共同 Close 发布之前及之后完成，且两种顺序下裸 Open 都选择存活的 B。
+待完成的同级创建保留原命令／token、绑定及结果修订。完成校验准确保留运行时关联，结算两个原所有者并返回命令结果。成员被移除不授权再次启动，过期／外部完成不能覆盖更新操作。载体／服务证据覆盖先完成后发布及先发布后完成两种顺序。
 
 ## 原生移除与屏障组合
 
@@ -523,7 +480,7 @@ cargo test --locked -p orchbee-server -p orchbee-worker -p orchbee --all-targets
 
 单次 continuation 提交不能证明完整 inventory 或 Host 生命周期。Known-blocked 与 Unknown 仍须区分；准确的迟到 Disposed 回执在过期后保留。Unknown 禁止基于 disposal 的清理或重试，但允许合法的准确租约清理。发布前必须完成 Server 清理。读取/重放保持无效果。初始准入在代次一捕获成员；只有符合条件的 Resume 可增加一个代次且不改变该成员集合。
 
-测试必须覆盖满 ledger 的 Resume、过期/重复/耗尽控制、revision 预留、inventory 变动与完整末页缺失、全部八个 idle-Client 槽、保留的 standalone 结果以及锁后的 `standalone_changed` 通知。真实进程证据必须覆盖其他终端存活时的优雅后强制后代清理、最后 Close 后手工 Create 或裸 Open，以及实测 30s/32-step/250ms 计量。确定性时钟建立顺序而非 OS 计时。未执行的平台证据仍未验证。
+测试须覆盖账本已满时 Resume、过期／重复／耗尽控制、修订预留、清单变化及完整末页缺失、空闲 Client 槽位和原创建结果保留。真实进程证据覆盖其他终端存活时的后代清理、最后一次 Close 后显式 Workspace Tab 创建，以及有界续作计量。确定性时钟证明顺序而非操作系统时序。未执行平台证据仍未验证。
 
 纯原生传输验证可先于结构 flight 集成；它不授权任何生命周期效果、重放、重连或恢复。未发布的本地组件组共同启用及回滚。回滚不能复活已终止执行或丢弃保留的清理事实。Server 重启持久化、永久 Host/平台恢复、变更 epoch 接管、远程操作、打包及无条件最终清理仍在范围外。
 
@@ -575,9 +532,9 @@ Creating/Starting 仍为 busy。Unknown、保留 identity 的 unavailable、缺�
 
 Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定的 Presentation，每个 Panel 先主 Presentation、再按顺序排列的子项。分组／固定 Tab 同样可关闭；这些元数据不改变终端生命周期权限。Panel 范围同时捕获其主项与全部子项。只有该 Tab 没有其他不同 Panel 时，才升级为整个 Tab 范围，与目标 Panel 包含多少 Presentation 无关。
 
-每条捕获的 binding 独立经过现有的运行时解析、预留、销毁与清理续作。全部目标结束前禁止发布移除。未知效果保留既有隔离／恢复语义，不能遗漏尚未处理的子项。发布前，所有者再次将完整、有序的现存范围与捕获的身份、binding 比较。新增、删除、重排或替换子项均导致组合失败，保留已知销毁事实且不移除规范范围。其他 Panel／Tab 及其元数据原样保留。完整 Tab 发布仅在移除后源组变空时删除该组；所有无关组均保留，包括其他 Client 新建的空组。仅移除 Panel 时不清理分组。这有意不同于会清理所有空组的 GUI `TabModel.closeTabs`：生命周期发布不能扫描最新 Snapshot 并删除无关数据。Standalone 协调同时移除所有捕获 binding，再选择精确的存续引用或空状态。
+每条捕获的 binding 独立经过现有的运行时解析、预留、销毁与清理续作。全部目标结束前禁止发布移除。未知效果保留既有隔离／恢复语义，不能遗漏尚未处理的子项。发布前，所有者再次将完整、有序的现存范围与捕获的身份、binding 比较。新增、删除、重排或替换子项均导致组合失败，保留已知销毁事实且不移除规范范围。其他 Panel／Tab 及其元数据原样保留。完整 Tab 发布仅在移除后源组变空时删除该组；所有无关组均保留，包括其他 Client 新建的空组。仅移除 Panel 时不清理分组。这有意不同于会清理所有空组的 GUI `TabModel.closeTabs`：生命周期发布不能扫描最新 Snapshot 并删除无关数据。发布同时移除所有捕获 binding，并保留无关 Workspace 成员。
 
-完整成员遍历与只读注册共用，发布时在预备候选上调用。存在未绑定 Presentation 时仍拒绝整个捕获，不能过滤丢弃。其他结构操作和原生 TUI 导航保留各自准入契约。不增加命令、线路字段、生命周期回执或权限。定向证据覆盖多 Presentation 的 Panel／Tab 范围区别、完整 Tab／Workspace 捕获、部分目标完成、未知效果、成员篡改、存续元数据和 Standalone 引用组合。完整 Windows CLI／TUI 验收仍属于后续组合门禁。
+完整成员遍历与只读注册共用，发布时在预备候选上调用。存在未绑定 Presentation 时仍拒绝整个捕获，不能过滤丢弃。其他结构操作和原生 TUI 导航保留各自准入契约。不增加命令、线路字段、生命周期回执或权限。定向证据覆盖多 Presentation 的 Panel／Tab 范围区别、完整 Tab／Workspace 捕获、部分目标完成、未知效果、成员篡改、存续元数据和 Workspace 绑定守恒。完整 Windows CLI／TUI 验收仍属于后续组合门禁。
 
 ## 回执身份读取
 

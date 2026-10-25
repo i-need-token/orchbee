@@ -105,7 +105,7 @@ impl AddressedWorktreeSource {
         let primary = first
             .and_then(|(_, panel)| panel.primary().binding())
             .cloned();
-        let context = cache.canonical_context().clone();
+        let context = cache.canonical_context()?.clone();
         Some(Self {
             target: target.clone(),
             cache,

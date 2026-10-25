@@ -176,7 +176,6 @@ impl LocalTerminalService {
             )
             .map_err(|_| io::Error::other("managed Agent name restoration unavailable"))?;
         }
-        self.standalone_changed.notify_all();
         Ok(())
     }
 

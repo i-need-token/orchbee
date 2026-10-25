@@ -131,7 +131,7 @@ flight 允许只读规范成员修复。即使最新 Close read 不可用，snap
 
 状态、carrier 和 UI 测试覆盖单个 Workspace 范围及未分组成员、显式 Project 成员捕获与
 空 Project、确切绘制确认、绑定 token 的鼠标控件、packet 尾部捕获、来源漂移、准入/read/publication 丢失、
-单调证据、规范修复和焦点保留。后台关闭证据覆盖从 Workspace 和 Standalone 发起时的
+单调证据、规范修复和焦点保留。后台关闭证据覆盖从当前或同级 Workspace 发起时的
 取消与发布、保留 pane/终端绑定和 attachment 身份，以及不清理或重新连接来源。即使
 revision 相同，目标 Context 缺失或被替换也会在提交前被拒绝；来源或过期目标的回执不能
 覆盖有效准入证据。Framed peer 断言普通 Close 从不发送 group Start，且

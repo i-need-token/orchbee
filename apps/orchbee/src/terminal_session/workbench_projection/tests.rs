@@ -25,26 +25,40 @@ mod tab_metadata;
 mod workspace_replacement;
 
 const SITE_VALUE: u128 = 1;
-const STANDALONE_CONTEXT_VALUE: u128 = 2;
+const WORKSPACE_CONTEXT_VALUE: u128 = 2;
 
 fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
-    project_native_standalone_tabs(&snapshot(tab_count, revision)).unwrap()
+    project_preferred_workspace(&snapshot(tab_count, revision)).unwrap()
 }
 
 fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: context_id(STANDALONE_CONTEXT_VALUE),
+        navigation: {
+            let fixture_context_id = context_id(WORKSPACE_CONTEXT_VALUE);
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
         site_id: site_id(SITE_VALUE),
-        terminal_contexts: vec![terminal_context(STANDALONE_CONTEXT_VALUE, tab_count)],
+        terminal_contexts: vec![terminal_context(WORKSPACE_CONTEXT_VALUE, tab_count)],
     }
 }
 
@@ -104,7 +118,7 @@ fn created_candidate(
         unreachable!("fixture tab uses one Panel")
     };
     primary_presentation.label = requested_label.into();
-    project_native_standalone_tabs(&candidate).unwrap()
+    project_preferred_workspace(&candidate).unwrap()
 }
 
 fn expectation_for(
@@ -116,7 +130,7 @@ fn expectation_for(
     let tab = &candidate.tabs[index];
     CreatedTabExpectation::new(
         WorkbenchRevision::new(committed_revision),
-        candidate.terminal_context_id().clone(),
+        candidate.terminal_context_id().unwrap().clone(),
         tab.tab_id.clone(),
         tab.panel_id.clone(),
         tab.presentation_id.clone(),

@@ -7,9 +7,7 @@ binding. Server runtime membership contains only bound members and records which
 a bound child never substitutes for an unbound primary. Registration and structural operations
 preserve the unbound members. Legacy single-member readers keep their stricter contract.
 
-Open uses existing bound membership. A layout containing only unbound members is occupied and
-returns terminal-runtime-unavailable without a launch or authority retirement. Explicit Tab Create
-or Split can create the first bound terminal and install the standalone reference normally.
+Attachment uses exact existing Workspace membership and never launches implicitly. An unbound layout remains occupied. Explicit Tab Create, Split or member creation can establish a binding after the Workspace directory and Worker pass admission.
 
 Close determines its scope from canonical topology, never from the number of bound terminals.
 Unbound siblings survive Panel Close. An entirely unbound Panel or Tab uses the retained Close
@@ -23,14 +21,7 @@ The private `panel.create-terminal` action addresses one canonical Context/Tab/P
 exact existing primary/child while preserving its ID, label and override. Missing or bound targets
 fail before launch, without primary fallback; child capacity is 16. It creates no Panel or split.
 
-The Server shares terminal creation with split through typed placement. Split allocates five
-identities, child creation one, existing-member binding none. Both navigation and creation grants
-are required. Revision, profile/launch/options, Workspace directory, pending Close and request-ledger
-checks precede prepared canonical/runtime commit and dispatch. Pending/final receipts carry only
-real identities; prebuilt bounded results and settlement seals preserve replay and unknown outcomes.
-The first standalone terminal can use the active Worker without inventing a source binding.
-Creation does not select a Client member or send input. Existing layout export/apply and member
-controls are the intended consumers; private carrier support alone is not user-facing completion.
+Server shares terminal creation with split through typed placement. Split allocates five identities, child creation one, and existing-member binding none. Navigation and creation grants, revision, launch/profile/options, Workspace directory/Worker, pending Close and ledger checks precede prepared canonical/runtime commit and dispatch. Pending/final receipts carry real identities; prebuilt bounded results and settlement seals preserve replay and unknown outcomes. Creation neither selects a Client member nor sends input. Layout application and member controls consume this private creation owner.
 
 ## Scope and ownership
 

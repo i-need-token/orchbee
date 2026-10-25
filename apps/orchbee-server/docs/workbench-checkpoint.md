@@ -46,7 +46,7 @@ Workspace `projectId` is required-nullable. Directory rows contain `directoryId`
 fresh Worker ownership supplied during reconstruction. Workspace order is a complete permutation;
 empty Project order uses canonical ID order, otherwise it is a complete permutation.
 Ungrouped Workspaces, empty Projects, shared or unused Directories and both display orders survive.
-The graph permits at most 65,536 Directories, 1,023 Workspaces and 256 Workspaces per Project,
+The graph permits at most 65,536 Directories, 1,024 Workspaces and 256 Workspaces per Project,
 subject to the unchanged encoded bounds.
 
 Unknown, duplicate or missing fields, nested historical navigation, unsupported versions, invalid
@@ -93,11 +93,7 @@ Format changes follow the repository data-boundary rule; there is no permissive 
 
 ## Terminal rebind preparation
 
-`checkpoint/restore.rs` enumerates every unbound primary and child Presentation in context, Tab
-and depth-first tree order. Each private restore target carries its fresh Site/local Worker and
-exact context/Tab/Panel/Presentation membership and separate retained/Workspace directory intent.
-Read-only physical registration visits every primary and child in every context; destructive tree
-guards remain unchanged. Standalone/unconfigured targets without retained cwd use Worker home.
+`checkpoint/restore.rs` enumerates every unbound primary and child Presentation in Workspace Context, Tab and depth-first tree order. Each target carries the fresh Site/local Worker, exact member identities and separate retained/Workspace directory intent. Read-only registration visits every primary and child; destructive operations retain their own guards. An unconfigured Workspace without retained cwd uses Worker home.
 
 `prepare_restored_terminal` rechecks Site, local Worker, membership, unbound status and the cwd
 default, then validates and prepares the entire resulting projection/publication before mutation.
@@ -105,10 +101,7 @@ Dropping preparation changes nothing. Commit sets exactly one binding and advanc
 structural identities, allocator high-water, labels, order, groups, input policy and profiles remain
 unchanged. Already-bound targets and duplicate physical terminal bindings are refused.
 
-This preparation does not create a process or replay a command. The managed coordinator must
-prepare a fresh terminal reservation and this binding together, commit both under the same lock,
-then dispatch and settle the exact physical request. It must also reconstruct standalone Open
-selection before exposing Clients. Planning and binding tests do not establish that runtime integration.
+Preparation creates no process and replays no command. The managed coordinator prepares a fresh terminal reservation with the canonical binding, commits both under one lock, then dispatches and settles that exact physical request before exposing Clients. Restored snapshot bindings are the only attachment selection source; there is no reconstructed Open reference. Planning tests alone do not establish runtime integration.
 
 ## Managed Windows startup and clean stop
 
@@ -129,18 +122,7 @@ errors still abort. Uncommitted pending-file cleanup remains unchanged.
 configuration value: private graph-validation identities never become a runnable authority. Only
 reconstruction with the fresh Site and admitted Worker creates the new authority.
 
-Before the first launch IPC, the coordinator prepares all fresh shell/provider reservations and
-Workbench bindings. Failure at this point leaves no Host or terminal; the creation-owned Worker
-is terminated and its exit confirmed. Each prepared request is then dispatched and settled once;
-launch failure or unknown outcome stays explicit and is never retried automatically. Retained terminal directories, workspace/home
-defaults and initial geometry of 80x24 at 8x16 cells apply until the Client resizes.
-The first restored standalone primary supplies the retained Open result instead of creating an
-extra Tab. A missing saved/configured directory falls back to Worker home during restoration.
-Open checks complete primary/child membership, including grouped and pinned Tabs; this read does
-not relax the separate guards on destructive operations. Requests not sent before the startup
-deadline settle as unavailable. A later startup failure stops maintenance and requests Worker-owned
-Host/terminal shutdown, then confirms Worker/carrier exit and stops ingress. Unconfirmed cleanup
-retains recovery-required activation state; terminating a Worker alone is not Host cleanup.
+Before launch IPC, the coordinator prepares all fresh shell/provider reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; missing saved/configured directories fall back to Worker home. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; preceding valid snapshots remain,
@@ -184,10 +166,9 @@ versions. Native storage and Server-load witnesses verify fallback/empty notices
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
 also preserves pending files when the durable catalog is unsupported.
 
-Coordinator tests cover joint physical/graph preparation, grouped/pinned/child membership, Open
-reuse and explicit unavailable outcomes without replay. Windows storage/process tests cover private
+Coordinator tests cover joint physical/graph preparation, grouped/pinned/child membership, binding reattachment and explicit unavailable outcomes without replay. Windows storage/process tests cover private
 replacement, locking and exact-handle termination. Packaged Windows clean-stop/restart acceptance
-compares retained layouts/profiles, fresh runtime identities, shell effects and TUI Open reuse;
+compares retained layouts/profiles, fresh runtime identities, shell effects and TUI binding reattachment;
 blocked replacement must preserve old bytes and live terminals until an explicit successful retry,
 and invalid copies must retain their exact original bytes and produce the declared fallback/empty
 notice without bypassing Site-owner admission. Cached-capture tests cover physical replacement,

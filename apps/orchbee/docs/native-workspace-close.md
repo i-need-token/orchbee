@@ -158,7 +158,7 @@ retires it, including on return. Pending and unknown outcomes retain their exist
 State, carrier and UI tests cover single Workspace scope including ungrouped membership, explicit
 Project member capture and empty Projects, exact drawn confirmation, token-bound mouse controls, packet-tail capture, source
 drift, admission/read/publication loss, monotone evidence, canonical repair and preserved focus.
-Background-close witnesses cover cancellation and publication from Workspace and Standalone origins,
+Background-close witnesses cover cancellation and publication from current and sibling Workspace origins,
 retained pane/terminal binding and attachment identity, and no origin cleanup or reattachment. Missing
 or replaced target Contexts are rejected before submission even at the same revision; origin or stale
 target receipts cannot overwrite valid admission evidence.

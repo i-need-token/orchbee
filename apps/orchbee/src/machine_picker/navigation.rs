@@ -197,9 +197,7 @@ impl SidebarSource {
         }
         rows.into_iter().all(|row| match &row.target {
             SidebarTarget::Context { target, .. } => match &target.location {
-                NativeContextLocation::Standalone(id) => {
-                    id == &navigation.standalone_terminal_context_id && row.parent.is_none()
-                }
+                NativeContextLocation::NoWorkspace => false,
                 NativeContextLocation::Workspace {
                     workspace_id,
                     terminal_context_id,
@@ -514,7 +512,7 @@ enum MachineIdentity<'a> {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum ContextLocationIdentity<'a> {
-    Standalone(&'a str),
+    NoWorkspace,
     Workspace {
         workspace: &'a str,
         terminal: &'a str,
@@ -540,9 +538,7 @@ pub(super) fn context_identity<'a>(
         },
         site: target.site_id.as_str(),
         location: match &target.location {
-            NativeContextLocation::Standalone(id) => {
-                ContextLocationIdentity::Standalone(id.as_str())
-            }
+            NativeContextLocation::NoWorkspace => ContextLocationIdentity::NoWorkspace,
             NativeContextLocation::Workspace {
                 workspace_id,
                 terminal_context_id,
@@ -643,14 +639,7 @@ impl Picker {
                 };
                 match &context.project_id {
                     None => {
-                        if matches!(
-                            context.target.location,
-                            NativeContextLocation::Standalone(_)
-                        ) {
-                            append_context(&self.navigation, &agent_children, &mut entries, row);
-                        } else {
-                            ungrouped.push(row);
-                        }
+                        ungrouped.push(row);
                     }
                     Some(project_id) => {
                         let key = (context.target.site_id.as_str(), project_id.as_str());
@@ -728,7 +717,7 @@ impl Picker {
                         SidebarRow::Agent { .. } => false,
                     },
                     create: menu && matches!(&target, SidebarTarget::Project { .. }),
-                    // Standalone has no Workspace to close; only the menu-eligible site can close.
+                    // Site Close requires the endpoint menu capability.
                     close: menu
                         && matches!(
                             &target,

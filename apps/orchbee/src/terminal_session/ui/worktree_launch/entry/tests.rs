@@ -112,7 +112,7 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
         project_id: other.clone(),
         label: "noncurrent source".into(),
     });
-    let mut source = snapshot.navigation.workspaces[0].clone();
+    let mut source = snapshot.navigation.workspaces[1].clone();
     source.workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 291)).unwrap();
     source.terminal_context_id =
         WorkbenchTerminalContextId::parse(&format!("{:032x}", 292)).unwrap();
@@ -535,7 +535,7 @@ fn replace_target(snapshot: &mut Snapshot, change: usize) {
         2 => {
             let replacement = WorkbenchDirectoryId::parse(&format!("{:032x}", 9999)).unwrap();
             snapshot.navigation.directories[0].directory_id = replacement.clone();
-            snapshot.navigation.workspaces[0].primary_directory_id = Some(replacement);
+            snapshot.navigation.workspaces[1].primary_directory_id = Some(replacement);
         }
         _ => panic!("bounded target replacements"),
     }

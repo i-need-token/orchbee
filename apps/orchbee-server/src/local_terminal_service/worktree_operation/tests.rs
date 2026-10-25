@@ -44,9 +44,9 @@ impl Fixture {
         Self::with_close_owner(true)
     }
     fn with_close_owner(start_owner: bool) -> Self {
-        let service = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-            WorkerRegistry::new(),
-        ))));
+        let service = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+            Mutex::new(WorkerRegistry::new()),
+        )));
         let worker = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } =
             service.workers.lock().unwrap().admit(worker)

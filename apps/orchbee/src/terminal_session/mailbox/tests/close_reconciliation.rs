@@ -70,17 +70,32 @@ fn rejected_close_install_plan_preserves_both_owners_and_the_unconsumed_origin()
                 snapshot: Snapshot {
                     protocol_version: ProtocolVersion,
                     revision: WorkbenchRevision::new(2),
-                    navigation: Navigation {
-                        project_order: Vec::new(),
-                        directories: Vec::new(),
-                        workspaces: Vec::new(),
-                        workspace_order: Vec::new(),
-                        projects: Vec::new(),
-                        standalone_terminal_context_id: before.terminal_context_id().clone(),
+                    navigation: {
+                        let fixture_context_id = before.terminal_context_id().unwrap().clone();
+                        let fixture_workspace_id =
+                            orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                                fixture_context_id.as_str(),
+                            )
+                            .unwrap();
+                        Navigation {
+                            project_order: Vec::new(),
+                            directories: Vec::new(),
+                            workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                                workspace_id: fixture_workspace_id.clone(),
+                                terminal_context_id: fixture_context_id.clone(),
+                                project_id: None,
+                                primary_directory_id: None,
+                                label: "Workspace".into(),
+                            })
+                            .chain(Vec::new())
+                            .collect(),
+                            workspace_order: Vec::new(),
+                            projects: Vec::new(),
+                        }
                     },
                     site_id: before.site_id().clone(),
                     terminal_contexts: vec![TerminalContext {
-                        terminal_context_id: before.terminal_context_id().clone(),
+                        terminal_context_id: before.terminal_context_id().unwrap().clone(),
                         groups: Vec::new(),
                         tabs: Vec::new(),
                     }],

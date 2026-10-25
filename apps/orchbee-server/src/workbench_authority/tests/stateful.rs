@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::parse_snapshot;
 use std::collections::BTreeSet;
 
@@ -13,7 +14,7 @@ enum Step {
     Conflict(u8),
     Stale,
     Denied,
-    Open,
+    CreateTab,
 }
 
 #[test]
@@ -36,7 +37,7 @@ fn generated_workbench_traces_preserve_membership_revision_identity_replay_and_a
                     6 => Step::Conflict(label),
                     7 => Step::Stale,
                     8 => Step::Denied,
-                    _ => Step::Open,
+                    _ => Step::CreateTab,
                 }
             })
             .collect();
@@ -78,59 +79,60 @@ fn run(steps: &[Step]) -> Result<(), String> {
     let reader = WorkbenchGrant::read_only(grant.site_id.clone());
     let mut history: Vec<(WorkbenchCommand, WorkbenchCommandResult)> = Vec::new();
     let mut seen_identities = BTreeSet::new();
-    seen_identities.insert(identity(1));
+    seen_identities.extend([identity(2), identity(3), identity(4)]);
     for (index, step) in steps.iter().enumerate() {
         let before = snapshot(&mut authority, &grant);
         let old_cursor = authority.last_identity;
         let old_ledger = authority.ledger.len();
-        if matches!(step, Step::Open) {
+        if matches!(step, Step::CreateTab) {
             let binding = orchbee_workbench_protocol::PresentationBinding {
-                terminal_id: orchbee_workbench_protocol::TerminalId::parse(&identity(700)).unwrap(),
-                worker_id: orchbee_workbench_protocol::WorkerId::parse(&identity(800)).unwrap(),
+                terminal_id: orchbee_workbench_protocol::TerminalId::parse(&identity(
+                    700 + index as u128,
+                ))
+                .unwrap(),
+                worker_id: orchbee_workbench_protocol::WorkerId::parse(
+                    "0909090909090909090909090909090909",
+                )
+                .unwrap(),
             };
-            let result = authority.commit_standalone_intent(binding.clone());
+            let result = authority.append_fixture_tab(binding.clone());
             let after = snapshot(&mut authority, &grant);
+            require(result.is_ok(), "Workspace Tab creation refused")?;
             require(
-                authority.ledger.len() == old_ledger,
-                "internal membership entered command ledger",
+                authority.ledger.len() == old_ledger + 1,
+                "Tab creation did not retain its command",
             )?;
-            if before.terminal_contexts[0].tabs.is_empty() {
-                require(result.is_ok(), "first internal membership refused")?;
+            require(
+                after.revision.value() == before.revision.value() + 1
+                    && authority.last_identity == old_cursor + 3,
+                "Tab revision or cursor differs",
+            )?;
+            let tabs = &after.terminal_contexts[0].tabs;
+            require(
+                tabs.len() == before.terminal_contexts[0].tabs.len() + 1,
+                "Tab creation did not append one Tab",
+            )?;
+            let tab = tabs.last().ok_or("missing created Tab")?;
+            let orchbee_workbench_protocol::PanelNode::Panel {
+                panel_id,
+                primary_presentation,
+                ..
+            } = &tab.root
+            else {
+                return Err("Tab creation did not create a Panel".to_owned());
+            };
+            require(
+                primary_presentation.binding == Some(binding),
+                "Tab creation changed logical binding",
+            )?;
+            for id in [
+                tab.tab_id.to_string(),
+                panel_id.to_string(),
+                primary_presentation.presentation_id.to_string(),
+            ] {
                 require(
-                    after.revision.value() == before.revision.value() + 1
-                        && authority.last_identity == old_cursor + 3,
-                    "membership revision or cursor differs",
-                )?;
-                let tabs = &after.terminal_contexts[0].tabs;
-                require(tabs.len() == 1, "membership did not create one Tab")?;
-                let orchbee_workbench_protocol::PanelNode::Panel {
-                    panel_id,
-                    primary_presentation,
-                    ..
-                } = &tabs[0].root
-                else {
-                    return Err("membership did not create a Panel".to_owned());
-                };
-                require(
-                    primary_presentation.binding == Some(binding),
-                    "membership changed logical binding",
-                )?;
-                for id in [
-                    tabs[0].tab_id.to_string(),
-                    panel_id.to_string(),
-                    primary_presentation.presentation_id.to_string(),
-                ] {
-                    require(
-                        seen_identities.insert(id),
-                        "membership reused aggregate identity",
-                    )?;
-                }
-            } else {
-                require(
-                    result == Err(StandaloneIntentError::Occupied)
-                        && after == before
-                        && authority.last_identity == old_cursor,
-                    "duplicate membership changed authority",
+                    seen_identities.insert(id),
+                    "Tab creation reused aggregate identity",
                 )?;
             }
             let bytes = serialize_document(&WorkbenchProtocolDocument::Snapshot(after))
@@ -162,7 +164,8 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 label: label(n),
             },
             Step::RenameTab(n) => {
-                let terminal_context_id = before.navigation.standalone_terminal_context_id.clone();
+                let terminal_context_id =
+                    before.navigation.workspaces[0].terminal_context_id.clone();
                 let tab_id = before
                     .terminal_contexts
                     .iter()
@@ -211,7 +214,7 @@ fn run(steps: &[Step]) -> Result<(), String> {
         if !matches!(&request.action, WorkbenchAction::TabRename { .. }) {
             require(
                 after.terminal_contexts[0] == before.terminal_contexts[0],
-                "navigation changed standalone membership",
+                "navigation changed Workspace membership",
             )?;
         }
         let bytes = serialize_document(&WorkbenchProtocolDocument::Snapshot(after.clone()))

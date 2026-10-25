@@ -31,7 +31,6 @@ use std::{sync::Arc, time::Instant};
 
 fn steps(after: &[WireKind]) -> Vec<WireKind> {
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -118,7 +117,7 @@ fn split_pending_commit_at(
 ) -> WorkbenchCommandOutcome {
     WorkbenchCommandOutcome::PanelSplitPending {
         revision: WorkbenchRevision::new(revision),
-        terminal_context_id: operation.baseline().terminal_context_id().clone(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
         tab_id: operation.target().tab_id().clone(),
         panel_id: operation.panel_id().clone(),
         new_panel_id: WorkbenchPanelId::parse(&id(new_panel)).unwrap(),
@@ -376,7 +375,7 @@ fn panel_move_commits_and_merges_the_relocated_leaf() -> TestResult {
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: target_panel_id.clone(),
@@ -470,7 +469,7 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
         &operation,
         WorkbenchCommandOutcome::PanelCloseAccepted {
             close_request_id: operation.request_id().clone(),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             accepted_revision: WorkbenchRevision::new(1),
@@ -720,7 +719,7 @@ fn panel_close_of_the_attached_leaf_repairs_membership_to_the_survivor() -> Test
         &operation,
         WorkbenchCommandOutcome::PanelCloseAccepted {
             close_request_id: operation.request_id().clone(),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             accepted_revision: WorkbenchRevision::new(1),
@@ -1190,7 +1189,7 @@ fn committed_move_whose_superseding_snapshot_drops_the_selected_leaf_repairs_mem
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
@@ -1303,7 +1302,7 @@ fn committed_split_whose_superseding_snapshot_drops_the_source_leaf_repairs_memb
         &operation,
         WorkbenchCommandOutcome::PanelSplitPending {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             new_panel_id: WorkbenchPanelId::parse(&id(5_010))?,
@@ -1444,7 +1443,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(4),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
@@ -1501,7 +1500,7 @@ fn committed_move_exact_revision_snapshot_without_the_moved_leaf_retires_diverge
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
@@ -1547,7 +1546,7 @@ fn committed_move_whose_superseding_snapshot_keeps_the_selected_leaf_merges() ->
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
@@ -1659,7 +1658,7 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
         &operation,
         WorkbenchCommandOutcome::PanelSplitPending {
             revision: WorkbenchRevision::new(3),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             new_panel_id: WorkbenchPanelId::parse(&id(5_010))?,
@@ -1816,7 +1815,7 @@ fn committed_split_superseding_leaf_loss_while_unattached_repairs_without_cleanu
         &operation,
         WorkbenchCommandOutcome::PanelSplitPending {
             revision: WorkbenchRevision::new(4),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             new_panel_id: WorkbenchPanelId::parse(&id(4_010))?,
@@ -1889,7 +1888,7 @@ fn committed_move_superseding_leaf_loss_detach_failure_retires_protocol_keeping_
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
@@ -1959,7 +1958,7 @@ fn committed_move_superseding_leaf_loss_attach_unavailable_parks_retryable_keepi
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
@@ -2248,7 +2247,7 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(4),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: moved_to,
@@ -2352,7 +2351,7 @@ fn committed_move_whose_superseding_snapshot_drops_the_leaf_and_rewrites_a_membe
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
             revision: WorkbenchRevision::new(2),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,

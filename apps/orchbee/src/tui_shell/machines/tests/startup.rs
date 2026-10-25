@@ -5,10 +5,6 @@ use crate::{
     local_client::tests::server::FakeServer,
     terminal_session::{NativeContextLocation, NativeContextTarget},
 };
-use orchbee_client_server_protocol::{
-    ClientMessage, OpenOutcome, RequestId, ServerMessage, TerminalOpenResult, read_client_message,
-    write_server_message,
-};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::*;
 use std::{io::Read, num::NonZeroU64};
@@ -42,22 +38,38 @@ fn snapshot(empty: bool) -> Snapshot {
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&id(6)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspace_order: vec![WorkbenchWorkspaceId::parse(&id(8)).unwrap()],
-            standalone_terminal_context_id: standalone.clone(),
-            projects: vec![Project {
-                project_id: WorkbenchProjectId::parse(&id(7)).unwrap(),
-                label: "project".into(),
-            }],
-            workspaces: vec![Workspace {
-                project_id: Some(WorkbenchProjectId::parse(&id(7)).unwrap()),
-                workspace_id: WorkbenchWorkspaceId::parse(&id(8)).unwrap(),
-                label: "workspace".into(),
-                primary_directory_id: None,
-                terminal_context_id: workspace.clone(),
-            }],
+        navigation: {
+            let fixture_context_id = standalone.clone();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspace_order: std::iter::once(fixture_workspace_id.clone())
+                    .chain(vec![WorkbenchWorkspaceId::parse(&id(8)).unwrap()])
+                    .collect(),
+                projects: vec![Project {
+                    project_id: WorkbenchProjectId::parse(&id(7)).unwrap(),
+                    label: "project".into(),
+                }],
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(vec![Workspace {
+                    project_id: Some(WorkbenchProjectId::parse(&id(7)).unwrap()),
+                    workspace_id: WorkbenchWorkspaceId::parse(&id(8)).unwrap(),
+                    label: "workspace".into(),
+                    primary_directory_id: None,
+                    terminal_context_id: workspace.clone(),
+                }])
+                .collect(),
+            }
         },
         terminal_contexts: vec![
             TerminalContext {
@@ -92,7 +104,7 @@ fn snapshot(empty: bool) -> Snapshot {
     }
 }
 fn target(snapshot: &Snapshot) -> NativeContextTarget {
-    let workspace = &snapshot.navigation.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[1];
     NativeContextTarget {
         site_id: snapshot.site_id.clone(),
         location: NativeContextLocation::Workspace {
@@ -101,7 +113,7 @@ fn target(snapshot: &Snapshot) -> NativeContextTarget {
         },
     }
 }
-fn peer(snapshot: Snapshot, standalone: bool) -> io::Result<FakeServer> {
+fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
     FakeServer::start(move |mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         assert!(matches!(
@@ -115,23 +127,6 @@ fn peer(snapshot: Snapshot, standalone: bool) -> io::Result<FakeServer> {
             },
         )
         .map_err(io::Error::other)?;
-        if standalone {
-            let ClientMessage::TerminalOpen(open) =
-                read_client_message(&mut stream).map_err(io::Error::other)?
-            else {
-                panic!("standalone startup must open its own context");
-            };
-            write_server_message(
-                &mut stream,
-                &ServerMessage::TerminalOpenResult(TerminalOpenResult::new(
-                    open.request_id().clone(),
-                    OpenOutcome::Opened {
-                        terminal_create_request_id: RequestId::parse(&id(12)).unwrap(),
-                    },
-                )),
-            )
-            .map_err(io::Error::other)?;
-        }
         let WorkbenchRequest::SnapshotRead(read) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
@@ -173,7 +168,7 @@ fn attempt(server: &FakeServer, context: Option<NativeContextTarget>) -> Attempt
 }
 #[test]
 fn machine_candidate_supplies_startup_deadline_and_commits_drawable_standalone() -> io::Result<()> {
-    let server = peer(snapshot(false), true)?;
+    let server = peer(snapshot(false))?;
     let (mut manager, mut view, mut surface) = setup();
     view.machines.show();
     manager.selection_scope = view.machines.selection_scope();
@@ -193,7 +188,7 @@ fn machine_candidate_supplies_startup_deadline_and_commits_drawable_standalone()
     }
     assert!(matches!(
         active_context(surface.active()).unwrap().location,
-        NativeContextLocation::Standalone(_)
+        NativeContextLocation::Workspace { .. }
     ));
     drop(manager);
     drop(surface);
@@ -205,7 +200,7 @@ fn machine_workspace_candidate_starts_exact_context_including_empty_without_open
     for (empty, direct) in [(true, false), (false, false), (true, true), (false, true)] {
         let snapshot = snapshot(empty);
         let target = target(&snapshot);
-        let server = peer(snapshot, false)?;
+        let server = peer(snapshot)?;
         let (mut manager, mut view, mut surface) = setup();
         if direct {
             view.machines.observe_agent_sidebar(true);
@@ -294,7 +289,7 @@ fn machine_workspace_missing_site_or_membership_refuses_without_fallback() -> io
         } else if let NativeContextLocation::Workspace { workspace_id, .. } = &mut target.location {
             *workspace_id = WorkbenchWorkspaceId::parse(&id(99)).unwrap();
         }
-        let server = peer(snapshot, false)?;
+        let server = peer(snapshot)?;
         let (mut manager, mut view, mut surface) = setup();
         view.machines.show();
         manager.selection_scope = view.machines.selection_scope();
@@ -492,7 +487,7 @@ fn machine_local_workspace_selection_reuses_local_origin_and_replaces_only_after
             })) => {
                 assert_eq!(
                     workspace_ids,
-                    vec![snapshot.navigation.workspaces[0].workspace_id.clone()]
+                    vec![snapshot.navigation.workspaces[1].workspace_id.clone()]
                 );
             }
             Err(WorkbenchWireError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}

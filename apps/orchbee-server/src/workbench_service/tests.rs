@@ -156,7 +156,9 @@ fn navigation_permission_alone_denies_tab_create_before_terminal_or_ledger_effec
         action: WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             label: WorkbenchLabel::parse("denied").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
@@ -236,7 +238,9 @@ fn navigation_permission_admits_move_without_terminal_create_permission() {
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabMove {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 22))
                 .unwrap(),
             direction: orchbee_workbench_protocol::WorkbenchTabMoveDirection::First,
@@ -289,7 +293,9 @@ fn panel_terminal_creation_requires_both_grants_and_reaches_the_lifecycle_owner(
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::PanelCreateTerminal {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             tab_id: WorkbenchTabId::parse(&format!("{:032x}", 9802)).unwrap(),
             panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 9803)).unwrap(),
             target: WorkbenchPanelTerminalTarget::Child {
@@ -551,7 +557,7 @@ fn layout_structure_uses_navigation_only_without_a_worker() {
     let command = WorkbenchCommand { protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9810)).unwrap(),
         site_id: snapshot.site_id, expected_revision: snapshot.revision,
-        action: WorkbenchAction::TabCreateLayout { terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+        action: WorkbenchAction::TabCreateLayout { terminal_context_id: snapshot.navigation.workspaces[0].terminal_context_id.clone(),
             label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: false,
             layout: serde_json::from_value(serde_json::json!({"kind":"panel","primary":{"label":"Empty","customLabel":null},"children":[],"rightClick":"orchbee"})).unwrap() } };
     let response = response(service.execute(WorkbenchRequest::Command(command)));

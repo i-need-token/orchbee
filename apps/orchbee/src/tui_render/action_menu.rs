@@ -231,7 +231,7 @@ pub(super) fn render(
     let legacy = matches!(
         menu.source,
         crate::action_menu::MenuTarget::Workspace(
-            crate::terminal_session::NativeContextLocation::Standalone(_)
+            crate::terminal_session::NativeContextLocation::NoWorkspace
         )
     );
     let title = if menu.tabs.is_some() {
@@ -248,7 +248,7 @@ pub(super) fn render(
             "{} {} {}",
             locale.menu_title(),
             theme.glyphs.middle_dot,
-            locale.shell().standalone
+            locale.shell().no_workspace
         )
     } else if menu.title.is_empty() {
         locale.menu_title().to_owned()

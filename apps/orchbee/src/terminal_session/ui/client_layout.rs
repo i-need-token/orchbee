@@ -5,7 +5,7 @@ use super::NativeUi;
 use crate::{
     client_view::SidebarSurface,
     terminal_session::workbench_projection::{
-        NativeSimpleTab, project_native_context_tabs, project_native_standalone_tabs,
+        NativeSimpleTab, project_native_context_tabs, project_preferred_workspace,
     },
     tui_layout::{self, ViewportTier},
 };
@@ -36,14 +36,14 @@ impl NativeUi {
             return Err(Reason::ProjectionUnavailable);
         }
         let navigation =
-            project_native_standalone_tabs(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
+            project_preferred_workspace(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
         let contexts = terminal_context_ids
             .iter()
             .map(|id| {
                 let location = &navigation
                     .navigation()
                     .iter()
-                    .find(|entry| entry.location.terminal_context_id() == id)
+                    .find(|entry| entry.location.terminal_context_id() == Some(id))
                     .ok_or(Reason::TargetUnavailable)?
                     .location;
                 let candidate = project_native_context_tabs(snapshot, location)
@@ -101,11 +101,11 @@ impl NativeUi {
             return Err(Reason::ProjectionUnavailable);
         }
         let navigation =
-            project_native_standalone_tabs(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
+            project_preferred_workspace(snapshot).map_err(|_| Reason::ProjectionUnavailable)?;
         let location = navigation
             .navigation()
             .iter()
-            .find(|entry| entry.location.terminal_context_id() == terminal_context_id)
+            .find(|entry| entry.location.terminal_context_id() == Some(terminal_context_id))
             .ok_or(Reason::TargetUnavailable)?
             .location
             .clone();
@@ -118,7 +118,7 @@ impl NativeUi {
         if canonical.panel_index(panel_id).is_none() {
             return Err(Reason::TargetUnavailable);
         }
-        let selected = state.cache().terminal_context_id() == terminal_context_id
+        let selected = state.cache().terminal_context_id() == Some(terminal_context_id)
             && state
                 .active()
                 .is_some_and(|active| active.key().anchor().tab_id() == tab_id);

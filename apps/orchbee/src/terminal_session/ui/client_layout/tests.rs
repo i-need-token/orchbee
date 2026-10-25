@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{
 };
 
 fn query(snapshot: &Snapshot, tab_index: usize) -> ClientViewControl {
-    let cache = project_native_standalone_tabs(snapshot).unwrap();
+    let cache = project_preferred_workspace(snapshot).unwrap();
     let tab = &cache.tabs()[tab_index];
     ClientViewControl {
         operation_id: WorkbenchRequestId::parse(&format!("{:032x}", 801)).unwrap(),
@@ -17,7 +17,7 @@ fn query(snapshot: &Snapshot, tab_index: usize) -> ClientViewControl {
         expected_view_revision: ClientViewSequence::new(1).unwrap(),
         minimum_workbench_revision: snapshot.revision,
         intent: ClientViewIntent::Layout {
-            terminal_context_id: cache.terminal_context_id().clone(),
+            terminal_context_id: cache.terminal_context_id().unwrap().clone(),
             tab_id: tab.tab_id().clone(),
             panel_id: tab.panel(0).unwrap().panel_id().clone(),
         },

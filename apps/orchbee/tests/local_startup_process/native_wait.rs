@@ -95,7 +95,7 @@ fn wait_output(
 #[test]
 fn wait_output_matches_existing_retained_text_over_the_public_cli() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -155,7 +155,7 @@ fn wait_output_matches_existing_retained_text_over_the_public_cli() -> TestResul
 #[test]
 fn wait_output_returns_when_the_text_appears_later() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -207,7 +207,7 @@ fn wait_output_returns_when_the_text_appears_later() -> TestResult {
 #[test]
 fn wait_output_matches_a_marker_scrolled_into_history() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -253,7 +253,7 @@ fn wait_output_matches_a_marker_scrolled_into_history() -> TestResult {
 #[test]
 fn wait_output_joins_a_utf8_soft_wrapped_logical_line() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -322,7 +322,7 @@ fn wait_output_joins_a_utf8_soft_wrapped_logical_line() -> TestResult {
 #[test]
 fn wait_output_short_timeout_is_exit_seven() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -369,7 +369,7 @@ fn wait_output_short_timeout_is_exit_seven() -> TestResult {
 #[test]
 fn wait_output_sigint_exits_130_and_the_session_stays_usable() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,

@@ -263,7 +263,7 @@ pub(crate) enum SessionActionDisposition {
     /// and invalidates the pointer hit map. The navigator disposition
     /// stays unchanged (kept).
     LayoutChanged,
-    /// Native admission redirected empty compatibility content to one fresh
+    /// Native admission redirected the no-Workspace landing to one fresh
     /// Workspace launch. Preserve its shell entry intent across control ticks.
     #[cfg(windows)]
     WorkspaceCreationStarted,

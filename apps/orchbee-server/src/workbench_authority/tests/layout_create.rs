@@ -1,11 +1,12 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     PanelOrientation, PanelRightClickTarget, WorkbenchLayoutTemplate,
 };
 
 pub(super) fn action(owner: &WorkbenchAuthority) -> WorkbenchAction {
     WorkbenchAction::TabCreateLayout {
-        terminal_context_id: owner.snapshot().navigation.standalone_terminal_context_id.clone(),
+        terminal_context_id: owner.snapshot().navigation.workspaces[0].terminal_context_id.clone(),
         label: WorkbenchLabel::parse("Layout").unwrap(), automatic_label: true,
         layout: serde_json::from_value::<WorkbenchLayoutTemplate>(serde_json::json!({
             "kind":"split", "orientation":"vertical", "children":[
@@ -95,7 +96,7 @@ fn materialization_is_atomic_unbound_and_exactly_replayable() {
             .iter()
             .all(|member| member.binding.is_none())
     );
-    assert!(owner.tree_standalone_membership().unwrap().is_empty());
+    assert!(owner.fixture_tree_membership().unwrap().is_empty());
     let after = owner.snapshot().clone();
     assert_eq!(submit(&mut owner, &grant, request.clone()), result);
     assert_eq!(owner.snapshot(), &after);

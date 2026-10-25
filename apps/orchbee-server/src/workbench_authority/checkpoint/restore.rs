@@ -55,7 +55,6 @@ pub struct WorkbenchRestoreTarget {
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
-    standalone: bool,
     working_directory: Option<WorkbenchDirectoryPath>,
     restored_directory: Option<WorkbenchDirectoryPath>,
     agent_session: Option<orchbee_workbench_protocol::PanelAgentSession>,
@@ -81,10 +80,6 @@ impl WorkbenchRestoreTarget {
     #[must_use]
     pub fn presentation_id(&self) -> &TerminalPresentationId {
         &self.presentation_id
-    }
-    #[must_use]
-    pub const fn is_standalone(&self) -> bool {
-        self.standalone
     }
     #[must_use]
     pub fn working_directory(&self) -> Option<&WorkbenchDirectoryPath> {
@@ -151,8 +146,6 @@ impl WorkbenchAuthority {
                                 tab_id: tab.tab_id.clone(),
                                 panel_id: panel_id.clone(),
                                 presentation_id: presentation.presentation_id.clone(),
-                                standalone: context.terminal_context_id
-                                    == snapshot.navigation.standalone_terminal_context_id,
                                 working_directory: working_directory.clone(),
                                 restored_directory: self
                                     .restart_directories
@@ -198,10 +191,7 @@ impl WorkbenchAuthority {
         }
         let current = self.snapshot();
         let directories = context_directories(current, &target.local_worker)?;
-        if directories.get(&target.terminal_context_id) != Some(&target.working_directory)
-            || (target.terminal_context_id == current.navigation.standalone_terminal_context_id)
-                != target.standalone
-        {
+        if directories.get(&target.terminal_context_id) != Some(&target.working_directory) {
             return Err(WorkbenchRestoreError::TargetChanged);
         }
         let mut candidate = current.clone();
@@ -255,10 +245,7 @@ fn context_directories(
     BTreeMap<WorkbenchTerminalContextId, Option<WorkbenchDirectoryPath>>,
     WorkbenchRestoreError,
 > {
-    let mut directories = BTreeMap::from([(
-        snapshot.navigation.standalone_terminal_context_id.clone(),
-        None,
-    )]);
+    let mut directories = BTreeMap::new();
     if snapshot
         .navigation
         .directories

@@ -214,17 +214,11 @@ decoding、construction invariant、partial I/O 与 no-flush behavior。它们�
 state machine、authorization policy、Worker 或 Host mapping、terminal lifecycle 或 end-to-end
 execution。
 
-## 独立终端打开 binding
+## Workspace 创建边界
 
-`TerminalOpenRequest`、`TerminalOpenResult` 与 `OpenOutcome` 实现尚未发布的
-[独立终端打开 contract](../../schemas/client-server/README.md#standalone-terminal-opening)。
-请求只携带关联 ID 和完整 geometry；Opened 返回供 legacy viewer attachment 保留使用的 Server
-独立生成引用。AttachBinding 不改变 Open result。Binding 拥有严格编码和校验，Server 拥有
-singleton selection、creation 与 lifetime。
-Canonical fixtures 覆盖所有 open outcome，并通过 JSON schema 和独立 Rust decoder
-拒绝缺失字段、额外字段、畸形及方向错误的消息。
+终端创建属于 Workspace 拥有的 Workbench 命令。OBCS 不包含 `terminal.open` 请求／结果或单例 Open 身份。Client 从规范 Workbench 快照选择准确绑定并使用 `attach-binding`，仍要求正常的查看器／控制者准入。封闭 schema 与独立 Rust 解码器拒绝已移除的消息种类。
 
-Open 与 AttachBinding 是增量、尚未发布的 OBCS v1 source contract。它们保留既有 frame version
+AttachBinding 是增量、尚未发布的 OBCS v1 source contract。它保留既有 frame version
 与 limit。安装后的 exact runtime cohort 是 Client、Server、Worker 与 Host；这个 Rust source
 binding 是 contract input，而不是已安装的 cohort artifact。发布前，其 source contract 与 runtime
 cohort 一起 rollback，且不涉及 persisted state 或 migration。

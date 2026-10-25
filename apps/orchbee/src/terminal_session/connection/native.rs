@@ -27,15 +27,14 @@ use crate::{
             ViewportReadRejection, ViewportStep, ViewportWindowFailure, decode_viewport_window,
         },
         workbench_projection::{
-            NativeStartupTarget, project_native_context_tabs, project_native_standalone_tabs,
+            NativeStartupTarget, project_native_context_tabs, project_preferred_workspace,
         },
     },
 };
 use orchbee_client_server_protocol::{
-    ControlRejectedReason, ControlUnavailableReason, Geometry, HistoryDemand, OpenOutcome,
-    ProjectionDemand, TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
-    TerminalOpenRequest, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
-    ViewerRejectedReason, ViewerUnavailableReason,
+    ControlRejectedReason, ControlUnavailableReason, Geometry, HistoryDemand, ProjectionDemand,
+    TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerRequest, ViewerRejectedReason, ViewerUnavailableReason,
 };
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
@@ -391,22 +390,6 @@ impl NativeExecutor {
         startup_deadline: Instant,
     ) -> Result<Option<BootstrapTarget>> {
         self.ensure_before(startup_deadline)?;
-        if self.initial_context.is_none() {
-            let open_request = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
-            let open = self
-                .client
-                .submit_terminal_open(TerminalOpenRequest::new(open_request, initial_geometry))
-                .map_err(submission)?;
-            match open.into_outcome() {
-                OpenOutcome::Opened { .. } => {}
-                OpenOutcome::OutcomeUnknown {} => return Err(CarrierFailure::OutcomeUnknown),
-                OpenOutcome::Unavailable { .. } | OpenOutcome::Failed { .. } => {
-                    return Err(CarrierFailure::Transport);
-                }
-            }
-        }
-
-        self.ensure_before(startup_deadline)?;
         let snapshot_request = self
             .mailbox
             .allocate_workbench_request_id()
@@ -441,12 +424,9 @@ impl NativeExecutor {
         } else if let Some(cache) = self.remembered_startup(&snapshot, &mut selection)? {
             Ok(cache)
         } else {
-            project_native_standalone_tabs(&snapshot)
+            project_preferred_workspace(&snapshot)
         }
         .map_err(|_error| CarrierFailure::AuthorityDivergence)?;
-        if self.initial_context.is_none() && cache.tabs().is_empty() {
-            return Err(CarrierFailure::AuthorityDivergence);
-        }
         #[cfg(windows)]
         if let Some(NativeStartupTarget::Agent(target)) = &self.initial_context {
             // This read shares the startup deadline and precedes any attachment.

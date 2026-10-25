@@ -1,3 +1,4 @@
+use crate::test_support::WorkbenchFixture;
 mod idle;
 mod worktree_hold;
 use super::workspace::workspace_fixture;
@@ -287,9 +288,9 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_direc
     let prepared = authority
         .prepare_terminal_tab_close_publication(&close.request_id, now)
         .unwrap();
-    assert!(prepared.exact_removed_member().is_none());
+    assert!(prepared.exact_removed_members().first().is_none());
     assert!(prepared.exact_removed_members().is_empty());
-    assert!(!prepared.before_membership().is_standalone());
+
     assert!(prepared.before_membership().is_empty());
     assert!(prepared.after_membership().is_empty());
     let closed = prepared.commit();
@@ -397,7 +398,7 @@ fn populated_workspace_close_lifecycles_every_member_then_removes_scope() {
             .iter()
             .any(|workspace| workspace.workspace_id == workspace_id)
     );
-    // Project, Directory, sibling Workspace, and standalone Context are untouched.
+    // Project, Directory, sibling Workspace, and initial_workspace Context are untouched.
     assert_eq!(snapshot.navigation.projects.len(), 2);
     assert_eq!(snapshot.navigation.directories.len(), 2);
     assert_eq!(snapshot.terminal_contexts.len(), 2);

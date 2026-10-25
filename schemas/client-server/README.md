@@ -23,8 +23,8 @@ OBCS has these adjacent boundaries:
 
 Version 1 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
 `terminal.start.result`, `terminal.viewer`, `terminal.viewer.result`, `terminal.control`, and
-`terminal.control.result`, plus the unshipped `terminal.open` / `terminal.open.result` and viewer
-`attach-binding` extensions, `terminal.launch.read` / result and `terminal.send.result`. Send requests use OBSN binary records. It defines no close, cancel, retry transport, authentication,
+`terminal.control.result`, plus the viewer
+`attach-binding` extension, `terminal.launch.read` / result and `terminal.send.result`. Send requests use OBSN binary records. It defines no close, cancel, retry transport, authentication,
 authorization policy, Server state store, Worker operation, Host launch, or Workbench mutation.
 
 ## Frame
@@ -131,7 +131,7 @@ identity, operation, lease, or Create reference.
 
 The binding triple selects an existing terminal and grants no authorization. Server requires the
 current active Site and exact Worker/Terminal pair to remain exposed by a canonical Workbench
-presentation before resolving the exact retained terminal and its pinned Worker generation. Selection performs no Open,
+presentation before resolving the exact retained terminal and its pinned Worker generation. Selection performs no
 Create, Start, launch, membership, rebind, navigation, input, resize, or controller effect. Target
 validation has this precedence after the Server-owned Session capacity guard:
 
@@ -343,31 +343,12 @@ They do not establish authentication, authorization decisions, replay lookup, du
 idempotency storage, cancellation, terminal execution, persistence, recovery, or any live transport
 integration.
 
-## Standalone terminal opening
+## Workspace terminal creation boundary
 
-The unshipped version-1 extension `terminal.open` carries `protocolVersion`, a fresh
-Client-generated `requestId`, and complete `geometry`. It opens the local single-subject
-Server's standalone terminal reference: first prepare creates an immediate terminal using
-Worker-default cwd; later opens return the same reference. Open itself neither dispatches nor commits Resize; a Client may subsequently attach, acquire controller authority, and submit a separate validated Resize.
-This terminal wire contract adds no Workbench payload. The native Server owns the first shared
-standalone membership commit before launch, as defined in its
-[Workbench authority](../../apps/orchbee-server/docs/workbench-authority.md#standalone-terminal-membership-model);
-Clients observe that structure through the separate Workbench protocol.
+OBCS has no `terminal.open` or `terminal.open.result`. Explicit Workspace launch and Tab/Panel creation belong to OBWP and retain their canonical Workspace, Context and member identities. A Client reads the committed Workbench snapshot and selects its exact binding through `attach-binding`; this selection neither creates a terminal nor grants controller authority. Closed message schemas and wire kind validation reject the removed Open variants.
 
-`terminal.open.result` correlates the exact calling request and returns one closed outcome:
-`opened` with `terminalCreateRequestId`; `unavailable` with a Create unavailable reason;
-`failed` with `terminal-create-failed`; or exactly `outcome-unknown`.
-The returned reference may identify a Server-generated internal create. It is independent of the
-caller's correlation ID and grants no viewer or controller authority: normal Session attachment
-and controller admission still apply. AttachBinding does not change this result shape; the native
-standalone flow observes the separate Workbench snapshot rather than treating this Create reference
-as canonical selection state. Entropy failure or reference collision returns server-busy before
-preparation and leaves the standalone slot empty. Once dispatched, failure or uncertainty does not
-authorize another create. No Client retries an unknown effect; another open only observes the
-already reserved standalone result.
-
-The schema, Rust binding, and canonical corpus define the additive Open and AttachBinding contracts
-together. They remain unshipped and change no frame version, byte limit, existing action encoding,
+The schema, Rust binding, and canonical corpus define the AttachBinding contract
+together. It remains unshipped and changes no frame version, byte limit, existing action encoding,
 admission, or unknown-effect replay rule; legacy Attach remains available. The installed exact
 runtime cohort is Client, Server, Worker, and Host. Schema and Rust source are contract inputs, not
 installed cohort artifacts. Before publication, the unpublished source contract and runtime cohort

@@ -96,7 +96,7 @@ fn association(service: &LocalTerminalService) -> WorkbenchCommand {
 }
 
 fn service() -> LocalTerminalService {
-    LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())))
+    LocalTerminalService::workspace_fixture(Arc::new(Mutex::new(WorkerRegistry::new())))
 }
 
 struct WorkerPeer {
@@ -205,7 +205,7 @@ fn unavailable_authority_returns_service_unavailable_before_worker_selection() {
 }
 
 #[test]
-fn exact_worker_validation_commits_path_once_without_touching_standalone() {
+fn exact_worker_validation_commits_path_once_without_touching_initial_workspace() {
     let service = service();
     let command = association(&service);
     let before = snapshot(&service);
@@ -235,8 +235,8 @@ fn exact_worker_validation_commits_path_once_without_touching_standalone() {
     let settled = snapshot(&service);
     assert_eq!(settled.terminal_contexts, before.terminal_contexts);
     assert_eq!(
-        settled.navigation.standalone_terminal_context_id,
-        before.navigation.standalone_terminal_context_id
+        settled.navigation.workspaces[0].terminal_context_id.clone(),
+        before.navigation.workspaces[0].terminal_context_id.clone()
     );
     let navigation = &settled.navigation;
     assert_eq!(navigation.directories.len(), 1);

@@ -31,7 +31,7 @@ fn close_snapshot_waiting_ui(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_preferred_workspace(
                     &snapshot(1, 1),
                 )
                 .unwrap(),
@@ -230,11 +230,10 @@ fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_
             .publish_event_before(
                 WorkerEvent::Bootstrap {
                     selection: None,
-                    cache:
-                        super::super::super::workbench_projection::project_native_standalone_tabs(
-                            &snapshot(1, 1),
-                        )
-                        .unwrap(),
+                    cache: super::super::super::workbench_projection::project_preferred_workspace(
+                        &snapshot(1, 1),
+                    )
+                    .unwrap(),
                 },
                 EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
                 &clock,
@@ -528,11 +527,11 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
 /// session still owns live viewers. The real refresh entry must stage the
 /// exact cleanup (old cache and desired stay in place while fresh input is
 /// refused as busy), and only the anchor's `MembershipDetached` proof may
-/// install the surviving standalone context: every pane record of the
+/// install the surviving initial_workspace context: every pane record of the
 /// removed epoch drops, the deleted location is never parked back as a
 /// retained context, and a bound landing member recovers as an attach.
 #[test]
-fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone() {
+fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_initial_workspace() {
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
     let mailbox = Arc::new(CommandMailbox::new(
         10,
@@ -543,7 +542,7 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
+                cache: super::super::super::workbench_projection::project_preferred_workspace(
                     &split_snapshot(),
                 )
                 .unwrap(),
@@ -621,13 +620,19 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone(
         panic!("membership install reply");
     };
     let RefreshDecision::AttachRecovered(target) = settlement.decision() else {
-        panic!("the surviving standalone context carries an attachable member");
+        panic!("the surviving initial_workspace context carries an attachable member");
     };
     let state = ui.state.as_ref().unwrap();
-    assert_eq!(
-        state.cache().location(),
-        &NativeContextLocation::Standalone(removal_context())
-    );
+    assert_eq!(state.cache().location(), &{
+        let fixture_context_id = removal_context();
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    });
     assert_eq!(state.desired(), Some(target.selected().key()));
     // Both pending pane records of the removed epoch are cleaned — the
     // anchor proof covered every live viewer, not only the focus pane.
@@ -635,14 +640,20 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone(
     assert!(state.pane_record(&peer).is_none());
     assert!(!state.has_attachments());
     // The deleted context is never parked back: navigation surfaces only
-    // the surviving standalone location and the full invariant — which
+    // the surviving initial_workspace location and the full invariant — which
     // includes the retained-context contract — holds.
     assert!(state.invariant_holds());
     assert_eq!(ui.view().context_count(), 1);
-    assert_eq!(
-        ui.view().context_at(0).unwrap().location(),
-        &NativeContextLocation::Standalone(removal_context())
-    );
+    assert_eq!(ui.view().context_at(0).unwrap().location(), &{
+        let fixture_context_id = removal_context();
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    });
     assert_eq!(ui.view().active_context_position(), Some(1));
     assert!(state.pending_refresh_generation().is_none());
     assert!(state.invariant_holds());
@@ -650,13 +661,13 @@ fn removed_context_refresh_cleans_every_pending_viewer_then_lands_on_standalone(
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-/// The workbench's standalone context moved to `ctx9` while the session's
+/// The workbench's initial_workspace context moved to `ctx9` while the session's
 /// own `ctx2` is absent from navigation and terminal_contexts — the shape
 /// the removal classifier mints a landing permit for.
 fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(tab_count, revision);
     let landing = removal_context();
-    snapshot.navigation.standalone_terminal_context_id = landing.clone();
+    snapshot.navigation.workspaces[0].terminal_context_id = landing.clone();
     snapshot.terminal_contexts[0].terminal_context_id = landing;
     snapshot
 }
@@ -748,39 +759,38 @@ fn snapshot_terminal(index: usize) -> TerminalId {
     TerminalId::parse(&format!("{:032x}", 1004 + index * 10)).unwrap()
 }
 
-/// A genuine Workspace owns context zero throughout its empty/member lifecycle;
-/// the separate required compatibility slot stays empty and is never navigated.
+/// A Workspace retains its identity throughout empty and populated states.
 pub(in crate::terminal_session::ui) fn canonical_snapshot(count: usize, revision: u64) -> Snapshot {
     let mut snapshot = snapshot(count, revision);
-    let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 7000)).unwrap();
-    let compatibility_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 7001)).unwrap();
-    snapshot.navigation.workspaces.push(Workspace {
-        workspace_id: workspace_id.clone(),
-        terminal_context_id: snapshot.terminal_contexts[0].terminal_context_id.clone(),
-        project_id: None,
-        label: "Workspace".into(),
-        primary_directory_id: None,
-    });
-    snapshot.navigation.workspace_order.push(workspace_id);
-    snapshot.navigation.standalone_terminal_context_id = compatibility_id.clone();
-    snapshot.terminal_contexts.push(TerminalContext {
-        terminal_context_id: compatibility_id,
-        groups: Vec::new(),
-        tabs: Vec::new(),
-    });
+    snapshot.navigation.workspaces[0].workspace_id =
+        WorkbenchWorkspaceId::parse(&format!("{:032x}", 7000)).unwrap();
     snapshot
 }
 
 pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snapshot {
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: context.clone(),
+        navigation: {
+            let fixture_context_id = context.clone();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),

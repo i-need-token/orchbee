@@ -25,7 +25,7 @@ fn exact_context_member_refuses_missing_or_rebound_child_before_cleanup_and_pres
             panic!("target panel");
         };
         child_presentations.push(child.clone());
-        let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
         let original = state.desired().cloned();
         let location = state.cache.navigation()[1].location.clone();
         let target = project_native_context_tabs(&snapshot, &location).unwrap();
@@ -130,7 +130,7 @@ fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_or
             }),
             launch_failure: None,
         });
-        let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
         let location = state.cache.navigation()[1].location.clone();
         let target = project_native_context_tabs(&snapshot, &location).unwrap();
         let tab = &target.tabs()[0];
@@ -233,24 +233,24 @@ pub(super) fn contexts(workspace_tabs: usize, revision: u64) -> Snapshot {
 }
 
 fn context_state(workspace_tabs: usize) -> NativeSessionState {
-    ready_with_cache(project_native_standalone_tabs(&contexts(workspace_tabs, 1)).unwrap())
+    ready_with_cache(project_preferred_workspace(&contexts(workspace_tabs, 1)).unwrap())
 }
 
 #[test]
-fn hidden_empty_compatibility_cycles_to_first_or_last_canonical_workspace() {
+fn empty_workspace_cycles_to_next_or_last_workspace() {
     let mut snapshot = contexts(0, 1);
     snapshot.terminal_contexts[0].tabs.clear();
-    for (next, expected_context, expected_position) in [(true, 72, 1), (false, 74, 2)] {
-        let cache = project_native_standalone_tabs(&snapshot).unwrap();
+    for (next, expected_context, expected_position) in [(true, 72, 2), (false, 74, 3)] {
+        let cache = project_preferred_workspace(&snapshot).unwrap();
         let mut state = NativeSessionState::bootstrap(cache, 1, geometry(80))
             .unwrap()
             .0;
-        assert!(state.view().no_current_workspace());
-        assert_eq!(state.view().active_context_position(), None);
+        assert!(!state.view().no_current_workspace());
+        assert_eq!(state.view().active_context_position(), Some(1));
         assert!(state.start_context_selection(1, next, deadlines()));
         finish_selection(&mut state, snapshot.clone(), 1);
         assert_eq!(
-            state.cache().terminal_context_id(),
+            state.cache().terminal_context_id().unwrap(),
             &context_id(expected_context)
         );
         assert_eq!(
@@ -266,7 +266,7 @@ fn hidden_empty_compatibility_cycles_to_first_or_last_canonical_workspace() {
 #[test]
 fn peer_legacy_visibility_changes_preserve_selected_canonical_focus() {
     let mut snapshot = contexts(1, 1);
-    let workspace = &snapshot.navigation.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[1];
     let location =
         crate::terminal_session::workbench_projection::NativeContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
@@ -281,7 +281,7 @@ fn peer_legacy_visibility_changes_preserve_selected_canonical_focus() {
     let original_pane = state.focus_pane_ref();
     let legacy_tabs = (20..22).map(tab).collect();
     for (generation, tabs, expected_count, expected_position) in
-        [(1, Vec::new(), 2, 1), (2, legacy_tabs, 3, 2)]
+        [(1, Vec::new(), 3, 2), (2, legacy_tabs, 3, 2)]
     {
         snapshot.revision = WorkbenchRevision::new(generation + 1);
         snapshot.terminal_contexts[0].tabs = tabs;
@@ -313,7 +313,7 @@ fn peer_legacy_visibility_changes_preserve_selected_canonical_focus() {
 #[test]
 fn peer_empty_and_refilled_selected_legacy_requires_cleanup_and_fresh_attachment_authority() {
     let mut snapshot = contexts(1, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let legacy = state.cache().location().clone();
     let original_tabs = snapshot.terminal_contexts[0].tabs.clone();
     let old = state.desired().unwrap().clone();
@@ -346,8 +346,8 @@ fn peer_empty_and_refilled_selected_legacy_requires_cleanup_and_fresh_attachment
         MembershipInstallDecision::Empty
     );
     assert_eq!(state.cache().location(), &legacy);
-    assert!(state.view().no_current_workspace());
-    assert_eq!(state.view().context_count(), 2);
+    assert!(!state.view().no_current_workspace());
+    assert_eq!(state.view().context_count(), 3);
     assert_eq!(state.desired(), None);
     assert_eq!(state.controller_mode(), None);
     assert!(state.live_pane_record(&old_pane).is_none());
@@ -374,7 +374,10 @@ fn peer_empty_and_refilled_selected_legacy_requires_cleanup_and_fresh_attachment
     };
     assert_eq!(target.selected().key().anchor(), &fresh);
     assert_ne!(target.selected().key().anchor(), old.anchor());
-    assert_eq!(state.cache().canonical_context().tabs, refilled_tabs);
+    assert_eq!(
+        state.cache().canonical_context().unwrap().tabs,
+        refilled_tabs
+    );
     assert_eq!(state.cache().location(), &legacy);
     assert_eq!(state.view().context_count(), 3);
     assert_eq!(state.controller_mode(), None);
@@ -453,7 +456,10 @@ fn context_selection_uses_typed_owner_order_and_empty_can_be_entered_and_left() 
         assert!(state.start_context_selection(generation, next, deadlines()));
         assert!(!state.start_context_selection(generation + 100, next, deadlines()));
         finish_selection(&mut state, snapshot.clone(), generation);
-        assert_eq!(state.cache().terminal_context_id(), &context_id(context));
+        assert_eq!(
+            state.cache().terminal_context_id().unwrap(),
+            &context_id(context)
+        );
         assert_eq!(state.view().active_context_position(), Some(position));
         if context == 74 {
             assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
@@ -490,9 +496,9 @@ fn context_selection_retains_every_known_create_provenance_on_reentry() {
 #[test]
 fn missing_target_is_refused_without_hiding_or_detaching_current_terminal() {
     let mut snapshot = contexts(1, 1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.workspaces.remove(0);
+    snapshot.navigation.workspaces.remove(1);
     snapshot.terminal_contexts.remove(1);
     let cache = state.cache().clone();
     let desired = state.desired().cloned();
@@ -519,7 +525,7 @@ fn context_selection_rejects_owner_rebinding_and_current_authority_regression() 
         assert!(state.start_context_selection(1, true, deadlines()));
         let mut snapshot = contexts(1, if wrong_owner { 2 } else { 0 });
         if wrong_owner {
-            snapshot.navigation.workspaces[0].workspace_id =
+            snapshot.navigation.workspaces[1].workspace_id =
                 WorkbenchWorkspaceId::parse(&id(69)).unwrap();
         }
         let prepared = state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot });
@@ -547,7 +553,10 @@ fn workspace_refresh_preserves_context_and_commits_navigation_from_the_same_revi
         state.apply_prepared_refresh(prepared, std::time::Instant::now()),
         RefreshDecision::Continue
     );
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(2));
     assert_eq!(
         state.view().context_at(1).unwrap().project_label(),
@@ -621,7 +630,10 @@ fn context_selection_retains_exact_target_when_same_label_workspace_is_inserted_
         },
     );
     finish_selection(&mut state, candidate, 1);
-    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(
+        state.cache().terminal_context_id().unwrap(),
+        &context_id(72)
+    );
     assert_eq!(state.view().active_context_position(), Some(3));
     assert_eq!(state.view().tab_count(), 1);
 }
@@ -656,7 +668,10 @@ fn retained_context_reentry_rejects_same_revision_label_change_and_later_immutab
             ),
             PreparedRefresh::Divergent { .. }
         ));
-        assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+        assert_eq!(
+            state.cache().terminal_context_id().unwrap(),
+            &context_id(72)
+        );
     }
 }
 
@@ -675,7 +690,7 @@ fn intermediate_context_switch_cannot_prune_known_facts_when_context_id_changes_
         assert!(state.start_context_selection(2, true, deadlines()));
         finish_selection(&mut state, contexts(1, 1), 2);
         let mut rebound = contexts(1, 2);
-        rebound.navigation.workspaces[0].workspace_id =
+        rebound.navigation.workspaces[1].workspace_id =
             WorkbenchWorkspaceId::parse(&id(69)).unwrap();
         assert!(state.start_context_selection(3, true, deadlines()));
         finish_selection(&mut state, rebound.clone(), 3);
@@ -829,7 +844,7 @@ fn restored_workspace_unselected_split_replaces_anchor_before_reusing_panel_slot
         [0]
     .root
     .clone();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     assert!(state.start_context_selection(1, true, deadlines()));
     finish_selection(&mut state, snapshot.clone(), 1);
     let old = state.attached_key().unwrap().clone();

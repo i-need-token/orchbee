@@ -4,7 +4,7 @@ fn closed_projection_requires_exact_scope_minimum_revision_and_target_absence() 
     let current = projected(2, 10);
     let expected = ClosedTabExpectation::new(
         current.site_id().clone(),
-        current.terminal_context_id().clone(),
+        current.terminal_context_id().unwrap().clone(),
         current.tabs()[0].tab_id().clone(),
         WorkbenchRevision::new(12),
     );
@@ -36,7 +36,7 @@ fn closed_projection_requires_exact_scope_minimum_revision_and_target_absence() 
     absent.revision = WorkbenchRevision::new(12);
     let wrong_site = ClosedTabExpectation::new(
         site_id(91),
-        expected.terminal_context_id().clone(),
+        expected.terminal_context_id().unwrap().clone(),
         expected.tab_id().clone(),
         expected.minimum_revision(),
     );

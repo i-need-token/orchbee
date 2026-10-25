@@ -1,5 +1,5 @@
 use super::*;
-use orchbee_client_server_protocol::{OpenOutcome, TerminalOpenRequest};
+use crate::test_support::WorkbenchFixture;
 use orchbee_server::{WorkbenchCheckpoint, WorkbenchRestoreTarget};
 use serde_json::{Value, json};
 
@@ -13,16 +13,9 @@ fn restored(
     WorkerPlacement,
 ) {
     let mut source = site();
-    let PreparedOpen::Dispatch(pending) = source.prepare_open(
-        &TerminalOpenRequest::new(id(50), geometry()),
-        Some(id(51)),
-        Some(worker(1)),
-        Some(expiry()),
-    ) else {
-        panic!("source standalone")
-    };
+    let pending = super::tab_create::pending_first_tab(&mut source, 50, 51);
     source
-        .complete(pending, Completion::Unavailable, Some(worker(1)))
+        .complete_terminal_tab_create(pending, Completion::Unavailable, Some(worker(1)))
         .unwrap();
     let old_owner = orchbee_workbench_protocol::WorkerId::parse(&format!(
         "{:032x}",
@@ -108,7 +101,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
         .workbench
         .as_ref()
         .unwrap()
-        .standalone_presentation_membership()
+        .fixture_presentation_membership()
         .unwrap();
     assert_eq!(membership.members().len(), 3);
     assert!(
@@ -116,21 +109,13 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             .workbench
             .as_ref()
             .unwrap()
-            .tree_standalone_membership()
+            .fixture_tree_membership()
             .is_ok(),
         "canonical groups, pins and children are valid structural membership"
     );
-    assert!(matches!(
-        coordinator.prepare_open(
-            &TerminalOpenRequest::new(id(60), geometry()),
-            None,
-            Some(worker),
-            None
-        ),
-        PreparedOpen::Wait
-    ));
+
     for (index, pending) in pending.into_iter().enumerate() {
-        let authorization = launch_authorization(&pending);
+        let authorization = launch_authorization(pending.command());
         assert_eq!(authorization.worker_id(), worker.worker_id);
         let identity = HostTerminalIdentity::new(
             HostCreationId::from_bytes([3; 16]).unwrap(),
@@ -155,15 +140,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             .unwrap();
         coordinator.seed_checkpoint_agent_sessions().unwrap();
     }
-    let opened = coordinator.prepare_open(
-        &TerminalOpenRequest::new(id(61), geometry()),
-        Some(id(200)),
-        Some(worker),
-        Some(expiry()),
-    );
-    assert!(
-        matches!(opened, PreparedOpen::Ready(OpenOutcome::Opened { terminal_create_request_id }) if terminal_create_request_id == id(100))
-    );
+
     let after = coordinator.workbench.as_ref().unwrap().snapshot();
     assert_eq!(after.navigation, before.navigation);
     assert_eq!(after.terminal_contexts[0].tabs.len(), 2);
@@ -205,10 +182,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             result.outcome,
             orchbee_workbench_protocol::WorkbenchCommandOutcome::PanelCloseAccepted { .. }
         ));
-        assert!(super::multileaf_membership::drive_close_to_publication(
-            &mut coordinator,
-            &close
-        ));
+        super::multileaf_membership::drive_close_to_publication(&mut coordinator, &close);
         if index == 0 {
             assert_eq!(
                 coordinator
@@ -221,12 +195,9 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
                 before.terminal_contexts[0].groups,
                 "closing the pinned Tab preserves the surviving grouped Tab"
             );
-            assert!(
-                matches!(coordinator.prepare_open(&TerminalOpenRequest::new(id(62), geometry()), None, Some(worker), None), PreparedOpen::Ready(OpenOutcome::Opened { terminal_create_request_id }) if terminal_create_request_id == id(102))
-            );
         }
     }
-    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+
     let context = &coordinator
         .workbench
         .as_ref()
@@ -257,7 +228,11 @@ fn restart_refusal_does_not_commit_a_second_physical_reservation() {
         .prepare_checkpoint_terminal(&targets[1], id(102), worker, expiry(), None, None)
         .unwrap();
     assert_eq!(
-        u128::from_be_bytes(launch_authorization(&next).terminal_id().as_bytes()),
+        u128::from_be_bytes(
+            launch_authorization(next.command())
+                .terminal_id()
+                .as_bytes()
+        ),
         2
     );
     coordinator
@@ -287,16 +262,6 @@ fn unavailable_restart_is_retained_without_replaying_or_faking_open_success() {
             .unwrap();
     }
     let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
-    for candidate in [200, 201] {
-        assert!(matches!(
-            coordinator.prepare_open(
-                &TerminalOpenRequest::new(id(60), geometry()),
-                Some(id(candidate)),
-                Some(worker),
-                Some(expiry())
-            ),
-            PreparedOpen::Ready(OpenOutcome::Unavailable { .. })
-        ));
-    }
+    for candidate in [200, 201] {}
     assert_eq!(coordinator.workbench.as_ref().unwrap().snapshot(), &before);
 }

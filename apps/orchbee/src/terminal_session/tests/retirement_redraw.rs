@@ -95,10 +95,10 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
         let after = render_native_session(&session, &view)?;
         assert_ne!(after, before);
         assert!(!after.contains("Refreshing"));
-        assert!(after.contains("standalone"), "{after}");
+        assert!(after.contains("initial_workspace"), "{after}");
         assert!(after.contains("Terminal disconnected"), "{after}");
         if refreshing {
-            assert!(after.contains("› * 1 standalone"), "{after}");
+            assert!(after.contains("› * 1 initial_workspace"), "{after}");
             assert!(
                 after.contains("Navigator · Esc return · Enter open"),
                 "{after}"

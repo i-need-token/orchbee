@@ -198,22 +198,6 @@ impl Reader<'_> {
             }
         }
         let mut rows = Vec::new();
-        if let Some(location) =
-            crate::terminal_session::compatibility_workspace(&self.before).map_err(|_| ())?
-        {
-            rows.push(Row {
-                target: NativeContextTarget {
-                    site_id: self.before.site_id.clone(),
-                    location,
-                },
-                project_id: None,
-                label: None,
-                tokens: MetadataTokens::default(),
-                directory: None,
-                git: None,
-                git_stale: false,
-            });
-        }
         for workspace in ordered {
             let directory = self
                 .before

@@ -56,7 +56,7 @@ fn snapshot() -> Snapshot {
     let tab =
         |t, p| json!({"tabId":id(t),"label":"shell","pinned":false,"groupId":null,"root":panel(p)});
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
-        "navigation":{"projects":[{"projectId":id(20), "label":"project"}], "standaloneTerminalContextId":id(4), "directories":[{"directoryId":id(23),"workerId":id(24),"path":"C:\\work"}], "workspaces":[{"workspaceId":id(21), "label":"work", "primaryDirectoryId":id(23), "terminalContextId":id(9), "projectId":id(20)}, {"workspaceId":id(22), "label":"empty", "primaryDirectoryId":id(23), "terminalContextId":id(19), "projectId":id(20)}]},
+        "navigation":{"projects":[{"projectId":id(20), "label":"project"}], "directories":[{"directoryId":id(23),"workerId":id(24),"path":"C:\\work"}], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":id(21), "label":"work", "primaryDirectoryId":id(23), "terminalContextId":id(9), "projectId":id(20)}, {"workspaceId":id(22), "label":"empty", "primaryDirectoryId":id(23), "terminalContextId":id(19), "projectId":id(20)}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[tab(5,6)]},{"terminalContextId":id(9),"groups":[],"tabs":[tab(10,11),tab(13,14)]},{"terminalContextId":id(19),"groups":[],"tabs":[]}]})).unwrap()
 }
 fn document(command: &QueryCommand, state: &Snapshot) -> Document {
@@ -100,13 +100,7 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
     for (command, key) in [
         (QueryCommand::WorkspaceList { project: None }, "workspaces"),
         (QueryCommand::WorkspaceGet(Target::Id(id(21))), "workspace"),
-        (
-            QueryCommand::TabList {
-                workspace: None,
-                standalone: false,
-            },
-            "tabs",
-        ),
+        (QueryCommand::TabList { workspace: None }, "tabs"),
         (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
         (
             QueryCommand::PanelList {
@@ -218,10 +212,7 @@ fn workspace_and_tab_text_query_composition_is_only_the_list_table() {
     let state = snapshot();
     for command in [
         QueryCommand::WorkspaceList { project: None },
-        QueryCommand::TabList {
-            workspace: None,
-            standalone: false,
-        },
+        QueryCommand::TabList { workspace: None },
     ] {
         assert!(snapshot_only_list_text(&command, OutputFormat::Text));
         assert!(!snapshot_only_list_text(&command, OutputFormat::Json));
@@ -337,13 +328,7 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
     for (command, key) in [
         (QueryCommand::WorkspaceList { project: None }, "workspaces"),
         (QueryCommand::WorkspaceGet(Target::Id(id(21))), "workspace"),
-        (
-            QueryCommand::TabList {
-                workspace: None,
-                standalone: false,
-            },
-            "tabs",
-        ),
+        (QueryCommand::TabList { workspace: None }, "tabs"),
         (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
         (
             QueryCommand::PanelList {

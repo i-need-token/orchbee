@@ -6,8 +6,7 @@ use orchbee_client_server_protocol::RequestId;
 
 #[test]
 fn display_geometry_is_strict_for_each_first_frame_then_tracks_host_snapshots_through_recovery() {
-    let mut state =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let focus = state.focus_pane_ref().unwrap();
     let peer = attach_nonfirst_leaf(&mut state);
     // The global session is Ready, but the background attachment still owes its own first frame.

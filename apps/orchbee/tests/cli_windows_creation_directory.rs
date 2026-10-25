@@ -17,7 +17,7 @@ fn snapshot(stream: &mut LocalStream) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!("snapshot");
     };
-    let snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"one","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(7),"label":"shell","binding":{"terminalId":id(3),"workerId":id(9)}},"childPresentations":[]}}]}]})).unwrap();
+    let snapshot = serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"one","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(6),"primaryPresentation":{"customLabel":null,"presentationId":id(7),"label":"shell","binding":{"terminalId":id(3),"workerId":id(9)}},"childPresentations":[]}}]}]})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -371,7 +371,7 @@ fn explicit_directory_modes_skip_viewer_and_tab_source_respects_the_destination_
         });
         let mut args = vec!["tab", "create", "--format=json"];
         if explicit {
-            args.push("--standalone");
+            args.extend(["--workspace", "Workspace"]);
         }
         let client = id(10);
         if client_context.is_some() {

@@ -60,7 +60,7 @@ fn hidden_worktree_replacement_preserves_recovery_on_invalid_source_choice_or_to
                 } else {
                     current.terminal_contexts[1].tabs.clear();
                 }
-                origin.cache = project_native_standalone_tabs(&current).unwrap();
+                origin.cache = project_preferred_workspace(&current).unwrap();
             }
             7 => {
                 sidebar.discovery.worker = WorkerId::parse(&format!("{:032x}", 9999)).unwrap();

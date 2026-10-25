@@ -6,7 +6,9 @@ fn id(value: u8) -> String {
 }
 pub(in crate::terminal_session) fn empty() -> Snapshot {
     let mut snapshot = crate::machine_agents::tests::fixture();
-    snapshot.terminal_contexts[0].tabs.clear();
+    snapshot.navigation.workspaces.clear();
+    snapshot.navigation.workspace_order.clear();
+    snapshot.terminal_contexts.clear();
     snapshot
 }
 pub(in crate::terminal_session) fn project_only() -> Snapshot {

@@ -284,8 +284,7 @@ fn read_only_ready_ignores_geometry_for_frames_and_never_admits_resize() {
 
 #[test]
 fn focused_viewer_loss_preserves_sibling_geometry_frames_and_selection() {
-    let mut state =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let sibling = attach_nonfirst_leaf(&mut state);
     let focus = state.focus_pane_ref().unwrap();
     let active = state.active().unwrap().clone();
@@ -397,7 +396,7 @@ fn lost_focus_background_resize_rejects_changed_authority() {
         "detached",
     ] {
         let mut state =
-            ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+            ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
         let sibling = attach_nonfirst_leaf(&mut state);
         let focus = state.focus_pane_ref().unwrap();
         assert!(state.settle_pane_fault(&focus, PaneFault::ViewerLost));
@@ -442,8 +441,7 @@ fn lost_focus_background_resize_rejects_changed_authority() {
 
 #[test]
 fn creating_drains_previously_admitted_background_resizes() {
-    let mut state =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let background = attach_nonfirst_leaf(&mut state);
     let focus = state.focus_pane_ref().unwrap();
     let active = state.active().unwrap().clone();
@@ -532,7 +530,7 @@ fn creating_background_resize_rejects_invalid_authority_and_postcommit_settlemen
         "recovery",
     ] {
         let mut state =
-            ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+            ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
         let background = attach_nonfirst_leaf(&mut state);
         assert!(state.stage_drawn_frame(&background, FrameIdentity::new(1)));
         assert!(state.mark_feedback_accepted(&background, FrameIdentity::new(1)));
@@ -1070,7 +1068,7 @@ fn append_only_refresh_preserves_a_nonfirst_active_id_and_known_provenance() {
         unreachable!()
     };
     primary_presentation.label = "presentation sentinel".into();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state.target_for_switch(1, key.clone(), deadlines).unwrap();
@@ -1156,7 +1154,7 @@ fn observed_launch_failure_selects_without_attachment_and_names_the_executable()
             executable: Some("/missing/program".into()),
             reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
         });
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state.target_for_switch(1, key, deadlines).unwrap();
@@ -1211,7 +1209,7 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
         orientation: PanelOrientation::Horizontal,
         split_id: WorkbenchSplitId::parse(&id(3_020)).unwrap(),
     };
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let active_panel_id = state.tab(0).unwrap().panel(1).unwrap().panel_id().clone();
     let SessionPhase::Ready(ready) = &mut state.phase else {
         unreachable!();
@@ -1357,8 +1355,7 @@ fn attach_nonfirst_leaf(state: &mut NativeSessionState) -> PaneRef {
 /// `PaneRef`, never land on the re-bound record.
 #[test]
 fn reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation() {
-    let mut state =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let retired = attach_nonfirst_leaf(&mut state);
     let pane = retired.pane().clone();
     let active = state.active().unwrap().index();
@@ -1422,8 +1419,7 @@ fn reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation() 
 /// departing record.
 #[test]
 fn same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs() {
-    let mut state =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let second = attach_nonfirst_leaf(&mut state);
     let focus = state.focus_pane_ref().unwrap();
     assert_ne!(focus.pane(), second.pane());
@@ -1489,8 +1485,7 @@ fn same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs() {
 /// converging: pane 1 of the split baseline is minted and selected but carries
 /// no viewer yet — the Switching phase holds it as the in-flight target.
 fn switching_to_nonfirst_panel() -> (NativeSessionState, PaneRef, CreateTerminalProvenance) {
-    let mut state =
-        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let selected = SelectedTab::new_panel(
         PaneKey::new(state.desired().unwrap().anchor().clone(), panel_id(3_010)),
@@ -2146,7 +2141,7 @@ fn view_borrows_canonical_duplicate_labels_and_marks_one_active_row() {
         primary_presentation.label = "same".into();
     }
     let (state, target) = NativeSessionState::starting(
-        project_native_standalone_tabs(&snapshot).unwrap(),
+        project_preferred_workspace(&snapshot).unwrap(),
         1,
         geometry(80),
     )
@@ -2176,7 +2171,7 @@ fn create_operation(
         CreateOperationKey::new(workbench_request_id(request), generation),
         state.cache().site_id().clone(),
         state.cache().revision(),
-        state.cache().terminal_context_id().clone(),
+        state.cache().terminal_context_id().unwrap().clone(),
         WorkbenchLabel::parse(label).unwrap(),
         state.latest_geometry(),
         OperationDeadlines::from_sample(Instant::now()).unwrap(),
@@ -2241,7 +2236,7 @@ fn controlling() -> ControllerMode {
 }
 
 fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
-    project_native_standalone_tabs(&snapshot(tab_count, revision, None)).unwrap()
+    project_preferred_workspace(&snapshot(tab_count, revision, None)).unwrap()
 }
 
 pub(super) fn snapshot(tab_count: usize, revision: u64, created_label: Option<&str>) -> Snapshot {
@@ -2259,13 +2254,27 @@ pub(super) fn snapshot(tab_count: usize, revision: u64, created_label: Option<&s
         primary_presentation.label = label.into();
     }
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: context_id(2),
+        navigation: {
+            let fixture_context_id = context_id(2);
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),

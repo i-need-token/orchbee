@@ -973,9 +973,6 @@ mod linux {
                 options,
             } => {
                 let terminal_context_id = match context {
-                    TabContext::Standalone => {
-                        snapshot.navigation.standalone_terminal_context_id.clone()
-                    }
                     TabContext::Workspace(target) => resolve_workspace(snapshot, target)?
                         .1
                         .terminal_context_id

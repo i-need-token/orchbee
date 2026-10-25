@@ -126,7 +126,7 @@ raw mode 下的 `Ctrl+C` 交付应用；外部控制台中断取消本次调用�
 释放连接但无法确认 detach 时为 `session-released`。Windows 打包控制台实测覆盖了包含
 脱离前缀的中文 bracketed paste、原始 Ctrl+C 交付、关闭鼠标时的准入、忙碌控制者拒绝、
 接管隔离、历史翻页、正常脱离、超时恢复、重新获取控制权以及不同控制台尺寸准入，
-也覆盖了独立 TUI 的共享输入。真实 Windows 子进程请求 `?1016` 时，control 的滚轮/修饰键
+也覆盖了Workspace TUI 的共享输入。真实 Windows 子进程请求 `?1016` 时，control 的滚轮/修饰键
 及经控制台注入的 attach 按下/拖动/释放收到精确的 SGR cell 字节；这证明 cell 降级，
 不证明精确像素捕获或实鼠视觉体验。打包 TUI 与 attach 实测保留历史 RGB 颜色、加粗／斜体／
 下划线及宽字符；attach 同时保留分解组合字符。TUI 历史提示区清除底层样式及末行残留文字。

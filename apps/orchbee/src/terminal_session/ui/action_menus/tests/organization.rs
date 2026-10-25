@@ -74,7 +74,7 @@ fn leaving_noncurrent_workspace_submits_exact_organization_without_navigating() 
 }
 
 #[test]
-fn right_clicking_noncurrent_legacy_workspace_keeps_canonical_focus_and_exact_menu_scope() {
+fn right_clicking_noncurrent_ungrouped_workspace_keeps_canonical_focus_and_exact_menu_scope() {
     let (mut ui, mailbox, clock, _) = tests::context_selection::ready(false);
     let legacy = ui.state.as_ref().unwrap().cache().location().clone();
     tests::context_selection::settle_nonempty_context_selection(
@@ -104,7 +104,7 @@ fn right_clicking_noncurrent_legacy_workspace_keeps_canonical_focus_and_exact_me
     assert_eq!(menu.source, &MenuTarget::Workspace(legacy));
     assert_eq!(
         menu.unavailable[action_row(&ui, MenuAction::RenameWorkspace)],
-        Some(MenuUnavailable::LegacyWorkspace)
+        None
     );
     assert_eq!(menu.unavailable[action_row(&ui, MenuAction::NewTab)], None);
     assert_eq!(Origin::capture(ui.state.as_ref()), original);
@@ -216,7 +216,7 @@ fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
     ] {
         let (mut ui, mailbox, clock, snapshot) = close_ui::ready();
         let target = ui.state.as_ref().unwrap().cache().location().clone();
-        let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+        let workspace = snapshot.navigation.workspaces[1].workspace_id.clone();
         let lease = if conditional {
             let action = choose(
                 &mut ui,

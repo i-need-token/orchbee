@@ -77,9 +77,6 @@ impl LocalTerminalService {
         drop(coordinator);
         drop(workers);
         let completed = completed?;
-        if completed.standalone_changed {
-            self.standalone_changed.notify_all();
-        }
         Ok(completed.result)
     }
 }

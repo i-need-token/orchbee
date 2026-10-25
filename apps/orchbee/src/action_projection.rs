@@ -545,7 +545,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             &[ActionSearchAlias::Workspace, ActionSearchAlias::Rename],
         ),
         A::RenameProject => built_in("workbench.project.rename", C::Project, PROJECT),
-        A::MoveWorkspace | A::LeaveWorkspaceProject | A::JoinWorkspaceProject(_) => {
+        A::LeaveWorkspaceProject | A::JoinWorkspaceProject(_) => {
             built_in("workbench.workspace.set-project", C::Workspace, PROJECT)
         }
         A::CreateWorkspaceProject => {

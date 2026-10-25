@@ -68,7 +68,7 @@ installer 或 service manager 消费。
 全局 `directories`、`projects`、`workspaces` 数组，以及独立的 `projectOrder` 与 `workspaceOrder` 排列。
 Project 仅含身份和标签；每个 Workspace 都必须包含可为 null 的 `projectId`，未分组 Workspace
 也是同一文档的普通成员。Directory 是独立于 Project 成员关系的全局资源。
-对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个 Workspace，
+对象图最多容纳 65,536 个 Directory、1,024 个 Workspace，每个 Project 最多 256 个 Workspace，
 同时受 snapshot 字节上限约束。
 
 已准入本地 Client 可通过 OBWP 创建或重命名 Project 和 Workspace。
@@ -84,15 +84,14 @@ Workspace 身份定位，无需 Project 参数。独立授权的 `workspace.prim
 carrier 向该目录的属主 Worker 派发一个 fencing OBCN 发现 job；应答是 Worker 有界的原始
 `git worktree list --porcelain -z` 字节，在 service 边界解析——membership 与 generation
 检查在锁内进行，请求 I/O 绝不在锁内。
-首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation
-及逻辑终端 binding。本地 `tab.create` 命令追加一个简单独立或已配置 Workspace Tab，共同提交成员关系与保留的
+本地 `tab.create` 命令追加一个已配置 Workspace Tab，共同提交成员关系与保留的
 终端意图，再派发一次启动。精确重放返回同一份待处理或最终结果。后续 Close 可以移除该
 成员关系，但不改写历史 Create 结果。Client 可以使用当前 snapshot 中确切的 Site/Worker/Terminal binding，
 通过 OBCS attach viewer。[权威模型](docs/workbench-authority.zh-CN.md) 定义授权、revision
 冲突、语义重放、分配、停用和证据。读取在与写入相同的 gate 内克隆已提交 snapshot，响应 I/O
 位于释放 gate 之后。
 
-`tab.rename` 修改共享 Tab 标签。`tab.move` 在 standalone 或 Workspace 上下文内置换完整简单 Tab，不改变终端 binding，也不获取
+`tab.rename` 修改共享 Tab 标签。`tab.move` 在 Workspace 上下文内置换完整简单 Tab，不改变终端 binding，也不获取
 Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move 重放保留原排序结果及修订。
 原生 Move 交互仍是独立的 Client 集成边界。
 
@@ -113,7 +112,7 @@ revision CAS、精确重放、一次聚合发布及检查点顺序保留。它�
 现已由 Linux 原生 Client 投影该规范分屏树，并在经过验证的叶子之间移动本地焦点；Client 仍一次只
 附着一个 viewer，TUI 快捷键也不会提交 `panel.split`。
 
-本地 standalone 与 Workspace 的 `tab.close`、叶子级 `panel.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
+本地 Workspace 的 `tab.close`、叶子级 `panel.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
 维护所有者。Panel close 恰好捕获一个 leaf，经同一生命周期销毁并清理它，再发布存活
 Tab——被移除 leaf 的父 Split 折叠为兄弟子树；关闭 Tab 唯一 leaf 按聚合 Close 处理。已知
 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
@@ -522,7 +521,7 @@ surrogate，排入显式 `server-busy` result，并保留原 reservation。
 
 ## 所有权
 
-该应用负责原生本地 Workbench 权威、standalone membership、private projection、Worker 与 Client registry、OBCN carrier、terminal-intent coordination 及 Session viewer/controller relay。保留的本地 Desktop composition 有独立 Workbench writer。生产 Browser ingress 仍是未来能力，本次旧链路退役不引入替代服务。
+该应用负责原生本地 Workbench 权威、Workspace membership、private projection、Worker 与 Client registry、OBCN carrier、terminal-intent coordination 及 Session viewer/controller relay。保留的本地 Desktop composition 有独立 Workbench writer。生产 Browser ingress 仍是未来能力，本次旧链路退役不引入替代服务。
 
 可导入的 authority boundary 是 `src/lib.rs`；`src/main.rs` 组合私有 binary。穷尽的 lateral 方向为
 `local_site_service -> worker_registry`、`worker_obcn_carrier`、`local_client_service::start`
@@ -532,12 +531,10 @@ surrogate，排入显式 `server-busy` result，并保留原 reservation。
 `local_terminal_service -> site_coordinator`、`WorkbenchAuthority`、`terminal_coordinator` 值类型、`worker_registry`
 和 `worker_obcn_carrier`；`site_coordinator -> WorkbenchAuthority` 和 `terminal_coordinator`；
 `workbench_authority -> workbench_projection`；以及 `worker_registry -> worker_obcn_carrier`。
-Service 在锁外构造 Workbench 权威。SiteCoordinator 拥有独立终端 workflow、确切 binding selection 和共享提交边界，
+Service 在锁外构造 Workbench 权威。SiteCoordinator 拥有 Workspace 终端创建流程、确切 binding selection 和共享提交边界，
 组合两个 core，但不接管它们各自的事实。
 
-终端 coordinator 的私有 `outcomes` 子模块拥有 Worker observation 投影。SiteCoordinator 父模块
-拥有首个终端槽位及其对应关系辅助函数。其私有 `standalone` 子模块组合首次成员关系与终端意图，
-`tab_create` 则通过绑定来源、消耗所有权的令牌组合命令的共同准备与结算；`terminal_selection` 组合 canonical exposure、
+终端 coordinator 的私有 `outcomes` 子模块拥有 Worker observation 投影。SiteCoordinator 私有 `tab_create` 子模块通过绑定来源、消耗所有权的令牌组合命令的共同准备与结算；`terminal_selection` 组合 canonical exposure、
 保留目标解析和 attachment identity 准备。WorkbenchAuthority 的
 `terminal_binding_selection` 子模块拥有只读 canonical exposure query；`terminal_tab_create`
 拥有命令接纳、准备后的成员关系、预留账本字节及结算。
@@ -547,7 +544,7 @@ Service 在锁外构造 Workbench 权威。SiteCoordinator 拥有独立终端 wo
 准备后已结算命令发布路径。
 LocalTerminalService 父模块拥有共享熵源
 获取；其 `tab_create` 子模块按 registry 再 Site 的顺序持锁固定 Worker placement，在两锁之外
-派发，并先结算两个 owner，再通知首次 Open 的等待者。共享辅助函数定义在父模块中，子模块不导入兄弟模块。
+派发，并先结算两个 owner，再返回保留命令结果。共享辅助函数定义在父模块中，子模块不导入兄弟模块。
 Service 的 `viewer_session` 拥有附件 lifetime；
 `controller_session` 拥有终端预留、Session grant、副作用 sequence 和精确释放；
 `projection` 拥有路由与反馈。Client 的 `record_stream` 拥有准入后的 I/O deadline。
@@ -586,48 +583,11 @@ Server 模型命令支持共享运行器的有界并发。每个保留配置保�
 
 relay 核心只有一个配置，期限为 20 秒。它必须穷举完整可达图并满足每个声明的性质与动作证据。完整无缓存 `pnpm test:tla` 门禁（包括工具证据）的预算为 60 秒。
 
-## 本机独立终端打开
+## Workspace 终端创建
 
-尚未发布的 `terminal.open` 为本机单主体原生路径打开一个 Server 拥有的独立终端引用。
-首个通过全部预检的请求原子提交共享 Tab/Panel/Presentation 成员关系及终端意图，再使用 Worker
-默认 cwd 和请求 geometry 提交一次立即启动。后续 Open 等待或返回同一份保留结果及 Create
-reference；已结算槽位在严格叶级树成员关系上重放，已提交的 `panel.split` 叶或合法重排绝不改变
-返回的引用或退役共享 Workbench。此操作由 OBCS 本地终端准入授权；内部成员关系提交独立于 OBWP 导航 command ledger
-及其 read/navigation grant。
+Site 从空 Workbench 开始。每个承载终端的上下文都有一个真实 Workspace 所有者，Project 成员关系可为 null。显式 `workspace.launch` 或 `tab.create` 联合准备规范成员与运行时预留，一次提交，并使用该 Workspace 已准入的 Worker／目录启动。精确重放返回保留的待完成／最终结果，不再次启动。
 
-共享 binding 来自 Server authorization 中的逻辑 TerminalId 和 WorkerId，不是 Host、Client
-或 request 身份。它记录产品意图，在启动失败或 unknown 后仍保留，不表示 runtime 可用。
-[Workbench 模型](docs/workbench-authority.zh-CN.md#独立终端成员关系模型) 定义规范聚合、预检及
-共享 gate。Open 不调整既有终端大小；只有已取得权限的 controller 才能独立提交已校验 Resize。
-Linux 裸启动已消费 Open 及随后基于 snapshot 的 binding attachment；后续 Workbench 操作
-及完整 Client Workbench 渲染仍未完成。
-
-| 字段     | 契约                                                                                                                                                                                                                                        |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 输入     | 已准入 OBCS Open、真实 geometry、当前 Worker placement、lease、新生成的非零随机 Create reference 及单调等待时间。Request ID 只关联响应。                                                                                                    |
-| Owner    | SiteCoordinator 拥有独立槽位和跨 owner workflow；WorkbenchAuthority 拥有 projection/cursor，TerminalCoordinator 拥有终端 binding/allocation。Service 拥有 IPC、熵源和 deadline；Client 拥有自己的 request/viewer。                          |
-| 模型     | Empty -> Creating -> Settled。纯终端 planning 和 Workbench 验证先于同一个 Site gate 下的提交。Dispatch 与响应发布位于 gate 外。已结算重放读取严格叶级树成员关系，并要求槽位引用的保留 binding 在全体成员中恰好出现一次。                    |
-| 预检     | 缺少 Worker/Workbench、熵源失败、reference 冲突、capacity、identity、revision 或 lease 失败均保留 Empty，不留下终端或成员关系。内部 Workbench 预检/publication 失败会退役 Workbench，且不 dispatch。                                        |
-| 完成     | Started 映射为 Opened；unavailable/failed 保留 Create 原因；引用冲突、熵源或 Workbench 预检拒绝映射为 server-busy。固定输入的意外拒绝映射为 terminal-create-failed。Unknown 保持 unknown。提交后失败保留成员关系，不允许再次创建。          |
-| 并发     | Wait 释放 Site mutex。唯一绝对 46 秒 condition deadline 到期时，仅向该 waiter 返回 server-busy，不取消操作。Worker 交换最多 44 秒；普通 Client 提交为 50 秒，首帧前还受 startup deadline 约束。                                             |
-| 生命周期 | Client 丢失或发布失败保留成员关系。Opened 要求确切的当前 Worker generation；丢失/替换不会接管或重新启动。后续导航退役不能取消已提交的启动。                                                                                                 |
-| 限制     | 单 mutex 下成功进程内执行的原子性，不承诺 crash/persistence 原子性。一个独立 reference；不含 close/reset、recovery、完整 Workbench 操作、远程授权或 activation policy。Wait deadline 不限制锁获取、进程挂起或响应写入。运行时证据限 Linux。 |
-
-### 独立终端打开正确性
-
-| Claim                                   | 精化与证据                                                                                                                                   |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| SO-01：最多一个准备好的 create          | Reserve 映射到 gate 内 Site 提交；Singleton/NoReset 及 core 预检/冲突/并发测试。                                                             |
-| SO-02：调用方共享已提交 reference       | Complete/Observe、SameReference/OpenedWasCommitted、确切 placement 测试及真实双 Session/Host trace。                                         |
-| SO-03：Client 丢失不重置共享状态        | Disconnect/Reopen、DisconnectPreservesSlot、未读结果及重新打开的进程 trace。                                                                 |
-| SO-04：不确定性不产生另一个副作用       | Complete(unknown)、SettledSlotIsFinal，失败/unknown/同 Worker 新 generation 的 core 和进程测试。                                             |
-| SO-05：等待不依赖 Worker 公平性即可结束 | Timeout/EveryWaitSettles 及绝对截止时间 condition 测试；只有本地 timeout 观察采用弱公平性。                                                  |
-| SO-06：启动必须有已提交成员关系         | Reserve/Dispatch、MembershipCommitted/DispatchHasMembership，以及 Worker 完成前的逻辑 authorization 对比。                                   |
-| SO-07：导航交错时读取仍保留 binding     | Navigate/ReadWorkbench、ReadIsCommitted/MembershipIsRetained、stateful 导航 trace 及 Worker 停滞进程证据。                                   |
-| SO-08：预检不消耗任何 allocator         | PreflightPreservesState 覆盖抽象成员关系/revision；确切 identity、revision 和编码 capacity 测试覆盖具体分配。                                |
-| SO-09：合法多叶树上已结算重放仍成立     | `DerivedComposition` 在有序叶成员序列上的锚点唯一、`MovePreservesBootstrap`、确定性 Site 拆分/重排/关闭测试及 Linux PTY 拆分-退出-重进见证。 |
-
-确定性与有状态实现测试覆盖准确 Client/Create/binding 身份、导航提交、追加成员、身份不复用及忽略重复完成。进程/PTY 轨迹覆盖帧编码、逻辑到 Host 的映射、并发请求、真实执行及保留。这些具体轨迹不证明全部交错或任意调度下的进展。
+Client 读取规范成员并附着其准确绑定。不存在 `terminal.open` 端点、单例首终端引用或无 Workspace 的回退。空 Workspace 仍可导航；空 Workbench 不隐式创建终端。参见 [Workspace 成员关系](docs/workbench-authority.zh-CN.md#workspace-终端成员模型)、[Tab 创建](docs/workbench-authority.zh-CN.md#workspace-tab-创建模型)及[目录准入](docs/workspace-terminal-directory.zh-CN.md)。
 
 ## Windows 原生 Site
 

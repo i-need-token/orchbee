@@ -68,11 +68,11 @@ pub(crate) trait WaitInput {
 /// drawable content rect, `None` means the screen cannot present it now.
 /// Never synthesize a nonzero rect — a `None` verdict only pauses startup.
 ///
-/// The standalone intent owns no panel tree yet, so the bound verdict is
+/// Startup owns no panel tree yet, so the bound verdict is
 /// the shared layout owner's [`tui_shell::active_pane_area`] with no
 /// session — the same projection `terminal_geometry` consults for the
-/// first Open, so wait-gating and wire geometry cannot diverge.
-pub(crate) fn standalone_presentable_area(dimensions: WindowDimensions) -> Option<Rect> {
+/// first Workspace launch, so wait-gating and wire geometry cannot diverge.
+pub(crate) fn startup_presentable_area(dimensions: WindowDimensions) -> Option<Rect> {
     let view = ClientView::new(dimensions.columns);
     let areas = tui_layout::project_shell_areas(
         Rect::new(0, 0, dimensions.columns, dimensions.rows),

@@ -11,13 +11,25 @@ fn snapshot() -> Snapshot {
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: Navigation {
-            projects: vec![],
-            directories: vec![],
-            workspaces: vec![],
-            workspace_order: vec![],
-            project_order: Vec::new(),
-            standalone_terminal_context_id: context.clone(),
+        navigation: {
+            let fixture_context_id = context.clone();
+            let fixture_workspace_id =
+                crate::WorkbenchWorkspaceId::parse(fixture_context_id.as_str()).unwrap();
+            Navigation {
+                projects: vec![],
+                directories: vec![],
+                workspaces: std::iter::once(crate::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(vec![])
+                .collect(),
+                workspace_order: Vec::new(),
+                project_order: Vec::new(),
+            }
         },
         terminal_contexts: vec![TerminalContext {
             terminal_context_id: context,
@@ -49,12 +61,15 @@ fn global_directory_capacity_preserves_the_legacy_aggregate_independently_of_wir
 #[test]
 fn membership_limits_and_order_are_independent_of_identity_and_resources() {
     let mut value = snapshot();
+    value.navigation.workspaces.clear();
+    value.navigation.workspace_order.clear();
+    value.terminal_contexts.clear();
     let project_id = WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap();
     value.navigation.projects.push(Project {
         project_id: project_id.clone(),
         label: "Group".into(),
     });
-    for index in 1..=1024 {
+    for index in 1..=1025 {
         let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", index + 1)).unwrap();
         value.navigation.workspaces.push(Workspace {
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{index:032x}")).unwrap(),
@@ -68,7 +83,7 @@ fn membership_limits_and_order_are_independent_of_identity_and_resources() {
             groups: vec![],
             tabs: vec![],
         });
-        if index == 256 || index == 1023 {
+        if index == 256 || index == 1024 {
             assert!(validate_snapshot(&value).is_ok());
         }
         if index == 257 {

@@ -1,9 +1,7 @@
-use super::{WorkbenchAuthority, allocate, identity};
-use crate::workbench_projection::PreparedProjectionAdvance;
+use super::{WorkbenchAuthority, identity};
 use orchbee_workbench_protocol::{
-    ContractError, PanelNode, Presentation, PresentationBinding, Snapshot, Tab, TerminalContext,
-    TerminalPresentationId, WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRejectionReason,
-    WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, serialize_document,
+    PanelNode, Presentation, PresentationBinding, Snapshot, Tab, TerminalContext,
+    TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 
 pub(super) fn visit_panel_presentations(
@@ -28,13 +26,6 @@ pub(super) fn visit_panel_presentations(
             }
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StandaloneIntentError {
-    Occupied,
-    Rejected(WorkbenchRejectionReason),
-    Unavailable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,22 +65,10 @@ impl WorkbenchTerminalTab {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkbenchTerminalMembership {
     terminal_context_id: WorkbenchTerminalContextId,
-    context_kind: ContextKind,
     members: Vec<WorkbenchTerminalTab>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ContextKind {
-    Standalone,
-    Workspace,
-}
-
 impl WorkbenchTerminalMembership {
-    #[must_use]
-    pub const fn is_standalone(&self) -> bool {
-        matches!(self.context_kind, ContextKind::Standalone)
-    }
-
     #[must_use]
     pub fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
         &self.terminal_context_id
@@ -134,83 +113,12 @@ impl WorkbenchTerminalMembership {
     pub(crate) fn removed_workspace(context_id: WorkbenchTerminalContextId) -> Self {
         Self {
             terminal_context_id: context_id,
-            context_kind: ContextKind::Workspace,
             members: Vec::new(),
         }
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StandaloneIntentMetadata {
-    revision: WorkbenchRevision,
-    terminal_context_id: WorkbenchTerminalContextId,
-    tab_id: WorkbenchTabId,
-    panel_id: WorkbenchPanelId,
-    presentation_id: TerminalPresentationId,
-    binding: PresentationBinding,
-}
-
-impl StandaloneIntentMetadata {
-    #[must_use]
-    pub const fn revision(&self) -> WorkbenchRevision {
-        self.revision
-    }
-
-    #[must_use]
-    pub fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
-        &self.terminal_context_id
-    }
-
-    #[must_use]
-    pub fn tab_id(&self) -> &WorkbenchTabId {
-        &self.tab_id
-    }
-
-    #[must_use]
-    pub fn panel_id(&self) -> &WorkbenchPanelId {
-        &self.panel_id
-    }
-
-    #[must_use]
-    pub fn presentation_id(&self) -> &TerminalPresentationId {
-        &self.presentation_id
-    }
-
-    #[must_use]
-    pub fn binding(&self) -> &PresentationBinding {
-        &self.binding
-    }
-}
-
-pub struct PreparedStandaloneIntent<'a> {
-    authority: &'a mut WorkbenchAuthority,
-    projection: PreparedProjectionAdvance,
-    last_identity: u128,
-    metadata: StandaloneIntentMetadata,
-}
-
-impl PreparedStandaloneIntent<'_> {
-    #[must_use]
-    pub fn metadata(&self) -> &StandaloneIntentMetadata {
-        &self.metadata
-    }
-
-    #[must_use]
-    pub fn commit(self) -> StandaloneIntentMetadata {
-        self.authority.projection.commit_prepared(self.projection);
-        self.authority.last_identity = self.last_identity;
-        self.metadata
-    }
-}
-
 impl WorkbenchAuthority {
-    /// Read-only Open membership includes every retained primary and child Presentation.
-    pub fn standalone_presentation_membership(
-        &self,
-    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-        self.presentation_membership(&self.snapshot().navigation.standalone_terminal_context_id)
-    }
-
     /// Complete bound membership for registration, structural operations and Close.
     pub fn presentation_membership(
         &self,
@@ -233,105 +141,8 @@ impl WorkbenchAuthority {
         tree_terminal_membership(self.projection.snapshot(), context_id)
     }
 
-    pub fn standalone_membership(
-        &self,
-    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-        standalone_membership(self.projection.snapshot())
-    }
-
-    pub fn tree_standalone_membership(
-        &self,
-    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-        let snapshot = self.projection.snapshot();
-        tree_terminal_membership(
-            snapshot,
-            &snapshot.navigation.standalone_terminal_context_id,
-        )
-    }
-
-    pub fn retire_standalone_composition(&mut self) {
+    pub fn retire_terminal_membership(&mut self) {
         self.retired = true;
-    }
-
-    /// Prepares Server-issued terminal membership; this is not a Client command or ledger entry.
-    pub fn prepare_standalone_intent(
-        &mut self,
-        binding: PresentationBinding,
-    ) -> Result<PreparedStandaloneIntent<'_>, StandaloneIntentError> {
-        if self.retired {
-            return Err(StandaloneIntentError::Unavailable);
-        }
-        let membership = match self.standalone_presentation_membership() {
-            Ok(membership) => membership,
-            Err(_error) => return self.retire_membership(),
-        };
-        if !membership.is_empty()
-            || self.snapshot().terminal_contexts.iter().any(|context| {
-                context.terminal_context_id == *membership.terminal_context_id()
-                    && !context.tabs.is_empty()
-            })
-        {
-            return Err(StandaloneIntentError::Occupied);
-        }
-
-        let mut candidate = self.projection.snapshot().clone();
-        let context_id = candidate.navigation.standalone_terminal_context_id.clone();
-        let Some(context) = candidate
-            .terminal_contexts
-            .iter_mut()
-            .find(|context| context.terminal_context_id == context_id)
-        else {
-            return self.retire_membership();
-        };
-        let last_identity = allocate(self.last_identity, 3).map_err(membership_failure)?;
-        let revision = self.next_revision().map_err(membership_failure)?;
-        let Some(ids) = parse_tab_ids(last_identity) else {
-            return self.retire_membership();
-        };
-        append_simple_tab(context, &ids, "1", true, binding.clone());
-        candidate.revision = revision;
-        let encoded = match serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)) {
-            Ok(encoded) => encoded,
-            Err(ContractError::EncodedValueTooLarge { .. }) => {
-                return Err(StandaloneIntentError::Rejected(
-                    WorkbenchRejectionReason::ResourceLimit,
-                ));
-            }
-            Err(ContractError::InvalidDocument | ContractError::WrongDocumentKind) => {
-                return self.retire_membership();
-            }
-        };
-        let projection = match self.projection.prepare_advance(&encoded) {
-            Ok(projection) => projection,
-            Err(_error) => return self.retire_membership(),
-        };
-        Ok(PreparedStandaloneIntent {
-            authority: self,
-            projection,
-            last_identity,
-            metadata: StandaloneIntentMetadata {
-                revision,
-                terminal_context_id: context_id,
-                tab_id: ids.tab_id,
-                panel_id: ids.panel_id,
-                presentation_id: ids.presentation_id,
-                binding,
-            },
-        })
-    }
-
-    /// Commits Server-issued terminal membership; this is not a Client command or ledger entry.
-    pub fn commit_standalone_intent(
-        &mut self,
-        binding: PresentationBinding,
-    ) -> Result<(), StandaloneIntentError> {
-        let _metadata = self.prepare_standalone_intent(binding)?.commit();
-        Ok(())
-    }
-
-    fn retire_membership<T>(&mut self) -> Result<T, StandaloneIntentError> {
-        self.retired = true;
-        Err(StandaloneIntentError::Unavailable)
     }
 }
 
@@ -349,6 +160,7 @@ pub(super) fn parse_tab_ids(last_identity: u128) -> Option<SimpleTabIds> {
     })
 }
 
+#[cfg(test)]
 pub(super) fn append_simple_tab(
     context: &mut TerminalContext,
     ids: &SimpleTabIds,
@@ -356,7 +168,7 @@ pub(super) fn append_simple_tab(
     automatic_label: bool,
     binding: PresentationBinding,
 ) {
-    context.tabs.push(Tab {
+    context.tabs.push(orchbee_workbench_protocol::Tab {
         automatic_label,
         tab_id: ids.tab_id.clone(),
         label: label.to_owned(),
@@ -377,24 +189,14 @@ pub(super) fn append_simple_tab(
     });
 }
 
-pub(super) fn standalone_membership(
-    snapshot: &Snapshot,
-) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-    terminal_membership(
-        snapshot,
-        &snapshot.navigation.standalone_terminal_context_id,
-    )
-}
-
 pub(super) fn terminal_membership(
     snapshot: &Snapshot,
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-    let context_kind = terminal_context_kind(snapshot, context_id)?;
-    let (_context, members) = legacy_single_leaf_context(snapshot, context_id)?;
+    validate_workspace_context(snapshot, context_id)?;
+    let (_context, members) = tree_membership_context(snapshot, context_id)?;
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
-        context_kind,
         members,
     })
 }
@@ -403,7 +205,7 @@ pub(super) fn presentation_membership(
     snapshot: &Snapshot,
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-    let context_kind = terminal_context_kind(snapshot, context_id)?;
+    validate_workspace_context(snapshot, context_id)?;
     let mut matching = snapshot
         .terminal_contexts
         .iter()
@@ -418,7 +220,6 @@ pub(super) fn presentation_membership(
     }
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
-        context_kind,
         members,
     })
 }
@@ -428,25 +229,6 @@ pub(super) fn tree_terminal_membership(
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
     presentation_membership(snapshot, context_id)
-}
-
-fn legacy_single_leaf_context<'a>(
-    snapshot: &'a Snapshot,
-    context_id: &WorkbenchTerminalContextId,
-) -> Result<(&'a TerminalContext, Vec<WorkbenchTerminalTab>), WorkbenchTerminalInvariantError> {
-    let (context, members) = tree_membership_context(snapshot, context_id)?;
-    if members.len() != context.tabs.len()
-        || context.tabs.iter().any(|tab| {
-            members
-                .iter()
-                .filter(|member| member.tab_id() == &tab.tab_id)
-                .count()
-                != 1
-        })
-    {
-        return Err(WorkbenchTerminalInvariantError);
-    }
-    Ok((context, members))
 }
 
 fn tree_membership_context<'a>(
@@ -475,19 +257,17 @@ fn tree_membership_context<'a>(
     Ok((context, members))
 }
 
-fn terminal_context_kind(
+fn validate_workspace_context(
     snapshot: &Snapshot,
     context_id: &WorkbenchTerminalContextId,
-) -> Result<ContextKind, WorkbenchTerminalInvariantError> {
-    if context_id == &snapshot.navigation.standalone_terminal_context_id {
-        Ok(ContextKind::Standalone)
-    } else if snapshot
+) -> Result<(), WorkbenchTerminalInvariantError> {
+    if snapshot
         .navigation
         .workspaces
         .iter()
         .any(|workspace| &workspace.terminal_context_id == context_id)
     {
-        Ok(ContextKind::Workspace)
+        Ok(())
     } else {
         Err(WorkbenchTerminalInvariantError)
     }
@@ -532,13 +312,6 @@ fn collect_tree_members(
         }
     }
     Ok(())
-}
-
-fn membership_failure(failure: super::PlanFailure) -> StandaloneIntentError {
-    match failure {
-        super::PlanFailure::Rejected(reason) => StandaloneIntentError::Rejected(reason),
-        super::PlanFailure::Internal => StandaloneIntentError::Unavailable,
-    }
 }
 
 #[cfg(test)]

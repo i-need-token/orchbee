@@ -406,11 +406,11 @@
 		"navigation": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["projects", "standaloneTerminalContextId", "directories", "workspaces"],
+			"required": ["projects", "directories", "workspaces"],
 			"properties": {
 				"workspaceOrder": {
 					"type": "array",
-					"maxItems": 1023,
+					"maxItems": 1024,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/workspaceId"
@@ -423,9 +423,6 @@
 						"$ref": "#/$defs/project"
 					}
 				},
-				"standaloneTerminalContextId": {
-					"$ref": "#/$defs/terminalContextId"
-				},
 				"directories": {
 					"type": "array",
 					"maxItems": 65536,
@@ -435,7 +432,7 @@
 				},
 				"workspaces": {
 					"type": "array",
-					"maxItems": 1023,
+					"maxItems": 1024,
 					"items": {
 						"$ref": "#/$defs/workspace"
 					}
@@ -496,7 +493,6 @@
 				},
 				"terminalContexts": {
 					"type": "array",
-					"minItems": 1,
 					"maxItems": 1024,
 					"items": {
 						"$ref": "#/$defs/terminalContext"

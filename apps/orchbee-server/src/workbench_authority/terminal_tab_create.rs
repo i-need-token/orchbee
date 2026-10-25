@@ -51,12 +51,9 @@ pub struct StagedWorkbenchTabCreateMetadata {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum WorkbenchTabCreateTarget {
-    Standalone(super::WorkbenchTerminalMembership),
-    Workspace {
-        worker_id: WorkerId,
-        path: WorkbenchDirectoryPath,
-    },
+struct WorkbenchTabCreateTarget {
+    worker_id: WorkerId,
+    path: WorkbenchDirectoryPath,
 }
 
 impl StagedWorkbenchTabCreateMetadata {
@@ -91,27 +88,8 @@ impl StagedWorkbenchTabCreateMetadata {
     }
 
     #[must_use]
-    pub fn standalone_membership(&self) -> Option<&super::WorkbenchTerminalMembership> {
-        match &self.target {
-            WorkbenchTabCreateTarget::Standalone(membership) => Some(membership),
-            WorkbenchTabCreateTarget::Workspace { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub fn workspace_launch(&self) -> Option<(&WorkerId, &WorkbenchDirectoryPath)> {
-        match &self.target {
-            WorkbenchTabCreateTarget::Standalone(_) => None,
-            WorkbenchTabCreateTarget::Workspace { worker_id, path } => Some((worker_id, path)),
-        }
-    }
-
-    #[must_use]
-    pub fn is_first(&self) -> bool {
-        matches!(
-            &self.target,
-            WorkbenchTabCreateTarget::Standalone(membership) if membership.is_empty()
-        )
+    pub fn workspace_launch(&self) -> (&WorkerId, &WorkbenchDirectoryPath) {
+        (&self.target.worker_id, &self.target.path)
     }
 }
 
@@ -125,8 +103,6 @@ pub struct CommittedWorkbenchTabCreateMetadata {
     presentation_id: TerminalPresentationId,
     binding: PresentationBinding,
     geometry: WorkbenchTerminalGeometry,
-    standalone: bool,
-    first: bool,
     workspace: Option<Box<WorkspaceLaunchIds>>,
 }
 
@@ -169,16 +145,6 @@ impl CommittedWorkbenchTabCreateMetadata {
     #[must_use]
     pub const fn geometry(&self) -> WorkbenchTerminalGeometry {
         self.geometry
-    }
-
-    #[must_use]
-    pub const fn is_first(&self) -> bool {
-        self.first
-    }
-
-    #[must_use]
-    pub const fn is_standalone(&self) -> bool {
-        self.standalone
     }
 }
 
@@ -351,8 +317,6 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
                 return WorkbenchTabCreatePreparation::Ready(retire(authority, &command));
             }
         };
-        let first = staged.is_first();
-        let standalone = staged.standalone_membership().is_some();
         let metadata = CommittedWorkbenchTabCreateMetadata {
             request_id: command.request_id.clone(),
             revision: staged.revision,
@@ -362,8 +326,6 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             presentation_id: staged.presentation_id,
             binding,
             geometry: staged.geometry,
-            standalone,
-            first,
             workspace: workspace.map(Box::new),
         };
         let Some(results) = TabCreateResultTable::new(&command, &metadata) else {
@@ -556,12 +518,7 @@ impl WorkbenchAuthority {
         if let Err(reason) = validate_tab_creation(context, placement.as_ref()) {
             return WorkbenchTabCreateBegin::Ready(retain_rejection(self, command, reason));
         }
-        let target = if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
-            match self.tree_standalone_membership() {
-                Ok(membership) => WorkbenchTabCreateTarget::Standalone(membership),
-                Err(_error) => return WorkbenchTabCreateBegin::Ready(retire(self, &command)),
-            }
-        } else {
+        let target = {
             let Some(workspace) = snapshot
                 .navigation
                 .workspaces
@@ -588,7 +545,7 @@ impl WorkbenchAuthority {
                     WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
                 ));
             };
-            WorkbenchTabCreateTarget::Workspace {
+            WorkbenchTabCreateTarget {
                 worker_id: directory.worker_id.clone(),
                 path: directory.path.clone(),
             }

@@ -100,7 +100,6 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
         self.authority.retire(&self.command)
     }
 
-    /// Site first validates standalone reference-derived composition when applicable.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
         let tab = self
@@ -675,12 +674,11 @@ impl WorkbenchAuthority {
             Some(WorkbenchRejectionReason::SiteMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
-        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-            && !snapshot
-                .navigation
-                .workspaces
-                .iter()
-                .any(|workspace| workspace.terminal_context_id == terminal_context_id)
+        } else if !snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.terminal_context_id == terminal_context_id)
         {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {

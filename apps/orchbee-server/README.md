@@ -84,7 +84,7 @@ ledger. Navigation stores global, identity-sorted `directories`, `projects` and 
 and independent `projectOrder` and `workspaceOrder` permutations. A Project contains only its identity and label;
 each Workspace has a required nullable `projectId`, so ungrouped Workspaces are ordinary members
 of the same document. Directories are global resources independent of Project membership.
-The graph admits at most 65,536 Directories, 1,023 Workspaces and 256 Workspaces per Project,
+The graph admits at most 65,536 Directories, 1,024 Workspaces and 256 Workspaces per Project,
 subject to the snapshot byte bound.
 
 Admitted local Clients can create or rename Projects and Workspaces through OBWP.
@@ -103,8 +103,7 @@ snapshot, then dispatches one fenced OBCN discovery job to that directory's owni
 the existing carrier; the answer is the Worker's bounded raw `git worktree list --porcelain -z`
 bytes parsed at the service boundary — membership and generation checks run under the locks,
 request I/O never does.
-The first standalone Open also commits one shared Tab/Panel/Presentation and logical terminal binding
-before launch. The local `tab.create` command appends a simple standalone or configured Workspace Tab, jointly commits
+The local `tab.create` command appends a configured Workspace Tab, jointly commits
 membership and retained terminal intent, and dispatches one launch. Exact replay returns the same
 pending or final result. A later Close may remove that membership without rewriting the historical
 Create result. A Client can attach a viewer using a current snapshot's exact Site/Worker/Terminal
@@ -112,7 +111,7 @@ binding through OBCS. The [authority model](docs/workbench-authority.md) defines
 semantic replay, allocation, retirement and evidence. Reads clone the committed snapshot under the
 same gate as writes; response I/O occurs after the gate is released.
 
-`tab.rename` changes the shared Tab label. `tab.move` permutes complete simple Tabs within a standalone or Workspace context without
+`tab.rename` changes the shared Tab label. `tab.move` permutes complete simple Tabs within a Workspace context without
 changing terminal bindings or taking the Worker registry lock. Both can complete while a launch is
 pending; exact Move replay retains its original order-change result and revision. The native Move
 interaction remains a separate Client integration boundary.
@@ -137,7 +136,7 @@ the Worker disconnects. The Linux native Client now projects that canonical spli
 local focus across its validated leaves; it still attaches one viewer at a time and does not submit
 `panel.split` from a TUI shortcut.
 
-Local standalone and Workspace `tab.close`, leaf-scoped `panel.close`, status Read and Resume use
+Local Workspace `tab.close`, leaf-scoped `panel.close`, status Read and Resume use
 the retained lifecycle authority and one process-lifetime maintenance owner. A Panel close captures
 one exact leaf, disposes and cleans it through the same lifecycle, and publishes the surviving Tab
 with the leaf's parent Split collapsed into the sibling subtree; a Tab's only leaf closes as an
@@ -596,7 +595,7 @@ deterministic runtime and codec evidence.
 
 ## Ownership
 
-This application owns local native Workbench authority, standalone membership, private projection, Worker and Client registries, the OBCN carrier, terminal-intent coordination, and Session viewer/controller relay. The retained local Desktop composition has its own Workbench writer. Production Browser ingress remains a future capability with no replacement service introduced by legacy retirement.
+This application owns local native Workbench authority, Workspace membership, private projection, Worker and Client registries, the OBCN carrier, terminal-intent coordination, and Session viewer/controller relay. The retained local Desktop composition has its own Workbench writer. Production Browser ingress remains a future capability with no replacement service introduced by legacy retirement.
 
 The importable authority boundary is `src/lib.rs`; `src/main.rs` composes the private binary.
 The exhaustive lateral directions are `local_site_service -> worker_registry`,
@@ -606,13 +605,11 @@ and its private `application_session`; `workbench_service -> local_terminal_serv
 `local_terminal_service -> site_coordinator`, `WorkbenchAuthority`, `terminal_coordinator` value types, `worker_registry`
 and `worker_obcn_carrier`; `site_coordinator -> WorkbenchAuthority` and `terminal_coordinator`;
 `workbench_authority -> workbench_projection`; and `worker_registry -> worker_obcn_carrier`.
-The service constructs the Workbench authority outside locks. SiteCoordinator owns the standalone
-workflow, exact binding selection and shared commit boundary; it composes the two cores without
+The service constructs the Workbench authority outside locks. SiteCoordinator owns Workspace terminal creation, exact binding selection and shared commit boundary; it composes the two cores without
 taking over their facts.
 
 The terminal coordinator's private `outcomes` child owns Worker-observation projection.
-SiteCoordinator's parent owns the first-terminal slot and its correspondence helpers. Its private
-`standalone` child composes first membership and terminal intent, while `tab_create` composes
+SiteCoordinator's private `tab_create` child composes
 joint command preparation and settlement with origin-bound, consuming owner tokens;
 `terminal_selection` composes canonical exposure, retained target resolution and attachment identity
 preparation. WorkbenchAuthority's `terminal_binding_selection` child owns the read-only canonical exposure query;
@@ -623,8 +620,7 @@ its Site grant composition, and the service's lock-free Worker observation follo
 target/no-op evaluation. Both share command preflight; Move reuses the authority's prepared
 settled-command publication.
 LocalTerminalService's parent owns shared entropy acquisition; its `tab_create` child pins Worker
-placement under registry-then-Site locks, dispatches outside both, and settles both owners before
-notifying first-Open waiters. Shared helpers are defined in parents; children do not import siblings.
+placement under registry-then-Site locks, dispatches outside both, and settles both owners before returning the retained command result. Shared helpers are defined in parents; children do not import siblings.
 The service's `viewer_session` owns attachment lifetime; `controller_session` owns terminal
 reservation, Session grants, effect sequences and exact release; `projection` owns routing and
 feedback. Client `record_stream` owns post-admission I/O deadlines. Reverse and other lateral imports
@@ -669,51 +665,11 @@ The Server model command supports the shared runner’s bounded concurrency. Eac
 
 The relay core has one configuration with a 20-second deadline. It must enumerate the complete reachable graph and satisfy every declared property and action witness. The complete uncached `pnpm test:tla` gate, including tooling witnesses, has a 60-second budget.
 
-## Local standalone terminal opening
+## Workspace terminal creation
 
-The unshipped `terminal.open` operation opens one Server-owned standalone terminal reference for
-the local single-subject native path. The first request that passes all preflights atomically commits
-shared Tab/Panel/Presentation membership and terminal intent, then dispatches one immediate launch
-with Worker-default cwd and the supplied geometry. Subsequent Opens join or return the same retained
-outcome and Create reference; the settled slot replays over the strict leaf-level tree membership,
-so a committed `panel.split` leaf or a legal reorder never changes the returned reference or retires
-the shared Workbench. OBCS local terminal admission authorizes this operation; the internal
-membership commit is separate from the OBWP navigation command ledger and its read/navigation grants.
+The Site starts with an empty Workbench. Every terminal-bearing Context has one real Workspace owner; Project membership may be null. Explicit `workspace.launch` or `tab.create` prepares canonical membership and the runtime reservation together, commits once, and launches through that Workspace's admitted Worker/directory. Exact replay returns the retained pending/final result without another launch.
 
-The shared binding is the logical TerminalId and WorkerId from Server authorization, not a Host,
-Client or request identity. It records product intent and survives failed or unknown launch; it
-does not assert runtime availability. The [Workbench model](docs/workbench-authority.md#standalone-terminal-membership-model)
-defines the canonical aggregate, preflight and shared gate. Open does not resize an existing terminal;
-only an acquired controller may submit a separate validated Resize. Bare Linux startup consumes
-Open followed by snapshot-based binding attachment; further Workbench operations and complete
-Client Workbench rendering remain unfinished.
-
-| Field       | Contract                                                                                                                                                                                                                                                                                                                           |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs      | Admitted OBCS Open, real geometry, current Worker placement, lease, fresh nonzero random Create reference and monotonic wait time. Request ID only correlates the response.                                                                                                                                                        |
-| Owner       | SiteCoordinator owns the standalone slot and cross-owner workflow; WorkbenchAuthority owns projection/cursor, TerminalCoordinator owns terminal binding/allocation. The service owns IPC, entropy and deadlines; Client owns its request/viewer.                                                                                   |
-| Model       | Empty -> Creating -> Settled. Pure terminal planning and Workbench validation precede one Site-gated commit. Dispatch and response publication occur outside the gate. Settled replay reads the strict leaf-level tree membership and requires the slot reference's retained binding exactly once across all members.              |
-| Preflight   | Missing Worker/Workbench, entropy failure, reference collision, capacity, identity, revision or lease failure leaves Empty with neither terminal nor membership. Internal Workbench preflight/publication failure retires Workbench without dispatch.                                                                              |
-| Completion  | Started maps to Opened; unavailable/failed preserve Create reasons; collision/entropy/Workbench preflight refusal maps to server-busy. Unexpected fixed-input rejection maps to terminal-create-failed. Unknown stays unknown. Post-commit failure retains membership and never permits another create.                            |
-| Concurrency | Wait releases the Site mutex. One absolute 46-second condition deadline returns server-busy only to that waiter, without cancellation. Worker exchange is bounded by 44 seconds; ordinary Client submission has 50 seconds, clamped to the startup deadline until first frame.                                                     |
-| Lifetime    | Client loss or failed publication preserves membership. Opened requires the exact current Worker generation; loss/replacement never adopts or relaunches. Later navigation retirement cannot cancel an already committed launch.                                                                                                   |
-| Limits      | In-process successful-execution atomicity under one mutex; no crash/persistence atomicity. One standalone reference; no close/reset, recovery, full Workbench operation, remote authorization or activation policy. The wait deadline does not bound mutex acquisition, suspension or response writing. Runtime evidence is Linux. |
-
-### Standalone opening correctness
-
-| Claim                                                  | Refinement and evidence                                                                                                                                                                     |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SO-01: at most one prepared create                     | Reserve maps to the gated Site commit; Singleton/NoReset and core preflight/collision/concurrency tests.                                                                                    |
-| SO-02: callers share a committed reference             | Complete/Observe, SameReference/OpenedWasCommitted, exact-placement tests and real two-Session/Host traces.                                                                                 |
-| SO-03: Client loss never resets shared state           | Disconnect/Reopen, DisconnectPreservesSlot, unread-result and reopen process traces.                                                                                                        |
-| SO-04: uncertainty never creates another effect        | Complete(unknown), SettledSlotIsFinal, failed/unknown/same-Worker-new-generation core and process tests.                                                                                    |
-| SO-05: a waiter settles without Worker fairness        | Timeout/EveryWaitSettles and absolute-deadline condition tests; only local timeout observation is weakly fair.                                                                              |
-| SO-06: launch requires committed membership            | Reserve/Dispatch, MembershipCommitted/DispatchHasMembership, logical authorization comparison before Worker completion.                                                                     |
-| SO-07: reads preserve the binding across navigation    | Navigate/ReadWorkbench, ReadIsCommitted/MembershipIsRetained, stateful navigation traces and a stalled-Worker process witness.                                                              |
-| SO-08: preflight consumes neither allocator            | PreflightPreservesState covers abstract membership/revision; exact identity, revision and encoded-capacity tests cover concrete allocation.                                                 |
-| SO-09: settled replay survives a legal multi-leaf tree | `DerivedComposition` anchor-once over the ordered leaf member sequence, `MovePreservesBootstrap`, deterministic Site split/reorder/close tests and the Linux PTY split-exit-reopen witness. |
-
-Deterministic and stateful implementation tests cover exact Client/Create/binding identity, navigation commit, appended membership, identity non-reuse and ignored duplicate completion. Process/PTY traces cover framing, logical-to-Host mapping, concurrent requests, real execution and retention. These concrete traces do not establish exhaustive interleavings or arbitrary scheduling progress.
+Clients read canonical membership and attach its exact binding. There is no `terminal.open` endpoint, singleton first-terminal reference or Workspace-less fallback. Empty Workspaces remain navigable; an empty Workbench creates no terminal implicitly. See [Workspace membership](docs/workbench-authority.md#workspace-terminal-membership-model), [Tab creation](docs/workbench-authority.md#workspace-tab-creation-model) and [directory admission](docs/workspace-terminal-directory.md).
 
 ## Windows native Site
 

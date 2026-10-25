@@ -7,7 +7,7 @@ use crate::{
         NativeMemberTarget, NativeStartupTarget,
         startup_directory::{Progress, validate_workspace},
         state::CarrierFailure,
-        workbench_projection::{NativeContextTabs, project_native_standalone_tabs},
+        workbench_projection::{NativeContextTabs, project_preferred_workspace},
     },
 };
 use orchbee_client_server_protocol::Geometry;
@@ -31,8 +31,7 @@ impl NativeExecutor {
         };
         let directory = (**directory).clone();
         // Validate the canonical projection before granting any automatic mutation.
-        project_native_standalone_tabs(&snapshot)
-            .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+        project_preferred_workspace(&snapshot).map_err(|_| CarrierFailure::AuthorityDivergence)?;
         if !directory.admits(&snapshot) {
             return Ok((snapshot, None));
         }

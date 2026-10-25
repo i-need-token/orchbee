@@ -252,7 +252,7 @@ fn relocation_directory_is_worker_proven_atomic_and_replayable() {
 
 #[test]
 fn cross_context_reference_matrix_conserves_leaves_and_reports_source_disposal() {
-    // Independent reference partitions: standalone/Workspace source, one/many
+    // Independent reference partitions: initial_workspace/Workspace source, one/many
     // source leaves, existing/new Tab/new Workspace, and four graft directions.
     for source_index in [0, 1] {
         for source_split in [false, true] {

@@ -8,12 +8,7 @@ work. They use an existing Session; they never start a Session or retry an uncer
 interactive Client. The total `--timeout` defaults to 30000 ms and admits 1 through 3600000 ms.
 There is no detached mode or caller-supplied creation identity.
 
-`tab create` accepts exclusive `--workspace` or `--standalone`. Without either, use the validated
-calling Panel's context, then an unambiguous current Client's selected context. `panel split`
-accepts an optional positional Panel or exclusive `--panel` / `--current`; omission uses validated
-caller context, then the selected Client's Panel. Explicit Client routing ignores caller environment.
-Partial, malformed or stale caller identity never falls back to another target. Explicit context
-or Panel with no Client work remains usable headlessly. Multiple viable Clients are an error.
+`tab create` accepts `--workspace`; omission uses the validated calling Panel's Workspace, then an unambiguous current Client's selected Workspace. There is no Workspace-less destination. `panel split` accepts an optional positional Panel or exclusive `--panel` / `--current`; omission uses validated caller context, then the selected Client's Panel. Explicit Client routing ignores caller environment. Partial, malformed or stale caller identity never falls back to another target. Explicit destinations with no Client work remain usable headlessly. Multiple viable Clients are an error.
 
 Creation labels are optional. The native fallback is the context's Tab count plus one for a Tab,
 or the owning Tab's Panel count plus one for a split, captured from the preflight Snapshot. It is

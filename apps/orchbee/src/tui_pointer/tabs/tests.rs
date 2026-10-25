@@ -71,9 +71,17 @@ fn fixture(collapsed: bool) -> (PointerState, Port, ClientView, FrameHitMap) {
                 site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
                 revision: WorkbenchRevision::new(1),
             },
-            location: NativeContextLocation::Standalone(
-                WorkbenchTerminalContextId::parse(&format!("{:032x}", 50)).unwrap(),
-            ),
+            location: {
+                let fixture_context_id =
+                    WorkbenchTerminalContextId::parse(&format!("{:032x}", 50)).unwrap();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
         },
         tabs: (1..=5)
             .map(|n| TabDragTab {
@@ -617,9 +625,17 @@ fn double_click_survives_selection_revision_but_not_a_context_replacement() {
         }
         port.source.drawn.source.revision = WorkbenchRevision::new(2);
         if replace_context {
-            port.source.drawn.location = NativeContextLocation::Standalone(
-                WorkbenchTerminalContextId::parse(&format!("{:032x}", 51)).unwrap(),
-            );
+            port.source.drawn.location = {
+                let fixture_context_id =
+                    WorkbenchTerminalContextId::parse(&format!("{:032x}", 51)).unwrap();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            };
         }
         let mut hits = HitMapBuilder::new();
         hits.record_action_menu_source(Some(port.source.drawn.source.clone()));

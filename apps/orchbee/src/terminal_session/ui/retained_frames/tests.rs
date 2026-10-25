@@ -406,7 +406,7 @@ fn identity_at(
     let presentation = panel.primary();
     Identity {
         site: cache.site_id().clone(),
-        context: cache.terminal_context_id().clone(),
+        context: cache.terminal_context_id().unwrap().clone(),
         tab: tab.tab_id().clone(),
         panel: panel.panel_id().clone(),
         presentation: presentation.presentation_id().clone(),
@@ -423,11 +423,11 @@ fn marked_frame(template: &TerminalTextFrame, marker: &str) -> Arc<TerminalTextF
 #[test]
 fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
     use crate::terminal_session::workbench_projection::{
-        project_native_context_tabs, project_native_standalone_tabs,
+        project_native_context_tabs, project_preferred_workspace,
     };
 
     let snapshot = super::super::tests::context_selection::snapshot(false);
-    let alpha = project_native_standalone_tabs(&snapshot).unwrap();
+    let alpha = project_preferred_workspace(&snapshot).unwrap();
     let beta_location = alpha.navigation()[1].location.clone();
     let beta = project_native_context_tabs(&snapshot, &beta_location).unwrap();
     assert_eq!(alpha.tabs().len(), 2);
@@ -520,12 +520,12 @@ fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
 #[test]
 fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
     use crate::terminal_session::workbench_projection::{
-        project_native_context_tabs, project_native_standalone_tabs,
+        project_native_context_tabs, project_preferred_workspace,
     };
     use orchbee_terminal_protocol::HostEpoch;
 
     let snapshot = super::super::tests::context_selection::snapshot(false);
-    let alpha = project_native_standalone_tabs(&snapshot).unwrap();
+    let alpha = project_preferred_workspace(&snapshot).unwrap();
     let beta_location = alpha.navigation()[1].location.clone();
     let beta = project_native_context_tabs(&snapshot, &beta_location).unwrap();
     let alpha_one = identity_at(&alpha, 0);
@@ -591,10 +591,10 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
 
 #[test]
 fn invalid_inherited_lru_entries_cannot_evict_valid_pixels() {
-    use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+    use crate::terminal_session::workbench_projection::project_preferred_workspace;
 
     let snapshot = super::super::tests::context_selection::snapshot(false);
-    let alpha = project_native_standalone_tabs(&snapshot).unwrap();
+    let alpha = project_preferred_workspace(&snapshot).unwrap();
     let alpha_one = identity_at(&alpha, 0);
     let alpha_two = identity_at(&alpha, 1);
     let mut template_ui = ready_for_retained_handoff(alpha.clone());

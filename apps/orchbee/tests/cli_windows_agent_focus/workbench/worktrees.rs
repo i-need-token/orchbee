@@ -11,7 +11,7 @@ pub(super) fn snapshot(stream: &mut LocalStream, count: u64, no_directory: bool)
         json!({"workspaceId":id(100+n),"projectId":id(30),"label":"work","primaryDirectoryId":if no_directory {Value::Null} else {json!(id(31))},"terminalContextId":id(200+n)})
     }).collect();
     let value = json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
-        "navigation":{"standaloneTerminalContextId":id(4),"projects":[{"projectId":id(30),"label":"project"}],"directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":rows},"terminalContexts":contexts});
+        "navigation":{"projects":[{"projectId":id(30),"label":"project"}],"directories":[{"directoryId":id(31),"workerId":id(32),"path":"C:/repo/sub"}],"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(rows).collect::<Vec<_>>()},"terminalContexts":contexts});
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {

@@ -53,7 +53,7 @@ fn ready() -> (
     snapshot
         .navigation
         .workspace_order
-        .push(snapshot.navigation.workspaces[0].workspace_id.clone());
+        .push(snapshot.navigation.workspaces[1].workspace_id.clone());
     snapshot.terminal_contexts.push(TerminalContext {
         terminal_context_id: other_context,
         tabs: vec![other_tab],

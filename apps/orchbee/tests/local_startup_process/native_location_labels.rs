@@ -174,7 +174,7 @@ fn assert_cwd(fixture: &Fixture, client: &mut Client, directory: &Path, filename
 #[test]
 fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspace() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -184,24 +184,18 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         ReadyMode::Controlling,
     );
     let mut observer = SnapshotObserver::connect(&fixture)?;
-    let standalone = observer.snapshot()?;
-    assert!(standalone.navigation.projects.is_empty());
-    for (target, notice) in [
-        (
-            Target::Workspace,
-            "No current Workspace to rename · no command was sent",
-        ),
-        (
-            Target::Project,
-            "No current Project to rename · no command was sent",
-        ),
-    ] {
+    let initial_workspace = observer.snapshot()?;
+    assert!(initial_workspace.navigation.projects.is_empty());
+    for (target, notice) in [(
+        Target::Project,
+        "No current Project to rename · no command was sent",
+    )] {
         let checkpoint = client.checkpoint();
         client.send(target.shortcut());
         client.wait_native_frame_text_after(
             checkpoint,
             Instant::now() + SWITCH_TIMEOUT,
-            NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+            NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
             &[notice],
             &[target.title()],
             &[],
@@ -209,8 +203,8 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         );
         assert_eq!(
             observer.snapshot()?,
-            standalone,
-            "standalone has no location label target"
+            initial_workspace,
+            "ungrouped Workspace has no Project rename target"
         );
     }
     seed_empty_workspace(&fixture, &mut client)?;
@@ -311,7 +305,7 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         assert_eq!(renamed.revision.value(), expected.revision.value() + 1);
         expected.revision = renamed.revision;
         match target {
-            Target::Workspace => expected.navigation.workspaces[0].label = label.to_owned(),
+            Target::Workspace => expected.navigation.workspaces[1].label = label.to_owned(),
             Target::Project => expected.navigation.projects[0].label = label.to_owned(),
         }
         assert_eq!(

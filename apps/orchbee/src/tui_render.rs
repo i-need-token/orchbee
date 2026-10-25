@@ -2408,7 +2408,7 @@ fn native_location_label(native: &NativeSessionView<'_>, locale: Locale) -> Opti
                 workspace_label: context
                     .workspace_label()
                     .map(|label| locale.workspace_display_label(label)),
-                standalone_label: locale.shell().standalone,
+                no_workspace_label: locale.shell().no_workspace,
             })
         })
 }
@@ -2625,7 +2625,7 @@ fn render_native_workbench_navigator(
                 workspace_label: context
                     .workspace_label()
                     .map(|label| locale.workspace_display_label(label)),
-                standalone_label: text.standalone,
+                no_workspace_label: text.no_workspace,
             })
     };
     contexts::render_navigator(

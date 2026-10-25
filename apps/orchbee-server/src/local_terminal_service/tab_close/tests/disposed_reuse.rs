@@ -202,7 +202,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             .terminal_contexts
             .iter()
             .find(|context| {
-                context.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
+                context.terminal_context_id == snapshot.navigation.workspaces[0].terminal_context_id
             })
             .unwrap();
         let orchbee_workbench_protocol::PanelNode::Panel {
@@ -210,7 +210,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             ..
         } = &context.tabs[0].root
         else {
-            panic!("standalone panel")
+            panic!("initial_workspace panel")
         };
         let binding = primary_presentation.binding.as_ref().unwrap();
         let site_id =

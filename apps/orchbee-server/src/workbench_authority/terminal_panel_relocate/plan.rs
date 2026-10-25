@@ -190,10 +190,7 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 .ok_or(PlanFailure::Internal)?
         };
         let mut closed_source_workspace_id = None;
-        if source.tabs.is_empty()
-            && self.terminal_context_id != target_context_id
-            && self.terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-        {
+        if source.tabs.is_empty() && self.terminal_context_id != target_context_id {
             let index = candidate
                 .navigation
                 .workspaces
@@ -365,19 +362,6 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 WorkbenchRejectionReason::ResourceLimit,
             ));
         }
-        let standalone_id = &snapshot.navigation.standalone_terminal_context_id;
-        let standalone =
-            if &self.terminal_context_id == standalone_id || &target_context_id == standalone_id {
-                Some((
-                    tree_terminal_membership(snapshot, standalone_id)
-                        .map_err(|_| PlanFailure::Internal)?,
-                    tree_terminal_membership(&candidate, standalone_id)
-                        .map_err(|_| PlanFailure::Internal)?,
-                ))
-            } else {
-                None
-            };
-        candidate.revision = revision;
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).map_err(
             |error| match error {
                 ContractError::EncodedValueTooLarge { .. } => {
@@ -398,7 +382,6 @@ impl WorkbenchPanelRelocateAdmission<'_> {
                 catalog_next: None,
                 outcome,
             },
-            standalone,
         })
     }
 }

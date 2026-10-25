@@ -23,7 +23,7 @@ struct AssociatedWorkspace {
     project_id: orchbee_workbench_protocol::WorkbenchProjectId,
     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId,
     terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId,
-    standalone_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId,
+    sibling_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId,
 }
 
 fn create_associated_workspace(
@@ -31,10 +31,26 @@ fn create_associated_workspace(
     first: &mut UnixStream,
     second: &mut UnixStream,
 ) -> TestResult<AssociatedWorkspace> {
+    let empty = read_snapshot(first, 0xff0)?;
+    let sibling_created = exchange_command(
+        first,
+        &command(
+            workbench_id(0xff1)?,
+            &empty,
+            WorkbenchAction::WorkspaceCreate {
+                project_id: None,
+                label: WorkbenchLabel::parse("Sibling")?,
+            },
+        ),
+    )?;
+    assert!(matches!(
+        sibling_created.outcome,
+        WorkbenchCommandOutcome::WorkspaceCreated { .. }
+    ));
     let initial = read_snapshot(first, 0x100)?;
-    let standalone_context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let sibling_context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
     assert!(
-        context(&initial, standalone_context_id.as_str())?
+        context(&initial, sibling_context_id.as_str())?
             .tabs
             .is_empty()
     );
@@ -121,7 +137,7 @@ fn create_associated_workspace(
         project_id,
         workspace_id,
         terminal_context_id,
-        standalone_context_id,
+        sibling_context_id,
     })
 }
 
@@ -226,7 +242,7 @@ fn attach_binding(
         )),
     )?;
     let ServerMessage::TerminalViewerResult(result) = read_server_message(client)? else {
-        return Err("standalone AttachBinding did not return a viewer result".into());
+        return Err("sibling AttachBinding did not return a viewer result".into());
     };
     assert_eq!(result.request_id(), &request_id);
     let TerminalViewerOutcome::Attached { attachment_id, .. } = result.into_outcome() else {
@@ -251,11 +267,11 @@ fn acquire_controller(
         )),
     )?;
     let ServerMessage::TerminalControlResult(result) = read_server_message(client)? else {
-        return Err("standalone Acquire did not return a control result".into());
+        return Err("sibling Acquire did not return a control result".into());
     };
     assert_eq!(result.request_id(), &request_id);
     let TerminalControlOutcome::Acquired { controller_id } = result.into_outcome() else {
-        return Err("standalone Acquire was not accepted".into());
+        return Err("sibling Acquire was not accepted".into());
     };
     Ok(controller_id)
 }
@@ -270,7 +286,7 @@ fn input(
 ) -> TestResult<()> {
     let request_id = client_id(request_value)?;
     let sequence = NonZeroU64::new(sequence)
-        .ok_or_else(|| io::Error::other("standalone input sequence must be positive"))?;
+        .ok_or_else(|| io::Error::other("sibling input sequence must be positive"))?;
     write_client_message(
         client,
         &ClientMessage::TerminalControl(TerminalControlRequest::new(
@@ -284,7 +300,7 @@ fn input(
         )),
     )?;
     let ServerMessage::TerminalControlResult(result) = read_server_message(client)? else {
-        return Err("standalone Input did not return a control result".into());
+        return Err("sibling Input did not return a control result".into());
     };
     assert_eq!(result.request_id(), &request_id);
     assert_eq!(result.outcome(), &TerminalControlOutcome::InputAccepted {});
@@ -499,7 +515,7 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
     let after_close = read_snapshot(&mut first, 0x126)?;
     assert!(workspace_context(&after_close)?.tabs.is_empty());
     assert!(
-        context(&after_close, setup.standalone_context_id.as_str())?
+        context(&after_close, setup.sibling_context_id.as_str())?
             .tabs
             .is_empty()
     );
@@ -872,7 +888,7 @@ fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
 }
 
 #[test]
-fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
+fn real_workspace_close_preserves_sibling_and_can_recreate() -> TestResult {
     let server = RunningServer::start()?;
     let fixture = RealWorkerFixture::start(&server)?;
     let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
@@ -936,30 +952,62 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         "Workspace shell PID marker was not alive before close"
     );
 
-    let standalone_open_id = client_id(0x10b)?;
-    write_client_message(
+    let sibling_workspace = after_workspace_create
+        .navigation
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.terminal_context_id == setup.sibling_context_id)
+        .ok_or("missing sibling Workspace")?;
+    let associated = exchange_command(
         &mut first,
-        &ClientMessage::TerminalOpen(TerminalOpenRequest::new(
-            standalone_open_id.clone(),
-            client_geometry()?,
-        )),
+        &command(
+            workbench_id(0x10b)?,
+            &after_workspace_create,
+            WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+                workspace_id: sibling_workspace.workspace_id.clone(),
+                path: WorkbenchDirectoryPath::parse("/tmp")?,
+            },
+        ),
     )?;
-    let ServerMessage::TerminalOpenResult(opened) = read_server_message(&mut first)? else {
-        return Err("standalone bareOpen did not return an Open result".into());
-    };
-    assert_eq!(opened.request_id(), &standalone_open_id);
-    assert!(matches!(opened.outcome(), OpenOutcome::Opened { .. }));
+    assert!(matches!(
+        associated.outcome,
+        WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+    ));
+    let associated = read_snapshot(&mut first, 0x10b0)?;
+    let sibling_created = exchange_command(
+        &mut first,
+        &command(
+            workbench_id(0x10b1)?,
+            &associated,
+            WorkbenchAction::TabCreate {
+                automatic_label: false,
+                placement: None,
+                terminal_context_id: setup.sibling_context_id.clone(),
+                label: WorkbenchLabel::parse("Sibling shell")?,
+                geometry: geometry()?,
+                launch: None,
+                profile: None,
+                options: Default::default(),
+            },
+        ),
+    )?;
+    assert!(matches!(
+        sibling_created.outcome,
+        WorkbenchCommandOutcome::TabCreated {
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        }
+    ));
     let before_close = read_snapshot(&mut second, 0x10c)?;
     assert_eq!(before_close, read_snapshot(&mut first, 0x10d)?);
-    let standalone_tab = context(&before_close, setup.standalone_context_id.as_str())?
+    let sibling_tab = context(&before_close, setup.sibling_context_id.as_str())?
         .tabs
         .first()
-        .ok_or_else(|| io::Error::other("standalone bareOpen Tab was not projected"))?;
-    let standalone_binding = first_tab_binding(standalone_tab)?.clone();
-    let standalone_tab_id = standalone_tab.tab_id.clone();
-    let standalone_attachment =
-        attach_binding(&mut first, &before_close, &standalone_binding, 0x10e)?;
-    let standalone_controller = acquire_controller(&mut first, &standalone_attachment, 0x10f)?;
+        .ok_or_else(|| io::Error::other("sibling TabCreate Tab was not projected"))?;
+    let sibling_binding = first_tab_binding(sibling_tab)?.clone();
+    let sibling_tab_id = sibling_tab.tab_id.clone();
+    let sibling_attachment = attach_binding(&mut first, &before_close, &sibling_binding, 0x10e)?;
+    let sibling_controller = acquire_controller(&mut first, &sibling_attachment, 0x10f)?;
 
     let _before_close_project = before_close
         .navigation
@@ -1047,12 +1095,12 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         after_close_workspace.primary_directory_id,
         before_close_directory_id
     );
-    let after_close_standalone = context(&after_close_first, setup.standalone_context_id.as_str())?;
-    assert_eq!(after_close_standalone.tabs.len(), 1);
-    assert_eq!(after_close_standalone.tabs[0].tab_id, standalone_tab_id);
+    let after_close_sibling = context(&after_close_first, setup.sibling_context_id.as_str())?;
+    assert_eq!(after_close_sibling.tabs.len(), 1);
+    assert_eq!(after_close_sibling.tabs[0].tab_id, sibling_tab_id);
     assert_eq!(
-        first_tab_binding(&after_close_standalone.tabs[0])?,
-        &standalone_binding
+        first_tab_binding(&after_close_sibling.tabs[0])?,
+        &sibling_binding
     );
 
     let replay = exchange_command(&mut second, &original_close)?;
@@ -1068,7 +1116,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         closed
     );
 
-    // The exact canonical binding is gone after Closed, while the unrelated standalone viewer
+    // The exact canonical binding is gone after Closed, while the unrelated sibling viewer
     // remains attached and can still drive its real shell.
     wait_for_process_exit(workspace_pid)?;
     let old_binding_request_id = client_id(0x115)?;
@@ -1095,20 +1143,20 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         }
     );
 
-    let standalone_witness = fixture.marker.with_file_name("standalone-alive");
+    let sibling_witness = fixture.marker.with_file_name("sibling-alive");
     input(
         &mut first,
-        &standalone_attachment,
-        &standalone_controller,
+        &sibling_attachment,
+        &sibling_controller,
         0x116,
         1,
         format!(
-            "printf 'standalone-alive\\n' > {}\n",
-            single_quote(standalone_witness.to_string_lossy().as_ref())
+            "printf 'sibling-alive\\n' > {}\n",
+            single_quote(sibling_witness.to_string_lossy().as_ref())
         )
         .into_bytes(),
     )?;
-    wait_for_contents(&standalone_witness, "standalone-alive\n")?;
+    wait_for_contents(&sibling_witness, "sibling-alive\n")?;
 
     let recreate = command(
         workbench_id(0x117)?,

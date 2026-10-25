@@ -54,7 +54,7 @@ fn nested_split_root() -> PanelNode {
 
 #[test]
 fn canonical_refresh_accepts_close_contraction_to_the_surviving_leaf() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 10)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 10)).unwrap();
 
     for kept_first in [true, false] {
         let mut candidate_snapshot = split_snapshot(2, 11);
@@ -66,7 +66,7 @@ fn canonical_refresh_accepts_close_contraction_to_the_surviving_leaf() {
         let [first, second] = *children;
         candidate_snapshot.terminal_contexts[0].tabs[0].root =
             if kept_first { first } else { second }.node;
-        let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+        let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
         assert_eq!(
             validate_canonical_refresh(&current, candidate.clone()),
             Ok(candidate)
@@ -78,7 +78,7 @@ fn canonical_refresh_accepts_close_contraction_to_the_surviving_leaf() {
 fn canonical_refresh_accepts_close_contraction_inside_a_surviving_split() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     let mut candidate_snapshot = current_snapshot.clone();
     candidate_snapshot.revision = WorkbenchRevision::new(11);
@@ -108,7 +108,7 @@ fn canonical_refresh_accepts_close_contraction_inside_a_surviving_split() {
         split_id: split_id(40),
     };
     let _ = middle;
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -119,7 +119,7 @@ fn canonical_refresh_accepts_close_contraction_inside_a_surviving_split() {
 fn canonical_refresh_accepts_close_contraction_that_promotes_a_subtree_to_root() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // Closing the left leaf replaces the root Split with the sibling subtree.
     let mut candidate_snapshot = current_snapshot;
@@ -131,7 +131,7 @@ fn canonical_refresh_accepts_close_contraction_that_promotes_a_subtree_to_root()
     };
     let [_first, second] = *children;
     candidate_snapshot.terminal_contexts[0].tabs[0].root = second.node;
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -184,7 +184,7 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // Closing "left" collapses the inner-left Split; the untouched inner-right Split must keep
     // every identity even though the Panel set still matches an exact close.
@@ -238,7 +238,7 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&candidate_snapshot).unwrap()
+            project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -250,11 +250,11 @@ fn canonical_refresh_accepts_a_close_history_that_collapsed_two_leaves() {
     // sibling subtree, so the candidate keeps only the retained leaf.
     let mut double_close = snapshot(2, 10);
     double_close.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current_nested = project_native_standalone_tabs(&double_close).unwrap();
+    let current_nested = project_preferred_workspace(&double_close).unwrap();
     let mut collapsed = double_close;
     collapsed.revision = WorkbenchRevision::new(11);
     collapsed.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
-    let candidate = project_native_standalone_tabs(&collapsed).unwrap();
+    let candidate = project_preferred_workspace(&collapsed).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current_nested, candidate.clone()),
         Ok(candidate)
@@ -263,14 +263,14 @@ fn canonical_refresh_accepts_a_close_history_that_collapsed_two_leaves() {
 
 #[test]
 fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_identity() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 10)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 10)).unwrap();
 
     // A replacement leaf that was never a member of the baseline: the surviving Tab identity
     // retains no member, so this is reassignment disguised as retention, not a folded close.
     let mut stranger = split_snapshot(2, 11);
     stranger.terminal_contexts[0].tabs[0].root = panel(60, 61, 62, 63, "stranger");
     assert_eq!(
-        validate_canonical_refresh(&current, project_native_standalone_tabs(&stranger).unwrap()),
+        validate_canonical_refresh(&current, project_preferred_workspace(&stranger).unwrap()),
         Err(NativeProjectionDivergence)
     );
 
@@ -278,10 +278,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
     let mut relabeled = split_snapshot(2, 11);
     relabeled.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 63, "left");
     assert_eq!(
-        validate_canonical_refresh(
-            &current,
-            project_native_standalone_tabs(&relabeled).unwrap()
-        ),
+        validate_canonical_refresh(&current, project_preferred_workspace(&relabeled).unwrap()),
         Err(NativeProjectionDivergence)
     );
 
@@ -302,7 +299,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    assert!(project_native_standalone_tabs(&swapped).is_err());
+    assert!(project_preferred_workspace(&swapped).is_err());
 
     // A retained Split whose ordered Slot identities changed: the surviving children were swapped
     // under identities that were never free to move.
@@ -336,8 +333,8 @@ fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_ident
     };
     assert_eq!(
         validate_canonical_refresh(
-            &project_native_standalone_tabs(&reordered_snapshot).unwrap(),
-            project_native_standalone_tabs(&reordered).unwrap()
+            &project_preferred_workspace(&reordered_snapshot).unwrap(),
+            project_preferred_workspace(&reordered).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );

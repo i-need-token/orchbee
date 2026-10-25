@@ -55,7 +55,6 @@ mod panel_metadata;
 mod process_observer;
 mod projection;
 mod send;
-mod standalone;
 mod tab_close;
 mod tab_create;
 mod viewer_session;
@@ -103,8 +102,6 @@ pub(crate) struct LocalTerminalService {
     worktree_maintenance: operation_maintenance::OperationMaintenance,
     group_close_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
-    standalone_changed: std::sync::Condvar,
-    standalone_wait: std::time::Duration,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: Mutex<SiteCoordinator>,
     controllers: Mutex<
@@ -160,8 +157,6 @@ impl LocalTerminalService {
                 Self::workspace_group_close_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
-            standalone_changed: std::sync::Condvar::new(),
-            standalone_wait: std::time::Duration::from_secs(46),
             workers,
             coordinator: Mutex::new(SiteCoordinator::new(workbench)),
             controllers: Mutex::new(std::collections::BTreeMap::new()),
@@ -208,15 +203,6 @@ impl LocalTerminalService {
     }
 
     pub(crate) fn execute(&self, request: ClientMessage) -> ServerMessage {
-        if let ClientMessage::TerminalOpen(request) = request {
-            let outcome = self.open_standalone(&request);
-            return ServerMessage::TerminalOpenResult(
-                orchbee_client_server_protocol::TerminalOpenResult::new(
-                    request.request_id().clone(),
-                    outcome,
-                ),
-            );
-        }
         if let ClientMessage::TerminalSend(request) = request {
             return self.execute_send(&request);
         }
@@ -389,14 +375,6 @@ fn lease_expiry() -> Option<LeaseExpiresAtUnixMilliseconds> {
 }
 fn busy_result(request: &ClientMessage) -> ServerMessage {
     match request {
-        ClientMessage::TerminalOpen(request) => ServerMessage::TerminalOpenResult(
-            orchbee_client_server_protocol::TerminalOpenResult::new(
-                request.request_id().clone(),
-                orchbee_client_server_protocol::OpenOutcome::Unavailable {
-                    reason: CreateUnavailableReason::ServerBusy,
-                },
-            ),
-        ),
         ClientMessage::TerminalControl(request) => ServerMessage::TerminalControlResult(
             orchbee_client_server_protocol::TerminalControlResult::new(
                 request.request_id().clone(),
@@ -456,7 +434,6 @@ fn busy_result(request: &ClientMessage) -> ServerMessage {
 }
 fn unknown_result(result: &ServerMessage) -> ServerMessage {
     match result {
-        ServerMessage::TerminalOpenResult(result) => ServerMessage::TerminalOpenResult(orchbee_client_server_protocol::TerminalOpenResult::new(result.request_id().clone(), orchbee_client_server_protocol::OpenOutcome::OutcomeUnknown {})),
         ServerMessage::TerminalControlResult(result) => ServerMessage::TerminalControlResult(orchbee_client_server_protocol::TerminalControlResult::new(result.request_id().clone(), orchbee_client_server_protocol::TerminalControlOutcome::OutcomeUnknown {})),
         ServerMessage::TerminalViewerResult(result) => ServerMessage::TerminalViewerResult(orchbee_client_server_protocol::TerminalViewerResult::new(
             result.request_id().clone(), orchbee_client_server_protocol::TerminalViewerOutcome::Unavailable {

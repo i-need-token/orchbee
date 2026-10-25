@@ -207,7 +207,6 @@ pub(crate) enum NativeSessionNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
-    LegacyWorkspace,
     NoWorkspace,
     ConfirmationCancelled,
     DraftCancelled,
@@ -618,7 +617,7 @@ impl<'a> NativeSessionView<'a> {
         }
     }
 
-    /// The selected compatibility slot has no user content and is absent from Workspace navigation.
+    /// The selected empty landing is absent from Workspace navigation.
     pub(crate) fn no_current_workspace(&self) -> bool {
         self.state
             .as_ref()
@@ -740,7 +739,6 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::WorkspaceCloseUnavailable => {
                 NativeSessionNotice::WorkspaceCloseUnavailable
             }
-            SessionNotice::LegacyWorkspace => NativeSessionNotice::LegacyWorkspace,
             SessionNotice::NoWorkspace => NativeSessionNotice::NoWorkspace,
             SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
             SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
@@ -1041,7 +1039,7 @@ impl<'a> NativeSessionView<'a> {
             pane,
             member: SnapshotMember {
                 site: state.site_id().clone(),
-                context: state.terminal_context_id().clone(),
+                context: state.terminal_context_id()?.clone(),
                 tab: tab.tab_id().clone(),
                 panel: panel_id.clone(),
                 presentation: selected.presentation_id().clone(),
@@ -2853,14 +2851,10 @@ impl NativeUi {
         ) && let Some(state) = self.state.as_mut()
             && matches!(
                 state.cache().location(),
-                super::NativeContextLocation::Standalone(_)
+                super::NativeContextLocation::NoWorkspace
             )
         {
-            state.set_notice(if state.cache().tabs().is_empty() {
-                SessionNotice::NoWorkspace
-            } else {
-                SessionNotice::LegacyWorkspace
-            });
+            state.set_notice(SessionNotice::NoWorkspace);
             return SessionActionDisposition::KeepNavigator;
         }
         match action {
@@ -3155,10 +3149,9 @@ impl NativeUi {
             state.cancel_duplicate_sequence();
         }
         if let Some(state) = self.state.as_mut()
-            && orchbee_workbench_protocol::validate_tab_creation(
-                state.cache().canonical_context(),
-                placement.as_ref(),
-            ) == Err(orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict)
+            && let Some(context) = state.cache().canonical_context()
+            && orchbee_workbench_protocol::validate_tab_creation(context, placement.as_ref())
+                == Err(orchbee_workbench_protocol::WorkbenchRejectionReason::TabMoveOrderConflict)
         {
             state.set_notice(SessionNotice::CreateOrderConflict);
             return SessionActionDisposition::KeepNavigator;
@@ -4694,7 +4687,10 @@ fn build_create_launch(
         return Err(ActionBuildError::Protocol);
     }
     orchbee_workbench_protocol::validate_tab_creation(
-        state.cache().canonical_context(),
+        state
+            .cache()
+            .canonical_context()
+            .ok_or(ActionBuildError::Busy)?,
         placement.as_ref(),
     )
     .map_err(|_| ActionBuildError::Busy)?;
@@ -4712,6 +4708,7 @@ fn build_create_launch(
         let source = state
             .cache()
             .canonical_context()
+            .ok_or(ActionBuildError::Busy)?
             .tabs
             .iter()
             .find(|tab| &tab.tab_id == tab_id)
@@ -4732,7 +4729,11 @@ fn build_create_launch(
         key,
         state.cache().site_id().clone(),
         state.cache().revision(),
-        state.cache().terminal_context_id().clone(),
+        state
+            .cache()
+            .terminal_context_id()
+            .ok_or(ActionBuildError::Busy)?
+            .clone(),
         label.clone(),
         geometry,
         deadlines,
@@ -4760,7 +4761,11 @@ fn build_create_launch(
         action: WorkbenchAction::TabCreate {
             placement,
             automatic_label,
-            terminal_context_id: state.cache().terminal_context_id().clone(),
+            terminal_context_id: state
+                .cache()
+                .terminal_context_id()
+                .ok_or(ActionBuildError::Busy)?
+                .clone(),
             label,
             geometry: workbench_geometry,
             launch,

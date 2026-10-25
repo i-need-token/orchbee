@@ -24,7 +24,7 @@ use crate::{
             PanelRequestKind, PanelResult, PendingCreateCommit, PendingRefreshStage, ReadyDecision,
             RefreshDecision, SessionNotice, SessionPhaseKind, SetupEventDisposition,
         },
-        workbench_projection::project_native_standalone_tabs,
+        workbench_projection::project_preferred_workspace,
     },
 };
 use orchbee_client_server_protocol::{
@@ -754,7 +754,7 @@ impl Trace {
     fn new() -> Result<Self, ReplayFailure> {
         let base = Instant::now();
         let authority = Authority::bootstrap();
-        let cache = project_native_standalone_tabs(&authority.snapshot())
+        let cache = project_preferred_workspace(&authority.snapshot())
             .map_err(|error| violation_error(format!("initial projection: {error:?}")))?;
         let (mut session, _target) = NativeSessionState::starting(cache, 1, geometry())
             .ok_or_else(|| violation_error("initial state was rejected"))?;
@@ -3501,7 +3501,11 @@ impl Trace {
                 )?;
                 PanelResult::CloseAccepted(WorkbenchPanelCloseAccepted {
                     close_request_id: operation.request_id().clone(),
-                    terminal_context_id: operation.baseline().terminal_context_id().clone(),
+                    terminal_context_id: operation
+                        .baseline()
+                        .terminal_context_id()
+                        .unwrap()
+                        .clone(),
                     tab_id: operation.target().tab_id().clone(),
                     panel_id: operation.panel_id().clone(),
                     accepted_revision: baseline_revision,
@@ -4221,7 +4225,7 @@ fn create_marker(
         action: WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: session.cache().terminal_context_id().clone(),
+            terminal_context_id: session.cache().terminal_context_id().unwrap().clone(),
             label: label.clone(),
             geometry: workbench_geometry,
             launch: None,
@@ -4237,7 +4241,7 @@ fn create_marker(
         CreateOperationKey::new(request_id, generation),
         session.cache().site_id().clone(),
         session.cache().revision(),
-        session.cache().terminal_context_id().clone(),
+        session.cache().terminal_context_id().unwrap().clone(),
         label,
         geometry(),
         deadlines,
@@ -4865,13 +4869,27 @@ impl Authority {
 
     fn snapshot(&self) -> Snapshot {
         Snapshot {
-            navigation: Navigation {
-                project_order: Vec::new(),
-                directories: Vec::new(),
-                workspaces: Vec::new(),
-                workspace_order: Vec::new(),
-                projects: Vec::new(),
-                standalone_terminal_context_id: context_id(3),
+            navigation: {
+                let fixture_context_id = context_id(3);
+                let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap();
+                Navigation {
+                    project_order: Vec::new(),
+                    directories: Vec::new(),
+                    workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                        workspace_id: fixture_workspace_id.clone(),
+                        terminal_context_id: fixture_context_id.clone(),
+                        project_id: None,
+                        primary_directory_id: None,
+                        label: "Workspace".into(),
+                    })
+                    .chain(Vec::new())
+                    .collect(),
+                    workspace_order: Vec::new(),
+                    projects: Vec::new(),
+                }
             },
             protocol_version: ProtocolVersion,
             revision: WorkbenchRevision::new(self.revision),
@@ -5268,7 +5286,7 @@ impl PanelSandbox {
     fn new() -> Result<Self, ReplayFailure> {
         let base = Instant::now();
         let authority = Authority::bootstrap();
-        let cache = project_native_standalone_tabs(&authority.snapshot())
+        let cache = project_preferred_workspace(&authority.snapshot())
             .map_err(|error| violation_error(format!("sandbox projection: {error:?}")))?;
         let (mut session, _target) = NativeSessionState::starting(cache, 1, geometry())
             .ok_or_else(|| violation_error("sandbox state was rejected"))?;
@@ -5422,7 +5440,7 @@ impl PanelSandbox {
     }
 
     /// Admits a split and publishes a committed result whose snapshot fails projection
-    /// validation (no standalone terminal context), reaching `AwaitingUi` with a divergent
+    /// validation (no initial_workspace terminal context), reaching `AwaitingUi` with a divergent
     /// outcome that must retire while retaining the commit.
     fn admit_split_awaiting_divergent(
         &mut self,

@@ -246,12 +246,21 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
     let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
 
-    write_client_message(&mut first, &standalone::open(1, geometry()?)?)?;
+    let initial = super::super::tab_create::create_workspace(
+        &mut first,
+        0x100_000,
+        "/tmp",
+        Instant::now() + PROCESS_TIMEOUT,
+    )?;
+    orchbee_workbench_protocol::write_workbench_request(
+        &mut first,
+        &workspace::tab_request(&initial, 1)?,
+    )?;
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_obcn(&mut worker)? else {
-        return Err("missing standalone Launch".into());
+        return Err("missing Workspace Launch".into());
     };
     let TerminalLaunchMode::Immediate(launch_geometry) = launch.mode() else {
-        return Err("standalone Launch was not immediate".into());
+        return Err("Workspace Launch was not immediate".into());
     };
     let host_identity = identity()?;
     write_obcn(
@@ -264,10 +273,13 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
             )),
         )?),
     )?;
-    let _reference = standalone::opened(read_server_message(&mut first)?, 1)?;
+    assert!(matches!(
+        workspace::tab_outcome(&mut first)?,
+        orchbee_workbench_protocol::WorkbenchCommandOutcome::TabCreated { .. }
+    ));
 
-    let snapshot = standalone::read_snapshot(&mut first, 700)?;
-    let binding = standalone::standalone_binding(&snapshot)?;
+    let snapshot = workspace::read_snapshot(&mut first, 700)?;
+    let binding = workspace::workspace_binding(&snapshot)?;
     let site_id = ClientSiteId::parse(snapshot.site_id.as_str())?;
     let worker_id = ClientWorkerId::parse(binding.worker_id.as_str())?;
     let terminal_id = ClientTerminalId::parse(binding.terminal_id.as_str())?;
@@ -413,7 +425,7 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
         receive_viewer(&mut second, &second_detach)?,
         Outcome::Detached {}
     );
-    assert_eq!(standalone::read_snapshot(&mut first, 705)?, snapshot);
+    assert_eq!(workspace::read_snapshot(&mut first, 705)?, snapshot);
     Ok(())
 }
 

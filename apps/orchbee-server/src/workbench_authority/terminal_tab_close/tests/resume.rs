@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 
 fn resume_request(close: &WorkbenchCommand, id: u128, generation: u64) -> WorkbenchTabCloseResume {
     let WorkbenchAction::TabClose {
@@ -40,9 +41,9 @@ fn full_ordinary_ledger_does_not_block_resume_receipt_replay_or_replacement() {
     let now = Instant::now();
     let close = close_command(&authority, 10000, 0);
     accept(&mut authority, &grant, close.clone(), now);
-    let member = authority.standalone_membership().unwrap().members()[0].clone();
+    let member = authority.fixture_membership().unwrap().members()[0].clone();
     let context = authority
-        .standalone_membership()
+        .fixture_membership()
         .unwrap()
         .terminal_context_id()
         .clone();

@@ -7,7 +7,7 @@ packaging and production recovery remain separate work.
 
 [Native context selection](native-context-selection.md) owns Workspace navigation, per-Client Tab/Panel
 selection memory and the current-context projection extension. Its location identity, Empty selection and retained
-provenance rules extend the standalone startup and same-context Tab workflows below.
+provenance rules extend the Workspace startup and same-context Tab workflows below.
 [Native Workspace setup](native-workspace-setup.md) owns staged creation and first-directory input,
 sharing this Session's structural admission, carrier and membership settlement.
 
@@ -302,8 +302,7 @@ revision the same Panel and Worker may carry both a fresh Presentation ID and a 
 Terminal ID, with unchanged Presentation label. Neither fresh identity may alias a
 member in the compared current or retained Context. Surviving Presentation/Terminal
 identities still require their complete original tuple; changing only a binding or
-moving an old Presentation into another Panel is rejected. Standalone Contexts retain
-the original rule. This preserves the user's layout while keeping Presentation binding
+moving an old Presentation into another Panel is rejected. This preserves the user's layout while keeping Presentation binding
 identity immutable. Session allocators, rather than this two-snapshot comparison, own
 lifetime non-reuse.
 
@@ -606,16 +605,6 @@ old Input and Resize emitted no request. It also checks still-owned pre-Switch I
 recovery. Run `cargo test --locked -p orchbee --bin orchbee terminal_session::` for these state and
 consumer checks. Full native binary tests also require the existing Server, Worker and terminal-host
 process binaries. These checks do not construct a Gone proof or establish complete Close integration.
-Windows ordinary entry uses `NativeStartupTarget::LocalDirectory`; explicit compatibility and
-Linux/macOS entry retain `TerminalIntent::Standalone`. Legacy `Create`/`Attach`, their executor and
-renderer, and the connected legacy TUI entry are compiled only for tests. Their existing process
-witness retains its rendering, input, resize and terminal-mode restoration assertions; it does not
-establish the production startup path. Close inspection helpers and reexports used only by tests
-have the same explicit boundary. Create reducer fixtures prepare the candidate before cleanup and
-use the common installation plans. Retirement cases cover retained commit, validated cleanup pending,
-definite projection unavailability before cleanup, and installed selection. There is no separate
-detach-before-Snapshot state or success consumer. Reducer fixtures do not claim carrier or mailbox
-receipt proof; those obligations remain with the native executor and NativeUi membership tests.
 
 Deterministic tests own strict 0..256 identity/shape and exact
 same/create/Move revision checks, reused created ID before overlay, immutable tuple/binding/
@@ -673,8 +662,7 @@ carrier multiplexing, and multi-viewer composition inside one Client remain excl
 
 ## Pure strict projection
 
-Replace `select_standalone_binding` with this Unix-only pure projection in
-`terminal_session/workbench_projection.rs`:
+The pure Workspace projection lives in `terminal_session/workbench_projection.rs`:
 
 ```rust
 struct NativeContextTabs {
@@ -732,23 +720,12 @@ struct CreatedTabExpectation {
     placement: Option<TabCreationPlacement>,
 }
 
-fn project_native_standalone_tabs(
+fn project_preferred_workspace(
     snapshot: &Snapshot,
 ) -> Result<NativeContextTabs, NativeProjectionError>;
 ```
 
-The startup projector requires exactly one Terminal Context whose ID equals
-`navigation.standaloneTerminalContextId`. The current-context projector instead validates the
-selected canonical location. Other Project/Workspace navigation metadata is retained; nonactive
-contexts' Tab layouts are not validated here. The active context may contain exactly 0 through 256
-ordered Tabs, canonical groups and a pinned prefix. Group identities, labels, references and
-contiguous membership are validated locally. Every Tab has either one Panel root or a recursively
-binary Panel split tree, with one bound primary Presentation and up to sixteen bound child Presentations at every leaf.
-One unsupported member rejects the whole projection; the projector never filters, reorders, or chooses
-the first attachable member. It retains both labels exactly, including duplicates and whitespace, and
-preserves every Panel, split, slot, orientation, Presentation, and terminal identity in the tree.
-Panel, Presentation, and terminal IDs are unique across all leaves; split and slot IDs are unique in
-the complete active-context projection.
+The startup projector selects a real Workspace by canonical order, or an identity-less empty landing state when no Workspaces/Contexts exist. Current-context projection validates the exact Workspace/Context pair. All Contexts must have exactly one owner. The selected Workspace admits 0–256 ordered Tabs, groups and a pinned prefix. Every Tab preserves the complete binary tree and exact Panel, Split, slot, orientation, Presentation and binding identities. Unsupported membership rejects the entire projection; no member is silently filtered or selected as a fallback. Nonactive layouts remain canonical snapshot data.
 
 Two additional pure validators own cache replacement:
 
@@ -828,8 +805,7 @@ directions, singleton and 255/256 boundaries, wrong commits and immutable-member
 The Move result and explicit recovery state transitions consume this validator; their mailbox,
 transport and real UI evidence is recorded below.
 
-The pure projector accepts an empty standalone context for full 0..256 conformance. Cold startup
-and every active-session refresh separately require the state-specific active-member invariant.
+The projector accepts empty Workspaces and an empty Workbench. `NoWorkspace` has no Context ID and is not persisted. Cold startup and refresh still enforce the phase-specific active-member invariant before any viewer attachment.
 
 ## Panel projection and local focus
 
@@ -898,36 +874,20 @@ input or resize regardless of any Workbench grant.
 
 ## Startup
 
-Cold startup remains exactly:
+Cold startup follows the current Workspace model:
 
 1. measure complete real terminal geometry;
-2. submit one `terminal.open` ensure/join and wait for its final `Opened` result;
-3. submit one `SnapshotRead` on the same carrier;
-4. validate the full `NativeContextTabs` projection and require `tabs[0]`;
-5. set `active_tab_id = tabs[0].tab_id`, allocate the initial attachment generation, and send the
-   exact snapshot-derived `AttachBinding`;
-6. Acquire, conditionally Resize, receive a fresh full projection, draw it, send matching
-   `FrameApplied`, and require `FeedbackAccepted` before publishing Ready.
+2. submit a correlated `SnapshotRead` on the admitted carrier;
+3. resolve the explicit or remembered Workspace selection, otherwise use the first canonical Workspace in display order; eligible Windows directory startup uses the ordinary Workspace launch path;
+4. validate the full `NativeContextTabs` projection, accepting an empty Workspace or a `NoWorkspace` landing when the Workbench has no Workspaces;
+5. publish Bootstrap and let its exact UI settlement install the cache and, when a selected terminal exists, allocate the initial attachment generation;
+6. for that selected terminal, send snapshot-derived `AttachBinding`, Acquire, conditionally Resize, receive and draw a fresh full projection, send matching `FrameApplied`, and require `FeedbackAccepted` before publishing attached Ready.
 
-No Open-returned create reference or terminal identity participates in selection. Startup has no
-snapshot retry or fallback and retains the existing startup-wide deadline.
+An empty selection creates no terminal or attachment. Startup retains its existing startup-wide deadline and never obtains selection from an implicit Open result. Directory creation and recovery follow their owning contracts rather than introducing another terminal creation path.
 
-The native mailbox exists before Open with no desired attachment. Its one request cursor supplies
-both Open and SnapshotRead identities. The worker prepares the strict nonempty projection, then
-places one Bootstrap event in the existing `EventCell`. At its exact UI settlement, the UI checks
-the original startup deadline and atomically allocates the first attachment generation, installs
-the cache and Starting selection, publishes the desired mirror, and deposits
-`BootstrapApplied(BootstrapTarget)`. The target contains only the validated first Tab and its
-snapshot-derived binding; it carries no new Switch/Create deadline. Only that reply licenses
-AttachBinding. No command dequeues before initialization, and no temporary Tab identity, extra
-channel, or independent request cursor is introduced.
+The native mailbox exists before SnapshotRead with no desired attachment. Its request cursor supplies the snapshot and later control identities. The worker publishes the validated projection through the existing `EventCell`. UI settlement checks the original deadline and installs the cache atomically. A reply containing a selected `BootstrapTarget` authorizes its exact AttachBinding; an empty reply leaves the Workbench usable without an attachment. No temporary Tab identity, extra channel or independent request cursor is introduced.
 
-Invalid or empty projection, expired placement or UI settlement, and generation exhaustion leave
-the cache and desired attachment uninstalled. Already issued request identities remain burned.
-Duplicate or stale unowned bootstrap replies cannot allocate another generation or attachment.
-Deterministic mailbox tests cover these boundaries and close while awaiting UI; scripted-carrier
-tests cover Open, SnapshotRead, and Attach failures and exact identity order. The three Tab models
-start after bootstrap and do not establish these cold-start implementation claims.
+Invalid projections, expired event placement or UI settlement, and attachment-generation exhaustion cannot partially install selection. Already issued request identities stay consumed. Duplicate or superseded bootstrap replies cannot allocate another generation or attach again. Existing mailbox and scripted-carrier regressions cover the startup handoff, SnapshotRead and attachment failures; the three Tab models begin after bootstrap and do not establish cold-start behavior.
 
 ## Presentation scheduling and retained pixels
 
@@ -2147,17 +2107,7 @@ retained conflicts, missing return, stale replies, cancellation during connect a
 cannot wrap, and recovery starts without live work or bootstrap. Run
 `cargo test --locked -p orchbee --bin orchbee retired_` on Linux.
 
-The Linux PTY Close witness observes a new Disconnected frame before one explicit Refresh, then
-both Clients' Empty state, full public Snapshot equality after exact removal, original shell exit
-and a bounded 500 ms fresh-observation check against automatic Create. The same witness then
-issues manual `c` from the former view-only Client, verifies fresh Tab/Panel/Presentation/Terminal
-identities in the same Session/context and a real new shell, and refreshes the peer into view-only mode.
-Ordinary exit preserves the new shell and original Server/Worker/Host processes. Later bare Open
-returns the same canonical Snapshot, shell PID and shell-local marker. This does not change the
-separate accepted ability of bare Open to bootstrap when the Session is still Empty. Retirement finalization
-closes and joins the task synchronously before the tick returns for drawing. Run
-`cargo test --locked -p orchbee --all-targets --all-features` with the staged local Server/Worker/Host
-cohort. These checks do not establish remote-reference cleanup, restart adoption or general recovery.
+The Linux PTY Close witness requires a fresh Disconnected frame before explicit Refresh, both Clients observing the exact empty Workspace, original shell exit and a bounded check against automatic creation. Explicit `c` then creates fresh member identities in that same Workspace; a peer refresh attaches view-only. Client exit preserves the shell and Server/Worker/Host, and later startup reattaches canonical membership without launching. Process checks require the staged cohort and do not establish remote cleanup, restart adoption or general recovery.
 
 ## Context removal recovery
 

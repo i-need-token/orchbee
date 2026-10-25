@@ -1,13 +1,12 @@
 use super::tab_create::{
     configure_workspace, context_tab_command, dispatch_tab, immediate_completion,
-    pending_first_open, tab_command,
+    pending_first_tab, tab_command,
 };
 use super::*;
 use orchbee_capability_node_protocol::{
     LifecycleInventoryPage, LifecycleTargetObservation, LifecycleTerminalPhase,
     TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleResult,
 };
-use orchbee_client_server_protocol::OpenOutcome;
 use orchbee_server::CloseStepObservation;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 use orchbee_workbench_protocol::{
@@ -70,11 +69,13 @@ fn ready_split(prepared: PreparedTerminalPanelCreate) -> WorkbenchCommandResult 
     result
 }
 
-pub(super) fn standalone_leaf(
+pub(super) fn workspace_leaf(
     coordinator: &mut SiteCoordinator,
 ) -> (WorkbenchTerminalContextId, WorkbenchTabId, WorkbenchPanelId) {
     let committed = snapshot(coordinator);
-    let context = committed.navigation.standalone_terminal_context_id;
+    let context = committed.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let tab = committed
         .terminal_contexts
         .iter()
@@ -96,7 +97,7 @@ pub(super) fn close_leaf(
     tab: WorkbenchTabId,
     panel: WorkbenchPanelId,
     request: u128,
-) -> (WorkbenchCommand, bool) {
+) -> WorkbenchCommand {
     let committed = snapshot(coordinator);
     let close = WorkbenchCommand {
         protocol_version: ProtocolVersion,
@@ -171,30 +172,13 @@ pub(super) fn close_leaf(
         .unwrap()
         .complete_terminal_tab_close_target_cleanup(&close.request_id, runtime)
         .unwrap();
-    let changed = coordinator
+    coordinator
         .publish_terminal_tab_close(&close.request_id, Instant::now())
         .unwrap();
-    (close, changed)
+    close
 }
 
-fn open_probe(coordinator: &mut SiteCoordinator, request: u128) -> PreparedOpen {
-    open_probe_with_worker(coordinator, request, Some(worker(1)))
-}
-
-fn open_probe_with_worker(
-    coordinator: &mut SiteCoordinator,
-    request: u128,
-    placement: Option<WorkerPlacement>,
-) -> PreparedOpen {
-    coordinator.prepare_open(
-        &orchbee_client_server_protocol::TerminalOpenRequest::new(id(request), geometry()),
-        None,
-        placement,
-        None,
-    )
-}
-
-fn standalone_leaf_panels(
+fn workspace_leaf_panels(
     coordinator: &mut SiteCoordinator,
 ) -> (
     WorkbenchTerminalContextId,
@@ -212,7 +196,9 @@ fn standalone_leaf_panels(
         }
     }
     let committed = snapshot(coordinator);
-    let context = committed.navigation.standalone_terminal_context_id;
+    let context = committed.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let tab = committed
         .terminal_contexts
         .iter()
@@ -303,16 +289,8 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
     coordinator
         .complete_terminal_tab_create(pending_a, completion_a, Some(worker(1)))
         .unwrap();
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1401),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1401)
-            },
-        }
-    );
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+
+    let (context, tab, panel_a) = workspace_leaf(&mut coordinator);
     let split_b = split_command(
         &mut coordinator,
         1402,
@@ -322,42 +300,15 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
         WorkbenchPanelSplitDirection::Right,
     );
     let pending_b = dispatch_split(&mut coordinator, split_b.clone(), 1403);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1401),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1401)
-            },
-        }
-    );
 
     // The real Close finalizer removes A and retargets the slot to still-pending B.
-    let (_close, changed) = close_leaf(&mut coordinator, context, tab, panel_a, 1404);
-    assert!(changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(id(1403))
-    );
-    assert!(matches!(
-        open_probe(&mut coordinator, 1405),
-        PreparedOpen::Wait
-    ));
+    let _close = close_leaf(&mut coordinator, context, tab, panel_a, 1404);
 
     let completion_b = immediate_completion(pending_b.command());
     let completed = coordinator
         .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
-    assert!(completed.standalone_changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1403),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1403)
-            },
-        }
-    );
+
     assert!(matches!(
         completed.result.outcome,
         WorkbenchCommandOutcome::PanelSplitCreated {
@@ -365,12 +316,7 @@ fn pending_split_completion_after_close_retarget_settles_and_resolves_bare_open(
             ..
         }
     ));
-    assert!(matches!(
-        open_probe(&mut coordinator, 1406),
-        PreparedOpen::Ready(OpenOutcome::Opened {
-            terminal_create_request_id
-        }) if terminal_create_request_id == id(1403)
-    ));
+
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
         completed.result
@@ -386,7 +332,7 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
     coordinator
         .complete_terminal_tab_create(pending_a, completion_a, Some(worker(1)))
         .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+    let (context, tab, panel_a) = workspace_leaf(&mut coordinator);
     let split_b = split_command(
         &mut coordinator,
         1412,
@@ -401,16 +347,7 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
     let completed = coordinator
         .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
-    assert!(!completed.standalone_changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1411),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1411)
-            },
-        }
-    );
+
     assert!(matches!(
         completed.result.outcome,
         WorkbenchCommandOutcome::PanelSplitCreated {
@@ -420,23 +357,8 @@ fn split_completion_before_close_publication_leaves_the_settled_reference() {
     ));
 
     // The real Close finalizer still retargets to B through its retained Started outcome.
-    let (_close, changed) = close_leaf(&mut coordinator, context, tab, panel_a, 1414);
-    assert!(changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1413),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1413)
-            },
-        }
-    );
-    assert!(matches!(
-        open_probe(&mut coordinator, 1415),
-        PreparedOpen::Ready(OpenOutcome::Opened {
-            terminal_create_request_id
-        }) if terminal_create_request_id == id(1413)
-    ));
+    let _close = close_leaf(&mut coordinator, context, tab, panel_a, 1414);
+
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
         completed.result
@@ -452,7 +374,7 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
     coordinator
         .complete_terminal_tab_create(pending_a, completion_a, Some(worker(1)))
         .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+    let (context, tab, panel_a) = workspace_leaf(&mut coordinator);
     let split_b = split_command(
         &mut coordinator,
         1422,
@@ -473,22 +395,13 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
     let pending_c = dispatch_split(&mut coordinator, split_c.clone(), 1425);
 
     // Removing A leaves [C, B]; the real retarget selects C, the first post-removal member.
-    let (_close, changed) = close_leaf(&mut coordinator, context, tab, panel_a, 1426);
-    assert!(changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(id(1425))
-    );
+    let _close = close_leaf(&mut coordinator, context, tab, panel_a, 1426);
 
     let completion_b = immediate_completion(pending_b.command());
     let completed_b = coordinator
         .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
-    assert!(!completed_b.standalone_changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(id(1425))
-    );
+
     assert!(matches!(
         completed_b.result.outcome,
         WorkbenchCommandOutcome::PanelSplitCreated {
@@ -501,16 +414,7 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
     let completed_c = coordinator
         .complete_terminal_panel_create(pending_c, completion_c, Some(worker(1)))
         .unwrap();
-    assert!(completed_c.standalone_changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1425),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1425)
-            },
-        }
-    );
+
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(split_b, None, None, None)),
         completed_b.result
@@ -522,24 +426,18 @@ fn stale_split_completion_cannot_overwrite_the_newer_current_reference() {
 }
 
 #[test]
-fn workspace_split_completion_never_touches_the_standalone_slot() {
+fn workspace_split_completion_preserves_sibling_tab_settlement() {
     let mut coordinator = site();
     let context = configure_workspace(&mut coordinator, "/tmp/workspace");
-    let first_open = pending_first_open(&mut coordinator, 1430, 1431);
-    assert!(matches!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(ref reference) if *reference == id(1431)
-    ));
+    let first_open = pending_first_tab(&mut coordinator, 1430, 1431);
+
     let revision = snapshot(&mut coordinator).revision.value();
     let create = context_tab_command(&coordinator, 1432, revision, context.clone(), "workspace");
     let pending_tab = dispatch_tab(&mut coordinator, create, 1433);
     let completion_tab = immediate_completion(pending_tab.command());
-    assert!(
-        !coordinator
-            .complete_terminal_tab_create(pending_tab, completion_tab, Some(worker(1)))
-            .unwrap()
-            .standalone_changed
-    );
+    coordinator
+        .complete_terminal_tab_create(pending_tab, completion_tab, Some(worker(1)))
+        .unwrap();
     let committed = snapshot(&mut coordinator);
     let tab = &committed
         .terminal_contexts
@@ -559,16 +457,12 @@ fn workspace_split_completion_never_touches_the_standalone_slot() {
         WorkbenchPanelSplitDirection::Right,
     );
     let pending_split = dispatch_split(&mut coordinator, split.clone(), 1435);
-    assert!(matches!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(ref reference) if *reference == id(1431)
-    ));
 
     let completion_split = immediate_completion(pending_split.command());
     let completed = coordinator
         .complete_terminal_panel_create(pending_split, completion_split, Some(worker(1)))
         .unwrap();
-    assert!(!completed.standalone_changed);
+
     assert!(matches!(
         completed.result.outcome,
         WorkbenchCommandOutcome::PanelSplitCreated {
@@ -576,24 +470,19 @@ fn workspace_split_completion_never_touches_the_standalone_slot() {
             ..
         }
     ));
-    assert!(matches!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(ref reference) if *reference == id(1431)
-    ));
 
     assert!(matches!(
         coordinator
-            .complete(first_open, Completion::Unknown, Some(worker(1)))
-            .unwrap(),
-        ServerMessage::TerminalCreateResult(_)
+            .complete_terminal_tab_create(first_open, Completion::Unknown, Some(worker(1)))
+            .unwrap()
+            .result
+            .outcome,
+        WorkbenchCommandOutcome::TabCreated {
+            terminal_outcome: WorkbenchTerminalOutcome::OutcomeUnknown {},
+            ..
+        }
     ));
-    assert!(matches!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            ref reference,
-            outcome: OpenOutcome::OutcomeUnknown {},
-        } if *reference == id(1431)
-    ));
+
     assert_eq!(
         ready_split(coordinator.prepare_terminal_panel_create(split, None, None, None)),
         completed.result
@@ -601,89 +490,14 @@ fn workspace_split_completion_never_touches_the_standalone_slot() {
 }
 
 #[test]
-fn bare_open_replays_the_settled_reference_across_a_pending_and_settled_split_leaf() {
+fn workspace_leaf_reorder_and_close_preserve_remaining_members() {
     let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1500, 1501);
+    let first_open = pending_first_tab(&mut coordinator, 1520, 1521);
     let completion = immediate_completion(first_open.command());
     coordinator
-        .complete(first_open, completion, Some(worker(1)))
+        .complete_terminal_tab_create(first_open, completion, Some(worker(1)))
         .unwrap();
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1501),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1501)
-            },
-        }
-    );
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split_cmd_pending_b = split_command(
-        &mut coordinator,
-        1502,
-        context,
-        tab,
-        panel_a.clone(),
-        WorkbenchPanelSplitDirection::Right,
-    );
-    let pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1503);
-    // Both leaves are committed members; B's terminal is still pending.
-    let committed = snapshot(&mut coordinator);
-    assert_eq!(committed.revision, WorkbenchRevision::new(2));
-    let (_, _, committed_panels) = standalone_leaf_panels(&mut coordinator);
-    assert_eq!(committed_panels.len(), 2);
-    assert_eq!(committed_panels[0], panel_a);
-    for request in [1504, 1505] {
-        assert!(matches!(
-            open_probe(&mut coordinator, request),
-            PreparedOpen::Ready(OpenOutcome::Opened {
-                terminal_create_request_id
-            }) if terminal_create_request_id == id(1501)
-        ));
-    }
-    // Replay leaves the slot, the revision, and availability untouched.
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1501),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1501)
-            },
-        }
-    );
-    assert_eq!(snapshot(&mut coordinator), committed);
-    assert!(publication_available(
-        &mut coordinator,
-        1510,
-        committed.revision
-    ));
-
-    let completion_b = immediate_completion(pending_b.command());
-    let completed = coordinator
-        .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
-        .unwrap();
-    assert!(!completed.standalone_changed);
-    for request in [1506, 1507] {
-        assert!(matches!(
-            open_probe(&mut coordinator, request),
-            PreparedOpen::Ready(OpenOutcome::Opened {
-                terminal_create_request_id
-            }) if terminal_create_request_id == id(1501)
-        ));
-    }
-    let (_, _, panels) = standalone_leaf_panels(&mut coordinator);
-    assert_eq!(panels, committed_panels);
-}
-
-#[test]
-fn bare_open_replay_survives_a_legal_leaf_reorder_and_retargets_only_through_close() {
-    let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1520, 1521);
-    let completion = immediate_completion(first_open.command());
-    coordinator
-        .complete(first_open, completion, Some(worker(1)))
-        .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+    let (context, tab, panel_a) = workspace_leaf(&mut coordinator);
     let split_cmd_pending_b = split_command(
         &mut coordinator,
         1522,
@@ -697,7 +511,7 @@ fn bare_open_replay_survives_a_legal_leaf_reorder_and_retargets_only_through_clo
     coordinator
         .complete_terminal_panel_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
-    let (_, _, panels) = standalone_leaf_panels(&mut coordinator);
+    let (_, _, panels) = workspace_leaf_panels(&mut coordinator);
     let [panel_a_committed, panel_b] = panels.as_slice() else {
         panic!("two committed leaves expected")
     };
@@ -720,276 +534,26 @@ fn bare_open_replay_survives_a_legal_leaf_reorder_and_retargets_only_through_clo
         moved.outcome,
         WorkbenchCommandOutcome::PanelMoved { .. }
     ));
-    let (_, _, reordered) = standalone_leaf_panels(&mut coordinator);
+    let (_, _, reordered) = workspace_leaf_panels(&mut coordinator);
     assert_eq!(reordered, vec![panel_b.clone(), panel_a.clone()]);
-    assert!(matches!(
-        open_probe(&mut coordinator, 1525),
-        PreparedOpen::Ready(OpenOutcome::Opened {
-            terminal_create_request_id
-        }) if terminal_create_request_id == id(1521)
-    ));
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1521),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1521)
-            },
-        }
-    );
 
     // Closing the reordered anchor retargets the slot to the surviving leaf.
-    let (_close, changed) = close_leaf(
+    let _close = close_leaf(
         &mut coordinator,
         context.clone(),
         tab.clone(),
         panel_a,
         1526,
     );
-    assert!(changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1523),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1523)
-            },
-        }
-    );
-    assert!(matches!(
-        open_probe(&mut coordinator, 1527),
-        PreparedOpen::Ready(OpenOutcome::Opened {
-            terminal_create_request_id
-        }) if terminal_create_request_id == id(1523)
-    ));
 
     // Closing the final leaf returns the slot to Empty; bare Open then starts fresh.
-    let (_close, changed) = close_leaf(&mut coordinator, context, tab, panel_b.clone(), 1528);
-    assert!(changed);
-    assert_eq!(coordinator.standalone, StandaloneTerminal::Empty);
-    assert!(matches!(
-        open_probe(&mut coordinator, 1529),
-        PreparedOpen::Ready(OpenOutcome::Unavailable {
-            reason: CreateUnavailableReason::ServerBusy
-        })
-    ));
-    let next_open = pending_first_open(&mut coordinator, 1530, 1531);
+    let _close = close_leaf(&mut coordinator, context, tab, panel_b.clone(), 1528);
+
+    let next_open = pending_first_tab(&mut coordinator, 1530, 1531);
     let completion = immediate_completion(next_open.command());
     coordinator
-        .complete(next_open, completion, Some(worker(1)))
+        .complete_terminal_tab_create(next_open, completion, Some(worker(1)))
         .unwrap();
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1531),
-            outcome: OpenOutcome::Opened {
-                terminal_create_request_id: id(1531)
-            },
-        }
-    );
-}
-
-#[test]
-fn bare_open_rejects_a_slot_reference_without_retained_authorization_on_a_multi_leaf_tree() {
-    let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1540, 1541);
-    let completion = immediate_completion(first_open.command());
-    coordinator
-        .complete(first_open, completion, Some(worker(1)))
-        .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split_cmd_pending_b = split_command(
-        &mut coordinator,
-        1542,
-        context,
-        tab,
-        panel_a,
-        WorkbenchPanelSplitDirection::Right,
-    );
-    let _pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1543);
-    assert!(!workbench_snapshot_unavailable(&mut coordinator));
-
-    // A Settled reference that was never retained must not replay just because the tree is valid.
-    coordinator.standalone = StandaloneTerminal::Settled {
-        reference: id(9001),
-        outcome: OpenOutcome::Opened {
-            terminal_create_request_id: id(9001),
-        },
-    };
-    assert!(matches!(
-        open_probe(&mut coordinator, 1544),
-        PreparedOpen::Ready(OpenOutcome::Unavailable {
-            reason: CreateUnavailableReason::ServerBusy
-        })
-    ));
-    assert!(workbench_snapshot_unavailable(&mut coordinator));
-    assert!(matches!(
-        open_probe(&mut coordinator, 1545),
-        PreparedOpen::Ready(OpenOutcome::Unavailable {
-            reason: CreateUnavailableReason::ServerBusy
-        })
-    ));
-}
-
-#[test]
-fn bare_open_rejects_an_anchor_binding_absent_from_the_multi_leaf_tree() {
-    let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1550, 1551);
-    let completion = immediate_completion(first_open.command());
-    coordinator
-        .complete(first_open, completion, Some(worker(1)))
-        .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split_cmd_pending_b = split_command(
-        &mut coordinator,
-        1552,
-        context,
-        tab,
-        panel_a,
-        WorkbenchPanelSplitDirection::Right,
-    );
-    let _pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1553);
-
-    // Retain an authorized terminal create that never joins the standalone tree: the slot
-    // reference resolves but its binding occurs zero times among the committed leaves.
-    let _phantom = dispatch(coordinator.prepare(create(9002), Some(worker(1)), Some(expiry())));
-    coordinator.standalone = StandaloneTerminal::Settled {
-        reference: id(9002),
-        outcome: OpenOutcome::Opened {
-            terminal_create_request_id: id(9002),
-        },
-    };
-    assert!(matches!(
-        open_probe(&mut coordinator, 1554),
-        PreparedOpen::Ready(OpenOutcome::Unavailable {
-            reason: CreateUnavailableReason::ServerBusy
-        })
-    ));
-    assert!(workbench_snapshot_unavailable(&mut coordinator));
-}
-
-#[test]
-fn bare_open_reports_wrong_worker_generation_without_retiring_a_multi_leaf_tree() {
-    let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1560, 1561);
-    let completion = immediate_completion(first_open.command());
-    coordinator
-        .complete(first_open, completion, Some(worker(1)))
-        .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split_cmd_pending_b = split_command(
-        &mut coordinator,
-        1562,
-        context,
-        tab,
-        panel_a,
-        WorkbenchPanelSplitDirection::Right,
-    );
-    let _pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1563);
-    let committed = snapshot(&mut coordinator);
-
-    // A stale Worker generation is a typed client result, not a composition divergence.
-    for placement in [Some(worker(2)), None] {
-        assert!(matches!(
-            open_probe_with_worker(&mut coordinator, 1564, placement),
-            PreparedOpen::Ready(OpenOutcome::Unavailable {
-                reason: CreateUnavailableReason::TerminalRuntimeUnavailable
-            })
-        ));
-    }
-    assert!(!workbench_snapshot_unavailable(&mut coordinator));
-    assert_eq!(snapshot(&mut coordinator), committed);
-    assert!(matches!(
-        open_probe(&mut coordinator, 1565),
-        PreparedOpen::Ready(OpenOutcome::Opened {
-            terminal_create_request_id
-        }) if terminal_create_request_id == id(1561)
-    ));
-}
-
-#[test]
-fn bare_open_waits_on_a_creating_slot_over_a_multi_leaf_tree() {
-    let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1570, 1571);
-    let completion = immediate_completion(first_open.command());
-    coordinator
-        .complete(first_open, completion, Some(worker(1)))
-        .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split_cmd_pending_b = split_command(
-        &mut coordinator,
-        1572,
-        context.clone(),
-        tab.clone(),
-        panel_a.clone(),
-        WorkbenchPanelSplitDirection::Right,
-    );
-    let _pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1573);
-    let split_cmd_pending_c = split_command(
-        &mut coordinator,
-        1574,
-        context.clone(),
-        tab.clone(),
-        panel_a.clone(),
-        WorkbenchPanelSplitDirection::Left,
-    );
-    let _pending_c = dispatch_split(&mut coordinator, split_cmd_pending_c, 1575);
-
-    // Removing A leaves [C, B] and retargets the slot to still-pending C.
-    let (_close, changed) = close_leaf(&mut coordinator, context, tab, panel_a, 1576);
-    assert!(changed);
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(id(1575))
-    );
-    let (_, _, panels) = standalone_leaf_panels(&mut coordinator);
-    assert_eq!(panels.len(), 2);
-
-    // Every waiter keeps waiting; none dispatches or retires the composition.
-    for request in [1577, 1578] {
-        assert!(matches!(
-            open_probe(&mut coordinator, request),
-            PreparedOpen::Wait
-        ));
-    }
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Creating(id(1575))
-    );
-    assert!(!workbench_snapshot_unavailable(&mut coordinator));
-}
-
-#[test]
-fn bare_open_replays_a_non_opened_settled_result_over_a_multi_leaf_tree() {
-    let mut coordinator = site();
-    let first_open = pending_first_open(&mut coordinator, 1580, 1581);
-    coordinator
-        .complete(first_open, Completion::Unknown, Some(worker(1)))
-        .unwrap();
-    assert_eq!(
-        coordinator.standalone,
-        StandaloneTerminal::Settled {
-            reference: id(1581),
-            outcome: OpenOutcome::OutcomeUnknown {},
-        }
-    );
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
-    let split_cmd_pending_b = split_command(
-        &mut coordinator,
-        1582,
-        context,
-        tab,
-        panel_a,
-        WorkbenchPanelSplitDirection::Right,
-    );
-    let _pending_b = dispatch_split(&mut coordinator, split_cmd_pending_b, 1583);
-    for request in [1584, 1585] {
-        assert!(matches!(
-            open_probe(&mut coordinator, request),
-            PreparedOpen::Ready(OpenOutcome::OutcomeUnknown {})
-        ));
-    }
-    assert!(!workbench_snapshot_unavailable(&mut coordinator));
 }
 
 #[test]
@@ -1001,7 +565,7 @@ fn launch_selection_reaches_the_split_command_and_replay_identity() {
     coordinator
         .complete_terminal_tab_create(pending_a, completion_a, Some(worker(1)))
         .unwrap();
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+    let (context, tab, panel_a) = workspace_leaf(&mut coordinator);
     let mut split = split_command(
         &mut coordinator,
         1602,

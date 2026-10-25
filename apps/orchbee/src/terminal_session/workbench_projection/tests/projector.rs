@@ -2,53 +2,44 @@ use super::*;
 use crate::client_view::PanelDirection;
 
 #[test]
-fn workspace_navigation_hides_only_empty_compatibility_and_preserves_canonical_and_legacy_identity()
-{
+fn workspace_navigation_retains_empty_owners_and_empty_workbench_has_no_identity() {
     let mut source = snapshot(2, 8);
     source.navigation.workspaces.push(Workspace {
         project_id: None,
         primary_directory_id: None,
-        label: "空 Workspace".into(),
+        label: "Empty Workspace".into(),
         terminal_context_id: context_id(91),
         workspace_id: workspace_id(93),
     });
     source.terminal_contexts.push(terminal_context(91, 0));
     let preferred = preferred_workspace_location(&source).unwrap();
-    assert!(
-        matches!(&preferred, NativeContextLocation::Workspace { workspace_id: id, .. }
-        if id == &workspace_id(93))
-    );
-    let original_legacy = source.terminal_contexts[0].clone();
-    let legacy = project_native_standalone_tabs(&source).unwrap();
-    assert_eq!(legacy.navigation().len(), 2);
-    assert_eq!(legacy.canonical_context(), &original_legacy);
+    let first = project_preferred_workspace(&source).unwrap();
+    assert_eq!(first.location(), &preferred);
     assert_eq!(
-        compatibility_workspace(&source).unwrap(),
-        Some(legacy.location().clone())
+        first.canonical_context(),
+        Some(&source.terminal_contexts[0])
     );
-    let canonical = project_native_context_tabs(&source, &preferred).unwrap();
-    assert!(canonical.tabs().is_empty());
-    assert_eq!(canonical.navigation(), legacy.navigation());
-
+    assert_eq!(first.navigation().len(), 2);
     source.terminal_contexts[0].tabs.clear();
-    let hidden = project_native_standalone_tabs(&source).unwrap();
-    assert!(hidden.tabs().is_empty());
-    assert_eq!(compatibility_workspace(&source).unwrap(), None);
-    assert_eq!(hidden.navigation().len(), 1);
-    assert_eq!(hidden.navigation()[0].location, preferred);
-    assert!(
-        !hidden
-            .navigation()
-            .iter()
-            .any(|entry| &entry.location == hidden.location())
-    );
-    // Hiding an empty slot never turns it into a second owner of a canonical Workspace.
-    source.navigation.workspaces[0].terminal_context_id = context_id(STANDALONE_CONTEXT_VALUE);
-    assert!(project_native_standalone_tabs(&source).is_err());
+    let empty = project_preferred_workspace(&source).unwrap();
+    assert!(empty.tabs().is_empty());
+    assert_eq!(empty.navigation().len(), 2);
+    assert_eq!(empty.location(), &preferred);
+    let mut duplicate = source.clone();
+    duplicate.navigation.workspaces[1].terminal_context_id = context_id(WORKSPACE_CONTEXT_VALUE);
+    assert!(project_preferred_workspace(&duplicate).is_err());
+    source.navigation.workspaces.clear();
+    source.navigation.workspace_order.clear();
+    source.terminal_contexts.clear();
+    let empty = project_preferred_workspace(&source).unwrap();
+    assert_eq!(empty.location(), &NativeContextLocation::NoWorkspace);
+    assert!(empty.navigation().is_empty());
+    assert!(empty.canonical_context().is_none());
+    assert!(empty.terminal_context_id().is_none());
 }
 
 #[test]
-fn empty_compatibility_filter_keeps_required_slot_and_canonical_capacity_checks() {
+fn workspace_navigation_keeps_exact_owner_and_capacity_checks() {
     let mut source = snapshot(0, 1);
     for index in 0..MAXIMUM_TERMINAL_CONTEXTS - 1 {
         let seed = 10_000 + u128::try_from(index).unwrap() * 2;
@@ -67,7 +58,7 @@ fn empty_compatibility_filter_keeps_required_slot_and_canonical_capacity_checks(
             .unwrap()
             .navigation()
             .len(),
-        1023
+        1024
     );
     let mut missing = source.clone();
     missing.terminal_contexts.remove(0);
@@ -91,12 +82,12 @@ fn empty_compatibility_filter_keeps_required_slot_and_canonical_capacity_checks(
 #[test]
 fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
     for tab_count in [0, 1, MAXIMUM_TABS_PER_CONTEXT] {
-        let projection = project_native_standalone_tabs(&snapshot(tab_count, 17)).unwrap();
+        let projection = project_preferred_workspace(&snapshot(tab_count, 17)).unwrap();
         assert_eq!(projection.site_id(), &site_id(SITE_VALUE));
         assert_eq!(projection.revision(), WorkbenchRevision::new(17));
         assert_eq!(
-            projection.terminal_context_id(),
-            &context_id(STANDALONE_CONTEXT_VALUE)
+            projection.terminal_context_id().unwrap(),
+            &context_id(WORKSPACE_CONTEXT_VALUE)
         );
         assert_eq!(projection.tabs().len(), tab_count);
         for (index, projected) in projection.tabs().iter().enumerate() {
@@ -119,7 +110,7 @@ fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
     }
 
     assert_eq!(
-        project_native_standalone_tabs(&snapshot(MAXIMUM_TABS_PER_CONTEXT + 1, 17)),
+        project_preferred_workspace(&snapshot(MAXIMUM_TABS_PER_CONTEXT + 1, 17)),
         Err(NativeProjectionError)
     );
 }
@@ -127,9 +118,9 @@ fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
 #[test]
 fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
     let mut missing = snapshot(1, 1);
-    missing.navigation.standalone_terminal_context_id = context_id(90);
+    missing.navigation.workspaces[0].terminal_context_id = context_id(90);
     assert_eq!(
-        project_native_standalone_tabs(&missing),
+        project_preferred_workspace(&missing),
         Err(NativeProjectionError)
     );
 
@@ -138,7 +129,7 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
         .terminal_contexts
         .push(duplicate.terminal_contexts[0].clone());
     assert_eq!(
-        project_native_standalone_tabs(&duplicate),
+        project_preferred_workspace(&duplicate),
         Err(NativeProjectionError)
     );
 
@@ -163,9 +154,9 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
     });
     unrelated.tabs[0].pinned = true;
     coexistence.terminal_contexts.insert(0, unrelated);
-    let projection = project_native_standalone_tabs(&coexistence).unwrap();
+    let projection = project_preferred_workspace(&coexistence).unwrap();
     assert_eq!(projection.tabs().len(), 2);
-    assert_eq!(projection.terminal_context_id(), &context_id(2));
+    assert_eq!(projection.terminal_context_id().unwrap(), &context_id(2));
 }
 
 #[test]
@@ -195,7 +186,7 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
         presentation_id: presentation_id(43),
         launch_failure: None,
     });
-    assert!(project_native_standalone_tabs(&child).is_ok());
+    assert!(project_preferred_workspace(&child).is_ok());
 
     let mut unbound = snapshot(3, 1);
     let PanelNode::Panel {
@@ -206,11 +197,11 @@ fn rejects_malformed_metadata_and_unsupported_members_without_filtering() {
         unreachable!("fixture tab uses one Panel")
     };
     primary_presentation.binding = None;
-    assert!(project_native_standalone_tabs(&unbound).is_ok());
+    assert!(project_preferred_workspace(&unbound).is_ok());
 
     for candidate in unsupported {
         assert_eq!(
-            project_native_standalone_tabs(&candidate),
+            project_preferred_workspace(&candidate),
             Err(NativeProjectionError),
             "one unsupported member must reject the complete projection"
         );
@@ -236,7 +227,7 @@ fn projects_split_tree_and_directional_leaf_neighbors() {
         split_id: split_id(40),
     };
 
-    let projection = project_native_standalone_tabs(&split).unwrap();
+    let projection = project_preferred_workspace(&split).unwrap();
     let tab = &projection.tabs()[1];
     assert_eq!(tab.panel_count(), 2);
     assert_eq!(tab.panel(0).unwrap().panel_id(), &panel_id(30));
@@ -297,7 +288,7 @@ fn navigates_nested_split_by_geometric_adjacency() {
         split_id: split_id(54),
     };
 
-    let projection = project_native_standalone_tabs(&split).unwrap();
+    let projection = project_preferred_workspace(&split).unwrap();
     let tab = &projection.tabs()[1];
     assert_eq!(tab.panel_count(), 4);
     assert_eq!(tab.panel_focus_target(0, PanelDirection::Right), Some(1));
@@ -323,7 +314,7 @@ fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
         };
         primary_presentation.label = exact_label.into();
     }
-    let projection = project_native_standalone_tabs(&labeled).unwrap();
+    let projection = project_preferred_workspace(&labeled).unwrap();
     for tab in projection.tabs() {
         assert_eq!(tab.tab_label().as_str(), exact_label);
         assert_eq!(tab.presentation_label().as_str(), exact_label);
@@ -332,7 +323,7 @@ fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
     let same = id(50);
     let mut equal_text = snapshot(1, 1);
     equal_text.site_id = SiteId::parse(&same).unwrap();
-    equal_text.navigation.standalone_terminal_context_id =
+    equal_text.navigation.workspaces[0].terminal_context_id =
         WorkbenchTerminalContextId::parse(&same).unwrap();
     equal_text.terminal_contexts[0].terminal_context_id =
         WorkbenchTerminalContextId::parse(&same).unwrap();
@@ -351,10 +342,10 @@ fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
     let binding = primary_presentation.binding.as_mut().unwrap();
     binding.worker_id = WorkerId::parse(&same).unwrap();
     binding.terminal_id = TerminalId::parse(&same).unwrap();
-    let projection = project_native_standalone_tabs(&equal_text).unwrap();
+    let projection = project_preferred_workspace(&equal_text).unwrap();
     let tab = &projection.tabs()[0];
     assert_eq!(projection.site_id().as_str(), same);
-    assert_eq!(projection.terminal_context_id().as_str(), same);
+    assert_eq!(projection.terminal_context_id().unwrap().as_str(), same);
     assert_eq!(tab.tab_id().as_str(), same);
     assert_eq!(tab.panel_id().as_str(), same);
     assert_eq!(tab.presentation_id().as_str(), same);
@@ -393,7 +384,7 @@ fn rejects_labels_that_cannot_be_represented_as_workbench_labels() {
 
     for candidate in invalid {
         assert_eq!(
-            project_native_standalone_tabs(&candidate),
+            project_preferred_workspace(&candidate),
             Err(NativeProjectionError)
         );
     }

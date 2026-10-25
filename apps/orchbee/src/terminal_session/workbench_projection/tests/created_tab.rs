@@ -28,7 +28,7 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
     for tab in &mut baseline.terminal_contexts[0].tabs[1..] {
         tab.group_id = Some(group_id(800));
     }
-    let current = project_native_standalone_tabs(&baseline).unwrap();
+    let current = project_preferred_workspace(&baseline).unwrap();
     for placement in [
         TabCreationPlacement::InGroup {
             group_id: group_id(800),
@@ -77,7 +77,7 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
             validate_created_tab(
                 &current,
                 &expected,
-                project_native_standalone_tabs(&candidate).unwrap()
+                project_preferred_workspace(&candidate).unwrap()
             )
             .is_ok()
         );
@@ -116,7 +116,7 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
                 }
             }
             assert!(
-                project_native_standalone_tabs(&hostile)
+                project_preferred_workspace(&hostile)
                     .ok()
                     .is_none_or(|next| validate_created_tab(&current, &expected, next).is_err()),
                 "{placement:?} tamper {change}"
@@ -130,7 +130,7 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
                 validate_created_tab(
                     &current,
                     &expected,
-                    project_native_standalone_tabs(&reused).unwrap()
+                    project_preferred_workspace(&reused).unwrap()
                 )
                 .is_err()
             );
@@ -142,7 +142,7 @@ fn placed_creation_receipt_rejects_extra_writes_wrong_position_and_reused_group_
             validate_created_tab(
                 &current,
                 &expected,
-                project_native_standalone_tabs(&candidate).unwrap()
+                project_preferred_workspace(&candidate).unwrap()
             )
             .is_ok()
         );
@@ -258,7 +258,16 @@ fn created_tab_rejects_revision_context_prefix_and_immediate_position_divergence
     failures.push((expected.clone(), site_mismatch));
 
     let mut context_mismatch = candidate.clone();
-    context_mismatch.location = NativeContextLocation::Standalone(context_id(401));
+    context_mismatch.location = {
+        let fixture_context_id = context_id(401);
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    };
     failures.push((expected.clone(), context_mismatch));
 
     let mut expected_context_mismatch = expected.clone();

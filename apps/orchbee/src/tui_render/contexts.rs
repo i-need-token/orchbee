@@ -24,7 +24,7 @@ pub(super) struct ContextDisplay<'a> {
     pub(super) active: bool,
     pub(super) project_label: Option<&'a str>,
     pub(super) workspace_label: Option<&'a str>,
-    pub(super) standalone_label: &'a str,
+    pub(super) no_workspace_label: &'a str,
 }
 
 /// Paints the navigator's context column and reports each complete row's exact
@@ -215,7 +215,7 @@ pub(super) fn context_label(context: ContextDisplay<'_>) -> String {
         ),
         (Some(project), None) => sanitize_terminal_text(project).into_owned(),
         (None, Some(workspace)) => sanitize_terminal_text(workspace).into_owned(),
-        (None, None) => sanitize_terminal_text(context.standalone_label).into_owned(),
+        (None, None) => sanitize_terminal_text(context.no_workspace_label).into_owned(),
     }
 }
 

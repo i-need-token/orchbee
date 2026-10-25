@@ -55,7 +55,7 @@ fn snapshot_with_root(tab_count: usize, revision: u64, root: PanelNode) -> Snaps
 }
 
 fn candidate_with_root(tab_count: usize, revision: u64, root: PanelNode) -> NativeContextTabs {
-    project_native_standalone_tabs(&snapshot_with_root(tab_count, revision, root)).unwrap()
+    project_preferred_workspace(&snapshot_with_root(tab_count, revision, root)).unwrap()
 }
 
 fn baseline(tab_count: usize, revision: u64) -> NativeContextTabs {
@@ -345,7 +345,7 @@ fn split_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings()
     // The committed Tab landed at a different index.
     let mut swapped = snapshot_with_root(2, 11, split_candidate());
     swapped.terminal_contexts[0].tabs.swap(0, 1);
-    let swapped = project_native_standalone_tabs(&swapped).unwrap();
+    let swapped = project_preferred_workspace(&swapped).unwrap();
     assert_eq!(
         validate_split_panel(&baseline, &expected, swapped),
         Err(NativeProjectionDivergence)
@@ -353,7 +353,7 @@ fn split_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings()
     // A sibling Tab diverged alongside the graft.
     let mut divergent = snapshot_with_root(2, 11, split_candidate());
     divergent.terminal_contexts[0].tabs[1].root = panel(1_011, 1_099, 1_013, 1_014, "2");
-    let divergent = project_native_standalone_tabs(&divergent).unwrap();
+    let divergent = project_preferred_workspace(&divergent).unwrap();
     assert_eq!(
         validate_split_panel(&baseline, &expected, divergent),
         Err(NativeProjectionDivergence)
@@ -481,14 +481,14 @@ fn move_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings() 
     let expected = move_expectation();
     let mut swapped = snapshot_with_root(2, 11, move_candidate());
     swapped.terminal_contexts[0].tabs.swap(0, 1);
-    let swapped = project_native_standalone_tabs(&swapped).unwrap();
+    let swapped = project_preferred_workspace(&swapped).unwrap();
     assert_eq!(
         validate_moved_panel(&baseline, &expected, swapped),
         Err(NativeProjectionDivergence)
     );
     let mut divergent = snapshot_with_root(2, 11, move_candidate());
     divergent.terminal_contexts[0].tabs[1].root = panel(1_011, 1_099, 1_013, 1_014, "2");
-    let divergent = project_native_standalone_tabs(&divergent).unwrap();
+    let divergent = project_preferred_workspace(&divergent).unwrap();
     assert_eq!(
         validate_moved_panel(&baseline, &expected, divergent),
         Err(NativeProjectionDivergence)

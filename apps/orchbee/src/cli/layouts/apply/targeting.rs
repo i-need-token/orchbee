@@ -39,9 +39,6 @@ pub(super) fn resolve(
         }
         LayoutDestination::New(context) => {
             let context = match context {
-                Some(TabContext::Standalone) => {
-                    snapshot.navigation.standalone_terminal_context_id.clone()
-                }
                 Some(TabContext::Workspace(target)) => results::resolve_or_fail(
                     snapshot.navigation.workspaces.iter().map(|workspace| {
                         (

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 mod members;
 use crate::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
@@ -47,9 +48,9 @@ fn split_command(
 #[test]
 fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
     let site = SiteId::parse(&identity(700)).unwrap();
-    let mut authority = WorkbenchAuthority::new(site).unwrap();
-    authority.commit_standalone_intent(binding(1)).unwrap();
-    let baseline = authority.tree_standalone_membership().unwrap();
+    let mut authority = WorkbenchAuthority::workspace_fixture(site).unwrap();
+    authority.append_fixture_tab(binding(1)).unwrap();
+    let baseline = authority.fixture_tree_membership().unwrap();
     let source = baseline.members().first().unwrap().clone();
 
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone());
@@ -88,7 +89,7 @@ fn panel_split_commits_one_new_leaf_and_retains_the_source_terminal() {
         WorkbenchCommandOutcome::PanelSplitPending { .. }
     ));
 
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     assert_eq!(membership.members().len(), 2);
     assert_eq!(
         membership

@@ -211,7 +211,7 @@ pub(super) fn render(
                     workspace_label: context
                         .workspace_label()
                         .map(|label| locale.workspace_display_label(label)),
-                    standalone_label: text.standalone,
+                    no_workspace_label: text.no_workspace,
                 })
         },
         theme,

@@ -2,12 +2,19 @@ use super::*;
 use std::{fs, path::PathBuf};
 fn position(context: u32) -> Position {
     Position {
-        location: NativeContextLocation::Standalone(
-            orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!(
-                "{context:032x}"
-            ))
-            .unwrap(),
-        ),
+        location: {
+            let fixture_context_id = orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                &format!("{context:032x}"),
+            )
+            .unwrap();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        },
         member: None,
     }
 }

@@ -26,7 +26,6 @@ fn direct_agent_switch_detaches_unexpected_host_before_poll_frame_or_control() -
         orchbee_agent_observation_protocol::AgentHostTerminalId::parse(&format!("{:032x}", 999))?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -40,7 +39,7 @@ fn direct_agent_switch_detaches_unexpected_host_before_poll_frame_or_control() -
         ],
         geometry,
     )?;
-    let old = drive_open_snapshot(&mut harness, source.clone())?;
+    let old = drive_snapshot(&mut harness, source.clone())?;
     drive_attach(&mut harness, 0)?;
     super::commands::drive_controlling_after_attach(&mut harness, &old, geometry)?;
     harness.ui.admit_fenced_presentation(
@@ -148,7 +147,6 @@ fn actual_child_switch_detaches_old_viewer_before_attaching_exact_child_binding(
     child_presentations.push(child);
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -165,7 +163,7 @@ fn actual_child_switch_detaches_old_viewer_before_attaching_exact_child_binding(
         ],
         geometry,
     )?;
-    let old = drive_open_snapshot(&mut harness, source.clone())?;
+    let old = drive_snapshot(&mut harness, source.clone())?;
     assert_eq!(drive_attach(&mut harness, 0)?, old);
     super::commands::drive_controlling_after_attach(&mut harness, &old, geometry)?;
     harness
@@ -240,7 +238,6 @@ fn unbound_bootstrap_does_not_attach_and_refresh_attaches_only_the_new_real_bind
     // The first request after Bootstrap must be a Workbench read, never OBCS Attach.
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Workbench,
             WireKind::Obcs,
@@ -251,7 +248,7 @@ fn unbound_bootstrap_does_not_attach_and_refresh_attaches_only_the_new_real_bind
         ],
         geometry,
     )?;
-    let old = drive_open_snapshot(&mut harness, empty)?;
+    let old = drive_snapshot(&mut harness, empty)?;
     assert_eq!(
         harness.ui.state().phase_kind(),
         SessionPhaseKind::SelectedWithoutAttachment
@@ -303,7 +300,6 @@ fn switching_to_unbound_child_detaches_before_empty_selection_without_new_attach
     child_presentations.push(child);
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -316,7 +312,7 @@ fn switching_to_unbound_child_detaches_before_empty_selection_without_new_attach
         ],
         geometry,
     )?;
-    let old = drive_open_snapshot(&mut harness, source.clone())?;
+    let old = drive_snapshot(&mut harness, source.clone())?;
     assert_eq!(drive_attach(&mut harness, 0)?, old);
     super::commands::drive_controlling_after_attach(&mut harness, &old, geometry)?;
     harness

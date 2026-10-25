@@ -56,7 +56,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
     ] {
         for unchanged in [false, true] {
             let geometry = fixture_geometry()?;
-            let mut steps = vec![WireKind::Obcs, WireKind::Workbench];
+            let mut steps = vec![WireKind::Workbench];
             steps.extend([WireKind::Obcs; 5]);
             steps.push(WireKind::Workbench); // Explicit Workspace selection.
             steps.extend([WireKind::Obcs; 6]); // Old Detach and Workspace Attach/Acquire/Resize/Poll/Feedback.
@@ -118,7 +118,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             let project = &initial.navigation.projects[0];
             let original_label = match target {
                 NativeLocationLabelTarget::Project => &project.label,
-                NativeLocationLabelTarget::Workspace => &initial.navigation.workspaces[0].label,
+                NativeLocationLabelTarget::Workspace => &initial.navigation.workspaces[1].label,
             };
             let expected_label = if unchanged {
                 original_label.as_str()
@@ -140,7 +140,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                     },
                     NativeLocationLabelTarget::Workspace,
                 ) => {
-                    assert_eq!(workspace_id, &initial.navigation.workspaces[0].workspace_id);
+                    assert_eq!(workspace_id, &initial.navigation.workspaces[1].workspace_id);
                     assert_eq!(label.as_str(), expected_label);
                 }
                 _ => return Err(test_error("rename target was silently retargeted")),
@@ -186,7 +186,7 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
                     recovered.navigation.projects[0].label = expected_label.into()
                 }
                 NativeLocationLabelTarget::Workspace => {
-                    recovered.navigation.workspaces[0].label = expected_label.into()
+                    recovered.navigation.workspaces[1].label = expected_label.into()
                 }
             }
             respond_snapshot(

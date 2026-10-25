@@ -354,12 +354,11 @@ export const WorkbenchNavigationSchema = z
 			.optional(),
 		workspaces: z
 			.array(WorkbenchWorkspaceSchema)
-			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS - 1)
+			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS)
 			.readonly(),
-		standaloneTerminalContextId: WorkbenchTerminalContextIdSchema,
 		workspaceOrder: z
 			.array(WorkbenchWorkspaceIdSchema)
-			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS - 1)
+			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS)
 			.readonly()
 			.optional(),
 	})
@@ -382,7 +381,7 @@ export const WorkbenchNavigationSchema = z
 		const projects = new Set(navigation.projects.map((project) => project.projectId));
 		const directories = new Set(navigation.directories.map((directory) => directory.directoryId));
 		const groupSizes = new Map<WorkbenchProjectId, number>();
-		const contexts = new Set([navigation.standaloneTerminalContextId]);
+		const contexts = new Set<WorkbenchTerminalContextId>();
 		for (const workspace of navigation.workspaces) {
 			if (contexts.has(workspace.terminalContextId)) {
 				context.addIssue({
@@ -434,7 +433,6 @@ const workbenchSnapshotShapeSchema = z.strictObject({
 	siteId: SiteIdSchema,
 	terminalContexts: z
 		.array(WorkbenchTerminalContextSchema)
-		.min(1)
 		.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS)
 		.readonly(),
 });
@@ -622,7 +620,6 @@ function validateWorkbenchSnapshot(
 		context,
 	);
 	const referencedContextCounts = new Map<WorkbenchTerminalContextId, number>();
-	incrementReference(referencedContextCounts, snapshot.navigation.standaloneTerminalContextId);
 	for (const workspace of snapshot.navigation.workspaces) {
 		incrementReference(referencedContextCounts, workspace.terminalContextId);
 	}

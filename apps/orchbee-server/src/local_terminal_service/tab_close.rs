@@ -231,12 +231,9 @@ impl LocalTerminalService {
                     return Ok(Some(Instant::now()));
                 }
                 CloseContinuationNext::Publication => {
-                    let changed = coordinator.publish_terminal_tab_close(&id, Instant::now())?;
+                    coordinator.publish_terminal_tab_close(&id, Instant::now())?;
                     drop(coordinator);
                     drop(workers);
-                    if changed {
-                        self.standalone_changed.notify_all();
-                    }
                     return Ok(Some(Instant::now()));
                 }
                 CloseContinuationNext::Lifecycle {

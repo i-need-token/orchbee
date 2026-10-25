@@ -220,7 +220,6 @@ pub struct Navigation {
     pub directories: Vec<Directory>,
     pub projects: Vec<Project>,
     pub workspaces: Vec<Workspace>,
-    pub standalone_terminal_context_id: WorkbenchTerminalContextId,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub workspace_order: Vec<WorkbenchWorkspaceId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

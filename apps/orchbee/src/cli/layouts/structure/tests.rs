@@ -12,7 +12,7 @@ fn snapshot() -> Snapshot {
     };
     serde_json::from_value(json!({
         "protocolVersion":1,"siteId":id(2),"revision":"12",
-        "navigation":{"projects":[],"standaloneTerminalContextId":id(4),"directories":[],"workspaces":[]},
+        "navigation":{"projects":[],"directories":[],"workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{
             "tabId":id(5),"label":"work","pinned":false,"groupId":null,"root":{
                 "kind":"split","splitId":id(50),"orientation":"horizontal","ratio":0.3,

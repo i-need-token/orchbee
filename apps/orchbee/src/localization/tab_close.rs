@@ -29,8 +29,6 @@ impl Locale {
     pub(crate) fn close_set_context(self, label: &str) -> String {
         let label = sanitize_terminal_text(label);
         match self {
-            Self::EnUs if label.is_empty() => "Workspace: Legacy workspace".into(),
-            Self::ZhCn if label.is_empty() => "工作区：原有工作区".into(),
             Self::EnUs => format!("Location: {label}"),
             Self::ZhCn => format!("位置：{label}"),
         }

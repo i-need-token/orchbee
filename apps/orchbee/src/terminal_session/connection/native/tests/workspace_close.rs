@@ -83,7 +83,7 @@ fn project_id(scope: Scope) -> WorkbenchProjectId {
     .unwrap()
 }
 fn snapshot() -> Snapshot {
-    let standalone = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
+    let initial_workspace = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
     let directory_id = WorkbenchDirectoryId::parse(&id(260)).unwrap();
     let workspaces: Vec<_> = (0..3)
         .map(|index| Workspace {
@@ -95,7 +95,7 @@ fn snapshot() -> Snapshot {
         })
         .collect();
     let mut contexts = vec![TerminalContext {
-        terminal_context_id: standalone.clone(),
+        terminal_context_id: initial_workspace.clone(),
         tabs: Vec::new(),
         groups: Vec::new(),
     }];
@@ -108,29 +108,39 @@ fn snapshot() -> Snapshot {
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: vec![Directory {
-                directory_id,
-                worker_id: WorkerId::parse(&id(261)).unwrap(),
-                path: WorkbenchDirectoryPath::parse("C:/shared-checkout").unwrap(),
-            }],
-            projects: vec![
-                Project {
-                    project_id: project_id(Scope::Project),
-                    label: "Project 项目".into(),
-                },
-                Project {
-                    project_id: project_id(Scope::EmptyProject),
-                    label: "Empty 空项目".into(),
-                },
-            ],
-            workspace_order: workspaces
-                .iter()
-                .map(|workspace| workspace.workspace_id.clone())
-                .collect(),
-            workspaces,
-            standalone_terminal_context_id: standalone,
+        navigation: {
+            let fixture_context_id = initial_workspace;
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: vec![Directory {
+                    directory_id,
+                    worker_id: WorkerId::parse(&id(261)).unwrap(),
+                    path: WorkbenchDirectoryPath::parse("C:/shared-checkout").unwrap(),
+                }],
+                projects: vec![
+                    Project {
+                        project_id: project_id(Scope::Project),
+                        label: "Project 项目".into(),
+                    },
+                    Project {
+                        project_id: project_id(Scope::EmptyProject),
+                        label: "Empty 空项目".into(),
+                    },
+                ],
+                workspace_order: std::iter::once(fixture_workspace_id.clone())
+                    .chain(
+                        workspaces
+                            .iter()
+                            .map(|workspace| workspace.workspace_id.clone())
+                            .collect(),
+                    )
+                    .collect(),
+                workspaces,
+            }
         },
         terminal_contexts: contexts,
     }

@@ -51,13 +51,27 @@ fn shell_exit_during_create_refusal_cannot_restore_controller_authority() {
 
 fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: context_id(9),
+        navigation: {
+            let fixture_context_id = context_id(9);
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
@@ -98,10 +112,10 @@ fn removal_tab(index: usize) -> Tab {
 }
 
 #[test]
-fn removed_workspace_lands_on_empty_canonical_workspace_before_nonempty_legacy() {
+fn removed_workspace_lands_on_first_ordered_empty_workspace() {
     let mut snapshot = super::context_selection::contexts(1, 1);
-    let removed = snapshot.navigation.workspaces[0].clone();
-    let surviving = snapshot.navigation.workspaces[1].clone();
+    let removed = snapshot.navigation.workspaces[1].clone();
+    let surviving = snapshot.navigation.workspaces[2].clone();
     let mut state = ready_with_cache(
         crate::terminal_session::workbench_projection::project_native_context_tabs(
             &snapshot,
@@ -116,10 +130,14 @@ fn removed_workspace_lands_on_empty_canonical_workspace_before_nonempty_legacy()
     let old_pane = state.focus_pane_ref().unwrap();
     assert_eq!(state.controller_mode(), Some(&controlling()));
     snapshot.revision = WorkbenchRevision::new(2);
-    snapshot.navigation.workspaces.remove(0);
+    snapshot.navigation.workspaces.remove(1);
     snapshot
         .terminal_contexts
         .retain(|context| context.terminal_context_id != removed.terminal_context_id);
+    snapshot.navigation.workspace_order = vec![
+        surviving.workspace_id.clone(),
+        snapshot.navigation.workspaces[0].workspace_id.clone(),
+    ];
     assert!(state.start_pending_refresh(7));
     let PreparedRefresh::Membership { prepared, .. } =
         state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot })
@@ -227,10 +245,16 @@ fn removed_context_with_live_viewers_stages_cleanup_before_landing() {
         .prepare_cleaned_membership_install(&cleanup, prepared, Some(landing.clone()))
         .unwrap()
         .commit();
-    assert_eq!(
-        state.cache().location(),
-        &NativeContextLocation::Standalone(context_id(9))
-    );
+    assert_eq!(state.cache().location(), &{
+        let fixture_context_id = context_id(9);
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    });
     assert_eq!(state.desired().map(|pane| pane.anchor()), Some(&landing));
     assert!(state.retained_contexts.is_empty());
     assert!(state.pending_membership.is_none());
@@ -268,10 +292,16 @@ fn removed_context_without_viewers_installs_directly_and_never_reinserts_the_rem
         )
         .unwrap()
         .commit();
-    assert_eq!(
-        state.cache().location(),
-        &NativeContextLocation::Standalone(context_id(9))
-    );
+    assert_eq!(state.cache().location(), &{
+        let fixture_context_id = context_id(9);
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    });
     // The deleted context is never parked back as a stale zombie entry.
     assert!(state.retained_contexts.is_empty());
     assert!(state.invariant_holds());
@@ -295,7 +325,7 @@ fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_
     let mut malformed = ready(1);
     assert!(malformed.start_pending_refresh(5));
     let mut broken = removal_snapshot(1, 2);
-    broken.navigation.standalone_terminal_context_id = context_id(2);
+    broken.navigation.workspaces[0].terminal_context_id = context_id(2);
     assert!(matches!(
         malformed.prepare_refresh(5, WorkbenchSnapshotOutcome::Available { snapshot: broken }),
         PreparedRefresh::Divergent { generation: 5 }
@@ -323,7 +353,7 @@ fn removal_classification_diverges_on_uncertain_provenance_malformed_navigation_
     ));
 
     // A relocated-but-alive context is never a removal: the session's
-    // context id is absent from the standalone slot yet still carried by a
+    // context id is absent from the initial_workspace slot yet still carried by a
     // workspace — the removed_context_landing workspace-carrier check must
     // refuse the permit. The snapshot is otherwise structurally valid so
     // this case cannot pass on an unrelated early rejection.
@@ -498,7 +528,7 @@ fn empty_create_anchor_retains_known_commit_and_refusal_restores_no_viewer_origi
                 &key,
                 WorkbenchTabCreateCommit::Pending {
                     revision: WorkbenchRevision::new(3),
-                    terminal_context_id: state.cache().terminal_context_id().clone(),
+                    terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),
                     tab_id: created.tab_id.clone(),
                     panel_id: panel_id.clone(),
                     presentation_id: primary_presentation.presentation_id.clone(),

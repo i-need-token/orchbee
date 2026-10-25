@@ -404,7 +404,7 @@ fn shell_alive(descriptor: &rustix::fd::OwnedFd) -> Result<bool, Box<dyn Error>>
 
 fn two_by_two_witness(zero_pixels: bool) -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = if zero_pixels {
         Client::spawn_zeropixel(&fixture, "en_US.UTF-8")
     } else {
@@ -420,7 +420,9 @@ fn two_by_two_witness(zero_pixels: bool) -> TestResult {
     let deadline = Instant::now() + SETTLE_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
     let snapshot = peer.snapshot(deadline)?;
-    let context_id = snapshot.navigation.standalone_terminal_context_id.clone();
+    let context_id = snapshot.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let tab = snapshot
         .terminal_contexts
         .iter()

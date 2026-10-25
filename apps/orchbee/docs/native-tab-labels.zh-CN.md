@@ -5,7 +5,7 @@
 Server 拥有 `Tab.label` 和可选布尔值 `Tab.automaticLabel`。省略表示 `false`；序列化省略
 `false`。旧 Tab 保留精确名称，包括显式选择的数字。读取者不能根据文本推断自动命名。
 
-Windows `tab create` 省略 `--label`、原生 TUI 创建 Tab、首个隐式独立 Tab，以及 `workspace.launch`
+Windows `tab create` 省略 `--label`、原生 TUI 创建 Tab，以及 `workspace.launch`
 的首个 Tab 均请求自动命名。Workspace 启动保留独立的工作区标签，并将 Tab 及主 Presentation
 的原始标签初始化为 `1`。显式 Tab 标签及 Panel 迁移标签保留现有固定名称行为。`tab.create` 携带相同
 的可选布尔值；请求指纹包含该字段。提供的有界非空 `label` 仍同时初始化原始 Tab 标签和主

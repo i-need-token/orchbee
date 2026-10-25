@@ -280,10 +280,8 @@ fn empty_snapshot_value(revision: &str) -> Value {
         "kind": "workbench.snapshot",
         "navigation": {
             "directories": [],
-            "workspaces": [],
-            "projects": [],
-            "standaloneTerminalContextId": "33333333333333333333333333333333"
-        },
+            "workspaces":[{"workspaceId":"33333333333333333333333333333333","terminalContextId":"33333333333333333333333333333333","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}],
+            "projects": []},
         "protocolVersion": 1,
         "revision": revision,
         "siteId": "11111111111111111111111111111111",
@@ -301,10 +299,8 @@ fn snapshot_with_depth(depth: usize) -> Value {
         "kind": "workbench.snapshot",
         "navigation": {
             "directories": [],
-            "workspaces": [],
-            "projects": [],
-            "standaloneTerminalContextId": "33333333333333333333333333333333"
-        },
+            "workspaces":[{"workspaceId":"33333333333333333333333333333333","terminalContextId":"33333333333333333333333333333333","projectId":null,"primaryDirectoryId":null,"label":"Workspace"}],
+            "projects": []},
         "protocolVersion": 1,
         "revision": "1",
         "siteId": "11111111111111111111111111111111",

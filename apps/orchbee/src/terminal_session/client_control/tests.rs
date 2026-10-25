@@ -943,7 +943,7 @@ fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_eff
     use crate::{
         client_view::SidebarSurface,
         terminal_session::{
-            ui::tests::membership::snapshot, workbench_projection::project_native_standalone_tabs,
+            ui::tests::membership::snapshot, workbench_projection::project_preferred_workspace,
         },
     };
     use orchbee_workbench_protocol::ClientPanelDirection;
@@ -965,12 +965,12 @@ fn no_neighbor_in_an_inactive_tab_has_no_selection_attachment_resize_or_draw_eff
             control.tick(&mut native, shell_busy);
             // The source is in a newer Snapshot of an inactive Tab; current cache stays at revision 1.
             let snapshot = snapshot(2, 2);
-            let cache = project_native_standalone_tabs(&snapshot).unwrap();
+            let cache = project_preferred_workspace(&snapshot).unwrap();
             let tab = &cache.tabs()[1];
             let mut command = command(&control, None);
             command.minimum_workbench_revision = snapshot.revision;
             command.intent = ClientViewIntent::FocusDirection {
-                terminal_context_id: cache.terminal_context_id().clone(),
+                terminal_context_id: cache.terminal_context_id().unwrap().clone(),
                 tab_id: tab.tab_id().clone(),
                 panel_id: tab.panel(0).unwrap().panel_id().clone(),
                 direction,
@@ -1279,7 +1279,7 @@ fn panel_focus_validates_canonical_target_before_cancelling_modes() {
 #[test]
 fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
     use crate::terminal_session::{
-        ui::tests::membership::snapshot, workbench_projection::project_native_standalone_tabs,
+        ui::tests::membership::snapshot, workbench_projection::project_preferred_workspace,
     };
     let (native, _, clock, _) = ready_ui();
     let mut control = controller(clock);
@@ -1287,11 +1287,11 @@ fn panel_focus_preflight_accepts_a_new_canonical_target_before_local_refresh() {
     control.revision = 1;
     let mut target = command(&control, None);
     let canonical = snapshot(3, 2);
-    let cache = project_native_standalone_tabs(&canonical).unwrap();
+    let cache = project_preferred_workspace(&canonical).unwrap();
     let tab = &cache.tabs()[2];
     target.minimum_workbench_revision = canonical.revision;
     target.intent = ClientViewIntent::Panel {
-        terminal_context_id: cache.terminal_context_id().clone(),
+        terminal_context_id: cache.terminal_context_id().unwrap().clone(),
         tab_id: tab.tab_id().clone(),
         panel_id: tab.panel(0).unwrap().panel_id().clone(),
     };

@@ -4943,6 +4943,27 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "ready-empty-workbench",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.client-view",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"action": {
+					"kind": "synchronize",
+					"heartbeat": "1",
+					"viewRevision": "2",
+					"view": {
+						"workbenchRevision": "12",
+						"phase": "ready",
+						"selection": null
+					},
+					"completion": null
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -5326,28 +5347,6 @@
 				}
 			},
 			"boundary": "schema"
-		},
-		{
-			"name": "ready-without-selection",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.client-view",
-				"protocolVersion": 1,
-				"requestId": "00000000000000000000000000000001",
-				"siteId": "00000000000000000000000000000002",
-				"action": {
-					"kind": "synchronize",
-					"heartbeat": "1",
-					"viewRevision": "2",
-					"view": {
-						"workbenchRevision": "12",
-						"phase": "ready",
-						"selection": null
-					},
-					"completion": null
-				}
-			},
-			"boundary": "semantic"
 		},
 		{
 			"name": "panel-without-tab",

@@ -10,10 +10,9 @@ use orchbee_capability_node_protocol::{
     read_message as read_obcn, write_message as write_obcn,
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, Geometry, OpenOutcome, RequestId, ServerMessage, SiteId as ClientSiteId,
-    TerminalId as ClientTerminalId, TerminalOpenRequest, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, WorkerId as ClientWorkerId, read_server_message,
-    write_client_message,
+    ClientMessage, RequestId, ServerMessage, SiteId as ClientSiteId,
+    TerminalId as ClientTerminalId, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, WorkerId as ClientWorkerId, read_server_message, write_client_message,
 };
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, PresentationBinding, ProtocolVersion, Snapshot, SnapshotReadIntent,
@@ -60,10 +59,6 @@ fn client_id(value: u128) -> TestResult<RequestId> {
 
 fn workbench_id(value: u128) -> TestResult<WorkbenchRequestId> {
     Ok(WorkbenchRequestId::parse(&format!("{value:032x}"))?)
-}
-
-fn client_geometry() -> TestResult<Geometry> {
-    Ok(Geometry::new(80, 24, 8, 16)?)
 }
 
 fn workbench_geometry() -> TestResult<WorkbenchTerminalGeometry> {
@@ -190,14 +185,81 @@ fn command(
     })
 }
 
-fn standalone_context(snapshot: &Snapshot) -> TestResult<&TerminalContext> {
+pub(super) fn create_workspace(
+    client: &mut UnixStream,
+    request_base: u128,
+    path: &str,
+    limit: Instant,
+) -> TestResult<Snapshot> {
+    let initial = read_snapshot(client, request_base, limit)?;
+    let create_id = workbench_id(request_base + 1)?;
+    let created = exchange_command(
+        client,
+        &command(
+            create_id.clone(),
+            &initial,
+            WorkbenchAction::WorkspaceCreate {
+                project_id: None,
+                label: WorkbenchLabel::parse("Workspace")?,
+            },
+        ),
+        &create_id,
+        limit,
+    )?;
+    let WorkbenchCommandOutcome::WorkspaceCreated { workspace_id, .. } = created.outcome else {
+        return Err("fixture Workspace creation failed".into());
+    };
+    let created = read_snapshot(client, request_base + 2, limit)?;
+    let directory_id = workbench_id(request_base + 3)?;
+    let accepted = exchange_command(
+        client,
+        &command(
+            directory_id.clone(),
+            &created,
+            WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+                workspace_id,
+                path: orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(path)?,
+            },
+        ),
+        &directory_id,
+        limit,
+    )?;
+    assert!(matches!(
+        accepted.outcome,
+        WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted { .. }
+    ));
+    read_snapshot(client, request_base + 4, limit)
+}
+
+fn begin_fixture_tab(client: &mut UnixStream, limit: Instant) -> TestResult<WorkbenchRequestId> {
+    let initial = create_workspace(client, 0x100_000, "/tmp", limit)?;
+    let request_id = workbench_id(0x100_005)?;
+    let request = command(
+        request_id.clone(),
+        &initial,
+        WorkbenchAction::TabCreate {
+            automatic_label: false,
+            placement: None,
+            terminal_context_id: initial.navigation.workspaces[0].terminal_context_id.clone(),
+            label: WorkbenchLabel::parse("1")?,
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+            launch: None,
+            profile: None,
+            options: Default::default(),
+        },
+    );
+    write_obwp(client, &request, limit)?;
+    Ok(request_id)
+}
+
+fn initial_workspace_context(snapshot: &Snapshot) -> TestResult<&TerminalContext> {
     snapshot
         .terminal_contexts
         .iter()
         .find(|context| {
-            context.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
+            context.terminal_context_id == snapshot.navigation.workspaces[0].terminal_context_id
         })
-        .ok_or_else(|| io::Error::other("missing standalone Terminal Context").into())
+        .ok_or_else(|| io::Error::other("missing initial_workspace Terminal Context").into())
 }
 
 fn primary_presentation(tab: &Tab) -> TestResult<(&Presentation, &WorkbenchPanelId)> {
@@ -208,7 +270,7 @@ fn primary_presentation(tab: &Tab) -> TestResult<(&Presentation, &WorkbenchPanel
         right_click,
     } = &tab.root
     else {
-        return Err(io::Error::other("standalone Tab root was not a Panel").into());
+        return Err(io::Error::other("initial_workspace Tab root was not a Panel").into());
     };
     assert!(child_presentations.is_empty());
     assert!(right_click.is_default());
@@ -315,24 +377,18 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     let (mut workbench_b, _) = connect_bounded_client(server.client_endpoint())?;
 
     let setup_deadline = deadline();
-    let open_request_id = client_id(1)?;
-    write_obcs(
-        &mut viewer,
-        &ClientMessage::TerminalOpen(TerminalOpenRequest::new(
-            open_request_id.clone(),
-            client_geometry()?,
-        )),
-        setup_deadline,
-    )?;
+    let create_request_id = begin_fixture_tab(&mut viewer, setup_deadline)?;
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(first_launch) =
         read_worker_message(&mut worker, setup_deadline)?
     else {
-        return Err(io::Error::other("missing first standalone Launch").into());
+        return Err(io::Error::other("missing first initial_workspace Launch").into());
     };
     let first_geometry = match first_launch.mode() {
         TerminalLaunchMode::Immediate(geometry) => geometry,
         TerminalLaunchMode::Deferred => {
-            return Err(io::Error::other("standalone Open dispatched a deferred Launch").into());
+            return Err(
+                io::Error::other("initial_workspace Open dispatched a deferred Launch").into(),
+            );
         }
     };
     let first_host = host_identity(3)?;
@@ -347,14 +403,14 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
         )?),
         setup_deadline,
     )?;
-    let ServerMessage::TerminalOpenResult(opened) = read_obcs(&mut viewer, setup_deadline)? else {
-        return Err(io::Error::other("missing standalone Open result").into());
-    };
-    assert_eq!(opened.request_id(), &open_request_id);
-    assert!(matches!(opened.outcome(), OpenOutcome::Opened { .. }));
+    let created = read_command_result(&mut viewer, &create_request_id, setup_deadline)?;
+    assert!(matches!(
+        created.outcome,
+        WorkbenchCommandOutcome::TabCreated { .. }
+    ));
 
     let initial = read_snapshot(&mut workbench_a, 101, setup_deadline)?;
-    let initial_context = standalone_context(&initial)?;
+    let initial_context = initial_workspace_context(&initial)?;
     assert!(initial_context.groups.is_empty());
     assert_eq!(initial_context.tabs.len(), 1);
     let initial_tab = initial_context.tabs[0].clone();
@@ -362,7 +418,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     let first_binding = first_presentation
         .binding
         .as_ref()
-        .ok_or_else(|| io::Error::other("first standalone Tab was unbound"))?;
+        .ok_or_else(|| io::Error::other("first initial_workspace Tab was unbound"))?;
     binding_matches_launch(first_binding, &first_launch);
     require_before(setup_deadline)?;
 
@@ -480,7 +536,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     // Only independent OBWP traffic proceeds while this same-Worker request is in flight.
     let committed = read_snapshot(&mut workbench_b, 201, parked_deadline)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
-    let committed_context = standalone_context(&committed)?;
+    let committed_context = initial_workspace_context(&committed)?;
     assert!(committed_context.groups.is_empty());
     assert_eq!(
         committed_context.terminal_context_id,
@@ -493,7 +549,7 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     let second_binding = second_presentation
         .binding
         .as_ref()
-        .ok_or_else(|| io::Error::other("second standalone Tab was unbound"))?;
+        .ok_or_else(|| io::Error::other("second initial_workspace Tab was unbound"))?;
     binding_matches_launch(second_binding, &second_launch);
 
     let pending = exchange_command(
@@ -539,7 +595,10 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     assert_eq!(navigation_revision.value(), committed.revision.value() + 1);
     let after_navigation = read_snapshot(&mut workbench_b, 203, parked_deadline)?;
     assert_eq!(after_navigation.revision, *navigation_revision);
-    assert_eq!(standalone_context(&after_navigation)?, committed_context);
+    assert_eq!(
+        initial_workspace_context(&after_navigation)?,
+        committed_context
+    );
     assert!(after_navigation.navigation.projects.iter().any(|project| {
         &project.project_id == project_id && project.label == "While tab Launch is parked"
     }));

@@ -9,7 +9,7 @@ fn automatic_tail_keeps_live_frames_active_and_manual_history_pauses_them() -> T
     ] {
         for refuse_projection in [false, true] {
             let geometry = fixture_geometry()?;
-            let mut steps = vec![WireKind::Obcs, WireKind::Workbench];
+            let mut steps = vec![WireKind::Workbench];
             // Five remaining startup exchanges, the demand pair, and an optional reset.
             steps.extend(std::iter::repeat_n(
                 WireKind::Obcs,

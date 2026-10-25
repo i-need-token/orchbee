@@ -79,6 +79,19 @@ fn fixture() -> Fixture {
         registry,
         Ok(orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap()),
     ));
+    {
+        use crate::test_support::WorkbenchFixture;
+        service
+            .coordinator
+            .lock()
+            .unwrap()
+            .close_authority()
+            .unwrap()
+            .seed_fixture_workspace(
+                orchbee_workbench_protocol::WorkerId::parse("09090909090909090909090909090909")
+                    .unwrap(),
+            );
+    }
     let close = add_terminal(&service, 0);
     Fixture {
         service,
@@ -106,7 +119,9 @@ fn add_terminal_between(
         action: WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             label: WorkbenchLabel::parse("close witness").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
@@ -162,16 +177,13 @@ fn add_terminal_between(
             .complete_terminal_tab_create(pending, Completion::Launch(result), Some(worker))
             .unwrap();
         drop(site);
-        if completed.standalone_changed {
-            service.standalone_changed.notify_all();
-        }
     }
     let snapshot = read_snapshot(service);
     let tab = snapshot
         .terminal_contexts
         .iter()
         .find(|context| {
-            context.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
+            context.terminal_context_id == snapshot.navigation.workspaces[0].terminal_context_id
         })
         .unwrap()
         .tabs
@@ -185,7 +197,9 @@ fn add_terminal_between(
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabClose {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             tab_id: tab,
         },
     }
@@ -647,21 +661,7 @@ fn current_reference_retargets_for_both_close_and_create_completion_orders() {
         } else {
             let _second = add_terminal_between(&service, 1, remove_first);
         }
-        let opened =
-            service.open_standalone(&orchbee_client_server_protocol::TerminalOpenRequest::new(
-                orchbee_client_server_protocol::RequestId::parse(&format!("{:032x}", 80)).unwrap(),
-                orchbee_client_server_protocol::Geometry::new(80, 24, 8, 16).unwrap(),
-            ));
-        assert_eq!(
-            opened,
-            orchbee_client_server_protocol::OpenOutcome::Opened {
-                terminal_create_request_id: orchbee_client_server_protocol::RequestId::parse(
-                    &format!("{:032x}", 111)
-                )
-                .unwrap(),
-            },
-            "completion-first={complete_first}"
-        );
+        assert_eq!(read_snapshot(&service).terminal_contexts[0].tabs.len(), 1);
         assert_eq!(read_snapshot(&service).revision, WorkbenchRevision::new(3));
         service.stop_close_maintenance();
         drop(peer);

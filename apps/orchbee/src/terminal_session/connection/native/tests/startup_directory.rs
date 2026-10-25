@@ -101,15 +101,24 @@ fn workspace(command: &WorkbenchCommand, pending: bool) -> TestResult<WorkbenchC
 }
 
 #[test]
-fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_standalone_open()
+fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_initial_workspace_open()
 -> TestResult {
     for saved_empty in [false, true] {
         let mut steps = vec![WireKind::Workbench; 3];
         steps.extend([WireKind::Obcs; 5]);
         let position = saved_empty.then(|| crate::terminal_session::startup_preference::Position {
-            location: crate::terminal_session::NativeContextLocation::Standalone(
-                fixtures::empty().navigation.standalone_terminal_context_id,
-            ),
+            location: {
+                let fixture_context_id = fixtures::empty().navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone();
+                crate::terminal_session::NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
             member: None,
         });
         let mut harness = harness_at(steps, fixtures::directory(), position)?;
@@ -125,7 +134,7 @@ fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_stan
             Some(&fixtures::commit().panel_id)
         );
         assert_eq!(
-            harness.ui.state().cache().terminal_context_id(),
+            harness.ui.state().cache().terminal_context_id().unwrap(),
             &fixtures::commit().terminal_context_id
         );
         let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
@@ -231,7 +240,7 @@ fn directory_startup_existing_workspace_without_saved_position_never_opens_compa
     };
     assert_eq!(key.tab_id(), &fixtures::commit().tab_id);
     assert_eq!(
-        harness.ui.state().cache().terminal_context_id(),
+        harness.ui.state().cache().terminal_context_id().unwrap(),
         &fixtures::commit().terminal_context_id
     );
     let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
@@ -280,7 +289,10 @@ fn directory_startup_empty_workspace_and_corrupt_restore_bootstrap_without_open_
         ));
         assert!(harness.ui.state().desired().is_none());
         if let Some(expected) = expected {
-            assert_eq!(harness.ui.state().cache().terminal_context_id(), &expected);
+            assert_eq!(
+                harness.ui.state().cache().terminal_context_id().unwrap(),
+                &expected
+            );
         } else {
             assert_eq!(harness.ui.state().view().context_count(), 0);
         }

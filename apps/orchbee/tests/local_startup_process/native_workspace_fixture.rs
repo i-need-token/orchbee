@@ -9,7 +9,7 @@ use std::os::{fd::AsFd, unix::net::UnixStream};
 // Shared empty Workspace scene for directory and location-label process witnesses.
 // CLI seeds the explicit empty object; native UI steps retain their frame gates.
 // The public-protocol observer remains read-only.
-pub(super) const STANDALONE_LOCATION: &str = "Standalone terminal";
+pub(super) const INITIAL_WORKSPACE_LOCATION: &str = "Workspace";
 pub(super) const WORKSPACE_LOCATION: &str = "Setup process / Chosen workspace";
 pub(super) const EMPTY: &str = "No terminal tabs";
 pub(super) const DIRECTORY_NEEDED: &str = "No directory configured.";
@@ -98,7 +98,7 @@ pub(super) fn seed_empty_workspace(fixture: &Fixture, client: &mut Client) -> Te
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        NativeHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
         &[],
         &["Workbench navigator"],
         &[],

@@ -17,9 +17,17 @@ struct Port {
 }
 impl Port {
     fn ready() -> Self {
-        let location = NativeContextLocation::Standalone(
-            WorkbenchTerminalContextId::parse(&format!("{:032x}", 1)).unwrap(),
-        );
+        let location = {
+            let fixture_context_id =
+                WorkbenchTerminalContextId::parse(&format!("{:032x}", 1)).unwrap();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        };
         let tabs: Vec<_> = (1..=20)
             .map(|id| WorkbenchTabId::parse(&format!("{id:032x}")).unwrap())
             .collect();

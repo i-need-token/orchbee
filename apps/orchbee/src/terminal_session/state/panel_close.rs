@@ -203,7 +203,7 @@ impl NativeSessionState {
         let selection = PanelCloseSelection {
             target: PanelCloseTarget::new(
                 self.cache.site_id().clone(),
-                self.cache.terminal_context_id().clone(),
+                self.cache.terminal_context_id()?.clone(),
                 tab.tab_id().clone(),
                 panel.panel_id().clone(),
             ),
@@ -253,7 +253,7 @@ impl NativeSessionState {
             return false;
         };
         self.cache.site_id() == &selection.target.site_id
-            && self.cache.terminal_context_id() == &selection.target.terminal_context_id
+            && self.cache.terminal_context_id() == Some(&selection.target.terminal_context_id)
             && self.cache.revision() == selection.base_revision
             && self.desired.as_ref().map(PaneKey::anchor) == Some(&selection.desired)
             && tab.tab_id() == &selection.target.tab_id

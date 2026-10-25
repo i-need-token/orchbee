@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_authority::terminal_membership::{append_simple_tab, parse_tab_ids};
 use orchbee_workbench_protocol::{
     Directory, PanelNode, Project, Snapshot, WorkbenchDirectoryId, WorkbenchDirectoryPath,
@@ -109,7 +110,7 @@ fn workspace_preparation_drop_alias_and_closed_replay_preserve_retained_identity
     else {
         panic!("alias admission")
     };
-    assert!(!admission.terminal_membership().is_standalone());
+
     let WorkbenchTabCloseResolution::Ready(joined) = admission.resolve_after_composition() else {
         panic!("alias does not resolve runtime")
     };
@@ -121,8 +122,7 @@ fn workspace_preparation_drop_alias_and_closed_replay_preserve_retained_identity
     let prepared = authority
         .prepare_terminal_tab_close_publication(&close.request_id, now)
         .unwrap();
-    assert!(!prepared.before_membership().is_standalone());
-    assert!(!prepared.after_membership().is_standalone());
+
     assert!(prepared.after_membership().is_empty());
     drop(prepared);
     assert_eq!(authority.projection.snapshot(), &before_publication);
@@ -138,7 +138,7 @@ fn workspace_preparation_drop_alias_and_closed_replay_preserve_retained_identity
     assert_eq!(authority.outstanding_close_credits().ok(), Some(0));
     assert!(matches!(status(&authority, &grant, &close),
         WorkbenchTabCloseReadOutcome::Available { status, .. } if status == closed));
-    authority.retire_standalone_composition();
+    authority.retire_terminal_membership();
     for (request, expected) in [(close, accepted), (alias, joined)] {
         assert!(
             matches!(authority.begin_terminal_tab_close(Some(&grant), request),
@@ -279,14 +279,14 @@ fn workspace_close_ignores_directory_availability_and_last_removal_keeps_navigat
 }
 
 #[test]
-fn standalone_and_workspace_close_share_revision_credits_in_either_publication_order() {
+fn initial_workspace_and_workspace_close_share_revision_credits_in_either_publication_order() {
     for reverse in [false, true] {
         let (mut authority, grant) = workspace_fixture(1);
         set_revision(&mut authority, u64::MAX - 2);
         let now = Instant::now();
-        let standalone = close_command(&authority, 10000, 0);
+        let initial_workspace = close_command(&authority, 10000, 0);
         let workspace = workspace_close(&authority, 10001, 1, 0);
-        accept(&mut authority, &grant, standalone.clone(), now);
+        accept(&mut authority, &grant, initial_workspace.clone(), now);
         accept(&mut authority, &grant, workspace.clone(), now);
         assert_eq!(authority.outstanding_close_credits().ok(), Some(2));
         let third = workspace_close(&authority, 10002, 2, 0);
@@ -323,9 +323,9 @@ fn standalone_and_workspace_close_share_revision_credits_in_either_publication_o
             }
         ));
         let order = if reverse {
-            [workspace, standalone]
+            [workspace, initial_workspace]
         } else {
-            [standalone, workspace]
+            [initial_workspace, workspace]
         };
         for (index, close) in order.iter().enumerate() {
             dispose_and_cleanup(&mut authority, &close.request_id, now);
@@ -439,9 +439,9 @@ fn workspace_membership_admits_pinned_tabs_and_unbound_presentations() {
     snapshot.terminal_contexts[0].tabs[0].pinned = true;
     let context_id = snapshot.terminal_contexts[1].terminal_context_id.clone();
     load(&mut authority, snapshot);
-    assert!(authority.standalone_membership().is_err());
+    assert!(authority.fixture_membership().is_err());
     let membership = authority.terminal_membership(&context_id).unwrap();
-    assert!(!membership.is_standalone());
+
     assert_eq!(membership.members().len(), 1);
     let close = workspace_close(&authority, 10000, 1, 0);
     accept(&mut authority, &grant, close, Instant::now());

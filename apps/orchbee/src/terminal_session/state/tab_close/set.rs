@@ -290,7 +290,7 @@ impl NativeSessionState {
         Ok(CloseSelection::new(
             CloseTarget::new(
                 self.cache.site_id().clone(),
-                self.cache.terminal_context_id().clone(),
+                self.cache.terminal_context_id()?.clone(),
                 id.clone(),
             ),
             WorkbenchLabel::parse(&tab.display_label(index))
@@ -366,7 +366,8 @@ impl NativeSessionState {
     pub(super) fn close_set_capture_current(&self, capture: &CloseSetCapture) -> bool {
         self.cache.canonical_snapshot() == capture.source.as_ref()
             && self.cache.site_id() == capture.first.target().site_id()
-            && self.cache.terminal_context_id() == capture.first.target().terminal_context_id()
+            && self.cache.terminal_context_id()
+                == Some(capture.first.target().terminal_context_id())
             && self.close_set_focus() == capture.focus
             && self.close_set_marks() == capture.marked
             && self
@@ -436,7 +437,8 @@ impl NativeSessionState {
     fn close_set_premises_current(&self, set: &CloseSetRun) -> bool {
         self.cache.canonical_snapshot() == set.source.as_ref()
             && self.cache.site_id() == set.capture.first.target().site_id()
-            && self.cache.terminal_context_id() == set.capture.first.target().terminal_context_id()
+            && self.cache.terminal_context_id()
+                == Some(set.capture.first.target().terminal_context_id())
             && self.close_set_focus() == set.focus
             && self.close_set_marks() == set.marked
     }

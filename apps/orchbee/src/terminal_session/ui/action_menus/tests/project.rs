@@ -20,10 +20,10 @@ fn snapshot() -> Snapshot {
         worker_id: WorkerId::parse(&format!("{:032x}", 902)).unwrap(),
         path: WorkbenchDirectoryPath::parse("C:/project").unwrap(),
     });
-    snapshot.navigation.workspaces[0].primary_directory_id = Some(directory_id);
+    snapshot.navigation.workspaces[1].primary_directory_id = Some(directory_id);
     let mut other = snapshot.navigation.projects[0].clone();
     other.project_id = WorkbenchProjectId::parse(&format!("{:032x}", 970)).unwrap();
-    let mut workspace = snapshot.navigation.workspaces[0].clone();
+    let mut workspace = snapshot.navigation.workspaces[1].clone();
     workspace.project_id = Some(other.project_id.clone());
     workspace.primary_directory_id = None;
     workspace.workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 971)).unwrap();
@@ -43,7 +43,7 @@ fn snapshot() -> Snapshot {
 fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspace() {
     let mut snapshot = snapshot();
     snapshot.terminal_contexts[0].tabs.clear();
-    let workspace = &snapshot.navigation.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[1];
     let location = NativeContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
@@ -208,20 +208,29 @@ fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_curr
         let mut snapshot = snapshot();
         snapshot.terminal_contexts[0].tabs.clear();
         if !grouped {
-            snapshot.navigation.workspaces[0].project_id = None;
+            snapshot.navigation.workspaces[1].project_id = None;
         }
         assert_eq!(
             snapshot.navigation.projects[0].label,
             snapshot.navigation.projects[1].label
         );
-        let addressed = &snapshot.navigation.workspaces[0];
+        let addressed = &snapshot.navigation.workspaces[1];
         let target = NativeContextLocation::Workspace {
             workspace_id: addressed.workspace_id.clone(),
             terminal_context_id: addressed.terminal_context_id.clone(),
         };
-        let current = NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        );
+        let current = {
+            let fixture_context_id = snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        };
         let (mut ui, mailbox) = ready(&snapshot, &current);
         let original = Origin::capture(ui.state.as_ref());
         assert!(ui.open_action_menu(MenuTarget::WorkspaceProjects(target), None, false));
@@ -278,9 +287,18 @@ fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_curr
 fn workspace_project_choice_reorder_retires_the_frozen_submenu_before_dispatch() {
     let mut snapshot = snapshot();
     snapshot.terminal_contexts[0].tabs.clear();
-    let current = NativeContextLocation::Standalone(
-        snapshot.navigation.standalone_terminal_context_id.clone(),
-    );
+    let current = {
+        let fixture_context_id = snapshot.navigation.workspaces[0]
+            .terminal_context_id
+            .clone();
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    };
     let (mut ui, mailbox) = ready(&snapshot, &current);
     let target = workspace(&snapshot, &snapshot.navigation.projects[0]);
     assert!(ui.open_action_menu(MenuTarget::WorkspaceProjects(target), None, false));
@@ -357,9 +375,16 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
             snapshot.terminal_contexts[0].tabs.clear();
             let location = source.map_or_else(
                 || {
-                    NativeContextLocation::Standalone(
-                        snapshot.navigation.standalone_terminal_context_id.clone(),
-                    )
+                    let fixture_context_id = snapshot.navigation.workspaces[0]
+                        .terminal_context_id
+                        .clone();
+                    NativeContextLocation::Workspace {
+                        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                            fixture_context_id.as_str(),
+                        )
+                        .unwrap(),
+                        terminal_context_id: fixture_context_id,
+                    }
                 },
                 |index| workspace(&snapshot, &snapshot.navigation.projects[index]),
             );
@@ -551,15 +576,24 @@ fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current(
 
 #[test]
 fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_focus() {
-    for standalone in [true, false] {
+    for initial_workspace in [true, false] {
         for empty in [true, false] {
             let mut snapshot = snapshot();
             snapshot.terminal_contexts[0].tabs.clear();
-            let target = usize::from(!standalone);
-            let location = if standalone {
-                NativeContextLocation::Standalone(
-                    snapshot.navigation.standalone_terminal_context_id.clone(),
-                )
+            let target = usize::from(!initial_workspace);
+            let location = if initial_workspace {
+                {
+                    let fixture_context_id = snapshot.navigation.workspaces[0]
+                        .terminal_context_id
+                        .clone();
+                    NativeContextLocation::Workspace {
+                        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                            fixture_context_id.as_str(),
+                        )
+                        .unwrap(),
+                        terminal_context_id: fixture_context_id,
+                    }
+                }
             } else {
                 workspace(&snapshot, &snapshot.navigation.projects[0])
             };
@@ -669,17 +703,23 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
                 3 => {
                     let id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 904)).unwrap();
                     replacement.terminal_contexts[1].terminal_context_id = id.clone();
-                    replacement.navigation.workspaces[0].terminal_context_id = id;
+                    replacement.navigation.workspaces[1].terminal_context_id = id;
                     location = workspace(&replacement, &replacement.navigation.projects[0]);
                 }
                 4 => {
                     dissolve_project(&mut replacement, &project.project_id);
-                    location = NativeContextLocation::Standalone(
-                        replacement
-                            .navigation
-                            .standalone_terminal_context_id
-                            .clone(),
-                    );
+                    location = {
+                        let fixture_context_id = replacement.navigation.workspaces[0]
+                            .terminal_context_id
+                            .clone();
+                        NativeContextLocation::Workspace {
+                            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                                fixture_context_id.as_str(),
+                            )
+                            .unwrap(),
+                            terminal_context_id: fixture_context_id,
+                        }
+                    };
                 }
                 _ => location = workspace(&replacement, &replacement.navigation.projects[1]),
             }
@@ -715,9 +755,18 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 let (mut ui, _, _, _) = tests::context_selection::ready(true);
                 let mut snapshot = snapshot();
                 snapshot.terminal_contexts[0].tabs.clear();
-                let location = NativeContextLocation::Standalone(
-                    snapshot.navigation.standalone_terminal_context_id.clone(),
-                );
+                let location = {
+                    let fixture_context_id = snapshot.navigation.workspaces[0]
+                        .terminal_context_id
+                        .clone();
+                    NativeContextLocation::Workspace {
+                        workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                            fixture_context_id.as_str(),
+                        )
+                        .unwrap(),
+                        terminal_context_id: fixture_context_id,
+                    }
+                };
                 install(&mut ui, &snapshot, &location);
                 ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
                 assert!(open(&mut ui, &snapshot.navigation.projects[0]));
@@ -823,9 +872,16 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                 snapshot.terminal_contexts[0].tabs.clear();
                 let location = source.map_or_else(
                     || {
-                        NativeContextLocation::Standalone(
-                            snapshot.navigation.standalone_terminal_context_id.clone(),
-                        )
+                        let fixture_context_id = snapshot.navigation.workspaces[0]
+                            .terminal_context_id
+                            .clone();
+                        NativeContextLocation::Workspace {
+                            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                                fixture_context_id.as_str(),
+                            )
+                            .unwrap(),
+                            terminal_context_id: fixture_context_id,
+                        }
                     },
                     |index| workspace(&snapshot, &snapshot.navigation.projects[index]),
                 );

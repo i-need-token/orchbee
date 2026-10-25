@@ -92,7 +92,7 @@ fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseC
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::active("Standalone terminal", 1, "1"),
+        NativeHeader::active("Workspace", 1, "1"),
         &[copy.ready],
         &[copy.title],
         &[],
@@ -106,7 +106,7 @@ fn prompt(client: &mut Client, copy: CloseCopy) {
     client.wait_close_prompt_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        "Standalone terminal",
+        "Workspace",
         &[copy.title, "", "1", "", copy.warning, "", copy.actions],
         &mut [],
     );
@@ -116,7 +116,7 @@ fn prompt(client: &mut Client, copy: CloseCopy) {
 fn localized_cancel_and_ordinary_exit_keep_the_exact_native_shell() -> TestResult {
     let _process_witness = process_witness_guard();
     for copy in [ENGLISH, CHINESE] {
-        let fixture = Fixture::new();
+        let fixture = Fixture::with_workspace();
         let mut client = Client::spawn(&fixture, copy.locale);
         ready(
             &mut client,
@@ -194,7 +194,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
         "No terminal tabs",
         "Ctrl+b c create Tab",
         "Workbench navigator",
-        "› * 1 Standalone terminal",
+        "› * 1 Workspace",
     ];
     if let Some(success) = &success {
         required.push(success);
@@ -202,7 +202,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::empty("Standalone terminal"),
+        NativeHeader::empty("Workspace"),
         &required,
         &[],
         &[],
@@ -214,7 +214,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        NativeHeader::empty("Standalone terminal"),
+        NativeHeader::empty("Workspace"),
         &["No terminal tabs", "Ctrl+b c create Tab"],
         &["Workbench navigator"],
         &[],
@@ -225,7 +225,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
 #[test]
 fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut controller = Client::spawn(&fixture, ENGLISH.locale);
     ready(
         &mut controller,
@@ -262,9 +262,9 @@ fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> Te
         .terminal_contexts
         .iter()
         .position(|context| {
-            context.terminal_context_id == baseline.navigation.standalone_terminal_context_id
+            context.terminal_context_id == baseline.navigation.workspaces[0].terminal_context_id
         })
-        .ok_or("missing standalone context")?;
+        .ok_or("missing initial_workspace context")?;
     assert_eq!(baseline.terminal_contexts[context].tabs.len(), 1);
     let target = baseline.terminal_contexts[context].tabs[0].tab_id.clone();
     let mut retained_processes = Vec::new();
@@ -376,7 +376,7 @@ fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> Te
         },
     ) = (&old_tab.root, &new_tab.root)
     else {
-        return Err("standalone Create must retain the simple Panel shape".into());
+        return Err("initial_workspace Create must retain the simple Panel shape".into());
     };
     assert_ne!(new_panel, old_panel);
     assert_ne!(

@@ -38,7 +38,10 @@ impl NativeExecutor {
             site_id: baseline.site_id().clone(),
             expected_revision: baseline.revision(),
             action: WorkbenchAction::TabMove {
-                terminal_context_id: baseline.terminal_context_id().clone(),
+                terminal_context_id: baseline
+                    .terminal_context_id()
+                    .ok_or(CarrierFailure::Protocol)?
+                    .clone(),
                 tab_id: operation.target().tab_id().clone(),
                 direction: operation.direction(),
             },

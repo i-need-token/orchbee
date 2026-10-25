@@ -56,7 +56,7 @@ fn nested_split_root() -> PanelNode {
 
 #[test]
 fn canonical_refresh_accepts_a_leaf_relocated_beside_its_sibling() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 10)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 10)).unwrap();
 
     // Move A right of B: the root Split is replaced by a fresh Split(B, A).
     let mut candidate_snapshot = split_snapshot(2, 11);
@@ -75,7 +75,7 @@ fn canonical_refresh_accepts_a_leaf_relocated_beside_its_sibling() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(90),
     };
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -84,7 +84,7 @@ fn canonical_refresh_accepts_a_leaf_relocated_beside_its_sibling() {
 
 #[test]
 fn canonical_refresh_accepts_a_leaf_relocated_across_orientations() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 10)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 10)).unwrap();
 
     // Move A below B: fresh vertical Split(B, A).
     let mut candidate_snapshot = split_snapshot(2, 11);
@@ -103,7 +103,7 @@ fn canonical_refresh_accepts_a_leaf_relocated_across_orientations() {
         orientation: PanelOrientation::Vertical,
         split_id: split_id(90),
     };
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -114,7 +114,7 @@ fn canonical_refresh_accepts_a_leaf_relocated_across_orientations() {
 fn canonical_refresh_accepts_relocation_into_a_nested_target() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // Move C left of A: the inner Split collapses to B, and a fresh Split(C, A) occupies A's slot.
     let mut candidate_snapshot = current_snapshot;
@@ -148,7 +148,7 @@ fn canonical_refresh_accepts_relocation_into_a_nested_target() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -159,7 +159,7 @@ fn canonical_refresh_accepts_relocation_into_a_nested_target() {
 fn canonical_refresh_accepts_relocation_that_promotes_the_inner_split_to_root() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // Move A below C: A's parent is the root Split, so the inner Split(B, Split(C, A)) survives
     // as the new root — the former inner Split keeps its identity.
@@ -194,7 +194,7 @@ fn canonical_refresh_accepts_relocation_that_promotes_the_inner_split_to_root() 
         orientation: PanelOrientation::Vertical,
         split_id: split_id(46),
     };
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -203,7 +203,7 @@ fn canonical_refresh_accepts_relocation_that_promotes_the_inner_split_to_root() 
 
 #[test]
 fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 10)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 10)).unwrap();
 
     // Fresh children order but the Split identity is retained: not a legitimate graft.
     let mut reused_split = split_snapshot(2, 11);
@@ -225,7 +225,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&reused_split).unwrap()
+            project_preferred_workspace(&reused_split).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -248,10 +248,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
         split_id: split_id(90),
     };
     assert_eq!(
-        validate_canonical_refresh(
-            &current,
-            project_native_standalone_tabs(&reused_slot).unwrap()
-        ),
+        validate_canonical_refresh(&current, project_preferred_workspace(&reused_slot).unwrap()),
         Err(NativeProjectionDivergence)
     );
 }
@@ -260,7 +257,7 @@ fn canonical_refresh_rejects_a_move_graft_reusing_known_identities() {
 fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subtrees() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // The moved leaf arrived with a different binding.
     let mut mutated_leaf = current_snapshot.clone();
@@ -297,7 +294,7 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&mutated_leaf).unwrap()
+            project_preferred_workspace(&mutated_leaf).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -337,7 +334,7 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&mutated_slot).unwrap()
+            project_preferred_workspace(&mutated_slot).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -347,7 +344,7 @@ fn canonical_refresh_rejects_relocation_that_mutates_the_moved_or_untouched_subt
 fn canonical_refresh_accepts_a_leaf_swapped_within_its_own_parent() {
     let mut current_snapshot = snapshot(2, 10);
     current_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // Move C left of B inside the inner Split: the inner Split is replaced by a fresh Split(C, B)
     // while the outer structure stays untouched.
@@ -382,7 +379,7 @@ fn canonical_refresh_accepts_a_leaf_swapped_within_its_own_parent() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -391,7 +388,7 @@ fn canonical_refresh_accepts_a_leaf_swapped_within_its_own_parent() {
 
 #[test]
 fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 11)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 11)).unwrap();
 
     // A folded close plus split: the baseline "right" leaf closed and the retained "left" leaf
     // gained a fresh sibling under a fresh Split.
@@ -411,7 +408,7 @@ fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(90),
     };
-    let candidate = project_native_standalone_tabs(&closed_then_split).unwrap();
+    let candidate = project_preferred_workspace(&closed_then_split).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -421,7 +418,7 @@ fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
     // children changed: every retained member and structural identity remains exact.
     let mut nested_current = snapshot(2, 10);
     nested_current.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let nested = project_native_standalone_tabs(&nested_current).unwrap();
+    let nested = project_preferred_workspace(&nested_current).unwrap();
     let mut compounded = nested_current;
     compounded.revision = WorkbenchRevision::new(11);
     compounded.terminal_contexts[0].tabs[0].root = PanelNode::Split {
@@ -453,7 +450,7 @@ fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let candidate = project_native_standalone_tabs(&compounded).unwrap();
+    let candidate = project_preferred_workspace(&compounded).unwrap();
     assert_eq!(
         validate_canonical_refresh(&nested, candidate.clone()),
         Ok(candidate)
@@ -462,7 +459,7 @@ fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
 
 #[test]
 fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
-    let current = project_native_standalone_tabs(&split_snapshot(2, 11)).unwrap();
+    let current = project_preferred_workspace(&split_snapshot(2, 11)).unwrap();
 
     // A leaf vanished entirely: the duplicate Panel identity fails the strict projector.
     let mut dropped = split_snapshot(2, 12);
@@ -481,7 +478,7 @@ fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    assert!(project_native_standalone_tabs(&dropped).is_err());
+    assert!(project_preferred_workspace(&dropped).is_err());
 
     // A folded graft whose retained leaf member mutated: the Panel identity overlaps but the
     // complete member tuple differs.
@@ -502,7 +499,7 @@ fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
         split_id: split_id(90),
     };
     assert_eq!(
-        validate_canonical_refresh(&current, project_native_standalone_tabs(&mutated).unwrap()),
+        validate_canonical_refresh(&current, project_preferred_workspace(&mutated).unwrap()),
         Err(NativeProjectionDivergence)
     );
 }

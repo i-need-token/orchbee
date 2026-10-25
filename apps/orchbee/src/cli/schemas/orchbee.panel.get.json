@@ -1060,11 +1060,11 @@
 		},
 		"context": {
 			"type": "object",
-			"required": ["kind", "terminalContextId"],
+			"required": ["kind", "terminalContextId", "workspaceId"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
-					"enum": ["standalone", "workspace"]
+					"const": "workspace"
 				},
 				"terminalContextId": {
 					"$ref": "#/$defs/id"
@@ -1072,37 +1072,7 @@
 				"workspaceId": {
 					"$ref": "#/$defs/id"
 				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"kind": {
-								"const": "workspace"
-							}
-						},
-						"required": ["kind"]
-					},
-					"then": {
-						"required": ["workspaceId"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"kind": {
-								"const": "standalone"
-							}
-						},
-						"required": ["kind"]
-					},
-					"then": {
-						"not": {
-							"required": ["workspaceId"]
-						}
-					}
-				}
-			]
+			}
 		},
 		"presentation": {
 			"type": "object",

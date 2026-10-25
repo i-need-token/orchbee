@@ -118,13 +118,27 @@ fn fixture() -> (Snapshot, PaneGraphicsTarget) {
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            projects: vec![],
-            standalone_terminal_context_id: context.clone(),
-            workspace_order: vec![],
+        navigation: {
+            let fixture_context_id = context.clone();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                projects: vec![],
+                workspace_order: Vec::new(),
+            }
         },
         terminal_contexts: vec![TerminalContext {
             terminal_context_id: context,

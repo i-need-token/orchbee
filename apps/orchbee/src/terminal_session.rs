@@ -57,8 +57,6 @@ mod startup_directory;
 mod startup_preference;
 #[cfg(windows)]
 pub(crate) use startup_directory::StartupDirectory;
-#[cfg(windows)]
-pub(crate) use workbench_projection::compatibility_workspace;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
@@ -127,11 +125,6 @@ pub(crate) use ui::{
 };
 #[cfg(windows)]
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
-
-#[derive(Clone, Debug)]
-pub(crate) enum TerminalIntent {
-    Standalone,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TerminalStatus {
@@ -290,12 +283,8 @@ impl TerminalSession {
         }
     }
 
-    pub(crate) fn start(
-        client: LocalClient,
-        intent: TerminalIntent,
-        geometry: Geometry,
-    ) -> io::Result<Self> {
-        Self::start_with_context(client, intent, geometry, None)
+    pub(crate) fn start(client: LocalClient, geometry: Geometry) -> io::Result<Self> {
+        Self::start_with_context(client, geometry, None)
     }
 
     #[cfg(windows)]
@@ -304,7 +293,7 @@ impl TerminalSession {
         target: NativeStartupTarget,
         geometry: Geometry,
     ) -> io::Result<Self> {
-        Self::start_with_context(client, TerminalIntent::Standalone, geometry, Some(target))
+        Self::start_with_context(client, geometry, Some(target))
     }
 
     #[cfg(windows)]
@@ -330,8 +319,7 @@ impl TerminalSession {
                 None
             }
         };
-        let mut session =
-            Self::start_with_context(client, TerminalIntent::Standalone, geometry, context)?;
+        let mut session = Self::start_with_context(client, geometry, context)?;
         session.position_writer = writer;
         session.position_startup = Some(startup_preference::Startup {
             fallback,
@@ -370,59 +358,52 @@ impl TerminalSession {
 
     fn start_with_context(
         client: LocalClient,
-        intent: TerminalIntent,
         geometry: Geometry,
         context: Option<workbench_projection::NativeStartupTarget>,
     ) -> io::Result<Self> {
         let shutdown = client.shutdown_handle()?;
         let clock = client.operation_clock();
         let identity_seed = random_identity_seed()?;
-        match intent {
-            TerminalIntent::Standalone => {
-                #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-                let origin = client.origin();
-                let mailbox = Arc::new(mailbox::CommandMailbox::new(identity_seed, geometry));
-                let worker_mailbox = Arc::clone(&mailbox);
-                let task = thread::Builder::new()
-                    .name("orchbee-terminal-session".into())
-                    .spawn(move || {
-                        connection::run_native(client, geometry, worker_mailbox, context)
-                    })?;
-                #[cfg(windows)]
-                let client_control = Some(client_control::ClientControl::new(
-                    origin.clone(),
-                    clock.clone(),
-                ));
-                let mut native = ui::NativeUi::new(mailbox, clock);
-                // The Agent board's read lane reconnects on its own admitted
-                // session so an OBAP ambiguity retires the lane, never the
-                // primary carrier.
-                #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-                native.set_agent_board_origin(origin.clone());
-                Ok(Self {
-                    #[cfg(windows)]
-                    position_writer: None,
-                    #[cfg(windows)]
-                    position_startup: None,
-                    #[cfg(windows)]
-                    configuration: None,
-                    #[cfg(windows)]
-                    notifications: None,
-                    #[cfg(windows)]
-                    window_title: None,
-                    #[cfg(windows)]
-                    client_control,
-                    backend: SessionBackend::Native(Box::new(native)),
-                    task: Some(SessionTask::Native(task)),
-                    shutdown,
-                    retirement_redraw_pending: false,
-                    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-                    origin: Some(origin),
-                    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-                    recovery_shutdown: None,
-                })
-            }
-        }
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        let origin = client.origin();
+        let mailbox = Arc::new(mailbox::CommandMailbox::new(identity_seed, geometry));
+        let worker_mailbox = Arc::clone(&mailbox);
+        let task = thread::Builder::new()
+            .name("orchbee-terminal-session".into())
+            .spawn(move || connection::run_native(client, geometry, worker_mailbox, context))?;
+        #[cfg(windows)]
+        let client_control = Some(client_control::ClientControl::new(
+            origin.clone(),
+            clock.clone(),
+        ));
+        let mut native = ui::NativeUi::new(mailbox, clock);
+        // The Agent board's read lane reconnects on its own admitted
+        // session so an OBAP ambiguity retires the lane, never the
+        // primary carrier.
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        native.set_agent_board_origin(origin.clone());
+        Ok(Self {
+            #[cfg(windows)]
+            position_writer: None,
+            #[cfg(windows)]
+            position_startup: None,
+            #[cfg(windows)]
+            configuration: None,
+            #[cfg(windows)]
+            notifications: None,
+            #[cfg(windows)]
+            window_title: None,
+            #[cfg(windows)]
+            client_control,
+            backend: SessionBackend::Native(Box::new(native)),
+            task: Some(SessionTask::Native(task)),
+            shutdown,
+            retirement_redraw_pending: false,
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+            origin: Some(origin),
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+            recovery_shutdown: None,
+        })
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]

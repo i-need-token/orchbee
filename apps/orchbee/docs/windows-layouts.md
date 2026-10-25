@@ -20,7 +20,7 @@ unique label; Panel targets admit ID or suffix. Exporting a Panel exports its co
 Export never activates a Tab, changes focus, resizes a Host or acquires terminal control.
 
 The result contains `layout:{workspaceId,terminalContextId,tabId,zoomed,focusedPanelId,root}`.
-Standalone workspaceId is null. Splits contain `type:split`, `direction:right|down`, `ratio`,
+The Workspace ID is required. Splits contain `type:split`, `direction:right|down`, `ratio`,
 `first` and `second`. Panels contain `type:panel`, descriptive `panelId`, `rightClick`, `primary`
 and ordered `children`. Members contain descriptive `presentationId`, fallback `name`, required-nullable
 manual `label`, `cwd` and `command`, plus `start` and empty `env`. Bound members carry available cwd
@@ -36,8 +36,7 @@ atomic process snapshot. A final canonical revision check rejects interleaved me
 
 ## Apply
 
-`layout apply (--file <path> | --stdin) [--tab <target> --confirm | --workspace <target> |
---standalone] [--label <label>] [--client <id>] [--focus | --no-focus]
+`layout apply (--file <path> | --stdin) [--tab <target> --confirm | --workspace <target>] [--label <label>] [--client <id>] [--focus | --no-focus]
 [--timeout <milliseconds>] [--format text|json]` creates a new Tab or replaces the selected Tab.
 Omitted destination uses the selected Client context. Replacement requires confirmation; exported
 IDs never select a destination or reuse processes. Explicit destinations without `--client` or

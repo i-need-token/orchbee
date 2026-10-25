@@ -7,7 +7,7 @@ fn automatic_rename_starts_empty_and_equal_text_is_a_commit() {
     let mut document = snapshot(2, 1, None);
     document.terminal_contexts[0].tabs[0].automatic_label = true;
     document.terminal_contexts[0].tabs[0].label = "old ordinal".into();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&document).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&document).unwrap());
     assert_eq!(state.view().tab(0).unwrap().tab_label(), "1");
     state.open_rename_draft().unwrap();
     let draft = state.rename_draft().unwrap();
@@ -37,7 +37,7 @@ fn automatic_rename_placeholder_tracks_the_tab_position_after_reordering() {
     document.terminal_contexts[0].tabs[0].automatic_label = true;
     document.terminal_contexts[0].tabs[0].label = "stored ordinal".into();
     document.terminal_contexts[0].tabs.reverse();
-    let cache = project_native_standalone_tabs(&document).unwrap();
+    let cache = project_preferred_workspace(&document).unwrap();
     let second = &cache.tabs()[1];
     let selection = crate::terminal_session::workbench_projection::NativeMemberTarget {
         tab: second.tab_id().clone(),
@@ -104,7 +104,7 @@ fn rename_operation_captures_exact_request_intent_and_original_deadline() {
                 site_id: state.cache().site_id().clone(),
                 expected_revision: WorkbenchRevision::new(1),
                 action: orchbee_workbench_protocol::WorkbenchAction::TabRename {
-                    terminal_context_id: state.cache().terminal_context_id().clone(),
+                    terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),
                     tab_id: state.tab(0).unwrap().tab_id().clone(),
                     label: WorkbenchLabel::parse(" 雪e\u{301}\t ").unwrap(),
                 },
@@ -313,7 +313,7 @@ fn rename_latest_ui_known_receipt_survives_b_admission_and_replaces_before_falli
     assert!(state.retain_pending_rename(first_known.clone()));
     let mut snapshot = snapshot(2, 2, None);
     snapshot.terminal_contexts[0].tabs[0].label = "A".into();
-    let candidate = project_native_standalone_tabs(&snapshot).unwrap();
+    let candidate = project_preferred_workspace(&snapshot).unwrap();
     let candidate = state
         .prepare_membership_candidate(
             candidate,

@@ -27,7 +27,7 @@ impl NativeSessionState {
             site_id: self.cache.site_id().clone(),
             expected_revision: self.cache.revision(),
             action: WorkbenchAction::TabsConfigure {
-                terminal_context_id: self.cache.terminal_context_id().clone(),
+                terminal_context_id: self.cache.terminal_context_id()?.clone(),
                 operation,
             },
         };
@@ -62,7 +62,7 @@ impl SetupOperation {
         else {
             return None;
         };
-        if terminal_context_id != self.baseline.terminal_context_id() {
+        if Some(terminal_context_id) != self.baseline.terminal_context_id() {
             return None;
         }
         // Group identities are Site-wide; a receipt cannot reuse one from another context.
@@ -77,16 +77,12 @@ impl SetupOperation {
         {
             return None;
         }
-        let candidate = configure_tabs(
-            self.baseline.canonical_context(),
-            operation,
-            group_id.as_ref(),
-        )
-        .ok()?;
+        let baseline = self.baseline.canonical_context()?;
+        let candidate = configure_tabs(baseline, operation, group_id.as_ref()).ok()?;
         if candidate.is_none() != *unchanged {
             return None;
         }
-        Some(candidate.unwrap_or_else(|| self.baseline.canonical_context().clone()))
+        Some(candidate.unwrap_or_else(|| baseline.clone()))
     }
 
     pub(super) fn validate_configuration_receipt(

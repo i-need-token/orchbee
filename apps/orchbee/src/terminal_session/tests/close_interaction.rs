@@ -282,7 +282,7 @@ fn assert_complete_close_frame(
     );
     let mut expected_warning = Buffer::empty(warning_area);
     warning.render(warning_area, &mut expected_warning);
-    let mut expected = vec![String::new(), "standalone".to_owned(), String::new()];
+    let mut expected = vec![String::new(), "initial_workspace".to_owned(), String::new()];
     expected.extend(displayed_content_rows(&expected_warning, warning_area));
     expected.extend([
         String::new(),

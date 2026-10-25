@@ -27,10 +27,9 @@ use crate::terminal_session::{
     state::{CarrierFailure, CleanupContinuation, ControllerMode, ReadyDecision, SessionPhaseKind},
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, ControlRejectedReason, OpenOutcome, ServerMessage, TerminalControlAction,
-    TerminalControlOutcome, TerminalControlResult, TerminalOpenResult, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerResult, ViewerRejectedReason, ViewerSnapshotReason,
-    ViewerUnavailableReason,
+    ClientMessage, ControlRejectedReason, ServerMessage, TerminalControlAction,
+    TerminalControlOutcome, TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerResult, ViewerRejectedReason, ViewerSnapshotReason, ViewerUnavailableReason,
 };
 
 use std::{
@@ -44,7 +43,6 @@ fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> T
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -56,20 +54,6 @@ fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> T
         geometry,
     )?;
     let mut request_ids = Vec::new();
-
-    let ClientMessage::TerminalOpen(request) = harness.carrier.take_obcs()? else {
-        return Err(test_error("startup must begin with terminal.open"));
-    };
-    assert_eq!(request.geometry(), geometry);
-    request_ids.push(request.request_id().as_str().to_owned());
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalOpenResult(TerminalOpenResult::new(
-            request.request_id().clone(),
-            OpenOutcome::Opened {
-                terminal_create_request_id: obcs_request_id(900)?,
-            },
-        )))?;
 
     let request = harness.carrier.take_read()?;
     request_ids.push(request.request_id().as_str().to_owned());
@@ -282,7 +266,6 @@ fn read_only_setup_sends_no_resize_and_empty_poll_requires_no_draw() -> TestResu
     )?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -292,7 +275,7 @@ fn read_only_setup_sends_no_resize_and_empty_poll_requires_no_draw() -> TestResu
         ],
         geometry,
     )?;
-    drive_open_snapshot_bootstrap(&mut harness, 1)?;
+    drive_snapshot_bootstrap(&mut harness, 1)?;
     drive_attach(&mut harness, 0)?;
 
     let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
@@ -440,7 +423,6 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
     )?;
     let needs_catch_up = cut != GeometryCatchUpCut::AcquireHandoff;
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -751,7 +733,7 @@ fn drive_controlling_startup(
     geometry: Geometry,
     tab_count: usize,
 ) -> TestResult<crate::terminal_session::state::AttachmentKey> {
-    let key = drive_open_snapshot_bootstrap(harness, tab_count)?;
+    let key = drive_snapshot_bootstrap(harness, tab_count)?;
     assert_eq!(drive_attach(harness, 0)?, key);
 
     let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
@@ -867,7 +849,6 @@ fn no_frame_results_and_old_feedback_cannot_license_ready_after_catch_up() -> Te
     )?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -884,7 +865,7 @@ fn no_frame_results_and_old_feedback_cannot_license_ready_after_catch_up() -> Te
         ],
         initial,
     )?;
-    let key = drive_open_snapshot_bootstrap(&mut harness, 1)?;
+    let key = drive_snapshot_bootstrap(&mut harness, 1)?;
     assert_eq!(drive_attach(&mut harness, 0)?, key);
 
     let ClientMessage::TerminalControl(acquire) = harness.carrier.take_obcs()? else {
@@ -1152,7 +1133,6 @@ fn rapid_switch_supersession_detaches_exact_viewer_at_every_blocking_cut() -> Te
 fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
     let geometry = fixture_geometry()?;
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -1450,7 +1430,6 @@ fn switch_superseding_a_taken_attached_event_detaches_that_exact_viewer() -> Tes
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1557,7 +1536,6 @@ fn switch_superseding_taken_setup_and_feedback_asserts_exact_generations() -> Te
 fn run_taken_setup_supersession_cut(cut: TakenSetupSupersessionCut) -> TestResult {
     let geometry = fixture_geometry()?;
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -1732,7 +1710,6 @@ fn run_unattempted_switch_entry_expiry() -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1797,7 +1774,6 @@ fn run_attempted_busy_switch_expiry() -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1925,7 +1901,6 @@ fn superseded_first_attach_prewrite_timeout_skips_the_stale_entry() -> TestResul
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start_with_prewrite_gate(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2035,7 +2010,6 @@ fn superseded_ready_poll_and_feedback_zero_write_at_old_deadline_then_switch() -
 fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
     let geometry = fixture_geometry()?;
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -2195,7 +2169,6 @@ fn switch_forward_boundary() -> TestResult<SwitchForwardBoundary> {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2388,7 +2361,6 @@ fn cleanup_reply_deposited_before_total_cut_wins_after_clock_reaches_cut() -> Te
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2534,7 +2506,6 @@ fn run_ready_drain_cut(cut: ReadyDrainCut) -> TestResult {
             .ok_or("pixel height")?,
     )?;
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -2723,7 +2694,6 @@ fn ordinary_deadline_before_switch() -> TestResult<OrdinaryDeadlineBoundary> {
     )?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2913,26 +2883,12 @@ fn run_close_wait_cut(cut: BlockedWaitCut) -> TestResult {
     let geometry = fixture_geometry()?;
     match cut {
         BlockedWaitCut::WireResponse => {
-            let harness = Harness::start(vec![WireKind::Obcs], geometry)?;
-            let ClientMessage::TerminalOpen(open) = harness.carrier.take_obcs()? else {
-                return Err(test_error("wire cut must stop on terminal.open"));
-            };
-            assert_eq!(open.geometry(), geometry);
+            let harness = Harness::start(vec![WireKind::Workbench], geometry)?;
+            let _pending_snapshot = harness.carrier.take_read()?;
             harness.finish()
         }
         BlockedWaitCut::EventReply => {
-            let harness = Harness::start(vec![WireKind::Obcs, WireKind::Workbench], geometry)?;
-            let ClientMessage::TerminalOpen(open) = harness.carrier.take_obcs()? else {
-                return Err(test_error("event cut must open the terminal"));
-            };
-            harness
-                .carrier
-                .respond_obcs(ServerMessage::TerminalOpenResult(TerminalOpenResult::new(
-                    open.request_id().clone(),
-                    OpenOutcome::Opened {
-                        terminal_create_request_id: obcs_request_id(900)?,
-                    },
-                )))?;
+            let harness = Harness::start(vec![WireKind::Workbench], geometry)?;
             let request = harness.carrier.take_read()?;
             harness.carrier.respond_read(
                 &request,
@@ -2946,7 +2902,6 @@ fn run_close_wait_cut(cut: BlockedWaitCut) -> TestResult {
         BlockedWaitCut::CausalSettlement => {
             let mut harness = Harness::start(
                 vec![
-                    WireKind::Obcs,
                     WireKind::Workbench,
                     WireKind::Obcs,
                     WireKind::Obcs,
@@ -2954,7 +2909,7 @@ fn run_close_wait_cut(cut: BlockedWaitCut) -> TestResult {
                 ],
                 geometry,
             )?;
-            drive_open_snapshot_bootstrap(&mut harness, 1)?;
+            drive_snapshot_bootstrap(&mut harness, 1)?;
             drive_attach(&mut harness, 0)?;
             let ClientMessage::TerminalControl(acquire) = harness.carrier.take_obcs()? else {
                 return Err(test_error("causal cut must Acquire"));
@@ -2992,15 +2947,10 @@ fn run_close_wait_cut(cut: BlockedWaitCut) -> TestResult {
         }
         BlockedWaitCut::ConditionVariable => {
             let mut harness = Harness::start(
-                vec![
-                    WireKind::Obcs,
-                    WireKind::Workbench,
-                    WireKind::Obcs,
-                    WireKind::Obcs,
-                ],
+                vec![WireKind::Workbench, WireKind::Obcs, WireKind::Obcs],
                 geometry,
             )?;
-            drive_open_snapshot_bootstrap(&mut harness, 1)?;
+            drive_snapshot_bootstrap(&mut harness, 1)?;
             let ClientMessage::TerminalViewer(first_attach) = harness.carrier.take_obcs()? else {
                 return Err(test_error("condition-variable cut must AttachBinding"));
             };

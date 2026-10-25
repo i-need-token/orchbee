@@ -28,13 +28,12 @@ fn snapshot(child: bool, workspace: bool) -> Snapshot {
         "root": {"kind": "panel", "panelId": hex(4), "primaryPresentation": if child { &unbound } else { &bound },
         "childPresentations": if child { vec![bound.clone()] } else { vec![] }}});
     let mut document = json!({"kind": "workbench.snapshot", "protocolVersion": 1, "siteId": hex(1), "revision": "7",
-        "navigation": {"projects":[], "standaloneTerminalContextId":hex(2), "directories":[], "workspaces":[]},
+        "navigation": {"projects":[], "directories":[], "workspaces":[{"workspaceId":hex(2),"terminalContextId":hex(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
         "terminalContexts": [{"terminalContextId": hex(2), "groups": [], "tabs": [tab.clone()]}]});
     if workspace {
         document["navigation"]["projects"] = json!([{"projectId": hex(7), "label": "project"}]);
         document["navigation"]["workspaces"] = json!([{"workspaceId": hex(8), "projectId": hex(7), "label": "work", "primaryDirectoryId": null, "terminalContextId": hex(9)}]);
         document["terminalContexts"] = json!([
-            {"terminalContextId": hex(2), "groups": [], "tabs": []},
             {"terminalContextId": hex(9), "groups": [], "tabs": [tab]}
         ]);
     }
@@ -50,13 +49,10 @@ fn current_binding_follows_primary_child_and_moved_workspace_with_one_read() {
             let result = projection.result();
             assert_eq!(result["panel"]["panelId"], hex(4));
             assert_eq!(result["panel"]["tabId"], hex(3));
-            assert_eq!(
-                result["panel"]["context"]["kind"],
-                if workspace { "workspace" } else { "standalone" }
-            );
+            assert_eq!(result["panel"]["context"]["kind"], "workspace");
             assert_eq!(
                 result["panel"]["context"].get("workspaceId"),
-                workspace.then(|| json!(hex(8))).as_ref()
+                Some(&json!(hex(if workspace { 8 } else { 2 })))
             );
             assert_eq!(source["revision"], "7");
             // Windows composes this target into WorkbenchQuery before emitting the current Windows query version.

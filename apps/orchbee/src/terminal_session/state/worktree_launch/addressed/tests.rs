@@ -1,6 +1,6 @@
 use super::*;
 use crate::terminal_session::state::tests::snapshot;
-use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use crate::terminal_session::workbench_projection::project_preferred_workspace;
 use orchbee_workbench_protocol::{
     Directory, PanelNode, Presentation, PresentationBinding, TerminalId, TerminalPresentationId,
     WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchTerminalContextId, WorkerId,
@@ -77,7 +77,7 @@ pub(in crate::terminal_session) fn fixture() -> Snapshot {
 #[test]
 fn project_source_is_first_displayed_member_independent_of_current_context_and_labels() {
     let mut value = fixture();
-    let current = project_native_standalone_tabs(&value).unwrap();
+    let current = project_preferred_workspace(&value).unwrap();
     let target = SidebarWorktreeTarget::Project(project(70));
     let first = AddressedWorktreeSource::capture(current.canonical_snapshot(), &target).unwrap();
     assert_eq!(
@@ -193,7 +193,7 @@ fn source_scope_drift_retires_project_membership_directory_and_terminal_proof() 
     for change in 0..5 {
         let mut next = value.clone();
         match change {
-            0 => next.navigation.workspaces[0].project_id = Some(project(71)),
+            0 => next.navigation.workspaces[1].project_id = Some(project(71)),
             1 => next.navigation.workspace_order.reverse(),
             2 => next.navigation.directories[0].path = path("C:/changed-source"),
             3 => {

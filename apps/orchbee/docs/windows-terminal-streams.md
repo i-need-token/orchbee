@@ -146,7 +146,7 @@ acknowledgement, or `session-released` when the socket is dropped without confir
 Packaged Windows console witnesses cover bracketed Unicode paste containing the detach prefix,
 raw Ctrl+C delivery, mouse-off entry, busy-controller refusal, takeover fencing, history paging,
 normal detach, timeout restoration, re-acquisition and admission at different console sizes.
-They also exercise shared input in the standalone TUI. A real Windows child requesting `?1016`
+They also exercise shared input in the Workspace TUI. A real Windows child requesting `?1016`
 receives exact SGR cell bytes for control wheel/modifiers and attach press/drag/release injected
 through the console; this proves cell fallback, not exact pixel capture or physical mouse visuals.
 Packaged TUI and attach witnesses retain history RGB colors, bold/italic/underline and wide

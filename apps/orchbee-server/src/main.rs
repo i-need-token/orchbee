@@ -58,3 +58,6 @@ fn main() -> ExitCode {
 
 #[cfg(all(test, windows))]
 mod tests;
+
+#[cfg(test)]
+mod test_support;

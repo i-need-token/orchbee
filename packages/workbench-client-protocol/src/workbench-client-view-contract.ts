@@ -59,9 +59,7 @@ export const ClientViewObservationSchema = z
 	.superRefine((view, context) => {
 		const selection = view.selection;
 		if (
-			((view.phase === 'ready' ||
-				(view.splitRevision !== null && view.splitRevision !== undefined)) &&
-				selection === null) ||
+			(view.splitRevision !== null && view.splitRevision !== undefined && selection === null) ||
 			(selection !== null &&
 				((selection.tabId !== null) !== selection.panelCount > 0 ||
 					(selection.panelId !== null && selection.tabId === null) ||

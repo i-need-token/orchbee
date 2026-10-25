@@ -11,15 +11,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn legacy_workspace_action_unavailable(self) -> &'static str {
-        match self {
-            Self::EnUs => {
-                "Legacy workspace tabs remain usable · create a new workspace for this action"
-            }
-            Self::ZhCn => "原有工作区的 Tab 可继续使用 · 请新建工作区后执行此操作",
-        }
-    }
-
     pub(crate) const fn sidebar_delete_label(self) -> &'static str {
         match self {
             Self::EnUs => "Delete",

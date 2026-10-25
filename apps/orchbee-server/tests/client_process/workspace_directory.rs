@@ -1,9 +1,8 @@
 use super::{PROCESS_TIMEOUT, RunningServer, TestDirectory, TestResult, connect_bounded_client};
 use orchbee_client_server_protocol::{
-    ClientMessage, Geometry, OpenOutcome, RequestId, ServerMessage, SiteId as ClientSiteId,
-    TerminalId as ClientTerminalId, TerminalOpenRequest, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, WorkerId as ClientWorkerId, read_server_message,
-    write_client_message,
+    ClientMessage, RequestId, ServerMessage, SiteId as ClientSiteId,
+    TerminalId as ClientTerminalId, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, WorkerId as ClientWorkerId, read_server_message, write_client_message,
 };
 use orchbee_workbench_protocol::{
     Directory, PanelNode, PresentationBinding, ProtocolVersion, Snapshot, SnapshotReadIntent, Tab,
@@ -39,10 +38,6 @@ fn geometry() -> TestResult<orchbee_workbench_protocol::WorkbenchTerminalGeometr
     Ok(orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(
         80, 24, 8, 16,
     )?)
-}
-
-fn client_geometry() -> TestResult<Geometry> {
-    Ok(Geometry::new(80, 24, 8, 16)?)
 }
 
 fn command(
@@ -115,7 +110,8 @@ fn workspace_context(snapshot: &Snapshot) -> TestResult<&TerminalContext> {
     let workspace = snapshot
         .navigation
         .workspaces
-        .first()
+        .iter()
+        .find(|workspace| workspace.project_id.is_some())
         .ok_or_else(|| io::Error::other("missing created Workspace"))?;
     context(snapshot, workspace.terminal_context_id.as_str())
 }
@@ -327,12 +323,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
 
     let initial = read_snapshot(&mut first, 1)?;
     assert_eq!(initial, read_snapshot(&mut second, 2)?);
-    let initial_standalone = initial.navigation.standalone_terminal_context_id.clone();
-    assert!(
-        context(&initial, initial_standalone.as_str())?
-            .tabs
-            .is_empty()
-    );
 
     let project_request = command(
         workbench_id(10)?,
@@ -383,11 +373,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(workspace.terminal_context_id, terminal_context_id);
     assert!(workspace.primary_directory_id.is_none());
     assert!(workspace_context(&after_workspace)?.tabs.is_empty());
-    assert!(
-        context(&after_workspace, initial_standalone.as_str())?
-            .tabs
-            .is_empty()
-    );
 
     let before_association_tab = command(
         workbench_id(12)?,
@@ -519,11 +504,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     );
     // Directory association validates through Worker and must not launch a shell.
     assert!(!fixture.marker.exists());
-    assert!(
-        context(&after_association, initial_standalone.as_str())?
-            .tabs
-            .is_empty()
-    );
 
     let first_tab_request = command(
         workbench_id(14)?,
@@ -566,11 +546,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
             .as_str(),
         binding.worker_id.as_str()
     );
-    assert!(
-        context(&after_tab, initial_standalone.as_str())?
-            .tabs
-            .is_empty()
-    );
 
     let site_id = ClientSiteId::parse(after_tab.site_id.as_str())?;
     let worker_id = ClientWorkerId::parse(binding.worker_id.as_str())?;
@@ -608,30 +583,13 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(detached.request_id(), &detach_request_id);
     assert_eq!(detached.outcome(), &TerminalViewerOutcome::Detached {});
 
-    let open_request_id = client_id(20)?;
-    let open_request = ClientMessage::TerminalOpen(TerminalOpenRequest::new(
-        open_request_id.clone(),
-        client_geometry()?,
-    ));
-    write_client_message(&mut first, &open_request)?;
-    let ServerMessage::TerminalOpenResult(opened) = read_server_message(&mut first)? else {
-        return Err("standalone bootstrap did not return TerminalOpenResult".into());
-    };
-    assert_eq!(opened.request_id(), &open_request_id);
-    assert!(matches!(opened.outcome(), OpenOutcome::Opened { .. }));
-    let after_standalone = read_snapshot(&mut second, 10)?;
-    assert_eq!(workspace_context(&after_standalone)?.tabs.len(), 1);
-    assert_eq!(
-        context(&after_standalone, initial_standalone.as_str())?
-            .tabs
-            .len(),
-        1
-    );
-    let marker_lines = wait_for_marker(&fixture.marker, 2)?;
+    let before_deleted_directory = read_snapshot(&mut second, 10)?;
+    assert_eq!(workspace_context(&before_deleted_directory)?.tabs.len(), 1);
+    let marker_lines = wait_for_marker(&fixture.marker, 1)?;
     assert_eq!(marker_lines[0], fixture.directory.to_string_lossy());
 
     fs::remove_dir(&fixture.directory)?;
-    let _after_standalone_project = after_standalone
+    let _before_deleted_directory_project = before_deleted_directory
         .navigation
         .projects
         .iter()
@@ -639,7 +597,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         .ok_or_else(|| io::Error::other("Project disappeared before deleted-directory test"))?;
     let deleted_tab_request = command(
         workbench_id(15)?,
-        &after_standalone,
+        &before_deleted_directory,
         WorkbenchAction::TabCreate {
             automatic_label: false,
             placement: None,
@@ -671,14 +629,14 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     };
     assert_eq!(
         failed_tab_revision.value(),
-        after_standalone.revision.value() + 1
+        before_deleted_directory.revision.value() + 1
     );
     let marker_lines = fs::read_to_string(&fixture.marker)?
         .lines()
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    assert_eq!(marker_lines, wait_for_marker(&fixture.marker, 2)?);
-    assert_eq!(marker_lines.len(), 2);
+    assert_eq!(marker_lines, wait_for_marker(&fixture.marker, 1)?);
+    assert_eq!(marker_lines.len(), 1);
     let final_snapshot = read_snapshot(&mut second, 11)?;
     assert_eq!(final_snapshot.revision, failed_tab_revision);
     let _final_project = final_snapshot
@@ -689,7 +647,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         .ok_or_else(|| io::Error::other("Project disappeared after failed launch"))?;
     assert_eq!(
         final_snapshot.navigation.directories,
-        after_standalone.navigation.directories
+        before_deleted_directory.navigation.directories
     );
     let final_workspace = final_snapshot
         .navigation
@@ -711,10 +669,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let failed_binding = first_tab_binding(failed_tab)?;
     assert_eq!(failed_binding.worker_id.as_str(), local_worker_wire_id());
     assert_ne!(failed_binding.terminal_id, binding.terminal_id);
-    assert_eq!(
-        context(&final_snapshot, initial_standalone.as_str())?,
-        context(&after_standalone, initial_standalone.as_str())?
-    );
 
     fixture.kill_worker()?;
     let new_workspace_request = command(
@@ -775,8 +729,8 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let after_worker_loss_association = read_snapshot(&mut second, 15)?;
     assert_eq!(after_worker_loss_association_first, after_new_workspace);
     assert_eq!(after_worker_loss_association, after_new_workspace);
-    let marker_lines = wait_for_marker(&fixture.marker, 2)?;
-    assert_eq!(marker_lines.len(), 2);
+    let marker_lines = wait_for_marker(&fixture.marker, 1)?;
+    assert_eq!(marker_lines.len(), 1);
 
     let old_workspace_context_id = final_snapshot
         .navigation
@@ -811,7 +765,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let final_after_worker_loss = read_snapshot(&mut second, 17)?;
     assert_eq!(final_after_worker_loss_first, after_worker_loss_association);
     assert_eq!(final_after_worker_loss, after_worker_loss_association);
-    assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
+    assert_eq!(wait_for_marker(&fixture.marker, 1)?.len(), 1);
 
     let before_move_first = final_after_worker_loss_first;
     let before_move_second = final_after_worker_loss;
@@ -885,7 +839,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         first_tab_binding(&moved_workspace.tabs[1])?,
         &first_binding_before_move
     );
-    assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
+    assert_eq!(wait_for_marker(&fixture.marker, 1)?.len(), 1);
 
     let replay = exchange_command(&mut second, &move_request)?;
     assert_eq!(replay, move_result);
@@ -909,9 +863,8 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         site_id: move_command.site_id.clone(),
         expected_revision: move_command.expected_revision,
         action: WorkbenchAction::TabMove {
-            terminal_context_id: expected_after_move
-                .navigation
-                .standalone_terminal_context_id
+            terminal_context_id: expected_after_move.navigation.workspaces[1]
+                .terminal_context_id
                 .clone(),
             tab_id: move_tab_id.clone(),
             direction: *move_direction,
@@ -927,7 +880,7 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     ));
     assert_eq!(read_snapshot(&mut first, 27)?, expected_after_move);
     assert_eq!(read_snapshot(&mut second, 28)?, expected_after_move);
-    assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
+    assert_eq!(wait_for_marker(&fixture.marker, 1)?.len(), 1);
     Ok(())
 }
 

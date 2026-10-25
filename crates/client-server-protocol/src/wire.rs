@@ -118,13 +118,6 @@ enum DecodedStartOutcome {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum DecodedClientMessage {
-    #[serde(rename = "terminal.open")]
-    Open {
-        #[serde(rename = "protocolVersion")]
-        _protocol_version: ProtocolVersion,
-        request_id: RequestId,
-        geometry: Geometry,
-    },
     #[serde(rename = "terminal.control")]
     Control {
         #[serde(rename = "protocolVersion")]
@@ -177,12 +170,6 @@ enum DecodedClientMessage {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum EncodedClientMessage<'a> {
-    #[serde(rename = "terminal.open")]
-    Open {
-        protocol_version: ProtocolVersion,
-        request_id: &'a RequestId,
-        geometry: Geometry,
-    },
     #[serde(rename = "terminal.control")]
     Control {
         protocol_version: ProtocolVersion,
@@ -228,13 +215,6 @@ enum EncodedClientMessage<'a> {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum DecodedServerMessage {
-    #[serde(rename = "terminal.open.result")]
-    Open {
-        #[serde(rename = "protocolVersion")]
-        _protocol_version: ProtocolVersion,
-        request_id: RequestId,
-        outcome: crate::OpenOutcome,
-    },
     #[serde(rename = "terminal.control.result")]
     Control {
         #[serde(rename = "protocolVersion")]
@@ -327,12 +307,6 @@ enum DecodedTerminalLaunchReadOutcome {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum EncodedServerMessage<'a> {
-    #[serde(rename = "terminal.open.result")]
-    Open {
-        protocol_version: ProtocolVersion,
-        request_id: &'a RequestId,
-        outcome: &'a crate::OpenOutcome,
-    },
     #[serde(rename = "terminal.control.result")]
     Control {
         protocol_version: ProtocolVersion,
@@ -377,13 +351,6 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
     let decoded = serde_json::from_str::<DecodedClientMessage>(text)
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     match decoded {
-        DecodedClientMessage::Open {
-            request_id,
-            geometry,
-            ..
-        } => Ok(ClientMessage::TerminalOpen(
-            crate::TerminalOpenRequest::new(request_id, geometry),
-        )),
         DecodedClientMessage::Control {
             _protocol_version: _,
             request_id,
@@ -441,11 +408,6 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
 
 pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, ProtocolError> {
     let encoded = match message {
-        ClientMessage::TerminalOpen(request) => EncodedClientMessage::Open {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id(),
-            geometry: request.geometry(),
-        },
         ClientMessage::TerminalControl(request) => EncodedClientMessage::Control {
             protocol_version: ProtocolVersion,
             request_id: &request.request_id,
@@ -489,11 +451,6 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
     let decoded = serde_json::from_str::<DecodedServerMessage>(text)
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     Ok(match decoded {
-        DecodedServerMessage::Open {
-            request_id,
-            outcome,
-            ..
-        } => ServerMessage::TerminalOpenResult(crate::TerminalOpenResult::new(request_id, outcome)),
         DecodedServerMessage::Control {
             _protocol_version: _,
             request_id,
@@ -581,11 +538,6 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
 
 pub(crate) fn encode_server_payload(message: &ServerMessage) -> Result<Vec<u8>, ProtocolError> {
     let encoded = match message {
-        ServerMessage::TerminalOpenResult(result) => EncodedServerMessage::Open {
-            protocol_version: ProtocolVersion,
-            request_id: result.request_id(),
-            outcome: result.outcome(),
-        },
         ServerMessage::TerminalControlResult(result) => EncodedServerMessage::Control {
             protocol_version: ProtocolVersion,
             request_id: &result.request_id,

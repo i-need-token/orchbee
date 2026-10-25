@@ -546,7 +546,7 @@ fn view(width: u16, height: u16, count: u64) -> ClientView {
             target: owner,
             project_id: None,
             project: None,
-            workspace: Some("Standalone".into()),
+            workspace: Some("Workspace".into()),
         }]);
     view.machines
         .observe_agents(vec![(Choice::Local, Agents::Ready(checkpoint(agents)))]);
@@ -1106,8 +1106,8 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
     assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
     assert!(rows[2].contains("[ Search ]"), "{rows:?}");
-    assert!(rows[3].contains("Standalone 1"), "{rows:?}");
-    assert!(rows[4].contains("Standalone"), "{rows:?}");
+    assert!(rows[3].contains("Workspace 1"), "{rows:?}");
+    assert!(rows[4].contains("Workspace"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(
         rows[5].contains(theme.glyphs.tree_guide) && rows[5].contains("build"),

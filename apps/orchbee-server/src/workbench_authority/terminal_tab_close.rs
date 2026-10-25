@@ -331,7 +331,7 @@ impl CloseRecord {
     }
 
     /// Tab/Panel addresses come from the retained command, including unbound scopes.
-    /// Context scopes preserve the existing nonempty single-Tab read compatibility.
+    /// Workspace Context scopes are addressed only through their Workspace ID.
     fn matches_context_tab(
         &self,
         context_id: &WorkbenchTerminalContextId,
@@ -341,12 +341,7 @@ impl CloseRecord {
             && self.matches_context(context_id)
             && match self.scope {
                 CloseScope::Tab | CloseScope::Panel => self.tab_id() == Some(tab_id),
-                CloseScope::Context { .. } => {
-                    !self.targets.is_empty()
-                        && self
-                            .targets()
-                            .all(|target| target.member().tab_id() == tab_id)
-                }
+                CloseScope::Context { .. } => false,
             }
     }
 

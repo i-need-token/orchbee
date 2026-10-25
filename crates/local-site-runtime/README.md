@@ -193,20 +193,20 @@ polling, and first-frame waiting consume this same budget. A delayed localized p
 appears after 500 ms; normal fast startup is silent. This is a cooperative deadline, excluding
 kernel/filesystem stalls and process suspension. Timeout closes only the Client connection.
 
-| State / observation                                                        | Action and next state                                                                 |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Admitted compatible Client socket                                          | Reuse that exact connection; no process launch                                        |
-| Definite absent/refused socket, activation lock contended                  | Wait and retry connection until the original deadline                                 |
-| Activation lock acquired                                                   | Recheck socket and lifetime before any launch                                         |
-| No marker, no socket residue, lifetime free                                | Client exclusively creates `activation.started`, then spawns Server once              |
-| Marker present, lifetime held                                              | Wait for compatible Server + Worker readiness                                         |
-| Marker present, lifetime free; or no marker with lifetime held             | RecoveryRequired; never launch                                                        |
-| Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                         |
-| Launch failure after marker creation                                       | Retain marker; this and later attempts require explicit recovery                      |
-| Server + Worker ready                                                      | Release activation lock, submit one standalone Open, attach viewer, decide controller |
-| First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                            |
-| Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                   |
-| Worker / Host loss                                                         | Unavailable or unknown outcome; never respawn, adopt, or replay                       |
+| State / observation                                                        | Action and next state                                                                        |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Admitted compatible Client socket                                          | Reuse that exact connection; no process launch                                               |
+| Definite absent/refused socket, activation lock contended                  | Wait and retry connection until the original deadline                                        |
+| Activation lock acquired                                                   | Recheck socket and lifetime before any launch                                                |
+| No marker, no socket residue, lifetime free                                | Client exclusively creates `activation.started`, then spawns Server once                     |
+| Marker present, lifetime held                                              | Wait for compatible Server + Worker readiness                                                |
+| Marker present, lifetime free; or no marker with lifetime held             | RecoveryRequired; never launch                                                               |
+| Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                                |
+| Launch failure after marker creation                                       | Retain marker; this and later attempts require explicit recovery                             |
+| Server + Worker ready                                                      | Release activation lock, read Workspace membership, attach an existing binding when selected |
+| First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                                   |
+| Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                          |
+| Worker / Host loss                                                         | Unavailable or unknown outcome; never respawn, adopt, or replay                              |
 
 `activation.started` is an immutable, empty, regular, single-link, effective-user-owned 0600
 file. The Client is its sole writer, using descriptor-relative O_EXCL, CLOEXEC, and NOFOLLOW.

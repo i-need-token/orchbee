@@ -319,7 +319,9 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
         action: WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             label: WorkbenchLabel::parse("viewer routing").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
@@ -380,7 +382,9 @@ fn add_terminal(service: &LocalTerminalService, index: u8, plugin: bool) -> Work
         site_id: snapshot.site_id,
         expected_revision: snapshot.revision,
         action: WorkbenchAction::TabClose {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             tab_id,
         },
     }

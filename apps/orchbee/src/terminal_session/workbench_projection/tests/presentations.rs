@@ -27,7 +27,7 @@ fn child(seed: u128) -> Presentation {
 fn children_preserve_one_layout_leaf_and_complete_ordered_payload() {
     let mut source = snapshot(2, 1);
     children(&mut source).extend([child(9000), child(9010)]);
-    let projection = project_native_standalone_tabs(&source).unwrap();
+    let projection = project_preferred_workspace(&source).unwrap();
     let tab = &projection.tabs()[0];
     assert_eq!(tab.panel_count(), 1);
     assert_eq!(tab.leaf_panel_ids(), vec![tab.panel_id().clone()]);
@@ -52,7 +52,7 @@ fn children_preserve_one_layout_leaf_and_complete_ordered_payload() {
     assert!(
         validate_canonical_refresh(
             &projection,
-            project_native_standalone_tabs(&reordered).unwrap()
+            project_preferred_workspace(&reordered).unwrap()
         )
         .is_ok()
     );
@@ -60,7 +60,7 @@ fn children_preserve_one_layout_leaf_and_complete_ordered_payload() {
     assert!(
         validate_canonical_refresh(
             &projection,
-            project_native_standalone_tabs(&reordered).unwrap()
+            project_preferred_workspace(&reordered).unwrap()
         )
         .is_ok()
     );
@@ -70,7 +70,7 @@ fn children_preserve_one_layout_leaf_and_complete_ordered_payload() {
 fn child_binding_identity_cannot_be_duplicated_rebound_or_silently_filtered() {
     let mut source = snapshot(2, 1);
     children(&mut source).push(child(9000));
-    let projection = project_native_standalone_tabs(&source).unwrap();
+    let projection = project_preferred_workspace(&source).unwrap();
     for case in 0..6 {
         let mut next = source.clone();
         next.revision = WorkbenchRevision::new(2);
@@ -92,7 +92,7 @@ fn child_binding_identity_cannot_be_duplicated_rebound_or_silently_filtered() {
             }
         }
         assert!(
-            project_native_standalone_tabs(&next)
+            project_preferred_workspace(&next)
                 .map(|candidate| validate_canonical_refresh(&projection, candidate).is_err())
                 .unwrap_or(true),
             "case {case}"
@@ -114,18 +114,18 @@ fn unbound_members_retain_identity_and_bind_only_at_a_new_revision_to_a_fresh_te
         unreachable!()
     };
     primary_presentation.binding = None;
-    let baseline = project_native_standalone_tabs(&source).unwrap();
+    let baseline = project_preferred_workspace(&source).unwrap();
     let panel = baseline.tabs()[0].panel(0).unwrap();
     assert_eq!(panel.presentation_count(), 2);
     assert!(panel.binding().is_none() && panel.presentation(1).unwrap().binding().is_none());
     let mut bound = source.clone();
     children(&mut bound)[0].binding = child(9000).binding;
     assert!(
-        validate_canonical_refresh(&baseline, project_native_standalone_tabs(&bound).unwrap())
+        validate_canonical_refresh(&baseline, project_preferred_workspace(&bound).unwrap())
             .is_err()
     );
     bound.revision = WorkbenchRevision::new(2);
-    let candidate = project_native_standalone_tabs(&bound).unwrap();
+    let candidate = project_preferred_workspace(&bound).unwrap();
     assert!(validate_canonical_refresh(&baseline, candidate.clone()).is_ok());
     assert!(
         candidate.tabs()[0].panel(0).unwrap().binding().is_none(),
@@ -134,11 +134,8 @@ fn unbound_members_retain_identity_and_bind_only_at_a_new_revision_to_a_fresh_te
     let mut removed = source.clone();
     removed.revision = WorkbenchRevision::new(3);
     assert!(
-        validate_canonical_refresh(
-            &candidate,
-            project_native_standalone_tabs(&removed).unwrap()
-        )
-        .is_err()
+        validate_canonical_refresh(&candidate, project_preferred_workspace(&removed).unwrap())
+            .is_err()
     );
     let PanelNode::Panel {
         primary_presentation,
@@ -149,5 +146,5 @@ fn unbound_members_retain_identity_and_bind_only_at_a_new_revision_to_a_fresh_te
     };
     let reused = primary_presentation.binding.clone();
     children(&mut bound)[0].binding = reused;
-    assert!(project_native_standalone_tabs(&bound).is_err());
+    assert!(project_preferred_workspace(&bound).is_err());
 }

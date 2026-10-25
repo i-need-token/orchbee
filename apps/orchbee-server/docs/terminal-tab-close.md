@@ -11,7 +11,7 @@ establish release readiness or production restart recovery. This Server-owned re
 governs the lifetime workflow, cross-owner settlement and refinement obligations for Server, Worker,
 protocol and native Client maintainers. Update it with those implementations and their evidence.
 [Workbench authority](workbench-authority.md) continues to govern the current
-canonical projection and strict standalone membership.
+canonical projection and Workspace membership.
 
 ## User outcome and lifetime authority
 
@@ -26,38 +26,15 @@ The retained command owns the scope address even when no physical terminal exist
 needs no Worker or runtime owner: it reserves normal ledger/revision credit and follows the same
 queued publication, replay/join, status, publication-failure and Resume path. It never emits Dispose.
 
-Overlapping Tab/Panel/Workspace scopes conflict independently of bound-member count. Relocation
-fences the addressed closing Panel, including an unbound Panel; sibling structural operations keep
-the existing rules. Publication re-proves ordered exact bound membership and canonical scope,
-removes only that scope, and reconciles the standalone reference against all surviving bindings.
-An empty removed-binding set preserves the existing Open reference or Empty slot. Missing scopes
-retain existing typed rejection behavior. Targeted owner and Site traces cover mixed members,
-child-only binding, publication-only close, replay, scope fences and unrelated binding preservation.
+Overlapping Tab/Panel/Workspace scopes conflict regardless of bound-member count. Relocation fences the addressed closing Panel, including unbound Panels. Publication re-proves ordered exact bound membership and canonical scope and removes only that scope. Missing scope keeps its typed refusal. Mixed members, child-only bindings, publication-only Close, replay, scope fences and unrelated binding preservation remain required evidence.
 
 ### Workspace lifetime extension
 
-The local Server accepts Close for a simple Terminal Context owned by a canonical Workspace,
-using the same grant, exact binding/runtime identity, acknowledgment, retained Read/Resume,
-continuation budgets and cleanup-before-removal contract as standalone. No wire field or Worker
-operation is added. Workspace native UI remains outside this extension. Directory availability
-does not authorize or block Close; exact live runtime identity still gates a new primary.
+The local Server accepts Close only for Workspace-owned Contexts. Lifecycle grants, exact binding/runtime identity, retained Read/Resume, continuation budgets and cleanup-before-removal apply equally to grouped and ungrouped Workspaces. Directory availability neither grants nor blocks Close; exact live runtime identity still gates a new primary.
 
-`WorkbenchTerminalMembership` and `WorkbenchTerminalTab` describe strict single-leaf members for
-legacy operations and exact tree members for the accepted PanelSplit/aggregate Close path in either
-context. Membership carries an immutable context kind derived from canonical navigation; it is a
-read result, not another authority. Canonical groups, pinned/grouped Tabs and children are accepted. Unbound members stay in the
-canonical tree while runtime membership contains only bound members with an explicit primary role. Standalone composition helpers reject Workspace
-membership themselves, in addition to conditional callers. This preserves their owner boundary
-after generic type names replace standalone-only names in the unpublished library.
+`WorkbenchTerminalMembership` enumerates canonical primary/child bindings with explicit primary role; unbound members remain in the tree. Groups and pinned/grouped Tabs retain their separate structural contracts. No context-kind flag or bootstrap slot exists.
 
-Workspace admission and publication never read, retarget or settle the standalone bootstrap slot.
-After known Dispose and exact target cleanup, publication re-extracts current target-context
-membership and removes only the retained Tab/Panel/Presentation/binding tuple. Sibling Create,
-Rename and Move, and changes in other contexts, survive that commit. A pending sibling Create
-settles through its original token and retains its original result revision. Workspace publication
-returns no standalone-change notification. Removing its last Tab leaves the Workspace and its
-Directory reference intact with an empty context; no replacement launch occurs. A subsequent
-explicit Workspace Create follows existing directory checks and allocates fresh identities.
+Publication re-extracts current target membership after cleanup and removes only its captured scope. Sibling Create/Rename/Move and other Contexts survive. Pending creation settles through its original token without rewriting historical revision. The last Tab leaves its Workspace and Directory reference intact; explicit later Tab creation rechecks directory admission and allocates fresh identities.
 
 Close primary capacity and revision credits are Site-wide: every non-Closed primary reserves one
 future revision in the shared ledger, and publication consumes exactly that credit with one
@@ -67,7 +44,7 @@ or unknown disposal cannot publish removal; known disposal with blocked cleanup 
 for the existing explicit Resume path. This extension adds no persistence, remote execution,
 cross-context transfer or recovery of unestablished runtime identity.
 
-`Ctrl+B x` closes the selected canonical standalone Tab after localized confirmation that its
+`Ctrl+B x` closes the selected canonical Workspace Tab after localized confirmation that its
 terminal execution ends for **all attached Clients**. Cancel changes nothing. An independent
 trusted-local lifecycle grant authorizes this effect; navigation permission or Input controller
 ownership alone does not. A read-only Viewer may Close if its Client has the lifecycle grant.
@@ -75,12 +52,7 @@ The target is an exact retained binding, never an ordinal. Creating/Starting tar
 pre-effect `terminal-busy` until settled identity is available. An unestablished live Worker
 generation or exact Host identity permits neither killing nor canonical removal.
 
-Closed means known Host Dispose, exact Worker/Server target-cache cleanup, and canonical removal.
-It does not mean hiding a Tab with an unaddressable process. There is no automatic replacement.
-Last-Tab removal leaves a usable **Empty** native Workbench: no selection, Viewer, controller or
-provenance; Refresh and manual `c` remain available. A later bare Open is independent and may
-bootstrap a fresh terminal. Remote authority, unknown-identity adoption and changed-epoch recovery
-are excluded. Server restart persistence belongs to the separate persistence work.
+Closed means known Host disposal, exact Worker/Server cleanup and canonical removal. No automatic replacement occurs. Last-Tab removal leaves a usable empty Workspace with no selected member, viewer or controller; Refresh and explicit `c` remain available. Startup observes this empty membership and does not recreate a terminal. Remote adoption, changed-epoch recovery and persistence retain their separate contracts.
 
 The local transport integration grants `manage_terminal_lifecycle` independently of read,
 navigation, Create, Viewer and controller authority; only trusted-local composition explicitly
@@ -540,43 +512,11 @@ retirement still permits cleanup status reads. Successful preparation commits me
 association, credit consumption and Closed together without further fallible work. Response loss
 does not undo that commit.
 
-## Reference-current Site completion
+## Exact Site completion
 
-The reference retargeting in this section applies only to standalone membership. Workspace
-publication commits its canonical removal without entering this slot-settlement path.
+Close publication removes only the captured Workspace member scope after known disposal and exact runtime cleanup. It preserves every unrelated binding and metadata value, rebasing over current canonical membership. Last-Tab removal leaves an empty Workspace; last-Workspace removal leaves an empty Workbench. No Open slot, reference retargeting or change notification participates.
 
-Keep `Empty | Creating(reference) | Settled {reference,outcome}` and retain historical Terminal
-creation results/closed identities without ID reuse. At Create completion retain the precise
-standalone settlement value for each reference; do not reconstruct it from today's lossy terminal
-phase. Closing/Disposed facts are separate from that original completion classification. Existing
-native canonical Creates use immediate Start.
-
-If the live reference survives removal, preserve it. Otherwise choose the first member in the
-**current post-removal order**: no member → Empty; Creating B → Creating(B.reference); settled B →
-Settled(B.reference, retained B outcome). A Closing B remains a visible eligible reference until its
-own removal. Tree composition requires every remaining leaf to match a retained binding, while the
-current reference still selects one anchor for standalone retargeting.
-
-B's original Create seal, request, metadata, binding, historical `is_first` and replay result remain
-immutable. Under the joint gate, validate its exact Workbench token and Terminal association and
-settle both records. Also settle the Site **iff its current Creating reference is B.reference**;
-otherwise leave it unchanged. Historical `settles_first` is not current settlement or notification
-authority. Return explicit `standalone_changed` to the service and notify after releasing locks.
-This covers B completing before A removal and A removal before B completion. Other Creates continue
-during Close; Closing Creating/Starting B is still Busy. Empty followed by fresh C uses new IDs;
-old completion cannot overwrite C because both its seal and the current reference are checked.
-
-The Site refinement retains `Option<CreateOutcome>` on each Terminal binding: exact Create
-completion stores it once, and later Start/lifecycle phases do not overwrite it. None means pending
-only in Creating; missing original outcome in another phase is coordination failure. Joint Create
-completion returns `CompletedTerminalTabCreate {result, standalone_changed}` while preserving the
-historical first-member association checks. The prepared Close retarget helper borrows only the
-Site slot and consumes the authority plan's current-before membership, prepared-after membership
-and exact removed member. It validates pre-removal composition, one exact removed tuple, the strict
-removal view and one retained reference for a chosen binding before preparing the next slot. Both
-owner commits remain infallible under the same Site gate; notification follows gate release.
-The maintenance finalizer consumes this helper. Actual carrier traces cover B completing before
-and after A's joint Close publication, and bare Open selecting the surviving B in both orders.
+Pending sibling creation retains its original command/token, binding and result revision. Completion validates the exact retained runtime association, settles both original owners, and returns the command result. A removed member never authorizes a second launch; stale/foreign completion cannot overwrite a newer operation. Carrier/service witnesses cover both completion-before-publication and publication-before-completion orderings.
 
 ## Native removal and barrier composition
 
@@ -637,7 +577,7 @@ Integration still requires composed traces: both A-close/B-create orders; Closin
 
 One submitted continuation step does not establish the whole inventory or Host lifecycle. Known-blocked and Unknown remain distinct; exact late Disposed receipts survive expiry. Unknown forbids disposal-derived cleanup or retry, but permits legitimate exact lease cleanup. Server cleanup is required before publication. Reads/replay remain effect-free. Initial admission captures membership at generation one; only eligible Resume advances one generation without changing that membership.
 
-Tests must cover full-ledger Resume, stale/duplicate/exhausted controls, revision reservation, inventory churn and complete last-page absence, all eight idle-Client slots, retained standalone outcomes and post-lock `standalone_changed` notification. Real process witnesses must cover graceful then forced descendant cleanup while another terminal survives, last Close followed by manual Create or bare Open, and measured 30s/32-step/250ms accounting. Deterministic clocks establish ordering, not OS timing. Unexecuted platform witnesses remain unverified.
+Tests must cover full-ledger Resume, stale/duplicate/exhausted controls, revision reservation, inventory churn and complete last-page absence, idle Client slots and original creation-result preservation. Real process witnesses cover descendant cleanup while another terminal survives, last Close followed by explicit Workspace Tab creation, and bounded continuation accounting. Deterministic clocks prove ordering rather than OS timing. Unexecuted platform witnesses remain unverified.
 
 Pure native transport validation may precede structural-flight integration; it grants no lifecycle effect, replay, reconnect or recovery authority. The unpublished local cohort activates and rolls back together. Rollback cannot revive terminated execution or discard retained cleanup facts. Server-restart persistence, permanent Host/platform recovery, changed-epoch adoption, remote operations, packaging and universal eventual cleanup remain excluded.
 
@@ -713,16 +653,14 @@ known disposal facts without removing the canonical scope. Other Panels/Tabs and
 survive unchanged. Whole-Tab publication removes only its source group if that removal empties
 it; every unrelated group, including a peer-created empty group, survives. Panel-only removal does
 not clean groups. This deliberately differs from GUI `TabModel.closeTabs`, which prunes all empty
-groups: lifecycle publication cannot sweep unrelated data from the latest Snapshot. Standalone reconciliation removes all
-captured bindings together and selects an exact surviving reference or emptiness.
+groups: lifecycle publication cannot sweep unrelated data from the latest Snapshot. Publication removes all captured bindings together and preserves unrelated Workspace members.
 
 The complete membership walker is shared with read-only registration; publication invokes it on
 the prepared candidate. Unbound Presentations still refuse the complete capture, without filtering.
 Other structural operations and native TUI navigation keep their separate admission contracts.
 No new command, wire field, lifecycle receipt or permission is introduced. Focused evidence must
 cover multi-Presentation Panel versus Tab scope, complete Tab/Workspace capture, partial target
-settlement, unknown effects, tampered membership, surviving metadata and standalone reference
-composition. Full Windows CLI/TUI acceptance remains a later combined gate.
+settlement, unknown effects, tampered membership, surviving metadata and Workspace binding conservation. Full Windows CLI/TUI acceptance remains a later combined gate.
 
 ## Receipt identity reads
 

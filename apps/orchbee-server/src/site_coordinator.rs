@@ -5,13 +5,9 @@ use crate::terminal_coordinator::{
 use orchbee_capability_node_protocol::{
     LeaseExpiresAtUnixMilliseconds, TerminalOperationAuthorization,
 };
-use orchbee_client_server_protocol::{
-    ClientMessage, CreateAcceptedState, CreateFailureReason, CreateOutcome,
-    CreateUnavailableReason, OpenOutcome, RequestId, ServerMessage,
-};
+use orchbee_client_server_protocol::{ClientMessage, RequestId, ServerMessage};
 use orchbee_server::{
-    WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest,
-    WorkbenchTerminalMembership, WorktreeListResolution,
+    WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest, WorktreeListResolution,
 };
 use orchbee_workbench_protocol::{
     PresentationBinding, TerminalId, WorkbenchDirectoryId, WorkbenchResponse, WorkerId,
@@ -29,8 +25,6 @@ mod independent_popup;
 mod plugin_popup;
 #[cfg(windows)]
 pub(crate) use editor_popup::EditorPopupLaunch;
-mod standalone;
-pub(crate) use standalone::PreparedOpen;
 mod tab_close;
 mod tab_create;
 #[cfg(test)]
@@ -63,23 +57,12 @@ pub(crate) use process_observation::{ProcessObservationTarget, identify as ident
 pub(crate) struct SiteCoordinator {
     terminals: TerminalCoordinator,
     workbench: Option<WorkbenchAuthority>,
-    standalone: StandaloneTerminal,
     #[cfg(windows)]
     process_samples: process_observation::Samples,
     #[cfg(windows)]
     terminal_observations: semantic_events::Observations,
     #[cfg(windows)]
     agent_names: Option<std::sync::Weak<crate::agent_service::AgentService>>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-enum StandaloneTerminal {
-    Empty,
-    Creating(RequestId),
-    Settled {
-        reference: RequestId,
-        outcome: OpenOutcome,
-    },
 }
 
 #[cfg(test)]
@@ -97,7 +80,6 @@ impl SiteCoordinator {
         Self {
             terminals: TerminalCoordinator::new(),
             workbench,
-            standalone: StandaloneTerminal::Empty,
             #[cfg(windows)]
             process_samples: process_observation::Samples::new(),
             #[cfg(windows)]
@@ -311,24 +293,13 @@ impl SiteCoordinator {
         command: orchbee_workbench_protocol::WorkbenchCommand,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
         use orchbee_server::{WorkbenchTabMoveBegin, WorkbenchTabMovePreparation};
-        let Self {
-            terminals,
-            workbench,
-            standalone,
-            ..
-        } = self;
+        let Self { workbench, .. } = self;
         let workbench = workbench.as_mut()?;
         let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
         let admission = match workbench.begin_terminal_tab_move(Some(&grant), command) {
             WorkbenchTabMoveBegin::Ready(result) => return Some(result),
             WorkbenchTabMoveBegin::Admitted(admission) => admission,
         };
-        if admission
-            .standalone_membership()
-            .is_some_and(|membership| !composition_matches(membership, standalone, terminals))
-        {
-            return Some(admission.retire_composition_failure());
-        }
         Some(match admission.finish() {
             WorkbenchTabMovePreparation::Ready(result) => result,
             WorkbenchTabMovePreparation::Prepared(prepared) => prepared.commit(),
@@ -340,32 +311,20 @@ impl SiteCoordinator {
         command: orchbee_workbench_protocol::WorkbenchCommand,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
         use orchbee_server::{WorkbenchPanelPlacementBegin, WorkbenchPanelPlacementPreparation};
-        let Self {
-            terminals,
-            workbench,
-            standalone,
-            ..
-        } = self;
+        let Self { workbench, .. } = self;
         let workbench = workbench.as_mut()?;
         let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
         let admission = match workbench.begin_terminal_panel_placement(Some(&grant), command) {
             WorkbenchPanelPlacementBegin::Ready(result) => return Some(result),
             WorkbenchPanelPlacementBegin::Admitted(admission) => admission,
         };
-        if admission
-            .standalone_membership()
-            .is_some_and(|membership| !composition_matches(membership, standalone, terminals))
-        {
-            return Some(admission.retire_composition_failure());
-        }
         Some(match admission.finish() {
             WorkbenchPanelPlacementPreparation::Ready(result) => result,
             WorkbenchPanelPlacementPreparation::Prepared(prepared) => prepared.commit(),
         })
     }
 
-    /// Commit retained-Panel topology together with the prepared standalone
-    /// Open reference, without creating or disposing a terminal.
+    /// Commit retained-Panel topology without creating or disposing a terminal.
     pub(crate) fn execute_terminal_panel_relocate(
         &mut self,
         command: orchbee_workbench_protocol::WorkbenchCommand,
@@ -379,12 +338,7 @@ impl SiteCoordinator {
         directory_worker: Option<orchbee_workbench_protocol::WorkerId>,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
         use orchbee_server::{WorkbenchPanelRelocateBegin, WorkbenchPanelRelocatePreparation};
-        let Self {
-            terminals,
-            workbench,
-            standalone,
-            ..
-        } = self;
+        let Self { workbench, .. } = self;
         let workbench = workbench.as_mut()?;
         let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone())
             .with_directory_association();
@@ -392,34 +346,13 @@ impl SiteCoordinator {
             WorkbenchPanelRelocateBegin::Ready(result) => return Some(result),
             WorkbenchPanelRelocateBegin::Admitted(admission) => admission,
         };
-        if admission
-            .standalone_membership()
-            .is_some_and(|membership| !composition_matches(membership, standalone, terminals))
-        {
-            return Some(admission.retire_composition_failure());
-        }
         let prepared = match directory_worker {
             Some(worker) => admission.finish_with_directory(worker),
             None => admission.finish(),
         };
         Some(match prepared {
             WorkbenchPanelRelocatePreparation::Ready(result) => result,
-            WorkbenchPanelRelocatePreparation::Prepared(prepared) => {
-                let retarget = match prepared.standalone_transition() {
-                    Some((before, after)) => match standalone::prepare_standalone_relocation(
-                        standalone, terminals, before, after,
-                    ) {
-                        Ok(retarget) => Some(retarget),
-                        Err(_) => return Some(prepared.retire_composition_failure()),
-                    },
-                    None => None,
-                };
-                let result = prepared.commit();
-                if let Some(retarget) = retarget {
-                    retarget.commit();
-                }
-                result
-            }
+            WorkbenchPanelRelocatePreparation::Prepared(prepared) => prepared.commit(),
         })
     }
 
@@ -429,25 +362,11 @@ impl SiteCoordinator {
         completion: Completion,
         current_worker: Option<WorkerPlacement>,
     ) -> Result<ServerMessage, TerminalCompletionTokenMismatch> {
-        let reference = pending.create_reference().clone();
-        let Self {
-            terminals,
-            standalone,
-            ..
-        } = self;
-        let prepared = terminals.prepare_completion(pending, completion, current_worker)?;
+        let prepared = self
+            .terminals
+            .prepare_completion(pending, completion, current_worker)?;
         let result = prepared.result().clone();
-        let standalone_settlement = if matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference)
-        {
-            let outcome = open_outcome(&reference, prepared.result());
-            Some(StandaloneTerminal::Settled { reference, outcome })
-        } else {
-            None
-        };
         prepared.commit();
-        if let Some(settled) = standalone_settlement {
-            *standalone = settled;
-        }
         Ok(result)
     }
 
@@ -502,53 +421,6 @@ impl SiteCoordinator {
     }
 }
 
-fn composition_matches(
-    membership: &WorkbenchTerminalMembership,
-    standalone: &StandaloneTerminal,
-    terminals: &TerminalCoordinator,
-) -> bool {
-    if !membership.is_standalone() {
-        return false;
-    }
-    match standalone {
-        StandaloneTerminal::Empty => membership.is_empty(),
-        StandaloneTerminal::Creating(reference) | StandaloneTerminal::Settled { reference, .. } => {
-            let Some(binding) = terminals
-                .retained_authorization(reference)
-                .and_then(presentation_binding)
-            else {
-                return false;
-            };
-            membership
-                .members()
-                .iter()
-                .filter(|member| member.binding() == &binding)
-                .count()
-                == 1
-        }
-    }
-}
-
-fn tree_composition_matches(
-    membership: &WorkbenchTerminalMembership,
-    standalone: &StandaloneTerminal,
-    terminals: &TerminalCoordinator,
-) -> bool {
-    if !membership.is_standalone() {
-        return false;
-    }
-    match standalone {
-        StandaloneTerminal::Empty => membership.is_empty(),
-        StandaloneTerminal::Creating(_) | StandaloneTerminal::Settled { .. } => {
-            !membership.is_empty()
-                && membership
-                    .members()
-                    .iter()
-                    .all(|member| terminals.has_retained_binding(member.binding()))
-        }
-    }
-}
-
 fn presentation_binding(
     authorization: TerminalOperationAuthorization,
 ) -> Option<PresentationBinding> {
@@ -564,36 +436,6 @@ fn presentation_binding(
         ))
         .ok()?,
     })
-}
-
-fn open_outcome(reference: &RequestId, result: &ServerMessage) -> OpenOutcome {
-    let ServerMessage::TerminalCreateResult(result) = result else {
-        return OpenOutcome::OutcomeUnknown {};
-    };
-    open_create_outcome(reference, result.outcome())
-}
-
-fn open_create_outcome(reference: &RequestId, outcome: CreateOutcome) -> OpenOutcome {
-    match outcome {
-        CreateOutcome::Accepted {
-            state: CreateAcceptedState::Started { .. },
-        } => OpenOutcome::Opened {
-            terminal_create_request_id: reference.clone(),
-        },
-        CreateOutcome::Unavailable { reason } => unavailable(reason),
-        CreateOutcome::Failed { reason } => OpenOutcome::Failed { reason },
-        CreateOutcome::Rejected { .. } => OpenOutcome::Failed {
-            reason: CreateFailureReason::TerminalCreateFailed,
-        },
-        CreateOutcome::Accepted {
-            state: CreateAcceptedState::AwaitingStart,
-        }
-        | CreateOutcome::OutcomeUnknown => OpenOutcome::OutcomeUnknown {},
-    }
-}
-
-fn unavailable(reason: CreateUnavailableReason) -> OpenOutcome {
-    OpenOutcome::Unavailable { reason }
 }
 
 /// Walks the committed snapshot in traversal order — the same order `terminal

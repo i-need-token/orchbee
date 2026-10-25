@@ -229,8 +229,16 @@ fn apply(
         }
         Action::ChangeSite => candidate.site_id = site_id(100_000 + u128::from(random.next())),
         Action::ChangeContext => {
-            candidate.location =
-                NativeContextLocation::Standalone(context_id(200_000 + u128::from(random.next())));
+            candidate.location = {
+                let fixture_context_id = context_id(200_000 + u128::from(random.next()));
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            };
         }
         Action::RemoveExisting => candidate.tabs.truncate((current.tabs.len() - 1).max(1)),
         Action::ReorderExisting => candidate.tabs.rotate_left(1),

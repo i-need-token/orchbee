@@ -10,9 +10,16 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
-				"workspaces": []
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "1",
@@ -29,9 +36,16 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
-				"workspaces": []
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "2",
@@ -48,9 +62,16 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
-				"workspaces": []
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "3",
@@ -67,9 +88,16 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
-				"workspaces": []
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "2",
@@ -112,7 +140,6 @@
 						"projectId": "44444444444444444444444444444444"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -121,6 +148,13 @@
 					}
 				],
 				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
 					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
@@ -155,7 +189,6 @@
 						"projectId": "44444444444444444444444444444444"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -164,6 +197,13 @@
 					}
 				],
 				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
 					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
@@ -324,7 +364,6 @@
 								"projectId": "44444444444444444444444444444444"
 							}
 						],
-						"standaloneTerminalContextId": "33333333333333333333333333333333",
 						"directories": [
 							{
 								"directoryId": "22222222222222222222222222222222",
@@ -333,6 +372,13 @@
 							}
 						],
 						"workspaces": [
+							{
+								"workspaceId": "33333333333333333333333333333333",
+								"terminalContextId": "33333333333333333333333333333333",
+								"projectId": null,
+								"primaryDirectoryId": null,
+								"label": "Workspace"
+							},
 							{
 								"label": "Main",
 								"primaryDirectoryId": "22222222222222222222222222222222",
@@ -360,9 +406,16 @@
 					"kind": "navigation-replaced",
 					"navigation": {
 						"projects": [],
-						"standaloneTerminalContextId": "33333333333333333333333333333333",
 						"directories": [],
-						"workspaces": []
+						"workspaces": [
+							{
+								"workspaceId": "33333333333333333333333333333333",
+								"terminalContextId": "33333333333333333333333333333333",
+								"projectId": null,
+								"primaryDirectoryId": null,
+								"label": "Workspace"
+							}
+						]
 					}
 				}
 			],
@@ -438,7 +491,6 @@
 						"projectId": "44444444444444444444444444444444"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -447,6 +499,13 @@
 					}
 				],
 				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
 					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
@@ -551,7 +610,6 @@
 						"projectId": "44444444444444444444444444444444"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -560,6 +618,13 @@
 					}
 				],
 				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
 					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
@@ -663,9 +728,16 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
-				"workspaces": []
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "2",
@@ -713,7 +785,6 @@
 						"projectId": "0000000000000000000000000000000c"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
 				"workspaces": [
 					{
@@ -743,6 +814,13 @@
 						"terminalContextId": "00000000000000000000000000000022",
 						"workspaceId": "00000000000000000000000000000018",
 						"projectId": "0000000000000000000000000000000c"
+					},
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
 					}
 				]
 			},
@@ -790,7 +868,6 @@
 						"projectId": "0000000000000000000000000000000c"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"workspaceOrder": [],
 				"directories": [],
 				"workspaces": [
@@ -821,6 +898,13 @@
 						"terminalContextId": "00000000000000000000000000000022",
 						"workspaceId": "00000000000000000000000000000018",
 						"projectId": "0000000000000000000000000000000c"
+					},
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
 					}
 				]
 			},
@@ -868,8 +952,8 @@
 						"projectId": "0000000000000000000000000000000c"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"workspaceOrder": [
+					"33333333333333333333333333333333",
 					"00000000000000000000000000000018",
 					"00000000000000000000000000000015",
 					"00000000000000000000000000000017",
@@ -904,6 +988,13 @@
 						"terminalContextId": "00000000000000000000000000000022",
 						"workspaceId": "00000000000000000000000000000018",
 						"projectId": "0000000000000000000000000000000c"
+					},
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
 					}
 				]
 			},
@@ -958,8 +1049,8 @@
 								"projectId": "0000000000000000000000000000000c"
 							}
 						],
-						"standaloneTerminalContextId": "33333333333333333333333333333333",
 						"workspaceOrder": [
+							"33333333333333333333333333333333",
 							"00000000000000000000000000000018",
 							"00000000000000000000000000000015",
 							"00000000000000000000000000000017",
@@ -994,6 +1085,13 @@
 								"terminalContextId": "00000000000000000000000000000022",
 								"workspaceId": "00000000000000000000000000000018",
 								"projectId": "0000000000000000000000000000000c"
+							},
+							{
+								"workspaceId": "33333333333333333333333333333333",
+								"terminalContextId": "33333333333333333333333333333333",
+								"projectId": null,
+								"primaryDirectoryId": null,
+								"label": "Workspace"
 							}
 						]
 					}
@@ -1004,9 +1102,16 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [],
-				"workspaces": []
+				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					}
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "1",
@@ -1029,7 +1134,6 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -1038,6 +1142,13 @@
 					}
 				],
 				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
 					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
@@ -1072,7 +1183,6 @@
 						"projectId": "44444444444444444444444444444444"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -1089,6 +1199,13 @@
 						"projectId": null
 					},
 					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
+					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
 						"terminalContextId": "66666666666666666666666666666666",
@@ -1096,7 +1213,11 @@
 						"projectId": "44444444444444444444444444444444"
 					}
 				],
-				"workspaceOrder": ["55555555555555555555555555555555", "00000000000000000000000000000063"]
+				"workspaceOrder": [
+					"33333333333333333333333333333333",
+					"55555555555555555555555555555555",
+					"00000000000000000000000000000063"
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "2",
@@ -1123,7 +1244,6 @@
 			"kind": "workbench.snapshot",
 			"navigation": {
 				"projects": [],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -1140,6 +1260,13 @@
 						"projectId": null
 					},
 					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
+					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
 						"terminalContextId": "66666666666666666666666666666666",
@@ -1147,7 +1274,11 @@
 						"projectId": null
 					}
 				],
-				"workspaceOrder": ["55555555555555555555555555555555", "00000000000000000000000000000063"]
+				"workspaceOrder": [
+					"33333333333333333333333333333333",
+					"55555555555555555555555555555555",
+					"00000000000000000000000000000063"
+				]
 			},
 			"protocolVersion": 1,
 			"revision": "3",
@@ -1181,7 +1312,6 @@
 					"kind": "navigation-replaced",
 					"navigation": {
 						"projects": [],
-						"standaloneTerminalContextId": "33333333333333333333333333333333",
 						"directories": [
 							{
 								"directoryId": "22222222222222222222222222222222",
@@ -1198,6 +1328,13 @@
 								"projectId": null
 							},
 							{
+								"workspaceId": "33333333333333333333333333333333",
+								"terminalContextId": "33333333333333333333333333333333",
+								"projectId": null,
+								"primaryDirectoryId": null,
+								"label": "Workspace"
+							},
+							{
 								"label": "Main",
 								"primaryDirectoryId": "22222222222222222222222222222222",
 								"terminalContextId": "66666666666666666666666666666666",
@@ -1206,6 +1343,7 @@
 							}
 						],
 						"workspaceOrder": [
+							"33333333333333333333333333333333",
 							"55555555555555555555555555555555",
 							"00000000000000000000000000000063"
 						]
@@ -1226,7 +1364,6 @@
 						"label": "Empty Project"
 					}
 				],
-				"standaloneTerminalContextId": "33333333333333333333333333333333",
 				"directories": [
 					{
 						"directoryId": "22222222222222222222222222222222",
@@ -1235,6 +1372,13 @@
 					}
 				],
 				"workspaces": [
+					{
+						"workspaceId": "33333333333333333333333333333333",
+						"terminalContextId": "33333333333333333333333333333333",
+						"projectId": null,
+						"primaryDirectoryId": null,
+						"label": "Workspace"
+					},
 					{
 						"label": "Main",
 						"primaryDirectoryId": "22222222222222222222222222222222",
@@ -1260,6 +1404,19 @@
 					"terminalContextId": "66666666666666666666666666666666"
 				}
 			]
+		},
+		"snapshot-empty-workbench-r1": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [],
+				"directories": [],
+				"workspaces": [],
+				"workspaceOrder": []
+			},
+			"protocolVersion": 1,
+			"revision": "1",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": []
 		}
 	},
 	"validDocuments": [
@@ -1291,7 +1448,8 @@
 		"snapshot-independent-display-order",
 		"snapshot-dissolved-r3",
 		"delta-dissolve-project",
-		"snapshot-explicit-project-order"
+		"snapshot-explicit-project-order",
+		"snapshot-empty-workbench-r1"
 	],
 	"invalidDocuments": [
 		{
@@ -1309,8 +1467,15 @@
 									"projectId": "44444444444444444444444444444444"
 								}
 							],
-							"standaloneTerminalContextId": "33333333333333333333333333333333",
-							"workspaces": []
+							"workspaces": [
+								{
+									"workspaceId": "33333333333333333333333333333333",
+									"terminalContextId": "33333333333333333333333333333333",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"label": "Workspace"
+								}
+							]
 						}
 					}
 				],
@@ -1335,9 +1500,15 @@
 									"projectId": "44444444444444444444444444444444"
 								}
 							],
-							"standaloneTerminalContextId": "33333333333333333333333333333333",
 							"directories": [],
 							"workspaces": [
+								{
+									"workspaceId": "33333333333333333333333333333333",
+									"terminalContextId": "33333333333333333333333333333333",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"label": "Workspace"
+								},
 								{
 									"label": "Main",
 									"terminalContextId": "66666666666666666666666666666666",
@@ -1362,9 +1533,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "1",
@@ -1390,9 +1568,15 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"environmentId": "99999999999999999999999999999999",
 							"label": "Main",
@@ -1427,9 +1611,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "1",
@@ -1474,9 +1665,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "66666666666666666666666666666666",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "66666666666666666666666666666666",
+							"terminalContextId": "66666666666666666666666666666666",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "1",
@@ -1502,9 +1700,15 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": null,
@@ -1538,9 +1742,15 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": null,
@@ -1574,9 +1784,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "1",
@@ -1621,9 +1838,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "1",
@@ -1667,7 +1891,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -1676,6 +1899,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -1784,7 +2014,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -1793,6 +2022,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -1901,7 +2137,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -1910,6 +2145,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -2018,7 +2260,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2027,6 +2268,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -2138,7 +2386,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2147,6 +2394,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -2259,7 +2513,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2268,6 +2521,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -2380,7 +2640,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2389,6 +2648,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -2500,9 +2766,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "2",
@@ -2545,9 +2818,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "2",
@@ -2606,8 +2886,8 @@
 									"projectId": "0000000000000000000000000000000c"
 								}
 							],
-							"standaloneTerminalContextId": "33333333333333333333333333333333",
 							"workspaceOrder": [
+								"33333333333333333333333333333333",
 								"00000000000000000000000000000015",
 								"00000000000000000000000000000015",
 								"00000000000000000000000000000017",
@@ -2615,6 +2895,13 @@
 							],
 							"directories": [],
 							"workspaces": [
+								{
+									"workspaceId": "33333333333333333333333333333333",
+									"terminalContextId": "33333333333333333333333333333333",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"label": "Workspace"
+								},
 								{
 									"label": "Workspace 1",
 									"primaryDirectoryId": null,
@@ -2672,14 +2959,21 @@
 									"projectId": "0000000000000000000000000000000c"
 								}
 							],
-							"standaloneTerminalContextId": "33333333333333333333333333333333",
 							"workspaceOrder": [
+								"33333333333333333333333333333333",
 								"00000000000000000000000000000015",
 								"00000000000000000000000000000016",
 								"00000000000000000000000000000017"
 							],
 							"directories": [],
 							"workspaces": [
+								{
+									"workspaceId": "33333333333333333333333333333333",
+									"terminalContextId": "33333333333333333333333333333333",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"label": "Workspace"
+								},
 								{
 									"label": "Workspace 1",
 									"primaryDirectoryId": null,
@@ -2737,8 +3031,8 @@
 									"projectId": "0000000000000000000000000000000c"
 								}
 							],
-							"standaloneTerminalContextId": "33333333333333333333333333333333",
 							"workspaceOrder": [
+								"33333333333333333333333333333333",
 								"00000000000000000000000000000015",
 								"00000000000000000000000000000016",
 								"00000000000000000000000000000017",
@@ -2746,6 +3040,13 @@
 							],
 							"directories": [],
 							"workspaces": [
+								{
+									"workspaceId": "33333333333333333333333333333333",
+									"terminalContextId": "33333333333333333333333333333333",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"label": "Workspace"
+								},
 								{
 									"label": "Workspace 1",
 									"primaryDirectoryId": null,
@@ -2803,10 +3104,16 @@
 									"projectId": "0000000000000000000000000000000c"
 								}
 							],
-							"standaloneTerminalContextId": "33333333333333333333333333333333",
 							"workspaceOrder": null,
 							"directories": [],
 							"workspaces": [
+								{
+									"workspaceId": "33333333333333333333333333333333",
+									"terminalContextId": "33333333333333333333333333333333",
+									"projectId": null,
+									"primaryDirectoryId": null,
+									"label": "Workspace"
+								},
 								{
 									"label": "Workspace 1",
 									"primaryDirectoryId": null,
@@ -2848,9 +3155,16 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [],
-					"workspaces": []
+					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						}
+					]
 				},
 				"protocolVersion": 1,
 				"revision": "1",
@@ -2877,7 +3191,6 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2886,6 +3199,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -2918,7 +3238,6 @@
 				"kind": "workbench.snapshot",
 				"navigation": {
 					"projects": [],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2927,6 +3246,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"terminalContextId": "66666666666666666666666666666666",
@@ -2964,7 +3290,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -2973,6 +3298,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3011,7 +3343,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3020,6 +3351,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "000000000000000000000000000003e5",
@@ -3058,7 +3396,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3072,6 +3409,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3110,7 +3454,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3124,6 +3467,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3166,7 +3516,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3175,6 +3524,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3217,7 +3573,6 @@
 							"projectId": "00000000000000000000000000000001"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3226,6 +3581,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3264,7 +3626,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3273,6 +3634,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3318,7 +3686,6 @@
 							"projectId": "44444444444444444444444444444444"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3327,6 +3694,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3381,7 +3755,6 @@
 							"label": "Empty Project"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3390,6 +3763,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3433,7 +3813,6 @@
 							"label": "Empty Project"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3442,6 +3821,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",
@@ -3485,7 +3871,6 @@
 							"label": "Empty Project"
 						}
 					],
-					"standaloneTerminalContextId": "33333333333333333333333333333333",
 					"directories": [
 						{
 							"directoryId": "22222222222222222222222222222222",
@@ -3494,6 +3879,13 @@
 						}
 					],
 					"workspaces": [
+						{
+							"workspaceId": "33333333333333333333333333333333",
+							"terminalContextId": "33333333333333333333333333333333",
+							"projectId": null,
+							"primaryDirectoryId": null,
+							"label": "Workspace"
+						},
 						{
 							"label": "Main",
 							"primaryDirectoryId": "22222222222222222222222222222222",

@@ -45,8 +45,8 @@ so a resize and expiry at the same instant resolve to `TimedOut`.
 
 - No geometry is invented. The wait emits no `1×1` or other synthetic dimensions; wire
   geometry is always derived from a real drawable report.
-- Presentability is pure layout math (`standalone_presentable_area`), the same seam the
-  shared layout projection exposes for the standalone shell; it is not a width-only check.
+- Presentability is pure layout math (`startup_presentable_area`), the same seam the
+  shared layout projection exposes for the native shell; it is not a width-only check.
 - Input consumed during the wait is not replayed. Exit-key polling reuses the production
   `InputDispatcher` against the unavailable terminal-input port, so bytes consumed while
   waiting cannot reach the later terminal session.

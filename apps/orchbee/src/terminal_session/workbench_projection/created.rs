@@ -15,8 +15,8 @@ pub(in crate::terminal_session) fn validate_created_tab(
     validate_canonical_candidate(current, &candidate)?;
     if current.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || candidate.revision < expected.committed_revision
-        || current.terminal_context_id() != &expected.terminal_context_id
-        || candidate.terminal_context_id() != &expected.terminal_context_id
+        || current.terminal_context_id() != Some(&expected.terminal_context_id)
+        || candidate.terminal_context_id() != Some(&expected.terminal_context_id)
         || current
             .canonical_snapshot()
             .terminal_contexts
@@ -32,7 +32,10 @@ pub(in crate::terminal_session) fn validate_created_tab(
     let created_index = candidate.tab_index(&expected.tab_id);
     if candidate.revision == expected.committed_revision {
         let index = created_index.ok_or(NativeProjectionDivergence)?;
-        let created = &candidate.canonical_context().tabs[index];
+        let created = &candidate
+            .canonical_context()
+            .ok_or(NativeProjectionDivergence)?
+            .tabs[index];
         let PanelNode::Panel {
             primary_presentation,
             ..
@@ -53,7 +56,9 @@ pub(in crate::terminal_session) fn validate_created_tab(
             return Err(NativeProjectionDivergence);
         }
         let context = create_terminal_tab(
-            current.canonical_context(),
+            current
+                .canonical_context()
+                .ok_or(NativeProjectionDivergence)?,
             expected.placement.as_ref(),
             NewTerminalTab {
                 tab_id: expected.tab_id.clone(),
@@ -71,7 +76,9 @@ pub(in crate::terminal_session) fn validate_created_tab(
         .map_err(|_| NativeProjectionDivergence)?;
         let mut snapshot = current.canonical_snapshot().clone();
         snapshot.revision = expected.committed_revision;
-        snapshot.terminal_contexts[current.canonical_context] = context;
+        snapshot.terminal_contexts[current
+            .canonical_context
+            .ok_or(NativeProjectionDivergence)?] = context;
         let exact = current
             .project_snapshot(&snapshot)
             .map_err(|_| NativeProjectionDivergence)?;

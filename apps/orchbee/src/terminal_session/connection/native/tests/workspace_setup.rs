@@ -17,7 +17,7 @@ use orchbee_workbench_protocol::{
 use std::sync::atomic::Ordering;
 
 fn steps(after: &[WireKind]) -> Vec<WireKind> {
-    let mut steps = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut steps = vec![WireKind::Workbench];
     steps.extend([WireKind::Obcs; 5]);
     steps.extend_from_slice(after);
     steps
@@ -206,7 +206,14 @@ fn explicit_setup_recovery_reads_only_and_next_group_command_requires_fresh_draw
         Some(NativeSetupStatus::TabsNotApplied)
     );
     assert_eq!(
-        harness.ui.state().cache().canonical_context().groups[0].group_id,
+        harness
+            .ui
+            .state()
+            .cache()
+            .canonical_context()
+            .unwrap()
+            .groups[0]
+            .group_id,
         group_id
     );
     harness.finish()

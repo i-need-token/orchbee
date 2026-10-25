@@ -251,14 +251,14 @@ fn compiled_schema(base: &Path, schema_id: &str) -> jsonschema::Validator {
 // One workspace tab "ops" whose panel 31 presents the bound terminal: id 01
 // on the fixture worker. `terminal send` resolves that binding's identities
 // into the wire request. The standalone context mirrors the mutation suite
-// so `standaloneTerminalContextId` never dangles.
+// so every Terminal Context has its exact Workspace owner.
 fn fixture_document() -> &'static [u8] {
     br#"{
   "kind": "workbench.snapshot",
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"web"}], "directories":[], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000011", "label":"main", "primaryDirectoryId":null, "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",

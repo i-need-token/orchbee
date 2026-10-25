@@ -490,11 +490,11 @@ fn fixture_document() -> &'static [u8] {
   "protocolVersion": 1,
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"proj"}], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[{
+  "navigation": {"projects":[{"projectId":"00000000000000000000000000000010", "label":"proj"}], "directories":[{
             "directoryId": "00000000000000000000000000000011",
             "workerId": "6f7263686265652d6c6f63616c2d7631",
             "path": "/repo"
-          }], "workspaces":[{"workspaceId":"00000000000000000000000000000012", "label":"ws", "primaryDirectoryId":"00000000000000000000000000000011", "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
+          }], "workspaces":[{"workspaceId":"00000000000000000000000000000001","terminalContextId":"00000000000000000000000000000001","projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":"00000000000000000000000000000012", "label":"ws", "primaryDirectoryId":"00000000000000000000000000000011", "terminalContextId":"00000000000000000000000000000020", "projectId":"00000000000000000000000000000010"}]},
   "terminalContexts": [
     {
       "terminalContextId": "00000000000000000000000000000001",
@@ -803,11 +803,12 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     );
 
     let workspaces = documents[2]["result"]["workspaces"].as_array().unwrap();
-    assert_eq!(workspaces.len(), 1);
-    assert_eq!(workspaces[0]["workspaceId"], id(0x12));
-    assert_eq!(workspaces[0]["projectId"], id(0x10));
-    assert_eq!(workspaces[0]["primaryDirectoryId"], id(0x11));
-    assert_eq!(workspaces[0]["terminalContextId"], id(0x20));
+    assert_eq!(workspaces.len(), 2);
+    assert_eq!(workspaces[0]["workspaceId"], id(1));
+    assert_eq!(workspaces[1]["workspaceId"], id(0x12));
+    assert_eq!(workspaces[1]["projectId"], id(0x10));
+    assert_eq!(workspaces[1]["primaryDirectoryId"], id(0x11));
+    assert_eq!(workspaces[1]["terminalContextId"], id(0x20));
 
     let workspace = &documents[3]["result"]["workspace"];
     assert_eq!(workspace["workspaceId"], id(0x12));
@@ -816,9 +817,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         serde_json::json!([{"tabId": id(0x21), "label": "ws-main"}])
     );
 
-    // Unfiltered tab list: the workspace-context row carries the tightened
-    // context shape ({kind:"workspace", workspaceId}) while standalone rows
-    // never carry workspaceId.
+    // Every tab row carries its real Workspace owner, including ungrouped Workspaces.
     let tabs = documents[4]["result"]["tabs"].as_array().unwrap();
     assert_eq!(tabs.len(), 3);
     let ws_row = tabs
@@ -834,11 +833,8 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         })
     );
     for row in tabs.iter().filter(|row| row["tabId"] != id(0x21)) {
-        assert_eq!(row["context"]["kind"], "standalone", "{row}");
-        assert!(
-            row["context"].get("workspaceId").is_none(),
-            "standalone context carries no workspaceId: {row}"
-        );
+        assert_eq!(row["context"]["kind"], "workspace", "{row}");
+        assert_eq!(row["context"]["workspaceId"], id(1), "{row}");
     }
 
     // `--workspace` by label resolves to exactly the workspace context's tab.
@@ -960,7 +956,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         status["counts"],
         serde_json::json!({
             "projects": 1,
-            "workspaces": 1,
+            "workspaces": 2,
             "tabs": 3,
             "panels": 4,
             "boundTerminals": 2,
@@ -2091,12 +2087,12 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         !again.contains(&"--project".to_owned()),
         "{engine} re-offers a consumed filter: {again:?}"
     );
-    // tab list mutual exclusion: --standalone consumed → no filters offered.
-    let standalone = sorted(complete(&["tab", "list", "--standalone", ""]));
+    // A consumed Workspace filter is not offered again.
+    let filtered = sorted(complete(&["tab", "list", "--workspace", "w", ""]));
     assert!(
-        !standalone.contains(&"--workspace".to_owned())
-            && !standalone.contains(&"--standalone".to_owned()),
-        "{engine} offers excluded filters: {standalone:?}"
+        !filtered.contains(&"--workspace".to_owned())
+            && !filtered.contains(&"--standalone".to_owned()),
+        "{engine} offers excluded filters: {filtered:?}"
     );
     // get operand position offers no business verbs.
     let operand = sorted(complete(&["workspace", "get", "x", ""]));
@@ -2141,7 +2137,6 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         sorted(
             [
                 "--workspace",
-                "--standalone",
                 "--label",
                 "--cols",
                 "--rows",
@@ -2638,14 +2633,14 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     );
     // `--help` after a consumed option is usage — never a candidate.
     assert_eq!(
-        sorted(complete(&["tab", "list", "--standalone", ""])),
+        sorted(complete(&["tab", "list", "--workspace", "w", ""])),
         sorted(
             ["--format", "--format="]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
         ),
-        "{engine} standalone consumed: only format flags remain"
+        "{engine} Workspace filter consumed: only format flags remain"
     );
     // `get` verbs still owe their operand, yet a suffix `--help` is a legal
     // complete-path help (`workspace get --help` describes `workspace get`).

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_local_site_runtime::{PluginRegistry, PluginRegistryMutation};
 use orchbee_workbench_protocol::{
     LaunchOptions, PluginInvocationContext, ProtocolVersion, SiteId, WorkbenchAction,
@@ -55,9 +56,10 @@ fn fixture() -> (
             enabled: true,
         })
         .unwrap();
-    let authority =
-        super::super::WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 1)).unwrap())
-            .unwrap();
+    let authority = super::super::WorkbenchAuthority::workspace_fixture(
+        SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+    )
+    .unwrap();
     let snapshot = authority.projection.snapshot().clone();
     let selector = PluginPaneSelector::new("tools".into(), "dashboard".into()).unwrap();
     let command = WorkbenchCommand {
@@ -68,7 +70,9 @@ fn fixture() -> (
         action: WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             label: WorkbenchLabel::parse("Dashboard").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0).unwrap(),
             launch: None,
@@ -237,7 +241,7 @@ fn admission_witness(root: PathBuf) {
         .unwrap();
     let id = |value: u64| format!("{value:032x}");
     let site = SiteId::parse(&id(100)).unwrap();
-    let mut authority = WorkbenchAuthority::new(site.clone()).unwrap();
+    let mut authority = WorkbenchAuthority::workspace_fixture(site.clone()).unwrap();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(site);
     let command: WorkbenchCommand = serde_json::from_value(json!({
         "protocolVersion":1,"requestId":id(200),"siteId":id(100),"expectedRevision":"0",

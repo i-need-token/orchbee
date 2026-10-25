@@ -61,9 +61,6 @@ impl<'a> Source<'a> {
                 } => TargetSource::Panel(Target::Id(id.clone())),
                 MutationCommand::TabCreate { context, .. } => {
                     let id = match context {
-                        TabContext::Standalone => {
-                            snapshot.navigation.standalone_terminal_context_id.clone()
-                        }
                         TabContext::Workspace(Target::Id(id)) => snapshot
                             .navigation
                             .workspaces

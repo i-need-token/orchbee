@@ -146,7 +146,7 @@
 				},
 				"navigation": {
 					"type": "object",
-					"required": ["projects", "standaloneTerminalContextId", "directories", "workspaces"],
+					"required": ["projects", "directories", "workspaces"],
 					"additionalProperties": false,
 					"properties": {
 						"projects": {
@@ -165,12 +165,9 @@
 								}
 							}
 						},
-						"standaloneTerminalContextId": {
-							"$ref": "#/$defs/id"
-						},
 						"workspaceOrder": {
 							"type": "array",
-							"maxItems": 1023,
+							"maxItems": 1024,
 							"uniqueItems": true,
 							"items": {
 								"$ref": "#/$defs/id"
@@ -415,7 +412,7 @@
 				},
 				"navigation": {
 					"type": "object",
-					"required": ["projects", "standaloneTerminalContextId", "directories", "workspaces"],
+					"required": ["projects", "directories", "workspaces"],
 					"additionalProperties": false,
 					"properties": {
 						"projects": {
@@ -434,12 +431,9 @@
 								}
 							}
 						},
-						"standaloneTerminalContextId": {
-							"$ref": "#/$defs/id"
-						},
 						"workspaceOrder": {
 							"type": "array",
-							"maxItems": 1023,
+							"maxItems": 1024,
 							"uniqueItems": true,
 							"items": {
 								"$ref": "#/$defs/id"

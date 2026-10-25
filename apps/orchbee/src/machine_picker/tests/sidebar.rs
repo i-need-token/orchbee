@@ -22,7 +22,7 @@ fn sidebar_picker(count: u64) -> Picker {
         target: agent_row().target.context,
         project_id: None,
         project: None,
-        workspace: Some("Standalone".into()),
+        workspace: Some("Workspace".into()),
     }]);
     picker.observe_agents(vec![(Choice::Local, Agents::Ready(checkpoint(rows)))]);
     picker

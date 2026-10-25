@@ -408,7 +408,6 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--project",
     "--workspace",
     "--tab",
-    "--standalone",
     "--label",
     "--direction",
     "--order",
@@ -696,7 +695,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--tab",
             "--confirm",
             "--workspace",
-            "--standalone",
             "--label",
             "--client",
             "--focus",
@@ -1008,9 +1006,9 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &["--workspace", "--request", "--generation", "--confirm"],
     ),
     #[cfg(not(windows))]
-    ("tab:list", &["--workspace", "--standalone"]),
+    ("tab:list", &["--workspace"]),
     #[cfg(windows)]
-    ("tab:list", &["--workspace", "--standalone", "--client"]),
+    ("tab:list", &["--workspace", "--client"]),
     #[cfg(windows)]
     ("tab:get", &["--client"]),
     (
@@ -1021,7 +1019,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--client",
             "--timeout",
             "--workspace",
-            "--standalone",
             "--label",
             "--cols",
             "--rows",
@@ -1169,7 +1166,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--direction",
             "--label",
             "--workspace",
-            "--standalone",
             "--project",
             "--ratio",
             "--focus",
@@ -1944,7 +1940,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--current" => "seen_current",
         "--workspace" => "seen_workspace",
         "--tab" => "seen_tab",
-        "--standalone" => "seen_standalone",
+
         "--label" => "seen_label",
         "--body" => "seen_notification_body",
         "--position" => "seen_notification_position",
@@ -2062,7 +2058,7 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         "--key" => Some("key"),
         "--until" => Some("until"),
         "--provider" => Some("provider"),
-        "--standalone" | "--confirm" | "--new-tab" | "--new-workspace" | "--enter" | "--stdin"
+        "--confirm" | "--new-tab" | "--new-workspace" | "--enter" | "--stdin"
         | "--outdated-only" | "--include-ended" | "--paste" | "--current" | "--clear"
         | "--wait" | "--forever" | "--retry" | "--detach" | "--force" | "--takeover"
         | "--trust-repository" => None,
@@ -2357,16 +2353,6 @@ fn sub_flag_cases_bash() -> String {
             match *flag {
                 "--panel" => format!("                            {patterns}) ((seen_current)) && done=1 ;;"),
                 "--current" => format!("                            {patterns}) ((seen_panel)) && done=1 ;;"),
-                "--workspace" => {
-                    format!(
-                        "                            {patterns}) ((seen_standalone)) && done=1 ;;"
-                    )
-                }
-                "--standalone" => {
-                    format!(
-                        "                            {patterns}) ((seen_workspace)) && done=1 ;;"
-                    )
-                }
                 "--profile" => {
                     format!(
                         "                            {patterns}) ((seen_exec || seen_arg)) && done=1 ;;"
@@ -2432,12 +2418,7 @@ fn after_flag_cases_bash() -> String {
                 "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ ( $family:$sub == panel:current || $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
                 "--workspace" => {
                     format!(
-                        "                            {patterns}) if ((seen_standalone)) || [[ $family == worktree && $seen_cwd == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"
-                    )
-                }
-                "--standalone" => {
-                    format!(
-                        "                            {patterns}) ((seen_workspace)) && done=1 ;;"
+                        "                            {patterns}) if [[ $family == worktree && $seen_cwd == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"
                     )
                 }
                 // `terminal send` payload sources are mutually exclusive and
@@ -2501,9 +2482,7 @@ fn scope_cases_bash() -> String {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
                 let allowed = command_flags(&command).join(" ");
-                // `--workspace`/`--standalone` stay exclusive wherever both
-                // are admitted — only tab commands admit them. `terminal
-                // send` is dead once two payload sources stand, or `--key`
+                // `terminal send` is dead once two payload sources stand, or `--key`
                 // stands next to `--enter`; a lone `--enter` stays viable
                 // because a text-bearing source may still follow. The
                 // `--profile`/explicit-launch pair is exclusive on the two
@@ -2519,9 +2498,6 @@ fn scope_cases_bash() -> String {
                     exclusive.push_str("((seen_workspace && seen_cwd)) && done=1\n                                        ");
                     if command == "worktree:list" { exclusive.push_str("(((seen_project || seen_directory) && (seen_workspace || seen_cwd || seen_trust_repository))) && done=1\n                                        "); }
                     if command == "worktree:open" { exclusive.push_str("((seen_path && seen_branch)) && done=1\n                                        "); }
-                }
-                if *family == "tab" {
-                    exclusive.push_str("((seen_workspace && seen_standalone)) && done=1\n                                        ");
                 }
                 if command == "tab:create" || command == "panel:split" {
                     exclusive.push_str("((seen_profile && (seen_exec || seen_arg))) && done=1\n                                        ");
@@ -2561,9 +2537,7 @@ fn verb_cases_bash() -> String {
                     } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                         " && ((!seen_panel || !seen_current))"
                     } else if command == "tab:create" {
-                        " && ((!seen_workspace || !seen_standalone)) && ((!seen_profile || (!seen_exec && !seen_arg)))"
-                    } else if *family == "tab" {
-                        " && ((!seen_workspace || !seen_standalone))"
+                        " && ((!seen_profile || (!seen_exec && !seen_arg)))"
                     } else if command == "panel:split" {
                         " && ((!seen_profile || (!seen_exec && !seen_arg)))"
                     } else if *verb == "send" {
@@ -2608,12 +2582,6 @@ fn narrow_lines_bash() -> String {
             match *flag {
                 "--panel" => Some(format!("        if ((seen_panel && seen_current)); then possible=\"\"; elif ((seen_panel || seen_current)); then narrow \"{keep}\"; fi")),
                 "--current" => None,
-                "--workspace" => Some(format!(
-                    "        if ((seen_workspace || seen_standalone)); then\n            if ((seen_workspace && seen_standalone)); then possible=\"\"\n            else narrow \"{keep}\"; fi\n        fi"
-                )),
-                // Folded into the --workspace arm: the exclusive pair shares
-                // one family set.
-                "--standalone" => None,
                 _ => Some(format!("        (({})) && narrow \"{keep}\"", flag_bit(flag))),
             }
         })
@@ -2649,8 +2617,8 @@ fn extras_cases_bash() -> String {
                         "--workspace" | "--cwd" if command.starts_with("worktree:") => "seen_workspace || seen_cwd".to_owned(),
                         "--path" | "--branch" if *command == "worktree:open" => "seen_path || seen_branch".to_owned(),
                         "--panel" | "--current" => "seen_panel || seen_current".to_owned(),
-                        "--workspace" | "--standalone" => {
-                            "seen_workspace || seen_standalone".to_owned()
+                        "--workspace" => {
+                            "seen_workspace".to_owned()
                         }
                         // `terminal send`: payload sources exclude each
                         // other and `--enter` is offered only once a
@@ -3679,12 +3647,6 @@ fn sub_flag_cases_fish() -> String {
             match *flag {
                 "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; set done 1; end"),
                 "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; set done 1; end"),
-                "--workspace" => {
-                    format!("                            case {patterns}; if test $seen_standalone -eq 1; set done 1; end")
-                }
-                "--standalone" => {
-                    format!("                            case {patterns}; if test $seen_workspace -eq 1; set done 1; end")
-                }
                 "--profile" => {
                     format!("                            case {patterns}; if test $seen_exec -eq 1 -o $seen_arg -eq 1; set done 1; end")
                 }
@@ -3715,10 +3677,7 @@ fn after_flag_cases_fish() -> String {
                 "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; contains -- \"$family:$sub\" panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
                 "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; contains -- \"$family:$sub\" panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
                 "--workspace" => {
-                    format!("                            case {patterns}; if test $seen_standalone -eq 1; or begin; test $family = worktree; and test $seen_cwd -eq 1; end; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end")
-                }
-                "--standalone" => {
-                    format!("                            case {patterns}; if test $seen_workspace -eq 1; set done 1; end")
+                    format!("                            case {patterns}; if test $family = worktree; and test $seen_cwd -eq 1; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end")
                 }
                 "--text" => {
                     format!("                            case {patterns}; if test $seen_key -eq 1 -o $seen_file -eq 1 -o $seen_stdin -eq 1; set done 1; end")
@@ -3772,8 +3731,6 @@ fn scope_cases_fish() -> String {
                     guard
                 } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                     "\n                                        if test $seen_panel -eq 1 -a $seen_current -eq 1; set done 1; end".to_owned()
-                } else if *family == "tab" {
-                    "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end".to_owned()
                 } else if command == "terminal:send" {
                     "\n                                        if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -ge 2 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end".to_owned()
                 } else {
@@ -3807,20 +3764,14 @@ fn verb_cases_fish() -> String {
                 .map(|verb| {
                     let command = format!("{family}:{verb}");
                     let allowed = reachable_flags(&command).join(" ");
-                    // The exclusive pair must not both be seen for a tab verb
-                    // to remain viable; `send` dies once `--key` stands next
-                    // to a text payload bit.
+                    // `send` dies once `--key` stands next to a text payload bit.
                     let offer = if *family == "worktree" {
                         let selector = if command == "worktree:list" { "if begin; test $seen_project -eq 0 -a $seen_directory -eq 0; or test $seen_workspace -eq 0 -a $seen_cwd -eq 0 -a $seen_trust_repository -eq 0; end; " } else if command == "worktree:open" { "if test $seen_path -eq 0 -o $seen_branch -eq 0; " } else { "" };
                         let close = if matches!(command.as_str(), "worktree:open" | "worktree:list") { " end;" } else { "" };
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_cwd -eq 0; {selector}set -a verbs {verb};{close} end\n                end")
                     } else if matches!(command.as_str(), "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_panel -eq 0 -o $seen_current -eq 0; set -a verbs {verb}; end\n                end")
-                    } else if command == "tab:create" {
-                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0\n                        if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                            if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                        end\n                    end\n                end")
-                    } else if *family == "tab" {
-                        format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
-                    } else if command == "panel:split" {
+                    } else if command == "tab:create" || command == "panel:split" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test $seen_profile -eq 0 -o $seen_exec -eq 0\n                        if test $seen_profile -eq 0 -o $seen_arg -eq 0; set -a verbs {verb}; end\n                    end\n                end")
                     } else if *verb == "send" {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags\n                    if test (math \"$seen_text + $seen_key + $seen_file + $seen_stdin\") -lt 2\n                        if test $seen_key -eq 0 -o $seen_enter -eq 0; set -a verbs {verb}; end\n                    end\n                end")
@@ -3856,10 +3807,6 @@ fn narrow_lines_fish() -> String {
             match *flag {
                 "--panel" => Some(format!("        if test $seen_panel -eq 1 -a $seen_current -eq 1\n            set possible\n        else if test $seen_panel -eq 1 -o $seen_current -eq 1\n            set possible (__orchbee_narrow \"{keep}\" $possible)\n        end")),
                 "--current" => None,
-                "--workspace" => Some(format!(
-                    "        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1\n            set possible\n        else if test $seen_workspace -eq 1 -o $seen_standalone -eq 1\n            set possible (__orchbee_narrow \"{keep}\" $possible)\n        end",
-                )),
-                "--standalone" => None,
                 _ => Some(format!(
                     "        if test ${} -eq 1; set possible (__orchbee_narrow \"{keep}\" $possible); end",
                     flag_bit(flag)
@@ -3896,8 +3843,8 @@ fn extras_cases_fish() -> String {
                         "--workspace" | "--cwd" if command.starts_with("worktree:") => "$seen_workspace -eq 0 -a $seen_cwd -eq 0".to_owned(),
                         "--path" | "--branch" if *command == "worktree:open" => "$seen_path -eq 0 -a $seen_branch -eq 0".to_owned(),
                         "--panel" | "--current" => "$seen_panel -eq 0 -a $seen_current -eq 0".to_owned(),
-                        "--workspace" | "--standalone" => {
-                            "$seen_workspace -eq 0 -a $seen_standalone -eq 0".to_owned()
+                        "--workspace" => {
+                            "$seen_workspace -eq 0".to_owned()
                         }
                         "--text" => {
                             "$seen_text -eq 0 -a $seen_key -eq 0 -a $seen_file -eq 0 -a $seen_stdin -eq 0 -a $seen_paste -eq 0"
@@ -4555,10 +4502,10 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
 
         ("layout:apply", "--file") => &["--stdin"],
         ("layout:apply", "--stdin") => &["--file"],
-        ("layout:apply", "--tab") => &["--workspace", "--standalone"],
-        ("layout:apply", "--workspace") => &["--tab", "--standalone", "--confirm"],
-        ("layout:apply", "--standalone") => &["--tab", "--workspace", "--confirm"],
-        ("layout:apply", "--confirm") => &["--workspace", "--standalone"],
+        ("layout:apply", "--tab") => &["--workspace"],
+        ("layout:apply", "--workspace") => &["--tab", "--confirm"],
+        ("layout:apply") => &["--tab", "--workspace", "--confirm"],
+        ("layout:apply", "--confirm") => &["--workspace"],
         ("layout:apply", "--focus") => &["--no-focus"],
         ("layout:apply", "--no-focus") => &["--focus"],
         ("layout:export", "--tab") => &["--panel", "--current"],
@@ -4568,7 +4515,6 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
             "--new-tab",
             "--new-workspace",
             "--workspace",
-            "--standalone",
             "--project",
             "--label",
             "--tab-label",
@@ -4589,29 +4535,22 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
             "--direction",
             "--ratio",
             "--workspace",
-            "--standalone",
         ],
         ("panel:move", "--target-panel" | "--direction" | "--ratio") => {
             &["--new-tab", "--new-workspace"]
         }
         ("panel:move", "--label") => &["--into-tab"],
-        ("panel:move", "--workspace") => &[
-            "--into-tab",
-            "--new-workspace",
-            "--standalone",
-            "--project",
-            "--tab-label",
-        ],
-        ("panel:move", "--standalone") => &[
+        ("panel:move", "--workspace") => {
+            &["--into-tab", "--new-workspace", "--project", "--tab-label"]
+        }
+        ("panel:move") => &[
             "--into-tab",
             "--new-workspace",
             "--workspace",
             "--project",
             "--tab-label",
         ],
-        ("panel:move", "--project" | "--tab-label") => {
-            &["--into-tab", "--new-tab", "--workspace", "--standalone"]
-        }
+        ("panel:move", "--project" | "--tab-label") => &["--into-tab", "--new-tab", "--workspace"],
         ("panel:move", "--focus") => &["--no-focus"],
         ("panel:move", "--no-focus") => &["--focus"],
         ("agent:attach", "--name") => &["--agent-session", "--panel"],

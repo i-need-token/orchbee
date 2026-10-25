@@ -16,7 +16,7 @@ impl Item {
                 NativeContextLocation::Workspace { workspace_id, .. } => {
                     Self::Workspace(workspace_id.clone())
                 }
-                NativeContextLocation::Standalone(_) => return None,
+                NativeContextLocation::NoWorkspace => return None,
             },
             SidebarTarget::Agent { .. } => return None,
         })

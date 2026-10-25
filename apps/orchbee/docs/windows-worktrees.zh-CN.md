@@ -36,7 +36,7 @@ Create、Open、Remove 接受非零 32 位小写十六进制 `--request-id`，�
 
 来源形式的 List、Create、Open 接受精确 `--client`。显式 Workspace／cwd 优先且忽略无关调用者环境。否则显式 Client 优先于调用者；未指定 Client 时，依次使用经校验的调用者、唯一当前就绪 Client，只有调用者与 Client 均不存在才使用 CLI cwd。无效调用者以及过期、不可用或歧义 Client 均在 Git 前失败，不回退到 cwd。
 
-CLI 准备来源；Server 仍是 Worktree/Workspace 的唯一写入者。Workspace 来源始终保留全局稳定的 Workspace ID，由 Server 验证 canonical 主 Directory。只有独立上下文来源才使用已证明 Panel 的主终端根进程 cwd。cwd 缺失、非法或不可用时在 Git 前失败。显式 Directory 来源可选择已有 Project，不根据唯一 Project 推导分组。Remove 保留显式 Workspace 契约。可配置检出路径由 [Windows CLI 配置](windows-cli-configuration.zh-CN.md)拥有。
+CLI 准备来源；Server 仍是唯一 Worktree／Workspace 写者。每个 Workspace 来源保留全局稳定 Workspace ID，Server 校验其规范主 Directory。缺少身份或目录时在 Git 前失败；Panel 进程 cwd 不能替代 Workspace 所有权。显式 Directory 来源可选择已有 Project，不从唯一 Project 推断分组。Remove 保留显式 Workspace 契约。配置的检出路径归[Windows CLI 配置](windows-cli-configuration.zh-CN.md)所有。
 
 Create 和 Open 接受互斥的 `--focus` 与 `--no-focus`（默认）。聚焦拒绝 `--detach`，要求已有就绪 Client，绝不启动 TUI。Remove、Status、Resume 拒绝 Client／聚焦参数。
 

@@ -4,7 +4,7 @@ use crate::terminal_session::state::{
     OperationDeadlines,
     tests::{ready_with_cache, snapshot},
 };
-use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use crate::terminal_session::workbench_projection::project_preferred_workspace;
 use orchbee_workbench_protocol::{
     Project, Snapshot, WorktreeCheckoutFacts, WorktreeEntry, WorktreeEntryText, WorktreeGitEffect,
     WorktreeProgress, WorktreeQuerySource, WorktreeReference, WorktreeSelector,
@@ -33,7 +33,7 @@ fn fixture_with_discovery(
     discovery: Discovery,
 ) -> (Launcher, Origin) {
     let snapshot = canonical(projects, 1);
-    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let p = state
         .worktree_preparation(
             mode,
@@ -152,7 +152,7 @@ fn worktree_exact_checkout_path_survives_duplicate_branch_labels_without_project
 
 pub(in crate::terminal_session) fn sidebar_fixture() -> (Origin, addressed::SidebarDiscovery) {
     let snapshot = addressed::tests::fixture();
-    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let origin = state.worktree_origin().unwrap();
     let addressed = addressed::AddressedWorktreeSource::capture(
         &snapshot,
@@ -218,7 +218,7 @@ fn grouped_absent_cwd_and_empty_workspace_fallbacks_keep_required_null_project_a
             if empty {
                 snapshot.terminal_contexts[1].tabs.clear();
             }
-            let origin = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap())
+            let origin = ready_with_cache(project_preferred_workspace(&snapshot).unwrap())
                 .worktree_origin()
                 .unwrap();
             let addressed = addressed::AddressedWorktreeSource::capture(
@@ -430,7 +430,7 @@ fn worktree_default_names_consider_newer_workspace_labels_across_groups() {
                 tabs: vec![],
                 groups: vec![],
             });
-            origin.cache = project_native_standalone_tabs(&snapshot).unwrap();
+            origin.cache = project_preferred_workspace(&snapshot).unwrap();
             let plan = launcher
                 .create_with_defaults(request(90), &origin, locale)
                 .unwrap();
@@ -668,7 +668,7 @@ fn worktree_open_rejects_a_different_canonical_checkout_in_the_same_repository()
 #[test]
 fn worktree_stage_transition_keeps_admission_but_requires_the_new_token_to_be_drawn() {
     let snapshot = canonical(1, 1);
-    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let preparation = state
         .worktree_preparation(
             WorktreeMode::Create,
@@ -703,7 +703,7 @@ fn worktree_stage_transition_keeps_admission_but_requires_the_new_token_to_be_dr
 #[test]
 fn first_worktree_geometry_block_refuses_only_the_unadmitted_open_attempt() {
     let snapshot = canonical(1, 1);
-    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let preparation = state
         .worktree_preparation(
             WorktreeMode::Open,

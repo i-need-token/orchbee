@@ -6,7 +6,7 @@ The matched-cohort projection uses global Directory, Project and Workspace regis
 only an optional group: Workspace has required-nullable `projectId` and `primaryDirectoryId`, with
 stable Workspace/Terminal Context identity. Identity arrays stay sorted independently of display
 order. Navigation validates references, unique Context ownership, 65,536 global Directories,
-256 Workspaces per Project and 1,023 globally. Nonempty `projectOrder` and `workspaceOrder` are exact
+256 Workspaces per Project and 1,024 globally. Nonempty `projectOrder` and `workspaceOrder` are exact
 permutations of their respective registries; omission/empty uses canonical ID order.
 
 The [Rust organization contract](../../crates/workbench-protocol/README.md#project-organization-and-stable-workspace-identity)
@@ -62,8 +62,8 @@ It also covers the revision-cursor `workbench.publication.read` intent and its
 `workbench.publication.result`, whose `published` outcome carries one through 64 ordered
 `workbench.snapshot`/`workbench.delta` documents under the shared snapshot-result byte bound.
 It includes Project and Workspace changes, `workspace.primary-directory.accept`, canonical
-`tab.rename`, `tab.move`, and `tabs.configure` within standalone or Workspace contexts, and
-`tab.create` in standalone or configured Workspace contexts with its committed terminal result variants. Move carries exactly
+`tab.rename`, `tab.move`, and `tabs.configure` within Workspace contexts, and
+`tab.create` in configured Workspace contexts with its committed terminal result variants. Move carries exactly
 `terminalContextId`, `tabId`, and `direction: previous | next | first | last`; `tab-moved` carries
 exactly `revision`, `terminalContextId`, and `tabId`.
 `tabs.configure` validates closed group/pin operations and the nullable group identity in

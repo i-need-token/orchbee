@@ -69,13 +69,22 @@ fn close_state(index: u128) -> NativeSessionState {
     .unwrap()
     .0
 }
-fn background_state(standalone: bool) -> NativeSessionState {
+fn background_state(initial_workspace: bool) -> NativeSessionState {
     let mut source = close_snapshot();
-    let location = if standalone {
-        NativeContextLocation::Standalone(source.navigation.standalone_terminal_context_id.clone())
+    let location = if initial_workspace {
+        {
+            let fixture_context_id = source.navigation.workspaces[0].terminal_context_id.clone();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        }
     } else {
         source.terminal_contexts[1].tabs = std::mem::take(&mut source.terminal_contexts[0].tabs);
-        let workspace = &source.navigation.workspaces[0];
+        let workspace = &source.navigation.workspaces[1];
         NativeContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
             terminal_context_id: workspace.terminal_context_id.clone(),
@@ -243,9 +252,9 @@ fn workspace_close_requires_exact_draw_and_only_targets_current_workspace_includ
 }
 #[test]
 fn background_workspace_close_preserves_origin_attachment_on_cancel_and_publication() {
-    for standalone in [false, true] {
+    for initial_workspace in [false, true] {
         for index in [1, 2] {
-            let mut state = background_state(standalone);
+            let mut state = background_state(initial_workspace);
             let baseline = state.cache().clone();
             let desired = state.desired().unwrap().clone();
             let pane = state.pane_ref_for(&desired).unwrap();
@@ -347,7 +356,7 @@ fn addressed_workspace_close_rejects_missing_or_remapped_target_before_begin() {
                 .terminal_contexts
                 .retain(|context| context.terminal_context_id != context_id(373));
         } else {
-            changed.navigation.workspaces[1].terminal_context_id = context_id(999);
+            changed.navigation.workspaces[2].terminal_context_id = context_id(999);
             changed.terminal_contexts[2].terminal_context_id = context_id(999);
             changed
                 .terminal_contexts
@@ -378,7 +387,7 @@ fn background_workspace_close_rejects_origin_or_stale_target_receipts_without_lo
     let mut wrong_scope = operation.clone();
     wrong_scope.target = WorkspaceCloseTarget::Workspace {
         workspace_id: workspace_id(1),
-        terminal_context_id: operation.baseline.terminal_context_id().clone(),
+        terminal_context_id: operation.baseline.terminal_context_id().unwrap().clone(),
     };
     assert!(!wrong_scope.admits(&observed(&wrong_scope, true)));
     assert!(!state.begin_workspace_close(wrong_scope));
@@ -389,7 +398,7 @@ fn background_workspace_close_rejects_origin_or_stale_target_receipts_without_lo
     };
     assert!(state.retain_workspace_close_evidence(&admitted));
     for terminal_context_id in [
-        operation.baseline.terminal_context_id().clone(),
+        operation.baseline.terminal_context_id().unwrap().clone(),
         context_id(999),
     ] {
         let mut result = observed(&operation, true);
@@ -444,12 +453,18 @@ fn project_close_all_names_explicit_project_counts_only_members_and_preserves_fo
     assert!(operation.workspace_command().is_none());
 }
 #[test]
-fn empty_project_close_all_is_valid_from_standalone_without_an_anchor_workspace() {
+fn empty_project_close_all_is_valid_from_empty_workbench() {
     let mut source = close_snapshot();
     source.navigation.workspaces.clear();
     source.navigation.workspace_order.clear();
-    source.terminal_contexts.truncate(1);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+    source.terminal_contexts.clear();
+    let mut state = NativeSessionState::bootstrap(
+        project_preferred_workspace(&source).unwrap(),
+        1,
+        geometry(80),
+    )
+    .unwrap()
+    .0;
     let before = state.desired().cloned();
     let token = state.open_project_close_all(&project_id()).unwrap();
     assert_eq!(
@@ -479,8 +494,7 @@ fn empty_project_close_all_is_valid_from_standalone_without_an_anchor_workspace(
     assert!(state.invariant_holds());
 }
 #[test]
-fn close_refuses_standalone_stale_draw_and_project_membership_drift_without_submission() {
-    assert!(ready(1).open_workspace_close().is_none());
+fn close_refuses_stale_draw_and_project_membership_drift_without_submission() {
     let mut state = close_state(0);
     let token = state.open_workspace_close().unwrap();
     state.cancel_workspace_close();
@@ -491,7 +505,7 @@ fn close_refuses_standalone_stale_draw_and_project_membership_drift_without_subm
     state.acknowledge_workspace_close_draw(Some(next));
     let mut source = close_snapshot();
     source.revision = WorkbenchRevision::new(2);
-    source.navigation.workspaces[1].project_id = None;
+    source.navigation.workspaces[2].project_id = None;
     state.cache = state.cache.project_snapshot(&source).unwrap();
     assert!(plan(&state, next).is_none());
     assert!(state.settle_stale_workspace_close());
@@ -808,7 +822,7 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     assert!(state.finish_workspace_close(&evidence));
     let mut published = close_snapshot();
     published.revision = WorkbenchRevision::new(2);
-    published.navigation.workspaces.remove(0);
+    published.navigation.workspaces.remove(1);
     published.navigation.workspace_order.remove(0);
     published.terminal_contexts.remove(1);
     let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
@@ -866,13 +880,13 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
 }
 
 #[test]
-fn automatic_nonempty_legacy_landing_uses_the_same_permit_without_new_ids_or_controller_authority()
-{
+fn automatic_nonempty_sibling_workspace_landing_uses_the_same_permit_without_new_ids_or_controller_authority()
+ {
     let mut source = close_snapshot();
-    source.navigation.workspaces.truncate(1);
-    source.navigation.workspace_order.truncate(1);
+    source.navigation.workspaces.truncate(2);
+    source.navigation.workspace_order.truncate(2);
     source.terminal_contexts.truncate(2);
-    let workspace = &source.navigation.workspaces[0];
+    let workspace = &source.navigation.workspaces[1];
     let location = NativeContextLocation::Workspace {
         workspace_id: workspace.workspace_id.clone(),
         terminal_context_id: workspace.terminal_context_id.clone(),
@@ -890,8 +904,8 @@ fn automatic_nonempty_legacy_landing_uses_the_same_permit_without_new_ids_or_con
         result: observed(&operation, true),
     }));
     let legacy = source.terminal_contexts[0].clone();
-    source.navigation.workspaces.clear();
-    source.navigation.workspace_order.clear();
+    source.navigation.workspaces.truncate(1);
+    source.navigation.workspace_order.truncate(1);
     source.terminal_contexts.truncate(1);
     source.revision = WorkbenchRevision::new(2);
     let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
@@ -915,11 +929,17 @@ fn automatic_nonempty_legacy_landing_uses_the_same_permit_without_new_ids_or_con
             .commit(),
         MembershipInstallDecision::Attach(_)
     ));
-    assert_eq!(
-        state.cache().location(),
-        &NativeContextLocation::Standalone(source.navigation.standalone_terminal_context_id)
-    );
-    assert_eq!(state.cache().canonical_context(), &legacy);
+    assert_eq!(state.cache().location(), &{
+        let fixture_context_id = source.navigation.workspaces[0].terminal_context_id.clone();
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    });
+    assert_eq!(state.cache().canonical_context(), Some(&legacy));
     let view = state.workspace_close_status().unwrap();
     assert_eq!(
         view.status(),

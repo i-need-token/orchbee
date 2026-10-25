@@ -1316,7 +1316,7 @@ fn burst(
 }
 
 /// Provision four live terminals: a real TUI (provisioner and TUI1 in one)
-/// plus three workbench splits on the standalone Tab, each leaf confirmed
+/// plus three workbench splits on the initial_workspace Tab, each leaf confirmed
 /// live by its own rendered frame before the load map starts. The returned
 /// peer is held by the caller for the whole run — it is one counted tenant.
 fn provision(
@@ -1326,15 +1326,20 @@ fn provision(
     let deadline = Instant::now() + Duration::from_secs(60);
     let mut peer = WorkbenchPeer::connect(fixture, deadline).map_err(|error| error.to_string())?;
     let snapshot = peer.snapshot(deadline).map_err(|error| error.to_string())?;
-    let context_id = snapshot.navigation.standalone_terminal_context_id.clone();
+    let context_id = snapshot.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let context = snapshot
         .terminal_contexts
         .iter()
         .find(|candidate| candidate.terminal_context_id == context_id)
-        .ok_or("standalone context missing")?;
-    let tab = context.tabs.first().ok_or("standalone tab missing")?;
+        .ok_or("initial_workspace context missing")?;
+    let tab = context
+        .tabs
+        .first()
+        .ok_or("initial_workspace tab missing")?;
     let PanelNode::Panel { panel_id, .. } = &tab.root else {
-        return Err("fresh standalone tab was already split".into());
+        return Err("fresh initial_workspace tab was already split".into());
     };
     let tab_id = tab.tab_id.clone();
     // Proven 2x2 layout (same shape as the multiview witness): leaf titles
@@ -1510,7 +1515,7 @@ fn assert_process_retained(name: &str, process: &ManagedProcess) {
 #[test]
 fn c1_capacity_process_witness() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let profile = profile();
     let mut tui = Client::spawn(&fixture, "en_US.UTF-8");
     tui.wait_ready_after(
@@ -2303,7 +2308,7 @@ fn c1_capacity_process_witness() -> TestResult {
 #[ignore = "run-12 bounded timing probe — invoked explicitly"]
 fn c1_burst_cli_timing_probe() -> TestResult {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut tui = Client::spawn(&fixture, "en_US.UTF-8");
     tui.wait_ready_after(
         0,

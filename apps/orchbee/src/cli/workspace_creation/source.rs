@@ -95,7 +95,7 @@ pub(super) fn prepare(
         command
             .source
             .as_ref()
-            .or_else(|| origin.as_ref().and_then(|origin| origin.workspace.as_ref()))
+            .or_else(|| origin.as_ref().map(|origin| &origin.workspace))
     } else {
         None
     };
@@ -117,12 +117,8 @@ pub(super) fn prepare(
     let panel = origin
         .as_ref()
         .filter(|origin| {
-            workspace.is_none_or(|workspace| {
-                origin
-                    .workspace
-                    .as_ref()
-                    .is_some_and(|target| target.text() == workspace.workspace_id.as_str())
-            })
+            workspace
+                .is_none_or(|workspace| origin.workspace.text() == workspace.workspace_id.as_str())
         })
         .and_then(|origin| origin.panel.as_ref());
     let primary = workspace

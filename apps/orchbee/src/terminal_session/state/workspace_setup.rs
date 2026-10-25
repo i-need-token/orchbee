@@ -318,7 +318,7 @@ impl NativeSessionState {
                     _ => return None,
                 }
                 WorkbenchAction::TabsConfigure {
-                    terminal_context_id: self.cache.terminal_context_id().clone(),
+                    terminal_context_id: self.cache.terminal_context_id()?.clone(),
                     operation,
                 }
             }

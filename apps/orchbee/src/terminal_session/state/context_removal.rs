@@ -71,19 +71,18 @@ impl NativeSessionState {
 
     /// Shared evidence core for both entries: envelope checks, the current
     /// context's id absent from every canonical navigation owner, and the preferred
-    /// surviving Workspace projecting cleanly. An empty compatibility slot is the final fallback.
+    /// surviving Workspace projecting cleanly. No remaining Workspace yields an identity-free landing.
     pub(super) fn removed_context_landing(&self, snapshot: &Snapshot) -> Option<NativeContextTabs> {
         if &snapshot.site_id != self.cache.site_id() || snapshot.revision < self.cache.revision() {
             return None;
         }
-        let removed_id = self.cache.terminal_context_id();
-        if &snapshot.navigation.standalone_terminal_context_id == removed_id
-            || snapshot
+        if self.cache.terminal_context_id().is_some_and(|removed_id| {
+            snapshot
                 .navigation
                 .workspaces
                 .iter()
                 .any(|workspace| &workspace.terminal_context_id == removed_id)
-        {
+        }) {
             return None;
         }
         let landing = preferred_workspace_location(snapshot).ok()?;

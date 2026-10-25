@@ -469,9 +469,7 @@ fn rejects_malformed_send_records_without_reaching_the_executor()
 
 fn denied_result(request: &ClientMessage) -> ServerMessage {
     match request {
-        ClientMessage::TerminalOpen(_)
-        | ClientMessage::TerminalControl(_)
-        | ClientMessage::TerminalViewer(_) => {
+        ClientMessage::TerminalControl(_) | ClientMessage::TerminalViewer(_) => {
             unreachable!("launch-only test fixture")
         }
         ClientMessage::TerminalCreate(request) => {

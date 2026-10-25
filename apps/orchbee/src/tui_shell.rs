@@ -234,25 +234,21 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), TuiFailure> {
 pub(crate) fn run_connected(
     locale: Locale,
     client: crate::local_client::LocalClient,
-    intent: crate::terminal_session::TerminalIntent,
     mouse: bool,
 ) -> Result<(), TuiFailure> {
-    run_with_client(locale, Some((client, intent)), mouse)
+    run_with_client(locale, Some(client), mouse)
 }
 
 fn run_with_client(
     locale: Locale,
-    connection: Option<(
-        crate::local_client::LocalClient,
-        crate::terminal_session::TerminalIntent,
-    )>,
+    connection: Option<crate::local_client::LocalClient>,
     mouse: bool,
 ) -> Result<(), TuiFailure> {
     let inherited = InheritedTerminal::admit().map_err(TuiFailure::Admission)?;
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
     let server_configuration = connection.is_some();
     let terminal_input: Box<dyn TerminalSurface> = match connection {
-        Some((client, intent)) => {
+        Some(client) => {
             let geometry =
                 terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
                     .and_then(|geometry| {
@@ -262,7 +258,7 @@ fn run_with_client(
                     })
                     .map_err(TuiFailure::Runtime)?;
             Box::new(
-                crate::terminal_session::TerminalSession::start(client, intent, geometry)
+                crate::terminal_session::TerminalSession::start(client, geometry)
                     .map_err(TuiFailure::Runtime)?,
             )
         }
@@ -323,7 +319,7 @@ fn run_prepared_surface(
     {
         // A connected Client may paint one provisional local projection while the configuration
         // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
-        // invalidate an already admitted Site; standalone startup still fails on that boundary.
+        // invalidate an already admitted Site; Workbench startup still fails on that boundary.
         let host_colors = ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM", "WT_SESSION"]
             .map(|name| std::env::var(name).ok());
         initial_view.configure_no_color(

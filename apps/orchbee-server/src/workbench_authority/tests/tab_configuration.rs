@@ -12,10 +12,8 @@ fn configure(
         id,
         owner.snapshot().revision.value(),
         WorkbenchAction::TabsConfigure {
-            terminal_context_id: owner
-                .snapshot()
-                .navigation
-                .standalone_terminal_context_id
+            terminal_context_id: owner.snapshot().navigation.workspaces[0]
+                .terminal_context_id
                 .clone(),
             operation,
         },

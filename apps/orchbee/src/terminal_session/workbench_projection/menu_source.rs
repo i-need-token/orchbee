@@ -4,7 +4,6 @@ use orchbee_workbench_protocol::{Directory, Workspace};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum NativeMenuContextSource {
-    Standalone,
     Workspace {
         workspace: Workspace,
         directory: Option<Directory>,
@@ -21,10 +20,7 @@ impl NativeContextTabs {
             terminal_context_id,
         } = location
         else {
-            return super::compatibility_workspace(self.canonical_snapshot())
-                .ok()?
-                .filter(|compatibility| compatibility == location)
-                .map(|_| NativeMenuContextSource::Standalone);
+            return None;
         };
         let workspace = self
             .canonical_snapshot()

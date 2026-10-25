@@ -102,7 +102,7 @@ A `workbench.snapshot` is a complete authorized product projection for one Site 
 contains:
 
 - ordered Projects, global Directories and independent Workspaces with nullable Project membership;
-- exactly one standalone Terminal Context and one Terminal Context for every Workspace;
+- exactly one Terminal Context for every Workspace, with zero Workspaces and zero Contexts allowed;
 - ordered Tab groups and Tabs;
 - complete binary Panel/Split topology for every Tab;
 - one primary and zero or more child Terminal Presentations per Panel; and
@@ -290,11 +290,10 @@ does not change the projection or either label.
 | Dependencies            | Existing OBWP framing, Workbench label/identity validation, and the pure Server Workbench grant. No Worker, Host, OBCS, terminal-create grant, clock, entropy, persistence, retry, renderer, or selection authority enters this operation.                             |
 | Verification and limits | Shared Rust/TypeScript corpus and codec tests establish wire agreement. Server stateful tests, bounded concurrency/replay models, projection tests, and a create/rename/completion process witness establish runtime refinement within one process and bounded ledger. |
 
-## Standalone Tab creation contract
+## Workspace Tab creation contract
 
 `tab.create` requires `terminalContextId`, `label` and `geometry`, with optional `automaticLabel`,
-launch/profile/options fields described below, and `placement`. The context must be an admitted
-standalone or configured local Workspace Terminal Context. Omitted/null placement retains the
+launch/profile/options fields described below, and `placement`. The context must be an admitted configured local Workspace Terminal Context. Omitted/null placement retains the
 ordinary ungrouped/unpinned append. Closed placements are `{ kind: "in-group", groupId }`,
 `{ kind: "new-group" }`, `{ kind: "after-tab", tabId }` and `{ kind: "duplicate", tabId }`; selectors are exact existing identities
 in that context, never labels. New-group placement creates an unnamed grey group and prunes empty
@@ -370,7 +369,7 @@ there is no mixed-version rollout, public compatibility promise, durable migrati
 ## Accepted Tab move contract
 
 The local unpublished Move extension is implemented in the schema, corpus, both bindings and Server.
-Native standalone Client interaction is integrated with bounded Linux cohort evidence in the
+Native Workspace Client interaction is integrated with bounded Linux cohort evidence in the
 [native Session contract](../../apps/orchbee/docs/native-tab-session.md).
 It uses the existing OBWP v1 command envelope and navigation-mutation grant.
 The action is `tab.move { terminalContextId, tabId, direction }`, where direction is exactly
@@ -380,9 +379,7 @@ boundary yields existing `Unchanged { revision }`. An actual permutation yields
 `TabMoved { revision, terminalContextId, tabId }` (wire outcome `tab-moved`) with exactly one
 revision advance. No new product/terminal identity or terminal/viewer effect is permitted.
 
-Existing `TabUnavailable` / `tab-unavailable` identifies an absent target only after the exact
-standalone or Workspace context and complete supported layout pass, with Site composition required
-only for standalone. Workspace Move requires neither a Directory nor a live Worker. Unsupported schema-valid
+Existing `TabUnavailable` / `tab-unavailable` identifies an absent target only after the exact Workspace context and complete supported layout pass. Workspace Move requires neither a Directory nor a live Worker. Unsupported schema-valid
 native layout is internal divergence, not a product rejection. Full validated command equality,
 including Site, expected revision, context, Tab and direction, is the replay fingerprint.
 Retained exact replay returns the fixed original result/revision; same-ID changed content conflicts.
@@ -390,7 +387,7 @@ Retained exact replay returns the fixed original result/revision; same-ID change
 own authorization, retirement, capacity and publication. The strict corpus covers each direction
 and malformed/extra fields in both language bindings. Consuming adapters separately validate
 request/result correlation and action compatibility.
-OBCS Open is unchanged. This extension activates and rolls back with both binaries and both
+This extension activates and rolls back with both binaries and both
 bindings in one unpublished cohort, with no old-action alias or mixed-version compatibility.
 
 ## Accepted Panel Move wire contract
@@ -454,7 +451,7 @@ replay immutability, authorization, state transitions or eventual cleanup.
 | Projects                  | 256 per snapshot                    |
 | Directories               | 65,536 per snapshot                 |
 | Directory path            | 4,096 encoded UTF-8 bytes           |
-| Workspaces                | 1,023 per snapshot; 256 per Project |
+| Workspaces                | 1,024 per snapshot; 256 per Project |
 | Terminal Contexts         | 1,024 per snapshot                  |
 | Tab groups                | 64 per Terminal Context             |
 | Tabs                      | 256 per Terminal Context            |
@@ -584,7 +581,7 @@ optionally carry `transfer`: required `targetTerminalContextId` and `closedSourc
 source-Tab removal. New Workspace relocation uses the new-Tab result and includes its created
 Workspace identity. Legacy same-context nonclosing results omit transfer. All terminal bindings
 survive. The [Server relocation model](../../apps/orchbee-server/docs/workbench-authority.md#accepted-panel-relocation-model)
-owns source removal, candidate bounds, publication and standalone composition; Client ratios and
+owns source removal, candidate bounds, publication and Workspace binding conservation; Client ratios and
 focus remain outside this atomic structural result. Shared command fixtures cover the new forms,
 legacy forms, omitted labels and invalid/null optional values.
 

@@ -29,7 +29,6 @@ fn canonical_id() -> TestResult<WorkbenchRequestId> {
 
 fn steps(exchanges: usize) -> Vec<WireKind> {
     let mut result = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -57,7 +56,7 @@ fn admit(harness: &mut Harness, family: Family) -> TestResult<CloseOperation> {
     let selection = CloseSelection::new(
         CloseTarget::new(
             state.cache().site_id().clone(),
-            state.cache().terminal_context_id().clone(),
+            state.cache().terminal_context_id().unwrap().clone(),
             selected.key().tab_id().clone(),
         ),
         tab.tab_label().clone(),

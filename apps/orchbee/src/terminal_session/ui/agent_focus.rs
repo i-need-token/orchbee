@@ -46,7 +46,7 @@ impl NativeUi {
         };
         let state = self.state.as_ref().ok_or(Reason::ProjectionUnavailable)?;
         let cache = state.cache();
-        if cache.terminal_context_id() != terminal_context_id {
+        if cache.terminal_context_id() != Some(terminal_context_id) {
             return Err(Reason::TargetUnavailable);
         }
         let tab = cache

@@ -59,7 +59,7 @@ fn canonical_refresh_accepts_one_exact_panel_split_extension() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     let mut candidate_snapshot = current_snapshot;
     candidate_snapshot.revision = WorkbenchRevision::new(11);
@@ -100,7 +100,7 @@ fn canonical_refresh_accepts_one_exact_panel_split_extension() {
         orientation,
         split_id: old_split_id,
     };
-    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    let candidate = project_preferred_workspace(&candidate_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&current, candidate.clone()),
         Ok(candidate)
@@ -139,7 +139,7 @@ fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+    let current = project_preferred_workspace(&current_snapshot).unwrap();
 
     // The extension lands inside the second slot while the untouched inner-left Split has its
     // identity rewritten; the Panel set still matches an exact split.
@@ -200,7 +200,7 @@ fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_
     assert_eq!(
         validate_canonical_refresh(
             &current,
-            project_native_standalone_tabs(&candidate_snapshot).unwrap()
+            project_preferred_workspace(&candidate_snapshot).unwrap()
         ),
         Err(NativeProjectionDivergence)
     );
@@ -242,7 +242,16 @@ fn canonical_refresh_rejects_outer_revision_and_membership_divergence() {
     candidates.push(site_mismatch);
 
     let mut context_mismatch = projected(3, 11);
-    context_mismatch.location = NativeContextLocation::Standalone(context_id(81));
+    context_mismatch.location = {
+        let fixture_context_id = context_id(81);
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    };
     candidates.push(context_mismatch);
 
     candidates.push(projected(3, 9));
@@ -327,7 +336,7 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let baseline = project_native_standalone_tabs(&baseline_snapshot).unwrap();
+    let baseline = project_preferred_workspace(&baseline_snapshot).unwrap();
 
     // First committed split: the "left" leaf becomes a Split retaining itself plus one new panel.
     let mut mid_snapshot = baseline_snapshot;
@@ -361,7 +370,7 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
-    let mid = project_native_standalone_tabs(&mid_snapshot).unwrap();
+    let mid = project_preferred_workspace(&mid_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&baseline, mid.clone()),
         Ok(mid.clone())
@@ -389,7 +398,7 @@ fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
         orientation: PanelOrientation::Vertical,
         split_id: split_id(66),
     };
-    let latest = project_native_standalone_tabs(&latest_snapshot).unwrap();
+    let latest = project_preferred_workspace(&latest_snapshot).unwrap();
     assert_eq!(
         validate_canonical_refresh(&mid, latest.clone()),
         Ok(latest.clone())

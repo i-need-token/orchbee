@@ -1,5 +1,6 @@
 use super::super::super::{WorkbenchPanelCreateBegin, WorkbenchPanelCreatePreparation};
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     PanelNode, WorkbenchPanelSplitDirection, WorkbenchRevision, WorkbenchTabCloseResume,
     WorkbenchTabCloseStatus,
@@ -15,7 +16,7 @@ fn panel_close_command(
         id,
         WorkbenchAction::PanelClose {
             terminal_context_id: authority
-                .tree_standalone_membership()
+                .fixture_tree_membership()
                 .unwrap()
                 .terminal_context_id()
                 .clone(),
@@ -44,13 +45,13 @@ fn resolve(
     }
 }
 
-/// Splits the standalone Tab's first leaf once; returns the original and created leaf members.
+/// Splits the initial_workspace Tab's first leaf once; returns the original and created leaf members.
 fn split_fixture(
     authority: &mut WorkbenchAuthority,
     grant: &WorkbenchGrant,
     command_id: u128,
 ) -> (WorkbenchTerminalTab, WorkbenchTerminalTab) {
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let source = membership.members().first().unwrap().clone();
     let WorkbenchPanelCreateBegin::Admitted(admission) = authority.begin_terminal_panel_create(
         Some(grant),
@@ -88,7 +89,7 @@ fn split_fixture(
         )
         .unwrap()
         .commit();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let created = membership
         .members_for_tab(source.tab_id())
         .find(|member| member.panel_id() != source.panel_id())
@@ -121,17 +122,13 @@ fn panel_close_accepts_disposes_and_collapses_the_parent_split() {
     assert_eq!(
         terminal_context_id,
         *authority
-            .tree_standalone_membership()
+            .fixture_tree_membership()
             .unwrap()
             .terminal_context_id()
     );
     // The leaf remains projected until the phased Close publishes.
     assert_eq!(
-        authority
-            .tree_standalone_membership()
-            .unwrap()
-            .members()
-            .len(),
+        authority.fixture_tree_membership().unwrap().members().len(),
         2
     );
     assert!(matches!(
@@ -147,7 +144,7 @@ fn panel_close_accepts_disposes_and_collapses_the_parent_split() {
     let _ = prepared.commit();
     let snapshot = authority.projection.snapshot();
     assert_eq!(snapshot.revision, closed_revision);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     assert_eq!(membership.members(), std::slice::from_ref(&source));
     let tab = &snapshot.terminal_contexts[0].tabs[0];
     let PanelNode::Panel { panel_id, .. } = &tab.root else {
@@ -167,7 +164,7 @@ fn panel_close_accepts_disposes_and_collapses_the_parent_split() {
 fn panel_close_on_the_only_leaf_closes_the_whole_tab() {
     let (mut authority, grant) = fixture(1);
     let now = Instant::now();
-    let membership = authority.standalone_membership().unwrap();
+    let membership = authority.fixture_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let close = panel_close_command(&authority, 20010, &member);
     let accepted = accept(&mut authority, &grant, close.clone(), now);
@@ -179,18 +176,18 @@ fn panel_close_on_the_only_leaf_closes_the_whole_tab() {
     let prepared = authority
         .prepare_terminal_tab_close_publication(&close.request_id, now)
         .unwrap();
-    assert_eq!(prepared.exact_removed_member(), Some(&member));
+    assert_eq!(prepared.exact_removed_members().first(), Some(&member));
     let _ = prepared.commit();
     let context = &authority.projection.snapshot().terminal_contexts[0];
     assert!(context.tabs.is_empty());
-    assert!(authority.tree_standalone_membership().unwrap().is_empty());
+    assert!(authority.fixture_tree_membership().unwrap().is_empty());
 }
 
 #[test]
 fn panel_close_rejects_unknown_panels_and_tabs() {
     let (mut authority, grant) = fixture(1);
     let (source, created) = split_fixture(&mut authority, &grant, 20020);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let context_id = membership.terminal_context_id().clone();
     let missing_panel = command(
         &authority,
@@ -240,7 +237,7 @@ fn close_coverage_governs_join_busy_and_disjoint_panel_requests() {
     assert_eq!(joined.outcome, accepted.outcome);
     assert_eq!(joined.request_id, alias.request_id);
     // A tab.close overlapping the open panel.close is told the member is busy.
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let whole = command(
         &authority,
         20033,
@@ -282,7 +279,7 @@ fn sibling_panel_closes_publish_in_turn_and_reach_single_leaf_then_empty() {
         .prepare_terminal_tab_close_publication(&first.request_id, now)
         .unwrap()
         .commit();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     assert_eq!(membership.members(), std::slice::from_ref(&source));
     let tab = authority.projection.snapshot().terminal_contexts[0].tabs[0].clone();
     let PanelNode::Panel { panel_id, .. } = &tab.root else {
@@ -296,7 +293,7 @@ fn sibling_panel_closes_publish_in_turn_and_reach_single_leaf_then_empty() {
         .commit();
     let context = &authority.projection.snapshot().terminal_contexts[0];
     assert!(context.tabs.is_empty());
-    assert!(authority.tree_standalone_membership().unwrap().is_empty());
+    assert!(authority.fixture_tree_membership().unwrap().is_empty());
 }
 
 #[test]
@@ -314,12 +311,12 @@ fn completed_leaf_close_tombstone_does_not_fence_the_same_tab_close() {
     let _ = prepared.commit();
     assert_eq!(authority.projection.snapshot().revision, leaf_revision);
     assert_eq!(
-        authority.tree_standalone_membership().unwrap().members(),
+        authority.fixture_tree_membership().unwrap().members(),
         std::slice::from_ref(&source)
     );
     // The completed leaf record shares the Tab address but its captured member
     // is already removed; it cannot fence the surviving Tab's whole-Tab Close.
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let whole = command(
         &authority,
         20062,
@@ -343,7 +340,7 @@ fn completed_leaf_close_tombstone_does_not_fence_the_same_tab_close() {
     assert_eq!(closed_revision.value(), leaf_revision.value() + 1);
     let snapshot = authority.projection.snapshot();
     assert!(snapshot.terminal_contexts[0].tabs.is_empty());
-    assert!(authority.tree_standalone_membership().unwrap().is_empty());
+    assert!(authority.fixture_tree_membership().unwrap().is_empty());
     assert!(matches!(
         authority.terminal_tab_close_status(&whole.request_id),
         Some(WorkbenchTabCloseStatus::Closed { revision }) if revision == closed_revision
@@ -371,7 +368,7 @@ fn completed_close_still_covering_a_projected_member_retires_the_authority() {
         .close_record_mut(&leaf.request_id)
         .unwrap()
         .commit_closed(WorkbenchRevision::new(revision.value() + 1));
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let whole = command(
         &authority,
         20072,

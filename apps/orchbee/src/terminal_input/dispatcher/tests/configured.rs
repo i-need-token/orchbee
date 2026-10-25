@@ -201,7 +201,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
                 target: agent.target.context.clone(),
                 project_id: None,
                 project: None,
-                workspace: Some("Standalone".into()),
+                workspace: Some("Workspace".into()),
             }]);
         view.machines.observe_agents(vec![(
             Choice::Local,

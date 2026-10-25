@@ -20,7 +20,7 @@ impl ViewEntry for Entry<'_> {
     }
     fn workspace_id(&self) -> Option<&str> {
         match &self.row.target.context.location {
-            NativeContextLocation::Standalone(_) => None,
+            NativeContextLocation::NoWorkspace => None,
             NativeContextLocation::Workspace { workspace_id, .. } => Some(workspace_id.as_str()),
         }
     }

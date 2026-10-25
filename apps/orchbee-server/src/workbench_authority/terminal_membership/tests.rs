@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{
     PanelOrientation, PanelSlot, Presentation, SiteId, TerminalId, TerminalPresentationId,
@@ -6,7 +7,7 @@ use orchbee_workbench_protocol::{
 };
 
 fn authority() -> WorkbenchAuthority {
-    WorkbenchAuthority::new(SiteId::parse(&identity(91)).unwrap()).unwrap()
+    WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(91)).unwrap()).unwrap()
 }
 fn binding() -> PresentationBinding {
     PresentationBinding {
@@ -16,191 +17,29 @@ fn binding() -> PresentationBinding {
 }
 
 #[test]
-fn first_membership_commits_exact_shape_and_three_identities_without_a_command_ledger_entry() {
-    let mut authority = authority();
-    authority.commit_standalone_intent(binding()).unwrap();
-    let snapshot = authority.projection.snapshot();
-    assert_eq!(snapshot.revision.value(), 1);
-    assert_eq!(snapshot.terminal_contexts.len(), 1);
-    let context = &snapshot.terminal_contexts[0];
-    assert_eq!(
-        context.terminal_context_id,
-        snapshot.navigation.standalone_terminal_context_id
-    );
-    assert!(context.groups.is_empty());
-    assert_eq!(context.tabs.len(), 1);
-    let tab = &context.tabs[0];
-    assert_eq!(tab.tab_id.as_str(), identity(2));
-    assert_eq!(tab.label, "1");
-    assert_eq!(tab.group_id, None);
-    assert!(!tab.pinned);
-    let PanelNode::Panel {
-        right_click: _,
-        panel_id,
-        primary_presentation,
-        child_presentations,
-    } = &tab.root
-    else {
-        panic!("expected one primary Panel");
-    };
-    assert_eq!(panel_id.as_str(), identity(3));
-    assert_eq!(primary_presentation.presentation_id.as_str(), identity(4));
-    assert_eq!(primary_presentation.label, "1");
-    assert_eq!(primary_presentation.binding, Some(binding()));
-    assert!(child_presentations.is_empty());
-    assert_eq!(authority.last_identity, 4);
-    assert!(authority.ledger.is_empty());
-    assert_eq!(authority.ledger_bytes, 0);
-    let before = snapshot.clone();
-    assert_eq!(
-        authority.commit_standalone_intent(binding()),
-        Err(StandaloneIntentError::Occupied)
-    );
-    assert_eq!(authority.projection.snapshot(), &before);
-    assert_eq!(authority.last_identity, 4);
-}
-
-#[test]
-fn membership_preflight_preserves_projection_and_cursor_at_revision_and_identity_boundaries() {
-    for (cursor, revision, reason) in [
-        (
-            u128::MAX - 2,
-            0,
-            WorkbenchRejectionReason::IdentityExhausted,
-        ),
-        (1, u64::MAX, WorkbenchRejectionReason::RevisionExhausted),
-    ] {
-        let mut authority = authority();
-        authority.last_identity = cursor;
-        let mut snapshot = authority.projection.snapshot().clone();
-        snapshot.revision = WorkbenchRevision::new(revision);
-        authority.projection = WorkbenchProjectionStore::load(
-            &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            authority.commit_standalone_intent(binding()),
-            Err(StandaloneIntentError::Rejected(reason))
-        );
-        assert_eq!(authority.projection.snapshot(), &snapshot);
-        assert_eq!(authority.last_identity, cursor);
-        assert!(!authority.retired);
-        assert!(authority.ledger.is_empty());
-    }
-    let mut authority = authority();
-    authority.last_identity = u128::MAX - 3;
-    authority.commit_standalone_intent(binding()).unwrap();
-    assert_eq!(authority.last_identity, u128::MAX);
-}
-
-#[test]
-fn unavailable_workbench_never_commits_membership_or_consumes_an_identity() {
-    let mut authority = authority();
-    authority.retired = true;
-    let before = authority.projection.snapshot().clone();
-    assert_eq!(
-        authority.commit_standalone_intent(binding()),
-        Err(StandaloneIntentError::Unavailable)
-    );
-    assert_eq!(authority.projection.snapshot(), &before);
-    assert_eq!(authority.last_identity, 1);
-}
-
-#[test]
-fn a_full_valid_projection_refuses_membership_before_allocating_or_retiring() {
-    use orchbee_workbench_protocol::{
-        MAXIMUM_ENCODED_PROJECTION_BYTES, Project, WorkbenchProjectId, WorkbenchTerminalContextId,
-        WorkbenchWorkspaceId, Workspace,
-    };
-    let mut authority = authority();
-    let mut snapshot = authority.projection.snapshot().clone();
-    for index in 0_u128..256 {
-        let context_id = WorkbenchTerminalContextId::parse(&identity(1000 + index)).unwrap();
-        snapshot.navigation.projects.push(Project {
-            project_id: WorkbenchProjectId::parse(&identity(2000 + index)).unwrap(),
-            label: "1".to_owned(),
-        });
-        snapshot.navigation.directories.extend(Vec::new());
-        snapshot.navigation.workspaces.extend(vec![Workspace {
-            project_id: Some(WorkbenchProjectId::parse(&identity(2000 + index)).unwrap()),
-            primary_directory_id: None,
-            workspace_id: WorkbenchWorkspaceId::parse(&identity(3000 + index)).unwrap(),
-            terminal_context_id: context_id.clone(),
-            label: "1".to_owned(),
-        }]);
-        snapshot.navigation.workspace_order = snapshot
-            .navigation
-            .workspaces
-            .iter()
-            .map(|workspace| workspace.workspace_id.clone())
-            .collect();
-        snapshot
-            .terminal_contexts
-            .push(super::super::empty_context(context_id));
-    }
-    let base = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone()))
-        .unwrap()
-        .len();
-    let mut remaining = MAXIMUM_ENCODED_PROJECTION_BYTES - base;
-    for (project, workspace) in snapshot
-        .navigation
-        .projects
-        .iter_mut()
-        .zip(&mut snapshot.navigation.workspaces)
-    {
-        for label in [&mut project.label, &mut workspace.label] {
-            let increment = remaining.min(2047);
-            let bytes = increment + 1;
-            *label = "\u{1f41d}".repeat(bytes / 4);
-            label.push_str(match bytes % 4 {
-                0 => "",
-                1 => "a",
-                2 => "\u{00e9}",
-                _ => "\u{4e2d}",
-            });
-            remaining -= increment;
-        }
-    }
-    assert_eq!(remaining, 0);
-    let encoded =
-        serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap();
-    assert_eq!(encoded.len(), MAXIMUM_ENCODED_PROJECTION_BYTES);
-    authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
-    authority.last_identity = 4000;
-    assert_eq!(
-        authority.commit_standalone_intent(binding()),
-        Err(StandaloneIntentError::Rejected(
-            WorkbenchRejectionReason::ResourceLimit
-        ))
-    );
-    assert_eq!(authority.projection.snapshot(), &snapshot);
-    assert_eq!(authority.last_identity, 4000);
-    assert!(!authority.retired);
-    assert_eq!(authority.ledger_bytes, 0);
-}
-
-#[test]
 fn prepared_membership_is_effect_free_until_commit_and_query_survives_retirement() {
     let mut authority = authority();
     let before = authority.projection.snapshot().clone();
-    let prepared = authority.prepare_standalone_intent(binding()).unwrap();
+    let prepared = authority.prepare_fixture_tab(binding()).unwrap();
     assert_eq!(prepared.metadata().revision(), WorkbenchRevision::new(1));
     drop(prepared);
     assert_eq!(authority.projection.snapshot(), &before);
-    assert_eq!(authority.last_identity, 1);
+    assert_eq!(authority.last_identity, 4);
 
-    authority.commit_standalone_intent(binding()).unwrap();
-    authority.retire_standalone_composition();
-    let membership = authority.standalone_membership().unwrap();
+    authority.append_fixture_tab(binding()).unwrap();
+    authority.retire_terminal_membership();
+    let membership = authority.fixture_membership().unwrap();
     assert_eq!(membership.members()[0].binding(), &binding());
 }
 
 #[test]
-fn standalone_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shape() {
+fn workspace_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shape() {
     let mut authority = authority();
-    authority.commit_standalone_intent(binding()).unwrap();
+    authority.append_fixture_tab(binding()).unwrap();
     let mut candidate = authority.projection.snapshot().clone();
-    let context_id = candidate.navigation.standalone_terminal_context_id.clone();
+    let context_id = candidate.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let context = candidate
         .terminal_contexts
         .iter_mut()
@@ -212,7 +51,7 @@ fn standalone_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shap
     };
     append_simple_tab(
         context,
-        &parse_tab_ids(7).unwrap(),
+        &parse_tab_ids(10).unwrap(),
         "second",
         false,
         second_binding,
@@ -220,7 +59,7 @@ fn standalone_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shap
     candidate.revision = WorkbenchRevision::new(2);
     let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).unwrap();
     authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
-    let membership = authority.standalone_membership().unwrap();
+    let membership = authority.fixture_membership().unwrap();
     assert_eq!(membership.members()[0].binding(), &binding());
 
     let mut malformed = authority.projection.snapshot().clone();
@@ -228,7 +67,7 @@ fn standalone_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shap
     let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(malformed)).unwrap();
     authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
     assert_eq!(
-        authority.standalone_membership(),
+        authority.fixture_membership(),
         Err(WorkbenchTerminalInvariantError)
     );
 }
@@ -247,7 +86,7 @@ fn strict_membership_exposes_every_exact_tuple_in_canonical_order_through_the_pr
         for index in 0..count {
             append_simple_tab(
                 context,
-                &parse_tab_ids(4 + 3 * index as u128).unwrap(),
+                &parse_tab_ids(7 + 3 * index as u128).unwrap(),
                 "member",
                 false,
                 PresentationBinding {
@@ -260,10 +99,12 @@ fn strict_membership_exposes_every_exact_tuple_in_canonical_order_through_the_pr
         let encoded =
             serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap();
         authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
-        let membership = authority.standalone_membership().unwrap();
+        let membership = authority.fixture_membership().unwrap();
         assert_eq!(
             membership.terminal_context_id(),
-            &snapshot.navigation.standalone_terminal_context_id
+            &snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone()
         );
         assert_eq!(membership.is_empty(), count == 0);
         assert_eq!(membership.members().len(), count);
@@ -298,11 +139,11 @@ fn strict_membership_exposes_every_exact_tuple_in_canonical_order_through_the_pr
 fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
     for child in [false, true] {
         let mut authority = authority();
-        authority.commit_standalone_intent(binding()).unwrap();
+        authority.append_fixture_tab(binding()).unwrap();
         let mut candidate = authority.projection.snapshot().clone();
         append_simple_tab(
             &mut candidate.terminal_contexts[0],
-            &parse_tab_ids(7).unwrap(),
+            &parse_tab_ids(10).unwrap(),
             "second",
             false,
             PresentationBinding {
@@ -333,7 +174,7 @@ fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(candidate)).unwrap();
         authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
         assert_eq!(
-            authority.standalone_membership(),
+            authority.fixture_membership(),
             Err(WorkbenchTerminalInvariantError)
         );
     }
@@ -342,12 +183,12 @@ fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
 #[test]
 fn duplicate_bootstrap_binding_is_rejected_before_strict_membership_is_constructed() {
     let mut authority = authority();
-    authority.commit_standalone_intent(binding()).unwrap();
-    let before = authority.standalone_membership().unwrap();
+    authority.append_fixture_tab(binding()).unwrap();
+    let before = authority.fixture_membership().unwrap();
     let mut duplicate = authority.projection.snapshot().clone();
     append_simple_tab(
         &mut duplicate.terminal_contexts[0],
-        &parse_tab_ids(7).unwrap(),
+        &parse_tab_ids(10).unwrap(),
         "duplicate",
         false,
         binding(),
@@ -355,7 +196,7 @@ fn duplicate_bootstrap_binding_is_rejected_before_strict_membership_is_construct
     let document = WorkbenchProtocolDocument::Snapshot(duplicate);
     let encoded = serialize_document(&document).unwrap();
     assert!(WorkbenchProjectionStore::load(&encoded).is_err());
-    assert_eq!(authority.standalone_membership().unwrap(), before);
+    assert_eq!(authority.fixture_membership().unwrap(), before);
 }
 
 #[test]
@@ -423,9 +264,9 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
 }
 
 #[test]
-fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them() {
+fn tree_membership_collects_split_primary_leaves_for_the_workspace() {
     let mut authority = authority();
-    authority.commit_standalone_intent(binding()).unwrap();
+    authority.append_fixture_tab(binding()).unwrap();
     let mut snapshot = authority.projection.snapshot().clone();
     let tab = &mut snapshot.terminal_contexts[0].tabs[0];
     tab.root = PanelNode::Split {
@@ -474,11 +315,9 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
 
     let (_, members) = tree_membership_context(
         authority.projection.snapshot(),
-        &authority
-            .projection
-            .snapshot()
-            .navigation
-            .standalone_terminal_context_id,
+        &authority.projection.snapshot().navigation.workspaces[0]
+            .terminal_context_id
+            .clone(),
     )
     .unwrap();
     assert_eq!(members.len(), 2);
@@ -488,13 +327,11 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
     assert!(
         terminal_membership(
             authority.projection.snapshot(),
-            &authority
-                .projection
-                .snapshot()
-                .navigation
-                .standalone_terminal_context_id
+            &authority.projection.snapshot().navigation.workspaces[0]
+                .terminal_context_id
+                .clone()
         )
-        .is_err()
+        .is_ok()
     );
 }
 
@@ -550,7 +387,7 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
     }
     for case in ["unbound leaf", "child presentations"] {
         let mut authority = authority();
-        authority.commit_standalone_intent(binding()).unwrap();
+        authority.append_fixture_tab(binding()).unwrap();
         let mut snapshot = split_snapshot(&authority);
         let tab = &mut snapshot.terminal_contexts[0].tabs[0];
         match case {
@@ -583,7 +420,7 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
         let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
         authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
         let before = authority.snapshot().clone();
-        let membership = authority.tree_standalone_membership().unwrap();
+        let membership = authority.fixture_tree_membership().unwrap();
         assert_eq!(
             membership.members().len(),
             if case == "unbound leaf" { 1 } else { 2 }
@@ -597,8 +434,8 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
         assert_eq!(authority.snapshot(), &before);
         assert!(!authority.retired);
         assert!(
-            authority.standalone_membership().is_err(),
-            "legacy remains strict"
+            authority.fixture_membership().is_err(),
+            "complete membership requires every binding"
         );
     }
 }
@@ -606,7 +443,7 @@ fn tree_membership_preserves_unbound_layouts_and_enumerates_only_bound_members()
 #[test]
 fn unbound_primary_never_borrows_a_bound_child_and_bootstrap_preserves_occupied_layout() {
     let mut owner = authority();
-    owner.commit_standalone_intent(binding()).unwrap();
+    owner.append_fixture_tab(binding()).unwrap();
     let mut snapshot = owner.snapshot().clone();
     let tab_id = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
     let PanelNode::Panel {
@@ -627,17 +464,14 @@ fn unbound_primary_never_borrows_a_bound_child_and_bootstrap_preserves_occupied_
         &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap(),
     )
     .unwrap();
-    let membership = owner.standalone_presentation_membership().unwrap();
+    let membership = owner.fixture_presentation_membership().unwrap();
     assert_eq!(membership.members().len(), 1);
     assert_eq!(
         membership.members()[0].presentation_id(),
         &child.presentation_id
     );
     assert_eq!(membership.member_for_panel(&tab_id, &panel_id), None);
-    assert_eq!(
-        owner.commit_standalone_intent(binding()),
-        Err(StandaloneIntentError::Occupied)
-    );
+
     let PanelNode::Panel {
         child_presentations,
         ..
@@ -650,16 +484,8 @@ fn unbound_primary_never_borrows_a_bound_child_and_bootstrap_preserves_occupied_
         &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot.clone())).unwrap(),
     )
     .unwrap();
-    assert!(
-        owner
-            .standalone_presentation_membership()
-            .unwrap()
-            .is_empty()
-    );
-    assert_eq!(
-        owner.commit_standalone_intent(binding()),
-        Err(StandaloneIntentError::Occupied)
-    );
+    assert!(owner.fixture_presentation_membership().unwrap().is_empty());
+
     assert_eq!(owner.snapshot(), &snapshot);
     assert!(!owner.retired);
 }

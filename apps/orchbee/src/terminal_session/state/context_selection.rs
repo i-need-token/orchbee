@@ -387,11 +387,11 @@ impl<'a> NativeContextView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
-    /// Empty compatibility storage is valid without representing an open Workspace.
+    /// An empty Workbench has no selected Workspace or terminal Context.
     pub(in crate::terminal_session) fn no_current_workspace(&self) -> bool {
         matches!(
             self.state.cache.location(),
-            NativeContextLocation::Standalone(_)
+            NativeContextLocation::NoWorkspace
         ) && self.state.cache.tabs().is_empty()
     }
 

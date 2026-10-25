@@ -254,11 +254,10 @@ pub(crate) struct WorkspaceDoc {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ContextRef {
-    pub(crate) standalone: bool,
     pub(crate) terminal_context_id: String,
-    pub(crate) workspace_id: Option<String>,
+    pub(crate) workspace_id: String,
     /// Canonical Workspace label for human list ownership; omitted from JSON.
-    pub(crate) workspace_label: Option<String>,
+    pub(crate) workspace_label: String,
 }
 
 #[derive(Clone, Debug)]
@@ -283,7 +282,7 @@ pub(crate) struct TabDoc {
 
 #[derive(Clone, Debug)]
 pub(crate) struct PanelRow {
-    pub(crate) workspace_id: Option<String>,
+    pub(crate) workspace_id: String,
     pub(crate) label: String,
     pub(crate) custom_label: Option<String>,
     pub(crate) display_label: String,
@@ -341,8 +340,8 @@ pub(crate) struct TerminalListDetails {
 #[derive(Clone, Debug)]
 pub(crate) struct TerminalPlacement {
     pub(crate) handle: String,
-    /// `None` for the standalone terminal context.
-    pub(crate) workspace: Option<String>,
+    /// Canonical Workspace handle when a placement is available.
+    pub(crate) workspace: String,
     pub(crate) panel: String,
 }
 
@@ -2015,24 +2014,7 @@ fn workspace_row_json(row: &WorkspaceRow) -> Value {
 }
 
 fn context_json(context: &ContextRef) -> Value {
-    let mut object = Map::from_iter([
-        (
-            "kind".to_owned(),
-            json!(if context.standalone {
-                "standalone"
-            } else {
-                "workspace"
-            }),
-        ),
-        (
-            "terminalContextId".to_owned(),
-            json!(context.terminal_context_id),
-        ),
-    ]);
-    if let Some(workspace_id) = &context.workspace_id {
-        object.insert("workspaceId".to_owned(), json!(workspace_id));
-    }
-    Value::Object(object)
+    json!({"kind":"workspace", "terminalContextId":context.terminal_context_id, "workspaceId":context.workspace_id})
 }
 
 fn tab_row_json(row: &TabRow) -> Value {
@@ -2095,7 +2077,6 @@ pub(super) fn terminal_row_json(row: &TerminalRow) -> Value {
 /// Context ID → owning Workspace identity and canonical label for each
 /// workspace-bound context.
 struct ContextIndex<'a> {
-    standalone_id: &'a str,
     owners: HashMap<&'a str, (&'a str, &'a str)>,
 }
 
@@ -2108,20 +2089,19 @@ impl<'a> ContextIndex<'a> {
                 (workspace.workspace_id.as_str(), workspace.label.as_str()),
             );
         }
-        Self {
-            standalone_id: snapshot.navigation.standalone_terminal_context_id.as_str(),
-            owners,
-        }
+        Self { owners }
     }
 
-    fn reference(&self, context: &'a TerminalContext) -> ContextRef {
-        let owner = self.owners.get(context.terminal_context_id.as_str());
-        ContextRef {
-            standalone: context.terminal_context_id.as_str() == self.standalone_id,
+    fn reference(&self, context: &'a TerminalContext) -> Result<ContextRef, Failure> {
+        let (id, label) = self
+            .owners
+            .get(context.terminal_context_id.as_str())
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+        Ok(ContextRef {
             terminal_context_id: context.terminal_context_id.as_str().to_owned(),
-            workspace_id: owner.map(|(id, _label)| (*id).to_owned()),
-            workspace_label: owner.map(|(_id, label)| (*label).to_owned()),
-        }
+            workspace_id: (*id).to_owned(),
+            workspace_label: (*label).to_owned(),
+        })
     }
 }
 
@@ -2355,17 +2335,8 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 snapshot, workspace,
             )?))
         }
-        QueryCommand::TabList {
-            workspace,
-            standalone,
-        } => {
-            let contexts: Vec<&TerminalContext> = if *standalone {
-                snapshot
-                    .terminal_contexts
-                    .iter()
-                    .filter(|context| context.terminal_context_id.as_str() == index.standalone_id)
-                    .collect()
-            } else if let Some(target) = workspace {
+        QueryCommand::TabList { workspace } => {
+            let contexts: Vec<&TerminalContext> = if let Some(target) = workspace {
                 let (_project, workspace) = resolve_or_fail(
                     snapshot.navigation.workspaces.iter().map(|workspace| {
                         let project = workspace
@@ -2392,13 +2363,13 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             let mut rows: Vec<_> = contexts
                 .iter()
                 .flat_map(|context| {
-                    context
-                        .tabs
-                        .iter()
-                        .enumerate()
-                        .map(|(position, tab)| tab_row(tab, position, index.reference(context)))
+                    context.tabs.iter().enumerate().map(|(position, tab)| {
+                        index
+                            .reference(context)
+                            .map(|owner| tab_row(tab, position, owner))
+                    })
                 })
-                .collect();
+                .collect::<Result<_, _>>()?;
             let handles = list_handles(
                 Resource::Tab,
                 snapshot
@@ -2426,7 +2397,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 Resource::Tab,
             )?;
             Ok(Projection::TabGet(TabDoc {
-                row: tab_row(tab, position, index.reference(context)),
+                row: tab_row(tab, position, index.reference(context)?),
                 root: serde_json::to_value(&tab.root)
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
             }))
@@ -2473,7 +2444,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     &tab.root,
                     context,
                     tab,
-                    index.reference(context).workspace_id.as_deref(),
+                    index.reference(context)?.workspace_id.as_str(),
                     &mut path,
                     &mut |row, _path| {
                         rows.push(row);
@@ -2502,7 +2473,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 &tab.root,
                 context,
                 tab,
-                index.reference(context).workspace_id.as_deref(),
+                index.reference(context)?.workspace_id.as_str(),
                 &mut path,
                 &mut |row, slot_path| {
                     if row.panel_id == panel_id.as_str() {
@@ -2519,7 +2490,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             };
             Ok(Projection::PanelGet(PanelDoc {
                 row,
-                context: index.reference(context),
+                context: index.reference(context)?,
                 slot_path,
                 primary_presentation: primary,
                 child_presentations: children,
@@ -2798,7 +2769,7 @@ fn collect_panels<'a>(
     node: &'a PanelNode,
     context: &'a TerminalContext,
     tab: &'a Tab,
-    workspace_id: Option<&str>,
+    workspace_id: &str,
     path: &mut Vec<String>,
     visit: &mut impl FnMut(PanelRow, &[String]),
 ) {
@@ -2810,7 +2781,7 @@ fn collect_panels<'a>(
             child_presentations,
         } => visit(
             PanelRow {
-                workspace_id: workspace_id.map(str::to_owned),
+                workspace_id: workspace_id.to_owned(),
                 label: primary_presentation.label.clone(),
                 custom_label: primary_presentation
                     .custom_label
@@ -2927,18 +2898,21 @@ fn terminal_list(
     let rows: Vec<_> = all.iter().filter(|row| keep(row)).cloned().collect();
     let details = rows
         .iter()
-        .map(|row| TerminalListDetails {
-            placement: Some(TerminalPlacement {
-                handle: terminals[row.terminal_id.as_str()].clone(),
-                workspace: index
-                    .owners
-                    .get(row.terminal_context_id.as_str())
-                    .map(|(id, _label)| workspaces[id].clone()),
-                panel: panel_handles[row.panel_id.as_str()].clone(),
-            }),
-            ..TerminalListDetails::default()
+        .map(|row| {
+            Ok(TerminalListDetails {
+                placement: Some(TerminalPlacement {
+                    handle: terminals[row.terminal_id.as_str()].clone(),
+                    workspace: index
+                        .owners
+                        .get(row.terminal_context_id.as_str())
+                        .map(|(id, _label)| workspaces[id].clone())
+                        .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?,
+                    panel: panel_handles[row.panel_id.as_str()].clone(),
+                }),
+                ..TerminalListDetails::default()
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, Failure>>()?;
     Ok(TerminalListDocument { rows, details })
 }
 

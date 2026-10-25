@@ -7,30 +7,9 @@
 [原生 Tab Session](native-tab-session.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
 导航渲染及其正确性证据一起更新。
 
-`Ctrl+B [` 和 `Ctrl+B ]` 选择上一个、下一个可见工作区：非空历史内容，然后是 canonical
-全局 Workspace 显示顺序。必需的空兼容 Context 不出现在侧栏、导航器和循环选择中。
-排序不改变 Project 归属，边界循环。Workspace 和 context ID 确立位置身份；
-Project 归属和标签是展示元数据。移动 Workspace 或解散其 Project 保留选择记忆与存活 attachment。
-进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
-否则选择首个现存成员，没有 Tab 则进入 Empty。
-进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；规范 Workspace 中的显式
-`c` 使用 Server 已有的目录准入，绝不回退到 home 目录。
-Windows 侧栏在当前机器激活 Workspace 时共用此 Session 选择 owner，不打开选择器。
-接纳前核验精确 Session／位置身份；先检查 Busy，再判断精确当前位置无需操作。
-Session 结算已接受工作期间，机器 UI owner 只保留最后一个尚未接纳的目标。
-侧栏当前标识、位置标签及 Tab 一起读取已安装的 Session 选择。
-请求生命周期、取消及跨机器交接见[机器导航](machines.zh-CN.md#跨机器工作区导航)。
-Windows 裸启动遵循下面的启动偏好；没有偏好时，
-[目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Session 创建首个 Workspace，
-其他 Session 选择已有 Workspace，不执行 standalone Open。两者使用既有首帧就绪契约。
+`Ctrl+B [` 与 `Ctrl+B ]` 按规范显示顺序循环真实 Workspace，包括空 Workspace。排序及可空 Project 成员关系不改变位置身份。选择使用 Workspace／Context 对，恢复当前 Client 仍存活的 Tab／Panel 记忆，否则选择首个成员或 Empty。进入、离开 Empty 均不创建终端。显式 `c` 要求 Workspace 已准入的目录，不回退到 home。Windows 侧栏激活共用 Session 选择所有者；准确 Site／位置校验、Busy 优先级及最新未准入目标保留遵循[机器导航](machines.zh-CN.md#跨机器-workspace-导航)。Windows [目录启动](native-directory-startup.zh-CN.md) 仅在满足条件的空 Session 创建首个 Workspace。其他启动路径先读取、选择已有成员，再附着。
 
-私有 `NativeContextLocation::Standalone` 身份仍是历史内容和显式 `--standalone` 命令的兼容边界。
-非空 Context 显示为 `Legacy workspace` / `原有工作区`，不虚构规范 Workspace ID。
-其 Tab、Panel、Presentation、终端和 attachment 身份保持不变；Tab/Pane 操作、菜单、Agent
-和导航均使用这些精确身份。规范 Workspace 的重命名、目录、分组和整体关闭操作不可用，并
-提供本地化说明；历史 Tab 通过既有 Tab 操作关闭。清空该 context 后隐藏其导航条目，当前空
-状态提供显式新建入口。从此状态循环选择可进入存活 Workspace。成员验证与可见性分离：
-显式兼容目标仍验证，必需槽保持唯一且与其他 owner 不重叠，也不回收其容量。
+`NativeContextLocation::NoWorkspace` 仅表示零 Workspace、零 Context 的 Workbench。它没有 Context 或 Workspace ID，不是导航行，也不持久化为保存位置。创建 Workspace 提供真实所有者；移除最后一个 Workspace 回到此空落点。每个现有 Workspace，包括未分组或空 Workspace，均保留规范 ID 及正常重命名、目录、分组、Close 规则。快照校验要求 Workspace／Context 一一对应；全部 1,024 个上下文名额均可供真实 Workspace 使用。
 
 在 Windows 的无工作区状态，`c` 改为接纳既有快速 Workspace 启动。只有本次重定向被成功
 接纳后，才向 shell 返回有类型的工作区创建结果，使下一次控制 tick 保留该操作的进入意图。
@@ -93,11 +72,7 @@ Navigator 核心、dispatcher 与 shell 测试覆盖捕获、完整行绘制、�
 | Attach 所选 Tab   | 使用确切保留 binding 及既有 setup、首帧和 controller geometry 规则。旧 generation 的迟到结果不能成为当前结果。            |
 | 交接后失败        | 保留已知事实并采用既有 deadline/retirement 规则；绝不重试不确定的副作用或合成清理成功。                                   |
 
-已知 Create provenance 必须在离开和返回上下文后保留。Snapshot binding 不能把已知 Pending、
-failed、unavailable 或 outcome-unknown Create 变为 attach 许可。保留的 provenance 受协议
-context 和 Tab 上限约束，只能依据已验证的成员证据修剪。Pending Close 保留原确切目标，
-并在既有结算规则允许前阻止位置变化。当前上下文的刷新及 Create/Move/Rename/Close 结果
-处理不得悄悄返回 standalone。
+已知 Create 来源在离开、返回 Workspace 后仍保留。快照绑定不能把待完成、失败、不可用或结果未知的 Create 转为附着许可。保留来源受 Context／Tab 上限约束，仅依据已验证成员证据裁剪。待完成 Close 保留准确目标，并阻止位置切换直到结算允许。刷新与变更结果保留所选 Workspace，或遵循显式规范移除恢复。
 
 ## Client 选择记忆
 

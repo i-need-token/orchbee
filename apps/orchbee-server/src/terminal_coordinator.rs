@@ -581,7 +581,6 @@ impl TerminalCoordinator {
         expiry: Option<LeaseExpiresAtUnixMilliseconds>,
     ) -> PreparedOperation {
         match request {
-            ClientMessage::TerminalOpen(request) => PreparedOperation::Ready(ServerMessage::TerminalOpenResult(orchbee_client_server_protocol::TerminalOpenResult::new(request.request_id().clone(), orchbee_client_server_protocol::OpenOutcome::Unavailable { reason: CreateUnavailableReason::ServerBusy }))),
             ClientMessage::TerminalControl(request) => PreparedOperation::Ready(ServerMessage::TerminalControlResult(orchbee_client_server_protocol::TerminalControlResult::new(request.request_id().clone(),orchbee_client_server_protocol::TerminalControlOutcome::Rejected {reason:orchbee_client_server_protocol::ControlRejectedReason::ViewerUnavailable}))),
             ClientMessage::TerminalViewer(request) => PreparedOperation::Ready(ServerMessage::TerminalViewerResult(
                 orchbee_client_server_protocol::TerminalViewerResult::new(request.request_id().clone(),
@@ -1107,7 +1106,6 @@ fn start_result(request: &TerminalStartRequest, outcome: StartOutcome) -> Server
 }
 fn unknown_result(request: &ClientMessage) -> ServerMessage {
     match request {
-        ClientMessage::TerminalOpen(request) => ServerMessage::TerminalOpenResult(orchbee_client_server_protocol::TerminalOpenResult::new(request.request_id().clone(), orchbee_client_server_protocol::OpenOutcome::OutcomeUnknown {})),
         ClientMessage::TerminalControl(request) => ServerMessage::TerminalControlResult(orchbee_client_server_protocol::TerminalControlResult::new(request.request_id().clone(),orchbee_client_server_protocol::TerminalControlOutcome::OutcomeUnknown {})),
         ClientMessage::TerminalViewer(request) => ServerMessage::TerminalViewerResult(orchbee_client_server_protocol::TerminalViewerResult::new(
             request.request_id().clone(), orchbee_client_server_protocol::TerminalViewerOutcome::Unavailable {

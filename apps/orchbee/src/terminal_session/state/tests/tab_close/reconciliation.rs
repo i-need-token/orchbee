@@ -331,7 +331,11 @@ fn join_retained_closed_keeps_its_first_origin_after_a_fresh_recovery_read() {
             &next,
             &CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
                 close_request_id: original.operation().clone(),
-                terminal_context_id: original.expectation().terminal_context_id().clone(),
+                terminal_context_id: original
+                    .expectation()
+                    .terminal_context_id()
+                    .unwrap()
+                    .clone(),
                 tab_id: original.expectation().tab_id().clone(),
                 attempt_generation: original.attempt_generation(),
                 status: WorkbenchTabCloseStatus::Closed {
@@ -431,9 +435,8 @@ fn unbound_selected_panel_uses_exact_closed_tab_proof_to_retire_bound_sibling_vi
         unreachable!()
     };
     primary_presentation.binding = None;
-    let cache =
-        crate::terminal_session::workbench_projection::project_native_standalone_tabs(&source)
-            .unwrap();
+    let cache = crate::terminal_session::workbench_projection::project_preferred_workspace(&source)
+        .unwrap();
     let mut state = super::super::ready_with_cache(cache);
     let old = state.desired().unwrap().anchor().clone();
     let empty_panel = state.tab(0).unwrap().panel(1).unwrap().panel_id().clone();

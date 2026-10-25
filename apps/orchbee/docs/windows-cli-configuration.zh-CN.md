@@ -330,8 +330,7 @@ claude = [["state_icon", "agent"], [{ token = "$model", fg = "#8bc", rules = [{ 
 
 ## Windows Workspace 侧栏布局
 
-主侧栏将 Workspace 放在所属 Project 下，可用 Agent 放在精确归属的 Workspace 或
-Standalone 行下，共用一个滚动窗口。[侧栏导航模型](tui-shell-layout.zh-CN.md#侧栏导航模型)
+主侧栏将 Workspace 放在所属 Project 下，可用 Agent 放在精确归属的 Workspace 行下，共用一个滚动窗口。[侧栏导航模型](tui-shell-layout.zh-CN.md#侧栏导航模型)
 拥有展开状态和键盘导航。Workspace 选择器仍可通过打开 Machines 后按 Tab，或点击
 侧栏范围页脚进入。即使重名，点击行仍保留完整机器／Session/context 身份。
 `ui.sidebar.spaces` 控制 Workspace 行，`ui.sidebar.agents` 控制其 Agent 子行。

@@ -212,11 +212,8 @@ fn settle_unknown(
 #[test]
 fn split_tab_close_routes_each_frozen_leaf_then_publishes_one_tab_removal() {
     let (mut authority, grant) = split_authority();
-    let context_id = authority
-        .projection
-        .snapshot()
-        .navigation
-        .standalone_terminal_context_id
+    let context_id = authority.projection.snapshot().navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[0]
         .tab_id
@@ -298,11 +295,8 @@ fn split_tab_close_routes_each_frozen_leaf_then_publishes_one_tab_removal() {
 #[test]
 fn split_tab_close_quarantines_siblings_after_unknown_but_keeps_known_cleanup() {
     let (mut authority, grant) = split_authority();
-    let context_id = authority
-        .projection
-        .snapshot()
-        .navigation
-        .standalone_terminal_context_id
+    let context_id = authority.projection.snapshot().navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[0]
         .tab_id
@@ -386,11 +380,8 @@ fn split_tab_close_quarantines_siblings_after_unknown_but_keeps_known_cleanup() 
 #[test]
 fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
     let (mut authority, grant) = split_fixture(2);
-    let context_id = authority
-        .projection
-        .snapshot()
-        .navigation
-        .standalone_terminal_context_id
+    let context_id = authority.projection.snapshot().navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let closing_tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[0]
         .tab_id
@@ -584,11 +575,8 @@ fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
 #[test]
 fn leaf_close_leaves_same_tab_split_and_move_admissible() {
     let (mut authority, grant) = split_authority();
-    let context_id = authority
-        .projection
-        .snapshot()
-        .navigation
-        .standalone_terminal_context_id
+    let context_id = authority.projection.snapshot().navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     let tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[0]
         .tab_id

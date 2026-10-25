@@ -5,7 +5,7 @@
 同批升级投影使用全局 Directory、Project 与 Workspace 注册表。Project 只是可选分组：Workspace 的
 `projectId` 与 `primaryDirectoryId` 必须存在且可为 null，Workspace／Terminal Context 身份稳定。
 身份数组始终按 ID 排序，独立于显示顺序。Navigation 校验引用、唯一 Context 所有权、65,536 个
-全局 Directory、每个 Project 最多 256 个 Workspace 与全局最多 1,023 个 Workspace。非空
+全局 Directory、每个 Project 最多 256 个 Workspace 与全局最多 1,024 个 Workspace。非空
 `projectOrder` 和 `workspaceOrder` 必须分别是对应注册表的完整排列；省略／空值使用规范 ID 顺序。
 
 [Rust 组织契约](../../crates/workbench-protocol/README.zh-CN.md#project-组织与稳定-workspace-身份)
@@ -56,7 +56,7 @@ Project、Directory、Workspace、Tab、Panel 与 Terminal Presentation 产品�
 revision 游标的 `workbench.publication.read` intent 及其 `workbench.publication.result`；后者的
 `published` outcome 在共享 snapshot-result 字节上限内携带 1 至 64 条有序的
 `workbench.snapshot`/`workbench.delta` 文档。它包括 Project
-与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、standalone 或 Workspace 上下文内的 `tab.move` 与 `tabs.configure`，以及 standalone 或已配置 Workspace 上下文内的 `tab.create`
+与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、Workspace 上下文内的 `tab.move` 与 `tabs.configure`，以及 已配置 Workspace 上下文内的 `tab.create`
 及其已提交的 terminal result variant。Move 仅携带 `terminalContextId`、`tabId` 和
 `direction: previous | next | first | last`；`tab-moved` 仅携带 `revision`、`terminalContextId`
 和 `tabId`。

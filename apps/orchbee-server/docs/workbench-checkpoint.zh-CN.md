@@ -39,7 +39,7 @@
 Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryId` 和 `path`，重建时
 赋予新的 Worker 所有权。Workspace 顺序必须是完整排列；Project 顺序为空时使用规范 ID 顺序，
 否则也必须是完整排列。未分组 Workspace、空 Project、共享或未使用的 Directory 及两类显示顺序均保留。
-对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个 Workspace，
+对象图最多容纳 65,536 个 Directory、1,024 个 Workspace，每个 Project 最多 256 个 Workspace，
 同时受不变的编码上限约束。
 
 未知、重复或缺失字段、历史嵌套导航、不支持的版本、无效引用和不足的身份高水位均拒绝整份文档。
@@ -83,19 +83,14 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 
 ## 终端重新绑定准备
 
-只读物理注册遍历所有上下文的主、子 Presentation；破坏性树操作守卫保持不变。恢复目标分别携带保留目录与 Workspace 默认目录意图。
-`checkpoint/restore.rs` 按上下文、Tab 和深度优先树顺序枚举每个未绑定的主／子 Presentation。
-每个私有恢复目标携带新的 Site／本地 Worker，以及准确的上下文／Tab／Panel／Presentation
-成员关系，以及分别保留的恢复目录／Workspace 目录意图。没有保留 cwd 的独立上下文和未配置目录的 Workspace 使用 Worker home。
+`checkpoint/restore.rs` 按 Workspace Context、Tab 及深度优先树顺序枚举每个无绑定主／子 Presentation。每个目标携带新 Site／本地 Worker、准确成员身份及分开的保留／Workspace 目录意图。只读注册遍历全部主、子成员；破坏性操作保留各自守卫。没有保留 cwd 的未配置 Workspace 使用 Worker home。
 
 `prepare_restored_terminal` 重新检查 Site、本地 Worker、成员关系、未绑定状态和 cwd 默认值，
 再校验并准备完整的候选投影／发布，之后才允许变更。丢弃准备结果不改变任何状态。提交仅设置
 一个绑定并递增修订；结构身份、分配高水位、标签、顺序、分组、输入策略和 Profile 均不变。
 拒绝已绑定的目标及重复的物理终端绑定。
 
-这层准备不创建进程、不重放命令。托管协调器必须同时准备新的终端预留和此绑定，在同一把锁下
-提交两者，再分发并结算准确的物理请求；暴露 Client 前还须重建独立终端 Open 选择。
-规划和绑定测试不证明这些运行时集成已完成。
+准备不创建进程，也不重放命令。托管协调器联合准备新终端预留及规范绑定，在同一锁下提交两者，随后分发并结算准确物理请求，再暴露 Client。恢复快照绑定是唯一附着选择来源，不重建 Open 引用。仅规划测试不证明运行时集成。
 
 ## Windows 托管启动与正常停止
 
@@ -112,15 +107,7 @@ Server 在打开 store 和清理 pending 文件前准入完整的 durable 形状
 `WorkbenchCheckpoint` 是已准入配置值：私有对象图校验身份不会成为可运行权威，只有使用新 Site
 及已准入 Worker 重建后才产生新的权威。
 
-首个启动 IPC 前，协调器准备全部新 shell／provider 预留及 Workbench 绑定。此阶段失败尚无 Host 或
-终端，结束创建时持有的准确 Worker 进程并确认退出。随后每个准备请求仅分发、结算一次；启动
-失败或未知结果保持显式状态，从不自动重试。使用保留终端目录、Workspace／home 默认值，初始几何为 80x24、
-单元格 8x16，直到 Client 调整尺寸。第一个恢复的独立主 Presentation 提供保留的 Open 结果，
-不会额外创建 Tab。保存／配置目录不存在时，恢复使用 Worker home。
-Open 检查完整的主／子 Presentation 成员，包括分组及固定 Tab；该读取不放宽独立的破坏性操作
-限制。启动期限前未发送的请求结算为不可用。之后启动失败会停止后台维护，请求 Worker 所拥有的
-Host／终端关闭，再确认 Worker／传输线程退出并停止观察入口。未确认的清理保留需要恢复的激活
-状态；单独终止 Worker 不代表已清理 Host。
+启动 IPC 前，协调器准备所有新 shell／provider 预留和 Workbench 绑定。分发前失败尚无 Host／终端，终止创建所拥有的 Worker 并确认退出。每个准备请求仅分发、结算一次；失败／未知结果保持显式，不自动重试。保留目录优先于 Workspace／home 默认值；保存／配置目录缺失时回退到 Worker home。初始几何为 80x24、单元格 8x16，直到调整尺寸。主、子成员恢复不新增 Tab。期限到达时未分发请求结算不可用。后续启动失败停止维护，请求自有 Host／终端关闭，确认 Worker／传输退出并停止观察。未确认清理保留恢复状态；仅终止 Worker 不证明 Host 清理。
 
 正常停止在请求和后台操作收敛后、释放 Worker 前保存。编码或发布失败阻止释放，保持停止失败；此前
 有效存档仍保留，被移走的无效原件仍在 raw 归档中。正常停止先结算唯一后台保存者，再捕获最新目录并发布最终存档，最后才释放
@@ -154,9 +141,9 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 准确字节保留，其中包含此前的版本 7 文档。直接 Server 准入也验证在 durable catalog 不受支持时
 保留 pending 文件。
 
-协调器测试覆盖物理预留与对象图的联合准备、分组／固定／子成员、Open 复用，以及不重放的显式
+协调器测试覆盖物理预留与对象图的联合准备、分组／固定／子成员、绑定重附着，以及不重放的显式
 不可用结果。Windows 存储／进程测试覆盖私有替换、锁和准确句柄终止。真实打包 Windows 正常
-停止／重启验收对比保留的布局／Profile、新运行时身份、shell 执行效果及 TUI Open 复用；
+停止／重启验收对比保留的布局／Profile、新运行时身份、shell 执行效果及 TUI 绑定重附着；
 替换受阻时必须保留旧字节和运行中的终端，直到显式重试成功；无效副本必须保留准确原始字节，
 产生声明的回退／空恢复提醒，且不得绕过 Site owner 准入。缓存捕获测试覆盖物理替换、乱序采样与
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
     HostTerminalId, HostTerminalIdentity, TerminalLaunchFailure, TerminalLaunchMode,
@@ -20,7 +21,6 @@ mod failed_launch_close;
 mod launch_read;
 mod multileaf_membership;
 mod panel_split;
-mod standalone;
 mod tab_create;
 mod terminal_selection;
 
@@ -29,7 +29,8 @@ fn id(value: u128) -> RequestId {
 }
 fn site() -> SiteCoordinator {
     SiteCoordinator::new(Some(
-        WorkbenchAuthority::new(SiteId::parse(&format!("{:032x}", 999)).unwrap()).unwrap(),
+        WorkbenchAuthority::workspace_fixture(SiteId::parse(&format!("{:032x}", 999)).unwrap())
+            .unwrap(),
     ))
 }
 fn worker(generation: u64) -> WorkerPlacement {
@@ -66,8 +67,8 @@ fn identity() -> HostTerminalIdentity {
         HostTerminalId::from_bytes([5; 16]).unwrap(),
     )
 }
-fn launch_authorization(pending: &PendingOperation) -> TerminalOperationAuthorization {
-    let CapabilityNodeMessage::AuthorizedTerminalLaunch(request) = pending.command() else {
+fn launch_authorization(command: &CapabilityNodeMessage) -> TerminalOperationAuthorization {
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(request) = command else {
         panic!("expected launch")
     };
     request.authorization()
@@ -100,175 +101,6 @@ fn assert_membership(site: &mut SiteCoordinator, count: usize) {
 }
 
 #[test]
-fn missing_workbench_refuses_open_without_consuming_terminal_identity_or_reference() {
-    let mut site = SiteCoordinator::new(None);
-    let request = orchbee_client_server_protocol::TerminalOpenRequest::new(id(10), geometry());
-    for _ in 0..2 {
-        assert!(matches!(
-            site.prepare_open(&request, Some(id(11)), Some(worker(1)), Some(expiry())),
-            PreparedOpen::Ready(orchbee_client_server_protocol::OpenOutcome::Unavailable {
-                reason: CreateUnavailableReason::ServerBusy
-            })
-        ));
-    }
-    let planned = dispatch(site.prepare(create(11), Some(worker(1)), Some(expiry())));
-    assert_eq!(
-        u128::from_be_bytes(launch_authorization(&planned).terminal_id().as_bytes()),
-        1
-    );
-}
-
-#[test]
-fn membership_and_terminal_intent_match_before_completion_and_settle_once() {
-    let mut site = site();
-    let request = orchbee_client_server_protocol::TerminalOpenRequest::new(id(10), geometry());
-    let PreparedOpen::Dispatch(pending) =
-        site.prepare_open(&request, Some(id(11)), Some(worker(1)), Some(expiry()))
-    else {
-        panic!("expected launch")
-    };
-    let before = snapshot(&mut site);
-    let PanelNode::Panel {
-        primary_presentation,
-        ..
-    } = &before.terminal_contexts[0].tabs[0].root
-    else {
-        panic!("expected panel")
-    };
-    let binding = primary_presentation.binding.as_ref().unwrap();
-    let authorization = launch_authorization(&pending);
-    assert_eq!(
-        binding.terminal_id.as_str(),
-        format!(
-            "{:032x}",
-            u128::from_be_bytes(authorization.terminal_id().as_bytes())
-        )
-    );
-    assert_eq!(
-        binding.worker_id.as_str(),
-        format!(
-            "{:032x}",
-            u128::from_be_bytes(authorization.worker_id().as_bytes())
-        )
-    );
-    assert_eq!(site.viewer_target(&id(11), worker(1)), None);
-    site.complete(pending, Completion::Unknown, Some(worker(1)))
-        .unwrap();
-    assert_eq!(snapshot(&mut site), before);
-    assert!(matches!(
-        site.prepare_open(&request, None, Some(worker(1)), None),
-        PreparedOpen::Ready(orchbee_client_server_protocol::OpenOutcome::OutcomeUnknown {})
-    ));
-    let next = dispatch(site.prepare(create(12), Some(worker(1)), Some(expiry())));
-    assert_eq!(
-        u128::from_be_bytes(launch_authorization(&next).terminal_id().as_bytes()),
-        2
-    );
-}
-
-#[test]
-fn workbench_capacity_refusal_never_commits_the_prepared_terminal_plan() {
-    use orchbee_workbench_protocol::{
-        WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchLabel,
-        WorkbenchRejectionReason, WorkbenchRevision,
-    };
-    let mut site = site();
-    let initial = snapshot(&mut site);
-    let mut revision = WorkbenchRevision::new(0);
-    let mut request = 0_u128;
-    let mut submit = |site: &mut SiteCoordinator, action| {
-        request += 1;
-        let result = site
-            .execute_workbench(
-                WorkbenchRequest::Command(WorkbenchCommand {
-                    protocol_version: ProtocolVersion,
-                    request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
-                    site_id: initial.site_id.clone(),
-                    expected_revision: revision,
-                    action,
-                })
-                .try_into()
-                .unwrap(),
-                true,
-            )
-            .unwrap();
-        let WorkbenchResponse::Command(result) = result else {
-            panic!("expected command")
-        };
-        match &result.outcome {
-            WorkbenchCommandOutcome::ProjectCreated { revision: next, .. }
-            | WorkbenchCommandOutcome::WorkspaceCreated { revision: next, .. } => revision = *next,
-            WorkbenchCommandOutcome::Rejected {
-                reason: WorkbenchRejectionReason::ResourceLimit,
-                ..
-            } => {}
-            outcome => panic!("unexpected population outcome {outcome:?}"),
-        }
-        result.outcome
-    };
-    let mut projects = Vec::new();
-    for _ in 0..256 {
-        let result = submit(
-            &mut site,
-            WorkbenchAction::ProjectCreate {
-                label: WorkbenchLabel::parse(&"\u{1f41d}".repeat(512)).unwrap(),
-            },
-        );
-        let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = result else {
-            panic!("project population failed")
-        };
-        projects.push(project_id);
-    }
-    // Fill the remaining byte capacity, then use minimal labels so the last refused Workspace
-    // is smaller than the one-Tab aggregate. Collection limits are explicitly checked below.
-    for label in ["\u{1f41d}".repeat(512), "1".to_owned()] {
-        let mut refused = false;
-        for index in 0..1024 {
-            if matches!(
-                submit(
-                    &mut site,
-                    WorkbenchAction::WorkspaceCreate {
-                        project_id: Some(projects[index % projects.len()].clone()),
-                        label: WorkbenchLabel::parse(&label).unwrap(),
-                    }
-                ),
-                WorkbenchCommandOutcome::Rejected {
-                    reason: WorkbenchRejectionReason::ResourceLimit,
-                    ..
-                }
-            ) {
-                refused = true;
-                break;
-            }
-        }
-        assert!(refused, "population did not reach byte capacity");
-    }
-    let before = snapshot(&mut site);
-    assert!(before.terminal_contexts.len() < orchbee_workbench_protocol::MAXIMUM_TERMINAL_CONTEXTS);
-    assert!(before.navigation.projects.iter().all(|p| {
-        before
-            .navigation
-            .workspaces_in_project(Some(&p.project_id))
-            .count()
-            < orchbee_workbench_protocol::MAXIMUM_WORKSPACES_PER_PROJECT
-    }));
-    let request = orchbee_client_server_protocol::TerminalOpenRequest::new(id(10_000), geometry());
-    assert!(matches!(
-        site.prepare_open(&request, Some(id(10_001)), Some(worker(1)), Some(expiry())),
-        PreparedOpen::Ready(orchbee_client_server_protocol::OpenOutcome::Unavailable {
-            reason: CreateUnavailableReason::ServerBusy
-        })
-    ));
-    assert_eq!(snapshot(&mut site), before);
-    assert!(matches!(site.standalone, super::StandaloneTerminal::Empty));
-    let next = dispatch(site.prepare(create(10_001), Some(worker(1)), Some(expiry())));
-    assert_eq!(
-        u128::from_be_bytes(launch_authorization(&next).terminal_id().as_bytes()),
-        1
-    );
-}
-
-#[test]
 fn close_site_identity_remains_observable_after_publication_retirement() {
     use orchbee_workbench_protocol::{
         WorkbenchAction, WorkbenchCommand, WorkbenchTabMoveDirection,
@@ -278,7 +110,7 @@ fn close_site_identity_remains_observable_after_publication_retirement() {
         .workbench
         .as_mut()
         .unwrap()
-        .commit_standalone_intent(PresentationBinding {
+        .append_fixture_tab(PresentationBinding {
             terminal_id: TerminalId::parse("11111111111111111111111111111111").unwrap(),
             worker_id: orchbee_workbench_protocol::WorkerId::parse(
                 "22222222222222222222222222222222",
@@ -295,7 +127,7 @@ fn close_site_identity_remains_observable_after_publication_retirement() {
         site_id: before.site_id.clone(),
         expected_revision: before.revision,
         action: WorkbenchAction::TabMove {
-            terminal_context_id: before.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: before.navigation.workspaces[0].terminal_context_id.clone(),
             tab_id: before.terminal_contexts[0].tabs[0].tab_id.clone(),
             direction: WorkbenchTabMoveDirection::First,
         },

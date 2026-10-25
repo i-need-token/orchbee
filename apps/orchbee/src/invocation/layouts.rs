@@ -41,7 +41,6 @@ pub(super) fn apply(options: &Options, envelope: FailureEnvelope) -> Result<Requ
             stdin: true,
             tab: true,
             workspace: true,
-            standalone: true,
             confirm: true,
             label: true,
             focus: true,
@@ -61,7 +60,6 @@ pub(super) fn apply(options: &Options, envelope: FailureEnvelope) -> Result<Requ
         vec![
             ("--tab", options.tab.is_some()),
             ("--workspace", options.workspace.is_some()),
-            ("--standalone", options.standalone),
         ],
         vec![("--focus", options.focus), ("--no-focus", options.no_focus)],
     ] {
@@ -96,8 +94,6 @@ pub(super) fn apply(options: &Options, envelope: FailureEnvelope) -> Result<Requ
     }
     let destination = if let Some(tab) = &options.tab {
         LayoutDestination::Replace(target(tab.clone(), Resource::Tab, envelope)?)
-    } else if options.standalone {
-        LayoutDestination::New(Some(TabContext::Standalone))
     } else {
         LayoutDestination::New(
             options

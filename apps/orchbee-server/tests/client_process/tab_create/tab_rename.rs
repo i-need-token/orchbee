@@ -9,12 +9,14 @@ fn expected_renamed_snapshot(
 ) -> TestResult<Snapshot> {
     let mut expected = committed.clone();
     expected.revision = revision;
-    let standalone_id = expected.navigation.standalone_terminal_context_id.clone();
+    let initial_workspace_id = expected.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let context = expected
         .terminal_contexts
         .iter_mut()
-        .find(|context| context.terminal_context_id == standalone_id)
-        .ok_or_else(|| io::Error::other("missing expected standalone Terminal Context"))?;
+        .find(|context| context.terminal_context_id == initial_workspace_id)
+        .ok_or_else(|| io::Error::other("missing expected initial_workspace Terminal Context"))?;
     let expected_tab = context
         .tabs
         .iter_mut()
@@ -33,26 +35,18 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
 
     let setup_deadline = deadline();
-    let open_request_id = client_id(1)?;
-    write_obcs(
-        &mut viewer,
-        &ClientMessage::TerminalOpen(TerminalOpenRequest::new(
-            open_request_id.clone(),
-            client_geometry()?,
-        )),
-        setup_deadline,
-    )?;
+    let create_request_id = begin_fixture_tab(&mut viewer, setup_deadline)?;
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(first_launch) =
         read_worker_message(&mut worker, setup_deadline)?
     else {
-        return Err(io::Error::other("missing first standalone Launch").into());
+        return Err(io::Error::other("missing first initial_workspace Launch").into());
     };
     assert_eq!(
         first_launch.authorization().worker_id().as_bytes(),
         FIRST_WORKER.as_bytes()
     );
     let TerminalLaunchMode::Immediate(first_geometry) = first_launch.mode() else {
-        return Err(io::Error::other("standalone Open dispatched a deferred Launch").into());
+        return Err(io::Error::other("initial_workspace Open dispatched a deferred Launch").into());
     };
     let first_host = host_identity(3)?;
     write_worker_message(
@@ -66,26 +60,26 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         )?),
         setup_deadline,
     )?;
-    let ServerMessage::TerminalOpenResult(opened) = read_obcs(&mut viewer, setup_deadline)? else {
-        return Err(io::Error::other("missing standalone Open result").into());
-    };
-    assert_eq!(opened.request_id(), &open_request_id);
-    assert!(matches!(opened.outcome(), OpenOutcome::Opened { .. }));
+    let created = read_command_result(&mut viewer, &create_request_id, setup_deadline)?;
+    assert!(matches!(
+        created.outcome,
+        WorkbenchCommandOutcome::TabCreated { .. }
+    ));
 
     let initial = read_snapshot(&mut creator, 101, setup_deadline)?;
-    let initial_context = standalone_context(&initial)?;
+    let initial_context = initial_workspace_context(&initial)?;
     assert!(initial_context.groups.is_empty());
     assert_eq!(initial_context.tabs.len(), 1);
     let initial_tab = initial_context
         .tabs
         .first()
-        .ok_or_else(|| io::Error::other("missing initial standalone Tab"))?
+        .ok_or_else(|| io::Error::other("missing initial initial_workspace Tab"))?
         .clone();
     let (first_presentation, _) = assert_simple_tab(&initial_tab, "1")?;
     let first_binding = first_presentation
         .binding
         .as_ref()
-        .ok_or_else(|| io::Error::other("first standalone Tab was unbound"))?;
+        .ok_or_else(|| io::Error::other("first initial_workspace Tab was unbound"))?;
     binding_matches_launch(first_binding, &first_launch);
 
     let attach_request_id = client_id(2)?;
@@ -201,7 +195,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
     // Its result stays parked while independent Workbench traffic observes and renames it.
     let committed = read_snapshot(&mut observer, 201, parked_deadline)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
-    let committed_context = standalone_context(&committed)?;
+    let committed_context = initial_workspace_context(&committed)?;
     assert!(committed_context.groups.is_empty());
     assert_eq!(
         committed_context.terminal_context_id,
@@ -273,7 +267,7 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         after_rename,
         expected_renamed_snapshot(&committed, &committed_tab, *renamed_revision)?
     );
-    let renamed_context = standalone_context(&after_rename)?;
+    let renamed_context = initial_workspace_context(&after_rename)?;
     assert_eq!(renamed_context.tabs.first(), Some(&initial_tab));
     let renamed_tab = renamed_context
         .tabs

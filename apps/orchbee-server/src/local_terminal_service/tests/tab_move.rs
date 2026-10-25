@@ -10,7 +10,9 @@ use orchbee_workbench_protocol::{
 #[test]
 fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
     let workers = Arc::new(Mutex::new(WorkerRegistry::new()));
-    let service = Arc::new(LocalTerminalService::new(Arc::clone(&workers)));
+    let service = Arc::new(LocalTerminalService::workspace_fixture(Arc::clone(
+        &workers,
+    )));
     let read = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
@@ -33,7 +35,9 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
             action: WorkbenchAction::TabCreate {
                 placement: None,
                 automatic_label: false,
-                terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+                terminal_context_id: snapshot.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone(),
                 label: WorkbenchLabel::parse("pending").unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
@@ -71,7 +75,9 @@ fn committed_move_finishes_while_another_owner_holds_the_worker_registry() {
         site_id: snapshot.site_id,
         expected_revision: WorkbenchRevision::new(2),
         action: WorkbenchAction::TabMove {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 2))
                 .unwrap(),
             direction: WorkbenchTabMoveDirection::Last,

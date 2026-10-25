@@ -243,7 +243,7 @@ impl SetupKnownCommit {
             ) => {
                 self.operation.validate_label_receipt(&self.commit)?;
                 let workspace = snapshot.navigation.workspace(workspace_id)?;
-                if &workspace.terminal_context_id != baseline.terminal_context_id() {
+                if Some(&workspace.terminal_context_id) != baseline.terminal_context_id() {
                     return None;
                 }
                 navigation
@@ -386,7 +386,7 @@ impl SetupKnownCommit {
             }
             expected
                 .terminal_contexts
-                .push(target.canonical_context().clone());
+                .push(target.canonical_context()?.clone());
             if snapshot != &expected {
                 return None;
             }

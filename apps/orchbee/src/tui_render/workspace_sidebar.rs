@@ -69,7 +69,7 @@ struct Context<'a> {
     observed: Option<&'a crate::machine_spaces::Row>,
     state: Option<&'static str>,
     role: Role,
-    standalone: &'static str,
+    no_workspace: &'static str,
     unnamed: &'static str,
     git_stale: bool,
     /// The Workspace folder shown by `location` when no branch is observed.
@@ -96,7 +96,7 @@ impl<'a> Context<'a> {
             observed,
             state: glyph_state.map(|_| locale.machine_picker_text(key)),
             role,
-            standalone: locale.shell().standalone,
+            no_workspace: locale.shell().no_workspace,
             unnamed: locale.unnamed_workspace(),
             git_stale: view.machines.space_checkpoint_stale(row),
             folder,
@@ -135,7 +135,7 @@ impl<'a> Context<'a> {
                             label
                         }
                     })
-                    .unwrap_or(self.standalone),
+                    .unwrap_or(self.no_workspace),
             ),
             Kind::Branch => self.branch(),
             Kind::Location => self.branch().or(self.folder.as_deref()),
@@ -415,16 +415,16 @@ fn configured_height(view: &ClientView) -> u16 {
         .max(1) as u16
 }
 
-fn identity(target: &SidebarTarget) -> &str {
+fn identity(target: &SidebarTarget) -> Option<&str> {
     match target {
-        SidebarTarget::Project { project_id, .. } => project_id.as_str(),
+        SidebarTarget::Project { project_id, .. } => Some(project_id.as_str()),
         SidebarTarget::Context { target, .. } => match &target.location {
-            crate::terminal_session::NativeContextLocation::Standalone(id) => id.as_str(),
+            crate::terminal_session::NativeContextLocation::NoWorkspace => None,
             crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } => {
-                workspace_id.as_str()
+                Some(workspace_id.as_str())
             }
         },
-        SidebarTarget::Agent { target, .. } => target.member.as_str(),
+        SidebarTarget::Agent { target, .. } => Some(target.member.as_str()),
     }
 }
 
@@ -438,7 +438,7 @@ fn label(row: &SidebarRow<'_>, locale: Locale) -> String {
             }
         }
         SidebarRow::Context { row, .. } => {
-            row.workspace_label().unwrap_or(locale.shell().standalone)
+            row.workspace_label().unwrap_or(locale.shell().no_workspace)
         }
         SidebarRow::Agent { row, .. } => row
             .sidebar_agent()
@@ -468,7 +468,10 @@ fn annotations(
         let parent = view
             .machines
             .sidebar_parent(&target)
-            .map(|parent| identity(&parent).to_owned());
+            .and_then(|parent| identity(&parent).map(str::to_owned));
+        let Some(identity) = identity(&target) else {
+            continue;
+        };
         groups
             .entry((
                 machine,
@@ -490,7 +493,7 @@ fn annotations(
                 },
             ))
             .or_insert_with(Vec::new)
-            .push((index, identity(&target).to_owned()));
+            .push((index, identity.to_owned()));
     }
     let mut annotations = vec![String::new(); rows.len()];
     for peers in groups.values().filter(|peers| peers.len() > 1) {
@@ -1125,7 +1128,7 @@ fn render_group_heading(
     };
     frame.render_widget(
         Paragraph::new(group_heading(
-            locale.machine_picker_text("sidebar-standalone"),
+            locale.machine_picker_text("sidebar-ungrouped"),
             "",
             count,
             usize::from(tracks.primary.width),

@@ -4,7 +4,7 @@ use super::super::*;
 use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_projection::TerminalProjection;
 use crate::terminal_session::mailbox::EventDeadline;
-use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use crate::terminal_session::workbench_projection::project_preferred_workspace;
 use orchbee_client_server_protocol::MAXIMUM_CONTROL_INPUT_BYTES;
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
@@ -724,7 +724,7 @@ pub(in crate::terminal_session::ui) fn starting_split_ui() -> (
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: project_native_standalone_tabs(&split).unwrap(),
+                cache: project_preferred_workspace(&split).unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
             &clock,
@@ -1200,7 +1200,7 @@ fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching()
         expected_view_revision: ClientViewSequence::new(1).unwrap(),
         minimum_workbench_revision: state.cache().revision(),
         intent: ClientViewIntent::Panel {
-            terminal_context_id: state.cache().terminal_context_id().clone(),
+            terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),
             tab_id: tab.tab_id().clone(),
             panel_id: peer.clone(),
         },

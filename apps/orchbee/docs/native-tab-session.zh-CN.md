@@ -5,7 +5,7 @@
 原生 Close 已有下文限定的 Linux 进程证据；打包和生产恢复仍属于独立工作。
 
 [原生上下文选择](native-context-selection.zh-CN.md) 拥有 Workspace 导航、每个 Client 的 Tab/Panel 选择记忆和当前上下文投影扩展。
-其中的位置身份、Empty 选择及保留 provenance 规则扩展下文的独立启动与同上下文 Tab 工作流。
+其中的位置身份、Empty 选择及保留 provenance 规则扩展下文的Workspace 启动与同上下文 Tab 工作流。
 [原生 Workspace 设置](native-workspace-setup.zh-CN.md) 拥有分步创建和首目录输入，
 复用该 Session 的结构准入、carrier 和成员结算。
 
@@ -240,7 +240,7 @@ Workspace shell 恢复仅对 Panel 槽位提供明确例外：在更高修订中
 可以同时承载全新的 Presentation ID 与 Terminal ID，Presentation 标签不变。
 两种新身份均不得与比较中的当前或保留 Context 成员重合。存活 Presentation／Terminal
 身份仍要求完整原元组；只改变绑定或将旧 Presentation 移入另一 Panel 均拒绝。
-Standalone Context 保持原规则。这既保留用户布局，也保持 Presentation 绑定身份不可变。
+这既保留用户布局，也保持 Presentation 绑定身份不可变。
 全生命周期不复用由 Session 分配器负责，不能归功于相邻快照比较。
 
 活动 Tab 内任一 Panel 被替换时，使用既有的整个 anchor 成员清理与安装路径，
@@ -485,13 +485,6 @@ Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；
 已提交恢复仅发送 Snapshot。运行 `cargo test --locked -p orchbee --bin orchbee terminal_session::`
 检查这些状态和消费者。完整原生二进制测试还需既有 Server、Worker 和 terminal-host 进程二进制。
 这些检查不构造 Gone 证明，也不建立完整 Close 集成。
-Windows 普通入口使用 `NativeStartupTarget::LocalDirectory`；显式兼容入口和 Linux/macOS 入口
-保留 `TerminalIntent::Standalone`。遗留 `Create`/`Attach`、其执行器和渲染器，以及已连接的
-遗留 TUI 入口只为测试编译。既有进程见证保留渲染、输入、Resize 和终端模式恢复断言；它不证明
-生产启动路径。仅由测试使用的 Close 检查辅助函数和重导出采用同样的明确边界。Create reducer
-测试在清理前准备候选，并使用共用安装计划。退休用例覆盖保留提交、已验证且待清理的候选、
-清理前确定的投影不可用，以及已安装选择。不存在单独的先 Detach 后 Snapshot 状态或成功消费者。
-Reducer 测试不声称证明载体或 mailbox 回执；这些义务仍由原生执行器与 NativeUi 成员关系测试承担。
 
 确定性测试覆盖严格 0..256 身份/结构及精确相同/create/Move
 修订检查、覆盖前复用创建 ID、不可变元组/绑定/Presentation 标签拒绝、三个稳定阶段、可缩减/重放的
@@ -538,8 +531,7 @@ Server 所有的 Workbench 快照仍是 Tab 顺序、标签、Panel 与 Presenta
 
 ## 纯函数严格投影
 
-在 `terminal_session/workbench_projection.rs` 中，用以下仅限 Unix 的纯函数投影替换
-`select_standalone_binding`：
+纯 Workspace 投影位于 `terminal_session/workbench_projection.rs`：
 
 ```rust
 struct NativeContextTabs {
@@ -597,17 +589,12 @@ struct CreatedTabExpectation {
     placement: Option<TabCreationPlacement>,
 }
 
-fn project_native_standalone_tabs(
+fn project_preferred_workspace(
     snapshot: &Snapshot,
 ) -> Result<NativeContextTabs, NativeProjectionError>;
 ```
 
-启动投影器要求恰好存在一个 ID 等于 `navigation.standaloneTerminalContextId` 的 Terminal Context。
-当前上下文投影器改为验证已选择的 canonical 位置。其他 Project/Workspace 的导航元数据保留，
-非活动上下文的 Tab 布局不在这里验证。活动上下文可包含恰好 0 至 256 个有序 Tab、规范分组及固定前缀；本地验证分组身份、标签、引用和成员连续性。每个 Tab 拥有一个 Panel 根节点或递归二叉 Panel 分屏树，每个叶子有一个已绑定主 Presentation 及最多十六个已绑定子 Presentation。只要存在一个不支持的成员，就拒绝整个
-投影；投影器绝不筛选、重排或选择第一个可挂接成员。两个标签均原样保留，包括重复值和空白，
-并保留树中的每个 Panel、split、slot、方向、Presentation 和 terminal identity。所有叶子的
-Panel、Presentation 和 terminal ID 必须唯一；split 与 slot ID 必须在整个活动上下文投影中唯一。
+启动投影按规范顺序选择真实 Workspace；没有 Workspace／Context 时选择无身份空落点。当前上下文投影校验准确 Workspace／Context 对，所有 Context 必须恰有一个所有者。所选 Workspace 接纳 0–256 个有序 Tab、分组及固定前缀。每个 Tab 保留完整二叉树和准确 Panel、Split、slot、方向、Presentation、绑定身份。不支持的成员使整份投影被拒绝，不静默过滤成员或选择回退项。非活动布局保留为规范快照数据。
 
 另外两个纯验证器负责替换缓存：
 
@@ -671,8 +658,7 @@ Tab／Panel／Presentation ID 必须不存在于任何基线 context。提交 re
 单成员及 255/256 边界、错误提交和不可变成员分歧。Move 结果及显式恢复状态转换使用此验证器；
 其邮箱、传输及真实 UI 证据记录于下方。
 
-纯投影器接受空的独立上下文，从而完整覆盖 0..256 一致性。冷启动和每次活动会话刷新各自额外
-要求当前状态对应的活动成员不变量。
+投影接纳空 Workspace 和空 Workbench。`NoWorkspace` 没有 Context ID，也不持久化。冷启动及刷新仍在任何查看器附着前执行阶段特有的活动成员不变式。
 
 ## Panel 投影与本地焦点
 
@@ -729,31 +715,20 @@ controller 授权流动，该授权绑定于一个 Session、viewer、Worker 代
 
 ## 启动
 
-冷启动流程仍严格如下：
+冷启动遵循当前 Workspace 模型：
 
 1. 测量完整、真实的终端尺寸；
-2. 提交一次 `terminal.open` ensure/join，并等待其最终 `Opened` 结果；
-3. 在同一载体上提交一次 `SnapshotRead`；
-4. 验证完整的 `NativeContextTabs` 投影，并要求存在 `tabs[0]`；
-5. 设置 `active_tab_id = tabs[0].tab_id`，分配初始挂接代次，并发送从快照精确取得的
-   `AttachBinding`；
-6. 执行 Acquire，按条件执行 Resize，接收新的完整投影并绘制，发送匹配的 `FrameApplied`，
-   且必须收到 `FeedbackAccepted` 后才能发布 Ready。
+2. 在已准入的载体上提交关联的 `SnapshotRead`；
+3. 解析显式或记忆中的 Workspace 选择，否则使用显示顺序中的首个规范 Workspace；满足条件的 Windows 目录启动走普通 Workspace launch 路径；
+4. 验证完整的 `NativeContextTabs` 投影，接受空 Workspace，或在 Workbench 没有 Workspace 时进入 `NoWorkspace` 落点；
+5. 发布 Bootstrap，由其精确 UI 结算安装缓存，并在存在所选终端时分配初始挂接代次；
+6. 对该所选终端发送来自快照的 `AttachBinding`，执行 Acquire，按条件执行 Resize，接收并绘制新的完整投影，发送匹配的 `FrameApplied`，且必须收到 `FeedbackAccepted` 后才能发布已挂接的 Ready。
 
-Open 返回的创建引用或终端身份均不参与选择。启动不重试快照，也没有后备路径，并沿用现有覆盖
-整个启动过程的截止时间。
+空选择不创建终端或挂接。启动沿用现有覆盖整个过程的截止时间，绝不从隐式 Open 结果取得选择。目录创建与恢复遵循各自的 owner 契约，不引入另一条终端创建路径。
 
-原生邮箱在 Open 前就已存在，此时没有期望挂接。唯一的请求游标提供 Open 和 SnapshotRead 的
-身份。工作线程准备经过严格验证且非空的投影，然后把一个 Bootstrap 事件放入现有 `EventCell`。
-在该事件的精确 UI 结算时，UI 检查原始启动截止时间，并原子分配首个挂接代次、安装缓存与
-Starting 选择、发布期望状态镜像，随后放入 `BootstrapApplied(BootstrapTarget)`。该目标只包含
-已验证的首个 Tab 及其来自快照的绑定，不携带新的 Switch/Create 截止时间。只有该回复才能授权
-AttachBinding。初始化前不取出命令，也不引入临时 Tab 身份、额外通道或独立请求游标。
+原生邮箱在 SnapshotRead 前就已存在，此时没有期望挂接。其请求游标提供快照及后续控制请求的身份。工作线程通过既有 `EventCell` 发布已验证投影。UI 结算检查原始截止时间并原子安装缓存。包含所选 `BootstrapTarget` 的回复授权其精确 AttachBinding；空回复使 Workbench 在没有挂接时仍可使用。不引入临时 Tab 身份、额外通道或独立请求游标。
 
-投影无效或为空、事件放入或 UI 结算过期，以及代次耗尽，均不会安装缓存与期望挂接。已经发出的
-请求身份保持已消耗。重复或不再拥有当前等待的过时启动回复，不能再次分配代次或挂接。
-确定性邮箱测试覆盖这些边界及等待 UI 时关闭的情况；脚本化载体测试覆盖 Open、SnapshotRead
-与 Attach 失败及精确的身份顺序。三个 Tab 模型都从启动完成后开始，不证明这些冷启动实现声明。
+无效投影、事件放入或 UI 结算过期，以及挂接代次耗尽，都不能部分安装选择。已经发出的请求身份保持已消耗。重复或已被替代的启动回复不能再次分配代次或挂接。现有邮箱与脚本化载体回归覆盖启动交接、SnapshotRead 和挂接失败；三个 Tab 模型都从启动完成后开始，不能证明冷启动行为。
 
 ## 呈现调度与保留画面
 
@@ -1755,16 +1730,7 @@ reconcile 入队是它的三个受守卫位置。
 cursor 均跨退休保留、耗尽不能回绕，以及恢复开始时没有 live work 或 bootstrap。在 Linux 运行
 `cargo test --locked -p orchbee --bin orchbee retired_`。
 
-Linux PTY Close witness 先观察新的 Disconnected 帧，再执行一次显式 Refresh，随后验证两个
-Client 的 Empty 状态、精确移除后的完整公开 Snapshot 相等、原 shell 退出，以及有界 500 ms
-新观察期间没有自动 Create。同一用例随后由原只读 Client 手动按 `c`，验证同一 Session/context
-内的新 Tab/Panel/Presentation/Terminal 身份和真实新 shell，并将 peer 刷新到只读模式。
-普通退出保留新 shell 及原 Server/Worker/Host 进程。后续裸 Open 返回相同的规范 Snapshot、
-shell PID 和 shell 局部标记。这不改变 Session 仍为 Empty 时裸 Open 可独立引导创建的已接受行为。
-退休 finalization 在 tick 返回并绘制之前同步关闭并 join task。
-准备本地 Server／Worker／Host cohort 后，运行
-`cargo test --locked -p orchbee --all-targets --all-features`。
-这些检查不证明远端引用清理、重启接管或通用恢复。
+Linux PTY Close 证据要求显式 Refresh 前观察新 Disconnected 帧、两个 Client 看到准确空 Workspace、原 shell 退出及有界检查无自动创建。之后显式 `c` 在相同 Workspace 创建新成员身份，另一个 Client 刷新后只读附着。Client 退出保留 shell 及 Server／Worker／Host，之后启动重附着规范成员而不启动终端。进程检查要求已暂存 cohort，不证明远端清理、重启接管或通用恢复。
 
 ## 上下文删除恢复
 

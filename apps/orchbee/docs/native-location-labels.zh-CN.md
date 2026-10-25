@@ -2,12 +2,7 @@
 
 ## 范围与归属
 
-原生 Client 使用 `Ctrl+B r` 重命名当前 Workspace，使用 `Ctrl+B Shift+R` 重命名其所属 Project。
-Standalone 没有这两种快捷键目标，在本地拒绝操作且不发送命令。
-已绘制 Project 的重命名动作从 Workspace 或 Standalone 为准确的目标打开同一编辑器，
-包括空 Project 和非当前 Project；从不选择子 Workspace。Server 既有 `project.rename` 和
-`workspace.rename` 动作拥有共享标签。本参考扩展 [Workspace 设置](native-workspace-setup.zh-CN.md)
-和[上下文选择](native-context-selection.zh-CN.md)，不引入另一套 mutation owner。
+原生 Client 用 `Ctrl+B r` 重命名当前 Workspace，用 `Ctrl+B Shift+R` 重命名其 Project。未分组 Workspace 没有 Project 快捷键目标；`NoWorkspace` 没有这两个快捷键目标。不可用操作在本地返回，不提交命令。已绘制 Project 的 Rename 仍指向准确 Project，包括空或非当前 Project，不选择子 Workspace。既有 `project.rename` 与 `workspace.rename` 拥有共享标签；[Workspace 设置](native-workspace-setup.zh-CN.md)及[上下文选择](native-context-selection.zh-CN.md)保留各自变更／选择所有权。
 
 编辑器预填 canonical 标签，精确保留最多 512 个 Unicode scalar，Enter 提交、Escape 取消、
 Backspace 删除、Ctrl+U 清空。每次打开分配新 token，并要求首次完整绘制。共享 modal 的 UTF-8、

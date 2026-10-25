@@ -18,7 +18,7 @@ Tab 接受身份、后缀或唯一标签；Panel 接受身份或后缀。导出 
 导出不激活 Tab、不改变焦点、不调整 Host，也不获取终端控制权。
 
 结果包含 `layout:{workspaceId,terminalContextId,tabId,zoomed,focusedPanelId,root}`。
-独立上下文的 workspaceId 为 null。分割包含 `type:split`、`direction:right|down`、`ratio`、`first`、`second`。
+Workspace ID 必填。分割包含 `type:split`、`direction:right|down`、`ratio`、`first`、`second`。
 Panel 包含 `type:panel`、描述性 `panelId`、`rightClick`、`primary` 和有序 `children`。
 成员包含描述性 `presentationId`、回退 `name`、必填可空的手工 `label`、`cwd`、`command`、`start` 及空 `env`。
 已绑定成员携带可获得的 cwd 和不可变显式命令 argv；不可用 cwd 及默认 shell command 为 null。
@@ -31,8 +31,7 @@ Split 身份、有序槽位及所有已绑定主／子成员必须匹配捕获�
 
 ## 应用
 
-`layout apply (--file <path> | --stdin) [--tab <target> --confirm | --workspace <target> |
---standalone] [--label <label>] [--client <id>] [--focus | --no-focus]
+`layout apply (--file <path> | --stdin) [--tab <target> --confirm | --workspace <target>] [--label <label>] [--client <id>] [--focus | --no-focus]
 [--timeout <milliseconds>] [--format text|json]` 创建新 Tab 或替换所选 Tab。
 省略目的地时使用所选 Client 上下文。替换需要确认；导出身份不用于选择目的地或复用进程。
 显式目的地且省略 `--client` 和 `--focus` 时可无头运行（v3），包括已确认的替换。比例使用共享 Server CAS。

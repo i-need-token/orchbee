@@ -8,7 +8,6 @@ use crate::{
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, WorkerGeneration, read_message as read_capability_message,
 };
-use orchbee_client_server_protocol::{Geometry, OpenOutcome, TerminalOpenRequest};
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_site_protocol::WorkerId as LocalWorkerId;
 use orchbee_workbench_protocol::{
@@ -36,7 +35,9 @@ fn command(service: &LocalTerminalService, request: u128, revision: u64) -> Work
         action: WorkbenchAction::TabCreate {
             placement: None,
             automatic_label: false,
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
             label: WorkbenchLabel::parse("service tab").unwrap(),
             geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
             launch: None,
@@ -72,7 +73,8 @@ fn worker() -> WorkerPlacement {
 
 #[test]
 fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_worker() {
-    let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
+    let service =
+        LocalTerminalService::workspace_fixture(Arc::new(Mutex::new(WorkerRegistry::new())));
     let mut command = command(&service, 1_001, 0);
     let WorkbenchAction::TabCreate { placement, .. } = &mut command.action else {
         unreachable!()
@@ -117,7 +119,7 @@ fn service_replays_new_group_pending_and_final_before_missing_entropy_clock_or_w
 #[test]
 fn registry_and_site_gate_failures_before_commit_return_server_busy() {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
-    let service = LocalTerminalService::new(Arc::clone(&registry));
+    let service = LocalTerminalService::workspace_fixture(Arc::clone(&registry));
     let registry_command = command(&service, 1_051, 0);
     let poison = Arc::clone(&registry);
     assert!(
@@ -138,7 +140,8 @@ fn registry_and_site_gate_failures_before_commit_return_server_busy() {
         }
     ));
 
-    let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
+    let service =
+        LocalTerminalService::workspace_fixture(Arc::new(Mutex::new(WorkerRegistry::new())));
     let site_command = command(&service, 1_052, 0);
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -178,7 +181,7 @@ fn site_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -
     worker_peer.set_read_timeout(Some(Duration::from_secs(5)))?;
     let owner_thread = thread::spawn(move || owner.run(server));
 
-    let service = Arc::new(LocalTerminalService::new(registry));
+    let service = Arc::new(LocalTerminalService::workspace_fixture(registry));
     let command = command(&service, 1_075, 0);
     let creator_service = Arc::clone(&service);
     let (creator_sender, creator_result) = mpsc::sync_channel(1);
@@ -215,7 +218,7 @@ fn site_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -
 }
 
 #[test]
-fn silent_worker_timeout_settles_both_owners_and_notifies_first_open_waiter() -> TestResult {
+fn silent_worker_timeout_settles_both_owners() -> TestResult {
     const OUTER_DEADLINE: Duration = Duration::from_secs(35);
 
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
@@ -236,8 +239,7 @@ fn silent_worker_timeout_settles_both_owners_and_notifies_first_open_waiter() ->
     worker_peer.set_read_timeout(Some(Duration::from_secs(5)))?;
     let owner_thread = thread::spawn(move || owner.run(server));
 
-    let mut service = LocalTerminalService::new(Arc::clone(&registry));
-    service.standalone_wait = Duration::from_secs(30);
+    let service = LocalTerminalService::workspace_fixture(Arc::clone(&registry));
     let service = Arc::new(service);
     let command = command(&service, 1_101, 0);
     let terminal_context_id = match &command.action {
@@ -259,16 +261,6 @@ fn silent_worker_timeout_settles_both_owners_and_notifies_first_open_waiter() ->
         return Err("tab.create did not dispatch a terminal Launch".into());
     };
 
-    let waiter_service = Arc::clone(&service);
-    let (waiter_sender, waiter_result) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let outcome = waiter_service.open_standalone(&TerminalOpenRequest::new(
-            RequestId::parse(&format!("{:032x}", 1_102)).unwrap(),
-            Geometry::new(80, 24, 8, 16).unwrap(),
-        ));
-        let _ignored = waiter_sender.send(outcome);
-    });
-
     let result = creator_result
         .recv_timeout(OUTER_DEADLINE)
         .map_err(|_timeout| "tab.create did not settle after the production Worker deadline")??;
@@ -277,20 +269,14 @@ fn silent_worker_timeout_settles_both_owners_and_notifies_first_open_waiter() ->
         WorkbenchCommandOutcome::TabCreated {
             revision: WorkbenchRevision::new(1),
             terminal_context_id,
-            tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 2))?,
-            panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&format!("{:032x}", 3))?,
+            tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 5))?,
+            panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&format!("{:032x}", 6))?,
             presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&format!(
                 "{:032x}",
-                4
+                7
             ))?,
             terminal_outcome: WorkbenchTerminalOutcome::OutcomeUnknown {},
         }
-    );
-    assert_eq!(
-        waiter_result
-            .recv_timeout(OUTER_DEADLINE)
-            .map_err(|_timeout| "Open waiter was not notified after terminal settlement")?,
-        OpenOutcome::OutcomeUnknown {}
     );
     assert_eq!(
         owner_thread

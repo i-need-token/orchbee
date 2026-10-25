@@ -41,7 +41,7 @@ fn baseline() -> orchbee_workbench_protocol::Snapshot {
 #[test]
 fn navigation_receipt_requires_membership_and_order_together_and_preserves_contexts() {
     let baseline = baseline();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let operation = state
         .plan_navigation_configuration(
             NavigationConfiguration::MoveWorkspace {
@@ -80,7 +80,7 @@ fn navigation_receipt_requires_membership_and_order_together_and_preserves_conte
     assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
     let mut exact = baseline.clone();
     exact.revision = WorkbenchRevision::new(2);
-    exact.navigation.workspaces[0].project_id = Some(project(901));
+    exact.navigation.workspaces[1].project_id = Some(project(901));
     exact.navigation.workspace_order = vec![workspace(911), workspace(910), workspace(912)];
     assert!(matches!(
         state.prepare_setup_refresh(1, &exact),
@@ -90,7 +90,7 @@ fn navigation_receipt_requires_membership_and_order_together_and_preserves_conte
         let mut hostile = exact.clone();
         match fault {
             0 => hostile.navigation.workspace_order = baseline.navigation.workspace_order.clone(),
-            1 => hostile.navigation.workspaces[0].project_id = Some(project(900)),
+            1 => hostile.navigation.workspaces[1].project_id = Some(project(900)),
             2 => hostile.navigation.project_order.reverse(),
             _ => hostile.terminal_contexts[0].tabs[0].label = "Unrelated edit".into(),
         }
@@ -110,7 +110,7 @@ fn navigation_receipt_requires_membership_and_order_together_and_preserves_conte
 fn sidebar_overlay_is_owned_by_the_admitted_operation_and_never_changes_the_canonical_cache() {
     for uncertain in [false, true] {
         let baseline = baseline();
-        let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
         let operation = state
             .plan_navigation_configuration(
                 NavigationConfiguration::MoveWorkspace {

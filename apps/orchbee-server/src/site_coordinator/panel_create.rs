@@ -4,10 +4,7 @@ use super::tab_create::{
     pending_plugin_environment_matches, placement_matches_worker, record_launch_failure,
     terminal_outcome, terminal_preflight_reason, unavailable_by_id,
 };
-use super::{
-    PostcommitCoordinationError, SiteCoordinator, StandaloneTerminal, open_outcome,
-    presentation_binding, tree_composition_matches,
-};
+use super::{PostcommitCoordinationError, SiteCoordinator, presentation_binding};
 use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds};
 use orchbee_client_server_protocol::{
@@ -30,7 +27,6 @@ pub(crate) enum PreparedTerminalPanelCreate {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct CompletedTerminalPanelCreate {
     pub(crate) result: WorkbenchCommandResult,
-    pub(crate) standalone_changed: bool,
 }
 
 pub(crate) struct PendingTerminalPanelCreate {
@@ -79,7 +75,6 @@ impl SiteCoordinator {
         let Self {
             terminals,
             workbench,
-            standalone,
             ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
@@ -159,17 +154,6 @@ impl SiteCoordinator {
             }
             None => (launch, None),
         };
-        if admission
-            .staged_metadata()
-            .standalone_membership()
-            .is_some_and(|membership| !tree_composition_matches(membership, standalone, terminals))
-        {
-            return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
-        }
-        let settles_first = admission
-            .staged_metadata()
-            .standalone_membership()
-            .is_some_and(|membership| membership.is_empty());
         let launch = plugin_use
             .as_ref()
             .map(|resolved| resolved.launch.clone())
@@ -177,15 +161,8 @@ impl SiteCoordinator {
         let plugin_environment = plugin_use
             .as_ref()
             .map(|resolved| resolved.environment.clone());
-        let (worker_constraint, workspace_cwd) = if let Some(membership) =
-            admission.staged_metadata().standalone_membership()
-        {
-            let _ = membership;
-            (None, None)
-        } else {
-            let Some((worker_id, path)) = admission.staged_metadata().workspace_launch() else {
-                return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
-            };
+        let (worker_constraint, workspace_cwd) = {
+            let (worker_id, path) = admission.staged_metadata().workspace_launch();
             let Ok(worker_id) = orchbee_client_server_protocol::WorkerId::parse(worker_id.as_str())
             else {
                 return PreparedTerminalPanelCreate::Ready(admission.retire_composition_failure());
@@ -293,11 +270,11 @@ impl SiteCoordinator {
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
             || authorization.worker_generation() != worker.generation
-            || metadata.is_standalone() != workspace_cwd.is_none()
+            || workspace_cwd.is_none()
         {
             drop(workbench_plan);
             drop(terminal);
-            workbench.retire_standalone_composition();
+            workbench.retire_terminal_membership();
             return PreparedTerminalPanelCreate::Ready(unavailable_by_id(
                 metadata.request_id().clone(),
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
@@ -306,9 +283,6 @@ impl SiteCoordinator {
         // Every fallible association check precedes the two infallible owner moves.
         let terminal = terminal.commit();
         let pending_workbench = workbench_plan.commit_into_pending();
-        if settles_first {
-            *standalone = StandaloneTerminal::Creating(reference.clone());
-        }
         PreparedTerminalPanelCreate::Dispatch(PendingTerminalPanelCreate {
             workbench: pending_workbench,
             terminal,
@@ -330,7 +304,6 @@ impl SiteCoordinator {
         let Self {
             terminals,
             workbench,
-            standalone,
             ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
@@ -340,14 +313,6 @@ impl SiteCoordinator {
             return Err(PostcommitCoordinationError);
         }
         let metadata = pending.workbench.metadata().clone();
-        if metadata.is_standalone() {
-            let membership = workbench
-                .tree_standalone_membership()
-                .map_err(|_error| PostcommitCoordinationError)?;
-            if !tree_composition_matches(&membership, standalone, terminals) {
-                return Err(PostcommitCoordinationError);
-            }
-        }
         let PendingTerminalPanelCreate {
             workbench: workbench_pending,
             terminal,
@@ -363,9 +328,6 @@ impl SiteCoordinator {
             .map_err(|_mismatch| PostcommitCoordinationError)?;
         let terminal_outcome = terminal_outcome(&reference, metadata.geometry(), terminal.result())
             .ok_or(PostcommitCoordinationError)?;
-        let standalone_changed = metadata.is_standalone()
-            && matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference);
-        let settled_open = standalone_changed.then(|| open_outcome(&reference, terminal.result()));
         let settlement = workbench
             .prepare_terminal_panel_create_settlement(workbench_pending, terminal_outcome.clone())
             .map_err(|_mismatch: WorkbenchPanelCreateSettlementTokenMismatch| {
@@ -380,13 +342,7 @@ impl SiteCoordinator {
             metadata.binding(),
             launch.as_ref(),
         );
-        if let Some(outcome) = settled_open {
-            *standalone = StandaloneTerminal::Settled { reference, outcome };
-        }
-        Ok(CompletedTerminalPanelCreate {
-            result,
-            standalone_changed,
-        })
+        Ok(CompletedTerminalPanelCreate { result })
     }
 }
 

@@ -65,7 +65,9 @@ fn sample(
             split_revision: None,
             phase: ClientViewPhase::Ready,
             selection: Some(ClientViewSelection {
-                terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+                terminal_context_id: snapshot.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone(),
                 tab_id: None,
                 panel_id: None,
                 zoomed: false,
@@ -104,7 +106,9 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         expected_view_revision: first_view.view_revision,
         minimum_workbench_revision: snapshot.revision,
         intent: ClientViewIntent::Context {
-            terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
         },
     };
     let submit = ClientViewAction::Submit {
@@ -174,7 +178,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
                     expected_view_revision: client.view_revision,
                     minimum_workbench_revision: snapshot.revision,
                     intent: ClientViewIntent::Context {
-                        terminal_context_id: snapshot.navigation.standalone_terminal_context_id
+                        terminal_context_id: snapshot.navigation.workspaces[0].terminal_context_id
                     }
                 })
             }

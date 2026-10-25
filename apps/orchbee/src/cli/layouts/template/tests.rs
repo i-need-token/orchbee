@@ -35,7 +35,7 @@ fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
     );
     let export = json!({"schema":"orchbee.layout.export","version":1,
         "source":{"kind":"layout-observation","scope":"client","siteId":"1".repeat(32),"revision":"1","clientId":"2".repeat(32),"viewRevision":"1"},
-        "result":{"layout":{"workspaceId":null,"terminalContextId":"3".repeat(32),"tabId":"4".repeat(32),
+        "result":{"layout":{"workspaceId":"7".repeat(32),"terminalContextId":"3".repeat(32),"tabId":"4".repeat(32),
             "focusedPanelId":null,"zoomed":true,"root":{"type":"panel","panelId":"5".repeat(32),
                 "rightClick":"orchbee","children":[],"primary":{"presentationId":"6".repeat(32),
                     "name":"Retained","label":null,"cwd":null,"command":null,"env":{},"start":false}}}}});
@@ -57,6 +57,7 @@ fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
     for (parent, field) in [
         ("/source", "scope"),
         ("/source", "clientId"),
+        ("/result/layout", "workspaceId"),
         ("/result/layout", "zoomed"),
         ("/result/layout/root", "children"),
         ("/result/layout/root/primary", "label"),
@@ -76,6 +77,12 @@ fn export_and_herdr_templates_keep_literal_launch_values_without_reusing_ids() {
             "{field}"
         );
     }
+    let mut missing_workspace = export.clone();
+    missing_workspace["result"]["layout"]["workspaceId"] = Value::Null;
+    assert_eq!(
+        parse_value(missing_workspace),
+        Err(InputError::InvalidLayout)
+    );
     let mut invalid = export;
     invalid["result"]["layout"]["root"] = root;
     assert_eq!(parse_value(invalid), Err(InputError::InvalidLayout));

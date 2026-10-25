@@ -52,7 +52,6 @@ fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_wor
     for (empty, unbound) in [(false, false), (true, false), (false, true)] {
         let geometry = fixture_geometry()?;
         let mut steps = vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,

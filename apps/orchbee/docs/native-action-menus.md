@@ -331,12 +331,12 @@ The [Windows navigator](native-context-selection.md#windows-capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 
-| Project context at opening                       | Availability and effect                                                                                                                         |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                              |
-| Standalone, a different Project, or no Workspace | New Workspace, rename and organization-only Delete target the exact Project; Worktree appears only for its admitted derived first-member source |
-| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                                                                           |
-| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                                                                       |
+| Project context at opening                                   | Availability and effect                                                                                                                         |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project               | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                              |
+| An ungrouped Workspace, a different Project, or no Workspace | New Workspace, rename and organization-only Delete target the exact Project; Worktree appears only for its admitted derived first-member source |
+| Project or captured Workspace/Directory replaced             | Cancel before confirmation or handoff; never substitute another child                                                                           |
+| Cancel                                                       | Preserve the native origin and caller-owned sidebar focus                                                                                       |
 
 ## Transitions and cancellation
 

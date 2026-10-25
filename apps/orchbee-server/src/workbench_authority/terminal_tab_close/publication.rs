@@ -28,7 +28,6 @@ pub struct PreparedWorkbenchTabClosePublication<'a> {
     prepared: PreparedProjectionAdvance,
     before: WorkbenchTerminalMembership,
     after: WorkbenchTerminalMembership,
-    removed: Option<WorkbenchTerminalTab>,
     removed_members: Vec<WorkbenchTerminalTab>,
     revision: WorkbenchRevision,
     status: WorkbenchTabCloseStatus,
@@ -42,12 +41,6 @@ impl PreparedWorkbenchTabClosePublication<'_> {
     #[must_use]
     pub fn after_membership(&self) -> &WorkbenchTerminalMembership {
         &self.after
-    }
-    /// The first captured member, retained for legacy callers. All scopes may
-    /// remove multiple Presentations; composition uses `exact_removed_members`.
-    #[must_use]
-    pub fn exact_removed_member(&self) -> Option<&WorkbenchTerminalTab> {
-        self.removed.as_ref()
     }
     #[must_use]
     pub fn exact_removed_members(&self) -> &[WorkbenchTerminalTab] {
@@ -109,7 +102,6 @@ impl WorkbenchAuthority {
         // The scope-level Context identity — never a member — is the
         // publication address; a zero-member Context scope has no first leaf.
         let context_id = record.terminal_context_id.clone();
-        let target = targets.first().cloned();
         let tab_id = record.tab_id().cloned();
         let panel_id = record.panel_id().cloned();
         if self.ledger_bytes < record.reserved_bytes {
@@ -323,7 +315,6 @@ impl WorkbenchAuthority {
             prepared,
             before,
             after,
-            removed: target.map(|target| target.member),
             removed_members: targets.into_iter().map(|target| target.member).collect(),
             revision,
             status,

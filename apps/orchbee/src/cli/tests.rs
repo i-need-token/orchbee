@@ -532,16 +532,19 @@ fn terminal_list_shows_location_handles_and_program_names() {
         tab_id: "4".repeat(32),
         terminal_context_id: "5".repeat(32),
     };
-    let placement = |workspace: Option<&str>| TerminalListDetails {
+    let placement = |workspace: &str| TerminalListDetails {
         placement: Some(super::results::TerminalPlacement {
             handle: "@terminal:f".into(),
-            workspace: workspace.map(str::to_owned),
+            workspace: workspace.to_owned(),
             panel: "@panel:3".into(),
         }),
         title: Some(r"C:\Program Files\PowerShell\7\pwsh.exe".into()),
         ..TerminalListDetails::default()
     };
-    for (locale, workspace) in [(Locale::EnUs, Some("@workspace:9")), (Locale::ZhCn, None)] {
+    for (locale, workspace) in [
+        (Locale::EnUs, "@workspace:9"),
+        (Locale::ZhCn, "@workspace:9"),
+    ] {
         let output = super::success_output(
             Projection::TerminalListHuman(TerminalListDocument {
                 rows: vec![row.clone()],
@@ -558,10 +561,7 @@ fn terminal_list_shows_location_handles_and_program_names() {
         assert_eq!(cells[0], "@terminal:f", "{text}");
         assert_eq!(cells[1], "pwsh", "{text}");
         assert!(line.contains("@panel:3"), "{text}");
-        assert!(
-            line.contains(workspace.unwrap_or(locale.cli_labels().standalone)),
-            "{text}"
-        );
+        assert!(line.contains(workspace), "{text}");
     }
 }
 
@@ -818,10 +818,9 @@ fn renderer_path_lands_exactly_on_and_just_over_the_bound() {
                 pinned: false,
                 group_id: None,
                 context: ContextRef {
-                    standalone: true,
                     terminal_context_id: ID.to_owned(),
-                    workspace_id: None,
-                    workspace_label: None,
+                    workspace_id: "22222222222222222222222222222222".to_owned(),
+                    workspace_label: "Workspace".to_owned(),
                 },
             },
             root: json!({"blob": "x".repeat(blob)}),

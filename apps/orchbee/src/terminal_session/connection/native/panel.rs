@@ -59,7 +59,10 @@ impl NativeExecutor {
                 let request =
                     WorkbenchPanelSplitRequest::try_from(command(WorkbenchAction::PanelSplit {
                         right_click: Default::default(),
-                        terminal_context_id: baseline.terminal_context_id().clone(),
+                        terminal_context_id: baseline
+                            .terminal_context_id()
+                            .ok_or(CarrierFailure::Protocol)?
+                            .clone(),
                         tab_id: operation.target().tab_id().clone(),
                         panel_id: operation.panel_id().clone(),
                         direction: *direction,
@@ -106,7 +109,10 @@ impl NativeExecutor {
             PanelIntent::Close => {
                 let request =
                     WorkbenchPanelCloseRequest::try_from(command(WorkbenchAction::PanelClose {
-                        terminal_context_id: baseline.terminal_context_id().clone(),
+                        terminal_context_id: baseline
+                            .terminal_context_id()
+                            .ok_or(CarrierFailure::Protocol)?
+                            .clone(),
                         tab_id: operation.target().tab_id().clone(),
                         panel_id: operation.panel_id().clone(),
                     }))
@@ -137,7 +143,10 @@ impl NativeExecutor {
             } => {
                 let request =
                     WorkbenchPanelPlacementRequest::try_from(command(WorkbenchAction::PanelMove {
-                        terminal_context_id: baseline.terminal_context_id().clone(),
+                        terminal_context_id: baseline
+                            .terminal_context_id()
+                            .ok_or(CarrierFailure::Protocol)?
+                            .clone(),
                         tab_id: operation.target().tab_id().clone(),
                         panel_id: operation.panel_id().clone(),
                         target_panel_id: target_panel_id.clone(),

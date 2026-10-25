@@ -217,7 +217,7 @@ pub(super) fn close_tab_ids(
         _ => return None,
     };
     Some(close_set_targets(
-        &state.cache().canonical_context().tabs,
+        &state.cache().canonical_context()?.tabs,
         &state.selected_tab_ids(),
         target,
         kind,

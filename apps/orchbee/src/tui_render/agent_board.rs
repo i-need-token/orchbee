@@ -1145,7 +1145,7 @@ fn location_label(text: ShellText, placement: &PresentationPlacement, separator:
         .workspace_label
         .clone()
         .or_else(|| placement.project_label.clone())
-        .unwrap_or_else(|| text.board.standalone.to_owned());
+        .unwrap_or_else(|| text.board.no_workspace.to_owned());
     format!(
         "{}{separator}{}",
         sanitize_terminal_text(&context),

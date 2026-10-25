@@ -103,7 +103,7 @@ impl NativeUi {
             return Err(Reason::TargetUnavailable);
         };
         if (state.pane_by_panel(panel_id).is_some() || state.panel_is_unbound(panel_id))
-            && (context.terminal_context_id != *state.cache().terminal_context_id()
+            && (Some(&context.terminal_context_id) != state.cache().terminal_context_id()
                 || state
                     .active()
                     .is_none_or(|active| active.key().anchor().tab_id() != &tab.tab_id))

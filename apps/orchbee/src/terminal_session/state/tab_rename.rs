@@ -224,7 +224,11 @@ impl RenameOperation {
             site_id: intent.baseline().site_id().clone(),
             expected_revision: intent.baseline().revision(),
             action: WorkbenchAction::TabRename {
-                terminal_context_id: intent.baseline().terminal_context_id().clone(),
+                terminal_context_id: intent
+                    .baseline()
+                    .terminal_context_id()
+                    .ok_or(CarrierFailure::Protocol)?
+                    .clone(),
                 tab_id: intent.target().tab_id().clone(),
                 label: intent.label().clone(),
             },
@@ -359,7 +363,11 @@ impl PendingRenameCommit {
             self.operation.baseline(),
             &RenamedTabExpectation::new(
                 self.revision(),
-                self.operation.baseline().terminal_context_id().clone(),
+                self.operation
+                    .baseline()
+                    .terminal_context_id()
+                    .ok_or(super::super::workbench_projection::NativeProjectionDivergence)?
+                    .clone(),
                 self.operation.target().tab_id().clone(),
                 self.operation.label().clone(),
             ),

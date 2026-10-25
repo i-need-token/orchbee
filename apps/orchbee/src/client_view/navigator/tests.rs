@@ -1,12 +1,19 @@
 use super::*;
 
-fn standalone() -> NativeContextLocation {
-    NativeContextLocation::Standalone(
-        orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+fn initial_workspace() -> NativeContextLocation {
+    {
+        let fixture_context_id = orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
             "00000000000000000000000000000001",
         )
-        .unwrap(),
-    )
+        .unwrap();
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    }
 }
 
 fn catalog(revision: u64) -> Catalog {
@@ -14,9 +21,9 @@ fn catalog(revision: u64) -> Catalog {
         source: Source {
             site: SiteId::parse("00000000000000000000000000000001").unwrap(),
             revision: WorkbenchRevision::new(revision),
-            location: standalone(),
+            location: initial_workspace(),
         },
-        locations: vec![standalone()],
+        locations: vec![initial_workspace()],
         tabs: (1..=20)
             .map(|n| WorkbenchTabId::parse(&format!("{n:032x}")).unwrap())
             .collect(),
@@ -88,9 +95,9 @@ fn pages_and_column_changes_are_local_and_clamped() {
     nav.move_focus(Command::PageNext, 6);
     assert_eq!(nav.focus, Some(Target::Tab(catalog(1).tabs[5].clone())));
     nav.move_focus(Command::Locations, 6);
-    assert_eq!(nav.focus, Some(Target::Location(standalone())));
+    assert_eq!(nav.focus, Some(Target::Location(initial_workspace())));
     nav.move_focus(Command::Previous, 6);
-    assert_eq!(nav.focus, Some(Target::Location(standalone())));
+    assert_eq!(nav.focus, Some(Target::Location(initial_workspace())));
     nav.move_focus(Command::Tabs, 6);
     assert_eq!(nav.focus, Some(Target::Tab(catalog(1).tabs[0].clone())));
 }
@@ -113,7 +120,7 @@ fn an_initial_empty_catalog_may_arrive_but_a_lost_source_cannot_be_replaced() {
     nav.reconcile(Some(rows));
     assert_eq!(
         nav.focus,
-        Some(Target::Location(standalone())),
+        Some(Target::Location(initial_workspace())),
         "initial entry cannot invent an active Tab"
     );
 }
@@ -149,13 +156,21 @@ fn site_or_location_changes_cancel_but_ordinary_output_preserves_paint_authority
         if site_changed {
             changed.source.site = SiteId::parse(&format!("{:032x}", 2)).unwrap();
         } else {
-            changed.source.location = NativeContextLocation::Standalone(
-                orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!(
-                    "{:032x}",
-                    2
-                ))
-                .unwrap(),
-            );
+            changed.source.location = {
+                let fixture_context_id =
+                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!(
+                        "{:032x}",
+                        2
+                    ))
+                    .unwrap();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            };
         }
         assert_eq!(nav.reconcile(Some(changed)), Reconcile::Cancel);
     }

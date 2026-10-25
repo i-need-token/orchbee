@@ -155,9 +155,7 @@ default. Add `--exec /abs/path [--arg v]...`
 to replace the default shell for that one request — repeat `--arg` once
 per verbatim argument, with no shell splitting; this is also how an
 installed provider executable is launched, with whatever arguments that
-program already accepts. Use `--standalone` instead of `--workspace` for
-the standalone context, or `panel split <panel-id> --direction right ...`
-for a sibling panel; both accept the same `--exec`/`--arg` selection.
+program already accepts. Use `--workspace` for the exact Workspace, or `panel split <panel-id> --direction right ...` for a sibling panel; both accept the same `--exec`/`--arg` selection.
 
 ## 4. Read, wait, and send input
 

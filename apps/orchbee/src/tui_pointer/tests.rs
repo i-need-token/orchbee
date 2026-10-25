@@ -71,7 +71,7 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
             target: agents[0].target.context.clone(),
             project_id: None,
             project: None,
-            workspace: Some("Standalone".into()),
+            workspace: Some("Workspace".into()),
         }]);
     view.machines.observe_agents(vec![(
         crate::machine_picker::Choice::Local,
@@ -335,10 +335,18 @@ fn pane_ref(anchor: u64, tab: u128, panel: u128, incarnation: u32) -> PaneRef {
 }
 
 fn context_location(value: u128) -> NativeContextLocation {
-    NativeContextLocation::Standalone(
-        orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!("{value:032x}"))
+    {
+        let fixture_context_id =
+            orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!("{value:032x}"))
+                .unwrap();
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
             .unwrap(),
-    )
+            terminal_context_id: fixture_context_id,
+        }
+    }
 }
 
 fn event(action: MouseAction, button: MouseButton, column: u16, row: u16) -> MouseEvent {
@@ -2983,12 +2991,20 @@ fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, Frame
         .collect::<Vec<_>>();
     if legacy {
         let context = contexts.last_mut().unwrap();
-        context.target.location = NativeContextLocation::Standalone(
-            WorkbenchTerminalContextId::parse(&format!("{:032x}", 900)).unwrap(),
-        );
+        context.target.location = {
+            let fixture_context_id =
+                WorkbenchTerminalContextId::parse(&format!("{:032x}", 900)).unwrap();
+            NativeContextLocation::Workspace {
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                    fixture_context_id.as_str(),
+                )
+                .unwrap(),
+                terminal_context_id: fixture_context_id,
+            }
+        };
         context.project_id = None;
         context.project = None;
-        context.workspace = None;
+        context.workspace = Some("Ungrouped Workspace".into());
     }
     let current = contexts.first().map(|context| context.target.clone());
     view.machines.observe_local(contexts);
@@ -3028,7 +3044,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
                 HitTarget::MachineWorkspaceRow { selected, .. } => matches!(
                     &selected.context,
                     Some(NativeStartupTarget::Context(context))
-                        if matches!(context.location, crate::terminal_session::NativeContextLocation::Standalone(_)) == legacy
+                        if matches!(&context.location, crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
                 ),
                 _ => false,
             })

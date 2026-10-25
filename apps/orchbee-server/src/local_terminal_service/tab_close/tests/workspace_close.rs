@@ -287,7 +287,7 @@ fn dispose_all(service: &LocalTerminalService, peer: &mut UnixStream, close: &Wo
     }
 }
 
-fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) -> bool {
+fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) {
     let mut site = service.coordinator.lock().unwrap();
     loop {
         let step = site
@@ -344,7 +344,7 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_and_d
             ..
         } if members.is_empty()
     ));
-    assert!(!publish(&service, &close));
+    publish(&service, &close);
 
     let after = read_snapshot(&service);
     assert!(
@@ -428,7 +428,7 @@ fn populated_workspace_close_disposes_every_member_then_removes_scope() {
     ));
 
     dispose_all(&service, &mut peer, &close);
-    assert!(!publish(&service, &close));
+    publish(&service, &close);
     let after = read_snapshot(&service);
     assert!(
         !after
@@ -521,7 +521,7 @@ fn workspace_close_read_reports_members_and_service_resume_recovers_parked_publi
         WorkbenchWorkspaceCloseResumeOutcome::Resumed { .. }
     ));
     assert_eq!(service.resume_workspace_close(resume), Some(resumed));
-    assert!(!publish(&service, &close));
+    publish(&service, &close);
     assert!(matches!(
         read(&service, &close),
         WorkbenchWorkspaceCloseReadOutcome::Available {

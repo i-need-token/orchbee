@@ -65,7 +65,7 @@ fn intent(state: &NativeSessionState, index: usize) -> ClientViewIntent {
     let source = tab.panel(active.panel_index()).unwrap();
     let member = state.selected_presentation(source);
     ClientViewIntent::Overlay {
-        terminal_context_id: state.cache().terminal_context_id().clone(),
+        terminal_context_id: state.cache().terminal_context_id().unwrap().clone(),
         tab_id: tab.tab_id().clone(),
         panel_id: panel.panel_id().clone(),
         presentation_id: panel.presentation_id().clone(),
@@ -180,7 +180,7 @@ fn refresh(state: &mut NativeSessionState, snapshot: Snapshot) -> Option<AttachT
 fn overlay_removal_restores_the_source_instead_of_the_nearest_leaf_and_prior_zoom() {
     for zoomed in [false, true] {
         let baseline = baseline();
-        let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
         let source = state.focus_panel_id().unwrap().clone();
         if zoomed {
             assert!(state.toggle_zoom());
@@ -225,7 +225,7 @@ fn overlay_return_preserves_a_bound_child_presentation_through_membership_cleanu
         }),
         launch_failure: None,
     });
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let marker = super::presentations::choose(&mut state, 2);
     install_switch_candidate(&mut state, &marker);
     super::presentations::finish(&mut state);
@@ -249,7 +249,7 @@ fn overlay_background_context_removal_restores_its_memory_without_switching_cont
     let mut snapshot = super::context_selection::contexts(1, 1);
     snapshot.terminal_contexts[0].tabs[0].root =
         baseline().terminal_contexts[0].tabs[0].root.clone();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let source = state.focus_panel_id().unwrap().clone();
     let overlay = open(&mut state, 2);
     let overlay_tab = state.tab(0).unwrap().tab_id().clone();
@@ -268,7 +268,18 @@ fn overlay_background_context_removal_restores_its_memory_without_switching_cont
     assert!(!state.zoomed_tabs.contains(&overlay_tab));
     assert_eq!(
         state.navigation_memory.overlay_focus(
-            &NativeContextLocation::Standalone(snapshot.navigation.standalone_terminal_context_id),
+            &{
+                let fixture_context_id = snapshot.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
             &overlay_tab
         ),
         Some(&source)
@@ -278,7 +289,7 @@ fn overlay_background_context_removal_restores_its_memory_without_switching_cont
 #[test]
 fn overlay_removal_preserves_manual_focus_and_zoom_even_with_stale_navigation_memory() {
     let baseline = baseline();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let overlay = open(&mut state, 2);
     state.remember_current_navigation();
     let peer = attach_nonfirst_leaf(&mut state);
@@ -301,7 +312,7 @@ fn overlay_removal_preserves_manual_focus_and_zoom_even_with_stale_navigation_me
 #[test]
 fn overlay_manual_zoom_changes_are_not_reverted_on_removal() {
     let baseline = baseline();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     assert!(state.toggle_zoom());
     let overlay = open(&mut state, 2);
     assert!(state.toggle_zoom());
@@ -316,7 +327,7 @@ fn overlay_manual_zoom_changes_are_not_reverted_on_removal() {
 fn overlay_parent_exiting_before_its_child_collapses_the_exact_return_chain() {
     let mut baseline = baseline();
     add_leaf(&mut baseline.terminal_contexts[0].tabs[0].root, 5_000);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let source = state.focus_panel_id().unwrap().clone();
     let parent = open(&mut state, 2);
     let child = open(&mut state, 3);
@@ -340,7 +351,7 @@ fn overlay_parent_rebinding_preserves_the_child_return_chain_and_fences_stale_jo
     let mut baseline = super::context_selection::contexts(1, 1);
     baseline.terminal_contexts[0].tabs[0].root = overlay_root;
     add_leaf(&mut baseline.terminal_contexts[0].tabs[0].root, 5_000);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let source = state.focus_panel_id().unwrap().clone();
     let parent = open(&mut state, 2);
     let child = open(&mut state, 3);
@@ -397,7 +408,18 @@ fn overlay_parent_rebinding_preserves_the_child_return_chain_and_fences_stale_jo
     assert_eq!(state.focus_panel_id(), current_focus.as_ref());
     assert_eq!(
         state.navigation_memory.overlay_focus(
-            &NativeContextLocation::Standalone(baseline.navigation.standalone_terminal_context_id),
+            &{
+                let fixture_context_id = baseline.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
             &overlay_tab
         ),
         Some(&source)
@@ -411,7 +433,7 @@ fn overlay_parent_rebinding_preserves_the_child_return_chain_and_fences_stale_jo
 fn overlay_source_loss_keeps_prior_zoom_while_normal_membership_repairs_focus() {
     let mut baseline = baseline();
     add_leaf(&mut baseline.terminal_contexts[0].tabs[0].root, 5_000);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let source = state.focus_panel_id().unwrap().clone();
     let overlay = open(&mut state, 2);
     refresh(
@@ -429,7 +451,7 @@ fn overlay_close_ownership_is_exact_fair_and_never_automatically_resubmitted() {
     use super::super::plugin_overlays::OverlayResult;
     let mut baseline = baseline();
     add_leaf(&mut baseline.terminal_contexts[0].tabs[0].root, 5_000);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let parent = open(&mut state, 2);
     let child = open(&mut state, 3);
     let deadline = Instant::now() + Duration::from_secs(1);
@@ -480,7 +502,7 @@ fn overlay_render_draws_and_hit_tests_only_the_focused_overlay_incarnation() {
     use crate::tui_pointer::{HitMapBuilder, HitTarget};
     use ratatui::{Terminal, backend::TestBackend};
     let baseline = baseline();
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let source = state.focus_pane_ref().unwrap();
     let overlay = open(&mut state, 2);
     let projections = [source, overlay.clone()].map(|pane| {

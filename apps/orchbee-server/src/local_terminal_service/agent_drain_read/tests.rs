@@ -5,7 +5,7 @@
 //! `UnixStream::pair` driven through the PRODUCTION `run()` entry
 //! (`run_configured_for_test` skips `configure_idle_stream` and is for
 //! fake streams only — Agent43), a real `SiteCoordinator` fed through
-//! `prepare_open`/`complete`, and a real `AgentService`. The only fake
+//! `prepare_terminal_tab_create`/`complete_terminal_tab_create`, and a real `AgentService`. The only fake
 //! element is the remote CNP peer, and it HOLDS the socket open on an
 //! owned channel until the pump's result is in hand — closing early
 //! could retire the carrier before the pump's final fold.
@@ -35,7 +35,7 @@ use serde_json::json;
 use crate::{
     agent_service::{AgentPolicy, AgentReadFault},
     local_terminal_service::{LocalTerminalService, lease_expiry},
-    site_coordinator::PreparedOpen,
+    site_coordinator::PreparedTerminalTabCreate,
     terminal_coordinator::{Completion, WorkerPlacement},
     worker_obcn_carrier::{WorkerWireExit, create_worker_carrier},
     worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission},
@@ -51,7 +51,7 @@ use orchbee_capability_node_protocol::{
     TerminalLaunchOutcome, TerminalLaunchResult, WorkerGeneration, WorkerId, read_message,
     write_message,
 };
-use orchbee_client_server_protocol::{Geometry, RequestId, TerminalOpenRequest};
+use orchbee_client_server_protocol::{Geometry, RequestId};
 use orchbee_local_site_protocol::WorkerId as LspWorkerId;
 
 const WORKER_BYTES: [u8; 16] = [9; 16];
@@ -188,7 +188,7 @@ fn register(
 }
 
 /// One completed member terminal through the real coordinator APIs:
-/// `prepare_open` dispatch -> `AuthorizedTerminalLaunch` command ->
+/// `prepare_terminal_tab_create` dispatch -> `AuthorizedTerminalLaunch` command ->
 /// `Completion::Launch` with the shared host identity. Returns the
 /// presentation id the REAL registration projection recorded.
 fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String {
@@ -196,18 +196,37 @@ fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String
         worker_id: cnp_worker(),
         generation: WorkerGeneration::new(generation),
     };
-    let request = TerminalOpenRequest::new(
-        RequestId::parse("11111111111111111111111111111111").unwrap(),
-        Geometry::new(80, 24, 8, 16).unwrap(),
-    );
     let mut coordinator = service.coordinator.lock().unwrap();
-    let PreparedOpen::Dispatch(pending) = coordinator.prepare_open(
-        &request,
+    let snapshot = coordinator.close_authority().unwrap().snapshot().clone();
+    let command = orchbee_workbench_protocol::WorkbenchCommand {
+        protocol_version: orchbee_workbench_protocol::ProtocolVersion,
+        request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(
+            "11111111111111111111111111111111",
+        )
+        .unwrap(),
+        site_id: snapshot.site_id,
+        expected_revision: snapshot.revision,
+        action: orchbee_workbench_protocol::WorkbenchAction::TabCreate {
+            placement: None,
+            automatic_label: false,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
+            label: orchbee_workbench_protocol::WorkbenchLabel::parse("Agent").unwrap(),
+            geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 8, 16)
+                .unwrap(),
+            launch: None,
+            profile: None,
+            options: Default::default(),
+        },
+    };
+    let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
+        command,
         Some(RequestId::parse("22222222222222222222222222222222").unwrap()),
-        Some(worker),
         lease_expiry(),
+        Some(worker),
     ) else {
-        panic!("first Open dispatch expected")
+        panic!("Workspace tab dispatch expected")
     };
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
         panic!("launch command expected")
@@ -224,7 +243,7 @@ fn open_member(service: &LocalTerminalService, generation: NonZeroU64) -> String
     )
     .unwrap();
     coordinator
-        .complete(pending, Completion::Launch(result), Some(worker))
+        .complete_terminal_tab_create(pending, Completion::Launch(result), Some(worker))
         .unwrap();
     let facts = coordinator.agent_registration_snapshot().unwrap();
     assert_eq!(facts.len(), 1, "one completed member expected");

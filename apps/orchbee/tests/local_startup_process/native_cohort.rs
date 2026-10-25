@@ -129,6 +129,66 @@ impl Fixture {
         )
     }
 
+    /// An explicit real Workspace is a prerequisite for terminal interaction witnesses.
+    /// Empty-startup/admission witnesses keep using `new` and never seed membership.
+    pub(super) fn with_workspace() -> Self {
+        use orchbee_workbench_protocol::{
+            LaunchOptions, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchDirectoryPath,
+            WorkbenchLabel, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+            WorkspacePlacement,
+        };
+        let fixture = Self::new();
+        let child = std::process::Command::new(fixture.cohort.join("orchbee"))
+            .args(["server", "start"])
+            .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+            .env("SHELL", "/bin/sh")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let output =
+            super::support::bounded_wait_with_output(child, super::STARTUP_OR_CREATE_TIMEOUT)
+                .unwrap_or_else(|error| panic!("Workspace fixture startup: {error}"));
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let deadline = Instant::now() + super::STARTUP_OR_CREATE_TIMEOUT;
+        let mut peer = super::native_context::WorkbenchPeer::connect(&fixture, deadline).unwrap();
+        peer.reserve_fixture_request_range();
+        let outcome = peer
+            .prepare(
+                WorkbenchAction::WorkspaceLaunch {
+                    placement: WorkspacePlacement::Ungrouped {},
+                    label: WorkbenchLabel::parse("Workspace").unwrap(),
+                    geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+                    launch: None,
+                    profile: None,
+                    options: Box::new(LaunchOptions {
+                        cwd: Some(
+                            WorkbenchDirectoryPath::parse(fixture.base.to_str().unwrap()).unwrap(),
+                        ),
+                        ..LaunchOptions::default()
+                    }),
+                },
+                deadline,
+            )
+            .unwrap();
+        assert!(
+            matches!(
+                outcome,
+                WorkbenchCommandOutcome::WorkspaceLaunched {
+                    terminal_outcome: WorkbenchTerminalOutcome::Started { .. },
+                    ..
+                }
+            ),
+            "{outcome:?}"
+        );
+        fixture
+    }
+
     fn create(cohort: PathBuf, base: PathBuf) -> Self {
         reserve_fixture_directories(&cohort, &base).unwrap_or_else(|error| {
             panic!(

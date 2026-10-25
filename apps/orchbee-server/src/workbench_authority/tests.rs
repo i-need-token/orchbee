@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     PanelNode, PresentationBinding, PublicationReadIntent, SnapshotReadIntent, TerminalId,
     WorkbenchLabel, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId,
@@ -21,7 +22,7 @@ mod worktree_operation;
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
     let site = SiteId::parse(&identity(100)).unwrap();
     (
-        WorkbenchAuthority::new(site.clone()).unwrap(),
+        WorkbenchAuthority::workspace_fixture(site.clone()).unwrap(),
         WorkbenchGrant::manage_navigation(site),
     )
 }
@@ -105,14 +106,16 @@ fn binding(value: u128) -> PresentationBinding {
 fn install_two_tabs(
     authority: &mut WorkbenchAuthority,
 ) -> (
-    StandaloneIntentMetadata,
+    CommittedWorkbenchTabCreateMetadata,
     CommittedWorkbenchTabCreateMetadata,
     PendingWorkbenchTabCreate,
 ) {
     let first = authority
-        .prepare_standalone_intent(binding(700))
+        .prepare_fixture_tab(binding(700))
         .unwrap()
-        .commit();
+        .commit()
+        .metadata()
+        .clone();
     let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap();
     let create = command(
         900,
@@ -431,9 +434,11 @@ fn tab_rename_preserves_every_non_target_fact_and_replays_its_historical_revisio
 fn tab_rename_resolves_context_before_tab_and_rejections_are_atomic() {
     let (mut authority, grant) = authority();
     let first = authority
-        .prepare_standalone_intent(binding(800))
+        .prepare_fixture_tab(binding(800))
         .unwrap()
-        .commit();
+        .commit()
+        .metadata()
+        .clone();
     let project = project_id(&submit(&mut authority, &grant, command(1, 1, create("P"))));
     let workspace = submit(
         &mut authority,
@@ -500,9 +505,11 @@ fn tab_rename_resolves_context_before_tab_and_rejections_are_atomic() {
 fn navigation_grant_can_rename_a_tab_without_terminal_grant_or_partial_ledger_effects() {
     let (mut authority, grant) = authority();
     let first = authority
-        .prepare_standalone_intent(binding(900))
+        .prepare_fixture_tab(binding(900))
         .unwrap()
-        .commit();
+        .commit()
+        .metadata()
+        .clone();
     let request = command(
         1,
         1,
@@ -722,17 +729,11 @@ fn publication_read_replays_committed_history_under_the_read_grant() {
     // Rewind the reader baseline to revision 0 by re-reading the initial state shape.
     let base = Snapshot {
         revision: WorkbenchRevision::new(0),
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: replayed
-                .navigation
-                .standalone_terminal_context_id
-                .clone(),
-        },
+        navigation: WorkbenchAuthority::workspace_fixture(replayed.site_id.clone())
+            .unwrap()
+            .snapshot()
+            .navigation
+            .clone(),
         terminal_contexts: replayed
             .terminal_contexts
             .iter()

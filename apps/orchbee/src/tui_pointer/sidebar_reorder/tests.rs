@@ -44,30 +44,47 @@ impl TerminalInputPort for Port {
     }
 }
 fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
-    let navigation = Navigation {
-        project_order: vec![],
-        workspace_order: vec![],
-        directories: vec![],
-        projects: [1, 2]
-            .into_iter()
-            .map(|id| Project {
-                project_id: project(id),
-                label: format!("Project {id}"),
-            })
-            .collect(),
-        workspaces: [Some(1), Some(1), Some(2), None]
-            .into_iter()
-            .enumerate()
-            .map(|(index, group)| Workspace {
-                workspace_id: workspace(index),
-                project_id: group.map(project),
-                label: format!("Workspace {index}"),
-                terminal_context_id: WorkbenchTerminalContextId::parse(&identity(100 + index))
-                    .unwrap(),
+    let navigation = {
+        let fixture_context_id = WorkbenchTerminalContextId::parse(&identity(500)).unwrap();
+        let fixture_workspace_id =
+            orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(fixture_context_id.as_str())
+                .unwrap();
+        Navigation {
+            project_order: vec![],
+            workspace_order: Vec::new(),
+            directories: vec![],
+            projects: [1, 2]
+                .into_iter()
+                .map(|id| Project {
+                    project_id: project(id),
+                    label: format!("Project {id}"),
+                })
+                .collect(),
+            workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                workspace_id: fixture_workspace_id.clone(),
+                terminal_context_id: fixture_context_id.clone(),
+                project_id: None,
                 primary_directory_id: None,
+                label: "Workspace".into(),
             })
+            .chain(
+                [Some(1), Some(1), Some(2), None]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, group)| Workspace {
+                        workspace_id: workspace(index),
+                        project_id: group.map(project),
+                        label: format!("Workspace {index}"),
+                        terminal_context_id: WorkbenchTerminalContextId::parse(&identity(
+                            100 + index,
+                        ))
+                        .unwrap(),
+                        primary_directory_id: None,
+                    })
+                    .collect(),
+            )
             .collect(),
-        standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&identity(500)).unwrap(),
+        }
     };
     let site_id = SiteId::parse(&identity(9)).unwrap();
     let mut view = ClientView::new(120);
@@ -160,7 +177,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                     .iter()
                     .map(|workspace| workspace.terminal_context_id.clone())
                     .chain(std::iter::once(
-                        navigation.standalone_terminal_context_id.clone(),
+                        navigation.workspaces[0].terminal_context_id.clone(),
                     ))
                     .map(|terminal_context_id| TerminalContext {
                         terminal_context_id,
@@ -690,7 +707,7 @@ fn a_current_native_revision_cannot_authorize_stale_sidebar_membership_or_displa
         let canonical = std::sync::Arc::make_mut(&mut port.source.0);
         canonical.revision = WorkbenchRevision::new(2);
         if fault == 0 {
-            canonical.navigation.workspaces[1].project_id = Some(project(2));
+            canonical.navigation.workspaces[2].project_id = Some(project(2));
         } else if fault == 1 {
             canonical.navigation.project_order = vec![project(2), project(1)];
         } else {

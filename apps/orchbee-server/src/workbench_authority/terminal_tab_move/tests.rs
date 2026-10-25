@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 mod index;
 mod metadata;
 mod stateful;
@@ -14,13 +15,14 @@ use orchbee_workbench_protocol::{
 };
 
 fn authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
-    let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(100)).unwrap()).unwrap();
+    let mut authority =
+        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
     let grant = WorkbenchGrant::manage_navigation(authority.site_id().clone());
     let mut snapshot = authority.projection.snapshot().clone();
     for index in 0..count {
         append_simple_tab(
             &mut snapshot.terminal_contexts[0],
-            &parse_tab_ids(4 + 3 * index as u128).unwrap(),
+            &parse_tab_ids(7 + 3 * index as u128).unwrap(),
             &format!("tab {index}"),
             false,
             PresentationBinding {
@@ -34,7 +36,7 @@ fn authority(count: usize) -> (WorkbenchAuthority, WorkbenchGrant) {
         &serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap(),
     )
     .unwrap();
-    authority.last_identity = 1 + 3 * count as u128;
+    authority.last_identity = 4 + 3 * count as u128;
     (authority, grant)
 }
 
@@ -50,13 +52,10 @@ fn command(
         site_id: authority.site_id().clone(),
         expected_revision: authority.projection.snapshot().revision,
         action: WorkbenchAction::TabMove {
-            terminal_context_id: authority
-                .projection
-                .snapshot()
-                .navigation
-                .standalone_terminal_context_id
+            terminal_context_id: authority.projection.snapshot().navigation.workspaces[0]
+                .terminal_context_id
                 .clone(),
-            tab_id: WorkbenchTabId::parse(&identity(2 + 3 * index as u128)).unwrap(),
+            tab_id: WorkbenchTabId::parse(&identity(5 + 3 * index as u128)).unwrap(),
             direction,
         },
     }
@@ -117,7 +116,7 @@ fn four_directions_move_whole_tabs_and_preserve_every_non_order_fact() {
         let expected_outcome = if changed {
             WorkbenchCommandOutcome::TabMoved {
                 revision: expected.revision,
-                terminal_context_id: before.navigation.standalone_terminal_context_id,
+                terminal_context_id: before.navigation.workspaces[0].terminal_context_id.clone(),
                 tab_id: before.terminal_contexts[0].tabs[source].tab_id.clone(),
             }
         } else {
@@ -221,7 +220,7 @@ fn exact_move_replay_keeps_its_revision_and_all_fingerprint_fields_conflict_afte
         ));
     }
     assert_eq!(authority.projection.snapshot(), &before);
-    authority.retire_standalone_composition();
+    authority.retire_terminal_membership();
     assert!(
         matches!(authority.begin_terminal_tab_move(None, first.clone()), WorkbenchTabMoveBegin::Ready(result) if result.outcome == WorkbenchCommandOutcome::Denied {})
     );
@@ -365,7 +364,7 @@ fn unbound_presentations_preserve_context_refusal_missing_tab_and_boundary_noop(
                 assert!(!authority.retired);
             }
             assert_eq!(authority.projection.snapshot(), &snapshot);
-            assert_eq!(authority.last_identity, 7);
+            assert_eq!(authority.last_identity, 10);
         }
     }
 }
@@ -383,7 +382,7 @@ fn maximum_membership_move_and_exact_byte_reservation_boundaries_preserve_order_
     let last = expected.terminal_contexts[0].tabs.pop().unwrap();
     expected.terminal_contexts[0].tabs.insert(0, last);
     assert_eq!(maximum.projection.snapshot(), &expected);
-    assert_eq!(maximum.last_identity, 769);
+    assert_eq!(maximum.last_identity, 772);
 
     let (mut sample, grant) = authority(2);
     let request = command(&sample, 10, 0, WorkbenchTabMoveDirection::Last);
@@ -423,7 +422,7 @@ fn maximum_membership_move_and_exact_byte_reservation_boundaries_preserve_order_
             );
             assert_eq!(authority.ledger.len(), 1);
         }
-        assert_eq!(authority.last_identity, 7);
+        assert_eq!(authority.last_identity, 10);
         assert!(!authority.retired);
     }
 }
@@ -500,7 +499,7 @@ fn move_revision_growth_at_the_exact_projection_byte_bound_refuses_before_public
     );
     assert_eq!(submit(&mut authority, &grant, request), rejected);
     assert_eq!(authority.projection.snapshot(), &snapshot);
-    assert_eq!(authority.last_identity, 7);
+    assert_eq!(authority.last_identity, 10);
     assert_eq!(authority.ledger.len(), 1);
     assert!(!authority.retired);
 }
@@ -514,11 +513,8 @@ fn move_admission_cannot_use_its_navigation_grant_to_replay_a_terminal_create() 
     create.action = WorkbenchAction::TabCreate {
         placement: None,
         automatic_label: false,
-        terminal_context_id: authority
-            .projection
-            .snapshot()
-            .navigation
-            .standalone_terminal_context_id
+        terminal_context_id: authority.projection.snapshot().navigation.workspaces[0]
+            .terminal_context_id
             .clone(),
         label: orchbee_workbench_protocol::WorkbenchLabel::parse("retained create").unwrap(),
         geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 8, 16)

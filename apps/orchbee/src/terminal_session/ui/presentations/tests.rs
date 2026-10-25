@@ -104,7 +104,7 @@ fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::one_light()] {
             for repeats_location in [false, true] {
-                let location = locale.shell().standalone;
+                let location = "Workspace";
                 let label = if repeats_location { location } else { "Editor" };
                 let mut source = super::super::tests::membership::snapshot(1, 1);
                 source.terminal_contexts[0].tabs[0].label = label.into();
@@ -823,9 +823,8 @@ fn empty_ui() -> (
     ));
     let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
     let source = empty_source();
-    let cache =
-        crate::terminal_session::workbench_projection::project_native_standalone_tabs(&source)
-            .unwrap();
+    let cache = crate::terminal_session::workbench_projection::project_preferred_workspace(&source)
+        .unwrap();
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::Bootstrap {

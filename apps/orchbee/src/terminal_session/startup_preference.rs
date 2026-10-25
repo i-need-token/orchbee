@@ -35,13 +35,6 @@ pub(super) fn resolve(
             terminal_context_id: workspace.terminal_context_id.clone(),
         });
     }
-    // A saved compatibility position does not supersede a canonical Workspace. With no
-    // canonical Workspace it still restores its exact legacy member, preserving old content.
-    if locations.is_empty()
-        && let Some(location) = super::workbench_projection::compatibility_workspace(snapshot)?
-    {
-        locations.push(location);
-    }
     let location_exists = locations.contains(&position.location);
     let fallback_location = preferred_workspace_location(snapshot)?;
     let location = if location_exists {

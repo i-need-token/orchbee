@@ -23,14 +23,16 @@ pub(super) struct GroupView {
 impl GroupView {
     fn matches(&self, cache: &NativeContextTabs) -> bool {
         self.context.as_ref().is_some_and(|(site, context)| {
-            site == cache.site_id() && context == cache.terminal_context_id()
+            site == cache.site_id() && Some(context) == cache.terminal_context_id()
         })
     }
 
     fn prepare(&mut self, cache: &NativeContextTabs) {
         if !self.matches(cache) {
             *self = Self {
-                context: Some((cache.site_id().clone(), cache.terminal_context_id().clone())),
+                context: cache
+                    .terminal_context_id()
+                    .map(|context| (cache.site_id().clone(), context.clone())),
                 ..Self::default()
             };
         }

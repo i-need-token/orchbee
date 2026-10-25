@@ -1,12 +1,11 @@
 #[cfg(not(windows))]
-use crate::terminal_session::TerminalIntent;
 use crate::{
     client_view::ClientView,
     local_activation,
     localization::Locale,
     startup_wait::{
         self, InheritedWaitInput, InheritedWaitViewport, StartupWait, WaitPrompt,
-        standalone_presentable_area,
+        startup_presentable_area,
     },
     terminal_device::InheritedTerminal,
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
@@ -43,7 +42,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         Err(_) => return Err(StartupFailure::Terminal),
     };
     let dimensions = match reported {
-        Some(dimensions) if standalone_presentable_area(dimensions).is_some() => dimensions,
+        Some(dimensions) if startup_presentable_area(dimensions).is_some() => dimensions,
         _ => match await_geometry(&inherited, locale, deadline) {
             StartupWait::Available(dimensions) => dimensions,
             StartupWait::Cancelled => return Ok(()),
@@ -93,7 +92,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     )
     .map_err(|_| StartupFailure::TerminalUnavailable)?;
     #[cfg(not(windows))]
-    let mut session = TerminalSession::start(client, TerminalIntent::Standalone, geometry)
+    let mut session = TerminalSession::start(client, geometry)
         .map_err(|_| StartupFailure::TerminalUnavailable)?;
     let ready = (|| {
         loop {
@@ -145,7 +144,7 @@ fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Insta
     let mut input = input;
     let mut output = output;
     let mut viewport = InheritedWaitViewport::new(inherited);
-    let mut presentable = standalone_presentable_area;
+    let mut presentable = startup_presentable_area;
     startup_wait::await_presentable_geometry(
         || TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone())),
         startup_wait::StartupWaitDeps {

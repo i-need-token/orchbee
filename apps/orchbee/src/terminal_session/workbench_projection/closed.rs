@@ -50,7 +50,7 @@ pub(in crate::terminal_session) fn validate_closed_tab(
 ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     if candidate.site_id() != expected.site_id()
-        || candidate.terminal_context_id() != expected.terminal_context_id()
+        || candidate.terminal_context_id() != Some(expected.terminal_context_id())
         || candidate.revision() < expected.minimum_revision()
         || candidate.tab_index(expected.tab_id()).is_some()
     {

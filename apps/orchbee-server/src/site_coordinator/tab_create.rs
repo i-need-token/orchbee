@@ -1,6 +1,4 @@
-use super::{
-    SiteCoordinator, StandaloneTerminal, composition_matches, open_outcome, presentation_binding,
-};
+use super::{SiteCoordinator, presentation_binding};
 use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, TerminalOperationAuthorization,
@@ -28,7 +26,6 @@ pub(crate) enum PreparedTerminalTabCreate {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct CompletedTerminalTabCreate {
     pub(crate) result: WorkbenchCommandResult,
-    pub(crate) standalone_changed: bool,
 }
 
 pub(crate) struct PendingTerminalTabCreate {
@@ -36,7 +33,6 @@ pub(crate) struct PendingTerminalTabCreate {
     terminal: Box<PendingOperation>,
     reference: RequestId,
     worker: WorkerPlacement,
-    settles_first: bool,
     workspace_cwd: Option<WorkingDirectory>,
     launch_cwd: Option<WorkingDirectory>,
     environment: orchbee_client_server_protocol::LaunchEnvironment,
@@ -49,16 +45,10 @@ impl PendingTerminalTabCreate {
         self.terminal.command()
     }
 
-    #[cfg(test)]
-    pub(crate) const fn settles_first(&self) -> bool {
-        self.settles_first
-    }
-
     fn association_matches(&self) -> bool {
         let metadata = self.workbench.metadata();
         let authorization = pending_authorization(&self.terminal);
-        metadata.is_standalone() == self.workspace_cwd.is_none()
-            && metadata.is_first() == self.settles_first
+        self.workspace_cwd.is_some()
             && self.terminal.create_reference() == &self.reference
             && authorization.and_then(presentation_binding).as_ref() == Some(metadata.binding())
             && pending_cwd_matches(self.terminal.command(), self.launch_cwd.as_ref())
@@ -139,7 +129,6 @@ impl SiteCoordinator {
         let Self {
             terminals,
             workbench,
-            standalone,
             ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
@@ -234,17 +223,8 @@ impl SiteCoordinator {
         let plugin_environment = plugin_use
             .as_ref()
             .map(|resolved| resolved.environment.clone());
-        let (worker_constraint, workspace_cwd, settles_first) = if let Some(membership) =
-            admission.staged_metadata().standalone_membership()
-        {
-            if !composition_matches(membership, standalone, terminals) {
-                return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
-            }
-            (None, None, membership.is_empty())
-        } else {
-            let Some((worker_id, path)) = admission.staged_metadata().workspace_launch() else {
-                return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
-            };
+        let (worker_constraint, workspace_cwd) = {
+            let (worker_id, path) = admission.staged_metadata().workspace_launch();
             let Ok(worker_id) = orchbee_client_server_protocol::WorkerId::parse(worker_id.as_str())
             else {
                 return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
@@ -252,11 +232,7 @@ impl SiteCoordinator {
             let Ok(cwd) = WorkingDirectory::parse(path.as_str()) else {
                 return PreparedTerminalTabCreate::Ready(admission.retire_composition_failure());
             };
-            (
-                Some(WorkerConstraint::Exact { worker_id }),
-                Some(cwd),
-                false,
-            )
+            (Some(WorkerConstraint::Exact { worker_id }), Some(cwd))
         };
         let launch_cwd = match options
             .cwd
@@ -345,11 +321,6 @@ impl SiteCoordinator {
             WorkbenchTabCreatePreparation::Prepared(plan) => plan,
         };
         let metadata = workbench_plan.metadata().clone();
-        let standalone_matches = if metadata.is_standalone() {
-            settles_first == matches!(standalone, StandaloneTerminal::Empty)
-        } else {
-            !settles_first
-        };
         if terminal.create_reference() != &reference
             || terminal.authorization() != authorization
             || pending_authorization_from_message(terminal.command()) != Some(authorization)
@@ -360,13 +331,11 @@ impl SiteCoordinator {
             || metadata.binding() != &binding
             || authorization.worker_id() != worker.worker_id
             || authorization.worker_generation() != worker.generation
-            || metadata.is_standalone() != workspace_cwd.is_none()
-            || metadata.is_first() != settles_first
-            || !standalone_matches
+            || workspace_cwd.is_none()
         {
             drop(workbench_plan);
             drop(terminal);
-            workbench.retire_standalone_composition();
+            workbench.retire_terminal_membership();
             return PreparedTerminalTabCreate::Ready(unavailable_by_id(
                 metadata.request_id().clone(),
                 WorkbenchCommandUnavailableReason::ServiceUnavailable,
@@ -376,15 +345,11 @@ impl SiteCoordinator {
         // Both borrowed plans are complete. Publication below contains only infallible owner moves.
         let terminal = terminal.commit();
         let workbench = workbench_plan.commit().into_pending();
-        if settles_first {
-            *standalone = StandaloneTerminal::Creating(reference.clone());
-        }
         PreparedTerminalTabCreate::Dispatch(PendingTerminalTabCreate {
             workbench,
             terminal,
             reference,
             worker,
-            settles_first,
             workspace_cwd,
             launch_cwd,
             environment,
@@ -402,7 +367,6 @@ impl SiteCoordinator {
         let Self {
             terminals,
             workbench,
-            standalone,
             ..
         } = self;
         let Some(workbench) = workbench.as_mut() else {
@@ -412,20 +376,11 @@ impl SiteCoordinator {
             return Err(PostcommitCoordinationError);
         }
         let metadata = pending.workbench.metadata().clone();
-        if metadata.is_standalone() {
-            let membership = workbench
-                .tree_standalone_membership()
-                .map_err(|_invariant| PostcommitCoordinationError)?;
-            if !composition_matches(&membership, standalone, terminals) {
-                return Err(PostcommitCoordinationError);
-            }
-        }
         let PendingTerminalTabCreate {
             workbench: workbench_pending,
             terminal,
             reference,
             worker: _,
-            settles_first: _,
             workspace_cwd: _,
             launch_cwd: _,
             environment: _,
@@ -437,9 +392,6 @@ impl SiteCoordinator {
             .map_err(|_mismatch| PostcommitCoordinationError)?;
         let terminal_outcome = terminal_outcome(&reference, metadata.geometry(), terminal.result())
             .ok_or(PostcommitCoordinationError)?;
-        let standalone_changed = metadata.is_standalone()
-            && matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference);
-        let settled_open = standalone_changed.then(|| open_outcome(&reference, terminal.result()));
         let settlement = workbench
             .prepare_terminal_tab_settlement(workbench_pending, terminal_outcome.clone())
             .map_err(|_mismatch| PostcommitCoordinationError)?;
@@ -453,13 +405,7 @@ impl SiteCoordinator {
             metadata.binding(),
             launch.as_ref(),
         );
-        if let Some(outcome) = settled_open {
-            *standalone = StandaloneTerminal::Settled { reference, outcome };
-        }
-        Ok(CompletedTerminalTabCreate {
-            result,
-            standalone_changed,
-        })
+        Ok(CompletedTerminalTabCreate { result })
     }
 }
 

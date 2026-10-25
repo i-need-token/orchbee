@@ -71,7 +71,7 @@ fn recent_read(fixture: &Fixture, terminal_id: &str, rows: u16) -> (Output, serd
 #[test]
 fn recent_read_returns_recent_retained_tail_over_the_public_cli() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -177,7 +177,7 @@ fn recent_read_returns_recent_retained_tail_over_the_public_cli() -> TestResult 
 #[test]
 fn recent_read_reports_an_empty_sample_for_zero_lines() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -213,7 +213,7 @@ fn recent_read_reports_an_empty_sample_for_zero_lines() -> TestResult {
 #[test]
 fn recent_read_succeeds_when_host_reports_unknown_pixels() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn_geometry(
         &fixture,
         "en_US.UTF-8",
@@ -270,7 +270,7 @@ fn recent_read_succeeds_when_host_reports_unknown_pixels() -> TestResult {
 #[test]
 fn recent_read_rejects_retired_duplicate_and_out_of_range_options() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let id = "ffffffffffffffffffffffffffffffff";
     for options in [
         ["--history"].as_slice(),

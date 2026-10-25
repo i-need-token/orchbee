@@ -75,7 +75,7 @@ impl NativeSessionState {
             .tabs()
             .get(active.index())
             .ok_or(Reason::TargetUnavailable)?;
-        if self.cache.terminal_context_id() != terminal_context_id
+        if self.cache.terminal_context_id() != Some(terminal_context_id)
             || tab.tab_id() != tab_id
             || tab.panel_count() < 2
             || self.focus_panel_id() != Some(&return_to.panel_id)
@@ -199,12 +199,12 @@ impl NativeSessionState {
         snapshot: &orchbee_workbench_protocol::Snapshot,
     ) {
         use crate::terminal_session::workbench_projection::{
-            project_native_context_tabs, project_native_standalone_tabs,
+            project_native_context_tabs, project_preferred_workspace,
         };
         if snapshot.site_id != *self.cache.site_id() || snapshot.revision < self.cache.revision() {
             return;
         }
-        let Ok(navigation) = project_native_standalone_tabs(snapshot) else {
+        let Ok(navigation) = project_preferred_workspace(snapshot) else {
             return;
         };
         let contexts: std::collections::BTreeSet<_> = self
@@ -213,13 +213,13 @@ impl NativeSessionState {
             .map(|o| o.context.clone())
             .collect();
         for context in contexts {
-            if context == *self.cache.terminal_context_id() {
+            if Some(&context) == self.cache.terminal_context_id() {
                 continue;
             }
             if let Some(location) = navigation
                 .navigation()
                 .iter()
-                .find(|n| n.location.terminal_context_id() == &context)
+                .find(|n| n.location.terminal_context_id() == Some(&context))
                 .map(|n| &n.location)
                 && let Ok(cache) = project_native_context_tabs(snapshot, location)
             {
@@ -230,7 +230,7 @@ impl NativeSessionState {
             if navigation
                 .navigation()
                 .iter()
-                .any(|n| n.location.terminal_context_id() == &o.context)
+                .any(|n| n.location.terminal_context_id() == Some(&o.context))
             {
                 true
             } else {
@@ -250,11 +250,11 @@ impl NativeSessionState {
         // Retain the complete old chain until every invalid member's return has been resolved.
         self.plugin_overlays = records.clone();
         for overlay in records.iter().rev() {
-            if &overlay.context != cache.terminal_context_id() {
+            if Some(&overlay.context) != cache.terminal_context_id() {
                 if !cache
                     .navigation()
                     .iter()
-                    .any(|n| n.location.terminal_context_id() == &overlay.context)
+                    .any(|n| n.location.terminal_context_id() == Some(&overlay.context))
                 {
                     self.plugin_overlays.retain(|o| o.member != overlay.member);
                 }
@@ -320,12 +320,12 @@ impl NativeSessionState {
             }
         }
         self.plugin_overlays.retain(|o| {
-            &o.context != cache.terminal_context_id()
+            Some(&o.context) != cache.terminal_context_id()
                 && cache
                     .navigation()
                     .iter()
-                    .any(|n| n.location.terminal_context_id() == &o.context)
-                || &o.context == cache.terminal_context_id()
+                    .any(|n| n.location.terminal_context_id() == Some(&o.context))
+                || Some(&o.context) == cache.terminal_context_id()
                     && cache
                         .tabs()
                         .iter()

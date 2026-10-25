@@ -163,12 +163,7 @@ pub(crate) struct Placement {
     tab_label: Option<String>,
 }
 pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
-    let mut locations = vec![(
-        NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        ),
-        String::new(),
-    )];
+    let mut locations = Vec::new();
     locations.extend(
         snapshot
             .navigation
@@ -197,7 +192,7 @@ pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
     let mut result = Vec::new();
     for (workspace_order, (location, workspace)) in locations.into_iter().enumerate() {
         let id = match &location {
-            NativeContextLocation::Standalone(id) => id,
+            NativeContextLocation::NoWorkspace => return Err(()),
             NativeContextLocation::Workspace {
                 terminal_context_id,
                 ..
@@ -358,12 +353,7 @@ pub(crate) fn read_at(
             });
         }
     }
-    let mut contexts = vec![NativeContextTarget {
-        site_id: snapshot.site_id.clone(),
-        location: NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        ),
-    }];
+    let mut contexts = Vec::new();
     contexts.extend(
         snapshot
             .navigation

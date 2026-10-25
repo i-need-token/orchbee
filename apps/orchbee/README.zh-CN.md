@@ -374,7 +374,7 @@ Left/Right/Home/End/Delete 以及 Ctrl+A/Ctrl+E、Ctrl+W 作为语义编辑到�
 序列被整帧吞掉、不取消草稿。已知 Rename 提交但投影不可用时，同样通过 `w` 显式恢复，绝不重发命令。
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
 Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一个 Tab 后留下 Empty；显式 `c`
-创建新终端，普通 Client 退出则保留该终端供后续裸 Open 使用。终端被关闭的 peer 通过显式 `w`
+创建新终端，普通 Client 退出则保留该终端供后续绑定附着使用。终端被关闭的 peer 通过显式 `w`
 恢复当前成员关系。Linux 进程证据覆盖此流程。规范分屏投影、本地面板焦点及
 `panel.split` / `panel.close` / `panel.move` 提交保留 Tab 的规范分组和固定元数据；生产重启恢复仍未完成。
 面板操作复用同一结构变更准入：split 提交实际控制 cell/pixel 几何并沿用叶子 label，close 以
@@ -418,7 +418,7 @@ effect outcome 成为 typed `OutcomeUnknown` 并让 connection 退役。transpor
 request 供 replay。Server 返回的正确 correlated `outcome-unknown` 是有效 OBCS result，而不是
 transport ambiguity。
 
-Linux 与 macOS 裸入口通过该 transport 提交独立 Open、查看和控制意图。仅允许关闭的 `LocalClientShutdown`
+Linux 与 macOS 裸入口通过该 transport 读取规范 Workspace 选择并提交查看和控制意图。仅允许关闭的 `LocalClientShutdown`
 handle 停止阻塞 exchange，不增加 stream reader 或 writer。重连和结果协调仍未提供。
 
 五十秒提交上限容纳 Server 一个排队及一个在途 Worker exchange（各自最多两秒 write 加二十秒
@@ -734,71 +734,13 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 在同一受审变更中提交；新增 provider 在 `provider-conformance/cases/` 下
 增加一个文件。
 
-## 独立终端意图
+## Workspace 终端启动
 
-私有的已连接 TUI 接受 `TerminalIntent::Standalone`。它提交一次
-`submit_terminal_open` 并要求 Opened，然后在同一条已准入连接上读取相关联的 OBWP snapshot。
-它使用 snapshot 中确切的 Session/Worker/Server-terminal binding 提交 OBCS `attach-binding`；
-Open create reference 仍是显式旧路径的值，不用于选择此 viewer。Linux 与 macOS 裸入口通过已校验的
-本地 Session 激活与 Worker 按需启动 Host 消费此路径。显式 Create 与 Attach intent
-保留现有 Create-reference attachment 行为。
+已连接 TUI 在选择位置前读取关联的 OBWP 快照。选择使用准确 Workspace／Context 对、可用的记忆位置，或显示顺序中的首个规范 Workspace，包括空 Workspace。Windows 在目录启动条件满足时可显式启动首个 Workspace；其他空 Workbench 保持为空。不存在 `TerminalIntent::Standalone`、`terminal.open` 请求或无 Workspace ID 的选择。
 
-Windows 裸启动先读取 canonical 成员关系，再解析保存位置或符合条件的空 Session
-[目录创建](docs/native-directory-startup.zh-CN.md)。已有 Session 没有保存位置时，先选择首个规范
-Workspace（包括空 Workspace），再选非空历史内容。此路径不执行 standalone Open。这些路径共享本 bootstrap/attachment owner 和原截止。
+无身份的 `NoWorkspace` 仅是 Client 的空落点：不拥有上下文、不创建终端、不出现导航行，也不保存为 Workspace 位置。Workspace 的 Project 成员关系仍可为 null。空 Workspace 保留身份并支持显式配置／创建。
 
-纯投影器按稳定身份解析恰好一个规范 context，允许零到 256 个有序 Tab。它保留标签、固定状态、
-分组元数据、成员身份、split/slot 拓扑、presentation 与 terminal binding。固定 Tab 构成前缀，
-组成员保持连续；不受支持的成员关系会使整个投影被拒绝。Canonical OBWP validation 拥有全局唯一性
-和引用完整性。刷新与已创建成员验证器校验修订、成员不可变事实及关联创建事实。
-[原生 Tab 分组契约](docs/native-tab-groups.zh-CN.md)管理组标题、本地展开状态、配置菜单及实际 GUI/TUI 能力覆盖。
-
-终端投影适配器还为原生 Session 提供控制模式下的完整帧尺寸门。传入期望尺寸时，四个字段必须
-全部匹配；不匹配会清除可见帧并请求快照，但不会重置序号、修订号或阻塞修订号栅栏。原生控制模式
-建立流程使用该尺寸门；保留的显式 Create/Attach adapter 不传入期望尺寸。针对性测试覆盖每个字段，
-以及通过新的匹配完整帧恢复。
-
-Open、snapshot read、attach、controller 获取、首次获权 Resize 和第一个已校验的终端
-projection frame 共用现有 startup ceiling。Observer 不调整大小。Snapshot exchange
-保持单一 carrier 及现有非阻塞 deadline I/O owner；Workbench request ID 与 OBCS correlation
-及逻辑终端 ID 保持独立。
-
-| 条件                                                                                 | Carrier 状态及 standalone 行为                                                         |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| 本地编码或确定的首次写入前失败                                                       | 保留 carrier，返回明确的 not-submitted 失败；workflow 以 unavailable 退出，不重试。    |
-| 可能 handoff 后发生 I/O 错误；畸形、超限、截断、错误 kind 或错误关联的 snapshot 响应 | 退役混合 carrier，报告 snapshot-read 失败；已经成功的 Open 不变成未知 launch。         |
-| 有效的 denied 或 unavailable snapshot 结果                                           | 返回有类型的结果，不执行协议 retirement；workflow 以 unavailable 退出并丢弃 Session。  |
-| 有效 snapshot 的 standalone 结构不受支持                                             | 以 unavailable 退出，不再次选择，也不退回 Open reference。                             |
-| 已知未改变状态的 viewer server-busy 结果                                             | 现有 retry 保留确切 binding 三元组，使用新 OBCS request ID，并保留同一个逻辑截止时间。 |
-| Unknown Open/submission 或不明确的 attachment 结果                                   | 停止，不重放 Open、不改为 Create，也不退回 Create-reference attachment。               |
-
-Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projection 准入，
-持有 binding 不授予 controller 权限。独立 Session/Worker/Terminal 身份域中的相同编码字节是
-有效的；每个字段独立拥有类型并接受校验。
-
-[Server 所有的记录](../orchbee-server/docs/workbench-authority.zh-CN.md#从-workbench-绑定选择终端)
-定义确切 membership lookup、失败优先级、保留 Worker generation 与 attachment 线性化。
-此 Client 不拥有独立终端，也不写入 Workbench 成员关系。Session trace 覆盖混合请求顺序、
-确切选择三元组、结构拒绝、有界 I/O 和不存在 fallback；新构建 release 的 PTY 测试覆盖
-首次打开及返回保留 shell。Carrier 与 Client 期限测试负责进展及结算。远程访问、重启后接管、
-持久化及完整 Workbench Client 不属于此切片。
-
-已接受的[原生 Tab 会话契约](docs/native-tab-session.zh-CN.md)负责定义多 Tab 创建、本地选择、
-显式刷新及其共享载体上的操作屏障，并规定相应的实现与进程验证要求。纯投影与分类 TabCreate
-适配器已经实现。适配器区分明确提交前、已提交及未知结果；调用方截止时间方法从同一个注入的
-共享时钟计算普通、调用方与启动上限，采用其中最早者。确定性的会话状态与有界邮箱实现原子的
-选择准入、Create/刷新屏障、精确事件结算、尺寸门及载体退役。退役保留首个原因，并区分明确的
-未知结果与确定失败。这些核心实现已经与原生连接执行器及 UI 消费方集成。屏障生成测试、
-脚本化载体轨迹及 Linux 上真实的双 Client Tab/刷新进程见证提供实现证据；契约的
-[声明与证据矩阵](docs/native-tab-session.zh-CN.md#声明证据矩阵)记录已检查的声明及其边界。
-这些进程证据不证明其他操作系统、安装、重启恢复或远程访问。
-
-`tab create` 和 `panel split` 还接受单次启动的 `--cwd <absolute-path>` 和可重复的
-`--env NAME=VALUE`，可与 `--profile` 或默认 shell 配合。cwd 覆盖 Workspace 目录，
-Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd workspace` 保留 Workspace／Worker 主目录默认值。环境值逐字传递且有界；参见命令帮助与
-[原生 CLI 合约](docs/native-cli-query.zh-CN.md)。
-
-面向单个 Agent 的命令还支持 `--panel <id|@panel:suffix>` 或位置参数 Panel ID。位置参数优先按 Session ID 和名称解析，再回退到 Panel。Panel 选择主终端且要求唯一存活 Agent；等待固定到选定的 Session。
+Client 只通过 `attach-binding` 附着快照中的准确 Site／Worker／Terminal 绑定。已知待完成、失败、不可用或结果未知的创建来源不能被替换为附着许可。只读、控制者、Resize 与首帧就绪沿用既有授权和期限。Client 退出保留共享成员与运行终端；关闭最后一个 Tab 留下空 Workspace，之后启动不会重新创建它。[上下文选择](docs/native-context-selection.zh-CN.md)及[终端创建](docs/native-terminal-creation.zh-CN.md)拥有详细规则。
 
 ## Windows 显式 Session 停止
 

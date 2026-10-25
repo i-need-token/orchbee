@@ -38,7 +38,7 @@ fn state(count: u64, source: bool, created: bool, revision: u64) -> Snapshot {
             .as_str()
             .cmp(&b["terminalContextId"].as_str())
     });
-    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"standaloneTerminalContextId":id(10),"projects":projects,"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap()
+    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"projects":projects,"directories":directories,"workspaces":std::iter::once(serde_json::json!({"workspaceId":id(10),"terminalContextId":id(10),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"})).chain(workspaces).collect::<Vec<_>>()},"terminalContexts":contexts})).unwrap()
 }
 fn snapshot(stream: &mut LocalStream, state: Snapshot) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {

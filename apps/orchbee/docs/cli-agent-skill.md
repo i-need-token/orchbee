@@ -148,7 +148,7 @@ Explicit targets let shared layout operations run without a TUI. Use `panel layo
 `layout export --tab <tab>`, `layout set-split-ratio --tab <tab> --path root --ratio 0.6`,
 and `panel swap <panel> --with <other-panel>` without `--client`. The shared receipts retain
 canonical identities and outcomes; they make no viewport or focus claim. `layout apply --file
-layout.json --standalone` also runs headlessly; explicit Workspace and confirmed Tab destinations
+layout.json --workspace <workspace>` also runs headlessly; explicit Workspace and confirmed Tab destinations
 are supported. Add `--client` for Client geometry/observations, or `--focus` when applying to a
 Client. Directional neighbors, resize and zoom require Client geometry. Read commands do not
 accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.

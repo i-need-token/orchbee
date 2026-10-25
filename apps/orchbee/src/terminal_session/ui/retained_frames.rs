@@ -33,7 +33,7 @@ impl Identity {
         let presentation = state.selected_presentation(panel);
         Some(Self {
             site: cache.site_id().clone(),
-            context: cache.terminal_context_id().clone(),
+            context: cache.terminal_context_id()?.clone(),
             tab: tab.tab_id().clone(),
             panel: panel.panel_id().clone(),
             presentation: presentation.presentation_id().clone(),
@@ -116,7 +116,7 @@ impl RetainedFrames {
         self.entries.retain(|pixels| {
             let id = &pixels.identity;
             id.site != context.site_id
-                || &id.context != context.location.terminal_context_id()
+                || Some(&id.context) != context.location.terminal_context_id()
                 || id.tab != selection.member.tab
                 || id.panel != selection.member.panel
                 || id.presentation != selection.member.presentation

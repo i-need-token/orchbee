@@ -46,8 +46,7 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
         orientation: PanelOrientation::Horizontal,
         split_id: WorkbenchSplitId::parse(&super::id(2_020)).unwrap(),
     };
-    let mut state =
-        super::ready_with_cache(super::project_native_standalone_tabs(&source).unwrap());
+    let mut state = super::ready_with_cache(super::project_preferred_workspace(&source).unwrap());
     super::attach_nonfirst_leaf(&mut state);
     let pane = state.plan_panel_focus_local(PanelDirection::Right).unwrap();
     assert_eq!(pane.anchor(), state.desired().unwrap().anchor());
@@ -71,7 +70,7 @@ fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
 fn refused_switch_restores_every_split_projection_and_local_input_target() {
     let mut source = split_panel_baseline();
     source.terminal_contexts[0].tabs.push(tab(1));
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&source).unwrap());
     let focus = state.focus_pane_ref().unwrap();
     let sibling = attach_nonfirst_leaf(&mut state);
     let frame = FrameIdentity::new(7);
@@ -114,7 +113,7 @@ fn split_refusal_requires_every_exact_retained_viewer_and_causal_proof() {
     ] {
         let mut source = split_panel_baseline();
         source.terminal_contexts[0].tabs.push(tab(1));
-        let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&source).unwrap());
         let focus = state.focus_pane_ref().unwrap();
         let sibling = attach_nonfirst_leaf(&mut state);
         if loss != "unfinished frame" {
@@ -150,7 +149,7 @@ fn split_refusal_requires_every_exact_retained_viewer_and_causal_proof() {
 fn rollback_does_not_revive_a_sibling_that_was_already_departing() {
     let mut source = split_panel_baseline();
     source.terminal_contexts[0].tabs.push(tab(1));
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&source).unwrap());
     let focus = state.focus_pane_ref().unwrap();
     let sibling = attach_nonfirst_leaf(&mut state);
     assert!(state.sync_pane_set(

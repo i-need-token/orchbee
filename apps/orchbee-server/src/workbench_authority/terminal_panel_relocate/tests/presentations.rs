@@ -1,5 +1,6 @@
 //! Complete Panel payloads survive structural operations through real admission.
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_authority::{
     WorkbenchPanelPlacementBegin, WorkbenchPanelPlacementPreparation, WorkbenchTabMoveBegin,
     WorkbenchTabMovePreparation,
@@ -61,14 +62,14 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
     )
     .unwrap();
     owner.last_identity = next;
-    let membership = owner.tree_standalone_membership().unwrap();
+    let membership = owner.fixture_tree_membership().unwrap();
     assert_eq!(membership.members().len(), 3);
     assert_eq!(
         membership.member_for_panel(&source_tab, &source_panel),
         membership.members().first()
     );
     assert!(
-        owner.standalone_membership().is_err(),
+        owner.fixture_membership().is_err(),
         "legacy contract stays single-Presentation"
     );
 
@@ -79,7 +80,7 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
         &owner,
         101,
         WorkbenchAction::TabMove {
-            terminal_context_id: standalone_context(&owner),
+            terminal_context_id: initial_workspace_context(&owner),
             tab_id: source_tab.clone(),
             direction: WorkbenchTabMoveDirection::Next,
         },
@@ -114,22 +115,19 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
     assert_eq!(split_leaves[0], original);
     let sibling = split_leaves[1].clone();
     let target_panel = leaf_panel_id(&sibling);
-    assert_eq!(
-        owner.tree_standalone_membership().unwrap().members().len(),
-        5
-    );
+    assert_eq!(owner.fixture_tree_membership().unwrap().members().len(), 5);
 
     for swap in [false, true] {
         let action = if swap {
             WorkbenchAction::PanelSwap {
-                terminal_context_id: standalone_context(&owner),
+                terminal_context_id: initial_workspace_context(&owner),
                 tab_id: source_tab.clone(),
                 panel_id: source_panel.clone(),
                 target_panel_id: target_panel.clone(),
             }
         } else {
             WorkbenchAction::PanelMove {
-                terminal_context_id: standalone_context(&owner),
+                terminal_context_id: initial_workspace_context(&owner),
                 tab_id: source_tab.clone(),
                 panel_id: source_panel.clone(),
                 target_panel_id: target_panel.clone(),
@@ -155,10 +153,7 @@ fn children_survive_tab_creation_ordering_split_move_and_swap() {
             vec![sibling.clone(), original.clone()]
         };
         assert_eq!(leaves(&tab_root(&owner, &source_tab)), expected);
-        assert_eq!(
-            owner.tree_standalone_membership().unwrap().members().len(),
-            5
-        );
+        assert_eq!(owner.fixture_tree_membership().unwrap().members().len(), 5);
         assert!(!owner.retired);
         assert_eq!(
             owner.snapshot().terminal_contexts[0].tabs[1].group_id,

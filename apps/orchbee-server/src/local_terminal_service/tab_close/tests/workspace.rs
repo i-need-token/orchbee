@@ -1,6 +1,6 @@
 use super::*;
-use crate::site_coordinator::{PendingTerminalTabCreate, PreparedOpen};
-use orchbee_client_server_protocol::{Geometry, OpenOutcome, RequestId, TerminalOpenRequest};
+use crate::site_coordinator::PendingTerminalTabCreate;
+use orchbee_client_server_protocol::{Geometry, RequestId};
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
     WorkbenchCommandResult, WorkbenchDirectoryPath, WorkbenchTabMoveDirection,
@@ -257,7 +257,7 @@ fn dispose(service: &LocalTerminalService, peer: &mut UnixStream, close: &Workbe
     }
 }
 
-fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) -> bool {
+fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) {
     let mut site = service.coordinator.lock().unwrap();
     let runtime = site
         .close_authority()
@@ -277,81 +277,33 @@ fn publish(service: &LocalTerminalService, close: &WorkbenchCommand) -> bool {
         .unwrap()
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum OpenProbe {
-    Wait,
-    Ready(OpenOutcome),
-}
-
-fn open_probe(service: &LocalTerminalService) -> OpenProbe {
-    match service.coordinator.lock().unwrap().prepare_open(
-        &TerminalOpenRequest::new(
-            RequestId::parse(id(2900).as_str()).unwrap(),
-            Geometry::new(80, 24, 8, 16).unwrap(),
-        ),
-        None,
-        Some(worker()),
-        None,
-    ) {
-        PreparedOpen::Wait => OpenProbe::Wait,
-        PreparedOpen::Ready(result) => OpenProbe::Ready(result),
-        PreparedOpen::Dispatch(_) => panic!("probe has no candidate and must not create"),
-    }
-}
-
 #[test]
-fn workspace_publication_preserves_empty_creating_and_settled_standalone_slots_without_notification()
- {
-    for state in ["empty", "creating", "settled"] {
+fn workspace_close_preserves_sibling_pending_and_settled_tabs() {
+    for pending_sibling in [false, true] {
         let Fixture {
             service,
             mut peer,
             worker_thread,
-            close,
+            ..
         } = fixture();
-        if state != "settled" {
-            accept(&service, &close);
-            dispose(&service, &mut peer, &close);
-            assert!(publish(&service, &close));
-        }
-        let standalone = read_snapshot(&service)
-            .navigation
-            .standalone_terminal_context_id;
-        let pending = (state == "creating").then(|| pending_create(&service, &standalone, 2100).1);
-        let before_slot = open_probe(&service);
-        let expected_slot = match state {
-            "creating" => OpenProbe::Wait,
-            "settled" => OpenProbe::Ready(OpenOutcome::Opened {
-                terminal_create_request_id: RequestId::parse(id(11).as_str()).unwrap(),
-            }),
-            _ => OpenProbe::Ready(OpenOutcome::Unavailable {
-                reason: orchbee_client_server_protocol::CreateUnavailableReason::ServerBusy,
-            }),
-        };
-        assert_eq!(before_slot, expected_slot);
-        let before_tabs = tabs(&service, &standalone);
+        let sibling = read_snapshot(&service).navigation.workspaces[0]
+            .terminal_context_id
+            .clone();
+        let pending = pending_sibling.then(|| pending_create(&service, &sibling, 2100).1);
+        let before_tabs = tabs(&service, &sibling);
         let context = workspace(&service);
         let (_, target) = pending_create(&service, &context, 2200);
         complete_create(&service, target, 30);
         let close = close_command(&service, &context, 2300);
         let accepted = accept(&service, &close);
         dispose(&service, &mut peer, &close);
-        assert!(
-            !publish(&service, &close),
-            "Workspace must not notify standalone waiters: {state}"
-        );
-        assert_eq!(open_probe(&service), before_slot, "{state}");
-        assert_eq!(tabs(&service, &standalone), before_tabs);
+        publish(&service, &close);
+        assert_eq!(tabs(&service, &sibling), before_tabs);
         assert!(tabs(&service, &context).is_empty());
         assert_eq!(accept(&service, &close), accepted);
         if let Some(pending) = pending {
             complete_create(&service, pending, 31);
-            assert_eq!(
-                open_probe(&service),
-                OpenProbe::Ready(OpenOutcome::Opened {
-                    terminal_create_request_id: RequestId::parse(id(2101).as_str()).unwrap(),
-                })
-            );
+            assert_eq!(tabs(&service, &sibling).len(), before_tabs.len());
         }
         drop(peer);
         let _exit = worker_thread.join().unwrap();
@@ -398,7 +350,7 @@ fn moved_pending_workspace_create_settles_after_close_at_its_original_revision_a
         vec![original[1].clone(), original[0].clone()]
     );
     dispose(&service, &mut peer, &close);
-    assert!(!publish(&service, &close));
+    publish(&service, &close);
     assert_eq!(tabs(&service, &context), vec![original[1].clone()]);
     let published_revision = read_snapshot(&service).revision;
     assert_eq!(
@@ -502,7 +454,7 @@ fn last_workspace_close_keeps_directory_recreates_fresh_ids_and_cleans_only_its_
         owners.push((key, owner));
     }
     dispose(&service, &mut peer, &workspace_close);
-    assert!(!publish(&service, &workspace_close));
+    publish(&service, &workspace_close);
     assert_eq!(
         service
             .controllers
@@ -542,7 +494,7 @@ fn last_workspace_close_keeps_directory_recreates_fresh_ids_and_cleans_only_its_
     );
     assert_ne!(old_presentation.binding, new_presentation.binding);
     dispose(&service, &mut peer, &close);
-    assert!(publish(&service, &close));
+    publish(&service, &close);
     assert!(service.controllers.lock().unwrap().is_empty());
     assert_eq!(tabs(&service, &context), vec![recreated]);
     assert_eq!(read_snapshot(&service).navigation, before.navigation);

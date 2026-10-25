@@ -7,12 +7,7 @@ Windows `tab create` 和 `panel split` 先创建一个规范资源，再执行�
 互斥，默认不聚焦。`--client` 指定一个精确交互客户端。总 `--timeout` 默认 30000 ms，
 范围为 1 至 3600000 ms。不提供脱离等待模式或调用者指定的创建身份。
 
-`tab create` 接受互斥的 `--workspace` 或 `--standalone`。全部省略时，先使用经校验的
-调用者 Panel 所在上下文，再使用无歧义当前 Client 的选中上下文。`panel split` 接受
-可选位置 Panel 或互斥的 `--panel`／`--current`；省略时先使用经校验的调用者上下文，
-再使用所选 Client 的 Panel。显式 Client 路由忽略调用者环境。部分、格式错误或过期的
-调用者身份绝不回退到其他目标。显式上下文或 Panel 且无 Client 操作时仍可无界面使用。
-多个可选 Client 明确报错。
+`tab create` 接受 `--workspace`；省略时先使用已验证调用 Panel 所属 Workspace，再使用无歧义当前 Client 所选 Workspace。不存在无 Workspace 的目标。`panel split` 接受可选位置 Panel 或互斥的 `--panel`／`--current`；省略时先使用已验证调用上下文，再使用所选 Client 的 Panel。显式 Client 路由忽略调用环境。残缺、格式错误或过期调用身份不回退到其他目标。无需 Client 操作的显式目标仍可无界面使用。多个可用 Client 属于错误。
 
 创建标签可省略。原生默认标签是预检 Snapshot 中上下文的 Tab 数量加一，或分屏所在
 Tab 的 Panel 数量加一。这是原始创建标签。省略 Tab 标签还请求[自动位置命名](native-tab-labels.zh-CN.md)；

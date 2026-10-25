@@ -50,11 +50,10 @@ pub(in crate::terminal_session::ui) fn ready(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache:
-                    crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-                        &snapshot(empty),
-                    )
-                    .unwrap(),
+                cache: crate::terminal_session::workbench_projection::project_preferred_workspace(
+                    &snapshot(empty),
+                )
+                .unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
             &clock,

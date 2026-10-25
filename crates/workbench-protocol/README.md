@@ -9,13 +9,12 @@ The JSON schema and cross-language corpus live under `schemas/workbench/v1`.
 
 ## Project organization and stable Workspace identity
 
-Navigation owns global identity-sorted `directories`, `projects` and `workspaces`, plus
-`standaloneTerminalContextId` and independent `projectOrder` and `workspaceOrder`. Each nonempty
+Navigation owns global identity-sorted `directories`, `projects` and `workspaces`, plus independent `projectOrder` and `workspaceOrder`. Each nonempty
 order is an exact permutation of its registry; omission or an empty order uses canonical ID order. Project contains only
 `projectId` and `label`. Workspace carries required-nullable `projectId` and `primaryDirectoryId`;
 its ID, Terminal Context and physical Directory are independent of grouping. References must
-resolve, and each Terminal Context has exactly one navigation owner. Capacity is 256 Projects,
-65,536 global Directories, 256 Workspaces in one Project and 1,023 Workspaces overall. The existing
+resolve, and each Terminal Context has exactly one Workspace owner, including the valid zero-Workspace/zero-Context state. Capacity is 256 Projects,
+65,536 global Directories, 256 Workspaces in one Project and 1,024 Workspaces overall. The existing
 1 MiB projection byte budget is an additional bound, independent of collection capacity.
 
 `workspace.create` requires `projectId`, allowing null. Pure `workspace.set-project` changes one

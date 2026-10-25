@@ -54,19 +54,6 @@ impl Overview {
             }
         }
         let mut contexts = Vec::new();
-        if let Some(location) =
-            crate::terminal_session::compatibility_workspace(snapshot).map_err(|_| ())?
-        {
-            contexts.push(Context {
-                target: NativeContextTarget {
-                    site_id: snapshot.site_id.clone(),
-                    location,
-                },
-                project_id: None,
-                project: None,
-                workspace: None,
-            });
-        }
         // The wire boundary has already validated ordering, membership and protocol limits.
         {
             let ordered = snapshot.navigation.ordered_workspaces().map_err(|_| ())?;

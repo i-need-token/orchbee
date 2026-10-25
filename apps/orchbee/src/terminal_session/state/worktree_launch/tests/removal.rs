@@ -7,10 +7,10 @@ use orchbee_workbench_protocol::{
 pub(in crate::terminal_session) fn fixture() -> (Launcher, Origin, addressed::SidebarDiscovery) {
     let mut snapshot = addressed::tests::fixture();
     snapshot.navigation.directories[0].path = path("C:/trees/猫");
-    snapshot.navigation.workspaces[0].label = "Task 猫".into();
-    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    snapshot.navigation.workspaces[1].label = "Task 猫".into();
+    let state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let origin = state.worktree_origin().unwrap();
-    let workspace = &snapshot.navigation.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[1];
     let addressed = addressed::AddressedWorktreeSource::capture(
         &snapshot,
         &addressed::SidebarWorktreeTarget::Workspace(workspace.workspace_id.clone()),
@@ -147,7 +147,7 @@ fn changed_addressed_directory_and_first_blocked_geometry_cannot_confirm_removal
     launcher.draw(Some(token));
     let mut snapshot = origin.cache.canonical_snapshot().clone();
     snapshot.navigation.directories[0].path = path("C:/other");
-    origin.cache = project_native_standalone_tabs(&snapshot).unwrap();
+    origin.cache = project_preferred_workspace(&snapshot).unwrap();
     assert!(launcher.confirm(token, request(90), &origin).is_none());
     assert_eq!(launcher.notice(), WorktreeNotice::SourceChanged);
     assert!(launcher.operation().is_none());

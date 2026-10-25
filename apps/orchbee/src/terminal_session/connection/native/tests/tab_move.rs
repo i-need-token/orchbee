@@ -351,7 +351,6 @@ fn snapshot_failure_taxonomy_preserves_io_and_protocol_causes() -> TestResult {
 
 fn steps(after: &[WireKind]) -> Vec<WireKind> {
     let mut steps = vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,
@@ -376,7 +375,7 @@ fn commit_move_at(harness: &Harness, operation: &MoveOperation, revision: u64) -
     assert_eq!(
         command.action,
         WorkbenchAction::TabMove {
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             direction: operation.direction(),
         }
@@ -388,7 +387,7 @@ fn commit_move_at(harness: &Harness, operation: &MoveOperation, revision: u64) -
             request_id: command.request_id,
             outcome: WorkbenchCommandOutcome::TabMoved {
                 revision: WorkbenchRevision::new(revision),
-                terminal_context_id: operation.baseline().terminal_context_id().clone(),
+                terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
                 tab_id: operation.target().tab_id().clone(),
             },
         }))
@@ -630,7 +629,7 @@ fn move_and_snapshot_share_admission_budget_and_expire_at_equality() -> TestResu
             request_id: command.request_id,
             outcome: WorkbenchCommandOutcome::TabMoved {
                 revision: WorkbenchRevision::new(2),
-                terminal_context_id: operation.baseline().terminal_context_id().clone(),
+                terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
                 tab_id: operation.target().tab_id().clone(),
             },
         }))?;
@@ -874,7 +873,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
             request_id: command.request_id,
             outcome: WorkbenchCommandOutcome::PanelSplitPending {
                 revision: WorkbenchRevision::new(3),
-                terminal_context_id: split.baseline().terminal_context_id().clone(),
+                terminal_context_id: split.baseline().terminal_context_id().unwrap().clone(),
                 tab_id: split.target().tab_id().clone(),
                 panel_id: split.panel_id().clone(),
                 new_panel_id: WorkbenchPanelId::parse(&id(3_010))?,

@@ -15,7 +15,7 @@ fn operation(state: &NativeSessionState, request: u128) -> MoveOperation {
 fn commit(operation: &MoveOperation) -> WorkbenchTabMoveCommit {
     WorkbenchTabMoveCommit {
         revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
-        terminal_context_id: operation.baseline().terminal_context_id().clone(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
         tab_id: operation.target().tab_id().clone(),
     }
 }

@@ -11,7 +11,7 @@ use ratatui::layout::Rect;
 
 use super::{
     StartupWait, WaitInput, WaitModeGuard, WaitPrompt, WaitViewport, await_presentable_geometry,
-    standalone_presentable_area,
+    startup_presentable_area,
 };
 use crate::termination_signal::TerminationSource;
 use crate::{
@@ -275,7 +275,7 @@ fn waiting_draws_prompt_once_then_admits_valid_geometry() {
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
 
     let admitted =
-        expect_available(harness.run(&mut viewport, &mut input, &mut standalone_presentable_area));
+        expect_available(harness.run(&mut viewport, &mut input, &mut startup_presentable_area));
 
     assert_eq!(admitted.columns, 120);
     assert_eq!(admitted.rows, 40);
@@ -308,7 +308,7 @@ fn prefix_exit_keys_cancel_the_wait() {
             Rc::clone(&harness.clock),
         );
 
-        let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+        let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
         assert!(matches!(outcome, StartupWait::Cancelled));
         let mut expected = ENTER_OPS.to_vec();
@@ -331,7 +331,7 @@ fn prefix_exit_across_packets_cancels() {
         Rc::clone(&harness.clock),
     );
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::Cancelled));
 }
@@ -346,7 +346,7 @@ fn pointer_admission_query_is_rejected_during_startup_wait_and_restores_modes() 
         Rc::clone(&harness.clock),
     );
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(
         outcome,
@@ -384,7 +384,7 @@ fn waiting_input_is_consumed_and_never_replayed() {
     );
 
     let admitted =
-        expect_available(harness.run(&mut viewport, &mut input, &mut standalone_presentable_area));
+        expect_available(harness.run(&mut viewport, &mut input, &mut startup_presentable_area));
 
     assert_eq!(admitted.rows, 40);
     assert!(input.reads.is_empty());
@@ -405,7 +405,7 @@ fn modal_request_toggles_then_restores_bracketed_paste() {
     );
 
     let admitted =
-        expect_available(harness.run(&mut viewport, &mut input, &mut standalone_presentable_area));
+        expect_available(harness.run(&mut viewport, &mut input, &mut startup_presentable_area));
 
     assert_eq!(admitted.rows, 40);
     let ops = harness.ops();
@@ -426,7 +426,7 @@ fn deadline_wins_when_resize_lands_at_the_same_instant() {
         Rc::clone(&harness.clock),
     );
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::TimedOut));
     let mut expected = ENTER_OPS.to_vec();
@@ -442,7 +442,7 @@ fn expired_deadline_returns_timed_out_without_entering_modes() {
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
     *harness.clock.borrow_mut() = harness.deadline;
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::TimedOut));
     assert!(harness.ops().is_empty());
@@ -461,7 +461,7 @@ fn valid_geometry_inside_the_original_budget_is_admitted() {
     );
 
     let admitted =
-        expect_available(harness.run(&mut viewport, &mut input, &mut standalone_presentable_area));
+        expect_available(harness.run(&mut viewport, &mut input, &mut startup_presentable_area));
 
     assert_eq!(admitted.rows, 40);
     assert!(*harness.clock.borrow() < harness.deadline);
@@ -483,7 +483,7 @@ fn zero_cell_reports_are_ignored_until_real_fault_or_geometry() {
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
 
     let admitted =
-        expect_available(harness.run(&mut viewport, &mut input, &mut standalone_presentable_area));
+        expect_available(harness.run(&mut viewport, &mut input, &mut startup_presentable_area));
 
     assert_eq!(admitted.rows, 40);
 }
@@ -500,7 +500,7 @@ fn real_geometry_fault_propagates_as_fault() {
     );
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     match outcome {
         StartupWait::Fault(error) => assert_eq!(error.kind(), io::ErrorKind::PermissionDenied),
@@ -520,7 +520,7 @@ fn first_sample_fault_never_enters_modes() {
     );
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::Fault(_)));
     assert!(harness.ops().is_empty());
@@ -534,7 +534,7 @@ fn mode_entry_failure_surfaces_as_fault() {
     let mut viewport = ScriptedViewport::new(vec![result(small)], result(small));
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::Fault(_)));
     assert_eq!(harness.ops(), vec!["enable-raw", "enter-alt"]);
@@ -549,7 +549,7 @@ fn termination_request_cancels() {
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
     harness.termination.0.set(true);
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::Cancelled));
 }
@@ -569,7 +569,7 @@ fn input_read_faults_and_eof_surface_as_fault() {
             Rc::clone(&harness.clock),
         );
 
-        let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+        let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
         match outcome {
             StartupWait::Fault(error) => assert_eq!(error.kind(), kind),
@@ -589,7 +589,7 @@ fn poll_timeout_is_capped_by_the_remaining_deadline() {
         Rc::clone(&harness.clock),
     );
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::TimedOut));
     assert_eq!(input.timeouts, vec![Duration::from_millis(50)]);
@@ -604,34 +604,34 @@ fn restore_failure_surfaces_as_fault() {
     let mut viewport = ScriptedViewport::new(vec![result(small), result(big)], result(big));
     let mut input = ScriptedInput::new(Vec::new(), Rc::clone(&harness.clock));
 
-    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+    let outcome = harness.run(&mut viewport, &mut input, &mut startup_presentable_area);
 
     assert!(matches!(outcome, StartupWait::Fault(_)));
     assert!(harness.ops().contains(&"leave-alt"));
 }
 
 #[test]
-fn standalone_presentable_area_reports_drawable_content() {
-    let wide = standalone_presentable_area(dimensions(120, 40)).unwrap();
+fn startup_presentable_area_reports_drawable_content() {
+    let wide = startup_presentable_area(dimensions(120, 40)).unwrap();
     // The bottom status row is reserved at every tier, outside terminal content.
     assert_eq!(wide, Rect::new(31, 2, 88, 36));
-    assert!(standalone_presentable_area(dimensions(80, 8)).is_some());
-    assert!(standalone_presentable_area(dimensions(96, 10)).is_some());
+    assert!(startup_presentable_area(dimensions(80, 8)).is_some());
+    assert!(startup_presentable_area(dimensions(96, 10)).is_some());
     // A Minimal viewport still presents an unframed pane, so 7 rows is a
     // drawable area, not a refusal.
-    assert!(standalone_presentable_area(dimensions(120, 7)).is_some());
-    assert!(standalone_presentable_area(dimensions(80, 7)).is_some());
+    assert!(startup_presentable_area(dimensions(120, 7)).is_some());
+    assert!(startup_presentable_area(dimensions(80, 7)).is_some());
     // Only the TooSmall tier cannot present: under 20 columns or 5 rows.
-    assert!(standalone_presentable_area(dimensions(19, 40)).is_none());
-    assert!(standalone_presentable_area(dimensions(80, 4)).is_none());
-    assert!(standalone_presentable_area(dimensions(3, 3)).is_none());
+    assert!(startup_presentable_area(dimensions(19, 40)).is_none());
+    assert!(startup_presentable_area(dimensions(80, 4)).is_none());
+    assert!(startup_presentable_area(dimensions(3, 3)).is_none());
     // Presentability is a cell-geometry verdict only; a zero-pixel report with
     // drawable cells still maps Some, and pixel validation stays on the
     // separate Err channel of `terminal_geometry`.
     let mut pixel_less = dimensions(80, 40);
     pixel_less.pixel_width = 0;
     pixel_less.pixel_height = 0;
-    assert!(standalone_presentable_area(pixel_less).is_some());
+    assert!(startup_presentable_area(pixel_less).is_some());
     assert!(
         crate::tui_shell::terminal_geometry(
             pixel_less,

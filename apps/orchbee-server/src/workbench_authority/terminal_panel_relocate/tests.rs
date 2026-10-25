@@ -1,6 +1,7 @@
 //! Focused `panel.relocate` authority tests: identity retention, direction
 //! order, the rejection matrix, lifecycle fencing, and the limit surface.
 
+use crate::test_support::WorkbenchFixture;
 use std::num::NonZeroU64;
 use std::time::Instant;
 
@@ -22,10 +23,11 @@ use orchbee_workbench_protocol::{
 };
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
-    let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(100)).unwrap()).unwrap();
+    let mut authority =
+        WorkbenchAuthority::workspace_fixture(SiteId::parse(&identity(100)).unwrap()).unwrap();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())
         .with_terminal_lifecycle();
-    authority.commit_standalone_intent(binding(700)).unwrap();
+    authority.append_fixture_tab(binding(700)).unwrap();
     (authority, grant)
 }
 
@@ -46,12 +48,9 @@ fn command(authority: &WorkbenchAuthority, id: u128, action: WorkbenchAction) ->
     }
 }
 
-fn standalone_context(authority: &WorkbenchAuthority) -> WorkbenchTerminalContextId {
-    authority
-        .projection
-        .snapshot()
-        .navigation
-        .standalone_terminal_context_id
+fn initial_workspace_context(authority: &WorkbenchAuthority) -> WorkbenchTerminalContextId {
+    authority.projection.snapshot().navigation.workspaces[0]
+        .terminal_context_id
         .clone()
 }
 
@@ -86,7 +85,7 @@ fn create_tab(
             WorkbenchAction::TabCreate {
                 placement: None,
                 automatic_label: false,
-                terminal_context_id: standalone_context(authority),
+                terminal_context_id: initial_workspace_context(authority),
                 label: WorkbenchLabel::parse(label).unwrap(),
                 geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
                 launch: None,
@@ -135,7 +134,7 @@ fn split(
             command_id,
             WorkbenchAction::PanelSplit {
                 right_click: Default::default(),
-                terminal_context_id: standalone_context(authority),
+                terminal_context_id: initial_workspace_context(authority),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
                 direction,
@@ -177,7 +176,7 @@ fn relocate_command(
         authority,
         id,
         WorkbenchAction::PanelRelocate {
-            terminal_context_id: standalone_context(authority),
+            terminal_context_id: initial_workspace_context(authority),
             tab_id: tab_id.clone(),
             panel_id: panel_id.clone(),
             destination,
@@ -215,7 +214,7 @@ fn tab_root(authority: &WorkbenchAuthority, tab_id: &WorkbenchTabId) -> PanelNod
 #[test]
 fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -228,7 +227,7 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let source_members: Vec<_> = membership.members_for_tab(&source_tab).cloned().collect();
     let panel_b = source_members
         .iter()
@@ -274,7 +273,7 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
         panic!("expected panel-relocated: {:?}", result.outcome)
     };
     assert_eq!(revision.value(), before.revision.value() + 1);
-    assert_eq!(terminal_context_id, &standalone_context(&authority));
+    assert_eq!(terminal_context_id, &initial_workspace_context(&authority));
     assert_eq!(outcome_source, &source_tab);
     assert_eq!(outcome_panel, &panel_b);
     assert_eq!(target_tab_id, &target_tab);
@@ -319,7 +318,7 @@ fn relocate_leaf_into_existing_tab_preserves_identity_and_mints_only_the_graft()
 #[test]
 fn relocate_leaf_into_new_tab_appends_a_single_leaf_tab() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -331,7 +330,7 @@ fn relocate_leaf_into_new_tab_appends_a_single_leaf_tab() {
         &panel_a,
         WorkbenchPanelSplitDirection::Right,
     );
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -397,7 +396,7 @@ fn relocate_leaf_into_new_tab_appends_a_single_leaf_tab() {
 #[test]
 fn relocate_direction_places_the_moved_leaf_first_for_above_and_left() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -410,7 +409,7 @@ fn relocate_direction_places_the_moved_leaf_first_for_above_and_left() {
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -455,7 +454,7 @@ fn relocate_direction_places_the_moved_leaf_first_for_above_and_left() {
 #[test]
 fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -468,7 +467,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -480,7 +479,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
         (
             11,
             WorkbenchAction::PanelRelocate {
-                terminal_context_id: standalone_context(&authority),
+                terminal_context_id: initial_workspace_context(&authority),
                 tab_id: WorkbenchTabId::parse(&identity(888_888)).unwrap(),
                 panel_id: panel_b.clone(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
@@ -495,7 +494,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
         (
             12,
             WorkbenchAction::PanelRelocate {
-                terminal_context_id: standalone_context(&authority),
+                terminal_context_id: initial_workspace_context(&authority),
                 tab_id: source_tab.clone(),
                 panel_id: WorkbenchPanelId::parse(&identity(999_999)).unwrap(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
@@ -510,7 +509,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
         (
             13,
             WorkbenchAction::PanelRelocate {
-                terminal_context_id: standalone_context(&authority),
+                terminal_context_id: initial_workspace_context(&authority),
                 tab_id: source_tab.clone(),
                 panel_id: panel_b.clone(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
@@ -525,7 +524,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
         (
             14,
             WorkbenchAction::PanelRelocate {
-                terminal_context_id: standalone_context(&authority),
+                terminal_context_id: initial_workspace_context(&authority),
                 tab_id: source_tab.clone(),
                 panel_id: panel_b.clone(),
                 destination: WorkbenchPanelRelocateDestination::Tab {
@@ -562,7 +561,7 @@ fn relocate_rejections_are_typed_retained_and_leave_the_projection_untouched() {
 #[test]
 fn relocate_preserves_the_complete_panel_with_child_presentations() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -575,7 +574,7 @@ fn relocate_preserves_the_complete_panel_with_child_presentations() {
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -659,7 +658,7 @@ fn relocate_preserves_the_complete_panel_with_child_presentations() {
 #[test]
 fn relocate_without_navigation_grant_is_denied() {
     let (mut authority, _grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -734,7 +733,7 @@ fn open_leaf_close(
             authority,
             command_id,
             WorkbenchAction::PanelClose {
-                terminal_context_id: standalone_context(authority),
+                terminal_context_id: initial_workspace_context(authority),
                 tab_id: tab_id.clone(),
                 panel_id: panel_id.clone(),
             },
@@ -810,7 +809,7 @@ fn open_aggregate_close(
 #[test]
 fn an_open_leaf_close_on_the_moved_member_fences_relocate() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -823,7 +822,7 @@ fn an_open_leaf_close_on_the_moved_member_fences_relocate() {
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -864,7 +863,7 @@ fn an_open_leaf_close_on_the_moved_member_fences_relocate() {
 #[test]
 fn an_open_aggregate_close_on_either_endpoint_fences_relocate() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -877,7 +876,7 @@ fn an_open_aggregate_close_on_either_endpoint_fences_relocate() {
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -937,7 +936,7 @@ fn an_open_aggregate_close_on_either_endpoint_fences_relocate() {
 #[test]
 fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -952,7 +951,7 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
             300,
             WorkbenchAction::PanelSplit {
                 right_click: Default::default(),
-                terminal_context_id: standalone_context(&authority),
+                terminal_context_id: initial_workspace_context(&authority),
                 tab_id: source_tab.clone(),
                 panel_id: panel_a.clone(),
                 direction: WorkbenchPanelSplitDirection::Right,
@@ -971,7 +970,7 @@ fn a_pending_split_settlement_on_the_moved_leaf_fences_relocate() {
         panic!("panel split preparation")
     };
     let _pending = prepared.commit_into_pending();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let pending_leaf = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)
@@ -1057,7 +1056,7 @@ fn deep_tree(depth: usize, seed: u128) -> PanelNode {
 #[test]
 fn relocate_into_a_maximum_depth_destination_is_a_resource_limit() {
     let (mut authority, grant) = authority();
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let member = membership.members().first().unwrap().clone();
     let source_tab = member.tab_id().clone();
     let panel_a = member.panel_id().clone();
@@ -1070,7 +1069,7 @@ fn relocate_into_a_maximum_depth_destination_is_a_resource_limit() {
         WorkbenchPanelSplitDirection::Right,
     );
     let target_tab = create_tab(&mut authority, &grant, 200, "two", 800);
-    let membership = authority.tree_standalone_membership().unwrap();
+    let membership = authority.fixture_tree_membership().unwrap();
     let panel_b = membership
         .members_for_tab(&source_tab)
         .find(|member| member.panel_id() != &panel_a)

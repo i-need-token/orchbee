@@ -52,7 +52,7 @@ fn tab(id: u8, label: &str, root: Value) -> Value {
 
 /// Two same-label projects (`alpha`), each owning one same-label
 /// workspace (`ws`) on its own context; nine same-label `dup` tabs in
-/// scrambled id order under the standalone context; one `main` tab under
+/// scrambled id order under the initial_workspace context; one `main` tab under
 /// each workspace context (a split root under the first).
 fn snapshot() -> Snapshot {
     let document = json!({
@@ -60,7 +60,7 @@ fn snapshot() -> Snapshot {
         "protocolVersion": 1,
         "revision": "9",
         "siteId": hex(0xaa),
-        "navigation": {"projects":[{"projectId":hex(0x10), "label":"alpha"}, {"projectId":hex(0x11), "label":"alpha"}], "standaloneTerminalContextId":hex(0x01), "directories":[{
+        "navigation": {"projects":[{"projectId":hex(0x10), "label":"alpha"}, {"projectId":hex(0x11), "label":"alpha"}], "directories":[{
                         "directoryId": hex(0x30),
                         "workerId": WORKER,
                         "path": "/a",
@@ -68,7 +68,7 @@ fn snapshot() -> Snapshot {
                         "directoryId": hex(0x31),
                         "workerId": WORKER,
                         "path": "/b",
-                    }], "workspaces":[{"workspaceId":hex(0x40), "label":"ws", "primaryDirectoryId":hex(0x30), "terminalContextId":hex(0x50), "projectId":hex(0x10)}, {"workspaceId":hex(0x41), "label":"ws", "primaryDirectoryId":hex(0x31), "terminalContextId":hex(0x51), "projectId":hex(0x11)}]},
+                    }], "workspaces":[{"workspaceId":hex(0x01),"terminalContextId":hex(0x01),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":hex(0x40), "label":"ws", "primaryDirectoryId":hex(0x30), "terminalContextId":hex(0x50), "projectId":hex(0x10)}, {"workspaceId":hex(0x41), "label":"ws", "primaryDirectoryId":hex(0x31), "terminalContextId":hex(0x51), "projectId":hex(0x11)}]},
         "terminalContexts": [
             {
                 "terminalContextId": hex(0x01),
@@ -163,15 +163,9 @@ fn automatic_tab_queries_use_context_position_and_numeric_name_collisions_stay_a
     }
     state.terminal_contexts[0].tabs[0].automatic_label = false;
     state.terminal_contexts[0].tabs[0].label = "2".into();
-    let list = project(
-        &QueryCommand::TabList {
-            workspace: None,
-            standalone: false,
-        },
-        &state,
-    )
-    .unwrap()
-    .result();
+    let list = project(&QueryCommand::TabList { workspace: None }, &state)
+        .unwrap()
+        .result();
     assert_eq!(list["tabs"][0]["label"], "2");
     assert_eq!(list["tabs"][1]["label"], "2");
     assert_eq!(list["tabs"][9]["label"], "1");
@@ -356,7 +350,6 @@ fn workspace_filter_hit_miss_and_ambiguity() {
     let projection = project(
         &QueryCommand::TabList {
             workspace: Some(Target::Id(hex(0x41))),
-            standalone: false,
         },
         &snapshot(),
     )
@@ -366,14 +359,13 @@ fn workspace_filter_hit_miss_and_ambiguity() {
     };
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].tab_id, hex(0x62));
-    assert!(!rows[0].context.standalone);
+    assert!(!rows[0].context.workspace_id.is_empty());
     assert_eq!(rows[0].context.terminal_context_id, hex(0x51));
-    assert_eq!(rows[0].context.workspace_id, Some(hex(0x41)));
+    assert_eq!(rows[0].context.workspace_id, hex(0x41));
 
     // Ambiguous: two workspaces share the label across projects.
     let ambiguous = failure(&QueryCommand::TabList {
         workspace: Some(Target::Label("ws".into())),
-        standalone: false,
     });
     assert_eq!(ambiguous.kind, FailureKind::Ambiguous);
     assert_eq!(details(&ambiguous)["resource"], json!("workspace"));
@@ -382,7 +374,6 @@ fn workspace_filter_hit_miss_and_ambiguity() {
     // Miss.
     let missed = failure(&QueryCommand::TabList {
         workspace: Some(Target::Label("ghost".into())),
-        standalone: false,
     });
     assert_eq!(missed.kind, FailureKind::NotFound);
     assert_eq!(details(&missed)["resource"], json!("workspace"));
@@ -437,7 +428,7 @@ fn tid(high: u64, tail: u64) -> String {
 }
 
 /// Selector fixture: projects `…00aa`/`…10aa`/`…00bb`, workspaces
-/// `…00cc`/`…10cc`/`…00dd`, standalone tabs `…00ee`/`…10ee`, panels
+/// `…00cc`/`…10cc`/`…00dd`, initial_workspace tabs `…00ee`/`…10ee`, panels
 /// `…00ff`/`…10ff` (bound terminals `…00210`/`…11210`), `…00f1`, a
 /// workspace tab `…00e1` whose split holds `…00f2`/`…10f2`, and a second
 /// workspace tab `…00e3` whose right-deep split holds nine panels ending
@@ -492,7 +483,7 @@ fn selector_snapshot() -> Snapshot {
         "protocolVersion": 1,
         "revision": "9",
         "siteId": tid(0, 0xaa00),
-        "navigation": {"projects":[{"projectId":tid(0, 0xaa), "label":"p-a"}, {"projectId":tid(0, 0xbb), "label":"face"}, {"projectId":tid(1, 0xaa), "label":"p-b"}], "standaloneTerminalContextId":tid(0, 0x01), "directories":[], "workspaces":[{"workspaceId":tid(0, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x50), "projectId":tid(0, 0xaa)}, {"workspaceId":tid(0, 0xdd), "label":"w3", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}, {"workspaceId":tid(1, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x51), "projectId":tid(1, 0xaa)}]},
+        "navigation": {"projects":[{"projectId":tid(0, 0xaa), "label":"p-a"}, {"projectId":tid(0, 0xbb), "label":"face"}, {"projectId":tid(1, 0xaa), "label":"p-b"}], "directories":[], "workspaces":[{"workspaceId":tid(0, 0x01),"terminalContextId":tid(0, 0x01),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"},{"workspaceId":tid(0, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x50), "projectId":tid(0, 0xaa)}, {"workspaceId":tid(0, 0xdd), "label":"w3", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x60), "projectId":tid(0, 0xbb)}, {"workspaceId":tid(1, 0xcc), "label":"w", "primaryDirectoryId":null, "terminalContextId":tid(0, 0x51), "projectId":tid(1, 0xaa)}]},
         "terminalContexts": [
             {
                 "terminalContextId": tid(0, 0x01),
@@ -881,7 +872,6 @@ fn selector_filters_share_operand_semantics() {
     let projection = project(
         &QueryCommand::TabList {
             workspace: Some(Target::Selector("@workspace:dd".into())),
-            standalone: false,
         },
         &snapshot,
     )
@@ -926,19 +916,13 @@ fn unfiltered_lists_follow_canonical_traversal_order() {
         rows.iter()
             .map(|row| row.workspace_id.clone())
             .collect::<Vec<_>>(),
-        vec![hex(0x40), hex(0x41)],
+        vec![hex(0x01), hex(0x40), hex(0x41)],
     );
 
     // Tabs concatenate contexts in context order, then document order:
-    // the scrambled standalone ids lead, then each workspace's tab.
-    let projection = project(
-        &QueryCommand::TabList {
-            workspace: None,
-            standalone: false,
-        },
-        &snapshot(),
-    )
-    .expect("tab list");
+    // the scrambled initial_workspace ids lead, then each workspace's tab.
+    let projection =
+        project(&QueryCommand::TabList { workspace: None }, &snapshot()).expect("tab list");
     let Projection::TabList(rows) = projection else {
         panic!("tab list projection");
     };
@@ -957,25 +941,24 @@ fn unfiltered_lists_follow_canonical_traversal_order() {
     assert!(
         rows[..9]
             .iter()
-            .all(|row| row.context.standalone && row.context.workspace_id.is_none())
+            .all(|row| row.context.workspace_id == hex(0x01))
     );
-    assert_eq!(rows[9].context.workspace_id, Some(hex(0x40)));
-    assert_eq!(rows[10].context.workspace_id, Some(hex(0x41)));
+    assert_eq!(rows[9].context.workspace_id, hex(0x40));
+    assert_eq!(rows[10].context.workspace_id, hex(0x41));
 
-    // `--standalone` selects exactly the standalone context's tabs.
+    // A Workspace filter selects exactly its own Context's Tabs.
     let projection = project(
         &QueryCommand::TabList {
-            workspace: None,
-            standalone: true,
+            workspace: Some(Target::Label("Workspace".into())),
         },
         &snapshot(),
     )
-    .expect("standalone tab list");
+    .expect("initial_workspace tab list");
     let Projection::TabList(rows) = projection else {
         panic!("tab list projection");
     };
     assert_eq!(rows.len(), DUP_TABS.len());
-    assert!(rows.iter().all(|row| row.context.standalone));
+    assert!(rows.iter().all(|row| row.context.workspace_id == hex(0x01)));
 }
 
 /// `terminal read` answer bounds over decoder-legal frame states: every
@@ -2029,14 +2012,9 @@ fn list_handles_round_trip_through_get() {
         };
         assert_eq!(doc.row.workspace_id, row.workspace_id);
     }
-    let Projection::TabList(tabs) = project(
-        &QueryCommand::TabList {
-            workspace: None,
-            standalone: false,
-        },
-        &snapshot,
-    )
-    .unwrap() else {
+    let Projection::TabList(tabs) =
+        project(&QueryCommand::TabList { workspace: None }, &snapshot).unwrap()
+    else {
         panic!("tab list");
     };
     for row in &tabs {
@@ -2090,18 +2068,19 @@ fn terminal_list_filters_by_workspace_tab_and_panel() {
     };
     let all = list(None).unwrap();
     assert_eq!(all.rows.len(), all.details.len());
-    let standalone_tab = list(Some(TerminalListFilter::Tab(Target::Id(tid(0, 0xee))))).unwrap();
+    let initial_workspace_tab =
+        list(Some(TerminalListFilter::Tab(Target::Id(tid(0, 0xee))))).unwrap();
     assert_eq!(
-        standalone_tab
+        initial_workspace_tab
             .rows
             .iter()
             .map(|row| row.terminal_id.as_str())
             .collect::<Vec<_>>(),
         [tid(0, 0x210), tid(1, 0x1210)]
     );
-    for details in &standalone_tab.details {
+    for details in &initial_workspace_tab.details {
         let placement = details.placement.as_ref().unwrap();
-        assert_eq!(placement.workspace, None);
+        assert_eq!(placement.workspace, "@workspace:1");
         assert!(placement.handle.starts_with("@terminal:"));
         assert!(placement.panel.starts_with("@panel:"));
     }

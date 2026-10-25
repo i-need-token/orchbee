@@ -2,13 +2,7 @@
 
 ## Scope and ownership
 
-The native Client renames its current Workspace with `Ctrl+B r`, or that Workspace's Project
-with `Ctrl+B Shift+R`. Standalone has neither shortcut target and rejects these actions locally without a command.
-The Rename action on a drawn Project opens the same editor for that exact Project, including
-empty and noncurrent Projects, from a Workspace or Standalone. It never selects a child Workspace.
-The Server's existing `project.rename` and `workspace.rename` actions own shared labels. This
-reference extends [Workspace setup](native-workspace-setup.md) and
-[context selection](native-context-selection.md); it does not introduce another mutation owner.
+The native Client renames its current Workspace with `Ctrl+B r`, or that Workspace's Project with `Ctrl+B Shift+R`. An ungrouped Workspace has no Project shortcut target; `NoWorkspace` has neither shortcut target. These unavailable actions return locally without a command. A drawn Project's Rename action still addresses that exact Project, including empty or noncurrent Projects, without selecting a child Workspace. Existing `project.rename` and `workspace.rename` own shared labels; [Workspace setup](native-workspace-setup.md) and [context selection](native-context-selection.md) retain their mutation/selection ownership.
 
 The editor starts with the canonical label, preserves exact text up to 512 Unicode scalars, and
 uses Enter to submit, Escape to cancel, Backspace to delete and Ctrl+U to clear. Each opening has

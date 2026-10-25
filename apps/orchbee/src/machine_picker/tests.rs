@@ -342,10 +342,20 @@ fn context(n: u8) -> Context {
     Context {
         target: NativeContextTarget {
             site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 9)).unwrap(),
-            location: crate::terminal_session::NativeContextLocation::Standalone(
-                orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!("{n:032x}"))
+            location: {
+                let fixture_context_id =
+                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!(
+                        "{n:032x}"
+                    ))
+                    .unwrap();
+                crate::terminal_session::NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
                     .unwrap(),
-            ),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
         },
         project_id: None,
         project: None,

@@ -427,7 +427,7 @@ impl RecorderProcess {
 #[test]
 fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> TestResult {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     let deadline = Instant::now() + POINTER_TIMEOUT;
 
@@ -479,7 +479,9 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
     // A workbench-driven right split paints a second panel with its own shell.
     let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
     let snapshot = peer.snapshot(deadline)?;
-    let terminal_context_id = snapshot.navigation.standalone_terminal_context_id.clone();
+    let terminal_context_id = snapshot.navigation.workspaces[0]
+        .terminal_context_id
+        .clone();
     let context = snapshot
         .terminal_contexts
         .iter()
@@ -690,7 +692,7 @@ fn native_pointer_reports_reach_tracking_panes_and_follow_unfocused_focus() -> T
 #[test]
 fn native_tui_mouse_off_starts_released_and_ctrl_b_m_rearms() -> TestResult {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn_args(&fixture, "en_US.UTF-8", &["tui", "--mouse", "off"]);
     let deadline = Instant::now() + POINTER_TIMEOUT;
 
@@ -734,7 +736,7 @@ fn native_tui_mouse_off_starts_released_and_ctrl_b_m_rearms() -> TestResult {
 #[test]
 fn native_pointer_unknown_pixel_geometry_keeps_cell_input() -> TestResult {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn_unknown_pixel(&fixture, "en_US.UTF-8");
     let deadline = Instant::now() + POINTER_TIMEOUT;
 

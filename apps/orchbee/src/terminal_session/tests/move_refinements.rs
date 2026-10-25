@@ -209,7 +209,7 @@ fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_
     assert_eq!(pending.operation().target().tab_id().as_str(), ID);
     assert_eq!(
         pending.operation().baseline(),
-        &workbench_projection::project_native_standalone_tabs(&two_tabs()).unwrap()
+        &workbench_projection::project_preferred_workspace(&two_tabs()).unwrap()
     );
     assert_eq!(
         pending.commit(),

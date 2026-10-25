@@ -36,24 +36,10 @@ impl Checkpoint {
             .flat_map(|checkpoint| checkpoint.rows.iter())
             .filter_map(|row| match &row.target.location {
                 NativeContextLocation::Workspace { workspace_id, .. } => Some((workspace_id, row)),
-                NativeContextLocation::Standalone(_) => None,
+                NativeContextLocation::NoWorkspace => None,
             })
             .collect();
         let mut rows = Vec::new();
-        if let Some(location) = crate::terminal_session::compatibility_workspace(snapshot).ok()? {
-            rows.push(Row {
-                target: NativeContextTarget {
-                    site_id: snapshot.site_id.clone(),
-                    location,
-                },
-                project_id: None,
-                label: None,
-                tokens: MetadataTokens::default(),
-                directory: None,
-                git: None,
-                git_stale: false,
-            });
-        }
         for (_, workspace) in navigation.ordered_workspaces().ok()? {
             let target = NativeContextTarget {
                 site_id: snapshot.site_id.clone(),

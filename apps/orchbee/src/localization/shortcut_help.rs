@@ -880,8 +880,8 @@ fn requires_session(action: &PrefixAction) -> bool {
 fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu::MenuAction> {
     use crate::{
         action_menu::{
-            GLOBAL_ACTIONS, LEGACY_WORKSPACE_ACTIONS, MenuAction, PANE_ACTIONS, PROJECT_ACTIONS,
-            TAB_ACTIONS, WORKSPACE_ACTIONS,
+            GLOBAL_ACTIONS, MenuAction, PANE_ACTIONS, PROJECT_ACTIONS, TAB_ACTIONS,
+            WORKSPACE_ACTIONS,
         },
         action_projection::menu_metadata,
     };
@@ -898,13 +898,12 @@ fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu
     if let Some(preferred) = preferred {
         return Some(preferred);
     }
-    let collections: [&[MenuAction]; 6] = [
+    let collections: [&[MenuAction]; 5] = [
         GLOBAL_ACTIONS,
         PANE_ACTIONS,
         TAB_ACTIONS,
         WORKSPACE_ACTIONS,
         PROJECT_ACTIONS,
-        LEGACY_WORKSPACE_ACTIONS,
     ];
     collections
         .iter()

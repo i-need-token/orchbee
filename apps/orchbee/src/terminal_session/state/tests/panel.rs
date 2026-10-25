@@ -41,7 +41,7 @@ fn move_kind() -> PanelRequestKind {
 }
 
 fn split_ready() -> NativeSessionState {
-    ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap())
+    ready_with_cache(project_preferred_workspace(&split_panel_baseline()).unwrap())
 }
 
 fn expired_refresh_pane(now: Instant) -> (NativeSessionState, WorkbenchPanelId) {
@@ -342,7 +342,7 @@ fn split_two_tab_baseline() -> Snapshot {
 }
 
 fn split_ready_two_tabs() -> NativeSessionState {
-    ready_with_cache(project_native_standalone_tabs(&split_two_tab_baseline()).unwrap())
+    ready_with_cache(project_preferred_workspace(&split_two_tab_baseline()).unwrap())
 }
 
 /// A Retryable attachment state on the split baseline with the selection on the second
@@ -361,7 +361,7 @@ fn split_retryable() -> NativeSessionState {
 fn split_ready_at_revision(revision: u64) -> NativeSessionState {
     let mut baseline = split_panel_baseline();
     baseline.revision = WorkbenchRevision::new(revision);
-    ready_with_cache(project_native_standalone_tabs(&baseline).unwrap())
+    ready_with_cache(project_preferred_workspace(&baseline).unwrap())
 }
 
 /// A SelectedWithoutAttachment state built by the real create admission path: a create
@@ -411,7 +411,7 @@ fn selected_without_attachment_state() -> NativeSessionState {
 fn split_commit(operation: &PanelOperation) -> PanelCommit {
     PanelCommit::Split(WorkbenchPanelSplitCommit::Pending {
         revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
-        terminal_context_id: operation.baseline().terminal_context_id().clone(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
         tab_id: operation.target().tab_id().clone(),
         panel_id: operation.panel_id().clone(),
         new_panel_id: WorkbenchPanelId::parse(&id(90_001)).unwrap(),
@@ -435,7 +435,7 @@ fn move_commit(operation: &PanelOperation) -> PanelCommit {
     };
     PanelCommit::Move(WorkbenchPanelPlacementCommit {
         revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
-        terminal_context_id: operation.baseline().terminal_context_id().clone(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
         tab_id: operation.target().tab_id().clone(),
         panel_id: operation.panel_id().clone(),
         target_panel_id: target_panel_id.clone(),
@@ -1546,7 +1546,7 @@ fn panel_close_acceptance_is_a_receipt_not_synchronous_leaf_deletion() {
     let viewer = state.ready().cloned();
     let accepted = WorkbenchPanelCloseAccepted {
         close_request_id: WorkbenchRequestId::parse(&id(70_007)).unwrap(),
-        terminal_context_id: operation.baseline().terminal_context_id().clone(),
+        terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
         tab_id: operation.target().tab_id().clone(),
         panel_id: operation.panel_id().clone(),
         accepted_revision: operation.baseline().revision(),
@@ -1590,7 +1590,7 @@ fn close_acceptance_with_mismatched_identity_or_revision_diverges() {
         assert!(state.begin_panel(operation.clone()));
         let accepted = WorkbenchPanelCloseAccepted {
             close_request_id: WorkbenchRequestId::parse(&id(70_140)).unwrap(),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: panel,
             accepted_revision: WorkbenchRevision::new(revision),
@@ -1650,7 +1650,7 @@ fn retain_pending_panel_rejects_foreign_or_invalid_facts() {
         operation.clone(),
         PanelCommit::Split(WorkbenchPanelSplitCommit::Pending {
             revision: WorkbenchRevision::new(9),
-            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            terminal_context_id: operation.baseline().terminal_context_id().unwrap().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             new_panel_id: WorkbenchPanelId::parse(&id(90_001)).unwrap(),

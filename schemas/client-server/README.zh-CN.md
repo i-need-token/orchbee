@@ -23,7 +23,7 @@ OBCS 有以下相邻边界：
 
 Version 1 准入 `terminal.create`、`terminal.create.result`、`terminal.start`、
 `terminal.start.result`、`terminal.viewer`、`terminal.viewer.result`、`terminal.control` 和
-`terminal.control.result`，以及尚未发布的 `terminal.open` / `terminal.open.result` 和 viewer
+`terminal.control.result`，以及 viewer
 `attach-binding` 扩展、`terminal.launch.read` / result 以及 `terminal.send.result`。Send request 使用 OBSN binary record。它不定义 close、cancel、retry transport、authentication、authorization
 policy、Server state store、Worker operation、Host launch 或 Workbench mutation。
 
@@ -127,7 +127,7 @@ lease 或 Create reference。
 
 Binding triple 选择既有 terminal，且不授予 authorization。Server 必须先确认当前 active Site，
 且 canonical Workbench presentation 仍暴露精确 Worker/Terminal pair，之后才解析精确保留终端
-及其固定的 Worker generation。Selection 不产生 Open、Create、Start、launch、membership、rebind、
+及其固定的 Worker generation。Selection 不产生 Create、Start、launch、membership、rebind、
 navigation、input、resize 或 controller effect。经过 Server 拥有的 Session capacity guard 后，target validation
 遵循以下优先级：
 
@@ -312,27 +312,11 @@ CARGO_TARGET_DIR="$PWD/target" cargo clippy -p orchbee-client-server-protocol --
 authentication、authorization decision、replay lookup、duplicate-history 或 idempotency storage、
 cancellation、terminal execution、persistence、recovery 或任何 live transport integration。
 
-## 独立终端打开
+## Workspace 终端创建边界
 
-尚未发布的 version-1 扩展 `terminal.open` 携带 `protocolVersion`、Client 新生成的
-`requestId` 和完整 `geometry`。它打开本机单主体 Server 的独立终端引用：首次准备使用
-Worker 默认 cwd 创建立即启动的终端；后续打开返回同一个引用。Open 自身不 dispatch 或提交 Resize；Client 可随后 attach、获取 controller 权限，并提交独立的已校验 Resize。
-此终端线协议不增加 Workbench payload。原生 Server 拥有启动前首次共享独立终端成员关系的提交，
-具体定义见其
-[Workbench 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#独立终端成员关系模型)；
-Client 通过独立的 Workbench 协议观察该结构。
+OBCS 没有 `terminal.open` 或 `terminal.open.result`。显式 Workspace 启动与 Tab／Panel 创建属于 OBWP，保留规范 Workspace、Context 及成员身份。Client 读取已提交 Workbench 快照并通过 `attach-binding` 选择准确绑定；选择既不创建终端，也不授予控制权限。封闭消息 schema 与线种类校验拒绝已移除的 Open 变体。
 
-`terminal.open.result` 关联确切的调用请求，并返回一个封闭 outcome：
-带 `terminalCreateRequestId` 的 `opened`；带 Create unavailable 原因的 `unavailable`；
-带 `terminal-create-failed` 的 `failed`；或仅有标签的 `outcome-unknown`。
-返回的引用可以标识 Server 内部生成的 create。它独立于调用者的关联 ID，不授予 viewer 或
-controller 权限，仍须经过普通 Session attach 和 controller 准入。AttachBinding 不改变该 result
-shape；原生 standalone 流程观察独立 Workbench snapshot，而不会把这个 Create reference 当作
-canonical selection state。熵源失败或引用冲突在准备前返回 server-busy，并保持独立终端槽位
-为空。Dispatch 后的失败或不确定性不允许再次创建。Client 不重试未知效果；另一次打开只观察
-已保留的独立终端结果。
-
-Schema、Rust binding 与 canonical corpus 共同定义增量 Open 和 AttachBinding contract。它们仍
+Schema、Rust binding 与 canonical corpus 共同定义 AttachBinding contract。它仍
 未发布，且不改变 frame version、byte limit、既有 action encoding、admission 或 unknown-effect
 replay rule；legacy Attach 仍然可用。安装后的 exact runtime cohort 是 Client、Server、Worker 与
 Host。Schema 与 Rust source 是 contract input，不是已安装的 cohort artifact。发布前，未发布的

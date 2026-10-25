@@ -5,7 +5,7 @@ fn snapshot(stream: &mut LocalStream, count: u64) {
         panic!("snapshot")
     };
     let tabs:Vec<_>=(0..count).map(|n|json!({"tabId":id(1000+n),"label":"tab","pinned":false,"groupId":null,"root":panel(6+2*n)})).collect();
-    let snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":tabs}]})).unwrap();
+    let snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":tabs}]})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {

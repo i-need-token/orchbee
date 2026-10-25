@@ -6,7 +6,7 @@ use crate::terminal_session::state::{
     OperationDeadlines, PreparedRefresh,
     tests::{ready_with_cache, snapshot},
 };
-use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use crate::terminal_session::workbench_projection::project_preferred_workspace;
 use orchbee_workbench_protocol::{
     Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchSnapshotOutcome, WorkbenchTerminalContextId,
@@ -103,7 +103,7 @@ fn fixture() -> (NativeSessionState, Snapshot) {
         groups: vec![],
     });
     (
-        ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap()),
+        ready_with_cache(project_preferred_workspace(&snapshot).unwrap()),
         snapshot,
     )
 }
@@ -171,7 +171,7 @@ fn move_noncurrent_workspace_changes_only_grouping_and_preserves_selected_termin
     assert!(
         matches!(&operation.command.action, WorkbenchAction::WorkspaceSetProject { workspace_id: workspace, project_id: Some(project) } if workspace == &workspace_id() && project == &project_id(70))
     );
-    snapshot.navigation.workspaces[0].project_id = Some(project_id(70));
+    snapshot.navigation.workspaces[1].project_id = Some(project_id(70));
     snapshot.revision = WorkbenchRevision::new(2);
     install(
         &mut state,
@@ -220,7 +220,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
         label: "New group".into(),
     };
     snapshot.navigation.projects.push(group.clone());
-    snapshot.navigation.workspaces[0].project_id = Some(group.project_id.clone());
+    snapshot.navigation.workspaces[1].project_id = Some(group.project_id.clone());
     snapshot.revision = WorkbenchRevision::new(2);
     install(
         &mut state,
@@ -236,7 +236,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
     );
 
     // A separate Client may dissolve the group; selection identity remains unchanged.
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let request = WorkspaceOrganizationRequest::project(
         &state,
         &group,
@@ -255,7 +255,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
         .navigation
         .projects
         .retain(|project| project.project_id != group.project_id);
-    snapshot.navigation.workspaces[0].project_id = None;
+    snapshot.navigation.workspaces[1].project_id = None;
     snapshot.revision = WorkbenchRevision::new(3);
     install(
         &mut state,

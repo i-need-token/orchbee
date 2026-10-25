@@ -3,9 +3,7 @@
 #[allow(dead_code)]
 #[path = "support/windows_agent_peer.rs"]
 mod support;
-use orchbee_client_server_protocol as c;
 use orchbee_local_ipc::{LocalListener, LocalStream};
-use orchbee_terminal_protocol as t;
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};
 use support::{Fixture, assert_closed, peer, validate};
@@ -16,16 +14,16 @@ fn id(n: u64) -> String {
 fn context(context: u64, tab: u64, panel: u64) -> Value {
     json!({"terminalContextId":id(context),"groups":[],"tabs":[{"tabId":id(tab),"label":"shell","groupId":null,"pinned":false,"root":{"kind":"panel","panelId":id(panel),"primaryPresentation":{"customLabel":null,"presentationId":id(panel+1),"label":"shell","binding":{"terminalId":id(12),"workerId":id(9)}},"childPresentations":[]}}]})
 }
-fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, standalone: bool) {
+fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, initial_workspace: bool) {
     let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap() else {
         panic!("snapshot")
     };
-    let mut contexts = vec![if standalone {
+    let mut contexts = vec![if initial_workspace {
         context(10, 6, 7)
     } else {
         json!({"terminalContextId":id(10),"groups":[],"tabs":[]})
     }];
-    contexts.push(if standalone {
+    contexts.push(if initial_workspace {
         json!({"terminalContextId":id(5),"groups":[],"tabs":[]})
     } else {
         context(5, 6, 7)
@@ -40,12 +38,18 @@ fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, standalone: 
         // The newly opened context need not have a running terminal in a reused Workspace.
         contexts.push(json!({"terminalContextId":id(21),"groups":[],"tabs":[]}));
     }
+    workspaces.push(json!({"workspaceId":id(10),"terminalContextId":id(10),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}));
+    workspaces.sort_by(|left, right| {
+        left["workspaceId"]
+            .as_str()
+            .cmp(&right["workspaceId"].as_str())
+    });
     contexts.sort_by(|left, right| {
         left["terminalContextId"]
             .as_str()
             .cmp(&right["terminalContextId"].as_str())
     });
-    let snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"standaloneTerminalContextId":id(10),"projects":if created {vec![json!({"projectId":id(3),"label":"project"})]} else {vec![]},"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap();
+    let snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":if created {"13"} else {"12"},"navigation":{"projects":if created {vec![json!({"projectId":id(3),"label":"project"})]} else {vec![]},"directories":directories,"workspaces":workspaces},"terminalContexts":contexts})).unwrap();
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -56,8 +60,8 @@ fn snapshot(stream: &mut LocalStream, created: bool, primary: bool, standalone: 
     )
     .unwrap();
 }
-fn record(fresh: bool, standalone: bool) -> Value {
-    json!({"clientId":id(30),"heartbeat":"1","viewRevision":if fresh {"3"} else {"2"},"availability":"current","view":{"workbenchRevision":if fresh {"13"} else {"12"},"phase":"ready","selection":{"terminalContextId":id(if standalone {10} else {5}),"tabId":id(6),"panelId":id(7),"zoomed":false,"panelCount":1}}})
+fn record(fresh: bool, initial_workspace: bool) -> Value {
+    json!({"clientId":id(30),"heartbeat":"1","viewRevision":if fresh {"3"} else {"2"},"availability":"current","view":{"workbenchRevision":if fresh {"13"} else {"12"},"phase":"ready","selection":{"terminalContextId":id(if initial_workspace {10} else {5}),"tabId":id(6),"panelId":id(7),"zoomed":false,"panelCount":1}}})
 }
 fn view(stream: &mut LocalStream) -> WorkbenchClientViewRequest {
     let WorkbenchRequest::ClientView(request) = read_workbench_request(stream).unwrap() else {
@@ -149,83 +153,7 @@ fn opened_after_wait(stream: &mut LocalStream, expected_source: Value, pending: 
     )
     .unwrap();
 }
-fn viewer(stream: &mut LocalStream) -> c::TerminalViewerRequest {
-    let c::ClientMessage::TerminalViewer(request) = c::read_client_message(stream).unwrap() else {
-        panic!("viewer")
-    };
-    request
-}
-fn viewer_reply(
-    stream: &mut LocalStream,
-    request: c::TerminalViewerRequest,
-    outcome: c::TerminalViewerOutcome,
-) {
-    c::write_server_message(
-        stream,
-        &c::ServerMessage::TerminalViewerResult(c::TerminalViewerResult::new(
-            request.request_id().clone(),
-            outcome,
-        )),
-    )
-    .unwrap();
-}
-fn root_cwd(stream: &mut LocalStream, cwd: Option<&str>) {
-    let request = viewer(stream);
-    assert_eq!(
-        json!(request.action()),
-        json!({"kind":"attach-binding","siteId":id(2),"workerId":id(9),"terminalId":id(12)})
-    );
-    viewer_reply(
-        stream,
-        request,
-        c::TerminalViewerOutcome::Attached {
-            attachment_id: c::ViewerId::parse(&id(50)).unwrap(),
-            host_epoch: c::HostEpoch::parse(&id(51)).unwrap(),
-            host_terminal_id: orchbee_client_server_protocol::HostTerminalId::parse(&id(51))
-                .unwrap(),
-        },
-    );
-    let request = viewer(stream);
-    assert_eq!(json!(request.action())["kind"], "read-process-info");
-    let row = |pid, cwd| t::TerminalProcess {
-        pid,
-        parent_pid: None,
-        creation_time: 10,
-        image: None,
-        command_line: None,
-        current_directory: cwd,
-    };
-    let payload = t::encode_process_info_control(&t::ProcessInfoControl::ProcessInfo(
-        t::TerminalProcessInfo {
-            attachment_id: t::AttachmentId::parse(&id(50)).unwrap(),
-            terminal_id: t::TerminalId::parse(&id(52)).unwrap(),
-            root_pid: 40,
-            processes: vec![
-                row(39, Some("C:/wrong-child".to_owned())),
-                row(40, cwd.map(str::to_owned)),
-            ],
-        },
-    ))
-    .unwrap();
-    let record = t::encode_transport_envelope(&t::Envelope {
-        protocol: t::CURRENT_PROTOCOL_VERSION,
-        role: t::MessageRole::Response,
-        kind: payload.kind,
-        optional_message: false,
-        payload_encoding: t::PayloadEncoding::ControlJson,
-        correlation_id: Some(t::CorrelationId::parse(&id(53)).unwrap()),
-        host_epoch: Some(t::HostEpoch::parse(&id(51)).unwrap()),
-        payload: &payload.payload,
-    })
-    .unwrap();
-    viewer_reply(stream, request, c::TerminalViewerOutcome::Record(record));
-    let request = viewer(stream);
-    assert_eq!(
-        json!(request.action()),
-        json!({"kind":"detach","attachmentId":id(50)})
-    );
-    viewer_reply(stream, request, c::TerminalViewerOutcome::Detached {});
-}
+
 fn run(
     words: &[&str],
     caller: (Option<&str>, Option<&str>),
@@ -446,8 +374,8 @@ fn path_context_failure_precedes_configuration_and_runtime_in_both_formats() {
 }
 
 #[test]
-fn implicit_source_uses_selected_workspace_or_only_its_root_cwd() {
-    for (primary, standalone, caller) in [
+fn implicit_source_keeps_the_selected_workspace_identity_with_or_without_a_directory() {
+    for (primary, initial_workspace, caller) in [
         (true, false, false),
         (false, false, false),
         (false, true, false),
@@ -464,19 +392,16 @@ fn implicit_source_uses_selected_workspace_or_only_its_root_cwd() {
                 (None, None)
             },
             move |mut stream| {
-                snapshot(&mut stream, false, primary, standalone);
+                snapshot(&mut stream, false, primary, initial_workspace);
                 if !caller {
-                    clients(&mut stream, vec![record(false, standalone)]);
-                }
-                if standalone {
-                    root_cwd(&mut stream, Some("C:/live"));
+                    clients(&mut stream, vec![record(false, initial_workspace)]);
                 }
                 opened(
                     &mut stream,
-                    if !standalone {
+                    if !initial_workspace {
                         json!({"kind":"workspace","workspaceId":id(4)})
                     } else {
-                        json!({"kind":"directory","path":"C:/live"})
+                        json!({"kind":"workspace","workspaceId":id(10)})
                     },
                 );
                 assert_closed(&mut stream);
@@ -492,7 +417,7 @@ fn implicit_source_uses_selected_workspace_or_only_its_root_cwd() {
 }
 
 #[test]
-fn source_refuses_ambiguous_stale_unready_and_missing_root_before_git() {
+fn source_refuses_ambiguous_stale_unready_and_missing_membership_before_git() {
     for case in 0..5 {
         let (status, document) = run(
             &["worktree", "create", "--format=json"],
@@ -506,6 +431,12 @@ fn source_refuses_ambiguous_stale_unready_and_missing_root_before_git() {
                 if case == 2 {
                     row["view"]["phase"] = json!("unavailable");
                 }
+                if case == 3 {
+                    row["view"]["selection"]["terminalContextId"] = json!(id(99));
+                }
+                if case == 4 {
+                    row["view"]["selection"]["panelId"] = json!(id(99));
+                }
                 let mut rows = vec![row];
                 if case == 0 {
                     let mut second = record(false, false);
@@ -513,9 +444,6 @@ fn source_refuses_ambiguous_stale_unready_and_missing_root_before_git() {
                     rows.push(second);
                 }
                 clients(&mut stream, rows);
-                if case >= 3 {
-                    root_cwd(&mut stream, if case == 3 { None } else { Some("relative") });
-                }
                 assert_closed(&mut stream);
             },
         );

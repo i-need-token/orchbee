@@ -1,10 +1,11 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{PanelLabelUpdate, WorkbenchResponse, WorkbenchRevision};
 use serde_json::Value;
 
 fn fixture(shape: usize) -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchTabId) {
     let (mut authority, grant) = authority();
-    let member = authority.tree_standalone_membership().unwrap().members()[0].clone();
+    let member = authority.fixture_tree_membership().unwrap().members()[0].clone();
     let tab = member.tab_id().clone();
     for step in 0..4 {
         let current = leaves(&authority.projection.snapshot().terminal_contexts[0].tabs[0].root);
@@ -30,7 +31,7 @@ fn fixture(shape: usize) -> (WorkbenchAuthority, WorkbenchGrant, WorkbenchTabId)
             &authority,
             200 + index as u128,
             WorkbenchAction::PanelRename {
-                terminal_context_id: standalone_context(&authority),
+                terminal_context_id: initial_workspace_context(&authority),
                 tab_id: tab.clone(),
                 panel_id: leaf_panel_id(panel),
                 label: PanelLabelUpdate::parse(Some(&format!("标题 {index}"))).unwrap(),
@@ -56,7 +57,7 @@ fn request(
         authority,
         id,
         WorkbenchAction::PanelSwap {
-            terminal_context_id: standalone_context(authority),
+            terminal_context_id: initial_workspace_context(authority),
             tab_id: tab.clone(),
             panel_id: source.clone(),
             target_panel_id: target.clone(),

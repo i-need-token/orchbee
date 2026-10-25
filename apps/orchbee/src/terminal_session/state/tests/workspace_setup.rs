@@ -28,7 +28,7 @@ pub(super) fn group_intent(
 fn organization_intent(
     state: &NativeSessionState,
 ) -> crate::terminal_session::state::workspace_setup::NativeSetupIntent {
-    let workspace = state.cache().canonical_snapshot().navigation.workspaces[0]
+    let workspace = state.cache().canonical_snapshot().navigation.workspaces[1]
         .workspace_id
         .clone();
     crate::terminal_session::state::workspace_setup::NativeSetupIntent::Organize(Box::new(
@@ -67,7 +67,7 @@ pub(super) fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
 }
 pub(super) fn workspace_state() -> NativeSessionState {
     let snapshot = workspace_snapshot(1, 0);
-    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&snapshot).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     assert!(state.start_context_selection(1, true, deadlines));
     let PreparedRefresh::Membership { prepared, .. } =
@@ -118,8 +118,8 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
 
     let snapshot = workspace_snapshot(1, 1);
     let location = NativeContextLocation::Workspace {
-        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
-        terminal_context_id: snapshot.navigation.workspaces[0]
+        workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
+        terminal_context_id: snapshot.navigation.workspaces[1]
             .terminal_context_id
             .clone(),
     };
@@ -138,13 +138,18 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
             .is_none()
     );
 
-    let mut standalone = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let mut empty_snapshot = snapshot.clone();
+    empty_snapshot.navigation.workspaces.clear();
+    empty_snapshot.navigation.workspace_order.clear();
+    empty_snapshot.terminal_contexts.clear();
+    let mut initial_workspace =
+        ready_with_cache(project_preferred_workspace(&empty_snapshot).unwrap());
     assert_eq!(
-        standalone.directory_configuration_unavailable(),
+        initial_workspace.directory_configuration_unavailable(),
         Some(DirectoryConfigurationUnavailable::WorkspaceRequired)
     );
     assert!(
-        standalone
+        initial_workspace
             .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
             .is_none()
     );
@@ -215,8 +220,8 @@ pub(super) fn finish(
 #[test]
 fn organization_picker_keeps_empty_projects_and_rejects_old_target_draw() {
     let mut baseline = workspace_snapshot(1, 0);
-    baseline.navigation.workspaces[0].project_id = None;
-    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    baseline.navigation.workspaces[1].project_id = None;
+    let mut state = ready_with_cache(project_preferred_workspace(&baseline).unwrap());
     let original = state.open_setup_draft(organization_intent(&state)).unwrap();
     let draft = state.setup_draft().unwrap();
     assert_eq!(draft.project_count(), 3);
@@ -357,7 +362,7 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
         .unwrap();
     state.retain_setup_worker(SetupWorkerEvidence::Known(known));
     let mut candidate = workspace_snapshot(2, 0);
-    candidate.navigation.workspaces[0].primary_directory_id = Some(directory.directory_id.clone());
+    candidate.navigation.workspaces[1].primary_directory_id = Some(directory.directory_id.clone());
     candidate.navigation.directories.push(directory);
     assert_eq!(
         finish(&mut state, candidate, 1),
@@ -463,7 +468,7 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
         .unwrap();
     state.retain_setup_worker(SetupWorkerEvidence::Known(known));
     baseline.revision = WorkbenchRevision::new(4);
-    baseline.navigation.workspaces[0].primary_directory_id = Some(directory.directory_id);
+    baseline.navigation.workspaces[1].primary_directory_id = Some(directory.directory_id);
     assert!(matches!(
         state.prepare_refresh(
             3,

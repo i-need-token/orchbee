@@ -703,7 +703,7 @@ fn close_set_same_pane_key_rebind_revokes_confirmation_waiting_and_preinstall_pr
 
 #[test]
 fn close_set_expected_removal_preserves_other_contexts_and_unrelated_empty_groups() {
-    use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+    use crate::terminal_session::workbench_projection::project_preferred_workspace;
     use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
     for drift in ["none", "context", "group", "revision"] {
         let now = Instant::now();
@@ -724,7 +724,7 @@ fn close_set_expected_removal_preserves_other_contexts_and_unrelated_empty_group
         source.terminal_contexts[0].groups = vec![source_group.clone(), unrelated.clone()];
         let other_context = source.terminal_contexts[1].clone();
         let mut state =
-            super::super::ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+            super::super::ready_with_cache(project_preferred_workspace(&source).unwrap());
         let first = open(&mut state, &[0, 1], now);
         observe_closed(&mut state, &first, now);
         let mut candidate = removed(&state, first.key().target().tab_id());

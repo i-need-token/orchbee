@@ -231,7 +231,6 @@ pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError
     validate_navigation_structure(&snapshot.navigation)
         .map_err(|_error| ContractError::InvalidDocument)?;
     if !strictly_ordered_by(&snapshot.navigation.projects, |project| &project.project_id)
-        || snapshot.terminal_contexts.is_empty()
         || snapshot.terminal_contexts.len() > MAXIMUM_TERMINAL_CONTEXTS
         || !strictly_ordered_by(&snapshot.terminal_contexts, |context| {
             &context.terminal_context_id
@@ -241,10 +240,6 @@ pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError
     }
 
     let mut referenced_context_counts = HashMap::<WorkbenchTerminalContextId, usize>::new();
-    increment_reference(
-        &mut referenced_context_counts,
-        snapshot.navigation.standalone_terminal_context_id.clone(),
-    );
     for workspace in &snapshot.navigation.workspaces {
         increment_reference(
             &mut referenced_context_counts,
@@ -302,7 +297,7 @@ pub(crate) fn validate_navigation_structure(
 ) -> Result<(), ValidationError> {
     if navigation.projects.len() > MAXIMUM_PROJECTS
         || navigation.directories.len() > MAXIMUM_DIRECTORIES
-        || navigation.workspaces.len() >= MAXIMUM_TERMINAL_CONTEXTS
+        || navigation.workspaces.len() > MAXIMUM_TERMINAL_CONTEXTS
         || !strictly_ordered_by(&navigation.projects, |project| &project.project_id)
         || !strictly_ordered_by(&navigation.directories, |directory| &directory.directory_id)
         || !strictly_ordered_by(&navigation.workspaces, |workspace| &workspace.workspace_id)
@@ -329,7 +324,7 @@ pub(crate) fn validate_navigation_structure(
         .map(|directory| &directory.directory_id)
         .collect();
     let mut group_sizes = HashMap::new();
-    let mut context_ids = HashSet::from([&navigation.standalone_terminal_context_id]);
+    let mut context_ids = HashSet::new();
     for workspace in &navigation.workspaces {
         validate_label(&workspace.label)?;
         if !context_ids.insert(&workspace.terminal_context_id) {

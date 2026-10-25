@@ -48,7 +48,6 @@ fn panel_relocation_destinations_defaults_and_ratio_follow_reference() {
     assert_eq!(parsed.ratio(), ClientSplitRatio::new(0.9).ok());
     for args in [
         vec!["--new-tab", "--workspace", "other"],
-        vec!["--new-tab", "--standalone"],
         vec![
             "--new-workspace",
             "--label",

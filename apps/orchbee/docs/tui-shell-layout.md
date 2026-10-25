@@ -105,11 +105,10 @@ The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above this footer, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Nonempty legacy compatibility content appears first when present. Projects in their canonical
-display order and their children follow, then ungrouped Workspaces under a localized Standalone heading. Each heading follows its label with a secondary count of its member Workspaces, including those hidden by collapse; only the label truncates. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
+remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above this footer, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Projects in their canonical
+display order and their children follow, then ungrouped Workspaces under a localized Ungrouped heading. Each heading follows its label with a secondary count of its member Workspaces, including those hidden by collapse; only the label truncates. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
-each Workspace, with independent lists expanded by default. The legacy Workspace owns its Agent
-children in the same window. Configuration still owns item row height, gap and token styles.
+each Workspace, with independent lists expanded by default. Configuration still owns item row height, gap and token styles.
 
 Fallback chrome without projected navigation rows never invents a legacy Workspace row. When
 `sidebar_navigation_rows` is empty and no Workspace creation preview exists, the Windows sidebar
@@ -137,7 +136,7 @@ a Workspace. Blank sidebar cells do not change focus; the explicit binding and r
 Hosts shorter than 24 rows omit the spacer after the actions. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
 focus, or the visible current Agent with its Context as fallback, determines focus reveal.
-The list has no heading: Project and Standalone headings name its groups. Paint and pointer
+The list has no heading: Project and Ungrouped headings name its groups. Paint and pointer
 regions use the same final rectangles; tree disclosure never changes terminal content geometry.
 
 A blank row normally separates the fixed actions from the first group. When canonical rows
@@ -149,7 +148,7 @@ divider and fixed-action shortcut hints continue through the right padding cell 
 divider; pointer targets keep the list's own columns. Footer rows carry only
 overflow ranges; fully visible lists leave them blank.
 
-The tree shape comes from shared columns. Project and Standalone headings keep a one-cell navigation
+The tree shape comes from shared columns. Project and Ungrouped headings keep a one-cell navigation
 marker at the list's left edge, followed by their regular-weight secondary label. Workspace rows start
 with one cell of leading padding covered by the row surface, followed by a one-cell operational state
 track and a one-cell gap, so Workspace names start three cells
@@ -190,7 +189,7 @@ trailing edge on the identity line while the row or one of its controls is hover
 covers that line's Git counts and current/unread markers; identity keeps a fixed one-cell clearance,
 so it never re-truncates. It uses secondary
 text on the row surface, turns `accent-destructive` on its own hover or press, and requests the
-existing Close Workspace confirmation. Standalone, remote-machine, other-site and Agent rows never
+existing Close Workspace confirmation. Remote-machine, other-site and Agent rows never
 reveal it, and the context menu and keyboard close routes remain available.
 Hover or press on a disclosure, Create or close control also keeps its complete parent row hovered; the
 control retains its own local pressed feedback. Internal row padding and external group separators
@@ -198,7 +197,7 @@ keep their existing owners. Agent rows carry no ordinal. The default Agent row i
 title line, falling back to its provider when no meaningful title is available; its state glyph and
 the hover footer hint carry state. Explicitly configured Agent rows retain their selected tokens
 and line count.
-Project and Standalone groups reserve at least one blank row
+Project and Ungrouped groups reserve at least one blank row
 after preceding items; configured gaps can widen it. A Project's first Workspace sits directly
 under its heading. The default Workspace gap is zero rows. These external separators retain the chrome
 background and an inert list-surface target; hover, press, current and navigation surfaces never

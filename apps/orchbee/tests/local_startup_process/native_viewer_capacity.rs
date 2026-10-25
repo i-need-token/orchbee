@@ -34,9 +34,8 @@ fn rightmost_panel(node: &PanelNode) -> Option<WorkbenchPanelId> {
 }
 
 fn tab_root(fixture_snapshot: &orchbee_workbench_protocol::Snapshot) -> Option<PanelNode> {
-    let context_id = fixture_snapshot
-        .navigation
-        .standalone_terminal_context_id
+    let context_id = fixture_snapshot.navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     fixture_snapshot
         .terminal_contexts
@@ -83,7 +82,7 @@ fn send_pane_witness(
 #[test]
 fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut primary = Client::spawn(&fixture, "en_US.UTF-8");
     primary.wait_ready_after(
         0,
@@ -93,13 +92,11 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
         ReadyMode::Controlling,
     );
 
-    // Three public Workbench splits grow the standalone Tab to four real panes.
+    // Three public Workbench splits grow the initial_workspace Tab to four real panes.
     let split_deadline = Instant::now() + PREPARATION_TIMEOUT;
     let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
-    let context_id = peer
-        .snapshot(split_deadline)?
-        .navigation
-        .standalone_terminal_context_id
+    let context_id = peer.snapshot(split_deadline)?.navigation.workspaces[0]
+        .terminal_context_id
         .clone();
     for label in ["cap-b", "cap-c", "cap-d"] {
         let snapshot = peer.snapshot(split_deadline)?;

@@ -212,8 +212,15 @@ export const SemanticEventSchema = z
 						navigation: {
 							directories: [],
 							projects: [],
-							workspaces: [],
-							standaloneTerminalContextId: data.terminalContextId,
+							workspaces: [
+								{
+									workspaceId: data.terminalContextId,
+									label: 'Layout',
+									projectId: null,
+									primaryDirectoryId: null,
+									terminalContextId: data.terminalContextId,
+								},
+							],
 						},
 						terminalContexts: [
 							{

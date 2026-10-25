@@ -42,7 +42,7 @@ pub(in crate::terminal_session) fn validate_renamed_tab(
     validate_canonical_candidate(baseline, &candidate)?;
     super::tab_metadata::validate_receipt(baseline, &candidate, expected.committed_revision)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || &expected.terminal_context_id != baseline.terminal_context_id()
+        || Some(&expected.terminal_context_id) != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
         return Err(NativeProjectionDivergence);

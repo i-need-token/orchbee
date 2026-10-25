@@ -1,5 +1,6 @@
 //! Conditional deletion must prove every captured binding before any effect.
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use crate::workbench_authority::WorkbenchProjectDissolveBegin;
 use orchbee_workbench_protocol::{PanelNode, Presentation, TerminalPresentationId};
 
@@ -348,7 +349,9 @@ fn committed_but_unsettled_create_blocks_both_idle_actions_at_the_current_revisi
             before.revision.value() + 1,
             "Create commits canonical membership before installing its unsettled entry"
         );
-        let context = &committed.navigation.workspaces[1].terminal_context_id;
+        let context = &committed.navigation.workspaces[1]
+            .terminal_context_id
+            .clone();
         assert_eq!(
             committed
                 .terminal_contexts
@@ -415,11 +418,9 @@ fn dropping_uncommitted_create_preserves_empty_scope_without_a_pending_reservati
             drop(admission);
         }
         assert_eq!(owner.snapshot(), &before);
-        assert!(
-            !owner.pending_terminal_covers_context(
-                &before.navigation.workspaces[1].terminal_context_id
-            )
-        );
+        assert!(!owner.pending_terminal_covers_context(
+            &before.navigation.workspaces[1].terminal_context_id.clone()
+        ));
         let request = conditional(&owner, 11211);
         let primary = primary_workspace(&mut owner, &grant, request);
         assert!(primary.members().is_empty());

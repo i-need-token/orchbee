@@ -39,10 +39,12 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
         primary_directory_id: None,
         terminal_context_id: terminal.terminal_context_id.clone(),
     });
-    snapshot
+    snapshot.navigation.workspace_order = snapshot
         .navigation
-        .workspace_order
-        .push(snapshot.navigation.workspaces[0].workspace_id.clone());
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     snapshot.terminal_contexts.push(terminal);
     let index = PresentationIndex::rebuild(&snapshot);
     let before = index.placement_by_presentation(&hex(42)).unwrap().clone();
@@ -52,7 +54,7 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
         project_id: WorkbenchProjectId::parse(&hex(82)).unwrap(),
         label: "Group".into(),
     });
-    snapshot.navigation.workspaces[0].project_id =
+    snapshot.navigation.workspaces[1].project_id =
         Some(snapshot.navigation.projects[0].project_id.clone());
     let index = PresentationIndex::rebuild(&snapshot);
     let grouped = index.placement_by_presentation(&hex(42)).unwrap();
@@ -61,7 +63,7 @@ fn board_index_keeps_workspace_presentations_after_regroup_and_dissolve() {
     assert_eq!(grouped.panel_id, before.panel_id);
     assert_eq!(grouped.project_label.as_deref(), Some("Group"));
     snapshot.navigation.projects.clear();
-    snapshot.navigation.workspaces[0].project_id = None;
+    snapshot.navigation.workspaces[1].project_id = None;
     let index = PresentationIndex::rebuild(&snapshot);
     let dissolved = index.placement_by_presentation(&hex(42)).unwrap();
     assert_eq!(dissolved.location, before.location);
@@ -462,15 +464,24 @@ fn expire_jump_reports_budget_exhaustion() {
 
 #[test]
 fn jump_plan_walks_context_then_tab_then_panel() {
-    let standalone = NativeContextLocation::Standalone(context_id(1));
+    let initial_workspace = {
+        let fixture_context_id = context_id(1);
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    };
     let workspace = workspace_location(2);
     let target = placement(workspace.clone(), 5, 6);
-    let contexts = vec![standalone.clone(), workspace.clone()];
+    let contexts = vec![initial_workspace.clone(), workspace.clone()];
     // Wrong context: select the owning 0-based position.
     assert_eq!(
         plan_jump_step(
             &target,
-            Some(&standalone),
+            Some(&initial_workspace),
             &contexts,
             Some(0),
             None,
@@ -485,7 +496,7 @@ fn jump_plan_walks_context_then_tab_then_panel() {
     assert_eq!(
         plan_jump_step(
             &target,
-            Some(&standalone),
+            Some(&initial_workspace),
             &contexts,
             Some(0),
             None,
@@ -500,8 +511,8 @@ fn jump_plan_walks_context_then_tab_then_panel() {
     assert_eq!(
         plan_jump_step(
             &target,
-            Some(&standalone),
-            std::slice::from_ref(&standalone),
+            Some(&initial_workspace),
+            std::slice::from_ref(&initial_workspace),
             Some(0),
             None,
             None,
@@ -770,13 +781,27 @@ fn presentation_snapshot() -> Snapshot {
     let context = context_id(2);
     let presentation = TerminalPresentationId::parse(&hex(42)).unwrap();
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: context.clone(),
+        navigation: {
+            let fixture_context_id = context.clone();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(1),
@@ -822,10 +847,16 @@ fn presentation_index_resolves_only_live_panel_identities() {
         .expect("registered presentation resolves");
     assert_eq!(hit.tab_id, tab_id(5));
     assert_eq!(hit.panel_id, panel_id(6));
-    assert_eq!(
-        hit.location,
-        NativeContextLocation::Standalone(context_id(2))
-    );
+    assert_eq!(hit.location, {
+        let fixture_context_id = context_id(2);
+        NativeContextLocation::Workspace {
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap(),
+            terminal_context_id: fixture_context_id,
+        }
+    });
     // An identity the snapshot never painted resolves to nothing — the
     // jump's Gone path, never a guess.
     assert!(index.placement(&attachment(&hex(43), true)).is_none());

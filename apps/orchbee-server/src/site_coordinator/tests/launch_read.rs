@@ -1,6 +1,7 @@
-use super::panel_split::{close_leaf, dispatch_split, split_command, standalone_leaf};
-use super::tab_create::{immediate_completion, pending_first_open};
+use super::panel_split::{close_leaf, dispatch_split, split_command, workspace_leaf};
+use super::tab_create::{immediate_completion, pending_first_tab};
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_client_server_protocol::{
     CreateAcceptedState, CreateOutcome, TerminalLaunchFact, TerminalLaunchReadOutcome,
     TerminalLaunchState,
@@ -26,11 +27,11 @@ fn worker_hex(authorization: TerminalOperationAuthorization) -> String {
     )
 }
 fn started_open(coordinator: &mut SiteCoordinator, request: u128, reference: u128) -> String {
-    let pending = pending_first_open(coordinator, request, reference);
-    let terminal_id = terminal_hex(launch_authorization(&pending));
+    let pending = pending_first_tab(coordinator, request, reference);
+    let terminal_id = terminal_hex(launch_authorization(pending.command()));
     let completion = immediate_completion(pending.command());
     coordinator
-        .complete(pending, completion, Some(worker(1)))
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
         .unwrap();
     terminal_id
 }
@@ -54,8 +55,8 @@ fn primary_presentation_id(committed: &Snapshot, context: &str, tab: &str) -> St
 #[test]
 fn launch_read_joins_the_committed_route_and_retained_fact() {
     let mut coordinator = site();
-    let pending = pending_first_open(&mut coordinator, 3001, 3002);
-    let authorization = launch_authorization(&pending);
+    let pending = pending_first_tab(&mut coordinator, 3001, 3002);
+    let authorization = launch_authorization(pending.command());
     let terminal_id = terminal_hex(authorization);
     let worker_id = worker_hex(authorization);
 
@@ -87,7 +88,7 @@ fn launch_read_joins_the_committed_route_and_retained_fact() {
     assert_eq!(launch.geometry(), None);
 
     let committed = snapshot(&mut coordinator);
-    let (context, tab, panel) = standalone_leaf(&mut coordinator);
+    let (context, tab, panel) = workspace_leaf(&mut coordinator);
     let bound_to = terminal.bound_to();
     assert_eq!(bound_to.terminal_context_id().as_str(), context.as_str());
     assert_eq!(bound_to.tab_id().as_str(), tab.as_str());
@@ -99,7 +100,7 @@ fn launch_read_joins_the_committed_route_and_retained_fact() {
 
     let completion = immediate_completion(pending.command());
     coordinator
-        .complete(pending, completion, Some(worker(1)))
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
         .unwrap();
 
     // Completion settles the retained record only; the joined revision is the
@@ -132,7 +133,7 @@ fn launch_read_joins_the_committed_route_and_retained_fact() {
 fn launch_read_re_resolves_route_and_revision_after_membership_moves() {
     let mut coordinator = site();
     let terminal_a = started_open(&mut coordinator, 3101, 3102);
-    let (context, tab, panel_a) = standalone_leaf(&mut coordinator);
+    let (context, tab, panel_a) = workspace_leaf(&mut coordinator);
     let mut split = split_command(
         &mut coordinator,
         3103,
@@ -265,8 +266,8 @@ fn launch_read_hides_the_orphaned_retained_record_after_close() {
         coordinator.terminal_launch_read(&terminal_id),
         Outcome::Found { .. }
     ));
-    let (context, tab, panel) = standalone_leaf(&mut coordinator);
-    let (_command, _changed) = close_leaf(&mut coordinator, context, tab, panel, 3203);
+    let (context, tab, panel) = workspace_leaf(&mut coordinator);
+    let _command = close_leaf(&mut coordinator, context, tab, panel, 3203);
 
     // The coordinator still retains the create fact — membership, not record
     // retention, gates visibility, so the orphaned record reads as not-found.
@@ -297,7 +298,7 @@ fn launch_read_reports_not_tracked_for_a_visible_binding_without_a_coordinator_r
         .workbench
         .as_mut()
         .unwrap()
-        .commit_standalone_intent(PresentationBinding {
+        .append_fixture_tab(PresentationBinding {
             terminal_id: WorkbenchTerminalId::parse(&format!("{:032x}", 424_242)).unwrap(),
             worker_id: WorkbenchWorkerId::parse(&format!("{:032x}", 777)).unwrap(),
         })
@@ -327,12 +328,12 @@ fn launch_read_reports_not_tracked_for_a_visible_binding_without_a_coordinator_r
 
 fn settled_failed_fact(observed: TerminalLaunchOutcome) -> TerminalLaunchFact {
     let mut coordinator = site();
-    let pending = pending_first_open(&mut coordinator, 3301, 3302);
-    let authorization = launch_authorization(&pending);
+    let pending = pending_first_tab(&mut coordinator, 3301, 3302);
+    let authorization = launch_authorization(pending.command());
     let terminal_id = terminal_hex(authorization);
     let failed = Completion::Launch(TerminalLaunchResult::new(authorization, observed).unwrap());
     coordinator
-        .complete(pending, failed, Some(worker(1)))
+        .complete_terminal_tab_create(pending, failed, Some(worker(1)))
         .unwrap();
     let Outcome::Found { launch, .. } = coordinator.terminal_launch_read(&terminal_id) else {
         panic!("failed launch keeps its committed binding")

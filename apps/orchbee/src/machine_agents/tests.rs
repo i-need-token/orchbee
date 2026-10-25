@@ -62,7 +62,7 @@ fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets()
         project_id: WorkbenchProjectId::parse(&id(82)).unwrap(),
         label: "Repo".into(),
     };
-    snapshot.navigation.workspaces[0].project_id = Some(project.project_id.clone());
+    snapshot.navigation.workspaces[1].project_id = Some(project.project_id.clone());
     snapshot.navigation.projects.push(project);
     let grouped = placements(&snapshot).unwrap();
     for (before, grouped) in before.iter().zip(&grouped) {
@@ -75,7 +75,7 @@ fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets()
         assert_eq!(before.order, grouped.order);
     }
     snapshot.navigation.projects.clear();
-    snapshot.navigation.workspaces[0].project_id = None;
+    snapshot.navigation.workspaces[1].project_id = None;
     for (before, after) in before.iter().zip(placements(&snapshot).unwrap()) {
         assert_eq!(after.workspace, "feature");
         assert_eq!(before.context, after.context);
@@ -88,13 +88,27 @@ pub(crate) fn fixture() -> Snapshot {
         protocol_version: ProtocolVersion,
         site_id: SiteId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            projects: Vec::new(),
-            workspace_order: Vec::new(),
-            standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(2)).unwrap(),
+        navigation: {
+            let fixture_context_id = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                projects: Vec::new(),
+                workspace_order: Vec::new(),
+            }
         },
         terminal_contexts: vec![TerminalContext {
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(2)).unwrap(),
@@ -163,9 +177,16 @@ pub(crate) fn target() -> Target {
     Target {
         context: NativeContextTarget {
             site_id: SiteId::parse(&id(1)).unwrap(),
-            location: NativeContextLocation::Standalone(
-                WorkbenchTerminalContextId::parse(&id(2)).unwrap(),
-            ),
+            location: {
+                let fixture_context_id = WorkbenchTerminalContextId::parse(&id(2)).unwrap();
+                NativeContextLocation::Workspace {
+                    workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                        fixture_context_id.as_str(),
+                    )
+                    .unwrap(),
+                    terminal_context_id: fixture_context_id,
+                }
+            },
         },
         tab: WorkbenchTabId::parse(&id(20)).unwrap(),
         panel: WorkbenchPanelId::parse(&id(21)).unwrap(),

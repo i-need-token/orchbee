@@ -10,7 +10,6 @@ use super::WorkbenchCheckpointError;
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct StoredNavigation {
-    standalone_terminal_context_id: WorkbenchTerminalContextId,
     projects: Vec<Project>,
     project_order: Vec<WorkbenchProjectId>,
     directories: Vec<StoredDirectory>,
@@ -61,7 +60,6 @@ impl StoredNavigation {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
-            standalone_terminal_context_id: navigation.standalone_terminal_context_id,
             projects: navigation.projects,
             project_order: navigation.project_order,
             directories,
@@ -79,7 +77,6 @@ impl StoredNavigation {
         }
         Ok(Navigation {
             project_order: self.project_order.clone(),
-            standalone_terminal_context_id: self.standalone_terminal_context_id.clone(),
             projects: self.projects.clone(),
             directories: self
                 .directories

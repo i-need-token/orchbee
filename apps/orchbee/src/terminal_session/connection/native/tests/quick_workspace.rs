@@ -8,7 +8,7 @@ use crate::terminal_session::state::OperationDeadlines;
 use crate::terminal_session::state::workspace_setup::{NativeSetupToken, quick::QuickPreparation};
 use crate::terminal_session::workbench_projection::{
     NativeContextLocation, NativeContextTabs, project_native_context_tabs,
-    project_native_standalone_tabs,
+    project_preferred_workspace,
 };
 use orchbee_workbench_protocol::{
     Directory, TerminalContext, WorkbenchDirectoryId, WorkbenchDirectoryPath,
@@ -32,7 +32,7 @@ fn quick(baseline: NativeContextTabs) -> QuickPreparation {
 #[test]
 fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_directory_without_sampling()
 -> TestResult {
-    let standalone = snapshot(1, 1);
+    let initial_workspace = snapshot(1, 1);
     // Move the live terminal into a Workspace whose recorded directory differs from any
     // terminal working directory; the default must still be the recorded directory.
     let mut workspace = snapshot(0, 1);
@@ -51,13 +51,15 @@ fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_director
         terminal_context_id: context_id.clone(),
         workspace_id: workspace_id.clone(),
     });
-    workspace
+    workspace.navigation.workspace_order = workspace
         .navigation
-        .workspace_order
-        .push(workspace_id.clone());
+        .workspaces
+        .iter()
+        .map(|workspace| workspace.workspace_id.clone())
+        .collect();
     workspace.terminal_contexts.push(TerminalContext {
         groups: Vec::new(),
-        tabs: standalone.terminal_contexts[0].tabs.clone(),
+        tabs: initial_workspace.terminal_contexts[0].tabs.clone(),
         terminal_context_id: context_id.clone(),
     });
     let location = NativeContextLocation::Workspace {
@@ -77,8 +79,8 @@ fn quick_workspace_uses_the_focused_workspace_directory_then_the_launch_director
             "C:/项目 space".to_owned(),
         ),
         (
-            project_native_standalone_tabs(&standalone).unwrap(),
-            standalone.clone(),
+            project_preferred_workspace(&initial_workspace).unwrap(),
+            initial_workspace.clone(),
             launch.clone(),
         ),
     ] {

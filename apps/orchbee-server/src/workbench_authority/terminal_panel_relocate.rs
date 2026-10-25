@@ -23,7 +23,6 @@ pub struct WorkbenchPanelRelocateAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     terminal_context_id: WorkbenchTerminalContextId,
-    membership: WorkbenchTerminalMembership,
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
     destination: WorkbenchPanelRelocateDestination,
@@ -37,28 +36,16 @@ pub enum WorkbenchPanelRelocatePreparation<'a> {
 
 pub struct PreparedWorkbenchPanelRelocate<'a> {
     commit: PreparedCommandCommit<'a>,
-    standalone: Option<(WorkbenchTerminalMembership, WorkbenchTerminalMembership)>,
 }
 
 struct RelocationPlan {
     commit: CommitPlan,
-    standalone: Option<(WorkbenchTerminalMembership, WorkbenchTerminalMembership)>,
 }
 
 impl PreparedWorkbenchPanelRelocate<'_> {
     #[must_use]
     pub fn result(&self) -> &WorkbenchCommandResult {
         &self.commit.response
-    }
-
-    /// Before/after standalone membership for Site's atomic Open-reference reconciliation.
-    #[must_use]
-    pub fn standalone_transition(
-        &self,
-    ) -> Option<(&WorkbenchTerminalMembership, &WorkbenchTerminalMembership)> {
-        self.standalone
-            .as_ref()
-            .map(|(before, after)| (before, after))
     }
 
     /// Retire a composition failure before publishing any topology or retained success.
@@ -74,20 +61,12 @@ impl PreparedWorkbenchPanelRelocate<'_> {
 }
 
 impl<'a> WorkbenchPanelRelocateAdmission<'a> {
-    /// The standalone composition input — present only when the source
-    /// context is the standalone context.
-    #[must_use]
-    pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
-        self.membership.is_standalone().then_some(&self.membership)
-    }
-
     #[must_use]
     pub fn retire_composition_failure(self) -> WorkbenchCommandResult {
         self.authority.retire(&self.command)
     }
 
-    /// Prepare topology and exact standalone membership without publishing either.
-    /// Site must reconcile Open before committing a cross-context move.
+    /// Prepare the complete Workspace topology without publishing it.
     #[must_use]
     pub fn finish(self) -> WorkbenchPanelRelocatePreparation<'a> {
         self.finish_inner(None)
@@ -128,7 +107,6 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
                     catalog_next: None,
                     outcome: self.authority.rejected(reason),
                 },
-                standalone: None,
             },
             Err(PlanFailure::Internal) => {
                 return WorkbenchPanelRelocatePreparation::Ready(
@@ -154,10 +132,7 @@ impl<'a> WorkbenchPanelRelocateAdmission<'a> {
             .prepare_command_commit(self.command, plan.commit)
         {
             Ok(commit) => WorkbenchPanelRelocatePreparation::Prepared(Box::new(
-                PreparedWorkbenchPanelRelocate {
-                    commit,
-                    standalone: plan.standalone,
-                },
+                PreparedWorkbenchPanelRelocate { commit },
             )),
             Err(result) => WorkbenchPanelRelocatePreparation::Ready(*result),
         }
@@ -289,12 +264,11 @@ impl WorkbenchAuthority {
             Some(WorkbenchRejectionReason::SiteMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
-        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-            && !snapshot
-                .navigation
-                .workspaces
-                .iter()
-                .any(|workspace| workspace.terminal_context_id == terminal_context_id)
+        } else if !snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.terminal_context_id == terminal_context_id)
         {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {
@@ -329,7 +303,7 @@ impl WorkbenchAuthority {
         }
         // Tree membership includes every child Presentation; group/pin ordering
         // retains its separate structural admission policy.
-        let membership = match super::terminal_membership::tree_terminal_membership(
+        let _membership = match super::terminal_membership::tree_terminal_membership(
             snapshot,
             &terminal_context_id,
         ) {
@@ -342,7 +316,6 @@ impl WorkbenchAuthority {
             authority: self,
             command,
             terminal_context_id,
-            membership,
             tab_id,
             panel_id,
             destination,

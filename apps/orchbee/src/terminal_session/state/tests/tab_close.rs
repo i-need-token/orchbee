@@ -24,7 +24,7 @@ fn selection(index: usize) -> CloseSelection {
     CloseSelection::new(
         CloseTarget::new(
             cache.site_id().clone(),
-            cache.terminal_context_id().clone(),
+            cache.terminal_context_id().unwrap().clone(),
             tab.tab_id().clone(),
         ),
         tab.tab_label().clone(),
@@ -464,8 +464,7 @@ fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() 
         orientation: PanelOrientation::Horizontal,
         split_id: WorkbenchSplitId::parse(&super::id(2_020)).unwrap(),
     };
-    let mut state =
-        super::ready_with_cache(super::project_native_standalone_tabs(&source).unwrap());
+    let mut state = super::ready_with_cache(super::project_preferred_workspace(&source).unwrap());
     let fresh = super::attach_nonfirst_leaf(&mut state);
     assert!(state.stage_drawn_frame_t(&fresh, super::FrameIdentity::new(2)));
     assert!(state.mark_feedback_accepted_t(&fresh, super::FrameIdentity::new(2)));
@@ -558,7 +557,7 @@ fn retained_record_capacity_rejects_257_before_opening_or_replacing_an_intent() 
         CloseSelection::new(
             CloseTarget::new(
                 cache.site_id().clone(),
-                cache.terminal_context_id().clone(),
+                cache.terminal_context_id().unwrap().clone(),
                 super::tab_id(20_000 + index as u128),
             ),
             tab.tab_label().clone(),

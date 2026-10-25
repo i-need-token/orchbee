@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{ClientViewPhase, ClientViewRecord, Snapshot};
 
 #[derive(Debug)]
 pub(super) struct Origin {
-    pub(super) workspace: Option<Target>,
+    pub(super) workspace: Target,
     pub(super) panel: Option<Target>,
 }
 
@@ -27,7 +27,13 @@ pub(super) fn resolve(
         if selected.view.phase != ClientViewPhase::Ready {
             return Err(Failure::new(FailureKind::ServiceUnavailable));
         }
-        let view = selected.view.selection.as_ref().ok_or_else(missing)?;
+        let Some(view) = selected.view.selection.as_ref() else {
+            return if snapshot.navigation.workspaces.is_empty() {
+                Ok(None)
+            } else {
+                Err(missing())
+            };
+        };
         let context = snapshot
             .terminal_contexts
             .iter()
@@ -50,20 +56,16 @@ pub(super) fn resolve(
     } else {
         return Ok(None);
     };
-    let workspace = if context == snapshot.navigation.standalone_terminal_context_id {
-        None
-    } else {
-        Some(Target::Id(
-            snapshot
-                .navigation
-                .workspaces
-                .iter()
-                .find(|workspace| workspace.terminal_context_id == context)
-                .ok_or_else(missing)?
-                .workspace_id
-                .to_string(),
-        ))
-    };
+    let workspace = Target::Id(
+        snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.terminal_context_id == context)
+            .ok_or_else(missing)?
+            .workspace_id
+            .to_string(),
+    );
     Ok(Some(Origin { workspace, panel }))
 }
 

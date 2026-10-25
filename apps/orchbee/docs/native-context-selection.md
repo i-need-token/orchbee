@@ -8,38 +8,9 @@ location and selection. This reference governs the context-selection extension t
 [native Tab Session](native-tab-session.md). Maintain it with the Session reducer, transport,
 navigation rendering and their correctness evidence.
 
-`Ctrl+B [` and `Ctrl+B ]` select the previous and next visible Workspace: nonempty legacy content,
-then the canonical global Workspace display order. The required empty compatibility Context is
-absent from the sidebar, navigator and cycling. Sorting never changes Project membership.
-Selection wraps at either boundary. Workspace and context IDs establish location identity;
-Project membership and labels are presentation metadata. Moving a Workspace or dissolving its
-Project preserves selection memory and the live attachment. Entering another location restores this
-Client's last selected Tab and Panel when those identities still belong there; otherwise it selects
-the first surviving member, or Empty when there are no Tabs. Empty can be
-entered and left without creating a terminal. Existing Tab controls act on the active context;
-explicit `c` in a canonical Workspace uses Server's existing directory admission and never falls
-back to the home directory.
-Windows sidebar Workspace activation on the current machine shares this Session
-selection owner without opening a picker. Exact Session/location identity is checked
-before admission; Busy precedes the exact-current no-op. The machine UI owner
-retains only the latest unadmitted target while this Session settles accepted work.
-Sidebar current markers, location labels and Tabs read the installed Session
-selection together. See [machine navigation](machines.md#cross-machine-workspace-navigation)
-for request lifetime, cancellation and cross-machine handoff.
-Bare Windows startup follows the preference below. Without a saved preference,
-[directory startup](native-directory-startup.md) creates the first Workspace only in an eligible
-empty Session; other Sessions select existing Workspaces without standalone Open. Both use the existing first-frame readiness contract.
+`Ctrl+B [` and `Ctrl+B ]` cycle through real Workspaces in canonical display order, including empty Workspaces. Sorting and nullable Project membership never change location identity. Selection uses the Workspace/Context pair and restores this Client's surviving Tab/Panel memory, otherwise the first member or Empty. Entering or leaving Empty creates no terminal. Explicit `c` requires the Workspace's admitted directory and never falls back to home. Windows sidebar activation shares this Session selection owner; exact Site/location validation, Busy precedence and latest unadmitted target retention follow [machine navigation](machines.md#cross-machine-workspace-navigation). Windows [directory startup](native-directory-startup.md) may create the first Workspace only in an eligible empty Session. Other startup paths read and select existing membership before attachment.
 
-The private `NativeContextLocation::Standalone` identity remains the compatibility boundary for
-historical content and explicit `--standalone` commands. A nonempty Context is displayed as
-`Legacy workspace` / `原有工作区` without inventing a canonical Workspace ID. Its Tab, Panel,
-Presentation, terminal and attachment identities remain unchanged; Tab/Pane operations, menus,
-Agents and navigation use those exact identities. Canonical Workspace rename, directory, grouping
-and whole-Workspace Close are unavailable with a localized explanation; legacy Tabs close through
-their existing Tab actions. Emptying this context hides its navigation entry while the selected
-empty state offers explicit creation. Cycling from that state can enter a surviving Workspace.
-Membership validation remains separate from visibility: explicit compatibility targets still
-validate, the mandatory slot stays unique and disjoint, and its capacity is not reclaimed.
+`NativeContextLocation::NoWorkspace` represents only a Workbench with zero Workspaces and zero Contexts. It has no Context or Workspace ID, is not a navigation row, and is never persisted as a saved position. Creating a Workspace supplies a real owner; removing the last Workspace returns to this empty landing state. Every existing Workspace, including an ungrouped or empty one, retains its canonical ID and ordinary rename, directory, grouping and Close rules. Snapshot validation requires a one-to-one Workspace/Context relation; all 1,024 context slots are available to real Workspaces.
 
 On Windows, `c` in the no-Workspace state instead admits the existing quick Workspace launch.
 Only a freshly accepted redirect returns a typed Workspace-creation disposition to the shell;
@@ -115,12 +86,7 @@ failure and preserves the previous location.
 | Attach selected Tab      | Use the exact retained binding and the existing setup, first-frame and controller geometry rules. Late old-generation results cannot become current.                                          |
 | Fail after handoff       | Preserve known facts and apply the existing deadline/retirement rules; never retry an ambiguous effect or synthesize successful cleanup.                                                      |
 
-Known Create provenance must survive leaving and returning to a context. A snapshot binding cannot
-turn a known Pending, failed, unavailable or outcome-unknown Create into permission to attach.
-Retained provenance is bounded by the protocol's context and Tab limits and pruned only with
-validated membership evidence. Pending Close work keeps its original exact target and blocks
-location changes until the existing settlement rules permit them. Current-context refresh and
-Create/Move/Rename/Close result handling must not silently return to standalone.
+Known Create provenance survives leaving and returning to a Workspace. A snapshot binding cannot turn pending, failed, unavailable or outcome-unknown Create into attachment permission. Retained provenance is bounded by Context/Tab limits and pruned only with validated membership evidence. Pending Close retains its exact target and blocks location changes until settlement permits them. Refresh and mutation results preserve the selected Workspace or follow explicit canonical removal recovery.
 
 ## Client selection memory
 

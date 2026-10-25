@@ -3,7 +3,7 @@ use crate::{
     client_view::ClientAction,
     terminal_session::{
         state::{NativeSessionState, SelectionPlan, SessionNotice, SessionPhaseKind},
-        workbench_projection::project_native_standalone_tabs,
+        workbench_projection::project_preferred_workspace,
     },
 };
 use orchbee_client_server_protocol::{ControllerId, ViewerId};
@@ -2696,14 +2696,28 @@ fn projected_one_tab() -> NativeContextTabs {
 }
 
 fn projected_tabs(tab_count: usize) -> NativeContextTabs {
-    project_native_standalone_tabs(&Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: WorkbenchTerminalContextId::parse(&id(3)).unwrap(),
+    project_preferred_workspace(&Snapshot {
+        navigation: {
+            let fixture_context_id = WorkbenchTerminalContextId::parse(&id(3)).unwrap();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(1),

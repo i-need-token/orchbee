@@ -66,18 +66,18 @@ fn modal_frame(top_edge: &str, rows: &[&str], right_border: &str) -> Screen {
 fn native_header_requires_the_top_location_and_current_compact_tab_grammar() {
     for (top, header, expected) in [
         (
-            "+ New workspace             *1 1                 Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, "1"),
+            "+ New workspace             *1 1                 Workspace",
+            NativeHeader::active("Workspace", 1, "1"),
             true,
         ),
         (
-            "+ New workspace             *1 1   2 2             Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, "1"),
+            "+ New workspace             *1 1   2 2             Workspace",
+            NativeHeader::active("Workspace", 1, "1"),
             true,
         ),
         (
-            "+ New workspace             *1  current             Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, " current"),
+            "+ New workspace             *1  current             Workspace",
+            NativeHeader::active("Workspace", 1, " current"),
             true,
         ),
         (
@@ -91,37 +91,37 @@ fn native_header_requires_the_top_location_and_current_compact_tab_grammar() {
             true,
         ),
         (
-            "+ New workspace             [*1 1]               Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, "1"),
+            "+ New workspace             [*1 1]               Workspace",
+            NativeHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
-            "+ New workspace                                  Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, "1"),
+            "+ New workspace                                  Workspace",
+            NativeHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
-            "+ New workspace             *1 1  *2 2             Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, "1"),
+            "+ New workspace             *1 1  *2 2             Workspace",
+            NativeHeader::active("Workspace", 1, "1"),
             false,
         ),
         (
-            "+ New workspace             *1  current  *2 2       Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, " current"),
+            "+ New workspace             *1  current  *2 2       Workspace",
+            NativeHeader::active("Workspace", 1, " current"),
             false,
         ),
         (
-            "+ New workspace             *1  current             Standalone terminal",
-            NativeHeader::empty("Standalone terminal"),
+            "+ New workspace             *1  current             Workspace",
+            NativeHeader::empty("Workspace"),
             false,
         ),
         (
-            "+ New workspace             *1 current  2 nested    Standalone terminal",
-            NativeHeader::active("Standalone terminal", 1, "current  2 nested"),
+            "+ New workspace             *1 current  2 nested    Workspace",
+            NativeHeader::active("Workspace", 1, "current  2 nested"),
             false,
         ),
     ] {
-        let screen = complete_frame(&format!("\x1b[1;1H{top}\x1b[2;1H› * 1 Standalone terminal"));
+        let screen = complete_frame(&format!("\x1b[1;1H{top}\x1b[2;1H› * 1 Workspace"));
         assert_eq!(
             screen.latest_frame().unwrap().has_native_header(header),
             expected,

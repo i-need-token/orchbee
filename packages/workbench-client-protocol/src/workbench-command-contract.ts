@@ -286,7 +286,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('workspace.move'),
 			workspaceId: WorkbenchWorkspaceIdSchema,
-			insertIndex: z.number().int().min(0).max(1023),
+			insertIndex: z.number().int().min(0).max(1024),
 		})
 		.readonly(),
 	z

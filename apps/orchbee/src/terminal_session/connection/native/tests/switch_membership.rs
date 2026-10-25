@@ -5,7 +5,6 @@ use orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason;
 
 fn startup_steps() -> Vec<WireKind> {
     vec![
-        WireKind::Obcs,
         WireKind::Workbench,
         WireKind::Obcs,
         WireKind::Obcs,

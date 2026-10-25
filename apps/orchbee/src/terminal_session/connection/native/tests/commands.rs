@@ -27,7 +27,7 @@ use std::time::Instant;
 fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_generation()
 -> TestResult {
     let geometry = fixture_geometry()?;
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 5]);
     kinds.extend([
         WireKind::Workbench,
@@ -154,7 +154,6 @@ fn candidate_first_create_unavailable_never_detaches_or_publishes_the_reserved_t
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -243,7 +242,6 @@ fn attached_refresh_membership_runs_real_detach_before_empty_or_successor_ready(
     ] {
         let geometry = fixture_geometry()?;
         let mut kinds = vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -396,7 +394,6 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     )?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -620,7 +617,6 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -776,7 +772,6 @@ fn create_barrier_expiring_held_poll_retires_deadline_before_create_or_detach() 
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -869,7 +864,6 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1054,7 +1048,7 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
 fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_own_budget()
 -> TestResult {
     let geometry = fixture_geometry()?;
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 5]); // Initial Attach through accepted setup feedback.
     // Pending Create validates its Snapshot before cleaning up the old viewer.
     kinds.extend([WireKind::Workbench, WireKind::Workbench, WireKind::Obcs]);
@@ -1294,7 +1288,6 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1464,7 +1457,6 @@ fn late_known_create_without_candidate_retains_commit_but_never_detaches() -> Te
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1548,7 +1540,6 @@ fn refresh_uses_one_pending_generation_and_ui_settles_after_transport_deadline()
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1652,7 +1643,6 @@ fn label_and_tab_metadata_refresh_preserves_selection_viewer_frame_and_presentat
 
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1787,7 +1777,6 @@ fn denied_refresh_preserves_cache_viewer_and_reports_baseline_failure() -> TestR
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1845,7 +1834,6 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1984,7 +1972,6 @@ fn refresh_deadline_overflow_changes_no_cache_viewer_or_refresh_facts() -> TestR
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start_with_ceiling_clock(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2052,7 +2039,6 @@ fn refresh_barrier_expiring_held_poll_retires_deadline_before_snapshot() -> Test
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2124,7 +2110,6 @@ fn divergent_refresh_retires_after_exact_typed_ui_settlement() -> TestResult {
     divergent.terminal_contexts[0].tabs[0].label = "same-revision-rename".to_owned();
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2216,7 +2201,6 @@ fn refresh_folds_a_multi_revision_publication_batch_into_one_validated_snapshot(
 
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2314,7 +2298,6 @@ fn refresh_validates_a_journal_gap_snapshot_fallback_against_the_retained_baseli
 
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2366,7 +2349,6 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2478,7 +2460,6 @@ fn action_incompatible_create_result_retires_unknown_without_detach_or_replay() 
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2546,7 +2527,6 @@ fn run_create_wire_failure(failure: CreateWireFailure) -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2595,7 +2575,6 @@ fn create_projection_missing_committed_tab_retires_authority_divergence() -> Tes
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2671,7 +2650,6 @@ fn ambiguous_input_retires_unknown_without_replay() -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2735,7 +2713,6 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
     )?;
     let mut harness = Harness::start(
         vec![
-            WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -2989,7 +2966,7 @@ fn drive_controlling_ready(
     crate::terminal_session::state::AttachmentKey,
     orchbee_client_server_protocol::ControllerId,
 )> {
-    let key = drive_open_snapshot_bootstrap(harness, 1)?;
+    let key = drive_snapshot_bootstrap(harness, 1)?;
     assert_eq!(drive_attach(harness, 0)?, key);
 
     let controller = drive_controlling_after_attach(harness, &key, geometry)?;
@@ -3023,19 +3000,6 @@ pub(super) fn drive_bootstrap_from_snapshot(
     harness: &mut Harness,
     initial: orchbee_workbench_protocol::Snapshot,
 ) -> TestResult<crate::terminal_session::state::AttachmentKey> {
-    let ClientMessage::TerminalOpen(request) = harness.carrier.take_obcs()? else {
-        return Err(test_error("startup must begin with terminal.open"));
-    };
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalOpenResult(
-            orchbee_client_server_protocol::TerminalOpenResult::new(
-                request.request_id().clone(),
-                orchbee_client_server_protocol::OpenOutcome::Opened {
-                    terminal_create_request_id: obcs_request_id(900)?,
-                },
-            ),
-        ))?;
     let request = harness.carrier.take_read()?;
     harness.carrier.respond_read(
         &request,
@@ -3199,7 +3163,7 @@ fn assert_control_input(
 fn reconcile_detach_rejected_keeps_attachment_until_canonical_proof() -> TestResult {
     let geometry = fixture_geometry()?;
     // 6 startup steps + Detach + deferred Detach retry — exact.
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 7]);
     let mut harness = Harness::start(kinds, geometry)?;
     let (_key, _controller) = drive_controlling_ready(&mut harness, geometry)?;
@@ -3274,7 +3238,7 @@ fn busy_reconcile_attach_yields_lease_for_live_input() -> TestResult {
     // 6 startup steps + the first-observation focus Resize + busy Attach +
     // live Input + one Attach retry — exact; the deferred retry order is
     // fixed (live work precedes it).
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 9]);
     let mut harness = Harness::start(kinds, geometry)?;
     let (_key, controller) =
@@ -3459,7 +3423,7 @@ fn reconcile_steps_rotate_busy_targets_and_release_lease_for_live_input() -> Tes
     );
     // 6 startup steps + focus Resize + peer-a busy Attach + live Input +
     // peer-b busy Attach + two rejected retries — exact.
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 11]);
     let mut harness = Harness::start(kinds, geometry)?;
     let (_key, controller) =
@@ -3630,7 +3594,7 @@ fn mid_starting_pane_observation_defers_ordinary_work_until_ready() -> TestResul
     );
     // 6 startup steps + post-Ready focus Resize + rejected peer Attach —
     // exact; the mid-Starting observation queues nothing.
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 7]);
     let mut harness = Harness::start(kinds, geometry)?;
     let key = drive_bootstrap_from_snapshot(&mut harness, initial)?;
@@ -3741,7 +3705,7 @@ fn reconcile_deadline_expiry_parks_pending_panes_until_new_membership() -> TestR
     );
     // 6 startup steps + focus Resize + peer-a busy Attach + live Input +
     // the new episode's two rejected attaches — exact.
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 10]);
     let mut harness = Harness::start(kinds, geometry)?;
     let (_key, controller) =
@@ -3912,7 +3876,7 @@ fn reconcile_deadline_expiry_retains_unproven_detach_ownership() -> TestResult {
     let geometry = fixture_geometry()?;
     // 6 startup steps + refused Detach + revival Resize + live Input +
     // the new episode's canonical Detach — exact.
-    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    let mut kinds = vec![WireKind::Workbench];
     kinds.extend([WireKind::Obcs; 9]);
     let mut harness = Harness::start(kinds, geometry)?;
     let (_key, controller) = drive_controlling_ready(&mut harness, geometry)?;

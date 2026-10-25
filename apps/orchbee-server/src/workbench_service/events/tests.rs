@@ -84,7 +84,7 @@ fn tab(service: &WorkbenchService, label: &str) {
         None,
         SemanticEventKind::TabRenamed,
         SemanticEventData::Tab {
-            terminal_context_id: current.navigation.standalone_terminal_context_id,
+            terminal_context_id: current.navigation.workspaces[0].terminal_context_id.clone(),
             tab_id: WorkbenchTabId::parse(&format!("{:032x}", 101)).unwrap(),
             label: label.into(),
             index: 0

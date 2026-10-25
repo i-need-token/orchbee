@@ -5,7 +5,7 @@ use crate::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::collections::{HashMap, HashSet};
 
-pub const MAXIMUM_WORKSPACE_ORDER_LENGTH: usize = MAXIMUM_TERMINAL_CONTEXTS - 1;
+pub const MAXIMUM_WORKSPACE_ORDER_LENGTH: usize = MAXIMUM_TERMINAL_CONTEXTS;
 pub const MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES: usize = 48 * 1024;
 
 /// A nonempty, bounded, duplicate-free sequence of exact Workspace identities.
@@ -87,7 +87,7 @@ impl Navigation {
         if self.workspace_order.is_empty() {
             return Ok(members);
         }
-        if self.workspace_order.len() >= MAXIMUM_TERMINAL_CONTEXTS
+        if self.workspace_order.len() > MAXIMUM_TERMINAL_CONTEXTS
             || self.workspace_order.len() != members.len()
         {
             return Err(ContractError::InvalidDocument);

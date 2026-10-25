@@ -1,5 +1,6 @@
 use super::*;
 use crate::site_coordinator::BindingViewerPreparationError;
+use crate::test_support::WorkbenchFixture;
 use orchbee_client_server_protocol::{
     SiteId as ClientSiteId, TerminalId as ClientTerminalId, WorkerId as ClientWorkerId,
 };
@@ -136,7 +137,7 @@ fn accept_target_close(
     use orchbee_workbench_protocol::{WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome};
     let before = snapshot(coordinator);
     let authority = coordinator.workbench.as_mut().unwrap();
-    let membership = authority.standalone_membership().unwrap();
+    let membership = authority.fixture_membership().unwrap();
     let member = membership.members().first().unwrap();
     let orchbee_server::WorkbenchTabCloseMemberRuntime::Runtime {
         target: runtime,
@@ -217,7 +218,7 @@ fn expose(coordinator: &mut SiteCoordinator, authorization: TerminalOperationAut
         .workbench
         .as_mut()
         .unwrap()
-        .commit_standalone_intent(PresentationBinding {
+        .append_fixture_tab(PresentationBinding {
             terminal_id: TerminalId::parse(&format!(
                 "{:032x}",
                 u128::from_be_bytes(authorization.terminal_id().as_bytes())
@@ -235,7 +236,7 @@ fn expose(coordinator: &mut SiteCoordinator, authorization: TerminalOperationAut
 fn prepared_site(settle: bool) -> (SiteCoordinator, TerminalOperationAuthorization) {
     let mut coordinator = site();
     let pending = dispatch(coordinator.prepare(create(1), Some(worker(1)), Some(expiry())));
-    let authorization = launch_authorization(&pending);
+    let authorization = launch_authorization(pending.command());
     expose(&mut coordinator, authorization);
     if settle {
         coordinator
@@ -349,7 +350,7 @@ fn workbench_refusals_precede_runtime_interpretation_and_consume_no_identity() {
 fn retained_terminal_not_exposed_by_workbench_is_unavailable_without_consuming_identity() {
     let (mut coordinator, _exposed) = prepared_site(true);
     let hidden = dispatch(coordinator.prepare(create(2), Some(worker(1)), Some(expiry())));
-    let hidden_authorization = launch_authorization(&hidden);
+    let hidden_authorization = launch_authorization(hidden.command());
     coordinator
         .complete(
             hidden,
@@ -580,7 +581,7 @@ fn send_rejects_unexposed_wrong_site_and_missing_workbench_without_identity() {
         );
     }
     let hidden = dispatch(coordinator.prepare(create(7), Some(worker(1)), Some(expiry())));
-    let hidden_authorization = launch_authorization(&hidden);
+    let hidden_authorization = launch_authorization(hidden.command());
     coordinator
         .complete(
             hidden,

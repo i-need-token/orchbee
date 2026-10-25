@@ -2,14 +2,14 @@ use super::*;
 use crate::terminal_session::{
     NativeContextLocation,
     startup_preference::{Position, resolve},
-    workbench_projection::project_native_context_tabs,
+    workbench_projection::{preferred_workspace_location, project_native_context_tabs},
 };
 
 #[test]
 fn startup_preference_restores_exact_nonfirst_member_after_reorder_and_new_site_boot() {
     let mut snapshot = super::context_selection::contexts(2, 1);
     let location = NativeContextLocation::Workspace {
-        workspace_id: snapshot.navigation.workspaces[0].workspace_id.clone(),
+        workspace_id: snapshot.navigation.workspaces[1].workspace_id.clone(),
         terminal_context_id: snapshot.terminal_contexts[1].terminal_context_id.clone(),
     };
     let cache = project_native_context_tabs(&snapshot, &location).unwrap();
@@ -34,7 +34,7 @@ fn startup_preference_restores_exact_nonfirst_member_after_reorder_and_new_site_
 #[test]
 fn startup_preference_removed_tab_falls_back_in_same_location_without_launching() {
     let snapshot = super::context_selection::contexts(2, 1);
-    let workspace = &snapshot.navigation.workspaces[0];
+    let workspace = &snapshot.navigation.workspaces[1];
     let cache = project_native_context_tabs(
         &snapshot,
         &NativeContextLocation::Workspace {
@@ -60,9 +60,9 @@ fn startup_preference_removed_tab_falls_back_in_same_location_without_launching(
 }
 
 #[test]
-fn startup_preference_removed_location_falls_back_and_empty_location_has_no_invented_member() {
+fn startup_preference_removed_location_falls_back_without_inventing_a_context() {
     let mut snapshot = super::context_selection::contexts(2, 1);
-    let workspace = &snapshot.navigation.workspaces[1];
+    let workspace = &snapshot.navigation.workspaces[2];
     let position = Position {
         location: NativeContextLocation::Workspace {
             workspace_id: workspace.workspace_id.clone(),
@@ -72,88 +72,40 @@ fn startup_preference_removed_location_falls_back_and_empty_location_has_no_inve
     };
     let (cache, member, fallback) = resolve(&snapshot, &position).unwrap();
     assert!(cache.tabs().is_empty());
-    assert_eq!(member, None);
+    assert!(member.is_none());
     assert!(!fallback);
-    snapshot.navigation.projects.clear();
-    snapshot.navigation.workspaces.clear();
-    snapshot.terminal_contexts.truncate(1);
+    snapshot.navigation.workspaces.remove(2);
+    snapshot.terminal_contexts.remove(2);
     let (cache, member, fallback) = resolve(&snapshot, &position).unwrap();
-    assert!(matches!(
+    assert_eq!(
         cache.location(),
-        NativeContextLocation::Standalone(_)
-    ));
+        &preferred_workspace_location(&snapshot).unwrap()
+    );
     assert_eq!(member.unwrap().tab, cache.tabs()[0].tab_id().clone());
     assert!(fallback);
-    snapshot.terminal_contexts[0].tabs.clear();
+    snapshot.navigation.workspaces.clear();
+    snapshot.navigation.workspace_order.clear();
+    snapshot.terminal_contexts.clear();
     let (cache, member, fallback) = resolve(&snapshot, &position).unwrap();
-    assert!(cache.tabs().is_empty());
-    assert_eq!(member, None);
+    assert_eq!(cache.location(), &NativeContextLocation::NoWorkspace);
+    assert!(cache.terminal_context_id().is_none());
+    assert!(member.is_none());
     assert!(fallback);
 }
 
 #[test]
-fn startup_preference_empty_compatibility_position_yields_to_existing_workspace() {
+fn startup_preference_preserves_an_existing_empty_workspace() {
     let mut snapshot = super::context_selection::contexts(2, 1);
     snapshot.terminal_contexts[0].tabs.clear();
     let saved = Position {
-        location: NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        ),
+        location: project_preferred_workspace(&snapshot)
+            .unwrap()
+            .location()
+            .clone(),
         member: None,
     };
     let (cache, member, fallback) = resolve(&snapshot, &saved).unwrap();
-    assert!(matches!(
-        cache.location(),
-        NativeContextLocation::Workspace { workspace_id, terminal_context_id }
-            if workspace_id == &snapshot.navigation.workspaces[0].workspace_id
-                && terminal_context_id == &snapshot.navigation.workspaces[0].terminal_context_id
-    ));
-    assert_eq!(
-        member.unwrap().tab,
-        snapshot.terminal_contexts[1].tabs[0].tab_id
-    );
-    assert!(fallback);
-}
-
-#[test]
-fn startup_preference_canonical_empty_workspace_precedes_legacy_and_removed_positions() {
-    let mut snapshot = super::context_selection::contexts(2, 1);
-    let legacy = project_native_standalone_tabs(&snapshot).unwrap();
-    let last = &legacy.tabs()[1];
-    let saved = Position {
-        location: legacy.location().clone(),
-        member: Some(crate::terminal_session::NativeMemberTarget {
-            tab: last.tab_id().clone(),
-            panel: last.panel(0).unwrap().panel_id().clone(),
-            presentation: last.panel(0).unwrap().presentation_id().clone(),
-        }),
-    };
-    snapshot.terminal_contexts[1].tabs.clear();
-    for position in [
-        saved.clone(),
-        Position {
-            location: NativeContextLocation::Workspace {
-                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(999))
-                    .unwrap(),
-                terminal_context_id: context_id(998),
-            },
-            member: saved.member.clone(),
-        },
-    ] {
-        let (cache, member, fallback) = resolve(&snapshot, &position).unwrap();
-        assert!(
-            matches!(cache.location(), NativeContextLocation::Workspace { workspace_id, .. }
-            if workspace_id == &snapshot.navigation.workspaces[0].workspace_id)
-        );
-        assert!(cache.tabs().is_empty());
-        assert!(member.is_none());
-        assert!(fallback);
-    }
-    snapshot.navigation.workspaces.clear();
-    snapshot.navigation.workspace_order.clear();
-    snapshot.terminal_contexts.truncate(1);
-    let (cache, member, fallback) = resolve(&snapshot, &saved).unwrap();
     assert_eq!(cache.location(), &saved.location);
-    assert_eq!(member, saved.member);
+    assert!(member.is_none());
     assert!(!fallback);
 }

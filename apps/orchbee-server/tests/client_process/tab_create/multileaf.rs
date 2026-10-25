@@ -37,8 +37,8 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
     // Snapshot reads are FIFO behind each connection's parked command response, so a
     // dedicated observer connection watches commits.
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = read_snapshot(&mut observer, 300, deadline())?;
-    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let initial = create_workspace(&mut observer, 0x100_000, "/tmp", deadline())?;
+    let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
 
     let first_id = workbench_id(301)?;
     let first_request = command(
@@ -88,7 +88,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
         return Err("second Launch expected".into());
     };
     let committed = read_snapshot(&mut observer, 304, deadline())?;
-    assert_eq!(standalone_context(&committed)?.tabs.len(), 2);
+    assert_eq!(initial_workspace_context(&committed)?.tabs.len(), 2);
     let second_tuple = pending_tab(
         &exchange_command(&mut observer, &second_request, &second_id, deadline())?.outcome,
     )?;
@@ -160,7 +160,7 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
     );
     let settled = read_snapshot(&mut observer, 307, deadline())?;
     assert_eq!(settled, read_snapshot(&mut first_client, 308, deadline())?);
-    let settled_context = standalone_context(&settled)?;
+    let settled_context = initial_workspace_context(&settled)?;
     assert_eq!(settled_context.tabs.len(), 2);
     let second_tab = settled_context
         .tabs
@@ -202,7 +202,7 @@ fn wait_for_split_commit(
     let mut snapshot = read_snapshot(observer, request_value, deadline)?;
     *successful_replies += 1;
     loop {
-        let source = standalone_context(&snapshot)?
+        let source = initial_workspace_context(&snapshot)?
             .tabs
             .iter()
             .find(|tab| tab.tab_id == *tab_id)
@@ -229,7 +229,7 @@ fn is_process_deadline(error: &(dyn std::error::Error + 'static)) -> bool {
 
 // Shared fixture for the never-split diagnostics: one real Server, one
 // controlled Worker connection, one commanding Client and a dedicated
-// observer Client, with a single settled standalone Tab as the split source.
+// observer Client, with a single settled initial_workspace Tab as the split source.
 fn never_split_fixture() -> TestResult<(
     RunningServer,
     UnixStream,
@@ -241,8 +241,8 @@ fn never_split_fixture() -> TestResult<(
     let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut first_client, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = read_snapshot(&mut observer, 311, deadline())?;
-    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let initial = create_workspace(&mut observer, 0x100_000, "/tmp", deadline())?;
+    let context_id = initial.navigation.workspaces[0].terminal_context_id.clone();
 
     let first_id = workbench_id(312)?;
     let first_request = command(
@@ -343,7 +343,7 @@ fn renewed_deadline_wait_outlives_the_shared_cap_under_an_outer_bound() -> TestR
         post_cap_replies += 1;
     }
     loop {
-        let source = standalone_context(&snapshot)?
+        let source = initial_workspace_context(&snapshot)?
             .tabs
             .iter()
             .find(|tab| tab.tab_id == first_tuple.tab_id)

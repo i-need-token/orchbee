@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 
 #[test]
 fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settle() {
@@ -33,9 +34,9 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
         let now = Instant::now();
         let close = close_command(&authority, 10000, 0);
         accept(&mut authority, &grant, close.clone(), now);
-        let member = authority.standalone_membership().unwrap().members()[0].clone();
+        let member = authority.fixture_membership().unwrap().members()[0].clone();
         let context = authority
-            .standalone_membership()
+            .fixture_membership()
             .unwrap()
             .terminal_context_id()
             .clone();
@@ -130,7 +131,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
             10003,
             WorkbenchAction::TabRename {
                 terminal_context_id: context,
-                tab_id: authority.standalone_membership().unwrap().members()[1]
+                tab_id: authority.fixture_membership().unwrap().members()[1]
                     .tab_id()
                     .clone(),
                 label: WorkbenchLabel::parse("tab 1").unwrap(),
@@ -159,12 +160,7 @@ fn every_ordinary_writer_preserves_reserved_removal_credit_and_noops_still_settl
 fn bootstrap_and_primary_reject_exhaustion_and_two_credits_are_consumed_separately() {
     let (mut empty, grant) = fixture(0);
     set_revision(&mut empty, u64::MAX);
-    assert!(matches!(
-        empty.prepare_standalone_intent(binding(700)),
-        Err(super::super::super::StandaloneIntentError::Rejected(
-            WorkbenchRejectionReason::RevisionExhausted
-        ))
-    ));
+
     assert!(matches!(
         empty.begin_terminal_tab_create(Some(&grant), create_command(&empty, 10, "new")),
         WorkbenchTabCreateBegin::Ready(WorkbenchCommandResult {
@@ -202,7 +198,9 @@ fn bootstrap_and_primary_reject_exhaustion_and_two_credits_are_consumed_separate
             authority
                 .prepare_terminal_tab_close_publication(&request.request_id, now)
                 .unwrap()
-                .commit(),
+                .commit()
+                .metadata()
+                .clone(),
             WorkbenchTabCloseStatus::Closed {
                 revision: WorkbenchRevision::new(revision)
             }

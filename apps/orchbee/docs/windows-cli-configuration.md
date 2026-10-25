@@ -415,7 +415,7 @@ together; deployment/rollback is by whole cohort, without persistent migration.
 ## Windows Workspace sidebar layouts
 
 The main sidebar places Workspaces under their Projects and eligible Agents under
-their exact Workspace or Standalone owner, with one shared scroll window. The
+their exact Workspace owner, with one shared scroll window. The
 [sidebar navigation model](tui-shell-layout.md#sidebar-navigation-model) owns
 disclosure and keyboard navigation. The Workspace picker remains available by
 opening Machines then pressing Tab, or clicking the sidebar range footer.

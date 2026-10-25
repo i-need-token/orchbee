@@ -27,11 +27,10 @@ fn ready() -> (
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache:
-                    crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-                        &crate::terminal_session::ui::tests::membership::snapshot(2, 1),
-                    )
-                    .unwrap(),
+                cache: crate::terminal_session::workbench_projection::project_preferred_workspace(
+                    &crate::terminal_session::ui::tests::membership::snapshot(2, 1),
+                )
+                .unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
             &clock,

@@ -56,7 +56,7 @@ pub(super) fn finish(state: &mut NativeSessionState) {
 
 #[test]
 fn child_choice_uses_fresh_cleanup_and_remembers_binding_on_tab_return() {
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&source()).unwrap());
     // A successful primary Create is not the child's terminal provenance.
     state.provenance[0] = CreateTerminalProvenance::Started;
     let old = state.desired().unwrap().clone();
@@ -104,7 +104,7 @@ fn child_choice_uses_fresh_cleanup_and_remembers_binding_on_tab_return() {
 
 #[test]
 fn declined_child_switch_restores_primary_frame_and_member_choice() {
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&source()).unwrap());
     let old = state.desired().unwrap().clone();
     let frame = state.focus_accepted_frame();
     let marker = choose(&mut state, 2);
@@ -121,7 +121,7 @@ fn declined_child_switch_restores_primary_frame_and_member_choice() {
 
 #[test]
 fn removed_selected_child_requires_cleanup_and_falls_back_to_primary() {
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source()).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&source()).unwrap());
     let marker = choose(&mut state, 2);
     install_switch_candidate(&mut state, &marker);
     finish(&mut state);
@@ -189,7 +189,7 @@ fn empty_source() -> Snapshot {
 fn unbound_startup_choice_round_trip_and_later_binding_keep_exact_child() {
     let source = empty_source();
     let (mut state, bootstrap) = NativeSessionState::starting(
-        project_native_standalone_tabs(&source).unwrap(),
+        project_preferred_workspace(&source).unwrap(),
         1,
         geometry(80),
     )
@@ -305,7 +305,7 @@ fn unbound_panel_focus_preserves_live_siblings_and_empty_close_targets() {
         unreachable!()
     };
     primary_presentation.binding = None;
-    let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+    let mut state = ready_with_cache(project_preferred_workspace(&source).unwrap());
     let old = state.focus_pane_ref().unwrap();
     let empty = state.tab(0).unwrap().panel(1).unwrap().panel_id().clone();
     let pane = state.plan_panel_focus_local_at(&empty).unwrap();
@@ -349,7 +349,7 @@ fn unbound_focus_with_live_sibling_cleans_the_real_epoch_on_switch_and_binding_r
             unreachable!()
         };
         primary_presentation.binding = None;
-        let mut state = ready_with_cache(project_native_standalone_tabs(&source).unwrap());
+        let mut state = ready_with_cache(project_preferred_workspace(&source).unwrap());
         let old = state.desired().unwrap().anchor().clone();
         let sibling = state.focus_pane_ref().unwrap();
         let empty = state.tab(0).unwrap().panel(1).unwrap().panel_id().clone();

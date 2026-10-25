@@ -20,7 +20,7 @@ fn panel(panel: u64, primary: u64, child: u64) -> Value {
 }
 fn snapshot() -> Snapshot {
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12",
-    "navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],
+    "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(4),"terminalContextId":id(4),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],
     "tabs":[{"tabId":id(5),"label":"Old","pinned":false,"groupId":null,"root":panel(6,8,9)}]}]})).unwrap()
 }
 fn client() -> Value {
@@ -205,7 +205,8 @@ fn apply_records_structure_and_unknown_exact_child_launch_without_compensation_o
         "apply",
         "--file",
         file.to_str().unwrap(),
-        "--standalone",
+        "--workspace",
+        "Workspace",
         "--client",
         &id(7),
         "--format=json",

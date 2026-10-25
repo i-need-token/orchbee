@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
 };
@@ -12,7 +13,7 @@ fn move_command(
 ) -> WorkbenchCommand {
     let workbench = coordinator.workbench.as_ref().unwrap();
     let terminal_context_id = workbench
-        .standalone_membership()
+        .fixture_membership()
         .unwrap()
         .terminal_context_id()
         .clone();
@@ -88,7 +89,9 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
                 result.outcome,
                 WorkbenchCommandOutcome::TabMoved {
                     revision: WorkbenchRevision::new(4 + index as u64),
-                    terminal_context_id: baseline.navigation.standalone_terminal_context_id.clone(),
+                    terminal_context_id: baseline.navigation.workspaces[0]
+                        .terminal_context_id
+                        .clone(),
                     tab_id: first_tab.tab_id.clone(),
                 }
             );
@@ -107,15 +110,7 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
                 )),
                 pending_replay
             );
-            assert!(matches!(
-                coordinator.prepare_open(
-                    &orchbee_client_server_protocol::TerminalOpenRequest::new(id(1150), geometry()),
-                    None,
-                    Some(worker(1)),
-                    None,
-                ),
-                PreparedOpen::Wait
-            ));
+
             if historical_move.is_none() {
                 historical_move = Some((request, result));
             }
@@ -131,13 +126,13 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
             .workbench
             .as_ref()
             .unwrap()
-            .standalone_membership()
+            .fixture_membership()
             .unwrap();
         coordinator
             .workbench
             .as_mut()
             .unwrap()
-            .retire_standalone_composition();
+            .retire_terminal_membership();
         let first_completion = immediate_tab_completion(&first);
         let (first_result, second_result) = if first_completes_first {
             (
@@ -155,9 +150,7 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
                 .complete_terminal_tab_create(second, Completion::Unknown, Some(worker(1)))
                 .unwrap()
                 .result;
-            assert!(
-                matches!(&coordinator.standalone, StandaloneTerminal::Creating(reference) if reference == &id(1101))
-            );
+
             (
                 coordinator
                     .complete_terminal_tab_create(first, first_completion, Some(worker(1)))
@@ -178,7 +171,9 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
             first_result.outcome,
             WorkbenchCommandOutcome::TabCreated {
                 revision: WorkbenchRevision::new(1),
-                terminal_context_id: baseline.navigation.standalone_terminal_context_id,
+                terminal_context_id: baseline.navigation.workspaces[0]
+                    .terminal_context_id
+                    .clone(),
                 tab_id: first_tab.tab_id.clone(),
                 panel_id: panel_id.clone(),
                 presentation_id: primary_presentation.presentation_id.clone(),
@@ -195,13 +190,11 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
                 .workbench
                 .as_ref()
                 .unwrap()
-                .standalone_membership()
+                .fixture_membership()
                 .unwrap(),
             membership
         );
-        assert!(matches!(coordinator.prepare_open(
-            &orchbee_client_server_protocol::TerminalOpenRequest::new(id(1151), geometry()), None, Some(worker(1)), None,
-        ), PreparedOpen::Ready(OpenOutcome::Opened { terminal_create_request_id }) if terminal_create_request_id == id(1101)));
+
         for result in [
             coordinator
                 .execute_terminal_tab_move(historical_request.clone())
@@ -237,72 +230,7 @@ fn pending_bootstrap_moves_through_every_position_then_both_completion_orders_su
 }
 
 #[test]
-fn move_replay_precedes_composition_but_new_missing_target_and_noop_do_not() {
-    for missing_target in [false, true] {
-        let mut coordinator = site();
-        let create = tab_command(&coordinator, 1200, 0, "first");
-        let _pending = dispatch_tab(&mut coordinator, create, 1201);
-        let before = snapshot(&mut coordinator);
-        let tab_id = before.terminal_contexts[0].tabs[0].tab_id.clone();
-        let retained = move_command(
-            &coordinator,
-            1202,
-            1,
-            tab_id.clone(),
-            WorkbenchTabMoveDirection::First,
-        );
-        let result = coordinator
-            .execute_terminal_tab_move(retained.clone())
-            .unwrap();
-        coordinator.standalone = StandaloneTerminal::Creating(id(999));
-        assert_eq!(
-            coordinator
-                .execute_terminal_tab_move(retained.clone())
-                .unwrap(),
-            result
-        );
-        let mut conflict = retained;
-        conflict.expected_revision = WorkbenchRevision::new(0);
-        assert!(matches!(
-            coordinator
-                .execute_terminal_tab_move(conflict)
-                .unwrap()
-                .outcome,
-            WorkbenchCommandOutcome::Rejected {
-                reason: WorkbenchRejectionReason::RequestIdentityConflict,
-                ..
-            }
-        ));
-        let target = if missing_target {
-            WorkbenchTabId::parse(&format!("{:032x}", 999)).unwrap()
-        } else {
-            tab_id
-        };
-        let fresh = move_command(
-            &coordinator,
-            1203,
-            1,
-            target,
-            WorkbenchTabMoveDirection::First,
-        );
-        assert!(matches!(
-            coordinator
-                .execute_terminal_tab_move(fresh)
-                .unwrap()
-                .outcome,
-            WorkbenchCommandOutcome::Unavailable {
-                reason: WorkbenchCommandUnavailableReason::ServiceUnavailable
-            }
-        ));
-        assert!(
-            matches!(&coordinator.standalone, StandaloneTerminal::Creating(reference) if reference == &id(999))
-        );
-        assert_eq!(coordinator.allocate_identity(), Some(2_u128.to_be_bytes()));
-    }
-}
-
-#[test]
-fn workspace_pending_create_move_completion_preserves_origin_and_standalone_states() {
+fn workspace_pending_create_move_completion_preserves_origin_and_initial_workspace_states() {
     let mut coordinator = site();
     let context = configure_workspace(&mut coordinator, "/tmp/workspace");
     let first_command = context_tab_command(&coordinator, 1300, 3, context.clone(), "workspace A");
@@ -330,22 +258,19 @@ fn workspace_pending_create_move_completion_preserves_origin_and_standalone_stat
         WorkbenchCommandOutcome::TabCreated { revision, terminal_outcome: WorkbenchTerminalOutcome::Started { .. }, .. }
         if revision == WorkbenchRevision::new(5)
     ));
-    assert!(!second_completed.standalone_changed);
 
     // Workspace moves cover all three slot states; the first Create spans the first two.
-    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+
     let empty_move = move_workspace_pair(&mut coordinator, &context, 1330);
-    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(first_command.clone(), None, None, None,)),
         first_pending
     );
 
-    let first_open = pending_first_open(&mut coordinator, 1350, 1351);
+    let first_open = pending_first_tab(&mut coordinator, 1350, 1351);
     let creating_move = move_workspace_pair(&mut coordinator, &context, 1331);
-    assert!(matches!(&coordinator.standalone,
-        StandaloneTerminal::Creating(reference) if reference == &id(1351)
-    ));
+
     // Finish at a different position from creation; two swaps alone restore the old index.
     let pending_move = move_workspace_pair(&mut coordinator, &context, 1333);
     let after_creating_move = snapshot(&mut coordinator);
@@ -367,19 +292,16 @@ fn workspace_pending_create_move_completion_preserves_origin_and_standalone_stat
         if *revision == WorkbenchRevision::new(4)
             && terminal_context_id == &context && tab_id == &first_tab.tab_id
     ));
-    assert!(!first_completed.standalone_changed);
+
     assert_eq!(snapshot(&mut coordinator), after_creating_move);
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(first_command, None, None, None,)),
         first_completed.result
     );
-    assert!(matches!(&coordinator.standalone,
-        StandaloneTerminal::Creating(reference) if reference == &id(1351)
-    ));
 
     let open_completion = immediate_completion(first_open.command());
     coordinator
-        .complete(first_open, open_completion, Some(worker(1)))
+        .complete_terminal_tab_create(first_open, open_completion, Some(worker(1)))
         .unwrap();
     assert_eq!(snapshot(&mut coordinator), after_creating_move);
     let settled_move = move_workspace_pair(&mut coordinator, &context, 1332);
@@ -391,11 +313,7 @@ fn workspace_pending_create_move_completion_preserves_origin_and_standalone_stat
         );
         assert_eq!(snapshot(&mut coordinator), final_snapshot);
     }
-    assert!(matches!(&coordinator.standalone,
-        StandaloneTerminal::Settled { reference,
-            outcome: OpenOutcome::Opened { terminal_create_request_id } }
-        if reference == &id(1351) && terminal_create_request_id == &id(1351)
-    ));
+
     let final_tab = final_snapshot.terminal_contexts[workspace_index]
         .tabs
         .iter()

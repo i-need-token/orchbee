@@ -1,6 +1,6 @@
 use super::{
-    CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant,
-    WorkbenchTerminalMembership, result, unavailable,
+    CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant, result,
+    unavailable,
 };
 use orchbee_workbench_protocol::{
     ContractError, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
@@ -19,7 +19,6 @@ pub struct WorkbenchTabMoveAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     terminal_context_id: WorkbenchTerminalContextId,
-    membership: Option<WorkbenchTerminalMembership>,
     tab_id: WorkbenchTabId,
     placement: TabPlacement,
 }
@@ -52,16 +51,10 @@ impl PreparedWorkbenchTabMove<'_> {
 
 impl<'a> WorkbenchTabMoveAdmission<'a> {
     #[must_use]
-    pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
-        self.membership.as_ref()
-    }
-
-    #[must_use]
     pub fn retire_composition_failure(self) -> WorkbenchCommandResult {
         self.authority.retire(&self.command)
     }
 
-    /// Site validates standalone bootstrap composition before resolving its target or no-op.
     #[must_use]
     pub fn finish(self) -> WorkbenchTabMovePreparation<'a> {
         let plan = match self.plan() {
@@ -249,12 +242,11 @@ impl WorkbenchAuthority {
             Some(WorkbenchRejectionReason::SiteMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
-        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
-            && !snapshot
-                .navigation
-                .workspaces
-                .iter()
-                .any(|workspace| workspace.terminal_context_id == terminal_context_id)
+        } else if !snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.terminal_context_id == terminal_context_id)
         {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {
@@ -272,26 +264,15 @@ impl WorkbenchAuthority {
                 unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
             ));
         }
-        let membership = if terminal_context_id
-            == snapshot.navigation.standalone_terminal_context_id
+        if super::terminal_membership::tree_terminal_membership(snapshot, &terminal_context_id)
+            .is_err()
         {
-            match self.tree_standalone_membership() {
-                Ok(membership) => Some(membership),
-                Err(_invariant) => return WorkbenchTabMoveBegin::Ready(self.retire(&command)),
-            }
-        } else {
-            if super::terminal_membership::tree_terminal_membership(snapshot, &terminal_context_id)
-                .is_err()
-            {
-                return WorkbenchTabMoveBegin::Ready(self.retire(&command));
-            }
-            None
-        };
+            return WorkbenchTabMoveBegin::Ready(self.retire(&command));
+        }
         WorkbenchTabMoveBegin::Admitted(Box::new(WorkbenchTabMoveAdmission {
             authority: self,
             command,
             terminal_context_id,
-            membership,
             tab_id,
             placement,
         }))

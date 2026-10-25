@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{PresentationBinding, TerminalId, WorkbenchDirectoryPath};
 
 fn binding(id: u128, owner: u128) -> PresentationBinding {
@@ -38,7 +39,6 @@ fn enumerates_every_primary_and_child_with_exact_membership_and_workspace_direct
             target.working_directory().unwrap().as_str(),
             "C:\\work space\\项目"
         );
-        assert!(!target.is_standalone());
     }
     assert_eq!(
         authority.restoration_targets(&worker(200)).err(),
@@ -82,27 +82,17 @@ fn preparation_is_effect_free_and_all_commits_preserve_retained_configuration() 
 }
 
 #[test]
-fn standalone_and_unconfigured_workspaces_keep_the_runtime_default_directory() {
-    let mut source = WorkbenchAuthority::new(site(100)).unwrap();
-    let _membership = source
-        .prepare_standalone_intent(binding(900, 200))
-        .unwrap()
-        .commit();
-    let authority = restore(&source.checkpoint(&worker(200)).unwrap()).unwrap();
-    let targets = authority.restoration_targets(&worker(400)).unwrap();
-    assert_eq!(targets.len(), 1);
-    assert!(targets[0].is_standalone());
-    assert!(targets[0].working_directory().is_none());
+fn unconfigured_workspaces_keep_the_runtime_default_directory() {
     let unconfigured = restore(&changed(|value| {
-        value["navigation"]["workspaces"][0]["primaryDirectoryId"] = Value::Null
+        value["navigation"]["workspaces"][1]["primaryDirectoryId"] = Value::Null;
     }))
     .unwrap();
+    let targets = unconfigured.restoration_targets(&worker(400)).unwrap();
+    assert_eq!(targets.len(), 5);
     assert!(
-        unconfigured
-            .restoration_targets(&worker(400))
-            .unwrap()
+        targets
             .iter()
-            .all(|target| target.working_directory().is_none() && !target.is_standalone())
+            .all(|target| target.working_directory().is_none())
     );
 }
 

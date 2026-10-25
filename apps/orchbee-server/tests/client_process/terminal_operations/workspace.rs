@@ -1,8 +1,8 @@
 use super::*;
 use nix::poll::{PollFd, PollFlags, poll};
 use orchbee_client_server_protocol::{
-    OpenOutcome, SiteId as ClientSiteId, TerminalId as ClientTerminalId, TerminalOpenRequest,
-    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
+    SiteId as ClientSiteId, TerminalId as ClientTerminalId, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
     WorkerId as ClientWorkerId,
 };
 use orchbee_workbench_protocol::{
@@ -13,24 +13,32 @@ use orchbee_workbench_protocol::{
 };
 use std::{num::NonZeroU64, os::fd::AsFd};
 
-pub(super) fn open(value: u128, geometry: Geometry) -> TestResult<ClientMessage> {
-    Ok(ClientMessage::TerminalOpen(TerminalOpenRequest::new(
-        id(value)?,
-        geometry,
-    )))
+pub(super) fn tab_request(snapshot: &Snapshot, value: u128) -> TestResult<WorkbenchRequest> {
+    Ok(WorkbenchRequest::Command(WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{value:032x}"))?,
+        site_id: snapshot.site_id.clone(),
+        expected_revision: snapshot.revision,
+        action: WorkbenchAction::TabCreate {
+            automatic_label: false,
+            placement: None,
+            terminal_context_id: snapshot.navigation.workspaces[0]
+                .terminal_context_id
+                .clone(),
+            label: WorkbenchLabel::parse("1")?,
+            geometry: orchbee_workbench_protocol::WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+            launch: None,
+            profile: None,
+            options: Default::default(),
+        },
+    }))
 }
-pub(super) fn opened(message: ServerMessage, value: u128) -> TestResult<RequestId> {
-    let ServerMessage::TerminalOpenResult(result) = message else {
-        return Err("missing Open result".into());
+
+pub(super) fn tab_outcome(client: &mut UnixStream) -> TestResult<WorkbenchCommandOutcome> {
+    let WorkbenchResponse::Command(result) = read_workbench_response(client)? else {
+        return Err("expected Tab command result".into());
     };
-    assert_eq!(result.request_id(), &id(value)?);
-    let OpenOutcome::Opened {
-        terminal_create_request_id,
-    } = result.into_outcome()
-    else {
-        return Err("Open failed".into());
-    };
-    Ok(terminal_create_request_id)
+    Ok(result.outcome)
 }
 
 pub(super) fn read_snapshot(stream: &mut UnixStream, value: u128) -> TestResult<Snapshot> {
@@ -76,24 +84,24 @@ fn navigate(
     }
 }
 
-fn standalone_context(snapshot: &Snapshot) -> TestResult<&TerminalContext> {
+fn workspace_context(snapshot: &Snapshot) -> TestResult<&TerminalContext> {
     snapshot
         .terminal_contexts
         .iter()
         .find(|context| {
-            context.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
+            context.terminal_context_id == snapshot.navigation.workspaces[0].terminal_context_id
         })
-        .ok_or_else(|| io::Error::other("missing standalone terminal context").into())
+        .ok_or_else(|| io::Error::other("missing workspace terminal context").into())
 }
 
-pub(super) fn standalone_binding(snapshot: &Snapshot) -> TestResult<PresentationBinding> {
-    let context = standalone_context(snapshot)?;
+pub(super) fn workspace_binding(snapshot: &Snapshot) -> TestResult<PresentationBinding> {
+    let context = workspace_context(snapshot)?;
     assert!(context.groups.is_empty());
     assert_eq!(context.tabs.len(), 1);
     let tab = context
         .tabs
         .first()
-        .ok_or_else(|| io::Error::other("missing standalone Tab"))?;
+        .ok_or_else(|| io::Error::other("missing workspace Tab"))?;
     assert!(tab.group_id.is_none());
     assert!(!tab.pinned);
     assert_eq!(tab.label, "1");
@@ -103,14 +111,14 @@ pub(super) fn standalone_binding(snapshot: &Snapshot) -> TestResult<Presentation
         ..
     } = &tab.root
     else {
-        return Err(io::Error::other("standalone Tab root is not a Panel").into());
+        return Err(io::Error::other("workspace Tab root is not a Panel").into());
     };
     assert!(child_presentations.is_empty());
     assert_eq!(primary_presentation.label, "1");
     primary_presentation
         .binding
         .clone()
-        .ok_or_else(|| io::Error::other("standalone primary Presentation is unbound").into())
+        .ok_or_else(|| io::Error::other("workspace primary Presentation is unbound").into())
 }
 
 fn assert_authorized_binding(
@@ -171,25 +179,26 @@ fn hex_identity(bytes: [u8; 16]) -> String {
 }
 
 #[test]
-fn standalone_open_commits_shared_membership_before_launch_and_preserves_it_through_navigation()
--> TestResult {
+fn workspace_tab_commits_membership_before_launch_and_preserves_it_through_navigation() -> TestResult
+{
     let server = RunningServer::start()?;
     let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut creator, _) = connect_bounded_client(server.client_endpoint())?;
-    let (mut joiner, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = read_snapshot(&mut observer, 101)?;
-    let initial_context = standalone_context(&initial)?;
-    assert!(initial_context.groups.is_empty());
-    assert!(initial_context.tabs.is_empty());
-
-    write_client_message(&mut creator, &open(1, geometry()?)?)?;
+    let empty = read_snapshot(&mut observer, 100)?;
+    assert!(empty.navigation.workspaces.is_empty());
+    assert!(empty.terminal_contexts.is_empty());
+    let initial = super::super::tab_create::create_workspace(
+        &mut observer,
+        0x100_000,
+        "/tmp",
+        Instant::now() + PROCESS_TIMEOUT,
+    )?;
+    let create = tab_request(&initial, 1)?;
+    write_workbench_request(&mut creator, &create)?;
     wait_for_worker_record(&worker)?;
-    write_client_message(&mut joiner, &open(2, Geometry::new(100, 30, 8, 16)?)?)?;
-
-    // Leave the Worker Launch unread: membership must already be a readable shared fact.
     let committed = read_snapshot(&mut observer, 102)?;
-    let binding = standalone_binding(&committed)?;
+    let binding = workspace_binding(&committed)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_obcn(&mut worker)? else {
         return Err("missing Launch".into());
@@ -198,17 +207,14 @@ fn standalone_open_commits_shared_membership_before_launch_and_preserves_it_thro
     else {
         return Err("expected immediate Launch".into());
     };
-    assert!(launch.cwd().is_none());
-    assert_eq!(
-        launch.authorization().worker_id().as_bytes(),
-        FIRST_WORKER.as_bytes()
-    );
+    assert!(launch.cwd().is_some());
     assert_authorized_binding(&binding, launch.authorization());
-
-    let WorkbenchCommandOutcome::ProjectCreated {
-        project_id,
-        revision: created_revision,
-    } = navigate(
+    write_workbench_request(&mut observer, &create)?;
+    assert!(matches!(
+        tab_outcome(&mut observer)?,
+        WorkbenchCommandOutcome::TabCreatePending { .. }
+    ));
+    let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = navigate(
         &mut observer,
         201,
         &committed,
@@ -217,33 +223,24 @@ fn standalone_open_commits_shared_membership_before_launch_and_preserves_it_thro
         },
     )?
     else {
-        return Err("project creation failed while standalone Open was pending".into());
+        return Err("project creation failed".into());
     };
-    assert_eq!(created_revision.value(), committed.revision.value() + 1);
     let after_create = read_snapshot(&mut observer, 103)?;
-    assert_eq!(standalone_binding(&after_create)?, binding);
-    let WorkbenchCommandOutcome::Renamed {
-        revision: renamed_revision,
-    } = navigate(
-        &mut observer,
-        202,
-        &after_create,
-        WorkbenchAction::ProjectRename {
-            project_id: project_id.clone(),
-            label: WorkbenchLabel::parse("Renamed while launch is pending")?,
-        },
-    )?
-    else {
-        return Err("project rename failed while standalone Open was pending".into());
-    };
-    assert_eq!(renamed_revision.value(), after_create.revision.value() + 1);
+    assert_eq!(workspace_binding(&after_create)?, binding);
+    assert!(matches!(
+        navigate(
+            &mut observer,
+            202,
+            &after_create,
+            WorkbenchAction::ProjectRename {
+                project_id,
+                label: WorkbenchLabel::parse("Renamed while launch is pending")?,
+            }
+        )?,
+        WorkbenchCommandOutcome::Renamed { .. }
+    ));
     let after_rename = read_snapshot(&mut observer, 104)?;
-    assert_eq!(standalone_binding(&after_rename)?, binding);
-    assert!(after_rename.navigation.projects.iter().any(|project| {
-        project.project_id == project_id && project.label == "Renamed while launch is pending"
-    }));
-
-    // Never consume the creator's response; its disconnect cannot undo shared membership.
+    assert_eq!(workspace_binding(&after_rename)?, binding);
     drop(creator);
     let host_identity = identity()?;
     write_obcn(
@@ -256,61 +253,73 @@ fn standalone_open_commits_shared_membership_before_launch_and_preserves_it_thro
             )),
         )?),
     )?;
-    let reference = opened(read_server_message(&mut joiner)?, 2)?;
-    assert_ne!(reference, id(1)?);
-    assert_eq!(
-        opened(
-            exchange(&mut observer, &open(3, Geometry::new(80, 24, 8, 16)?)?)?,
-            3
-        )?,
-        reference
-    );
-    assert_ne!(binding.terminal_id.as_str(), reference.as_str());
-    for host_identity_component in [
+    // A replay can observe pending until the disconnected handler publishes settlement.
+    let limit = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        write_workbench_request(&mut observer, &create)?;
+        match tab_outcome(&mut observer)? {
+            WorkbenchCommandOutcome::TabCreated {
+                terminal_outcome:
+                    orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+                ..
+            } => break,
+            WorkbenchCommandOutcome::TabCreatePending { .. } => assert!(Instant::now() < limit),
+            result => return Err(format!("unexpected creation replay: {result:?}").into()),
+        }
+        thread::yield_now();
+    }
+    for component in [
         host_identity.creation_id().as_bytes(),
         host_identity.host_epoch().as_bytes(),
         host_identity.terminal_id().as_bytes(),
     ] {
-        assert_ne!(
-            binding.terminal_id.as_str(),
-            hex_identity(host_identity_component)
-        );
+        assert_ne!(binding.terminal_id.as_str(), hex_identity(component));
     }
     let settled = read_snapshot(&mut observer, 105)?;
-    assert_eq!(standalone_binding(&settled)?, binding);
+    assert_eq!(workspace_binding(&settled)?, binding);
     worker.set_read_timeout(Some(Duration::from_millis(40)))?;
-    let mut byte = [0];
     assert!(
-        matches!(worker.read(&mut byte), Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut))
+        matches!(worker.read(&mut [0]), Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut))
     );
     Ok(())
 }
 
 #[test]
-fn standalone_unknown_after_worker_loss_retains_membership_across_worker_generation() -> TestResult
-{
+fn workspace_tab_unknown_after_worker_loss_retains_membership_across_worker_generation()
+-> TestResult {
     let server = RunningServer::start()?;
     let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
     let (mut observer, _) = connect_bounded_client(server.client_endpoint())?;
-    let initial = read_snapshot(&mut observer, 301)?;
-    write_client_message(&mut first, &open(1, geometry()?)?)?;
+    let initial = super::super::tab_create::create_workspace(
+        &mut observer,
+        0x100_000,
+        "/tmp",
+        Instant::now() + PROCESS_TIMEOUT,
+    )?;
+    let create = tab_request(&initial, 1)?;
+    write_workbench_request(&mut first, &create)?;
     wait_for_worker_record(&worker)?;
     let committed = read_snapshot(&mut observer, 302)?;
-    let binding = standalone_binding(&committed)?;
+    let binding = workspace_binding(&committed)?;
     assert_eq!(committed.revision.value(), initial.revision.value() + 1);
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_obcn(&mut worker)? else {
         return Err("missing Launch".into());
     };
     assert_authorized_binding(&binding, launch.authorization());
     drop(worker);
-    let result = read_server_message(&mut first)?;
-    assert!(
-        matches!(result, ServerMessage::TerminalOpenResult(result) if result.outcome() == &OpenOutcome::OutcomeUnknown {})
-    );
+    let result = tab_outcome(&mut first)?;
+    assert!(matches!(
+        result,
+        WorkbenchCommandOutcome::TabCreated {
+            terminal_outcome:
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown {},
+            ..
+        }
+    ));
     let after_loss = read_snapshot(&mut observer, 303)?;
     assert_eq!(after_loss.revision, committed.revision);
-    assert_eq!(standalone_binding(&after_loss)?, binding);
+    assert_eq!(workspace_binding(&after_loss)?, binding);
 
     let (mut replacement, replacement_generation) =
         connect_worker_with_generation(server.worker_endpoint(), FIRST_WORKER)?;
@@ -327,12 +336,18 @@ fn standalone_unknown_after_worker_loss_retains_membership_across_worker_generat
     assert!(
         matches!(exchange(&mut second, &attach)?, ServerMessage::TerminalViewerResult(result) if result.outcome() == &TerminalViewerOutcome::Unavailable { reason: ViewerUnavailableReason::TerminalRuntimeUnavailable })
     );
-    let result = exchange(&mut second, &open(2, geometry()?)?)?;
-    assert!(
-        matches!(result, ServerMessage::TerminalOpenResult(result) if result.outcome() == &OpenOutcome::OutcomeUnknown {})
-    );
+    write_workbench_request(&mut second, &create)?;
+    let result = tab_outcome(&mut second)?;
+    assert!(matches!(
+        result,
+        WorkbenchCommandOutcome::TabCreated {
+            terminal_outcome:
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::OutcomeUnknown {},
+            ..
+        }
+    ));
     let after_reopen = read_snapshot(&mut observer, 304)?;
-    assert_eq!(standalone_binding(&after_reopen)?, binding);
+    assert_eq!(workspace_binding(&after_reopen)?, binding);
     replacement.set_read_timeout(Some(Duration::from_millis(40)))?;
     let mut byte = [0];
     assert!(

@@ -3,7 +3,10 @@ use super::super::*;
 use orchbee_workbench_protocol::Snapshot;
 
 fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
-    let snapshot = super::super::tests::membership::snapshot(0, 1);
+    let mut snapshot = super::super::tests::membership::snapshot(0, 1);
+    snapshot.navigation.workspaces.clear();
+    snapshot.navigation.workspace_order.clear();
+    snapshot.terminal_contexts.clear();
     let result = empty_ui(snapshot);
     assert!(result.0.view().no_current_workspace());
     assert_eq!(result.0.view().context_count(), 0);
@@ -311,7 +314,9 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                         .terminal_contexts
                         .iter()
                         .find(|context| context.terminal_context_id
-                            == committed.navigation.standalone_terminal_context_id)
+                            == committed.navigation.workspaces[0]
+                                .terminal_context_id
+                                .clone())
                         .unwrap()
                         .tabs
                         .is_empty()
@@ -484,7 +489,8 @@ fn no_workspace_screen_keeps_content_blank_and_creation_controls_available_acros
                         !compact.contains(&expected),
                         "{width}x{height} machines={available}: {text}"
                     );
-                    assert!(!text.contains(locale.shell().standalone), "{text}");
+                    assert!(!text.contains("Standalone terminal"), "{text}");
+                    assert!(!text.contains("独立终端"), "{text}");
                     let hits = hits.finish();
                     let presentable = areas.tier != crate::tui_layout::ViewportTier::TooSmall;
                     let has_target = |target: HitTarget| {
@@ -566,7 +572,7 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
             };
             if canonical {
                 let directory_id = WorkbenchDirectoryId::parse(&format!("{:032x}", 7100)).unwrap();
-                snapshot.navigation.workspaces[0].primary_directory_id = Some(directory_id.clone());
+                snapshot.navigation.workspaces[1].primary_directory_id = Some(directory_id.clone());
                 snapshot.navigation.directories.push(Directory {
                     directory_id,
                     worker_id: WorkerId::parse(&format!("{:032x}", 7101)).unwrap(),

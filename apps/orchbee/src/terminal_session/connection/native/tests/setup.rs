@@ -954,7 +954,7 @@ impl UiDriver {
                     let cache = state.cache();
                     let site_id = cache.site_id().clone();
                     let expected_revision = cache.revision();
-                    let terminal_context_id = cache.terminal_context_id().clone();
+                    let terminal_context_id = cache.terminal_context_id().unwrap().clone();
                     let label = WorkbenchLabel::parse(&(cache.tabs().len() + 1).to_string())
                         .map_err(|_error| "invalid Create label")?;
                     let geometry = state.latest_geometry();
@@ -2458,13 +2458,27 @@ pub(super) fn blocked_record(revision: u64) -> TestResult<Vec<u8>> {
 
 pub(super) fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
-        navigation: Navigation {
-            project_order: Vec::new(),
-            directories: Vec::new(),
-            workspaces: Vec::new(),
-            workspace_order: Vec::new(),
-            projects: Vec::new(),
-            standalone_terminal_context_id: workbench_context_id(200).unwrap(),
+        navigation: {
+            let fixture_context_id = workbench_context_id(200).unwrap();
+            let fixture_workspace_id = orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
+                fixture_context_id.as_str(),
+            )
+            .unwrap();
+            Navigation {
+                project_order: Vec::new(),
+                directories: Vec::new(),
+                workspaces: std::iter::once(orchbee_workbench_protocol::Workspace {
+                    workspace_id: fixture_workspace_id.clone(),
+                    terminal_context_id: fixture_context_id.clone(),
+                    project_id: None,
+                    primary_directory_id: None,
+                    label: "Workspace".into(),
+                })
+                .chain(Vec::new())
+                .collect(),
+                workspace_order: Vec::new(),
+                projects: Vec::new(),
+            }
         },
         protocol_version: ProtocolVersion,
         revision: WorkbenchRevision::new(revision),
@@ -2618,30 +2632,14 @@ pub(super) fn assert_strictly_sequential_ids(ids: &[String], seed: u128) -> Test
     Ok(())
 }
 
-pub(super) fn drive_open_snapshot_bootstrap(
+pub(super) fn drive_snapshot_bootstrap(
     harness: &mut Harness,
     tab_count: usize,
 ) -> TestResult<AttachmentKey> {
-    drive_open_snapshot(harness, snapshot(tab_count, 1))
+    drive_snapshot(harness, snapshot(tab_count, 1))
 }
 
-pub(super) fn drive_open_snapshot(
-    harness: &mut Harness,
-    source: Snapshot,
-) -> TestResult<AttachmentKey> {
-    let ClientMessage::TerminalOpen(request) = harness.carrier.take_obcs()? else {
-        return Err(test_error("startup must begin with terminal.open"));
-    };
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalOpenResult(
-            orchbee_client_server_protocol::TerminalOpenResult::new(
-                request.request_id().clone(),
-                orchbee_client_server_protocol::OpenOutcome::Opened {
-                    terminal_create_request_id: obcs_request_id(900)?,
-                },
-            ),
-        ))?;
+pub(super) fn drive_snapshot(harness: &mut Harness, source: Snapshot) -> TestResult<AttachmentKey> {
     let request = harness.carrier.take_read()?;
     harness.carrier.respond_read(
         &request,

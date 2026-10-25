@@ -261,7 +261,8 @@ fn headless_apply_builds_and_exports_the_shared_tree_in_one_session() {
         "apply",
         "--file",
         file.to_str().unwrap(),
-        "--standalone",
+        "--workspace",
+        "Workspace",
         "--format=json",
     ]);
     handler.join().unwrap();

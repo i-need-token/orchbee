@@ -91,7 +91,9 @@ fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledg
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse("33333333333333333333333333333333").unwrap(),
         site_id: snapshot.site_id.clone(),
-        terminal_context_id: snapshot.navigation.standalone_terminal_context_id.clone(),
+        terminal_context_id: snapshot.navigation.workspaces[0]
+            .terminal_context_id
+            .clone(),
         tab_id: WorkbenchTabId::parse("44444444444444444444444444444444").unwrap(),
     };
     let close = WorkbenchRequest::Command(WorkbenchCommand {

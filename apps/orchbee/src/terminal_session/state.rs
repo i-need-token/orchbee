@@ -13,7 +13,7 @@ use orchbee_workbench_protocol::{
 use std::time::{Duration, Instant};
 
 #[cfg(test)]
-use super::workbench_projection::project_native_standalone_tabs;
+use super::workbench_projection::project_preferred_workspace;
 mod context_removal;
 mod context_selection;
 pub(super) mod control_takeover;
@@ -523,7 +523,6 @@ pub(super) enum SessionNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
-    LegacyWorkspace,
     NoWorkspace,
     PanelNotApplied,
     ConfirmationCancelled,
@@ -2562,9 +2561,12 @@ impl NativeSessionState {
     }
 
     pub(super) fn begin_create(&mut self, operation: CreateOperation) -> bool {
+        let Some(context) = self.cache.canonical_context() else {
+            return false;
+        };
         if !self.invariant_holds()
             || orchbee_workbench_protocol::validate_tab_creation(
-                self.cache.canonical_context(),
+                context,
                 operation.placement.as_ref(),
             )
             .is_err()
@@ -2610,7 +2612,7 @@ impl NativeSessionState {
             || self.pending_refresh.is_some()
             || operation.site_id != *self.cache.site_id()
             || operation.expected_revision != self.cache.revision()
-            || operation.terminal_context_id != *self.cache.terminal_context_id()
+            || Some(&operation.terminal_context_id) != self.cache.terminal_context_id()
             || operation.geometry != self.latest_geometry
             || operation.key.reserved_generation
                 <= anchor
@@ -3614,7 +3616,7 @@ impl NativeSessionState {
         first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
         second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
     ) -> Option<orchbee_workbench_protocol::ClientSplitRatio> {
-        if context != self.cache.terminal_context_id() {
+        if Some(context) != self.cache.terminal_context_id() {
             return None;
         }
         self.cache
@@ -4047,7 +4049,7 @@ impl<'a> NativeSessionView<'a> {
         let tab = self.state.cache.tabs().get(active.index())?;
         Some(crate::tui_layout::DividerSource {
             site: self.state.cache.site_id().clone(),
-            context: self.state.cache.terminal_context_id().clone(),
+            context: self.state.cache.terminal_context_id()?.clone(),
             tab: tab.tab_id().clone(),
             focus: self.state.focus_panel_id()?.clone(),
             revision: self.state.cache.revision(),
@@ -4060,7 +4062,7 @@ impl<'a> NativeSessionView<'a> {
     }
 
     #[cfg(windows)]
-    pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
+    pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
         self.state.cache.terminal_context_id()
     }
 

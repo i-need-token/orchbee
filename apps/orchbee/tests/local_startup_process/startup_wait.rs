@@ -27,7 +27,7 @@ fn too_small_startup_waits_then_exits_zero_without_any_service() -> TestResult {
 #[test]
 fn too_small_startup_recovers_on_resize_and_reaches_ready() -> TestResult {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client =
         Client::spawn_sized(&fixture, "en_US.UTF-8", &fixture.base, 120, TOO_SMALL_ROWS);
     client.wait_frame_text_after(
@@ -74,12 +74,15 @@ fn initially_zero_cell_startup_recovers_on_resize_and_reaches_ready() -> TestRes
         }
         let checkpoint = client.checkpoint();
         client.resize(COLUMNS as u16, ROWS as u16);
-        client.wait_resized_ready_after(
+        client.wait_frame_text_after(
             checkpoint,
             Instant::now() + Duration::from_secs(40),
-            ROWS as u16,
-            1,
+            &["No terminal tabs"],
+            &[],
+            &[],
+            &mut [],
         );
+        assert!(fixture.processes("orchbee-terminal-host").is_empty());
         client.close_before(Instant::now() + EXIT_TIMEOUT);
     }
     Ok(())
@@ -111,7 +114,7 @@ fn zero_cell_startup_cancel_exits_zero_without_any_service() -> TestResult {
 #[test]
 fn unknown_pixel_startup_reaches_ready_on_the_real_last_row() -> TestResult {
     let _guard = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn_geometry(
         &fixture,
         "en_US.UTF-8",

@@ -282,12 +282,11 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 紧凑身份保留所有有效数字，最多 32 位。`workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
 `PROJECT`（项目）列；`tab list` 使用 `HANDLE`（句柄）、`NAME`（名称）、`PANELS`（面板）、
 `WORKSPACE`（工作区）列。目标歧义时，文本诊断以这些句柄加带引号的标签列出至多八个候选
-及真实总数；JSON 保留标识符形式的 `candidates` 与 `totalCount` 详情。项目和工作区所属列显示规范名称；独立 Tab
-显示本地化的独立上下文名称。名称单元格带引号、转义控制字符并限制宽度，使每张表
+及真实总数；JSON 保留标识符形式的 `candidates` 与 `totalCount` 详情。项目和工作区所属列显示规范名称。名称单元格带引号、转义控制字符并限制宽度，使每张表
 不超过 80 个终端单元。这些列表不会把 Workspace 主目录当作进程 CWD，也不会用内部
 上下文 ID 充当名称。
 
-`panel list` 包含 `workspaceId`（独立上下文为 null），以及主 presentation 的
+`panel list` 包含 `workspaceId`，以及主 presentation 的
 `label`、可空 `customLabel` 和 `displayLabel`。这些值与 `panel get` 返回的
 规范值相同，并非推断的进程或 Agent 标题。JSON 原样保留标签；文本输出转义标签，
 并限制列表中的显示宽度。
@@ -708,8 +707,6 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   之前即为 `invalid-usage`；CLI 不做目录 membership 预检——membership 由运行中 Session
   权威判定，well-formed 但不存在的目录以 worktree 失败 envelope 下的
   `not-found` `{resource:"directory"}` 作答。
-- `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
-  `--workspace` 互斥。
 - `--label <label>`：带值 flag，单次使用；`project create`、`project rename`、非 Windows `workspace create`、`workspace rename` 与 `tab rename` 上必填。Windows `tab create` 与 `panel split` 可省略，采用创建前相应 Tab／Panel 数加一。显式值为非空且在协议上限内的 Workbench label；空串或超长均为 `invalid-usage`。
 - `--path <path>`：带值 flag，单次使用。在 `workspace accept-directory` 上必填，接受 `WorkbenchDirectoryPath`：字面本机绝对路径（POSIX `/` 或 Windows 盘符绝对路径），至多
   4,096 UTF-8 字节且不含 NUL，不展开 `~` 或变量。缺失、相对、含 NUL 或超长的值均为 `invalid-usage`。
@@ -848,8 +845,8 @@ orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-
 orchbee workspace close-status --workspace <id>
 orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
-orchbee tab list [--workspace <target> | --standalone] | tab get <target>
-orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
+orchbee tab list [--workspace <target>] | tab get <target>
+orchbee tab create [--workspace <target>] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> (--order previous|next|first|last | --insert-index N)
 orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
@@ -1477,10 +1474,10 @@ disposedAwaitingPublication},members:[{tabId,panelId,presentationId,status}…]}
   scope 级），`attemptGeneration` 是十进制字符串的尝试栅栏；Workspace 离开 active
   projection 后该记录仍可应答。
 - `orchbee.tab.list` → `{tabs:[{tabId,label,number,panelCount,pinned,groupId|null,
-context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
-workspaceId}}]}`；standalone 上 `workspaceId` 键不存在而非 null。`tab get` 增加 `root`——
+context:{kind:"workspace",terminalContextId,
+workspaceId}}]}`；`workspaceId` 始终必填。`tab get` 增加 `root`——
   typed `PanelNode` 子树的语义化重编码，不丢字段。
-- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId|null,tabId,terminalContextId,primaryPresentationId,
+- `orchbee.panel.list` → `{panels:[{panelId,label,customLabel|null,displayLabel,workspaceId,tabId,terminalContextId,primaryPresentationId,
 presentationCount,primaryTerminalId|null}]}`，`primaryTerminalId` 仅反映
   `primaryPresentation.binding`；`panel get` → `{panel:{panelId,tabId,context,slotPath,
 primaryPresentation,childPresentations}}`，`slotPath` 为自 root 至该叶子的 `PanelSlot` ID
@@ -1494,7 +1491,7 @@ tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、proc
   其他平台保留相同身份表格，无法观察的运行时列显示为 `-`。
   `HANDLE`、`WORKSPACE` 与 `PANEL` 使用稳定的 `@<kind>:0x<hex>` 精确身份，
   筛选和其他成员变化不影响解析，全部有效数字保持可复制。
-  独立终端的 `WORKSPACE` 列显示本地化的独立上下文名称。仅文本的补充数据在快照、精确
+  每个终端的 `WORKSPACE` 列显示其 Workspace。仅文本的补充数据在快照、精确
   Presentation 报告批次和最多 64 次精确绑定的 Host viewer 读取之间共用一个五秒期限与取消
   监视；其余行的补充字段保留为 `-`。`TITLE` 是已清理的 Host 帧标题；若标题只是指向
   `.exe`、`.com`、`.cmd`、`.bat` 或 `.ps1` 程序的绝对路径，则显示该程序名。只有 `TITLE`、
@@ -2416,7 +2413,7 @@ Panel 迁移使用共享变更封装 v5；Workspace 与组织操作使用 v6，�
 
 ```text
 panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <number>]
-panel move <panel> --new-tab [--workspace <workspace> | --standalone] [--label <text>]
+panel move <panel> --new-tab [--workspace <workspace>] [--label <text>]
 panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
 ```
 

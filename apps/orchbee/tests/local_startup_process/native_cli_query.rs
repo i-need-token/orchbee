@@ -188,7 +188,7 @@ pub(super) fn hold_session(
 #[test]
 fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     client.wait_ready_after(
         0,
@@ -219,25 +219,30 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
     assert_eq!(document["schema"], "orchbee.status");
     validate(&validators, "orchbee.status", &output);
 
-    // The live TUI's tabs are visible: two standalone-context tabs.
+    // The live TUI's tabs are visible: two initial_workspace-context tabs.
     let (output, tabs) = run_json(&fixture, &["tab", "list", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     validate(&validators, "orchbee.tab.list", &output);
     let items = tabs["result"]["tabs"].as_array().expect("tab list items");
     assert_eq!(items.len(), 2, "real tabs: {items:?}");
 
-    // Real filter behavior: a fresh Site's tabs all live in the standalone
-    // context, so `--standalone` selects exactly the same two rows and every
-    // row reports the standalone context shape.
-    let (output, standalone) = run_json(
+    // The explicit fixture Workspace owns both canonical Tabs.
+    let (output, initial_workspace) = run_json(
         &fixture,
-        &["tab", "list", "--standalone", "--format", "json"],
+        &[
+            "tab",
+            "list",
+            "--workspace",
+            "Workspace",
+            "--format",
+            "json",
+        ],
     );
     assert_eq!(output.status.code(), Some(0));
-    let standalone_items = standalone["result"]["tabs"].as_array().unwrap();
-    assert_eq!(standalone_items.len(), 2);
-    for row in standalone_items {
-        assert_eq!(row["context"]["kind"], "standalone", "{row}");
+    let initial_workspace_items = initial_workspace["result"]["tabs"].as_array().unwrap();
+    assert_eq!(initial_workspace_items.len(), 2);
+    for row in initial_workspace_items {
+        assert_eq!(row["context"]["kind"], "workspace", "{row}");
     }
 
     // Empty result: no projects exist on a fresh Site.
@@ -449,7 +454,7 @@ fn cli_query_session_capacity_and_release_on_a_real_server() -> TestResult {
 #[test]
 fn blocked_stdout_keeps_no_transport_and_releases_the_real_server() -> TestResult {
     let _process_witness = process_witness_guard();
-    let fixture = Fixture::new();
+    let fixture = Fixture::with_workspace();
     // Real content: a TUI with eight tabs makes the machine snapshot exceed a
     // minimal pipe, so the emit boundary genuinely blocks.
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");

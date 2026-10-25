@@ -153,7 +153,7 @@ fn process_info_machine_contract_preserves_precision_nulls_and_escapes_text() {
 fn process_info_targets_only_the_primary_binding_without_child_fallback() {
     let id = |value: u8| format!("{value:032x}");
     let mut value = json!({"kind":"workbench.snapshot","protocolVersion":1,"siteId":id(1),"revision":"7",
-    "navigation":{"projects":[], "standaloneTerminalContextId":id(2), "directories":[], "workspaces":[]},
+    "navigation":{"projects":[], "directories":[], "workspaces":[{"workspaceId":id(2),"terminalContextId":id(2),"projectId":null,"primaryDirectoryId":null,"label":"Workspace"}]},
     "terminalContexts":[{"terminalContextId":id(2),"groups":[],"tabs":[{
         "tabId":id(3),"label":"tab","pinned":false,"groupId":null,
         "root":{"kind":"panel","panelId":id(4),

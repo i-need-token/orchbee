@@ -3639,7 +3639,7 @@
 						"workspaceOrder": {
 							"type": "array",
 							"minItems": 1,
-							"maxItems": 1023,
+							"maxItems": 1024,
 							"uniqueItems": true,
 							"items": {
 								"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"

@@ -36,11 +36,10 @@ pub(in crate::terminal_session) fn ready_ui_with_snapshot(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache:
-                    crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-                        &source,
-                    )
-                    .unwrap(),
+                cache: crate::terminal_session::workbench_projection::project_preferred_workspace(
+                    &source,
+                )
+                .unwrap(),
             },
             EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
             &clock,
@@ -83,7 +82,11 @@ fn place_move(
             MoveResult::Committed {
                 commit: WorkbenchTabMoveCommit {
                     revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
-                    terminal_context_id: operation.baseline().terminal_context_id().clone(),
+                    terminal_context_id: operation
+                        .baseline()
+                        .terminal_context_id()
+                        .unwrap()
+                        .clone(),
                     tab_id: operation.target().tab_id().clone(),
                 },
                 outcome: WorkbenchSnapshotOutcome::Available {

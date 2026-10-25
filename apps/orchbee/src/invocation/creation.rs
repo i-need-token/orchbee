@@ -4,8 +4,8 @@ use super::{
     PANEL_SPLIT_SCOPE, ParseFailure, Request, Resource, TAB_CREATE_SCOPE, TabContext, Target,
     UsageContext, UsageReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
     WorkbenchTerminalGeometry, check_scope, client_control, geometry_option, label_option,
-    launch_options_with_directory, panel_direction, profile_option, reject_conflict,
-    reject_launch_profile_conflict, target, unexpected_argument, usage_with, wait_timeout_option,
+    launch_options_with_directory, panel_direction, profile_option, reject_launch_profile_conflict,
+    target, unexpected_argument, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{ClientSplitRatio, WorkbenchClientId};
 
@@ -128,22 +128,11 @@ pub(super) fn parse(
             ratio,
         }
     } else {
-        reject_conflict(
-            options.standalone && options.workspace.is_some(),
-            context,
-            envelope,
-        )?;
-        let context = if options.standalone {
-            Some(TabContext::Standalone)
-        } else {
-            options
-                .workspace
-                .clone()
-                .map(|value| {
-                    target(value, Resource::Workspace, envelope).map(TabContext::Workspace)
-                })
-                .transpose()?
-        };
+        let context = options
+            .workspace
+            .clone()
+            .map(|value| target(value, Resource::Workspace, envelope).map(TabContext::Workspace))
+            .transpose()?;
         CreationKind::Tab { context }
     };
     let directory = match options.cwd.as_deref() {
