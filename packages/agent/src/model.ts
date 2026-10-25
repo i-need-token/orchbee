@@ -24,7 +24,7 @@ export const AgentProviderIdSchema = z
 	.regex(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u)
 	.brand<'AgentProviderId'>();
 
-export const AgentCapabilitySchema = z.enum([
+const AgentCapabilitySchema = z.enum([
 	'sessionLifecycle',
 	'turnLifecycle',
 	'questions',
@@ -46,7 +46,7 @@ export const AgentActivitySchema = z.enum([
 	'other',
 ]);
 
-export const AgentExecutionLocationSchema = z.strictObject({
+const AgentExecutionLocationSchema = z.strictObject({
 	executionLocationId: AgentExecutionLocationIdSchema,
 });
 
@@ -74,7 +74,7 @@ const AgentPresentationIdSchema = z
 		message: 'presentationId must be well-formed Unicode',
 	});
 
-export const AgentPresentationAttachmentSchema = z.strictObject({
+const AgentPresentationAttachmentSchema = z.strictObject({
 	generation: opaqueIdentitySchema,
 	navigable: z.boolean(),
 	presentationId: AgentPresentationIdSchema,

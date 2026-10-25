@@ -1,12 +1,10 @@
 import { z } from 'zod';
 
 import {
-	AgentCapabilitySchema,
-	AgentExecutionLocationSchema,
 	AgentObservationSchema,
-	AgentPresentationAttachmentSchema,
 	AgentProviderIdSchema,
 	AgentSessionIdSchema,
+	AgentSessionSnapshotSchema,
 } from '../../model';
 
 import { AgentSemanticStatusSchema } from '../../projection';
@@ -27,12 +25,12 @@ const AgentWaitConditionSchema = z.enum([
 ]);
 
 const AgentSessionSummarySchema = z.strictObject({
-	executionLocation: AgentExecutionLocationSchema,
+	executionLocation: AgentSessionSnapshotSchema.shape.executionLocation,
 	lifecycle: z.enum(['live', 'ended']),
 	observation: AgentObservationSchema,
 	parentSessionId: AgentSessionIdSchema.nullable(),
 	pendingRequestCount: z.number().int().nonnegative().max(128),
-	presentationAttachments: z.array(AgentPresentationAttachmentSchema).max(32),
+	presentationAttachments: AgentSessionSnapshotSchema.shape.presentationAttachments,
 	providerId: AgentProviderIdSchema,
 	sessionId: AgentSessionIdSchema,
 	status: AgentSemanticStatusSchema,
@@ -56,7 +54,7 @@ const AgentFreshnessMeaningSchema = z.enum([
 
 const AgentSessionExplanationSchema = z.strictObject({
 	actionPath: z.literal('navigate-only'),
-	capabilityCeiling: z.array(AgentCapabilitySchema).max(10),
+	capabilityCeiling: AgentSessionSnapshotSchema.shape.capabilities,
 	contentAvailable: z.literal(false),
 	fidelity: AgentObservationSchema.shape.fidelity,
 	freshness: AgentObservationSchema.shape.freshness,

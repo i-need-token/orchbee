@@ -147,7 +147,6 @@ export {
 	TerminalCloseActivityCode,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
-	TERMINAL_FRAME_FORMAT,
 	TerminalRowFlag,
 	TerminalRowPromptClassCode,
 	TerminalSemanticContentCode,
@@ -246,7 +245,6 @@ export {
 	encodeTerminalProjectionBuffer,
 	materializeTerminalProjectionFrame,
 	TerminalProjectionSection,
-	TERMINAL_PROJECTION_BUFFER_FORMAT,
 	TERMINAL_PROJECTION_BUFFER_HEADER_BYTES,
 } from './projection-buffer';
 export type { DecodedTerminalProjectionBuffer } from './projection-buffer';

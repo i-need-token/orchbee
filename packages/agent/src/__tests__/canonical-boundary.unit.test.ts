@@ -5,7 +5,6 @@ import type { AgentObservationEvent } from '../events';
 import {
 	AgentEventIdSchema,
 	AgentExecutionLocationIdSchema,
-	AgentPresentationAttachmentSchema,
 	AgentProviderIdSchema,
 	AgentRequestIdSchema,
 	AgentRuntimeSnapshotSchema,
@@ -30,7 +29,7 @@ function eventId() {
 }
 
 function attachment(presentationId: string, generation: string): AgentPresentationAttachment {
-	return AgentPresentationAttachmentSchema.parse({
+	return AgentSessionSnapshotSchema.shape.presentationAttachments.element.parse({
 		generation,
 		navigable: false,
 		presentationId,
@@ -223,7 +222,7 @@ describe('well-formed presentation identity', () => {
 		['', false],
 	] as const)('presentationId of %j accepted=%s', (presentationId, expected) => {
 		expect(
-			AgentPresentationAttachmentSchema.safeParse({
+			AgentSessionSnapshotSchema.shape.presentationAttachments.element.safeParse({
 				generation: 'gen-canonical',
 				navigable: false,
 				presentationId,
