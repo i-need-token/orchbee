@@ -389,6 +389,8 @@ impl NativeExecutor {
         initial_geometry: Geometry,
         startup_deadline: Instant,
     ) -> Result<Option<BootstrapTarget>> {
+        #[cfg(not(windows))]
+        let _ = initial_geometry;
         self.ensure_before(startup_deadline)?;
         let snapshot_request = self
             .mailbox
