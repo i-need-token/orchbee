@@ -561,10 +561,6 @@ export function isKnownMessageKind(value: number): value is MessageKind {
 	return Number.isInteger(value) && Object.hasOwn(MESSAGE_CONTRACTS, value);
 }
 
-function messageContract(kind: number): MessageContract | null {
-	return isKnownMessageKind(kind) ? MESSAGE_CONTRACTS[kind] : null;
-}
-
 export function requestMessageContract(kind: MessageKind): RequestMessageContract | null {
 	return MESSAGE_CONTRACTS[kind].request;
 }
@@ -575,17 +571,4 @@ export function isControlRequestKind(kind: MessageKind): kind is ControlRequestK
 
 export function isInputRequestKind(kind: MessageKind): kind is InputRequestKind {
 	return MESSAGE_CONTRACTS[kind].request?.payloadEncoding === PayloadEncoding.rawBytes;
-}
-
-export function messagePayloadEncoding(kind: number, role: MessageRole): PayloadEncoding | null {
-	const contract = messageContract(kind);
-	if (contract === null) return null;
-	switch (role) {
-		case 'event':
-			return contract.eventEncoding;
-		case 'request':
-			return contract.request?.payloadEncoding ?? null;
-		case 'response':
-			return contract.responseEncoding;
-	}
 }

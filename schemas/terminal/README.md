@@ -24,6 +24,8 @@ generates the registry or source code from it.
   codes and all shared limits. Host builds do not require the TypeScript package.
 - `packages/terminal-protocol` implements the TypeScript codecs and schemas. Its registry test
   compares the five formats, all message contracts, actual encoded envelope enum values and limits.
+  Private format constants are observed through actual encoder output, using a canonical projection
+  only as input; the registry remains the independent expected value.
   The package exports code; repository consumers read fixtures directly from this directory.
 - The existing affected-verification resolver selects all three bindings and their transitive
   consumers for a change here. TLA registrations consume this authority and the native bindings.

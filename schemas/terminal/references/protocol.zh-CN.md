@@ -179,7 +179,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 未列出的号码未分配。标题和当前目录更改通过终端 frame 和带精确 identity 的 metadata event 传播。初始调整大小租约权限通过附件许可返回；稍后的所有权 transfer 使用附件作用域的 claim 与完整 event。
 
-`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
+`../v1/constants.json` 拥有该表的语言中立消息契约。Rust、Zig 和 TypeScript 将真实实现（包括 TypeScript 私有的 `MESSAGE_CONTRACTS`）与其对拍。新增或修改 kind 时，必须原子更新注册表、绑定、编解码器、夹具及消费者。
 
 `TerminalBell` 是包含 `attachmentId` 和正规范终端响铃 `sequence` 的仅事件控制记录。主机以终端的当前序列为新的可读取附件设置基线，因此在连接或重新连接时不会重播较早的铃声。当提交其确切的传出记录时，每个后续序列都会针对每个实时可读附件发出一次。该事件没有客户端确认，仅携带语义意图；声音、视觉闪烁、通知和可访问性策略仍然是应用程序效果而不是线路行为。
 

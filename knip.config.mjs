@@ -129,7 +129,6 @@ export default function createKnipConfiguration({ production, strict }) {
 			'apps/terminal-host': {
 				entry: ['scripts/*.mjs!'],
 				ignoreBinaries: ['zig'],
-				ignoreDependencies: ['@orchbee/terminal-protocol!'],
 				project: ['scripts/*.mjs!'],
 			},
 			'apps/website': {

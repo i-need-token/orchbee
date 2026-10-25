@@ -12,7 +12,7 @@ import {
 } from './identifiers';
 import type { CorrelationId, HostEpoch } from './identifiers';
 import { PROTOCOL_LIMITS } from './limits';
-import { isKnownMessageKind, messagePayloadEncoding, PayloadEncoding } from './message-contract';
+import { isKnownMessageKind, MESSAGE_CONTRACTS, PayloadEncoding } from './message-contract';
 import type { MessageRole, PayloadEncoding as PayloadEncodingValue } from './message-contract';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
@@ -25,13 +25,27 @@ export const TRANSPORT_ENVELOPE_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x50])
 export {
 	isControlRequestKind,
 	isInputRequestKind,
-	messagePayloadEncoding,
-	MESSAGE_CONTRACTS,
 	MessageKind,
 	PayloadEncoding,
 	requestMessageContract,
 } from './message-contract';
 export type { MessageRole } from './message-contract';
+
+export function messagePayloadEncoding(
+	kind: number,
+	role: MessageRole,
+): PayloadEncodingValue | null {
+	if (!isKnownMessageKind(kind)) return null;
+	const contract = MESSAGE_CONTRACTS[kind];
+	switch (role) {
+		case 'event':
+			return contract.eventEncoding;
+		case 'request':
+			return contract.request?.payloadEncoding ?? null;
+		case 'response':
+			return contract.responseEncoding;
+	}
+}
 
 const payloadEncodingSchema = z.enum(PayloadEncoding);
 const uint16Schema = z.number().int().min(0).max(65_535);

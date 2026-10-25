@@ -7,7 +7,6 @@ import {
 	TerminalCellWidthCode,
 	decodeTerminalFrame,
 } from '@orchbee/terminal-protocol';
-import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
@@ -226,9 +225,7 @@ function collectMatches(
 it('preserves native Ghostty soft wraps and hard search boundaries', async () => {
 	const decoded = decodeTerminalFrame(
 		await readFile(
-			createRequire(import.meta.url).resolve(
-				'@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin',
-			),
+			new URL('../../../../../schemas/terminal/v1/fixtures/ghostty-surface.bin', import.meta.url),
 		),
 	);
 	if (!decoded.ok) throw new Error(decoded.detail);

@@ -118,7 +118,6 @@ export {
 	decodeProtocolEnvelope,
 	encodeProtocolEnvelope,
 	messagePayloadEncoding,
-	MESSAGE_CONTRACTS,
 	MessageKind,
 	PayloadEncoding,
 	requestMessageContract,

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { messagePayloadEncoding } from '../envelope';
 import {
 	isControlRequestKind,
 	isInputRequestKind,
 	isKnownMessageKind,
-	messagePayloadEncoding,
 	MESSAGE_CONTRACTS,
 	MessageKind,
 	PayloadEncoding,

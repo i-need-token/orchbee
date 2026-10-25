@@ -374,9 +374,10 @@ Unlisted numbers are unassigned. Title and current-directory changes travel in t
 the identity-scoped metadata event. Initial resize-lease authority is returned by attachment
 admission; later ownership transfers use the attachment-scoped claim and complete events.
 
-`MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance.json`. Adding or changing a kind therefore
-requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
+`../v1/constants.json` owns this table's language-neutral message contracts. Rust, Zig and
+TypeScript compare their actual implementations, including the private TypeScript
+`MESSAGE_CONTRACTS`, against it. Adding or changing a kind requires one atomic protocol change
+to the registry, bindings, codecs, fixtures and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
 terminal bell `sequence`. The Host baselines a new read-capable attachment at the terminal's current
