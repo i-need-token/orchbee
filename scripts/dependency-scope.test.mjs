@@ -233,6 +233,7 @@ test('Agent private compiled references resolve to source with and without outpu
 				`${workspace}/tsconfig.json`,
 				`${workspace}/tsconfig.build.json`,
 				`${workspace}/rslib.config.ts`,
+				`${workspace}/vitest.config.ts`,
 				`${workspace}/conformance/build-reference.mjs`,
 			]) {
 				write(root, path, readFileSync(join(repositoryRoot, path), 'utf8'));
@@ -240,20 +241,26 @@ test('Agent private compiled references resolve to source with and without outpu
 			writeWorkspace(root, workspace, {
 				exports: actual.exports,
 				imports: actual.imports,
-				devDependencies: { '@rslib/core': actual.devDependencies['@rslib/core'] },
+				devDependencies: {
+					'@rslib/core': actual.devDependencies['@rslib/core'],
+					vitest: actual.devDependencies.vitest,
+				},
 				scripts: {
 					build: actual.scripts.build,
+					test: actual.scripts.test,
 					'conformance:build': actual.scripts['conformance:build'],
 					'conformance:generate': actual.scripts['conformance:generate'],
 				},
 			});
-			const rslibLink = join(root, 'node_modules/@rslib/core');
-			mkdirSync(dirname(rslibLink), { recursive: true });
-			symlinkSync(
-				join(repositoryRoot, workspace, 'node_modules/@rslib/core'),
-				rslibLink,
-				'junction',
-			);
+			for (const dependency of ['@rslib/core', 'vitest']) {
+				const dependencyLink = join(root, 'node_modules', dependency);
+				mkdirSync(dirname(dependencyLink), { recursive: true });
+				symlinkSync(
+					join(repositoryRoot, workspace, 'node_modules', dependency),
+					dependencyLink,
+					'junction',
+				);
+			}
 			const source = `${workspace}/src/__tests__/conformance/agent-reference.ts`;
 			const contracts = `${workspace}/src/__tests__/conformance/agent-reference-contracts.ts`;
 			const generator = `${workspace}/conformance/generate-corpus.mjs`;
@@ -267,6 +274,20 @@ test('Agent private compiled references resolve to source with and without outpu
 			write(root, generator, consumer);
 			write(root, `${workspace}/src/index.ts`, "export { AgentRuntime } from './AgentRuntime';\n");
 			write(root, `${workspace}/src/AgentRuntime.ts`, 'export class AgentRuntime {}\n');
+			write(
+				root,
+				`${workspace}/src/__tests__/runtime.unit.test.ts`,
+				"import { AgentRuntime } from '../AgentRuntime';\nvoid new AgentRuntime();\n",
+			);
+			// The production build precedes the private build. Keep its real manifest targets
+			// present so the missing-output witness isolates only the private reference bundle.
+			for (const [condition, contents] of [
+				['types', 'export declare class AgentRuntime {}\n'],
+				['import', 'export class AgentRuntime {}\n'],
+				['require', 'exports.AgentRuntime = class AgentRuntime {};\n'],
+			]) {
+				write(root, `${workspace}/${actual.exports['.'][condition].slice(2)}`, contents);
+			}
 			const webManifest = JSON.parse(readFileSync(join(root, 'apps/web/package.json'), 'utf8'));
 			webManifest.dependencies['@orchbee/agent'] = 'workspace:*';
 			write(root, 'apps/web/package.json', JSON.stringify(webManifest));
@@ -317,7 +338,10 @@ test('Agent private compiled references resolve to source with and without outpu
 			write(root, `${workspace}/src/__tests__/entry.unit.test.ts`, 'export {};\n');
 
 			write(root, webEntry, `${originalEntry}\nimport '@orchbee/agent';\n`);
-			assertIssues(analyze(root, true), [`exports:${index}:AgentRuntime`]);
+			assertIssues(analyze(root, true), [
+				`exports:${workspace}/src/AgentRuntime.ts:AgentRuntime`,
+				`exports:${index}:AgentRuntime`,
+			]);
 		},
 		['packages/agent'],
 	);
