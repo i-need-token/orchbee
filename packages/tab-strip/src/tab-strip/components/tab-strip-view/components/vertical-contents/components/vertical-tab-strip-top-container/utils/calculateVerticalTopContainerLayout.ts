@@ -45,9 +45,7 @@ function contains(rect: Readonly<Rect>, point: Readonly<{ x: number; y: number }
 	);
 }
 
-export function getVerticalTopContainerPreferredWidth(
-	input: VerticalTopContainerLayoutInput,
-): number {
+function getVerticalTopContainerPreferredWidth(input: VerticalTopContainerLayoutInput): number {
 	const buttonSize =
 		input.comboButtonSize ?? LAYOUT_CONSTANTS.verticalTabStripTopContainerButtonSize;
 	const combo = comboPreferredSize(input.comboEndVisible ?? true, buttonSize);
@@ -60,7 +58,7 @@ export function getVerticalTopContainerPreferredWidth(
 	return width;
 }
 
-export function willVerticalTopContainerWrap(
+function willVerticalTopContainerWrap(
 	input: VerticalTopContainerLayoutInput,
 	availableWidth = input.availableWidth,
 ): boolean {

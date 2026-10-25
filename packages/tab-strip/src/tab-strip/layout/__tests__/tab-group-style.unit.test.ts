@@ -3,8 +3,6 @@ import {
 	calculateHorizontalTabGroupUnderlineBounds,
 	calculateHorizontalTabGroupHeaderLayout,
 	getTabGroupTitleVisualCenteringOffset,
-	mergeDraggedGroupUnderlineBounds,
-	shouldHideTabGroupUnderline,
 } from '../tab-group-style';
 
 describe('TabGroupStyle', () => {
@@ -57,11 +55,6 @@ describe('TabGroupStyle', () => {
 		).toMatchObject({ chipWidth: 20, showAttentionIndicator: true });
 	});
 
-	it('hides the underline only when the group has no tab between the same header endpoints', () => {
-		expect(shouldHideTabGroupUnderline('header', 'header')).toBe(true);
-		expect(shouldHideTabGroupUnderline('header', 'tab')).toBe(false);
-	});
-
 	it('keeps the underline inside the trailing tab layout boundary', () => {
 		expect(
 			calculateHorizontalTabGroupUnderlineBounds({
@@ -70,41 +63,6 @@ describe('TabGroupStyle', () => {
 				trailingTabWidth: 80,
 			}),
 		).toEqual({ x: 28, width: 134 });
-	});
-
-	it('extends a dragged underline toward the normal underline without passing dragged views', () => {
-		expect(
-			mergeDraggedGroupUnderlineBounds({
-				normal: { x: 28, width: 154 },
-				dragged: { x: 100, width: 82 },
-				leadingDraggedView: { x: 100, width: 100 },
-				trailingDraggedView: { x: 100, width: 100 },
-			}),
-		).toEqual({ x: 100, width: 82 });
-		expect(
-			mergeDraggedGroupUnderlineBounds({
-				normal: { x: 28, width: 104 },
-				dragged: { x: 45, width: 82 },
-				leadingDraggedView: { x: 45, width: 100 },
-				trailingDraggedView: { x: 45, width: 100 },
-			}),
-		).toEqual({ x: 45, width: 87 });
-		expect(
-			mergeDraggedGroupUnderlineBounds({
-				normal: { x: 28, width: 104 },
-				dragged: { x: 23, width: 82 },
-				leadingDraggedView: { x: 5, width: 100 },
-				trailingDraggedView: { x: 5, width: 100 },
-			}),
-		).toEqual({ x: 23, width: 82 });
-		expect(
-			mergeDraggedGroupUnderlineBounds({
-				normal: { x: -32, width: 164 },
-				dragged: { x: -32, width: 82 },
-				leadingDraggedView: { x: -50, width: 100 },
-				trailingDraggedView: { x: -50, width: 100 },
-			}),
-		).toEqual({ x: -32, width: 82 });
 	});
 
 	it('applies the macOS single-color-emoji visual centering correction', () => {

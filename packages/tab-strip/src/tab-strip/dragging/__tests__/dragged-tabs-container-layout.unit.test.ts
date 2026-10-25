@@ -5,9 +5,7 @@ import {
 	getAnimatedDraggedViewPosition,
 	getDragStartAnimationOffset,
 	getDragStartAnimationProgress,
-	getSourceViewOffsetFromPointer,
 	getTargetBeforeDraggedTabs,
-	hasMinimumOverlap,
 	shouldEnterVerticalTabGroup,
 	shouldRemainInVerticalTabGroup,
 } from '../dragged-tabs-container-layout';
@@ -15,12 +13,14 @@ import {
 describe('DraggedTabsContainer layout port', () => {
 	it('derives the source offset from slot-relative pointer ratios', () => {
 		expect(
-			getSourceViewOffsetFromPointer({
+			buildDraggedTabsLayout({
+				views: [{ id: 'source', source: true, bounds: { x: 0, y: 0, width: 100, height: 30 } }],
+				layout: 'vertical',
 				sourceSlotSize: { width: 100, height: 30 },
 				sourceViewOffsetFromSlot: { x: 4, y: 2 },
 				pointerOffsetRatios: { x: 0.25, y: 0.5 },
 			}),
-		).toEqual({ x: -29, y: -17 });
+		).toMatchObject({ boundsRelativeToPointer: { x: -29, y: -17 } });
 	});
 
 	it('stacks vertical views with 2px spacing and anchors the source', () => {
@@ -100,11 +100,10 @@ describe('DraggedTabsContainer layout port', () => {
 
 	it('ports overlap checks and drag-start interpolation', () => {
 		expect(
-			hasMinimumOverlap(
+			shouldEnterVerticalTabGroup(
 				{ x: 0, y: 0, width: 10, height: 10 },
 				{ x: 8, y: 5, width: 10, height: 10 },
-				2,
-				5,
+				12.5,
 			),
 		).toBe(true);
 		expect(

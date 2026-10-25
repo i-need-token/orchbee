@@ -1,23 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import {
-	ACTIVE_TAB_Z_VALUE_BIT,
-	GROUP_VIEW_Z_VALUE_BIT,
-	calculateTabContainerZValue,
-	getTabStyleZValue,
-} from '../z-orderable-tab-container-element';
+import { calculateTabContainerZValue } from '../calculateTabContainerZValue';
 
 describe('ZOrderableTabContainerElement', () => {
-	it('reserves the source bit ranges for active tabs and group views', () => {
-		expect(ACTIVE_TAB_Z_VALUE_BIT).toBe(16);
-		expect(GROUP_VIEW_Z_VALUE_BIT).toBe(8);
-	});
-
 	it('encodes selected, hovered, and animated tab style state', () => {
-		expect(getTabStyleZValue({})).toBe(0);
-		expect(getTabStyleZValue({ hoverAnimationValue: 0.5 })).toBe(0.5);
-		expect(getTabStyleZValue({ selected: true, hovering: true, hoverAnimationValue: 0.5 })).toBe(
-			6.5,
-		);
+		expect(calculateTabContainerZValue({ kind: 'tab' })).toBe(1);
+		expect(calculateTabContainerZValue({ kind: 'tab', hoverAnimationValue: 0.5 })).toBe(1.5);
+		expect(
+			calculateTabContainerZValue({
+				kind: 'tab',
+				selected: true,
+				hovering: true,
+				hoverAnimationValue: 0.5,
+			}),
+		).toBe(7.5);
 	});
 
 	it('paints group underlines above every tab and group header state', () => {

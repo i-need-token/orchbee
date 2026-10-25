@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	TAB_GROUP_EDITOR_IGNORE_SCROLL_MS,
-	TabGroupEditorBubbleTracker,
-} from '../tab-group-editor-bubble-tracker';
+import { TabGroupEditorBubbleTracker } from '../TabGroupEditorBubbleTracker';
 
 describe('TabGroupEditorBubbleTracker', () => {
 	it('ignores opening-time auto-scroll and closes at the 250ms boundary', () => {
@@ -12,9 +9,9 @@ describe('TabGroupEditorBubbleTracker', () => {
 		tracker.open(1_000);
 
 		expect(tracker.onContentsScrolled(1_000)).toBe(false);
-		expect(tracker.onContentsScrolled(1_000 + TAB_GROUP_EDITOR_IGNORE_SCROLL_MS - 1)).toBe(false);
+		expect(tracker.onContentsScrolled(1_000 + 250 - 1)).toBe(false);
 		expect(tracker.isOpen).toBe(true);
-		expect(tracker.onContentsScrolled(1_000 + TAB_GROUP_EDITOR_IGNORE_SCROLL_MS)).toBe(true);
+		expect(tracker.onContentsScrolled(1_000 + 250)).toBe(true);
 		expect(tracker.isOpen).toBe(false);
 		expect(reasons).toEqual(['scroll']);
 	});

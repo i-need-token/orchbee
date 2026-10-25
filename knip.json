@@ -74,7 +74,12 @@
 				"src/**/*.unit.test.{ts,tsx}",
 				"stories/**/*.stories.tsx"
 			],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx", "*.ts"],
+			"project": [
+				"src/**/*.{ts,tsx}!",
+				"stories/**/*.tsx",
+				"*.ts",
+				"!src/tab-strip/dragging/__tests__/horizontal-group-drag-invariants.ts!"
+			],
 			"includeEntryExports": true
 		},
 		"apps/web": {

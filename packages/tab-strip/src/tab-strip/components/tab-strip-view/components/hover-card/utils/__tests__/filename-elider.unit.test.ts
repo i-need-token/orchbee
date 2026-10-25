@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	ELLIPSIS,
-	elideFilenameWithLineLengths,
-	findImageDimensions,
-	FIRST_STRONG_ISOLATE,
-	getFadeOutOpacity,
-	interpolateFadeSize,
-	POP_DIRECTIONAL_ISOLATE,
-} from '../filename-elider';
+import { elideFilenameWithLineLengths, findImageDimensions } from '../filename-elider';
 
 describe('FilenameElider', () => {
 	it('recognizes only terminal image dimensions using the multiplication sign', () => {
@@ -25,26 +17,13 @@ describe('FilenameElider', () => {
 	it('prefers putting an extension on an isolated second line', () => {
 		const text = 'verylongfilename.txt';
 		expect(elideFilenameWithLineLengths(text, { first: 16, second: 7 })).toBe(
-			`verylongfilename\n${FIRST_STRONG_ISOLATE}.txt${POP_DIRECTIONAL_ISOLATE}`,
+			`verylongfilename\n${'\u2068'}.txt${'\u2069'}`,
 		);
 	});
 
 	it('uses an isolated ellipsis when the two lines do not overlap', () => {
 		expect(elideFilenameWithLineLengths('abcdefghijklmnop', { first: 5, second: 4 })).toBe(
-			`abcde\n${FIRST_STRONG_ISOLATE}${ELLIPSIS}mnop${POP_DIRECTIONAL_ISOLATE}`,
+			`abcde\n${'\u2068'}${'\u2026'}mnop${'\u2069'}`,
 		);
-	});
-});
-
-describe('FadeView math', () => {
-	it('fades the old view out and interpolates its maximum size', () => {
-		expect(getFadeOutOpacity(0.25)).toBe(0.75);
-		expect(getFadeOutOpacity(2)).toBe(0);
-		expect(
-			interpolateFadeSize(0.5, { width: 100, height: 40 }, { width: 200, height: 60 }),
-		).toEqual({
-			width: 150,
-			height: 50,
-		});
 	});
 });

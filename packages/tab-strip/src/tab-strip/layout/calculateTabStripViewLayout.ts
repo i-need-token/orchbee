@@ -27,7 +27,7 @@ interface TabStripViewLayoutInput {
 }
 
 /** Port of the helper in common/tab_strip_view_layout.cc. */
-export function calculatePinnedContainerMainAxisSize(
+function calculatePinnedContainerMainAxisSize(
 	pinnedPreferred: number,
 	unpinnedPreferred: number,
 	available: number,

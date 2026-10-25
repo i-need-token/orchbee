@@ -1,4 +1,4 @@
-import type { calculateVerticalTopContainerLayout } from './vertical-tab-strip-top-container-layout';
+import type { calculateVerticalTopContainerLayout } from './calculateVerticalTopContainerLayout';
 
 export function getVerticalTopContainerChildBounds(
 	layout: ReturnType<typeof calculateVerticalTopContainerLayout>,

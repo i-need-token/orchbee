@@ -1,6 +1,6 @@
 const TAB_Z_VALUE_RESERVED_BITS = 3;
-export const ACTIVE_TAB_Z_VALUE_BIT = 1 << (TAB_Z_VALUE_RESERVED_BITS + 1);
-export const GROUP_VIEW_Z_VALUE_BIT = 1 << TAB_Z_VALUE_RESERVED_BITS;
+const ACTIVE_TAB_Z_VALUE_BIT = 1 << (TAB_Z_VALUE_RESERVED_BITS + 1);
+const GROUP_VIEW_Z_VALUE_BIT = 1 << TAB_Z_VALUE_RESERVED_BITS;
 
 type TabContainerElementKind = 'tab' | 'group-header' | 'group-underline' | 'group-highlight';
 
@@ -15,7 +15,7 @@ interface TabContainerZValueInput {
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 /** Ports TabStyleViewsImpl::GetZValue(). */
-export function getTabStyleZValue(input: {
+function getTabStyleZValue(input: {
 	selected?: boolean;
 	hovering?: boolean;
 	hoverAnimationValue?: number;

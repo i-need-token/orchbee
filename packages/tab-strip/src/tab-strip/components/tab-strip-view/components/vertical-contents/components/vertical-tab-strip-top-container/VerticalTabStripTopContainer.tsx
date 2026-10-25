@@ -5,7 +5,7 @@ import {
 	getComboButtonFlatEdges,
 	TAB_STRIP_FLAT_EDGE_BUTTON_SIZE,
 } from '../flat-edge-button/utils/tab-strip-flat-edge-button';
-import { calculateVerticalTopContainerLayout } from './utils/vertical-tab-strip-top-container-layout';
+import { calculateVerticalTopContainerLayout } from './utils/calculateVerticalTopContainerLayout';
 import { TabStripIcon } from '../../../tab-strip-icon/TabStripIcon';
 import { FlatEdgeButton } from '../flat-edge-button/FlatEdgeButton';
 import { getVerticalTopContainerChildBounds } from './utils/getVerticalTopContainerChildBounds';

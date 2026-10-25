@@ -1,5 +1,3 @@
-const ROUNDED_SCROLLBAR_THUMB_THICKNESS = 5;
-const ROUNDED_SCROLLBAR_TRAILING_PADDING = 4;
 export const ROUNDED_SCROLLBAR_FADE_DELAY_MS = 500;
 
 export interface RoundedScrollbarThumbGeometry {
@@ -7,13 +5,6 @@ export interface RoundedScrollbarThumbGeometry {
 	top: number;
 	height: number;
 	maximumScroll: number;
-}
-
-export function roundedScrollbarThickness(shouldHaveRightMargin = true): number {
-	return (
-		ROUNDED_SCROLLBAR_THUMB_THICKNESS +
-		(shouldHaveRightMargin ? ROUNDED_SCROLLBAR_TRAILING_PADDING : 0)
-	);
 }
 
 /** Browser-independent overlay thumb geometry used by RoundedScrollBar. */

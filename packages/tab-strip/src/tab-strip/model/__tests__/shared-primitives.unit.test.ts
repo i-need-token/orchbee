@@ -1,23 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { TabStripOrientation } from '../../types/tab-strip-types';
-import {
-	calculateRoundedScrollbarThumb,
-	roundedScrollbarThickness,
-} from '../../components/tab-strip-view/components/vertical-contents/components/rounded-scrollbar/utils/rounded-scrollbar';
+import { calculateRoundedScrollbarThumb } from '../../components/tab-strip-view/components/vertical-contents/components/rounded-scrollbar/utils/rounded-scrollbar';
 import {
 	getComboButtonFlatEdges,
 	getFlatEdgeButtonCornerRadii,
-	getFlatEdgeButtonPreferredSize,
 	TabStripFlatEdge,
 } from '../../components/tab-strip-view/components/vertical-contents/components/flat-edge-button/utils/tab-strip-flat-edge-button';
-import { TabStripObserverList } from '../TabStripObserverList';
 
 describe('RoundedScrollBar geometry', () => {
-	it('matches Chromium thumb thickness with and without trailing margin', () => {
-		expect(roundedScrollbarThickness()).toBe(9);
-		expect(roundedScrollbarThickness(false)).toBe(5);
-	});
-
 	it('sizes and positions an overlay thumb proportionally', () => {
 		expect(
 			calculateRoundedScrollbarThumb({ viewportHeight: 100, contentHeight: 400, scrollTop: 100 }),
@@ -34,25 +24,6 @@ describe('RoundedScrollBar geometry', () => {
 	});
 });
 
-describe('TabStripObserverList', () => {
-	it('dispatches add, move, and remove notifications and supports unsubscribe', () => {
-		const added = vi.fn<() => void>();
-		const moved = vi.fn<() => void>();
-		const removed = vi.fn<() => void>();
-		const list = new TabStripObserverList();
-		const unsubscribe = list.add({ onTabAdded: added, onTabMoved: moved, onTabRemoved: removed });
-		list.notifyTabAdded(2);
-		list.notifyTabMoved(2, 4);
-		list.notifyTabRemoved(4);
-		expect(added).toHaveBeenCalledWith(2);
-		expect(moved).toHaveBeenCalledWith(2, 4);
-		expect(removed).toHaveBeenCalledWith(4);
-		unsubscribe();
-		list.notifyTabAdded(1);
-		expect(added).toHaveBeenCalledTimes(1);
-	});
-});
-
 describe('TabStripFlatEdgeButton geometry', () => {
 	it('ports flat-edge radii and animated preferred-size math', () => {
 		expect(getFlatEdgeButtonCornerRadii(TabStripFlatEdge.Right, 1)).toEqual({
@@ -66,14 +37,6 @@ describe('TabStripFlatEdgeButton geometry', () => {
 			topRight: 6,
 			bottomRight: 10,
 			bottomLeft: 10,
-		});
-		expect(getFlatEdgeButtonPreferredSize(0.5, TabStripOrientation.Horizontal)).toEqual({
-			width: 14,
-			height: 28,
-		});
-		expect(getFlatEdgeButtonPreferredSize(0.5, TabStripOrientation.Vertical)).toEqual({
-			width: 28,
-			height: 14,
 		});
 	});
 

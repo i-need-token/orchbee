@@ -4,7 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement, startTransition, Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DragSessionData, DragSlotViewType } from '../../../../../../dragging/drag-session-data';
-import { TAB_DRAG_SCROLL_INTERVAL_MS } from '../../../../../../dragging/tab-drag-scroll-handler';
+
 import { TabModel, type TabGroupData } from '../../../../../../model/tab-model';
 import type { DragState } from '../../../../../../utils/tab-strip-internals';
 import { useVerticalContents } from '../useVerticalContents';
@@ -105,19 +105,19 @@ describe('useVerticalContents', () => {
 				rendered.rerender({ callback: replacement, suspend: true, y: 91 });
 			}),
 		);
-		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		act(() => vi.advanceTimersByTime(20));
 		expect(scroll.scrollTop).toBe(5);
 		expect(committed).toHaveBeenCalledOnce();
 		expect(replacement).not.toHaveBeenCalled();
 
 		rendered.rerender({ callback: replacement, suspend: false, y: 91 });
-		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		act(() => vi.advanceTimersByTime(20));
 		expect(scroll.scrollTop).toBe(10);
 		expect(committed).toHaveBeenCalledOnce();
 		expect(replacement).toHaveBeenCalledOnce();
 		rendered.unmount();
 		expect(scroll.dataset['dragScrollGradient']).toBeUndefined();
-		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		act(() => vi.advanceTimersByTime(20));
 		expect(scroll.scrollTop).toBe(10);
 		expect(replacement).toHaveBeenCalledOnce();
 	});
@@ -166,7 +166,7 @@ describe('useVerticalContents', () => {
 		rerender({ drag: { ...initialDrag, y: 91 } });
 
 		expect(scroll.dataset['dragScrollGradient']).toBe('vertical-leading');
-		act(() => vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS));
+		act(() => vi.advanceTimersByTime(20));
 		expect(scroll.scrollTop).toBe(5);
 		expect(onDragScrolled).toHaveBeenCalledOnce();
 

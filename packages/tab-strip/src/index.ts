@@ -2,8 +2,6 @@ export {
 	TabModel,
 	TabStrip,
 	TAB_STRIP_ACTION_IDS,
-	tabCloseInput,
-	tabSelectionInput,
 	TabStripOrientation,
 	type TabData,
 	type TabModelInit,

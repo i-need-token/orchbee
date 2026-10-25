@@ -4,7 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TabModel } from '../../model/tab-model';
 import { StrictMode } from 'react';
-import { TabStripComboButtonController } from '../../model/tab-strip-combo-button';
+import { TabStripComboButtonController } from '../../model/TabStripComboButtonController';
 import { useTabStrip } from '../useTabStrip';
 
 afterEach(async () => {

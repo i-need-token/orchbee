@@ -3,10 +3,7 @@ import {
 	TabStripOrientation,
 	VerticalTabStripCollapseState,
 } from '../../../../../../../../types/tab-strip-types';
-import {
-	getVerticalBottomContainerPresentation,
-	isPositionInVerticalBottomContainerCaption,
-} from '../vertical-tab-strip-bottom-container';
+import { getVerticalBottomContainerPresentation } from '../getVerticalBottomContainerPresentation';
 
 describe('VerticalTabStripBottomContainer', () => {
 	it('switches styling at the start of collapse and keeps expansion styling until fully expanded', () => {
@@ -34,11 +31,5 @@ describe('VerticalTabStripBottomContainer', () => {
 				iconSize: 20,
 			});
 		}
-	});
-
-	it('treats the whole visible button bounds, including inset space, as non-caption', () => {
-		const children = [{ visible: true, bounds: { x: 0, y: 10, width: 72, height: 32 } }];
-		expect(isPositionInVerticalBottomContainerCaption({ x: 36, y: 11 }, children)).toBe(false);
-		expect(isPositionInVerticalBottomContainerCaption({ x: 36, y: 9 }, children)).toBe(true);
 	});
 });

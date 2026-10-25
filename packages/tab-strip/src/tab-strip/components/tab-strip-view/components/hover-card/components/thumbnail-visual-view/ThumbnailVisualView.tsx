@@ -1,6 +1,6 @@
 import styles from './ThumbnailVisualView.module.css';
 import { type ReactNode } from 'react';
-import { type HoverCardThumbnailVisual } from '../../model/tab-hover-card-thumbnail-runtime';
+import { type HoverCardThumbnailVisual } from '../../model/TabHoverCardThumbnailRuntime';
 import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages';
 
 export function ThumbnailVisualView({

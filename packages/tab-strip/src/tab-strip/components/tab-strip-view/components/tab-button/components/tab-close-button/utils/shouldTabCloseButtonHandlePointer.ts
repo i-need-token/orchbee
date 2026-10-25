@@ -9,7 +9,7 @@ interface TabCloseButtonMetrics {
 }
 
 /** Port of TabCloseButton::GetButtonSize plus kTabCloseButtonSize. */
-export function getTabCloseButtonMetrics(touchUi = false): TabCloseButtonMetrics {
+function getTabCloseButtonMetrics(touchUi = false): TabCloseButtonMetrics {
 	const iconSize = touchUi ? TAB_CLOSE_TOUCH_ICON_SIZE : TAB_CLOSE_ICON_SIZE;
 	return {
 		iconSize,
@@ -29,7 +29,7 @@ interface TabCloseTargetInput {
  * Mirrors TabCloseButton::TargetForRect(): mouse point targeting ignores the
  * 6dp padding around the icon, while touch can use the whole 28dp button.
  */
-export function isPointInTabCloseTarget(input: Readonly<TabCloseTargetInput>): boolean {
+function isPointInTabCloseTarget(input: Readonly<TabCloseTargetInput>): boolean {
 	const metrics = getTabCloseButtonMetrics(input.touchUi);
 	const inset = input.touchDown ? 0 : metrics.nonVisiblePadding;
 	return (

@@ -1,4 +1,4 @@
-export const TAB_GROUP_EDITOR_IGNORE_SCROLL_MS = 250;
+const TAB_GROUP_EDITOR_IGNORE_SCROLL_MS = 250;
 
 type TabGroupEditorCloseReason = 'explicit' | 'scroll' | 'vertical-tab-mode-change';
 

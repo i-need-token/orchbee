@@ -5,7 +5,7 @@ import { StrictMode, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TAB_BOUNDS_ANIMATION_DURATION_MS } from '../utils/tab-strip-internals';
-import { DRAG_START_ANIMATION_DURATION_MS } from '../dragging/dragged-tabs-container-layout';
+
 import { requireDefined } from '../utils/requireDefined';
 import { TabStripOrientation } from '../types/tab-strip-types';
 import type { DragSessionData } from '../dragging/drag-session-data';
@@ -13,9 +13,9 @@ import { ThumbnailCaptureReadiness } from '../components/tab-strip-view/componen
 import type {
 	HoverCardThumbnailSource,
 	HoverCardThumbnailSubscription,
-} from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
+} from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
 import { TabModel, type TabGroupData } from '../model/tab-model';
-import { TabStripComboButtonController } from '../model/tab-strip-combo-button';
+import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
 import { TabStrip } from '../TabStrip';
 
@@ -2889,7 +2889,7 @@ describe('TabStrip', () => {
 			const callbacks = requestAnimationFrame.mock.calls.flatMap((call) =>
 				call[0] === undefined ? [] : [call[0]],
 			);
-			now = startedAt + DRAG_START_ANIMATION_DURATION_MS / 2;
+			now = startedAt + 200 / 2;
 			act(() => callbacks.forEach((callback) => callback(now)));
 
 			const draggedA = requireDefined(
@@ -3386,7 +3386,7 @@ describe('TabStrip', () => {
 			);
 			act(() =>
 				animationFrames.forEach((animationFrame) =>
-					animationFrame(requireDefined(session).dragStartTime + DRAG_START_ANIMATION_DURATION_MS),
+					animationFrame(requireDefined(session).dragStartTime + 200),
 				),
 			);
 			expect(document.querySelectorAll('[data-vertical-drag-view="tab"]')).toHaveLength(1);

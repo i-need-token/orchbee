@@ -1,5 +1,5 @@
 import { useRef, type MouseEvent, type PointerEvent } from 'react';
-import { shouldTabCloseButtonHandlePointer } from '../utils/tab-close-button';
+import { shouldTabCloseButtonHandlePointer } from '../utils/shouldTabCloseButtonHandlePointer';
 
 interface UseTabCloseButtonOptions {
 	touchUi?: boolean;

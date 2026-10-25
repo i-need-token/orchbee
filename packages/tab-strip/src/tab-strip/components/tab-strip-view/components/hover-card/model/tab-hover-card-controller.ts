@@ -2,7 +2,7 @@ const HOVER_CARD_MINIMUM_TRIGGER_DELAY_MS = 300;
 const HOVER_CARD_MAXIMUM_TRIGGER_DELAY_MS = 800;
 const HOVER_CARD_MAX_WIDTH_ADDITIONAL_DELAY_MS = 500;
 const HOVER_CARD_IMMEDIATE_RESHOW_BUFFER_MS = 300;
-export const HOVER_CARD_SLIDE_DURATION_MS = 200;
+const HOVER_CARD_SLIDE_DURATION_MS = 200;
 
 export const HoverCardUpdateType = {
 	SelectionChanged: 'selection-changed',
@@ -39,7 +39,7 @@ export interface TabHoverCardSnapshot {
 type Listener = () => void;
 
 /** Port of TabHoverCardController's logarithmic GetShowDelay helper. */
-export function getHoverCardShowDelay(
+function getHoverCardShowDelay(
 	tabWidth: number,
 	minimumWidth: number,
 	standardWidth: number,

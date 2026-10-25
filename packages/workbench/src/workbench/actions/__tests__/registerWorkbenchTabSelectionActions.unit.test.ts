@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
 	ActionRuntime,
 	createTypedActionRuntime,
@@ -6,11 +7,7 @@ import {
 	type ActionExecutionContext,
 	type ActionResult,
 } from '@orchbee/actions';
-import {
-	TAB_STRIP_ACTION_IDS,
-	tabSelectionInput,
-	type TabSelectionInput,
-} from '@orchbee/tab-strip';
+import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../terminal-presentation';
@@ -222,7 +219,20 @@ function registerTabSelection(
 			getAvailability: () => ({ kind: 'enabled' }),
 			handler: { execute },
 			id: TAB_STRIP_ACTION_IDS.selectTab,
-			input: tabSelectionInput,
+			input: {
+				name: 'WorkbenchActionFixture',
+				parse(input) {
+					const parsed = z
+						.object({
+							tabId: z.string(),
+							mode: z.enum(['add-range', 'extend', 'replace', 'toggle']),
+						})
+						.safeParse(input);
+					return parsed.success
+						? { success: true, data: parsed.data }
+						: { success: false, code: 'invalid-fixture-input' };
+				},
+			},
 			title: { defaultMessage: 'Select Tab' },
 		}),
 	);

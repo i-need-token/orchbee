@@ -34,7 +34,7 @@ import {
 } from '../actions/tab-strip-action-contracts';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import { TabModelInvariantError, type TabModel } from '../model/tab-model';
-import type { TabStripComboButtonController } from '../model/tab-strip-combo-button';
+import type { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import type { TabStripMessages } from '../types/tab-strip-messages';
 import type {
 	TabStripCloseCallback,

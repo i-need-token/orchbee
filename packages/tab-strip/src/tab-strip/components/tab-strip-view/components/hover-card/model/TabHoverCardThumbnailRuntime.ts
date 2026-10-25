@@ -7,9 +7,9 @@ import {
 import {
 	TabHoverCardThumbnailObserver,
 	type HoverCardThumbnailSource,
-} from './tab-hover-card-thumbnail-observer';
+} from './TabHoverCardThumbnailObserver';
 
-export const HOVER_CARD_THUMBNAIL_TRANSITION_MS = 200;
+const HOVER_CARD_THUMBNAIL_TRANSITION_MS = 200;
 const HOVER_CARD_PREVIEW_CROSSFADE_START = 0.25;
 
 export interface HoverCardThumbnailVisual<Image> {

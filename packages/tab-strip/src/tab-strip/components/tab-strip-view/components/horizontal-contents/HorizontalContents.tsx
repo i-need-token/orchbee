@@ -1,7 +1,7 @@
 import { ProductIcon } from '@orchbee/ui/components';
 import styles from './HorizontalContents.module.css';
 import { type CSSProperties, type ReactNode } from 'react';
-import { calculateTabContainerZValue } from '../../../../layout/z-orderable-tab-container-element';
+import { calculateTabContainerZValue } from '../../../../layout/calculateTabContainerZValue';
 import { requireDefined } from '../../../../utils/requireDefined';
 import { calculateHorizontalTabGroupUnderlineBounds } from '../../../../layout/tab-group-style';
 import { TAB_SURFACE_HORIZONTAL_INSET } from '../../../../layout/tab-style-views';

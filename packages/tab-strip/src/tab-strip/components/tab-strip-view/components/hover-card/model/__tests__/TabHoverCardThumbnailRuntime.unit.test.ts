@@ -1,15 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThumbnailCaptureReadiness, ThumbnailWaitState } from '../tab-hover-card-controller';
 import {
-	HOVER_CARD_PREVIEW_SIZE,
 	TabHoverCardThumbnailObserver,
 	type HoverCardThumbnailSource,
 	type HoverCardThumbnailSubscription,
-} from '../tab-hover-card-thumbnail-observer';
-import {
-	HOVER_CARD_THUMBNAIL_TRANSITION_MS,
-	TabHoverCardThumbnailRuntime,
-} from '../tab-hover-card-thumbnail-runtime';
+} from '../TabHoverCardThumbnailObserver';
+import { TabHoverCardThumbnailRuntime } from '../TabHoverCardThumbnailRuntime';
 
 class FakeThumbnailSource implements HoverCardThumbnailSource<string> {
 	public callback: ((image: string) => void) | null = null;
@@ -63,7 +59,7 @@ describe('TabHoverCardThumbnailObserver', () => {
 		observer.addCallback((_observer, image) => received.push(image));
 
 		observer.observe(a);
-		expect(a.sizeHint).toEqual(HOVER_CARD_PREVIEW_SIZE);
+		expect(a.sizeHint).toEqual({ width: 320, height: 180 });
 		expect(a.requested).toBe(1);
 		observer.observe(b);
 		expect(a.disposed).toBe(1);
@@ -126,7 +122,7 @@ describe('TabHoverCardThumbnailRuntime', () => {
 		a.emit('preview-a');
 		runtime.updateTarget(target('b', b, { crossfadeStart: 0.25 }));
 		expect(runtime.getSnapshot().current.image).toBe('preview-a');
-		const placeholderDelay = HOVER_CARD_THUMBNAIL_TRANSITION_MS * 0.25;
+		const placeholderDelay = 200 * 0.25;
 		vi.advanceTimersByTime(placeholderDelay - 1);
 		expect(runtime.getSnapshot().current.image).toBe('preview-a');
 		vi.advanceTimersByTime(1);

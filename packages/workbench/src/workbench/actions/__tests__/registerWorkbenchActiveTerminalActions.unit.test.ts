@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
 	ActionRuntime,
 	createTypedActionRuntime,
@@ -6,7 +7,7 @@ import {
 	type ActionExecutionContext,
 	type ActionResult,
 } from '@orchbee/actions';
-import { TAB_STRIP_ACTION_IDS, tabCloseInput, type TabCloseInput } from '@orchbee/tab-strip';
+import { TAB_STRIP_ACTION_IDS, type TabCloseInput } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../terminal-presentation';
@@ -633,7 +634,20 @@ function registerTabClose(
 			getAvailability: () => ({ kind: 'enabled' }),
 			handler: { execute },
 			id: TAB_STRIP_ACTION_IDS.closeTabs,
-			input: tabCloseInput,
+			input: {
+				name: 'WorkbenchActionFixture',
+				parse(input) {
+					const parsed = z
+						.object({
+							tabIds: z.array(z.string()),
+							closeSource: z.enum(['mouse', 'touch', 'non-ui']),
+						})
+						.safeParse(input);
+					return parsed.success
+						? { success: true, data: parsed.data }
+						: { success: false, code: 'invalid-fixture-input' };
+				},
+			},
 			title: { defaultMessage: 'Close Tab' },
 		}),
 	);

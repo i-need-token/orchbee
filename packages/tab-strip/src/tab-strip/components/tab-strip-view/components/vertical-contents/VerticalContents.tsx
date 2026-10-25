@@ -11,7 +11,7 @@ import {
 	type TabModelSnapshot,
 } from '../../../../model/tab-model';
 import { calculatePinnedTabContainerMinimumSize } from '../../../../layout/pinned-tab-container-layout';
-import { calculateTabStripViewLayout } from '../../../../layout/tab-strip-view-layout';
+import { calculateTabStripViewLayout } from '../../../../layout/calculateTabStripViewLayout';
 import {
 	calculateUnpinnedTabContainerLayout,
 	calculateUnpinnedTabContainerMinimumSize,

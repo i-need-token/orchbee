@@ -17,7 +17,7 @@ import {
 	TAB_STRIP_ACTION_IDS,
 	type TabSelectionInput,
 } from '../actions/tab-strip-action-contracts';
-import { TabHoverCardThumbnailRuntime } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
+import { TabHoverCardThumbnailRuntime } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailRuntime';
 import { resolveTabKeyboardReorder } from '../accessibility/resolveTabKeyboardReorder';
 import {
 	isTabStripKeyboardContextMenuRequest,
@@ -47,7 +47,7 @@ import {
 	calculateHorizontalMoveThreshold,
 	shouldReorderDraggedTabs,
 } from '../dragging/dragging-tabs-session';
-import { getHorizontalDragTarget } from '../dragging/tab-strip-drag-position';
+import { getHorizontalDragTarget } from '../dragging/getHorizontalDragTarget';
 import { transitionHorizontalGroupDrag } from '../dragging/horizontal-group-drag-machine';
 import {
 	TAB_CLOSE_TOUCH_RESIZE_DELAY_MS,
@@ -69,13 +69,13 @@ import { requireDefined } from '../utils/requireDefined';
 import { TabStripOrientation, VerticalTabStripCollapseState } from '../types/tab-strip-types';
 import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
 import { LAYOUT_CONSTANTS } from '../layout/layout-constants';
-import { TabGroupEditorBubbleTracker } from '../model/tab-group-editor-bubble-tracker';
+import { TabGroupEditorBubbleTracker } from '../model/TabGroupEditorBubbleTracker';
 import {
 	ExpandOnHoverLockType,
 	VerticalTabStripExpandOnHoverController,
 } from '../model/vertical-tab-strip-expand-on-hover';
 import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
-import { TabStripComboButtonController } from '../model/tab-strip-combo-button';
+import { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import { useElementSize } from './useElementSize';
 import { useTabStripActions } from './useTabStripActions';
 import { DEFAULT_TAB_STRIP_MESSAGES } from '../constants/default-tab-strip-messages';

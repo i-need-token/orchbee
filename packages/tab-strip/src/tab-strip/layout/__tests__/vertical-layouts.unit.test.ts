@@ -6,15 +6,24 @@ import {
 	calculatePinnedTabContainerMinimumSize,
 	getPinnedTabContainerDragAxes,
 } from '../pinned-tab-container-layout';
-import {
-	calculatePinnedContainerMainAxisSize,
-	calculateTabStripViewLayout,
-} from '../tab-strip-view-layout';
+import { calculateTabStripViewLayout } from '../calculateTabStripViewLayout';
 describe('TabStripViewLayout', () => {
 	it('caps the pinned region at half unless unpinned tabs leave room', () => {
-		expect(calculatePinnedContainerMainAxisSize(500, 500, 600, 64)).toBe(300);
-		expect(calculatePinnedContainerMainAxisSize(500, 100, 600, 64)).toBe(500);
-		expect(calculatePinnedContainerMainAxisSize(20, 500, 600, 64)).toBe(64);
+		for (const [pinned, unpinned, expected] of [
+			[500, 500, 300],
+			[500, 100, 500],
+			[20, 500, 64],
+		] as const) {
+			const layout = calculateTabStripViewLayout({
+				orientation: TabStripOrientation.Horizontal,
+				sizeBounds: { width: 600, height: 40 },
+				pinnedPreferred: { width: pinned, height: 40 },
+				pinnedMinimum: { width: 64, height: 40 },
+				unpinnedPreferred: { width: unpinned, height: 40 },
+				unpinnedMinimum: { width: 0, height: 40 },
+			});
+			expect(layout.pinnedBounds.width).toBe(expected);
+		}
 	});
 	it('lays horizontal pinned and unpinned scroll regions side by side', () => {
 		const layout = calculateTabStripViewLayout({

@@ -1,7 +1,7 @@
 import { requireDefined } from '../../../../../utils/requireDefined';
-export const FIRST_STRONG_ISOLATE = '\u2068';
-export const POP_DIRECTIONAL_ISOLATE = '\u2069';
-export const ELLIPSIS = '\u2026';
+const FIRST_STRONG_ISOLATE = '\u2068';
+const POP_DIRECTIONAL_ISOLATE = '\u2069';
+const ELLIPSIS = '\u2026';
 interface FilenameLineLengths {
 	first: number;
 	second: number;
@@ -58,26 +58,4 @@ export function elideFilenameWithLineLengths(
 	result += text.slice(cutPoint);
 	if (adjustedCutPoint || !isWholeString) result += POP_DIRECTIONAL_ISOLATE;
 	return result;
-}
-interface FadeSize {
-	width: number;
-	height: number;
-}
-
-/** Mirrors FadeWrapper's alpha calculation. */
-export function getFadeOutOpacity(percent: number): number {
-	return 1 - Math.min(1, Math.max(0, percent));
-}
-
-/** Mirrors FadeView::GetMaximumSize's tween between old and primary views. */
-export function interpolateFadeSize(
-	percent: number,
-	oldSize: FadeSize,
-	newSize: FadeSize,
-): FadeSize {
-	const amount = Math.min(1, Math.max(0, percent));
-	return {
-		width: oldSize.width + (newSize.width - oldSize.width) * amount,
-		height: oldSize.height + (newSize.height - oldSize.height) * amount,
-	};
 }

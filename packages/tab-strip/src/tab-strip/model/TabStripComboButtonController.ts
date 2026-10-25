@@ -1,15 +1,9 @@
 import { TabStripOrientation } from '../types/tab-strip-types';
 
-export const TAB_STRIP_COMBO_ANIMATION_DURATION_MS = 300;
-export const TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS = 2_000;
+const TAB_STRIP_COMBO_ANIMATION_DURATION_MS = 300;
+const TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS = 2_000;
 
 type TabStripComboButtonId = 'tab-search';
-
-interface TabStripComboAnimationFactors {
-	expansion: number;
-	opacity: number;
-	radius: number;
-}
 
 export interface TabStripComboButtonSnapshot {
 	revision: number;
@@ -34,17 +28,6 @@ interface TabStripComboButtonControllerOptions {
 }
 
 type Listener = () => void;
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
-
-/** Exact three-stage factor mapping from TabStripComboButton::AnimationProgressed. */
-export function getTabStripComboAnimationFactors(value: number): TabStripComboAnimationFactors {
-	return {
-		expansion: clamp01(value * 2),
-		opacity: clamp01((value - 0.25) * 2),
-		radius: clamp01((value - 0.5) * 2),
-	};
-}
 
 /** Preference, ephemeral-search, menu-lock, and visibility controller port. */
 export class TabStripComboButtonController {

@@ -1,13 +1,22 @@
+import { TabModel } from '../../model/tab-model';
 import { describe, expect, it } from 'vitest';
 import {
 	areDraggedTabIdsConsecutive,
 	calculateHorizontalTabStripTrailingEdge,
-	nextAvailableEntityId,
+	createNewTabGroup,
 } from '../tab-strip-internals';
 
 describe('tab-strip internals', () => {
 	it('preserves deterministic identifiers and dragged-tab adjacency', () => {
-		expect(nextAvailableEntityId('group', new Set(['group-1', 'group-2']))).toBe('group-3');
+		const model = new TabModel();
+		createNewTabGroup(model);
+		createNewTabGroup(model);
+		createNewTabGroup(model);
+		expect(model.getSnapshot().groups.map((group) => group.id)).toEqual([
+			'group-1',
+			'group-2',
+			'group-3',
+		]);
 		expect(areDraggedTabIdsConsecutive([{ id: 'a' }, { id: 'b' }, { id: 'c' }], ['a', 'b'])).toBe(
 			true,
 		);

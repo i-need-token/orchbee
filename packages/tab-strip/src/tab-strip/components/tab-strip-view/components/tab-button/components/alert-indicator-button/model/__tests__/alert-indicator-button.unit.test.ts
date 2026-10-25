@@ -1,12 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	AlertIndicatorButtonController,
-	ALERT_INDICATOR_RECORDING_ANIMATION_MS,
 	getTabAlertColorRole,
 	getTabAlertStateText,
-	isPulsingAlertState,
-	requiresCameraMicMinimumHold,
-	sampleAlertIndicatorOpacity,
 } from '../alert-indicator-button';
 
 describe('AlertIndicatorButtonController', () => {
@@ -21,14 +17,6 @@ describe('AlertIndicatorButtonController', () => {
 			showingAlertState: 'audio-muting',
 			fadeKind: 'none',
 		});
-	});
-
-	it('runs two recording pulses and finishes visible after 2600ms', () => {
-		expect(ALERT_INDICATOR_RECORDING_ANIMATION_MS).toBe(2_600);
-		expect(sampleAlertIndicatorOpacity('recording', 0, 2_600)).toBe(0);
-		expect(sampleAlertIndicatorOpacity('recording', 200, 2_600)).toBe(1);
-		expect(sampleAlertIndicatorOpacity('recording', 1_200, 2_600)).toBe(0);
-		expect(sampleAlertIndicatorOpacity('recording', 2_600, 2_600)).toBe(1);
 	});
 
 	it('holds a short recording until five seconds before the fade is complete', () => {
@@ -47,24 +35,25 @@ describe('AlertIndicatorButtonController', () => {
 	});
 
 	it('pulses all five Chromium capture states but only holds camera and microphone use', () => {
-		const pulsing = [
+		for (const state of [
 			'media-recording',
 			'audio-recording',
 			'video-recording',
 			'tab-capturing',
 			'desktop-capturing',
-		] as const;
-		expect(pulsing.every(isPulsingAlertState)).toBe(true);
-		expect(pulsing.filter(requiresCameraMicMinimumHold)).toEqual([
-			'media-recording',
-			'audio-recording',
-			'video-recording',
-		]);
-
-		const tabCapture = new AlertIndicatorButtonController();
-		tabCapture.transitionTo('tab-capturing', 1_000);
-		tabCapture.transitionTo('none', 2_000);
-		expect(tabCapture.getSnapshot().fadeDurationMs).toBe(1_000);
+		] as const) {
+			const controller = new AlertIndicatorButtonController();
+			controller.transitionTo(state, 1_000);
+			expect(controller.getSnapshot()).toMatchObject({
+				fadeKind: 'recording',
+				fadeDurationMs: 2_600,
+			});
+			controller.transitionTo('none', 2_000);
+			expect(controller.getSnapshot().fadeDurationMs).toBe(
+				state === 'tab-capturing' || state === 'desktop-capturing' ? 1_000 : 4_000,
+			);
+			controller.destroy();
+		}
 	});
 
 	it('exposes alert text and hover-card color roles', () => {

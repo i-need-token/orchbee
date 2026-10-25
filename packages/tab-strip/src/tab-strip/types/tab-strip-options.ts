@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 
 import type { TabSelectionInput } from '../actions/tab-strip-action-contracts';
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
-import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
+import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailObserver';
 import type { TabData, TabGroupData, TabModel } from '../model/tab-model';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type {
@@ -21,7 +21,7 @@ import type {
 } from '../dragging/cross-window-drag-runtime';
 import type { DragSessionData } from '../dragging/drag-session-data';
 import type { DragPoint } from '../dragging/dragging-tabs-session';
-import type { TabStripComboButtonController } from '../model/tab-strip-combo-button';
+import type { TabStripComboButtonController } from '../model/TabStripComboButtonController';
 import type { TabStripOrientation } from './tab-strip-types';
 import type { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
 

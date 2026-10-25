@@ -4,7 +4,6 @@ import type { TabData, TabGroupData } from '../../model/tab-model';
 import {
 	getAccessibleTabLabel,
 	getGroupAccessibleName,
-	getGroupContentString,
 	getGroupTooltipText,
 	getTabGroupMembershipAnnouncement,
 	getTabMoveAnnouncement,
@@ -27,7 +26,7 @@ function tab(update: Partial<TabData> = {}): TabData {
 describe('tab strip accessibility ports', () => {
 	it('describes group contents with Chromium title limits and pluralization', () => {
 		expect(
-			getGroupContentString([
+			getGroupTooltipText({ title: '' }, [
 				tab({
 					title: 'A'.repeat(40),
 				}),

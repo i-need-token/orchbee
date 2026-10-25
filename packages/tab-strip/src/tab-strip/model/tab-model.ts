@@ -126,7 +126,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 /**
  * Pure port of TabDragHandlerImpl::HandleDraggedTabsIntoPosition's index math.
  */
-export function calculateDraggedTabsInsertion(
+function calculateDraggedTabsInsertion(
 	input: DraggedTabsInsertionInput,
 ): DraggedTabsInsertionResult {
 	const targetIndex = clamp(input.targetIndex, input.containerStartIndex, input.containerEndIndex);

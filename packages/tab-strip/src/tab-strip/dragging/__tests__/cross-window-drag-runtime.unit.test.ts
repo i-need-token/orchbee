@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TabModel, type DetachedTabBundle } from '../../model/tab-model';
 import { requireDefined } from '../../utils/requireDefined';
 import { DragSessionData, DragSlotViewType } from '../drag-session-data';
-import { DRAG_START_ANIMATION_DURATION_MS } from '../dragged-tabs-container-layout';
+
 import {
 	CrossWindowDragState,
 	CrossWindowTabDragRuntime,
@@ -206,9 +206,7 @@ describe('CrossWindowTabDragRuntime', () => {
 			forceLayout,
 		};
 		const dragStartedAt = 100;
-		const now = vi
-			.spyOn(performance, 'now')
-			.mockReturnValue(dragStartedAt + DRAG_START_ANIMATION_DURATION_MS / 2);
+		const now = vi.spyOn(performance, 'now').mockReturnValue(dragStartedAt + 200 / 2);
 		const runtime = new CrossWindowTabDragRuntime(
 			setupData.source,
 			session(['a'], dragStartedAt),
@@ -223,7 +221,7 @@ describe('CrossWindowTabDragRuntime', () => {
 			requireDefined(forceLayout.mock.invocationCallOrder[0]),
 		);
 
-		now.mockReturnValue(dragStartedAt + DRAG_START_ANIMATION_DURATION_MS + 1);
+		now.mockReturnValue(dragStartedAt + 200 + 1);
 		runtime.update({ x: 210, y: 1 });
 		expect(layoutDraggedViewsAt).toHaveBeenLastCalledWith(['a'], 'a', { x: 210, y: 1 }, false, 1);
 		expect(forceLayout).toHaveBeenCalledOnce();

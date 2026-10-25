@@ -1,9 +1,9 @@
 import type { Rect } from '../utils/rectRight';
 
 const TAB_DRAG_SCROLL_INCREMENT = 5;
-export const TAB_DRAG_SCROLL_INTERVAL_MS = 20;
+const TAB_DRAG_SCROLL_INTERVAL_MS = 20;
 
-export type TabDragOverflowGradient = 'vertical' | 'vertical-leading' | 'vertical-trailing';
+type TabDragOverflowGradient = 'vertical' | 'vertical-leading' | 'vertical-trailing';
 
 export interface TabDragScrollable {
 	scrollTop: number;

@@ -21,11 +21,6 @@ interface CornerRadii {
 	bottomLeft: number;
 }
 
-interface FlatEdgeButtonSize {
-	width: number;
-	height: number;
-}
-
 /** Port of TabStripFlatEdgeButton::GetButtonCornerRadii. */
 export function getFlatEdgeButtonCornerRadii(
 	flatEdge: TabStripFlatEdge,
@@ -46,17 +41,6 @@ export function getFlatEdgeButtonCornerRadii(
 		case TabStripFlatEdge.None:
 			return { topLeft: rounded, topRight: rounded, bottomRight: rounded, bottomLeft: rounded };
 	}
-}
-
-/** Port of TabStripFlatEdgeButton::CalculatePreferredSize. */
-export function getFlatEdgeButtonPreferredSize(
-	expansionFactor: number,
-	orientation: TabStripOrientation,
-	rawButtonSize = TAB_STRIP_FLAT_EDGE_BUTTON_SIZE,
-): FlatEdgeButtonSize {
-	return orientation === TabStripOrientation.Horizontal
-		? { width: Math.trunc(rawButtonSize * expansionFactor), height: rawButtonSize }
-		: { width: rawButtonSize, height: Math.trunc(rawButtonSize * expansionFactor) };
 }
 
 /** Port of TabStripComboButton::UpdateStyles. */

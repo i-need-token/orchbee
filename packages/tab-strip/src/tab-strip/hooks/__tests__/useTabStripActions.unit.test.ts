@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TAB_STRIP_ACTION_IDS } from '../../actions/tab-strip-action-contracts';
 import { DEFAULT_TAB_STRIP_MESSAGES } from '../../constants/default-tab-strip-messages';
 import { TabModel } from '../../model/tab-model';
-import { TabStripComboButtonController } from '../../model/tab-strip-combo-button';
+import { TabStripComboButtonController } from '../../model/TabStripComboButtonController';
 import type {
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,

@@ -5,7 +5,7 @@ import type {
 	RefObject,
 	SetStateAction,
 } from 'react';
-import type { HoverCardThumbnailSnapshot } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
+import type { HoverCardThumbnailSnapshot } from '../components/tab-strip-view/components/hover-card/model/TabHoverCardThumbnailRuntime';
 import type {
 	TabHoverCardSnapshot,
 	HoverCardUpdateType,
@@ -15,7 +15,7 @@ import type { TabBoundsResult } from '../layout/calculateTabBounds';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { Rect } from '../utils/rectRight';
 import type { TabStripOrientation } from './tab-strip-types';
-import type { TabGroupEditorBubbleTracker } from '../model/tab-group-editor-bubble-tracker';
+import type { TabGroupEditorBubbleTracker } from '../model/TabGroupEditorBubbleTracker';
 import type {
 	VerticalExpandOnHoverSnapshot,
 	VerticalTabStripExpandOnHoverController,
@@ -23,7 +23,7 @@ import type {
 import type {
 	TabStripComboButtonController,
 	TabStripComboButtonSnapshot,
-} from '../model/tab-strip-combo-button';
+} from '../model/TabStripComboButtonController';
 import type { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
 import type { TabStripOptions } from './tab-strip-options';
 import type { DragState, HoverState, MenuState, VisualItem } from '../utils/tab-strip-internals';

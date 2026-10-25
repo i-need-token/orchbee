@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DragSessionData, DragSlotViewType, type TabDragData } from '../drag-session-data';
 import {
-	areDraggedTabsConsecutive,
-	calculateAttachedDragPoint,
-	calculateDragMouseOffset,
-	calculateDraggedViewBounds,
 	calculateGroupForDraggedTabs,
 	calculateHorizontalMoveThreshold,
 	shouldReorderDraggedTabs,
@@ -19,14 +15,6 @@ function tab(index: number | null, id: string): TabDragData {
 		pinned: false,
 		tabGroupData: null,
 	};
-}
-
-function session(tabs: readonly TabDragData[], sourceViewIndex = 0, ratio = 0.5) {
-	return new DragSessionData({
-		tabDragData: tabs,
-		sourceViewIndex,
-		mouseOffsetToSizeRatios: { x: ratio, y: 0.5 },
-	});
 }
 
 describe('DragSessionData', () => {
@@ -54,73 +42,6 @@ describe('DragSessionData', () => {
 });
 
 describe('DraggingTabsSession geometry and movement ports', () => {
-	it('detects nonconsecutive source tabs while ignoring header gaps', () => {
-		expect(areDraggedTabsConsecutive(session([tab(1, 'a'), tab(2, 'b')]))).toBe(true);
-		expect(areDraggedTabsConsecutive(session([tab(1, 'a'), tab(3, 'b')]))).toBe(false);
-		expect(areDraggedTabsConsecutive(session([tab(null, 'header'), tab(3, 'b')]))).toBe(true);
-	});
-
-	it('keeps the same fractional point in the source view under the cursor', () => {
-		const data = session([tab(1, 'a'), tab(2, 'b')], 1, 0.25);
-		expect(
-			calculateDragMouseOffset(data, (ids) => ids.length * 100 - (ids.length - 1) * 18, 100),
-		).toBe(107);
-	});
-
-	it('clamps the attached point to the tab drag area', () => {
-		expect(
-			calculateAttachedDragPoint({
-				contextPoint: { x: 10, y: 30 },
-				mouseOffset: 40,
-				tabDragAreaWidth: 300,
-				draggedViewsSize: 120,
-			}),
-		).toEqual({ x: 0, y: 0 });
-		expect(
-			calculateAttachedDragPoint({
-				contextPoint: { x: 400, y: 30 },
-				mouseOffset: 40,
-				tabDragAreaWidth: 300,
-				draggedViewsSize: 120,
-			}),
-		).toEqual({ x: 180, y: 0 });
-		expect(
-			calculateAttachedDragPoint({
-				contextPoint: { x: 20, y: 30 },
-				mirroredX: 200,
-				mouseOffset: 40,
-				tabDragAreaWidth: 300,
-				draggedViewsSize: 120,
-			}),
-		).toEqual({ x: 160, y: 0 });
-	});
-
-	it('calculates attached and unattached dragged bounds', () => {
-		expect(
-			calculateDraggedViewBounds({
-				point: { x: 20, y: 0 },
-				draggedBounds: [
-					{ x: 0, y: 0, width: 100, height: 35 },
-					{ x: 82, y: 0, width: 100, height: 35 },
-				],
-				sourceViewAttached: true,
-				sourceViewHeight: 35,
-				standardTabWidth: 256,
-				tabHeight: 35,
-			}),
-		).toEqual({ x: 20, y: 0, width: 182, height: 35 });
-		expect(
-			calculateDraggedViewBounds({
-				point: { x: 20, y: 5 },
-				draggedBounds: [],
-				sourceViewAttached: false,
-				sourceViewHeight: 0,
-				standardTabWidth: 256,
-				tabHeight: 35,
-			}),
-		).toEqual({ x: 20, y: 5, width: 256, height: 35 });
-	});
-
 	it("scales Chromium's 16 DIP reorder threshold with the target tab width", () => {
 		expect(calculateHorizontalMoveThreshold(256, 256)).toBe(16);
 		expect(calculateHorizontalMoveThreshold(128, 256)).toBe(8);

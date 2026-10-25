@@ -4,7 +4,7 @@ const ALERT_INDICATOR_FADE_IN_MS = 200;
 const ALERT_INDICATOR_FADE_OUT_MS = 1_000;
 const ALERT_INDICATOR_MINIMUM_HOLD_MS = 5_000;
 const ALERT_INDICATOR_RECORDING_CYCLES = 2;
-export const ALERT_INDICATOR_RECORDING_ANIMATION_MS =
+const ALERT_INDICATOR_RECORDING_ANIMATION_MS =
 	ALERT_INDICATOR_RECORDING_CYCLES * (ALERT_INDICATOR_FADE_IN_MS + ALERT_INDICATOR_FADE_OUT_MS) +
 	ALERT_INDICATOR_FADE_IN_MS;
 type AlertIndicatorFadeKind = 'none' | 'fade-in' | 'fade-out' | 'recording';
@@ -24,7 +24,7 @@ export type TabAlertColorRole = 'default' | 'recording' | 'pip';
 const isAudioAlertState = (state: TabAlertState): boolean =>
 	state === 'audio-playing' || state === 'audio-muting' || state === 'audio-muted';
 
-export const isPulsingAlertState = (state: TabAlertState): boolean =>
+const isPulsingAlertState = (state: TabAlertState): boolean =>
 	state === 'media-recording' ||
 	state === 'audio-recording' ||
 	state === 'video-recording' ||
@@ -33,7 +33,7 @@ export const isPulsingAlertState = (state: TabAlertState): boolean =>
 	state === 'recording' ||
 	state === 'capturing';
 
-export const requiresCameraMicMinimumHold = (state: TabAlertState): boolean =>
+const requiresCameraMicMinimumHold = (state: TabAlertState): boolean =>
 	state === 'media-recording' ||
 	state === 'audio-recording' ||
 	state === 'video-recording' ||
@@ -99,30 +99,6 @@ export function getTabAlertAccessibleDescription(state: TabAlertState): string |
 	const text = getTabAlertStateText(state);
 	if (!text) return null;
 	return text.replace(/^This tab is /, '').replace(/^This tab /, 'tab ');
-}
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
-
-export function sampleAlertIndicatorOpacity(
-	kind: AlertIndicatorFadeKind,
-	elapsedMs: number,
-	durationMs: number,
-): number {
-	if (kind === 'none') return 1;
-	if (kind === 'recording') {
-		let remaining = Math.max(0, elapsedMs);
-		for (let cycle = 0; cycle < ALERT_INDICATOR_RECORDING_CYCLES; cycle += 1) {
-			if (remaining <= ALERT_INDICATOR_FADE_IN_MS)
-				return clamp01(remaining / ALERT_INDICATOR_FADE_IN_MS) ** 2;
-			remaining -= ALERT_INDICATOR_FADE_IN_MS;
-			if (remaining <= ALERT_INDICATOR_FADE_OUT_MS)
-				return 1 - clamp01(remaining / ALERT_INDICATOR_FADE_OUT_MS) ** 2;
-			remaining -= ALERT_INDICATOR_FADE_OUT_MS;
-		}
-		return clamp01(remaining / ALERT_INDICATOR_FADE_IN_MS) ** 2;
-	}
-	const value = clamp01(durationMs === 0 ? 1 : elapsedMs / durationMs) ** 2;
-	return kind === 'fade-out' ? 1 - value : value;
 }
 
 /** Browser-independent alert-indicator transition state. */

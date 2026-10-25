@@ -1,11 +1,7 @@
 import { requireDefined } from '../../../../../../../../utils/requireDefined';
 import { TabStripOrientation } from '../../../../../../../../types/tab-strip-types';
 import { describe, expect, it } from 'vitest';
-import {
-	calculateVerticalTopContainerLayout,
-	getVerticalTopContainerPreferredWidth,
-	willVerticalTopContainerWrap,
-} from '../vertical-tab-strip-top-container-layout';
+import { calculateVerticalTopContainerLayout } from '../calculateVerticalTopContainerLayout';
 describe('VerticalTabStripTopContainer layout', () => {
 	it('right-aligns the combo and shares a baseline with the collapse button', () => {
 		const layout = calculateVerticalTopContainerLayout({
@@ -68,15 +64,18 @@ describe('VerticalTabStripTopContainer layout', () => {
 	});
 	it('uses preferred-width and caption hit-test semantics', () => {
 		const input = {
-			availableWidth: 65,
-			captionButtonWidth: 1,
+			availableWidth: 128,
+			captionButtonWidth: 64,
 			comboEndVisible: true,
 		};
-		expect(getVerticalTopContainerPreferredWidth(input)).toBe(64);
-		expect(willVerticalTopContainerWrap(input)).toBe(true);
+		expect(calculateVerticalTopContainerLayout(input).wrappedDueToOverflow).toBe(true);
+		expect(
+			calculateVerticalTopContainerLayout({ ...input, availableWidth: 129 }).wrappedDueToOverflow,
+		).toBe(false);
 		const layout = calculateVerticalTopContainerLayout({
 			...input,
 			availableWidth: 240,
+			captionButtonWidth: 1,
 		});
 		expect(
 			layout.isPositionInCaption({

@@ -699,7 +699,7 @@ export type HoverState =
 	| { kind: 'tab'; id: string; x: number; y: number }
 	| { kind: 'group'; id: string; x: number; y: number };
 
-export function nextAvailableEntityId(prefix: string, existingIds: ReadonlySet<string>): string {
+function nextAvailableEntityId(prefix: string, existingIds: ReadonlySet<string>): string {
 	let sequence = 1;
 	while (existingIds.has(`${prefix}-${sequence}`)) sequence += 1;
 	return `${prefix}-${sequence}`;

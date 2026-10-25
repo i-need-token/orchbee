@@ -22,7 +22,7 @@ interface DraggedTabsLayoutResult {
 }
 const DRAGGED_VIEW_VERTICAL_PADDING = 2;
 const DRAGGED_VIEW_HORIZONTAL_PADDING = 4;
-export const DRAG_START_ANIMATION_DURATION_MS = 200;
+const DRAG_START_ANIMATION_DURATION_MS = 200;
 
 export function getDragStartAnimationProgress(
 	startedAt: number,
@@ -67,7 +67,7 @@ export function clampDraggedViewPosition(
 		),
 	};
 }
-export function getSourceViewOffsetFromPointer(input: {
+function getSourceViewOffsetFromPointer(input: {
 	sourceSlotSize: Readonly<{
 		width: number;
 		height: number;
@@ -208,7 +208,7 @@ export function getDraggingViewsBoundsAtPoint(
 		y: boundsRelativeToPointer.y + point.y,
 	};
 }
-export function hasMinimumOverlap(
+function hasMinimumOverlap(
 	a: Readonly<Rect>,
 	b: Readonly<Rect>,
 	minimumX?: number,

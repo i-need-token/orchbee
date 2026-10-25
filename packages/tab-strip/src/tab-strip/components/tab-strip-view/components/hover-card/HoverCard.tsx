@@ -9,7 +9,7 @@ import {
 	getHoverCardFooterRows,
 	getHoverCardTitleData,
 } from './utils/hover-card-data';
-import { type HoverCardThumbnailSnapshot } from './model/tab-hover-card-thumbnail-runtime';
+import { type HoverCardThumbnailSnapshot } from './model/TabHoverCardThumbnailRuntime';
 import { type TabModelSnapshot } from '../../../../model/tab-model';
 import { TabAlertIndicatorGlyph } from '../tab-alert-indicator-glyph/TabAlertIndicatorGlyph';
 import { joinClassNames, type HoverState } from '../../../../utils/tab-strip-internals';

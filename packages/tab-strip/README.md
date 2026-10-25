@@ -17,7 +17,7 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 ```
 
-- `@orchbee/tab-strip` exposes the component plus the Action identifiers, close and selection inputs, and boundary validators needed to host it.
+- `@orchbee/tab-strip` exposes the component plus the Action identifiers, close and selection input types needed to host it.
 - `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
 
@@ -33,7 +33,7 @@ A host may provide an `identityIcons` map keyed by Tab identity. Each value is a
 
 Local composition closes known Tab IDs synchronously through `TabModel`. A terminal-owning composition instead supplies `onCloseTabs`. It may also supply `getCloseTabsConfirmation`, which lets the owner derive protection from the complete resources affected by the validated Tab set while Tab Strip keeps confirmation inside the same `tabs.tab.close` Action. The Action delegates its validated ID set and execution context without mutating `TabModel`; the owner marks the commit point and removes Tabs only after its terminal-close orchestration succeeds. A cancelled confirmation, pending close, or partially failed close therefore cannot make Tab Strip delete topology early.
 
-A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab.select` Action delegates its validated `TabSelectionInput` and execution context before any local `TabModel` write; the public `tabSelectionInput` validator lets a composing Action prepare that same boundary without importing private source. The owner commits navigation, then applies the selection when that route is observed. Omitting the callback preserves the package-owned local selection transition. This port does not move routing, history, or URL parsing into Tab Strip.
+A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab.select` Action delegates its validated `TabSelectionInput` and execution context before any local `TabModel` write. Validation remains owned by the registered Tab Strip Action. The owner commits navigation, then applies the selection when that route is observed. Omitting the callback preserves the package-owned local selection transition. This port does not move routing, history, or URL parsing into Tab Strip.
 
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
@@ -47,7 +47,7 @@ New Tab and Close use the shared `ProductIcon` glyphs and compact system control
 
 Hosts that support both orientations pass the controlled `orientation` value and `onOrientationChange`. Right-clicking blank strip space then exposes the localized action for opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
 
-The package API intentionally has no React or browser-vendor subpath. Desktop compositions import the cross-window contracts from the package root: `CrossWindowTabDragRuntime` owns model handoff, cancel restoration, attached-model liveness, and destination layout sequencing; `DomTabDragRegistry` adapts live bounds, z-order, liveness, and compatibility decisions supplied by the host. `TabStrip` accepts a `createCrossWindowDragRuntime` factory, while native window creation, movement, capture, move loops, and source-window disposal remain host responsibilities. The browser application does not synthesize those operating-system capabilities. Upstream source attribution and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
+The package API intentionally has no React or browser-vendor subpath. `TabStrip` accepts a `createCrossWindowDragRuntime` factory. Its internal `CrossWindowTabDragRuntime` owns model handoff, cancel restoration, attached-model liveness, and destination layout sequencing; `DomTabDragRegistry` adapts host bounds, z-order, liveness, and compatibility. These implementations are retained for the admitted cross-window host work and are not exported from the package root. Native window creation, movement, capture, move loops, and source-window disposal remain host responsibilities; a future host integration must admit the concrete exports it consumes. The browser application does not synthesize those operating-system capabilities. Upstream source attribution and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
 
 ## Source ownership
 

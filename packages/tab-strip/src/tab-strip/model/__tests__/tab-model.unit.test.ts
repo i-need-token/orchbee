@@ -3,7 +3,6 @@ import { array, assert as assertProperty, nat, property as defineProperty } from
 import { requireDefined } from '../../utils/requireDefined';
 import { describe, expect, it, vi } from 'vitest';
 import {
-	calculateDraggedTabsInsertion,
 	TabModel,
 	ToggleTabGroupCollapsedStateOrigin,
 	type TabData,
@@ -693,33 +692,18 @@ describe('tab drag index adjustment', () => {
 		expect(ids(model)).toEqual(['b1', 'b2', 'r1', 'r2']);
 	});
 	it('subtracts dragged tabs before the pre-removal target', () => {
-		expect(
-			calculateDraggedTabsInsertion({
-				containerStartIndex: 0,
-				containerEndIndex: 6,
-				targetIndex: 5,
-				draggedIndices: [1, 3],
-				draggedGroups: [null, null],
-				targetGroup: null,
-				firstSelectedIndex: 1,
-			}),
-		).toEqual({
-			adjustedTargetIndex: 3,
-			noOp: false,
-		});
+		const model = new TabModel({ tabs: ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => makeTab(id)) });
+		expect(model.moveTabsByDrag(['b', 'd'], 5, 0, 6, null)).toBe(true);
+		expect(ids(model)).toEqual(['a', 'c', 'e', 'b', 'd', 'f']);
 	});
 	it('recognizes the Chromium no-op condition', () => {
-		expect(
-			calculateDraggedTabsInsertion({
-				containerStartIndex: 0,
-				containerEndIndex: 4,
-				targetIndex: 1,
-				draggedIndices: [1, 2],
-				draggedGroups: ['work', 'work'],
-				targetGroup: 'work',
-				firstSelectedIndex: 1,
-			}).noOp,
-		).toBe(true);
+		const model = new TabModel({
+			tabs: [makeTab('a'), makeTab('b', false, 'work'), makeTab('c', false, 'work'), makeTab('d')],
+			groups,
+		});
+		const before = model.getSnapshot();
+		expect(model.moveTabsByDrag(['b', 'c'], 1, 0, 4, 'work')).toBe(false);
+		expect(model.getSnapshot()).toBe(before);
 	});
 	it('allows the classic horizontal drag session to coalesce a nonconsecutive no-op target', () => {
 		const model = new TabModel({

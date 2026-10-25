@@ -1,12 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	TAB_DRAG_SCROLL_INTERVAL_MS,
-	TabDragScrollHandler,
-	type TabDragOverflowGradient,
-	type TabDragScrollable,
-} from '../tab-drag-scroll-handler';
+import { TabDragScrollHandler, type TabDragScrollable } from '../tab-drag-scroll-handler';
 
-function scrollable(): TabDragScrollable & { gradient: TabDragOverflowGradient } {
+function scrollable(): TabDragScrollable & {
+	gradient: Parameters<NonNullable<TabDragScrollable['setDragOverflowGradient']>>[0];
+} {
 	return {
 		scrollTop: 0,
 		scrollHeight: 500,
@@ -36,7 +33,7 @@ describe('TabDragScrollHandler', () => {
 			gradient: 'vertical-leading',
 		});
 		expect(view.gradient).toBe('vertical-leading');
-		vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS * 3);
+		vi.advanceTimersByTime(20 * 3);
 		expect(view.scrollTop).toBe(15);
 		expect(onContentsScrolled).toHaveBeenCalledTimes(3);
 		handler.destroy();
@@ -50,7 +47,7 @@ describe('TabDragScrollHandler', () => {
 		handler.onDraggedTabPositionUpdated(view, { x: 0, y: 0, width: 100, height: 20 });
 		expect(handler.getSnapshot().increment).toBe(-5);
 		expect(view.gradient).toBe('vertical-trailing');
-		vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS);
+		vi.advanceTimersByTime(20);
 		expect(view.scrollTop).toBe(45);
 		handler.onDraggedTabPositionUpdated(view, { x: 0, y: 30, width: 100, height: 20 });
 		expect(handler.getSnapshot().scrolling).toBe(false);

@@ -118,7 +118,3 @@ export function getHorizontalDragTarget(
 		idealX: bestIdealX,
 	};
 }
-
-export function getHorizontalDragInsertionIndex(input: HorizontalDragInsertionInput): number {
-	return getHorizontalDragTarget(input).insertionIndex;
-}

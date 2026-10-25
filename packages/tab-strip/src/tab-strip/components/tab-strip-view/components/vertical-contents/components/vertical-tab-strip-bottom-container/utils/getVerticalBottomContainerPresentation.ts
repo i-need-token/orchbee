@@ -2,7 +2,7 @@ import {
 	TabStripOrientation,
 	VerticalTabStripCollapseState,
 } from '../../../../../../../types/tab-strip-types';
-import type { Rect } from '../../../../../../../utils/rectRight';
+
 import { LAYOUT_CONSTANTS } from '../../../../../../../layout/layout-constants';
 
 interface VerticalBottomContainerPresentation {
@@ -30,18 +30,4 @@ export function getVerticalBottomContainerPresentation(
 		buttonSize: LAYOUT_CONSTANTS.verticalTabStripNewTabButtonSize,
 		iconSize: LAYOUT_CONSTANTS.verticalTabStripButtonIconSize,
 	};
-}
-
-export function isPositionInVerticalBottomContainerCaption(
-	point: Readonly<{ x: number; y: number }>,
-	children: readonly Readonly<{ visible: boolean; bounds: Rect }>[],
-): boolean {
-	return !children.some(
-		({ visible, bounds }) =>
-			visible &&
-			point.x >= bounds.x &&
-			point.x < bounds.x + bounds.width &&
-			point.y >= bounds.y &&
-			point.y < bounds.y + bounds.height,
-	);
 }

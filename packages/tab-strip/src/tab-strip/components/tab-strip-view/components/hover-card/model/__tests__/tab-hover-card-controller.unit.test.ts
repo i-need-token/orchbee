@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-	getHoverCardShowDelay,
 	getThumbnailPlan,
-	HOVER_CARD_SLIDE_DURATION_MS,
 	HoverCardUpdateType,
 	TabHoverCardController,
 	ThumbnailCaptureReadiness,
@@ -21,10 +19,17 @@ describe('TabHoverCardController', () => {
 	afterEach(() => vi.useRealTimers());
 
 	it('ports Chromium logarithmic width delay including the max-width addition', () => {
-		expect(getHoverCardShowDelay(64, 64, 256)).toBe(300);
-		expect(getHoverCardShowDelay(256, 64, 256)).toBe(1300);
-		expect(getHoverCardShowDelay(128, 64, 256)).toBeGreaterThan(300);
-		expect(getHoverCardShowDelay(128, 64, 256)).toBeLessThan(800);
+		const delays = [64, 256, 128].map((width) => {
+			const controller = new TabHoverCardController();
+			controller.updateHoverCard(target('a', width), HoverCardUpdateType.Hover);
+			const delay = controller.getSnapshot().showDelayMs;
+			controller.destroy();
+			return delay;
+		});
+		expect(delays[0]).toBe(300);
+		expect(delays[1]).toBe(1300);
+		expect(delays[2]).toBeGreaterThan(300);
+		expect(delays[2]).toBeLessThan(800);
 	});
 
 	it('waits for an initial card and switches visible cards immediately', () => {
@@ -45,7 +50,7 @@ describe('TabHoverCardController', () => {
 			transitioning: true,
 			cardsSeen: 2,
 		});
-		vi.advanceTimersByTime(HOVER_CARD_SLIDE_DURATION_MS);
+		vi.advanceTimersByTime(200);
 		expect(controller.getSnapshot().transitioning).toBe(false);
 	});
 

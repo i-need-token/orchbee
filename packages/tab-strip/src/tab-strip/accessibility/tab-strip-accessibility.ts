@@ -36,7 +36,7 @@ function alertDescription(alertState: TabAlertState | undefined): string | null 
 }
 
 /** Port of GetGroupContentString: first title, then the remaining tab count. */
-export function getGroupContentString(tabs: readonly Pick<TabData, 'title'>[]): string {
+function getGroupContentString(tabs: readonly Pick<TabData, 'title'>[]): string {
 	const firstTitle = truncate(tabs[0]?.title || 'New Tab', GROUP_CONTENT_TITLE_MAX_LENGTH);
 	const remaining = Math.max(0, tabs.length - 1);
 	if (remaining === 0) return firstTitle;

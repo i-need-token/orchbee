@@ -1,30 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TabStripOrientation } from '../../types/tab-strip-types';
-import {
-	getTabStripComboAnimationFactors,
-	TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS,
-	TAB_STRIP_COMBO_ANIMATION_DURATION_MS,
-	TabStripComboButtonController,
-} from '../tab-strip-combo-button';
+import { TabStripComboButtonController } from '../TabStripComboButtonController';
 
 describe('TabStripComboButtonController', () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
-
-	it('maps Chromium expansion, opacity, and radius stages', () => {
-		expect(getTabStripComboAnimationFactors(0)).toEqual({ expansion: 0, opacity: 0, radius: 0 });
-		expect(getTabStripComboAnimationFactors(0.5)).toEqual({
-			expansion: 1,
-			opacity: 0.5,
-			radius: 0,
-		});
-		expect(getTabStripComboAnimationFactors(0.75)).toEqual({
-			expansion: 1,
-			opacity: 1,
-			radius: 0.5,
-		});
-		expect(getTabStripComboAnimationFactors(1)).toEqual({ expansion: 1, opacity: 1, radius: 1 });
-	});
 
 	it('keeps hiding buttons alive until the configured animation ends', () => {
 		const controller = new TabStripComboButtonController({
@@ -36,7 +16,7 @@ describe('TabStripComboButtonController', () => {
 			tabSearchTargetVisible: false,
 			tabSearchAnimating: true,
 		});
-		vi.advanceTimersByTime(TAB_STRIP_COMBO_ANIMATION_DURATION_MS);
+		vi.advanceTimersByTime(300);
 		expect(controller.getSnapshot()).toMatchObject({
 			tabSearchVisible: false,
 			tabSearchAnimating: false,
@@ -53,7 +33,7 @@ describe('TabStripComboButtonController', () => {
 		});
 		controller.onBubbleDestroying();
 		expect(controller.getSnapshot().hideTabSearchPending).toBe(true);
-		vi.advanceTimersByTime(TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS);
+		vi.advanceTimersByTime(2_000);
 		expect(controller.getSnapshot()).toMatchObject({
 			tabSearchVisible: false,
 			tabSearchEphemeral: false,
@@ -111,7 +91,7 @@ describe('TabStripComboButtonController', () => {
 		expect(controller.getSnapshot().tabSearchVisible).toBe(true);
 
 		controller.onMenuClosed();
-		vi.advanceTimersByTime(TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS - 1);
+		vi.advanceTimersByTime(2_000 - 1);
 		expect(controller.getSnapshot().tabSearchVisible).toBe(true);
 		vi.advanceTimersByTime(1);
 		expect(controller.getSnapshot().tabSearchVisible).toBe(false);

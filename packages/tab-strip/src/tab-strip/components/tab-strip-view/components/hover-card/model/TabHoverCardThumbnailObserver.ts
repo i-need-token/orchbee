@@ -24,7 +24,7 @@ type HoverCardThumbnailObserverCallback<Image> = (
 	image: Image,
 ) => void;
 
-export const HOVER_CARD_PREVIEW_SIZE: Readonly<HoverCardThumbnailSize> = Object.freeze({
+const HOVER_CARD_PREVIEW_SIZE: Readonly<HoverCardThumbnailSize> = Object.freeze({
 	width: 320,
 	height: 180,
 });

@@ -96,12 +96,7 @@ export function calculateHorizontalTabGroupHeaderLayout(
 		horizontalInset,
 	};
 }
-export function shouldHideTabGroupUnderline(
-	leadingKind: 'header' | 'tab' | null,
-	trailingKind: 'header' | 'tab' | null,
-): boolean {
-	return leadingKind === 'header' && trailingKind === 'header';
-}
+
 interface HorizontalTabGroupUnderlineInput {
 	leadingHeaderX: number;
 	trailingTabX: number;
@@ -124,43 +119,5 @@ export function calculateHorizontalTabGroupUnderlineBounds(
 	return {
 		x,
 		width: Math.max(0, trailingRight - x),
-	};
-}
-interface MergeDraggedGroupUnderlineInput {
-	normal: Readonly<{
-		x: number;
-		width: number;
-	}>;
-	dragged: Readonly<{
-		x: number;
-		width: number;
-	}>;
-	leadingDraggedView: Readonly<{
-		x: number;
-		width: number;
-	}>;
-	trailingDraggedView: Readonly<{
-		x: number;
-		width: number;
-	}>;
-}
-
-/** Port of TabGroupViews::UpdateBounds' normal/drag underline merge. */
-export function mergeDraggedGroupUnderlineBounds(input: MergeDraggedGroupUnderlineInput): Readonly<{
-	x: number;
-	width: number;
-}> {
-	const draggedRight = input.dragged.x + input.dragged.width;
-	const leadingX = Math.min(
-		input.dragged.x,
-		Math.max(Math.min(input.dragged.x, input.leadingDraggedView.x), input.normal.x),
-	);
-	const trailingX = Math.min(
-		Math.max(draggedRight, input.trailingDraggedView.x + input.trailingDraggedView.width),
-		Math.max(draggedRight, input.normal.x + input.normal.width),
-	);
-	return {
-		x: leadingX,
-		width: Math.max(0, trailingX - leadingX),
 	};
 }

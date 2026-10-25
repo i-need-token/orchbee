@@ -1,76 +1,10 @@
-import { requireDefined } from '../utils/requireDefined';
-import type { Rect } from '../utils/rectRight';
 import type { TabGroupId } from '../model/tab-types';
-import type { DragSessionData } from './drag-session-data';
+
 export interface DragPoint {
 	x: number;
 	y: number;
 }
-export function areDraggedTabsConsecutive(data: DragSessionData): boolean {
-	for (let index = 1; index < data.tabDragData.length; index += 1) {
-		const previous = requireDefined(data.tabDragData[index - 1]).sourceModelIndex;
-		const current = requireDefined(data.tabDragData[index]).sourceModelIndex;
-		if (previous !== null && current !== null && previous + 1 !== current) return false;
-	}
-	return true;
-}
 
-/** Port of DraggingTabsSession's CalculateMouseOffset helper. */
-export function calculateDragMouseOffset(
-	data: DragSessionData,
-	getSizeNeededForViews: (ids: readonly string[]) => number,
-	sourceViewWidth: number,
-): number {
-	const throughSource = data.attachedViewIds.slice(0, data.sourceViewIndex + 1);
-	return (
-		getSizeNeededForViews(throughSource) -
-		sourceViewWidth +
-		Math.round(data.mouseOffsetToSizeRatios.x * sourceViewWidth)
-	);
-}
-
-/** Port of GetAttachedDragPoint, with mirroring supplied by the caller. */
-export function calculateAttachedDragPoint(input: {
-	contextPoint: Readonly<DragPoint>;
-	mirroredX?: number;
-	mouseOffset: number;
-	tabDragAreaWidth: number;
-	draggedViewsSize: number;
-}): DragPoint {
-	const x = (input.mirroredX ?? input.contextPoint.x) - input.mouseOffset;
-	const maximum = Math.max(0, input.tabDragAreaWidth - input.draggedViewsSize);
-	return {
-		x: Math.min(maximum, Math.max(0, x)),
-		y: 0,
-	};
-}
-
-/** Port of GetDraggedViewTabStripBounds. */
-export function calculateDraggedViewBounds(input: {
-	point: Readonly<DragPoint>;
-	draggedBounds: readonly Readonly<Rect>[];
-	sourceViewAttached: boolean;
-	sourceViewHeight: number;
-	standardTabWidth: number;
-	tabHeight: number;
-}): Rect {
-	if (input.sourceViewAttached && input.draggedBounds.length > 0) {
-		const first = requireDefined(input.draggedBounds[0]);
-		const last = requireDefined(input.draggedBounds.at(-1));
-		return {
-			x: input.point.x,
-			y: input.point.y,
-			width: last.x + last.width - first.x,
-			height: input.sourceViewHeight,
-		};
-	}
-	return {
-		x: input.point.x,
-		y: input.point.y,
-		width: input.standardTabWidth,
-		height: input.tabHeight,
-	};
-}
 export function calculateHorizontalMoveThreshold(
 	targetTabWidth: number,
 	standardTabWidth: number,
