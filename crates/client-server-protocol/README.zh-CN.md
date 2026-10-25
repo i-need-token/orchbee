@@ -134,32 +134,16 @@ Schema owner 的 corpus 检查每个 action/outcome/reason
 
 ## Send binding
 
-`TerminalSendRequest`、`TerminalSendPayload`、`TerminalSendResult` 与 `TerminalSendOutcome`
+`TerminalSendRequest`、`SendRecords`、`TerminalSendResult` 与 `TerminalSendOutcome`
 承载一次经 Server 授权、面向已暴露 Workbench 终端的非交互 input 提交。request 是扁平的
-`requestId` + `siteId`/`workerId`/`terminalId` 绑定三元组 + 闭合 payload 联合；三元组是
+`requestId` + `siteId`/`workerId`/`terminalId` 绑定三元组 + 闭合记录序列；三元组是
 Server 在准入时解析的声明目标，不是化身锁。本 binding 不授予 controller、viewer、resize
 或 lease 权限，不占 attachment 槽位，且绝不跨 restart 重绑：准入后 worker 或 Host 化身已
 变化的目标只能失败或报告 unknown，绝不改向。
 
-`TerminalSendPayload` 恰好为 `text` 或 `key` 之一。`text` 携带 `SendTextInput`——已验证
-非空 UTF-8 `SendText` 与 `enter` 标志的配对；回车折进同一 payload，因此一次 send 永远
-恰好是一条 Host input record。`SendText` 最多接受 `MAXIMUM_SEND_TEXT_BYTES`（4,096）
-byte，`SendTextInput::new` 强制合计界限：`text` + `enter` 必须落在其中——4,096-byte 的
-text 仅在无 `enter` 时合法。字段私有，任何公开构造或解码路径都无法越界，wire encoder
-再独立复核一次。`key` 携带闭集 15 名 `SendKey` 之一（`enter`、`escape`、`tab`、
-`backspace`、`delete`、`up`、`down`、`left`、`right`、`home`、`end`、`page-up`、
-`page-down`、`ctrl-c`、`ctrl-d`）；除具名 `ctrl-` 变体外不可表达修饰键，任意键序列、
-多 record 原子性、raw hex 与 paste 均不在本契约内。
+`SendRecords` 包含 1–64 个有序 `SendRecord` 值：text、语义 stroke、不透明 bytes 或由 Host 加括号的 paste。文本及可选折叠 CR 合计不超过 4,096 字节；不透明 bytes 不超过 1 MiB，paste 内容不超过 256 KiB。序列解码内容合计不超过 1 MiB；按键不贡献解码字节。全部按键都使用 `SendKeyStroke`，包括 Control 修饰的字符。具名身份为 1–13；Insert、F1..F25、非控制 Unicode 标量及 Control/Alt/Shift/Super 修饰键使用相同 stroke 编码。[原生发送契约](../../schemas/client-server/README.zh-CN.md#当前原生契约) 拥有规范二进制布局。序列不具备原子性。
 
-每个 `TerminalSendOutcome` 变体都携带正交的 `cleanup` 轴：`accepted`/`rejected`/
-`unavailable`/`outcome-unknown` 各自与 `not-needed`、`confirmed`、`unconfirmed` 的附件清理
-状态配对。两种配对不可能出自 Attach → input → Detach 序列，构造期与两侧 codec 边界
-都拒绝：`accepted` + `not-needed`（已接受的 input 意味着真实附件）与
-`outcome-unknown` + `confirmed`（confirmed 释放意味着已完成的交换）。`accepted` 回显
-`acceptedBytes`——Host 编码后入队字节数（`SendAcceptedBytes`，0 至 `Self::MAXIMUM`）；
-零合法，因为终端模式可能忽略某语义键。Accepted 仅表示 Host 已将该 record 接入 input
-队列——绝不表示子进程读过、执行过或已完成。拒绝与不可用原因是闭集；
-`outcome-unknown` 表示 record 可能已落地，绝不自动重试。
+每个 `TerminalSendOutcome` 都携带已确认前缀 `progress` 及正交的 `cleanup`。已接受记录数不超过首个停止索引；accepted 输入要求非零且相等的数量／索引，cleanup 不能为 not-needed。任何非零前缀都排除 not-needed 清理；unknown 输入排除 confirmed 清理。`acceptedEncodedBytes` 汇总 Host 编码后入队的字节数（被当前模式忽略的按键可以为零）。接受表示入队，不表示子进程执行。拒绝和不可用原因是闭集；部分或未知结果绝不授权自动重放。
 
 `TerminalSendResult` 另携带 `target`：Server 实际准入本 send 的 `SendTarget` 物理化身
 ——worker generation、Host epoch 与 Host 终端身份。`target` 字段在 wire 形态中始终存在
@@ -248,14 +232,14 @@ cohort 一起 rollback，且不涉及 persisted state 或 migration。
 ## 原生启动环境扩展
 
 原生 OBCS binding 为 `terminal.create` 接受可选 `environment`，编码为有序的
-`[name, value]` 对。环境为空时省略该成员，保持旧编码。
+`[name, value]` 对。环境为空时省略该可选成员。
 `LaunchEnvironment` 在构造和 JSON 解码时校验：至多 32 对，名称和值合计不超过 1,024
 UTF-8 字节，名称为 1..128 字节的 ASCII 标识符，不含 NUL，不允许忽略大小写后重复，
 且不能使用 `ORCHBEE_*`、`TERM`、`COLORTERM` 或 `TERM_PROGRAM`。空值和内嵌
 `=` 逐字保留。Debug 不输出值。含本覆盖的完整请求参与请求身份判断；Server 将其转换为
 独立的 OBCN 类型。
 
-v1 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部六类 OBSN input record（含语义 stroke）。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
+v1 schema/corpus 覆盖 launch selection、environment、profile provenance、send sequence progress 及全部四类 OBSN input record（含语义 stroke）。Conformance 验证独立编写的 canonical bytes 与 negative case。这证明原生 OBCS 一致性，不代表 Desktop 或 Workbench schema 对齐。
 
 原生 v1 帧在分配前限制为 63 KiB。组合最大转义 cwd、executable/argv 与环境的测试覆盖请求预算；旧 32 KiB 上限无法容纳该合法组合。
 
@@ -275,4 +259,4 @@ v1 schema/corpus 覆盖 launch selection、environment、profile provenance、se
 
 ## 插件终端展示环境
 
-显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。

@@ -44,7 +44,7 @@ configuration mutation 与 persistence、terminal output、IPC 或 Worker 行为
 
 ## 应用屏幕控制
 
-独立 Rust `ScreenControl` binding 镜像种类 74–76：ClearTerminal、ResetTerminal 和 TerminalControlAccepted。Clear 接受可选布尔值 `preservePrompt`；省略时保留屏幕擦除／光标归位语义。Reset 不接受此字段。确认代次为正数，修订保留通用规范 u64 线域；保留提示行的操作消费者另行要求已推进的正数修订。[Host 运行时](../../apps/terminal-host/docs/runtime-model.zh-CN.md#保留提示行的清空) 拥有语义；[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有临时输入权限、预算和不确定性。需要匹配的开发 cohort。
+独立 Rust `ScreenControl` binding 镜像种类 74–76：ClearTerminal、ResetTerminal 和 TerminalControlAccepted。Clear 要求必填布尔值 `preservePrompt`；false 选择屏幕擦除／光标归位语义。Reset 不接受此字段。确认代次为正数，修订保留通用规范 u64 线域；保留提示行的操作消费者另行要求已推进的正数修订。[Host 运行时](../../apps/terminal-host/docs/runtime-model.zh-CN.md#保留提示行的清空) 拥有语义；[原生清空](../../apps/orchbee/docs/native-cli-query.zh-CN.md#清空终端输出) 拥有临时输入权限、预算和不确定性。需要匹配的开发 cohort。
 
 ## Rust 文本帧 binding
 

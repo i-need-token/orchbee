@@ -4,7 +4,7 @@ On Windows, absolute `.cmd`/`.bat` selections use the system directory’s `cmd.
 
 ## Prompt-preserving clear
 
-An optional `preservePrompt: true` on `ClearTerminal` preserves the complete soft-wrapped cursor line on the primary screen, erases earlier history and other output, clears selection/images and restores the active viewport. Alternate screens fail with `terminal-clear-alternate-screen` before mutation. Legacy omission retains erase/home semantics; ResetTerminal never accepts this field. The same runtime lock owns mutation and one generation/revision advance, preserving modes and metadata. Input-capable attachment authorization is required; no resize lease or synthetic child bytes are used.
+The required Boolean `preservePrompt` on `ClearTerminal` selects the operation. `preservePrompt: true` preserves the complete soft-wrapped cursor line on the primary screen, erases earlier history and other output, clears selection/images and restores the active viewport. Alternate screens fail with `terminal-clear-alternate-screen` before mutation. Explicit false selects erase/home semantics; ResetTerminal never accepts this field. The same runtime lock owns mutation and one generation/revision advance, preserving modes and metadata. Input-capable attachment authorization is required; no resize lease or synthetic child bytes are used.
 
 ## Scrollback editor capture
 

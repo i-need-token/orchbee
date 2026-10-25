@@ -21,7 +21,7 @@ pub(crate) fn execute(
     let fenced = request.worker_id.as_bytes() != worker_id.as_bytes()
         || request.worker_generation.get() != generation.get();
     let (job_id, outcome) = match request.action {
-        WorktreeJobAction::StartSource {
+        WorktreeJobAction::Start {
             directory,
             trust_repository,
         } => {
@@ -29,17 +29,25 @@ pub(crate) fn execute(
             let outcome = if fenced {
                 WorktreeJobStartOutcome::RejectedFencing
             } else {
-                #[cfg(windows)]
-                {
-                    match directory_path(&directory) {
-                        Some(path) => map_start(slot.start_source(job_id, path, trust_repository)),
+                match trust_repository {
+                    None => match directory_path(&directory) {
+                        Some(path) => map_start(slot.start(job_id, path)),
                         None => WorktreeJobStartOutcome::InvalidDirectory,
+                    },
+                    Some(trust) => {
+                        #[cfg(windows)]
+                        {
+                            match directory_path(&directory) {
+                                Some(path) => map_start(slot.start_source(job_id, path, trust)),
+                                None => WorktreeJobStartOutcome::InvalidDirectory,
+                            }
+                        }
+                        #[cfg(not(windows))]
+                        {
+                            let _ = trust;
+                            WorktreeJobStartOutcome::Unsupported
+                        }
                     }
-                }
-                #[cfg(not(windows))]
-                {
-                    let _ = (directory, trust_repository);
-                    WorktreeJobStartOutcome::Unsupported
                 }
             };
             (job_id, WorktreeJobOutcome::Start(outcome))
@@ -63,18 +71,6 @@ pub(crate) fn execute(
                 }
             };
             (job_id, WorktreeJobOutcome::Start(outcome))
-        }
-        WorktreeJobAction::Start { directory } => {
-            let job_id = JobId(request.operation_id.as_bytes());
-            let outcome = if fenced {
-                WorktreeJobOutcome::Start(WorktreeJobStartOutcome::RejectedFencing)
-            } else {
-                WorktreeJobOutcome::Start(match directory_path(&directory) {
-                    Some(path) => map_start(slot.start(job_id, path)),
-                    None => WorktreeJobStartOutcome::InvalidDirectory,
-                })
-            };
-            (job_id, outcome)
         }
         WorktreeJobAction::Poll { job_id } => {
             let job_id = JobId(job_id.as_bytes());

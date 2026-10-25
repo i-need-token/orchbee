@@ -252,7 +252,7 @@ describe('control schemas', () => {
 	it('scopes clear and reset to one attachment and acknowledges the exact operation', () => {
 		const attachmentId = '11'.repeat(16);
 		const terminalId = '22'.repeat(16);
-		expect(ClearTerminalSchema.parse({ attachmentId })).toEqual({ attachmentId });
+		expect(ClearTerminalSchema.safeParse({ attachmentId }).success).toBe(false);
 		expect(ResetTerminalSchema.parse({ attachmentId })).toEqual({ attachmentId });
 		expect(
 			TerminalControlAcceptedSchema.parse({
@@ -274,7 +274,7 @@ describe('control schemas', () => {
 			}).success,
 		).toBe(false);
 	});
-	it('admits an optional prompt-preserving clear without widening reset or coercing fields', () => {
+	it('requires an explicit prompt policy without widening reset or coercing fields', () => {
 		const attachmentId = '11'.repeat(16);
 		for (const preservePrompt of [true, false]) {
 			expect(ClearTerminalSchema.parse({ attachmentId, preservePrompt })).toEqual({

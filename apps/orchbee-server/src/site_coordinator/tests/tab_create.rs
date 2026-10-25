@@ -1561,5 +1561,5 @@ fn per_launch_cwd_overrides_workspace_without_changing_placement_or_directory() 
         panic!("launch");
     };
     assert_eq!(launch.cwd().unwrap().as_str(), "/tmp/workspace");
-    assert!(launch.environment().is_empty());
+    assert!(launch.environment().entries().is_empty());
 }

@@ -44,9 +44,8 @@ fn editor_source() -> TerminalEditorSource {
 }
 
 #[test]
-fn editor_source_extension_preserves_all_fences_and_omitted_legacy_bytes() {
+fn editor_source_kind_preserves_all_fences() {
     let base = editor_launch();
-    let plain = encode_message(&Message::AuthorizedTerminalLaunch(base.clone())).unwrap();
     for revision in [0, u64::MAX] {
         let source = TerminalEditorSource {
             revision,
@@ -56,19 +55,12 @@ fn editor_source_extension_preserves_all_fences_and_omitted_legacy_bytes() {
         let message = Message::AuthorizedTerminalLaunch(launch.clone());
         let frame = encode_message(&message).unwrap();
         assert_eq!(decode_message(&frame).unwrap(), message);
-        assert_eq!(
-            encode_message(&Message::AuthorizedTerminalLaunch(
-                launch.with_editor_source(None).unwrap()
-            ))
-            .unwrap(),
-            plain
-        );
         assert_eq!(&frame[frame.len() - 8..], &revision.to_be_bytes());
     }
 }
 
 #[test]
-fn editor_source_extension_refuses_invalid_tail_identity_geometry_and_ambiguous_launch() {
+fn editor_source_kind_refuses_invalid_tail_identity_geometry_and_ambiguous_launch() {
     use crate::*;
     let source = editor_source();
     let base = editor_launch();
@@ -103,7 +95,7 @@ fn editor_source_extension_refuses_invalid_tail_identity_geometry_and_ambiguous_
     immediate[6..8].copy_from_slice(&len.to_be_bytes());
     assert!(decode_message(&immediate).is_err());
     let mut unknown = frame.clone();
-    unknown[104] = 5;
+    unknown[102] = 5;
     assert!(decode_message(&unknown).is_err());
     let no_program = AuthorizedTerminalLaunch::new(
         base.authorization(),

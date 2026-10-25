@@ -155,9 +155,9 @@ impl Fixture {
     }
     fn reply(&mut self, request: &WorktreeJobRequest, outcome: WorktreeJobOutcome) {
         let job_id = match request.action {
-            WorktreeJobAction::Start { .. }
-            | WorktreeJobAction::StartSource { .. }
-            | WorktreeJobAction::StartStatus { .. } => request.operation_id,
+            WorktreeJobAction::Start { .. } | WorktreeJobAction::StartStatus { .. } => {
+                request.operation_id
+            }
             WorktreeJobAction::Poll { job_id } | WorktreeJobAction::Cancel { job_id } => job_id,
         };
         write_message(
@@ -174,9 +174,9 @@ impl Fixture {
         let request = self.receive();
         assert_eq!(
             request.action,
-            WorktreeJobAction::StartSource {
+            WorktreeJobAction::Start {
                 directory: path.as_bytes().to_vec(),
-                trust_repository: true
+                trust_repository: Some(true)
             }
         );
         // The read may wait for IPC only after both gates have been released.
@@ -487,7 +487,8 @@ fn committed_directory_list_shares_discovery_ownership_with_query_and_status() {
     assert_eq!(
         start.action,
         WorktreeJobAction::Start {
-            directory: b"C:/w".to_vec()
+            directory: b"C:/w".to_vec(),
+            trust_repository: None,
         }
     );
     fixture.reply(
@@ -611,7 +612,10 @@ fn query_deadline_cancels_the_exact_admitted_job_and_only_definite_busy_starts_r
         let start = fixture.receive();
         assert!(matches!(
             start.action,
-            WorktreeJobAction::StartSource { .. }
+            WorktreeJobAction::Start {
+                trust_repository: Some(true),
+                ..
+            }
         ));
         let stalled = if stall_start {
             start.clone()
@@ -653,7 +657,10 @@ fn query_deadline_cancels_the_exact_admitted_job_and_only_definite_busy_starts_r
             let retry = fixture.receive();
             assert!(matches!(
                 retry.action,
-                WorktreeJobAction::StartSource { .. }
+                WorktreeJobAction::Start {
+                    trust_repository: Some(true),
+                    ..
+                }
             ));
             assert_ne!(retry.operation_id, last_id);
             assert_ne!(retry.operation_id, start.operation_id);

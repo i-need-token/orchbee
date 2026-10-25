@@ -19,7 +19,7 @@ pub(super) fn parse(value: &str) -> Option<SendKeyStroke> {
             _ => 0,
         };
         if flag != 0 {
-            if modifiers & flag != 0 {
+            if base.is_some() || modifiers & flag != 0 {
                 return None;
             }
             modifiers |= flag;
@@ -58,7 +58,13 @@ pub(super) fn parse(value: &str) -> Option<SendKeyStroke> {
         "ampersand" => SendStrokeKey::Character('&'),
         "backtick" => SendStrokeKey::Character('`'),
         _ if base.chars().count() == 1 => SendStrokeKey::Character(base.chars().next()?),
-        _ => SendStrokeKey::Function(base.strip_prefix('f')?.parse().ok()?),
+        _ => {
+            let number: u8 = base.strip_prefix('f')?.parse().ok()?;
+            if base != format!("f{number}") {
+                return None;
+            }
+            SendStrokeKey::Function(number)
+        }
     };
     if let SendStrokeKey::Character(value) = &mut key
         && value.is_ascii_uppercase()

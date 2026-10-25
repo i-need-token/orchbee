@@ -526,7 +526,7 @@ const terminalControlTargetShape = {
 
 export const ClearTerminalSchema = z.strictObject({
 	...terminalControlTargetShape,
-	preservePrompt: z.boolean().optional(),
+	preservePrompt: z.boolean(),
 });
 export const ResetTerminalSchema = z.strictObject(terminalControlTargetShape);
 export const TerminalControlOperationSchema = z.enum(['clear', 'reset']);

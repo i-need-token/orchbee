@@ -770,7 +770,7 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 
 ## Windows 按来源读取 Worktree
 
-`StartSource` 复用发现所有者及物理槽位。准入仅校验驱动器语法。所属任务规范化目录并准备信任，在启动前复查取消／deadline，再观察 Git 公共目录和检出根，再在同一个五秒 job 预算内列举 porcelain 条目。共享 `git_repository_windows` 清除继承的 `GIT_*` 仓库／配置注入，仅对本命令选定的准确规范仓库应用可选信任；变更也使用相同命令准备。原 Start 字节与行为不变。真实 Git 测试覆盖主／关联检出的子目录、不改动脏文件／配置、准确信任范围及所有者关闭。参见[来源查询契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
+带有 `trust_repository` 的 `Start` 复用发现所有者及物理槽位。准入仅校验驱动器语法。所属任务规范化目录并准备信任，在启动前复查取消／deadline，再观察 Git 公共目录和检出根，再在同一个五秒 job 预算内列举 porcelain 条目。共享 `git_repository_windows` 清除继承的 `GIT_*` 仓库／配置注入，仅对本命令选定的准确规范仓库应用可选信任；变更也使用相同命令准备。缺省信任策略选择注册目录列表。真实 Git 测试覆盖主／关联检出的子目录、不改动脏文件／配置、准确信任范围及所有者关闭。参见[来源查询契约](../orchbee/docs/windows-worktrees.zh-CN.md#按来源发现-worktree)。
 
 ## Windows 交互式 PowerShell 目录模型
 
@@ -823,7 +823,7 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 
 ## 插件终端启动环境
 
-显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
 
 ## Windows 物理标题投影
 

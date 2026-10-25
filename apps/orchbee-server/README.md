@@ -790,7 +790,7 @@ cancel admission is not confirmed physical cleanup.
 
 `local_terminal_service::worktree_list::DiscoveryGate` coordinates all three
 read-only starts: committed Directory lists (`Start`), Workspace/literal-directory
-queries (`StartSource`) and sidebar Git observations (`StartStatus`). The Worker
+queries (`Start` with `trust_repository`) and sidebar Git observations (`StartStatus`). The Worker
 still owns one physical discovery job and one retained receipt. A new accepted
 start replaces that receipt, so Server admission covers the entire job lifetime,
 including intervals between polls and terminal-result consumption.

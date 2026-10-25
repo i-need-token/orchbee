@@ -245,8 +245,8 @@ use orchbee_workbench_protocol::{
 use super::{
     AgentTarget, CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
     MutationCommand, OutputFormat, PanelMoveDestination, ParseFailure, ParseFailureKind,
-    ParsedSendKey, QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput,
-    TerminalSendKey, UsageContext, UsageReason, WaitPattern, parse_request,
+    QueryCommand, Request, Resource, TabContext, Target, TerminalSendInput, UsageContext,
+    UsageReason, WaitPattern, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -4739,25 +4739,35 @@ fn terminal_send_grammar() {
     );
     // Every admitted key name resolves to its semantic key.
     for (name, key) in [
-        ("enter", TerminalSendKey::Enter),
-        ("escape", TerminalSendKey::Escape),
-        ("tab", TerminalSendKey::Tab),
-        ("backspace", TerminalSendKey::Backspace),
-        ("delete", TerminalSendKey::Delete),
-        ("up", TerminalSendKey::Up),
-        ("down", TerminalSendKey::Down),
-        ("left", TerminalSendKey::Left),
-        ("right", TerminalSendKey::Right),
-        ("home", TerminalSendKey::Home),
-        ("end", TerminalSendKey::End),
-        ("page-up", TerminalSendKey::PageUp),
-        ("page-down", TerminalSendKey::PageDown),
-        ("ctrl-c", TerminalSendKey::CtrlC),
-        ("ctrl-d", TerminalSendKey::CtrlD),
+        ("enter", orchbee_client_server_protocol::SendKey::Enter),
+        ("escape", orchbee_client_server_protocol::SendKey::Escape),
+        ("tab", orchbee_client_server_protocol::SendKey::Tab),
+        (
+            "backspace",
+            orchbee_client_server_protocol::SendKey::Backspace,
+        ),
+        ("delete", orchbee_client_server_protocol::SendKey::Delete),
+        ("up", orchbee_client_server_protocol::SendKey::Up),
+        ("down", orchbee_client_server_protocol::SendKey::Down),
+        ("left", orchbee_client_server_protocol::SendKey::Left),
+        ("right", orchbee_client_server_protocol::SendKey::Right),
+        ("home", orchbee_client_server_protocol::SendKey::Home),
+        ("end", orchbee_client_server_protocol::SendKey::End),
+        ("page-up", orchbee_client_server_protocol::SendKey::PageUp),
+        (
+            "page-down",
+            orchbee_client_server_protocol::SendKey::PageDown,
+        ),
     ] {
         assert_eq!(
             parse(&["terminal", "send", ID, "--key", name]),
-            Ok(send(TerminalSendInput::Keys(vec![ParsedSendKey::Key(key)]))),
+            Ok(send(TerminalSendInput::Keys(vec![
+                orchbee_client_server_protocol::SendKeyStroke::new(
+                    orchbee_client_server_protocol::SendStrokeKey::Named(key),
+                    0
+                )
+                .unwrap()
+            ]))),
             "{name}"
         );
     }

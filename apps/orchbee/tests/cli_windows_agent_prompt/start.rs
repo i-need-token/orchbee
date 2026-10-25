@@ -83,9 +83,7 @@ fn input(stream: &mut LocalStream, outcome: TerminalSendOutcome) {
     );
     assert!(matches!(
         records[1],
-        SendRecord::Key {
-            key: SendKey::Enter
-        }
+        SendRecord::Stroke(stroke) if stroke.key() == orchbee_client_server_protocol::SendStrokeKey::Named(SendKey::Enter) && stroke.modifiers() == 0
     ));
     write_server_message(
         stream,

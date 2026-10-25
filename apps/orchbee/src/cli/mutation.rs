@@ -2460,8 +2460,6 @@ mod linux {
             }
             WorkbenchRejectionReason::PanelUnavailable => "panel-unavailable",
             WorkbenchRejectionReason::SplitUnavailable => "split-unavailable",
-            WorkbenchRejectionReason::PanelNotLeaf => "panel-not-leaf",
-            WorkbenchRejectionReason::LastPanelInTab => "last-panel-in-tab",
             WorkbenchRejectionReason::SameTab => "same-tab",
             WorkbenchRejectionReason::ResourceLimit => "resource-limit",
             WorkbenchRejectionReason::IdentityExhausted => "identity-exhausted",

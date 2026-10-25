@@ -362,19 +362,17 @@ test "selection command decoder accepts one explicit range shape" {
     try std.testing.expect(decoded.value.command.set_range.rectangle);
 }
 
-test "prompt-preserving clear is optional and strictly separated from reset" {
+test "prompt-preserving clear is required and strictly separated from reset" {
     const allocator = std.testing.allocator;
     for ([_][]const u8{
         "{\"attachmentId\":\"11111111111111111111111111111111\",\"preservePrompt\":true}",
         "{\"attachmentId\":\"11111111111111111111111111111111\",\"preservePrompt\":false}",
-        "{\"attachmentId\":\"11111111111111111111111111111111\"}",
     }, 0..) |payload, index| {
         var decoded = try subject.decodeClearTerminal(allocator, payload);
         defer decoded.deinit();
         try std.testing.expectEqual(index == 0, decoded.value.preserve_prompt);
-        if (index < 2) {
-            try std.testing.expectError(error.InvalidField, subject.decodeTerminalControl(allocator, payload));
-        }
+        try std.testing.expectError(error.InvalidField, subject.decodeTerminalControl(allocator, payload));
     }
     try std.testing.expectError(error.InvalidField, subject.decodeClearTerminal(allocator, "{\"attachmentId\":\"11111111111111111111111111111111\",\"preservePrompt\":\"true\"}"));
+    try std.testing.expectError(error.InvalidField, subject.decodeClearTerminal(allocator, "{\"attachmentId\":\"11111111111111111111111111111111\"}"));
 }

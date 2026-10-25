@@ -1305,7 +1305,7 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         defer decoded.deinit();
     }
     {
-        var decoded = try control_decode.decodeTerminalControl(allocator, commands.clear_terminal);
+        var decoded = try control_decode.decodeClearTerminal(allocator, commands.clear_terminal);
         defer decoded.deinit();
     }
     {

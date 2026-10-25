@@ -1,5 +1,5 @@
 //! A validated programmatic key becomes one Host-owned semantic press.
-use orchbee_capability_node_protocol::{SendKeyStroke, SendStrokeKey};
+use orchbee_capability_node_protocol::{SendKey, SendKeyStroke, SendStrokeKey};
 use orchbee_terminal_protocol::{
     AttachmentId, KeyAction, KeyInput, ProtocolError, TerminalKeyCode, TerminalModifiers,
 };
@@ -19,7 +19,7 @@ pub(super) fn input(
         ..TerminalModifiers::default()
     };
     let (code, text, unshifted_codepoint) = match stroke.key() {
-        SendStrokeKey::Named(key) => (super::key_fields(key).0.to_owned(), String::new(), 0),
+        SendStrokeKey::Named(key) => (named_code(key).to_owned(), String::new(), 0),
         SendStrokeKey::Insert => ("Insert".to_owned(), String::new(), 0),
         SendStrokeKey::Function(number) => (format!("F{number}"), String::new(), 0),
         SendStrokeKey::Character(value) => {
@@ -46,6 +46,24 @@ pub(super) fn input(
         text,
         unshifted_codepoint,
     })
+}
+
+fn named_code(key: SendKey) -> &'static str {
+    match key {
+        SendKey::Enter => "Enter",
+        SendKey::Escape => "Escape",
+        SendKey::Tab => "Tab",
+        SendKey::Backspace => "Backspace",
+        SendKey::Delete => "Delete",
+        SendKey::Up => "ArrowUp",
+        SendKey::Down => "ArrowDown",
+        SendKey::Left => "ArrowLeft",
+        SendKey::Right => "ArrowRight",
+        SendKey::Home => "Home",
+        SendKey::End => "End",
+        SendKey::PageUp => "PageUp",
+        SendKey::PageDown => "PageDown",
+    }
 }
 
 fn character_code(value: char) -> String {

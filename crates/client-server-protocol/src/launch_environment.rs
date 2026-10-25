@@ -63,7 +63,7 @@ impl LaunchEnvironment {
         &self.0
     }
 
-    /// Whether legacy launch encoding and inherited/default environment suffice.
+    /// Whether the caller supplied no environment entries.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()

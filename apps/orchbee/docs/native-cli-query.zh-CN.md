@@ -108,7 +108,7 @@ Windows `terminal clear <terminal>` 在已有 Session 中清空一个精确绑�
 Worker 使用该 viewer 的精确 Host 目标，附加仅输入权限且不申请尺寸租约，
 提交一次带 `preservePrompt: true` 的 Host `ClearTerminal`，验证 attachment/terminal
 以及正数代次／修订确认，再分离。已有控制权和终端尺寸不变。
-省略 `preservePrompt` 时，旧 Host 清屏操作保留默认行为。
+每个 ClearTerminal 请求都包含 `preservePrompt`；显式 false 选择屏幕擦除／光标归位。
 
 CLI 发现和提交共用一个可取消的五秒预算。Host 操作使用三秒效果预算和独立的一秒清理预算。
 提交前失败不会清空内容；提交后确认丢失或畸形则结果未知，绝不重放。
@@ -2449,9 +2449,9 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 
 ## 程序化语义按键
 
-`terminal send --key` 与 `agent send-keys` 共用解析器。除既有具名键外，接受无修饰的 Space、Insert、F1..F25、单个非控制 Unicode 标量、标点名称（`plus`、`semicolon` 等），以及 Control、Alt、Shift、Super 组合。别名包括 `control`、`option`、`cmd`、`command`、`return`、`esc`、`bs` 和 `C-c`。键名和修饰键名不区分大小写；ASCII 大写字符隐含 Shift。重复修饰键、多个基键、空分段和不支持的功能键编号在准入前报用法错误。字面 `+` 表示一个键；组合中用 `plus`。Shell 元字符请加引号。
+`terminal send --key` 与 `agent send-keys` 共用解析器。具名键和修饰键采用规范小写拼写：`enter`、`escape`、`tab`、`backspace`、`delete`、`up`、`down`、`left`、`right`、`home`、`end`、`page-up`、`page-down`、`insert`、`space`、`f1`..`f25`，以及放在基键前的 `ctrl+`、`alt+`、`shift+`、`super+`。接受单个非控制 Unicode 标量及标点名称（`plus`、`minus`、`comma`、`period`、`slash`、`backslash`、`quote`、`double-quote`、`semicolon`、`colon`、`percent`、`ampersand`、`backtick`）；ASCII 大写字符隐含 Shift。加号键使用 `plus`，Shell 元字符须加引号。重复修饰键、多个基键、空分段、替代名称、带前导零的功能键编号及基键后的修饰键都在准入前报用法错误。Control 字母按键使用 `ctrl+c` 和 `ctrl+d`。
 
-旧拼写保留既有 wire 记录，扩展拼写通过两段原生协议的已校验 stroke 记录传递。Worker 提供物理身份、逻辑文本、未修饰标量和修饰键；Shift 生成的可打印文本消费文本生成的 Shift，同时为协商后的完整按键报告保留该修饰键。Host 按当前终端模式编码，旧模式的 Super 字符组合保留为 CSI-u。既有可打印组合也携带文本，避免仅 Shift 的字母和 Space 消失。序列顺序、最多 64 键、共享期限、仅输入附件、前缀回执，以及部分或未知结果不重放均不变。子进程未启用相应键盘协议时，新增功能键可能被当前模式忽略；回执保留实际编码字节数。
+全部语义按键都通过两段原生协议中的唯一已校验 stroke 记录传递。Worker 提供物理身份、逻辑文本、未修饰标量及修饰键；Shift 生成的可打印文本消费文本生成的 Shift，同时为协商后的完整按键报告保留该修饰键。Host 按当前终端模式编码，包括传统终端键盘模式中 Super 字符组合的 CSI-u。序列顺序、最多 64 键、共享期限、仅输入附件、前缀回执及部分或未知结果不重放均不变。子进程未启用相应键盘协议时，功能键可能被当前模式忽略；回执保留实际编码字节数。
 
 同作者回归覆盖解析拒绝、独立 wire golden、非法标量与标志边界、混合记录边界、Worker 语义投影及 Host 旧模式/Kitty 编码。针对性验证不替代最终 Windows cohort 验收或全目标回归。
 

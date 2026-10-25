@@ -142,9 +142,9 @@ fn canonical_refresh_rejects_a_surviving_tab_that_keeps_no_member() {
     let current = project_native_standalone_tabs(&two_tab_split_snapshot(10)).unwrap();
 
     // Tab 1's identity survives but both original members left: `right` moved
-    // into Tab 2 and `left` was replaced by a fresh leaf. The authority never
-    // mints this — `last-panel-in-tab` keeps one member behind — so the
-    // consumer treats a surviving-but-empty Tab identity as divergence.
+    // into Tab 2 and `left` was replaced by a fresh leaf. The consumer cannot
+    // establish member continuity for this surviving Tab identity and treats
+    // the refresh as divergence.
     let mut candidate_snapshot = two_tab_split_snapshot(11);
     candidate_snapshot.terminal_contexts[0].tabs[0].root = panel(60, 61, 62, 63, "new");
     candidate_snapshot.terminal_contexts[0].tabs[1].root = grafted_destination(false);

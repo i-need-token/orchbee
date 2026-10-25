@@ -30,20 +30,9 @@ fn environment() -> PluginTerminalEnvironment {
     .unwrap()
 }
 #[test]
-fn plugin_terminal_extension_is_distinct_bounded_and_keeps_legacy_launch_bytes() {
+fn plugin_terminal_kind_is_distinct_and_bounded() {
     let selection = LaunchSelection::new("C:/plugin.exe".into(), vec!["a&b".into()]).unwrap();
     let plain = launch(Some(selection.clone()));
-    let legacy = encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-        plain.clone(),
-    ))
-    .unwrap();
-    assert_eq!(
-        legacy,
-        encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-            plain.clone().with_plugin_environment(None).unwrap()
-        ))
-        .unwrap()
-    );
     assert!(
         launch(None)
             .with_plugin_environment(Some(environment()))
@@ -62,13 +51,14 @@ fn plugin_terminal_extension_is_distinct_bounded_and_keeps_legacy_launch_bytes()
             .unwrap(),
     );
     let encoded = encode_message(&message).unwrap();
-    assert_eq!(&encoded[empty.len()..empty.len() + 3], &[0, 0, 3]);
+    let start = empty.len() - 3;
+    assert_eq!(encoded[start], 3);
     assert_eq!(decode_message(&encoded).unwrap(), message);
     for end in [8, empty.len(), encoded.len() - 1] {
         assert!(decode_message(&encoded[..end]).is_err());
     }
     let mut bad = encoded.clone();
-    bad[empty.len() + 2] = 9;
+    bad[start] = 9;
     assert!(decode_message(&bad).is_err());
     let at = encoded
         .windows(b"ORCHBEE_PLUGIN_ID".len())

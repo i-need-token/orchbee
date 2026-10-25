@@ -1113,7 +1113,7 @@ pub(crate) enum TabContext {
 }
 
 /// The `terminal send` payload the grammar admits: literal UTF-8 text, an
-/// ordered repeatable key/combo sequence, or a declared local source
+/// ordered repeatable semantic key sequence, or a declared local source
 /// materialized once into one bounded record. The parser stores the
 /// validated choice so the executor never re-reads argv.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1123,7 +1123,7 @@ pub(crate) enum TerminalSendInput {
     Text { text: String, enter: bool },
     /// The ordered `--key` sequence — every element is a named semantic key
     /// or an explicit modifier combination, in argv order.
-    Keys(Vec<ParsedSendKey>),
+    Keys(Vec<orchbee_client_server_protocol::SendKeyStroke>),
     /// A declared regular file read once into one bounded record. `enter`
     /// folds one trailing CR; `paste` selects the Host-bracketed paste
     /// record instead of a literal write.
@@ -1146,156 +1146,9 @@ pub(crate) enum TerminalSendInput {
     Paste { content: Vec<u8>, enter: bool },
 }
 
-/// One `--key` argument's parsed value: a named semantic key or an explicit
-/// `ctrl`/`alt`/`shift` combination over the closed base vocabulary.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ParsedSendKey {
-    Key(TerminalSendKey),
-    Combo(TerminalSendCombo),
-    Stroke(orchbee_client_server_protocol::SendKeyStroke),
-}
-
-/// An explicit modifier combination: at least one modifier beside the base
-/// key — a modifier-only or bare-base value is rejected by the grammar.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct TerminalSendCombo {
-    pub(crate) control: bool,
-    pub(crate) alt: bool,
-    pub(crate) shift: bool,
-    pub(crate) base: TerminalComboBase,
-}
-
-/// The closed combo base vocabulary: every named semantic key except the
-/// already-modified `ctrl-c`/`ctrl-d`, plus `insert`, `f1` through `f12`,
-/// `space`, and single ASCII letters and digits under their physical
-/// `KeyX`/`DigitN` identities.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TerminalComboBase {
-    Key(TerminalSendKey),
-    Insert,
-    Function(u8),
-    Space,
-    Letter(u8),
-    Digit(u8),
-}
-
-/// The closed `terminal send --key` vocabulary. `CtrlC`/`CtrlD` carry the
-/// Control modifier on their letter; every other key is modifier-neutral.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TerminalSendKey {
-    Enter,
-    Escape,
-    Tab,
-    Backspace,
-    Delete,
-    Up,
-    Down,
-    Left,
-    Right,
-    Home,
-    End,
-    PageUp,
-    PageDown,
-    CtrlC,
-    CtrlD,
-}
-
-impl TerminalSendKey {
-    fn parse(name: &str) -> Option<Self> {
-        Some(match name {
-            "enter" => Self::Enter,
-            "escape" => Self::Escape,
-            "tab" => Self::Tab,
-            "backspace" => Self::Backspace,
-            "delete" => Self::Delete,
-            "up" => Self::Up,
-            "down" => Self::Down,
-            "left" => Self::Left,
-            "right" => Self::Right,
-            "home" => Self::Home,
-            "end" => Self::End,
-            "page-up" => Self::PageUp,
-            "page-down" => Self::PageDown,
-            "ctrl-c" => Self::CtrlC,
-            "ctrl-d" => Self::CtrlD,
-            _ => return None,
-        })
-    }
-}
-
-/// Keep legacy record encodings stable, then admit the extended semantic
-/// vocabulary. Both paths validate the complete key before runtime effects.
-fn parse_send_key(value: &str) -> Option<ParsedSendKey> {
-    parse_legacy_send_key(value).or_else(|| send_key::parse(value).map(ParsedSendKey::Stroke))
-}
-
-fn parse_legacy_send_key(value: &str) -> Option<ParsedSendKey> {
-    if !value.contains('+') {
-        return TerminalSendKey::parse(value).map(ParsedSendKey::Key);
-    }
-    let mut control = false;
-    let mut alt = false;
-    let mut shift = false;
-    let mut parts = value.split('+').peekable();
-    loop {
-        let part = parts.next()?;
-        if part.is_empty() {
-            return None;
-        }
-        if parts.peek().is_none() {
-            let base = combo_base(part)?;
-            if !(control || alt || shift) {
-                return None;
-            }
-            return Some(ParsedSendKey::Combo(TerminalSendCombo {
-                control,
-                alt,
-                shift,
-                base,
-            }));
-        }
-        let slot = match part {
-            "ctrl" => &mut control,
-            "alt" => &mut alt,
-            "shift" => &mut shift,
-            _ => return None,
-        };
-        if *slot {
-            return None;
-        }
-        *slot = true;
-    }
-}
-
-/// The combo base spelling: the named-key vocabulary minus the
-/// already-modified pair, then the physical-code names.
-fn combo_base(part: &str) -> Option<TerminalComboBase> {
-    if let Some(key) = TerminalSendKey::parse(part) {
-        return match key {
-            TerminalSendKey::CtrlC | TerminalSendKey::CtrlD => None,
-            key => Some(TerminalComboBase::Key(key)),
-        };
-    }
-    if let Some(number) = part
-        .strip_prefix('f')
-        .and_then(|suffix| suffix.parse::<u8>().ok())
-        && (1..=12).contains(&number)
-        && part.len() == if number < 10 { 2 } else { 3 }
-    {
-        return Some(TerminalComboBase::Function(number));
-    }
-    Some(match part {
-        "insert" => TerminalComboBase::Insert,
-        "space" => TerminalComboBase::Space,
-        _ => {
-            let bytes = part.as_bytes();
-            match bytes {
-                [letter @ b'a'..=b'z'] => TerminalComboBase::Letter(*letter),
-                [digit @ b'0'..=b'9'] => TerminalComboBase::Digit(*digit),
-                _ => return None,
-            }
-        }
-    })
+/// Validate one semantic press before any runtime effects.
+fn parse_send_key(value: &str) -> Option<orchbee_client_server_protocol::SendKeyStroke> {
+    send_key::parse(value)
 }
 
 /// One effectful command admitted by the grammar. Every field is a
@@ -1439,7 +1292,7 @@ pub(crate) enum MutationCommand {
     },
     AgentSendKeys {
         target: AgentTarget,
-        keys: Vec<ParsedSendKey>,
+        keys: Vec<orchbee_client_server_protocol::SendKeyStroke>,
     },
     TerminalSend {
         target: Target,
@@ -2263,7 +2116,7 @@ struct Options {
     text: Option<String>,
     enter: bool,
     /// Every `--key` occurrence in argv order: the repeatable value option
-    /// builds the ordered key/combo record sequence.
+    /// builds the ordered stroke record sequence.
     keys: Vec<String>,
     file: Option<String>,
     stdin: bool,

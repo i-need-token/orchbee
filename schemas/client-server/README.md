@@ -389,18 +389,18 @@ Send results replace `acceptedBytes` with `progress`: numeric `recordsAccepted`,
 
 The OBSN header is magic `OBSN`, big-endian u16 encoding version `1`, zero u16 reserved field, and u32 body length. The body is request/Site/Worker/Terminal identities (16 bytes each), u8 count (1–64), then ordered records. Its maximum body length is `64 + 1 + 64 * 7 + 1,048,576` bytes; reject a bad header before allocation. Each record starts with a u8 kind:
 
-| Kind     | Remaining record bytes                                                                                                           |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1 text   | u16 UTF-8 byte length, text, u8 enter (0 or 1); nonempty text plus optional CR <=4,096 bytes                                     |
-| 2 key    | u8 code: enter, escape, tab, backspace, delete, up, down, left, right, home, end, page-up, page-down, ctrl-c, ctrl-d map to 1–15 |
-| 3 combo  | u8 nonzero modifier flags (Control=1, Alt=2, Shift=4), u8 base kind, u8 base value                                               |
-| 4 bytes  | u32 length, nonempty opaque bytes <=1,048,576                                                                                    |
-| 5 paste  | u32 length, nonempty opaque content <=262,144; Host owns bracket encoding                                                        |
-| 6 stroke | u8 modifiers (Control=1, Alt=2, Shift=4, Super=8; zero allowed), u8 key kind, u32 key value                                      |
+| Kind     | Remaining record bytes                                                                       |
+| -------- | -------------------------------------------------------------------------------------------- |
+| 1 text   | u16 UTF-8 byte length, text, u8 enter (0 or 1); nonempty text plus optional CR <=4,096 bytes |
+| 4 bytes  | u32 length, nonempty opaque bytes <=1,048,576                                                |
+| 5 paste  | u32 length, nonempty opaque content <=262,144; Host owns bracket encoding                    |
+| 6 stroke | u8 modifiers (Control=1, Alt=2, Shift=4, Super=8; zero allowed), u8 key kind, u32 key value  |
 
-Stroke identities are named key `(1,1..13)`, Insert `(2,0)`, F1..F25 `(3,1..25)` or one non-control Unicode scalar `(4,codepoint)`. Unknown bits, C0/C1 controls, surrogates and out-of-range values are rejected before dispatch. Legacy record bytes and combo bounds are unchanged. Both native protocol owners use the same field semantics and validate independently; this unpublished extension requires a matched Client/Server/Worker/Host cohort.
+Named-key values 1–13 are `enter`, `escape`, `tab`, `backspace`, `delete`, `up`, `down`, `left`, `right`, `home`, `end`, `page-up` and `page-down`, in that order. Control-letter presses use a character identity with the Control modifier.
 
-Combo bases are named key `(1,1..13)`, Insert `(2,0)`, F1..F12 `(3,1..12)`, Space `(4,0)`, ASCII lowercase letter `(5,97..122)` or digit `(6,48..57)`. Extra flag bits, invalid bases, unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; keys carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The corpus supplies canonical binary bytes, every key and base kind, mixed records and negative controls independently of the Rust encoder.
+Stroke identities are named key `(1,1..13)`, Insert `(2,0)`, F1..F25 `(3,1..25)` or one non-control Unicode scalar `(4,codepoint)`. Unknown bits, C0/C1 controls, surrogates and out-of-range values are rejected before dispatch. Record kinds 2 and 3 are invalid. Both native protocol owners use the same field semantics and validate independently; this unpublished extension requires a matched Client/Server/Worker/Host cohort.
+
+Unknown kinds, truncation and trailing bytes fail closed. Aggregate decoded text (including folded CR), bytes and paste content is at most 1,048,576 bytes; strokes carry no decoded payload. The request is not atomic: its result preserves the confirmed prefix and first stopped record. The corpus supplies canonical binary bytes, every stroke identity, mixed records and negative controls independently of the Rust encoder.
 
 ## Styled buffer reads
 
@@ -421,4 +421,4 @@ Launch selections additionally cap worst-case JSON string-content bytes at 30 Ki
 
 ## Plugin terminal display environment
 
-An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN extension 3 transports the explicit selection, ordinary environment and plugin environment; legacy encodings and the 40 KiB frame limit stay unchanged. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.
+An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN launch kind 3 transports the explicit selection, ordinary environment and plugin environment under the 40 KiB frame limit. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.

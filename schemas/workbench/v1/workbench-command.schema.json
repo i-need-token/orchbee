@@ -1403,8 +1403,6 @@
 				"tab-unavailable",
 				"panel-unavailable",
 				"split-unavailable",
-				"panel-not-leaf",
-				"last-panel-in-tab",
 				"same-tab",
 				"resource-limit",
 				"identity-exhausted",

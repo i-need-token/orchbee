@@ -124,8 +124,7 @@ then allocates an independent transient input attachment identity. The Worker us
 that viewer's exact Host target, attaches input-only without a resize lease, submits
 one Host `ClearTerminal` with `preservePrompt: true`, validates attachment/terminal
 and positive generation/revision acknowledgement, and detaches. Existing controller
-ownership and resize geometry are unchanged. The legacy Host screen-clear operation
-retains its default behavior when `preservePrompt` is omitted.
+ownership and resize geometry are unchanged. Every ClearTerminal request includes `preservePrompt`; explicit false selects screen erase/home.
 
 One cancellable five-second CLI budget covers discovery and submission. Host work
 has a three-second effect budget and a separate one-second cleanup allowance.
@@ -2895,9 +2894,9 @@ Windows `layout export` emits a reusable JSON tree with ratios, manual labels, o
 
 ## Programmatic semantic keys
 
-`terminal send --key` and `agent send-keys` share one parser. Besides existing named keys, accept bare Space, Insert, F1..F25, one non-control Unicode scalar, punctuation names (`plus`, `semicolon`, etc.), and combinations of Control, Alt, Shift and Super. Aliases include `control`, `option`, `cmd`, `command`, `return`, `esc`, `bs`, and `C-c`. Key and modifier names are case insensitive; uppercase ASCII characters imply Shift. Duplicate modifiers, multiple base keys, empty components and unsupported function numbers are usage errors before admission. Literal `+` is a key; use `plus` inside combinations. Quote shell metacharacters.
+`terminal send --key` and `agent send-keys` share one parser. Named keys and modifiers use canonical lowercase spellings: `enter`, `escape`, `tab`, `backspace`, `delete`, `up`, `down`, `left`, `right`, `home`, `end`, `page-up`, `page-down`, `insert`, `space`, `f1`..`f25`, and `ctrl+`, `alt+`, `shift+`, `super+` before the base key. One non-control Unicode scalar and punctuation names (`plus`, `minus`, `comma`, `period`, `slash`, `backslash`, `quote`, `double-quote`, `semicolon`, `colon`, `percent`, `ampersand`, `backtick`) are accepted; ASCII uppercase characters imply Shift. Use `plus` for the plus key and quote shell metacharacters. Duplicate modifiers, multiple base keys, empty components, alternate names, leading-zero function numbers and modifiers after the base are usage errors before admission. Control-letter presses use `ctrl+c` and `ctrl+d`.
 
-Old spellings keep their legacy wire records. Extended forms use validated stroke records through both native protocols. Worker supplies physical identity, logical text, unshifted scalar and modifiers; shifted printable text consumes Shift for text generation while retaining the modifier for negotiated full key reporting. Host encodes the current terminal mode, preserving legacy Super character chords as CSI-u. Legacy printable combinations also carry text, so Shift-only letters and Space no longer disappear. Sequence order, at most 64 keys, shared deadline, input-only attachment, prefix receipts and no replay after partial/unknown outcomes remain unchanged. New function keys may be mode-ignored where the child has not enabled a supporting keyboard protocol; receipts retain the actual encoded-byte count.
+Every semantic key uses one validated stroke record through both native protocols. Worker supplies physical identity, logical text, unshifted scalar and modifiers; shifted printable text consumes Shift for text generation while retaining it for negotiated full key reporting. Host encodes the current terminal mode, including CSI-u for Super character chords in the legacy terminal keyboard mode. Sequence order, at most 64 keys, a shared deadline, input-only attachment, prefix receipts and no replay after partial or unknown outcomes remain unchanged. Function keys may be mode-ignored where the child has not enabled a supporting keyboard protocol; receipts retain the actual encoded-byte count.
 
 The same-author regressions cover parser refusal, independent wire goldens, malformed scalar/flag boundaries, mixed record boundaries, Worker semantic projection and Host legacy/Kitty encoding. Focused verification does not replace final Windows cohort acceptance or full-goal regression.
 

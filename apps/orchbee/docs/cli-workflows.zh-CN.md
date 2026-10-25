@@ -175,7 +175,7 @@ orchbee terminal read "$TERM_ID"                          # 当前可见帧
 orchbee terminal read "$TERM_ID" --history --rows 50      # 保留的回滚历史
 orchbee terminal read "$TERM_ID" --unwrap --lines 20      # 最后 20 个逻辑行
 orchbee terminal wait-output "$TERM_ID" --regex 'build (ok|FAILED)'  # 另一种搜索输入
-orchbee terminal send "$TERM_ID" --key ctrl-c
+orchbee terminal send "$TERM_ID" --key ctrl+c
 printf 'summarize this\n' | orchbee terminal send "$TERM_ID" --stdin --enter
 orchbee terminal send "$TERM_ID" --file prompt.txt --enter
 ```

@@ -2634,7 +2634,7 @@ export class ProjectedTerminal {
 		if (!this.canControlTerminal) return false;
 		return this.#send({
 			kind: 'clear-terminal',
-			payload: { attachmentId: this.#attachmentId },
+			payload: { attachmentId: this.#attachmentId, preservePrompt: false },
 		});
 	}
 

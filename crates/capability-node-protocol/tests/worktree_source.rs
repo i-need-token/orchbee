@@ -42,22 +42,22 @@ fn conformance(message: CapabilityNodeMessage) -> Vec<u8> {
 }
 
 #[test]
-fn source_start_has_a_separate_tag_and_strict_trust_boolean() {
-    let legacy = conformance(request(WorktreeJobAction::start(b"C:/r".to_vec()).unwrap()));
-    assert_eq!(&legacy[49..], b"\x01\x00\x04C:/r");
-    let source = conformance(request(
-        WorktreeJobAction::start_source(b"C:/r".to_vec(), true).unwrap(),
-    ));
-    assert_eq!(&source[49..], b"\x04\x01\x00\x04C:/r");
-    let mut malformed = source.clone();
-    malformed[50] = 2;
-    assert!(decode_message(&malformed).is_err());
+fn start_has_one_tag_and_strict_optional_trust() {
+    for (trust, tag) in [(None, 0), (Some(false), 1), (Some(true), 2)] {
+        let encoded = conformance(request(
+            WorktreeJobAction::start(b"C:/r".to_vec(), trust).unwrap(),
+        ));
+        assert_eq!(&encoded[49..], &[1, tag, 0, 4, b'C', b':', b'/', b'r']);
+        let mut malformed = encoded;
+        malformed[50] = 3;
+        assert!(decode_message(&malformed).is_err());
+    }
     for directory in [
         b"relative".to_vec(),
         b"C:/r\0bad".to_vec(),
         vec![b'/'; 4097],
     ] {
-        assert!(WorktreeJobAction::start_source(directory, false).is_err());
+        assert!(WorktreeJobAction::start(directory, Some(false)).is_err());
     }
 }
 

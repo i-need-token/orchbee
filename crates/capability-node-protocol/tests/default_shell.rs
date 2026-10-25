@@ -23,8 +23,8 @@ fn launch() -> AuthorizedTerminalLaunch {
 }
 
 #[test]
-fn shell_extension_has_exact_mode_path_environment_tail_and_legacy_bytes_stay_unchanged() {
-    let legacy =
+fn shell_kind_has_exact_mode_path_and_environment() {
+    let default =
         encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(launch())).unwrap();
     for (mode, tag) in [
         (DefaultShellMode::Auto, 0),
@@ -45,16 +45,17 @@ fn shell_extension_has_exact_mode_path_environment_tail_and_legacy_bytes_stay_un
                         .with_environment(environment.clone()),
                 );
                 let encoded = encode_message(&message).unwrap();
-                assert_eq!(&encoded[8..legacy.len()], &legacy[8..]);
-                let mut tail = vec![0, 0, 2, tag];
+                let start = default.len() - 3;
+                assert_eq!(&encoded[8..start], &default[8..start]);
+                let mut tail = vec![2, tag];
                 tail.extend_from_slice(&u16::try_from(executable.len()).unwrap().to_be_bytes());
                 tail.extend_from_slice(executable.as_bytes());
-                if environment.is_empty() {
+                if environment.entries().is_empty() {
                     tail.extend_from_slice(&[0, 0]);
                 } else {
                     tail.extend_from_slice(b"\x00\x01\x00\x06MARKER\x00\x07literal");
                 }
-                assert_eq!(&encoded[legacy.len()..], &tail);
+                assert_eq!(&encoded[start..], &tail);
                 assert_eq!(decode_message(&encoded).unwrap(), message);
                 assert_eq!(
                     encode_message(&decode_message(&encoded).unwrap()).unwrap(),
@@ -63,13 +64,6 @@ fn shell_extension_has_exact_mode_path_environment_tail_and_legacy_bytes_stay_un
             }
         }
     }
-    assert_eq!(
-        legacy,
-        encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-            launch().with_default_shell(None).unwrap()
-        ))
-        .unwrap()
-    );
 }
 
 #[test]
@@ -78,7 +72,8 @@ fn shell_wire_refuses_truncation_unknown_tags_controls_utf8_overflow_and_explici
     let shell = DefaultShellSelection::new("pwsh.exe".into(), DefaultShellMode::Auto).unwrap();
     let start = encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(launch()))
         .unwrap()
-        .len();
+        .len()
+        - 3;
     let frame = encode_message(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
         launch().with_default_shell(Some(shell.clone())).unwrap(),
     ))
@@ -88,15 +83,15 @@ fn shell_wire_refuses_truncation_unknown_tags_controls_utf8_overflow_and_explici
         frame[6..8].copy_from_slice(&n.to_be_bytes());
         assert!(decode_message(&frame).is_err());
     };
-    for end in start + 1..frame.len() {
+    for end in start..frame.len() {
         check(frame[..end].to_vec());
     }
     for (index, value) in [
-        (start + 2, 3),
-        (start + 3, 3),
-        (start + 6, 0),
-        (start + 6, 0xff),
+        (start, 5),
+        (start + 1, 3),
+        (start + 4, 0),
         (start + 4, 0xff),
+        (start + 2, 0xff),
     ] {
         let mut bad = frame.clone();
         bad[index] = value;

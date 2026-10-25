@@ -51,8 +51,6 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'invalid-navigation-configuration',
 	'panel-unavailable',
 	'split-unavailable',
-	'panel-not-leaf',
-	'last-panel-in-tab',
 	'same-tab',
 	'resource-limit',
 	'identity-exhausted',

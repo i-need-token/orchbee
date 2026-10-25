@@ -453,17 +453,16 @@ fn terminal_send_key_submits_semantic_key() -> TestResult {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let request = read_send(&stream);
         assert_send_base(&request, snapshot_request.as_str());
-        let [SendRecord::Combo { modifiers, base }] = request.records().as_slice() else {
+        let [SendRecord::Stroke(stroke)] = request.records().as_slice() else {
             panic!(
                 "expected a single modifier key record, got {:?}",
                 request.records()
             )
         };
-        assert!(modifiers.control);
-        assert!(!modifiers.alt && !modifiers.shift);
+        assert_eq!(stroke.modifiers(), 1);
         assert_eq!(
-            *base,
-            orchbee_client_server_protocol::SendComboBase::Letter(b'c')
+            stroke.key(),
+            orchbee_client_server_protocol::SendStrokeKey::Character('c')
         );
         send_result(
             &stream,

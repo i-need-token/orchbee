@@ -604,7 +604,7 @@ function createControlConformanceFixture() {
 		),
 		clear_terminal: controlRequestText(
 			MessageKind.clearTerminal,
-			{ attachmentId },
+			{ attachmentId, preservePrompt: false },
 			'ClearTerminal',
 		),
 		create_terminal: controlRequestText(

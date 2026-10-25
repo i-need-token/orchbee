@@ -34,11 +34,7 @@ Worker／代际／cohort，且仅在收到 Owned 后认领连接。旧 wire 上�
 
 ## 配置式后台命令
 
-保留进程作业的通道也接收配置式 Windows 命令，不带插件身份或插件日志。
-OBPJ 版本 2 新增请求动作 5 和结果 outcome 5；既有插件动作保持版本 1 字节。
-动作 5 携带有界目录 ID、绝对目录、字面命令及名称唯一、有界的 `ORCHBEE_*`
-环境条目。Outcome 5 回显作业 ID 及同一冻结作业是否已存在。版本 1 拒绝两个新 tag。
-Worker ID、代次、操作关联和既有封闭拒绝原因仍然适用。
+进程作业通道接收配置式 Windows 命令，不带插件身份或插件日志。OBPJ 的全部动作和结果均使用帧版本 1。请求动作 5 携带有界命令 ID、绝对目录、字面命令及名称唯一、有界的 `ORCHBEE_*` 环境条目；结果 outcome 5 回显作业 ID 及同一冻结作业是否已存在。插件和配置式作业均受 Worker ID、代次、操作关联及封闭拒绝原因约束。
 
 Server 在派发前解析已安装配置。Worker 覆盖 Site 路由，用 Windows `cmd /d /c`
 执行字面命令，独立于调用连接持有取消及 join。插件和配置作业共享最多 32 个
@@ -66,11 +62,7 @@ Server carrier 在交付前核对操作、Worker 与代次。
 
 ## 已授权编辑器来源捕获
 
-编辑器启动使用延迟模式、显式已解析 `LaunchSelection` 和一个 `TerminalEditorSource`：
-现有可读 attachment ID、Host epoch／终端 ID、正数代次，以及完整 u64 内容修订（包括零）。
-它排除插件元数据和默认 Shell 选择。启动扩展 4 使用零 u16、字节 4、
-已有选择与环境编码，然后是三个 16 字节 ID 和两个大端 u64 条件。
-省略时保留所有普通启动字节。完整来源属于已保留授权启动的重放身份。
+编辑器启动使用延迟模式、显式已解析 `LaunchSelection` 和一个 `TerminalEditorSource`：现有可读 attachment ID、Host epoch／终端 ID、正数代次，以及完整 u64 内容修订（包括零）。它排除插件元数据和默认 Shell 选择。启动种类 4 携带选择和环境，随后是三个 16 字节 ID 和两个大端 u64 条件。完整来源属于授权启动的重放身份。
 
 Worker 在 Create 移交前核对确切已打开 viewer 目标、当前 Host epoch 和未释放状态。
 Host 重复核对连接持有的读取权限和同一次锁内的内容条件；Worker 缓存不授予 Host attachment 权限。
@@ -223,13 +215,9 @@ authority 正确签发为前提，并不声称能够遏制违反 invariant 的 i
 是 Capability Node refinement，不 import 或 re-export Terminal Host wire payload；未来 Worker
 adapter 必须显式转换并保留 validation。
 
-可选 launch selection 是 launch mode 之后的闭合尾块：`u16` executable 长度、executable 字节、
-`u16` argument 计数，然后是若干 `u16` 长度前缀的 argument 字符串。Executable 是不含 NUL 的
-非空 absolute UTF-8 path；argument 是不含 NUL 的 UTF-8 字符串（允许空值与 dash 前导值），最多
-128 项，且 executable 加全部 argument 合计最多 30,720 UTF-8 byte。在 mode block 处结束的
-payload 解码为默认 launch；存在的尾块按完整消费校验，部分字节或多余尾随字节一律拒绝。尾块
-只承载 `argv[1..]`——`argv[0]` 由 Host 从 executable path 合成——且缺省与显式空 argument
-列表不同。
+每次启动在 launch mode 后携带一个必填 u8 种类：0 使用 Worker 默认值，1 携带显式启动选择，2 携带默认 Shell 选择，3 携带显式插件选择，4 携带显式编辑器选择。每个种类都包含调用者环境，空环境也写入零条目数。种类是当前布局中的互斥选项，不是载荷版本。缺失或未知种类、截断及尾随字节均被拒绝。
+
+显式启动选择包含 `u16` 程序长度、程序字节、`u16` 参数数量及带 `u16` 长度前缀的参数字符串。程序是无 NUL 的非空绝对 UTF-8 路径；参数是无 NUL 的 UTF-8 字符串（允许空值及 dash 前导值），至多 128 项，程序和参数合计至多 30,720 UTF-8 字节。选择携带 `argv[1..]`；Host 从程序路径合成 `argv[0]`。种类 0 与参数列表为空的种类 1 仍有区别。
 
 ## 只读查看附件消息
 
@@ -340,7 +328,7 @@ cleanup 和真实 PTY 证据。
 
 原生发送请求使用独立的 `OBNS` record：magic、big-endian u16 编码版本 1、保留零 u16、u32 body 长度，然后依次为 request ID（16 byte）、Worker ID（16）、Worker generation（u64）、Host creation/epoch/terminal ID（48）、Server 分配的输入 attachment ID（16）、u8 记录数（1–64）及有序记录。body 上限为 `105 + 64 * 7 + 1,048,576` byte，分配前检查。已退役的 kind-13 request 不作为当前请求解码。此消息不重绑目标，不授予 controller/viewer/resize 权限。
 
-记录 tag 1–6 分别携带 text、具名 key、旧 combo、opaque bytes、paste content 和语义 stroke；精确字段与边界见[原生发送契约](../../schemas/client-server/README.zh-CN.md#当前原生契约)。`SendKeyStroke` 独立校验 0..15 修饰键位、1..13 具名键、Insert、F1..F25 及非控制 Unicode 标量字符。新增记录保留旧字节和 1 MiB 聚合 decoded payload 上限。Server 映射独立的 OBCS 值，Worker 将语义按键交给 Host 编码器。
+记录 tag 1、4、5、6 分别携带 text、opaque bytes、paste content 和语义 stroke；tag 2、3 无效。精确字段与边界归[原生发送契约](../../schemas/client-server/README.zh-CN.md#当前原生契约)所有。`SendKeyStroke` 独立校验 0..15 修饰键位、1..13 具名键、Insert、F1..F25 及非控制 Unicode 标量。聚合 decoded payload 上限为 1 MiB。Server 映射独立的 OBCS 值；Worker 将全部语义按键交给同一 Host 编码器。
 
 Kind 14 结果保留请求身份、输入结果（unavailable、rejected、accepted 或 unknown）、已确认前缀进度与独立清理状态。进度以 u8 编码已接受记录数和首个停止记录，然后以 u64 编码已接受编码字节数。中止请求不具原子性；未知或部分接受的输入绝不自动重放。既有类型构造器和 codec 校验 outcome/progress/cleanup 一致性。专用请求记录与有界 OBCN 结果帧共存。
 
@@ -350,8 +338,8 @@ Kind 14 结果保留请求身份、输入结果（unavailable、rejected、accep
 
 OBCN kind 15 `WorktreeJobRequest` 与 kind 16 `WorktreeJobResult` 为 `worktree list`
 Server 流程承载一个有界 `git worktree list` 发现 job。请求依次为 operation ID（16 字节）、
-Worker ID（16）、Worker generation（u64），然后是 action tag：1 `Start` 带 u16 长度与
-1 至 4,096 字节目录（绝对、非空、无 NUL 的 POSIX 路径——构造与解码双侧校验），
+Worker ID（16）、Worker generation（u64），然后是 action tag：1 `Start` 带 u8 可选信任策略（0 缺省、1 false、2 true）、u16 长度与
+1 至 4,096 字节目录（绝对、非空、无 NUL 的本地平台路径——构造与解码双侧校验），
 2 `Poll` 带 job ID（16），或 3 `Cancel` 带 job ID（16）。job ID 即 Start 操作自身的
 operation ID：Server 为每个 job 铸造一个身份并在 Poll/Cancel 上复用。
 
@@ -416,11 +404,7 @@ identity 完全相同。其 `HostRejected` 与 `HostReportedFailure` epoch 必�
 constructor 发出矛盾的 canonical encoding。Worker refinement 还要求 successful Start observation
 在构造 result 前保留确切 authorized geometry。
 
-Launch payload 除可选 launch selection 外，还接受有界、逐字的 `LaunchEnvironment`。
-环境为空时沿用旧字节编码；非空时，selection 尾部替换为 `u16(0)`、扩展版本 `u8(1)`、
-selection-present `u8(0|1)`、可选的既有 selection，再跟 `u16` 条目数及由 `u16` 长度前缀
-标记的 UTF-8 名称和值。零是无效的旧 executable 长度，因此旧 decoder 拒绝该扩展。
-未知版本、字段截断、空扩展及多余尾部字节均被拒绝。
+每个启动种类都携带有界、逐字的 `LaunchEnvironment`：`u16` 条目数，随后是带 `u16` 长度前缀的 UTF-8 名称和值。种类 0 直接携带环境；种类 1–4 将其放在各自选择字段之后。空环境和非空环境使用同一布局。
 
 环境至多 32 项，名称和值合计不超过 1,024 UTF-8 字节。名称匹配
 `[A-Za-z_][A-Za-z0-9_]*`，至多 128 字节，忽略 ASCII 大小写后必须唯一。拒绝含 NUL 的值、
@@ -573,7 +557,9 @@ PhysicalUnknown；255 为 RejectedFencing。
 
 ## 按来源发现 Worktree
 
-Kind 15 新增 `StartSource` action tag 4：有界绝对 UTF-8 目录与严格 0/1 的命令局部信任。原 Start tag 1 保持不变。Start result tag 6 表示执行不受支持。Poll result tag 13 为 `SourceCompleted`：公共目录、来源检出、列表及 stderr 字节共享既有 7936 字节可变数据上限，各带独立长度。Worker 拥有执行及清理；该读取不消耗变更 job 回执。`tests/worktree_source.rs` 覆盖黄金字节、错误方向／尾随／截断输入、严格信任值及组合上限。
+Kind 15 使用唯一的 `Start` 动作 tag 1。`trust_repository` 缺省时选择注册目录列表；存在布尔值时选择 Windows 来源发现及其命令局部信任策略。来源路径是有界的绝对 UTF-8 目录。Start result tag 6 表示执行不受支持。Poll result tag 13 为 `SourceCompleted`：公共目录、来源检出、列表及 stderr 字节共享 7936 字节可变数据上限，各带独立长度。Worker 拥有执行及清理；该读取不消耗变更 job 回执。`tests/worktree_source.rs` 覆盖规范字节、截断／尾随输入、可选信任值及组合上限。
+
+注册目录列表结果保留不是 UTF-8 的原生 Unix 路径字节；这是现行生产用途，不是旧对端表示。来源查询结果只校验并接受一种 UTF-8 路径表示，拒绝字节路径条目。
 
 ## 带样式的 buffer 读取
 
@@ -601,7 +587,7 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 
 授权默认启动可携带 `DefaultShellSelection`：0–4096 个 UTF-8 字节、无控制字符的字面程序和 Auto/Login/NonLogin 模式。空程序表示平台默认；缺省表示 Worker 启动回退。Worker 在效果前另外校验 Windows 程序语法。显式 `LaunchSelection` 与默认覆盖互斥。该值参与精确重放身份比较。
 
-已有的零 u16 启动扩展哨兵用版本 2 表示此形状：u8 模式（0/1/2）、u16 程序字节长度、程序 UTF-8 字节，随后是原有环境编码（允许空）。v2 不含显式选择槽。旧负载和 v1 非空环境扩展保持原字节。未知模式/版本、截断、尾随字节和无效有界值均被拒绝。OBCN 帧版本及 40 KiB 负载上限不变。匹配的私有 cohort 整套交付/回退；该线协议不引入广播、持久化或重试。
+启动种类 2 携带 u8 模式（0 Auto、1 Login、2 NonLogin）、u16 程序字节长度、程序 UTF-8 字节，随后是环境编码（允许空）。它不含显式程序／参数选择。未知模式、截断、尾随字节和无效有界值均被拒绝。OBCN 帧版本 1 及 40 KiB 负载上限不变。匹配的私有 cohort 整套交付或回退；该线协议不引入广播、持久化或重试。
 
 ## 插件任务记录
 
@@ -609,7 +595,7 @@ Control request action tag 5 表示 Takeover，后接预期旧 controller ID（�
 
 ## 插件终端展示环境
 
-显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
 
 ## Windows 物理标题观察
 
@@ -633,7 +619,7 @@ Host 身份及 u8 观察标签。标签 0 表示不可用；标签 1 增加正 u
 现有 Worktree 作业请求／结果 kind 15/16 增加 `StartStatus` 动作 tag 5
 与 `StatusCompleted` 轮询 tag 14。目录验证和身份／代际保护不变；
 status/stderr 使用分别带 u16 长度前缀的字节字段，共用原有 7936 字节总预算。
-旧 Start/StartSource 编码不变。Windows 所有者复用发现槽、TTL、取消、结算及保留回执；
+Status 观察分支／上游事实，与 Start 发现语义有别。Windows 所有者复用发现槽、TTL、取消、结算及保留回执；
 不支持的平台拒绝该动作。不增加变更／Host 启动／输入权威。运行时所有权见
 [Workspace 侧栏模型](../../apps/orchbee/docs/machines.zh-CN.md#工作区侧栏模型)。
 

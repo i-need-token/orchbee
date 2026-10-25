@@ -34,13 +34,10 @@ impl WorktreeJobStage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeJobAction {
+    /// Observe a registered directory, or discover a Windows source with an explicit trust policy.
     Start {
         directory: Vec<u8>,
-    },
-    /// Windows source discovery; legacy Start bytes and behavior remain unchanged.
-    StartSource {
-        directory: Vec<u8>,
-        trust_repository: bool,
+        trust_repository: Option<bool>,
     },
     /// Windows read-only branch/upstream observation; no repository trust expansion.
     StartStatus {
@@ -56,21 +53,16 @@ pub enum WorktreeJobAction {
 
 impl WorktreeJobAction {
     pub fn start_status(directory: Vec<u8>) -> Result<Self, ProtocolError> {
-        Self::start(directory.clone())?;
+        Self::start(directory.clone(), None)?;
         Ok(Self::StartStatus { directory })
-    }
-
-    pub fn start_source(directory: Vec<u8>, trust_repository: bool) -> Result<Self, ProtocolError> {
-        Self::start(directory.clone())?;
-        Ok(Self::StartSource {
-            directory,
-            trust_repository,
-        })
     }
 
     /// The directory must be an absolute, nonempty, NUL-free byte path before
     /// any request is constructed.
-    pub fn start(directory: Vec<u8>) -> Result<Self, ProtocolError> {
+    pub fn start(
+        directory: Vec<u8>,
+        trust_repository: Option<bool>,
+    ) -> Result<Self, ProtocolError> {
         if directory.is_empty()
             || directory.len() > MAXIMUM_WORKTREE_JOB_DIRECTORY_BYTES
             || !crate::terminal_launch::is_absolute_path(&directory)
@@ -78,7 +70,10 @@ impl WorktreeJobAction {
         {
             return Err(ProtocolError::InvalidPayload);
         }
-        Ok(Self::Start { directory })
+        Ok(Self::Start {
+            directory,
+            trust_repository,
+        })
     }
 }
 

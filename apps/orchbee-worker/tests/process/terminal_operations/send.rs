@@ -62,7 +62,12 @@ fn text(value: &str, enter: bool) -> TestResult<SendRecords> {
 }
 
 fn one_key(key: SendKey) -> TestResult<SendRecords> {
-    Ok(SendRecords::new(vec![SendRecord::Key { key }])?)
+    Ok(SendRecords::new(vec![SendRecord::Stroke(
+        orchbee_capability_node_protocol::SendKeyStroke::new(
+            orchbee_capability_node_protocol::SendStrokeKey::Named(key),
+            0,
+        )?,
+    )])?)
 }
 
 fn scripted_epoch() -> TestResult<HostEpoch> {
@@ -432,7 +437,12 @@ fn send_key_emits_one_semantic_record_and_echoes_host_byte_count() -> TestResult
                 1,
                 7,
                 identity(SCRIPT_EPOCH, TERMINAL)?,
-                one_key(SendKey::CtrlC)?,
+                SendRecords::new(vec![SendRecord::Stroke(
+                    orchbee_capability_node_protocol::SendKeyStroke::new(
+                        orchbee_capability_node_protocol::SendStrokeKey::Character('c'),
+                        1
+                    )?
+                )])?,
             )?,
         )?
         .outcome(),

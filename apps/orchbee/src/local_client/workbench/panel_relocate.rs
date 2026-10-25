@@ -345,8 +345,6 @@ fn classify_outcome(
                     | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
                     | WorkbenchRejectionReason::TabUnavailable
                     | WorkbenchRejectionReason::PanelUnavailable
-                    | WorkbenchRejectionReason::PanelNotLeaf
-                    | WorkbenchRejectionReason::LastPanelInTab
                     | WorkbenchRejectionReason::SameTab
                     | WorkbenchRejectionReason::ResourceLimit
                     | WorkbenchRejectionReason::RevisionExhausted

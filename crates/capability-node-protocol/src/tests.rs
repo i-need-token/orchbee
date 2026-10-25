@@ -633,8 +633,7 @@ fn launch_selection_tail_round_trips_and_decodes_closed() -> Result<(), Box<dyn 
     let canonical = encode(&launch)?;
     assert_eq!(decode_message(&canonical)?, launch);
 
-    // A payload that ends at the mode block decodes to the default launch —
-    // the pre-extension wire shape stays a legal same-kind frame.
+    // The default launch has its own kind and an explicit empty environment.
     let base = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
         AuthorizedTerminalLaunch::new(
             authorization,
@@ -643,7 +642,10 @@ fn launch_selection_tail_round_trips_and_decodes_closed() -> Result<(), Box<dyn 
             None,
         ),
     ))?;
-    assert_eq!(canonical[8..base.len()], base[8..]);
+    let selection_at = base.len() - 3;
+    assert_eq!(canonical[8..selection_at], base[8..selection_at]);
+    assert_eq!(&base[selection_at..], &[0, 0, 0]);
+    assert_eq!(canonical[selection_at], 1);
     let decoded_default = match decode_message(&base)? {
         CapabilityNodeMessage::AuthorizedTerminalLaunch(value) => value,
         other => return Err(format!("decoded {other:?}").into()),
@@ -652,8 +654,8 @@ fn launch_selection_tail_round_trips_and_decodes_closed() -> Result<(), Box<dyn 
 
     // A truncated selection block is rejected at every cut point, and a
     // garbage tail after a complete selection is rejected by finish().
-    for cut in 1..(canonical.len() - base.len()) {
-        let mut truncated = canonical[..base.len() + cut].to_vec();
+    for cut in selection_at..canonical.len() {
+        let mut truncated = canonical[..cut].to_vec();
         let length = u16::try_from(truncated.len() - 8)?;
         truncated[6..8].copy_from_slice(&length.to_be_bytes());
         assert!(
@@ -725,7 +727,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
     let mut unknown_launch_mode = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
         AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred, None),
     ))?;
-    let launch_mode_offset = unknown_launch_mode.len() - 1;
+    let launch_mode_offset = unknown_launch_mode.len() - 4;
     unknown_launch_mode[launch_mode_offset] = 99;
     assert_eq!(
         decode_message(&unknown_launch_mode),
@@ -1307,20 +1309,21 @@ fn send_stroke_frame_preserves_next_record_and_rejects_malformed_values() {
     use crate::{SendKeyStroke, SendRecord, SendRecords, SendStrokeKey};
     let records = SendRecords::new(vec![
         SendRecord::Stroke(SendKeyStroke::new(SendStrokeKey::Character('😀'), 8).unwrap()),
-        SendRecord::Key {
-            key: crate::SendKey::Enter,
-        },
+        SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(crate::SendKey::Enter), 0)
+                .unwrap(),
+        ),
     ])
     .unwrap();
     let request = CapabilityNodeMessage::TerminalSendRequest(send_request(records));
     let wire = encode_message(&request).unwrap();
     let at = 12 + 105;
-    assert_eq!(&wire[at..], &[6, 8, 4, 0, 1, 0xf6, 0, 2, 1]);
+    assert_eq!(&wire[at..], &[6, 8, 4, 0, 1, 0xf6, 0, 6, 0, 1, 0, 0, 0, 1]);
     assert_eq!(decode_message(&wire).unwrap(), request);
     for end in 0..wire.len() {
         assert!(decode_message(&wire[..end]).is_err());
     }
-    for (offset, value) in [(0, 7), (1, 16), (2, 0), (3, 1)] {
+    for (offset, value) in [(0, 2), (0, 3), (0, 7), (1, 16), (2, 0), (3, 1)] {
         let mut invalid = wire.clone();
         invalid[at + offset] = value;
         assert!(decode_message(&invalid).is_err());
@@ -1375,26 +1378,27 @@ fn send_record_sequence_preserves_order_and_every_form() -> Result<(), Box<dyn s
     let request =
         CapabilityNodeMessage::TerminalSendRequest(send_request(crate::SendRecords::new(vec![
             text_record("echo hi", false),
-            crate::SendRecord::Key {
-                key: crate::SendKey::CtrlC,
-            },
-            crate::SendRecord::Combo {
-                modifiers: crate::SendModifiers::new(true, true, false)?,
-                base: crate::SendComboBase::new_letter(b'p')?,
-            },
-            crate::SendRecord::Combo {
-                modifiers: crate::SendModifiers::new(false, false, true)?,
-                base: crate::SendComboBase::new_named(crate::SendKey::Tab)?,
-            },
+            crate::SendRecord::Stroke(
+                crate::SendKeyStroke::new(crate::SendStrokeKey::Character('c'), 1).unwrap(),
+            ),
+            crate::SendRecord::Stroke(crate::SendKeyStroke::new(
+                crate::SendStrokeKey::Character('p'),
+                3,
+            )?),
+            crate::SendRecord::Stroke(crate::SendKeyStroke::new(
+                crate::SendStrokeKey::Named(crate::SendKey::Tab),
+                4,
+            )?),
             crate::SendRecord::Bytes {
                 bytes: crate::SendBytes::new(vec![0x00, 0xff, 0x1b])?,
             },
             crate::SendRecord::Paste {
                 content: crate::SendPasteContent::new(b"pasted\ncontent".to_vec())?,
             },
-            crate::SendRecord::Key {
-                key: crate::SendKey::Enter,
-            },
+            crate::SendRecord::Stroke(
+                crate::SendKeyStroke::new(crate::SendStrokeKey::Named(crate::SendKey::Enter), 0)
+                    .unwrap(),
+            ),
         ])?));
     let encoded = encode_message(&request)?;
     assert!(encoded.starts_with(b"OBNS\0\x01\0\0"));
@@ -1476,18 +1480,6 @@ fn send_request_decode_enforces_every_boundary() -> Result<(), Box<dyn std::erro
         Err(ProtocolError::InvalidPayload)
     );
 
-    // An unknown key code refuses.
-    let mut bad_key = encoded.clone();
-    bad_key[record_at] = 2;
-    bad_key[record_at + 1] = 16;
-    let mut bad_key_frame = bad_key[..record_at + 2].to_vec();
-    let bad_key_len = u32::try_from(bad_key_frame.len() - 12)?;
-    bad_key_frame[8..12].copy_from_slice(&bad_key_len.to_be_bytes());
-    assert_eq!(
-        decode_message(&bad_key_frame),
-        Err(ProtocolError::InvalidPayload)
-    );
-
     // Invalid UTF-8 inside a text record refuses.
     let mut bad_utf8 = encoded.clone();
     bad_utf8[record_at + 3] = 0x80;
@@ -1532,30 +1524,33 @@ fn send_records_enforce_count_and_aggregate_bounds() -> Result<(), Box<dyn std::
     // 64 is the wire-admitted ceiling; 65 never constructs.
     assert!(
         crate::SendRecords::new(vec![
-            crate::SendRecord::Key {
-                key: crate::SendKey::Enter,
-            };
+            crate::SendRecord::Stroke(
+                crate::SendKeyStroke::new(crate::SendStrokeKey::Named(crate::SendKey::Enter), 0)
+                    .unwrap()
+            );
             crate::terminal_send::MAXIMUM_SEND_RECORDS
         ])
         .is_ok()
     );
     assert!(
         crate::SendRecords::new(vec![
-            crate::SendRecord::Key {
-                key: crate::SendKey::Enter,
-            };
+            crate::SendRecord::Stroke(
+                crate::SendKeyStroke::new(crate::SendStrokeKey::Named(crate::SendKey::Enter), 0)
+                    .unwrap()
+            );
             crate::terminal_send::MAXIMUM_SEND_RECORDS + 1
         ])
         .is_err()
     );
     assert!(crate::SendRecords::new(Vec::new()).is_err());
 
-    // The aggregate decoded bound is content bytes only — key records add
-    // nothing, so 64 keys plus one 1MiB bytes record is the exact ceiling.
+    // The aggregate decoded bound is content bytes only — strokes add
+    // nothing, so 63 strokes plus one 1MiB bytes record is the exact ceiling.
     let mut records = vec![
-        crate::SendRecord::Key {
-            key: crate::SendKey::Enter,
-        };
+        crate::SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(crate::SendKey::Enter), 0)
+                .unwrap()
+        );
         crate::terminal_send::MAXIMUM_SEND_RECORDS - 1
     ];
     records.push(crate::SendRecord::Bytes {
@@ -1563,9 +1558,10 @@ fn send_records_enforce_count_and_aggregate_bounds() -> Result<(), Box<dyn std::
     });
     assert!(crate::SendRecords::new(records).is_ok());
     let mut over = vec![
-        crate::SendRecord::Key {
-            key: crate::SendKey::Enter,
-        };
+        crate::SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(crate::SendKey::Enter), 0)
+                .unwrap()
+        );
         crate::terminal_send::MAXIMUM_SEND_RECORDS - 1
     ];
     over.push(crate::SendRecord::Bytes {
@@ -1616,71 +1612,6 @@ fn send_text_bound_counts_the_folded_return() -> Result<(), Box<dyn std::error::
     overlong[8..12].copy_from_slice(&body_len.to_be_bytes());
     assert_eq!(
         decode_message(&overlong),
-        Err(ProtocolError::InvalidPayload)
-    );
-    Ok(())
-}
-
-#[test]
-fn send_combo_records_validate_the_closed_vocabulary() -> Result<(), Box<dyn std::error::Error>> {
-    // A modifier-only combination is not a record.
-    assert!(crate::SendModifiers::new(false, false, false).is_err());
-    // `ctrl-c`/`ctrl-d` are already modified keys, never combo bases.
-    assert!(crate::SendComboBase::new_named(crate::SendKey::CtrlC).is_err());
-    assert!(crate::SendComboBase::new_named(crate::SendKey::CtrlD).is_err());
-    assert!(crate::SendComboBase::new_named(crate::SendKey::Enter).is_ok());
-    // Function bases are exactly F1..F12.
-    assert!(crate::SendComboBase::new_function(0).is_err());
-    assert!(crate::SendComboBase::new_function(12).is_ok());
-    assert!(crate::SendComboBase::new_function(13).is_err());
-    // Letter/digit bases are the physical ASCII identities.
-    assert!(crate::SendComboBase::new_letter(b'a').is_ok());
-    assert!(crate::SendComboBase::new_letter(b'A').is_err());
-    assert!(crate::SendComboBase::new_digit(b'0').is_ok());
-    assert!(crate::SendComboBase::new_digit(b'/').is_err());
-
-    // Wire-level: reserved modifier bits, a modifier-only combo, a named
-    // ctrl-c base, and nonzero reserved bytes on insert/space all refuse.
-    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(one_record(
-        crate::SendRecord::Combo {
-            modifiers: crate::SendModifiers::new(true, false, false)?,
-            base: crate::SendComboBase::new_letter(b'x')?,
-        },
-    )));
-    let encoded = encode_message(&request)?;
-    let record_at = 12 + 105;
-    assert_eq!(encoded[record_at], 3);
-    assert_eq!(encoded[record_at + 1], 0b001);
-    assert_eq!(encoded[record_at + 2], 5);
-    assert_eq!(encoded[record_at + 3], b'x');
-
-    let mut reserved_bits = encoded.clone();
-    reserved_bits[record_at + 1] = 0b1000;
-    assert_eq!(
-        decode_message(&reserved_bits),
-        Err(ProtocolError::InvalidPayload)
-    );
-
-    let mut modifier_only = encoded.clone();
-    modifier_only[record_at + 1] = 0;
-    assert_eq!(
-        decode_message(&modifier_only),
-        Err(ProtocolError::InvalidPayload)
-    );
-
-    let mut named_ctrl_c = encoded.clone();
-    named_ctrl_c[record_at + 2] = 1;
-    named_ctrl_c[record_at + 3] = 14;
-    assert_eq!(
-        decode_message(&named_ctrl_c),
-        Err(ProtocolError::InvalidPayload)
-    );
-
-    let mut insert_reserved = encoded.clone();
-    insert_reserved[record_at + 2] = 2;
-    insert_reserved[record_at + 3] = 7;
-    assert_eq!(
-        decode_message(&insert_reserved),
         Err(ProtocolError::InvalidPayload)
     );
     Ok(())
@@ -1909,7 +1840,7 @@ fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dy
 }
 
 #[test]
-fn launch_environment_extension_roundtrips_and_rejects_hostile_tails()
+fn launch_environment_roundtrips_and_rejects_hostile_tails()
 -> Result<(), Box<dyn std::error::Error>> {
     let base = AuthorizedTerminalLaunch::new(
         authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?,
@@ -1917,7 +1848,7 @@ fn launch_environment_extension_roundtrips_and_rejects_hostile_tails()
         TerminalLaunchMode::Deferred,
         None,
     );
-    let legacy = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+    let empty = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
         base.clone(),
     ))?;
     let environment = crate::LaunchEnvironment::new(vec![
@@ -1933,23 +1864,12 @@ fn launch_environment_extension_roundtrips_and_rejects_hostile_tails()
     ] {
         let launch =
             AuthorizedTerminalLaunch::new(base.authorization(), None, base.mode(), selection);
-        let old = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-            launch.clone(),
-        ))?;
-        assert_eq!(
-            encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
-                launch
-                    .clone()
-                    .with_environment(crate::LaunchEnvironment::empty())
-            ))?,
-            old
-        );
         let message = CapabilityNodeMessage::AuthorizedTerminalLaunch(
             launch.with_environment(environment.clone()),
         );
         let encoded = encode(&message)?;
         assert_eq!(decode_message(&encoded)?, message);
-        for cut in (legacy.len() + 1)..encoded.len() {
+        for cut in (empty.len() - 3)..encoded.len() {
             let mut truncated = encoded[..cut].to_vec();
             truncated[6..8].copy_from_slice(&u16::try_from(cut - 8)?.to_be_bytes());
             assert!(decode_message(&truncated).is_err(), "cut {cut}");
@@ -1959,15 +1879,13 @@ fn launch_environment_extension_roundtrips_and_rejects_hostile_tails()
         assert!(decode_message(&trailing).is_err());
     }
     for tail in [
-        vec![0, 0, 2, 0, 0, 1],                                     // unknown version
-        vec![0, 0, 1, 2, 0, 1],                                     // unknown selection presence
-        vec![0, 0, 1, 0, 0, 0],                                     // noncanonical empty extension
-        vec![0, 0, 1, 0, 0, 33], // entry budget before allocation
-        vec![0, 0, 1, 0, 0, 1, 0, 4, b'T', b'E', b'R', b'M', 0, 0], // reserved name
-        vec![0, 0, 1, 0, 0, 1, 0, 1, b'A', 4, 0], // aggregate byte budget
-        vec![0, 0, 1, 0, 0, 2, 0, 1, b'A', 0, 0, 0, 1, b'a', 0, 0], // duplicate case
+        vec![5, 0, 0],                                     // unknown launch kind
+        vec![0, 0, 33],                                    // entry budget before allocation
+        vec![0, 0, 1, 0, 4, b'T', b'E', b'R', b'M', 0, 0], // reserved name
+        vec![0, 0, 1, 0, 1, b'A', 4, 0],                   // aggregate byte budget
+        vec![0, 0, 2, 0, 1, b'A', 0, 0, 0, 1, b'a', 0, 0], // duplicate case
     ] {
-        let mut bad = legacy.clone();
+        let mut bad = empty[..empty.len() - 3].to_vec();
         append_payload_bytes(&mut bad, &tail)?;
         assert!(decode_message(&bad).is_err(), "accepted {tail:?}");
     }

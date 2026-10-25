@@ -213,7 +213,8 @@ describe('projected terminal contract', () => {
 			expect(
 				ProjectedTerminalCommandSchema.safeParse({
 					kind,
-					payload: { attachmentId },
+					payload:
+						kind === 'clear-terminal' ? { attachmentId, preservePrompt: false } : { attachmentId },
 				}).success,
 			).toBe(true);
 			expect(ProjectedTerminalCommandSchema.safeParse({ kind, payload: {} }).success).toBe(false);

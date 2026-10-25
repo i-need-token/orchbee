@@ -131,39 +131,12 @@ fn worker_record(
             )
             .ok()?,
         ),
-        Client::Key { key } => worker::SendRecord::Key {
-            key: send_key(*key),
-        },
-        Client::Combo { modifiers, base } => worker::SendRecord::Combo {
-            modifiers: worker::SendModifiers::new(
-                modifiers.control,
-                modifiers.alt,
-                modifiers.shift,
-            )
-            .ok()?,
-            base: worker_combo_base(*base)?,
-        },
         Client::Bytes { bytes } => worker::SendRecord::Bytes {
             bytes: worker::SendBytes::new(bytes.as_bytes().to_vec()).ok()?,
         },
         Client::Paste { content } => worker::SendRecord::Paste {
             content: worker::SendPasteContent::new(content.as_bytes().to_vec()).ok()?,
         },
-    })
-}
-
-fn worker_combo_base(
-    base: orchbee_client_server_protocol::SendComboBase,
-) -> Option<orchbee_capability_node_protocol::SendComboBase> {
-    use orchbee_capability_node_protocol::SendComboBase as Worker;
-    use orchbee_client_server_protocol::SendComboBase as Client;
-    Some(match base {
-        Client::Named(key) => Worker::new_named(send_key(key)).ok()?,
-        Client::Insert => Worker::Insert,
-        Client::Function(number) => Worker::new_function(number).ok()?,
-        Client::Space => Worker::Space,
-        Client::Letter(letter) => Worker::new_letter(letter).ok()?,
-        Client::Digit(digit) => Worker::new_digit(digit).ok()?,
     })
 }
 
@@ -202,8 +175,6 @@ fn send_key(
         Client::End => Worker::End,
         Client::PageUp => Worker::PageUp,
         Client::PageDown => Worker::PageDown,
-        Client::CtrlC => Worker::CtrlC,
-        Client::CtrlD => Worker::CtrlD,
     }
 }
 

@@ -1,9 +1,9 @@
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
-    HostTerminalIdentity, OperationId, ProtocolError, SendBytes, SendCleanupStatus, SendComboBase,
-    SendKey, SendModifiers, SendPasteContent, SendProgress, SendRecord, SendRecords, SendRejection,
-    SendText, SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
-    TerminalSendResult, WorkerGeneration, WorkerId,
+    HostTerminalIdentity, OperationId, ProtocolError, SendBytes, SendCleanupStatus,
+    SendPasteContent, SendProgress, SendRecord, SendRecords, SendRejection, SendText,
+    SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
+    WorkerGeneration, WorkerId,
 };
 use std::io::Read;
 use std::num::NonZeroU64;
@@ -30,18 +30,9 @@ const MAXIMUM_SEND_RECORDS_WIRE: usize = crate::terminal_send::MAXIMUM_SEND_RECO
 const SEND_RESULT_KIND: u8 = 14;
 
 const TEXT_RECORD: u8 = 1;
-const KEY_RECORD: u8 = 2;
-const COMBO_RECORD: u8 = 3;
 const BYTES_RECORD: u8 = 4;
 const PASTE_RECORD: u8 = 5;
 const STROKE_RECORD: u8 = 6;
-
-const COMBO_BASE_NAMED: u8 = 1;
-const COMBO_BASE_INSERT: u8 = 2;
-const COMBO_BASE_FUNCTION: u8 = 3;
-const COMBO_BASE_SPACE: u8 = 4;
-const COMBO_BASE_LETTER: u8 = 5;
-const COMBO_BASE_DIGIT: u8 = 6;
 
 const UNAVAILABLE_INPUT: u8 = 1;
 const REJECTED_INPUT: u8 = 2;
@@ -65,19 +56,6 @@ fn encode_record_kind(bytes: &mut Vec<u8>, record: &SendRecord) -> Result<(), Pr
             bytes.extend(text.as_bytes());
             bytes.push(u8::from(input.enter()));
         }
-        SendRecord::Key { key } => {
-            bytes.push(KEY_RECORD);
-            bytes.push(key.code());
-        }
-        SendRecord::Combo { modifiers, base } => {
-            bytes.push(COMBO_RECORD);
-            bytes.push(
-                u8::from(modifiers.control)
-                    | (u8::from(modifiers.alt) << 1)
-                    | (u8::from(modifiers.shift) << 2),
-            );
-            encode_combo_base(bytes, *base);
-        }
         SendRecord::Bytes { bytes: payload } => {
             bytes.push(BYTES_RECORD);
             bytes.extend(
@@ -100,20 +78,6 @@ fn encode_record_kind(bytes: &mut Vec<u8>, record: &SendRecord) -> Result<(), Pr
     Ok(())
 }
 
-fn encode_combo_base(bytes: &mut Vec<u8>, base: SendComboBase) {
-    match base {
-        SendComboBase::Named(key) => {
-            bytes.push(COMBO_BASE_NAMED);
-            bytes.push(key.code());
-        }
-        SendComboBase::Insert => bytes.extend([COMBO_BASE_INSERT, 0]),
-        SendComboBase::Function(number) => bytes.extend([COMBO_BASE_FUNCTION, number]),
-        SendComboBase::Space => bytes.extend([COMBO_BASE_SPACE, 0]),
-        SendComboBase::Letter(letter) => bytes.extend([COMBO_BASE_LETTER, letter]),
-        SendComboBase::Digit(digit) => bytes.extend([COMBO_BASE_DIGIT, digit]),
-    }
-}
-
 fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, ProtocolError> {
     match reader.read_u8()? {
         TEXT_RECORD => {
@@ -129,21 +93,6 @@ fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, Prot
                 SendText::new(text.to_owned())?,
                 enter,
             )?))
-        }
-        KEY_RECORD => Ok(SendRecord::Key {
-            key: SendKey::from_code(reader.read_u8()?)?,
-        }),
-        COMBO_RECORD => {
-            let flags = reader.read_u8()?;
-            if flags & !0b111 != 0 {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            let modifiers =
-                SendModifiers::new(flags & 1 != 0, flags & 0b10 != 0, flags & 0b100 != 0)?;
-            Ok(SendRecord::Combo {
-                modifiers,
-                base: decode_combo_base(reader)?,
-            })
         }
         STROKE_RECORD => Ok(SendRecord::Stroke(crate::SendKeyStroke::from_wire(
             reader
@@ -165,32 +114,6 @@ fn decode_record_kind(reader: &mut PayloadReader<'_>) -> Result<SendRecord, Prot
                 content: SendPasteContent::new(reader.read_slice(length)?.to_vec())?,
             })
         }
-        _ => Err(ProtocolError::InvalidPayload),
-    }
-}
-
-fn decode_combo_base(reader: &mut PayloadReader<'_>) -> Result<SendComboBase, ProtocolError> {
-    match reader.read_u8()? {
-        COMBO_BASE_NAMED => SendComboBase::new_named(SendKey::from_code(reader.read_u8()?)?),
-        COMBO_BASE_INSERT => {
-            reader.read_u8().and_then(|reserved| {
-                (reserved == 0)
-                    .then_some(())
-                    .ok_or(ProtocolError::InvalidPayload)
-            })?;
-            Ok(SendComboBase::Insert)
-        }
-        COMBO_BASE_FUNCTION => SendComboBase::new_function(reader.read_u8()?),
-        COMBO_BASE_SPACE => {
-            reader.read_u8().and_then(|reserved| {
-                (reserved == 0)
-                    .then_some(())
-                    .ok_or(ProtocolError::InvalidPayload)
-            })?;
-            Ok(SendComboBase::Space)
-        }
-        COMBO_BASE_LETTER => SendComboBase::new_letter(reader.read_u8()?),
-        COMBO_BASE_DIGIT => SendComboBase::new_digit(reader.read_u8()?),
         _ => Err(ProtocolError::InvalidPayload),
     }
 }

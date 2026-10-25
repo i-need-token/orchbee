@@ -337,8 +337,6 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         | WorkbenchRejectionReason::TabMoveIndexOutOfBounds
         | WorkbenchRejectionReason::TabMoveOrderConflict
         | WorkbenchRejectionReason::PanelUnavailable
-        | WorkbenchRejectionReason::PanelNotLeaf
-        | WorkbenchRejectionReason::LastPanelInTab
         | WorkbenchRejectionReason::SameTab => false,
         WorkbenchRejectionReason::TerminalContextUnavailable
         | WorkbenchRejectionReason::TabUnavailable

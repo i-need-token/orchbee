@@ -40,9 +40,7 @@ fn windows_run_sends_one_opaque_paste_then_enter_and_preserves_partial_receipts(
             assert_eq!(content.as_bytes(), command.as_bytes());
             assert!(matches!(
                 records[1],
-                SendRecord::Key {
-                    key: SendKey::Enter
-                }
+                SendRecord::Stroke(stroke) if stroke.key() == orchbee_client_server_protocol::SendStrokeKey::Named(SendKey::Enter) && stroke.modifiers() == 0
             ));
             let target = SendTarget::new(
                 std::num::NonZeroU64::MIN,

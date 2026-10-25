@@ -48,7 +48,7 @@ IPC, or Worker behavior.
 
 ## Application screen control
 
-The independent Rust `ScreenControl` binding mirrors kinds 74–76: ClearTerminal, ResetTerminal and TerminalControlAccepted. Clear accepts optional Boolean `preservePrompt`; omission retains screen erase/home. Reset stays closed to this field. Accepted generation is positive and revision retains the general canonical u64 wire domain; the prompt-preserving operation consumer separately requires a positive advanced revision. [Host runtime](../../apps/terminal-host/docs/runtime-model.md#prompt-preserving-clear) owns semantics; [native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns transient input capability, deadlines and uncertainty. Matching development cohorts are required.
+The independent Rust `ScreenControl` binding mirrors kinds 74–76: ClearTerminal, ResetTerminal and TerminalControlAccepted. Clear requires Boolean `preservePrompt`; false selects screen erase/home. Reset stays closed to this field. Accepted generation is positive and revision retains the general canonical u64 wire domain; the prompt-preserving operation consumer separately requires a positive advanced revision. [Host runtime](../../apps/terminal-host/docs/runtime-model.md#prompt-preserving-clear) owns semantics; [native clear](../../apps/orchbee/docs/native-cli-query.md#clear-terminal-output) owns transient input capability, deadlines and uncertainty. Matching development cohorts are required.
 
 ## Rust text-frame binding
 

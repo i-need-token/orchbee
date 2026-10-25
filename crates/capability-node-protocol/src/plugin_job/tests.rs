@@ -19,7 +19,7 @@ fn intent() -> PluginCommandIntent {
     }
 }
 #[test]
-fn configured_jobs_use_closed_v2_and_correlated_spawn_receipts() {
+fn configured_jobs_use_current_frame_and_correlated_spawn_receipts() {
     let req = request(PluginJobAction::StartConfigured(ConfiguredCommandIntent {
         command_id: "cmd_profile_0".into(),
         directory: "C:/commands".into(),
@@ -41,23 +41,23 @@ fn configured_jobs_use_closed_v2_and_correlated_spawn_receipts() {
         Message::PluginJobResult(reply.clone()),
     ] {
         let bytes = encode_message(&message).unwrap();
-        assert_eq!(&bytes[..8], b"OBPJ\0\x02\0\0");
+        assert_eq!(&bytes[..8], b"OBPJ\0\x01\0\0");
         assert_eq!(decode_message(&bytes).unwrap(), message);
-        let mut legacy = bytes.clone();
-        legacy[5] = 1;
+        let mut unsupported = bytes.clone();
+        unsupported[5] = 2;
         assert!(
-            decode_message(&legacy).is_err(),
-            "legacy cannot admit configured tags"
+            decode_message(&unsupported).is_err(),
+            "unsupported frame version"
         );
         let mut trailing = bytes;
         trailing.push(0);
         assert!(decode_message(&trailing).is_err());
     }
-    let old = encode_message(&Message::PluginJobRequest(request(PluginJobAction::Start(
+    let plugin = encode_message(&Message::PluginJobRequest(request(PluginJobAction::Start(
         intent(),
     ))))
     .unwrap();
-    assert_eq!(&old[..8], b"OBPJ\0\x01\0\0");
+    assert_eq!(&plugin[..8], b"OBPJ\0\x01\0\0");
     let mut bad = reply;
     bad.outcome = PluginJobOutcome::ConfiguredStarted {
         job_id: OperationId::from_bytes([4; 16]).unwrap(),

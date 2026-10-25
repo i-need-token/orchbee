@@ -1,4 +1,4 @@
-//! Validated semantic presses beyond the frozen legacy combo vocabulary.
+//! The single semantic key-press encoding, independent of terminal keyboard modes.
 use crate::{ProtocolError, SendKey};
 
 /// A key identity, independent of its modifiers and the terminal's encoding mode.
@@ -23,7 +23,6 @@ pub struct SendKeyStroke {
 impl SendKeyStroke {
     pub fn new(key: SendStrokeKey, modifiers: u8) -> Result<Self, ProtocolError> {
         let valid = match key {
-            SendStrokeKey::Named(SendKey::CtrlC | SendKey::CtrlD) => false,
             SendStrokeKey::Named(_) | SendStrokeKey::Insert => true,
             SendStrokeKey::Function(number) => (1..=25).contains(&number),
             SendStrokeKey::Character(value) => !value.is_control(),

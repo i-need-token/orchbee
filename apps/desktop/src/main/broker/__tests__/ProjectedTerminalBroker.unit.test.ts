@@ -1760,14 +1760,20 @@ describe('ProjectedTerminalBroker', () => {
 
 		for (const kind of ['clear-terminal', 'reset-terminal'] as const) {
 			emitter.emit('message', {
-				data: { kind, payload: { attachmentId: bootstrap.attachmentId } },
+				data: {
+					kind,
+					payload:
+						kind === 'clear-terminal'
+							? { attachmentId: bootstrap.attachmentId, preservePrompt: false }
+							: { attachmentId: bootstrap.attachmentId },
+				},
 			});
 		}
 		await vi.waitFor(() => expect(requestControl).toHaveBeenCalledTimes(2));
 		expect(requestControl).toHaveBeenNthCalledWith(
 			1,
 			MessageKind.clearTerminal,
-			{ attachmentId: bootstrap.attachmentId },
+			{ attachmentId: bootstrap.attachmentId, preservePrompt: false },
 			expect.anything(),
 		);
 		expect(requestControl).toHaveBeenNthCalledWith(

@@ -42,11 +42,7 @@ pub struct EncodedScreenControl {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ClearWire {
     attachment_id: String,
-    #[serde(default, skip_serializing_if = "is_false")]
     preserve_prompt: bool,
-}
-fn is_false(value: &bool) -> bool {
-    !value
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

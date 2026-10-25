@@ -697,7 +697,7 @@ WorktreeJob 与 AgentDrain 回复仍由唯一 wire owner 受检，
 ### 发现准入与回执归属
 
 `local_terminal_service::worktree_list::DiscoveryGate` 协调三种只读启动：
-已提交 Directory 列表（`Start`）、Workspace／字面目录查询（`StartSource`）
+已提交 Directory 列表（`Start`）、Workspace／字面目录查询（带有 `trust_repository` 的 `Start`）
 及侧栏 Git 观测（`StartStatus`）。Worker 仍拥有唯一物理发现 job 和唯一保留回执。
 新接受的启动会替换回执，因此 Server 准入覆盖完整 job 生命周期，
 包括两次轮询之间的间隔与终态结果消费。

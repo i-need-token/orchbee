@@ -11,9 +11,9 @@ fn send_stroke_mixed_records_preserve_boundaries_and_reject_malformed_payloads()
     use crate::{SendKeyStroke, SendStrokeKey};
     let records = SendRecords::new(vec![
         SendRecord::Stroke(SendKeyStroke::new(SendStrokeKey::Character('😀'), 8).unwrap()),
-        SendRecord::Key {
-            key: SendKey::Enter,
-        },
+        SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(SendKey::Enter), 0).unwrap(),
+        ),
     ])
     .unwrap();
     let request = TerminalSendRequest::new(
@@ -25,7 +25,7 @@ fn send_stroke_mixed_records_preserve_boundaries_and_reject_malformed_payloads()
     );
     let wire = crate::send_record::encode(&request).unwrap();
     let at = 12 + 65;
-    assert_eq!(&wire[at..], &[6, 8, 4, 0, 1, 0xf6, 0, 2, 1]);
+    assert_eq!(&wire[at..], &[6, 8, 4, 0, 1, 0xf6, 0, 6, 0, 1, 0, 0, 0, 1]);
     assert_eq!(
         crate::send_record::decode(&wire).unwrap(),
         crate::ClientMessage::TerminalSend(request)
@@ -33,7 +33,7 @@ fn send_stroke_mixed_records_preserve_boundaries_and_reject_malformed_payloads()
     for end in 0..wire.len() {
         assert!(crate::send_record::decode(&wire[..end]).is_err());
     }
-    for (offset, value) in [(0, 7), (1, 16), (2, 0), (3, 1)] {
+    for (offset, value) in [(0, 2), (0, 3), (0, 7), (1, 16), (2, 0), (3, 1)] {
         let mut invalid = wire.clone();
         invalid[at + offset] = value;
         assert!(crate::send_record::decode(&invalid).is_err());
@@ -74,11 +74,11 @@ fn folded_enter_shares_the_same_payload_bound() {
 
 #[test]
 fn records_enforce_count_and_aggregate_decoded_bounds() {
-    use super::{
-        MAXIMUM_SEND_AGGREGATE_BYTES, MAXIMUM_SEND_BYTES_BYTES, SendComboBase, SendModifiers,
-    };
-    let key = || SendRecord::Key {
-        key: SendKey::Enter,
+    use super::{MAXIMUM_SEND_AGGREGATE_BYTES, MAXIMUM_SEND_BYTES_BYTES};
+    let key = || {
+        SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(SendKey::Enter), 0).unwrap(),
+        )
     };
     assert!(SendRecords::new(Vec::new()).is_err());
     assert!(SendRecords::new(vec![key(); MAXIMUM_SEND_RECORDS]).is_ok());
@@ -102,43 +102,6 @@ fn records_enforce_count_and_aggregate_decoded_bounds() {
         },
     );
     assert!(SendRecords::new(over).is_err());
-    // The closed combo vocabulary rejects what the wire must never carry.
-    assert!(SendModifiers::new(false, false, false).is_err());
-    assert!(SendComboBase::new_named(SendKey::CtrlC).is_err());
-    assert!(SendComboBase::new_named(SendKey::CtrlD).is_err());
-    assert!(SendComboBase::new_function(13).is_err());
-    assert!(SendComboBase::new_letter(b'A').is_err());
-    assert!(SendComboBase::new_digit(b'/').is_err());
-}
-
-#[test]
-fn send_key_set_serializes_to_the_fifteen_closed_names() -> Result<(), Box<dyn std::error::Error>> {
-    let cases = [
-        (SendKey::Enter, "enter"),
-        (SendKey::Escape, "escape"),
-        (SendKey::Tab, "tab"),
-        (SendKey::Backspace, "backspace"),
-        (SendKey::Delete, "delete"),
-        (SendKey::Up, "up"),
-        (SendKey::Down, "down"),
-        (SendKey::Left, "left"),
-        (SendKey::Right, "right"),
-        (SendKey::Home, "home"),
-        (SendKey::End, "end"),
-        (SendKey::PageUp, "page-up"),
-        (SendKey::PageDown, "page-down"),
-        (SendKey::CtrlC, "ctrl-c"),
-        (SendKey::CtrlD, "ctrl-d"),
-    ];
-    assert_eq!(cases.len(), 15);
-    for (key, name) in cases {
-        assert_eq!(serde_json::to_string(&key)?, format!("\"{name}\""));
-        assert_eq!(
-            serde_json::from_str::<SendKey>(&format!("\"{name}\""))?,
-            key
-        );
-    }
-    Ok(())
 }
 
 #[test]
@@ -253,9 +216,9 @@ fn request_exposes_the_flat_binding_triple_and_records() -> Result<(), Box<dyn s
         SiteId::parse("22222222222222222222222222222222")?,
         WorkerId::parse("33333333333333333333333333333333")?,
         TerminalId::parse("44444444444444444444444444444444")?,
-        SendRecords::new(vec![SendRecord::Key {
-            key: SendKey::Enter,
-        }])?,
+        SendRecords::new(vec![SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(SendKey::Enter), 0).unwrap(),
+        )])?,
     );
     assert_eq!(
         request.request_id().as_str(),
@@ -275,9 +238,9 @@ fn request_exposes_the_flat_binding_triple_and_records() -> Result<(), Box<dyn s
     );
     assert_eq!(
         request.records().as_slice(),
-        &[SendRecord::Key {
-            key: SendKey::Enter
-        }]
+        &[SendRecord::Stroke(
+            crate::SendKeyStroke::new(crate::SendStrokeKey::Named(SendKey::Enter), 0).unwrap()
+        )]
     );
     Ok(())
 }

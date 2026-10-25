@@ -153,7 +153,7 @@ boundary 不会授权或描述无效 runtime geometry：Terminal Host 只接受�
 
 每个`TerminalThemeResult`都会回显请求操作和终端身份，并包含完整的权威`current`状态。对于`applied`和`already-applied`，`current.operationId`等于回显请求操作；对于 `stale`，则有所不同。运行时应用（该主题）会替换 Host 拥有的动态颜色默认值并清除先前的 OSC 颜色覆盖；后续终端 OSC action 可能覆盖这些默认值，而它们的重置形式（reset forms）、RIS 与应用重置会回到最新运行时主题。丢失的结果是未知的结果：客户端在变基之前首先通过库存进行协调，并且永远不会从客户端本地覆盖推断权限。
 
-`ClearTerminal`和`ResetTerminal`各自仅携带有输入能力的`AttachmentId`；它们是语义主机请求，而不是终端输入有效负载。 Clear 会擦除并返回活动的 Ghostty 屏幕，而无需重置模式。 Reset执行Ghostty的完全重置并返回主屏幕。 `TerminalControlAccepted` 返回附件、解析的终端、精确操作以及生成/修订结果。丢失的响应是未知结果，并且不授权重播。
+`ClearTerminal` 和 `ResetTerminal` 携带可输入的 `AttachmentId`；Clear 另要求必填布尔字段 `preservePrompt`。false 表示擦除活动 Ghostty 屏幕并将光标归位，不重置模式；true 按 [Host 运行时契约](../../../apps/terminal-host/docs/runtime-model.zh-CN.md#保留提示行的清空) 保留主屏幕完整提示行。这些是语义 Host 请求。Reset 不接受提示行策略，执行 Ghostty 完全重置并返回主屏幕。`TerminalControlAccepted` 返回附件、解析后的终端、精确操作及最终代次／修订。丢失响应代表未知结果，不授权重放。
 
 每个附件均以能力修订版 `1` 开头。`AttachmentCapabilities` 在完整的当前能力值旁报告该正数规范 uint64 修订，其中可以包含仅输入附件降级后的全 false 值。`UpdateAttachmentInputCapability` 类型 `24` 携带附件、正数修订和下一个输入位。Host 仅应用更改输入位的精确 `current + 1` 修订；精确的当前修订和值是幂等重放。同修订不同值或下一修订不变值是 `capability-revision-conflict`；旧修订或缺口是 `stale-capability-revision`。读取和调整大小能力在此协议版本中仍是不可变的已准入值。
 

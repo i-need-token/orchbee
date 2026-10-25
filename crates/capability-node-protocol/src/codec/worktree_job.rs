@@ -15,7 +15,6 @@ const RESULT_KIND: u8 = 16;
 const ACTION_START: u8 = 1;
 const ACTION_POLL: u8 = 2;
 const ACTION_CANCEL: u8 = 3;
-const ACTION_START_SOURCE: u8 = 4;
 const ACTION_START_STATUS: u8 = 5;
 
 const START_ACCEPTED: u8 = 1;
@@ -51,22 +50,21 @@ pub(super) fn encode_request(request: &WorktreeJobRequest) -> Vec<u8> {
     bytes.extend_from_slice(&request.worker_id.as_bytes());
     bytes.extend_from_slice(&request.worker_generation.get().to_be_bytes());
     match &request.action {
-        WorktreeJobAction::StartSource {
+        WorktreeJobAction::Start {
             directory,
             trust_repository,
         } => {
-            bytes.push(ACTION_START_SOURCE);
-            bytes.push(u8::from(*trust_repository));
+            bytes.push(ACTION_START);
+            bytes.push(match trust_repository {
+                None => 0,
+                Some(false) => 1,
+                Some(true) => 2,
+            });
             bytes.extend_from_slice(&(directory.len() as u16).to_be_bytes());
             bytes.extend_from_slice(directory);
         }
         WorktreeJobAction::StartStatus { directory } => {
             bytes.push(ACTION_START_STATUS);
-            bytes.extend_from_slice(&(directory.len() as u16).to_be_bytes());
-            bytes.extend_from_slice(directory);
-        }
-        WorktreeJobAction::Start { directory } => {
-            bytes.push(ACTION_START);
             bytes.extend_from_slice(&(directory.len() as u16).to_be_bytes());
             bytes.extend_from_slice(directory);
         }
@@ -90,22 +88,19 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<WorktreeJobRequest, Protoco
         NonZeroU64::new(reader.read_u64()?).ok_or(ProtocolError::InvalidPayload)?,
     );
     let action = match reader.read_u8()? {
-        ACTION_START_SOURCE => {
-            let trust = match reader.read_u8()? {
-                0 => false,
-                1 => true,
-                _ => return Err(ProtocolError::InvalidPayload),
-            };
-            let length = usize::from(reader.read_u16()?);
-            WorktreeJobAction::start_source(reader.read_slice(length)?.to_vec(), trust)?
-        }
         ACTION_START_STATUS => {
             let length = usize::from(reader.read_u16()?);
             WorktreeJobAction::start_status(reader.read_slice(length)?.to_vec())?
         }
         ACTION_START => {
+            let trust = match reader.read_u8()? {
+                0 => None,
+                1 => Some(false),
+                2 => Some(true),
+                _ => return Err(ProtocolError::InvalidPayload),
+            };
             let length = usize::from(reader.read_u16()?);
-            WorktreeJobAction::start(reader.read_slice(length)?.to_vec())?
+            WorktreeJobAction::start(reader.read_slice(length)?.to_vec(), trust)?
         }
         ACTION_POLL => WorktreeJobAction::Poll {
             job_id: OperationId::from_bytes(reader.read_array()?)?,

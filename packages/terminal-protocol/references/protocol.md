@@ -300,11 +300,7 @@ may override those defaults, while their reset forms, RIS, and application reset
 latest runtime theme. A lost result is unknown outcome: the client first reconciles through
 inventory before it rebases and never infers authority from a client-local override.
 
-`ClearTerminal` and `ResetTerminal` each carry only the input-capable `AttachmentId`; they are
-semantic Host requests, not terminal input payloads. Clear erases and homes the active Ghostty
-screen without resetting modes. Reset performs Ghostty's full reset and returns to the primary
-screen. `TerminalControlAccepted` returns the attachment, resolved terminal, exact operation, and
-resulting generation/revision. A lost response is an unknown result and does not authorize replay.
+`ClearTerminal` and `ResetTerminal` carry the input-capable `AttachmentId`; Clear additionally requires Boolean `preservePrompt`. With false, Clear erases and homes the active Ghostty screen without resetting modes; true preserves the complete primary-screen prompt line under the [Host runtime contract](../../../apps/terminal-host/docs/runtime-model.md#prompt-preserving-clear). These are semantic Host requests. Reset accepts no prompt policy, performs Ghostty's full reset and returns to the primary screen. `TerminalControlAccepted` returns attachment, resolved terminal, exact operation and resulting generation/revision. A lost response is unknown and does not authorize replay.
 
 Every attachment starts with capability revision `1`. `AttachmentCapabilities` reports that
 positive canonical uint64 revision beside the complete current capability value, including an

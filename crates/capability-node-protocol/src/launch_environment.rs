@@ -62,12 +62,6 @@ impl LaunchEnvironment {
     pub fn entries(&self) -> &[(String, String)] {
         &self.0
     }
-
-    /// Whether legacy launch encoding and inherited/default environment suffice.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
 impl fmt::Debug for LaunchEnvironment {

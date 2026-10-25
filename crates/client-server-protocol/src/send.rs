@@ -113,11 +113,8 @@ impl SendPasteContent {
     }
 }
 
-/// The closed single-press semantic key set a `key` record may name, encoded
-/// as the documented numeric codes 1 through 15. `CtrlC`/`CtrlD` are the
-/// legacy spellings for a Control-modified letter press.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+/// Named non-character identities carried by a semantic stroke (codes 1–13).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SendKey {
     Enter,
     Escape,
@@ -132,8 +129,6 @@ pub enum SendKey {
     End,
     PageUp,
     PageDown,
-    CtrlC,
-    CtrlD,
 }
 impl SendKey {
     pub(crate) fn from_code(code: u8) -> Result<Self, ProtocolError> {
@@ -151,8 +146,6 @@ impl SendKey {
             11 => Self::End,
             12 => Self::PageUp,
             13 => Self::PageDown,
-            14 => Self::CtrlC,
-            15 => Self::CtrlD,
             _ => return Err(ProtocolError::InvalidPayload),
         })
     }
@@ -171,97 +164,20 @@ impl SendKey {
             Self::End => 11,
             Self::PageUp => 12,
             Self::PageDown => 13,
-            Self::CtrlC => 14,
-            Self::CtrlD => 15,
         }
-    }
-}
-
-/// The modifier subset a `combo` record presses beside its base key. At
-/// least one modifier must stand; a modifier-only value is rejected.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct SendModifiers {
-    pub control: bool,
-    pub alt: bool,
-    pub shift: bool,
-}
-impl SendModifiers {
-    pub fn new(control: bool, alt: bool, shift: bool) -> Result<Self, ProtocolError> {
-        if !(control || alt || shift) {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        Ok(Self {
-            control,
-            alt,
-            shift,
-        })
-    }
-}
-
-/// The closed base vocabulary a `combo` record accepts: every named semantic
-/// key except the already-modified `CtrlC`/`CtrlD`, plus the physical codes
-/// the terminal protocol actually owns — Insert, F1 through F12, Space, and
-/// ASCII letters and digits under their exact `KeyX`/`DigitN` identities.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SendComboBase {
-    Named(SendKey),
-    Insert,
-    /// Function key number, 1 through 12 inclusive.
-    Function(u8),
-    Space,
-    /// ASCII lowercase letter `a` through `z`.
-    Letter(u8),
-    /// ASCII digit `0` through `9`.
-    Digit(u8),
-}
-impl SendComboBase {
-    pub fn new_named(key: SendKey) -> Result<Self, ProtocolError> {
-        match key {
-            SendKey::CtrlC | SendKey::CtrlD => Err(ProtocolError::InvalidPayload),
-            key => Ok(Self::Named(key)),
-        }
-    }
-    pub fn new_function(number: u8) -> Result<Self, ProtocolError> {
-        if !(1..=12).contains(&number) {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        Ok(Self::Function(number))
-    }
-    pub fn new_letter(letter: u8) -> Result<Self, ProtocolError> {
-        if !letter.is_ascii_lowercase() {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        Ok(Self::Letter(letter))
-    }
-    pub fn new_digit(digit: u8) -> Result<Self, ProtocolError> {
-        if !digit.is_ascii_digit() {
-            return Err(ProtocolError::InvalidPayload);
-        }
-        Ok(Self::Digit(digit))
     }
 }
 
 /// Exactly one Host input record worth of content: bounded UTF-8 text with
-/// an optional folded carriage return, one semantic key press, one explicit
-/// modifier combination, one opaque byte payload, or one opaque paste whose
+/// an optional folded carriage return, one semantic stroke,
+/// one opaque byte payload, or one opaque paste whose
 /// bracket encoding the Host owns.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SendRecord {
     Stroke(crate::SendKeyStroke),
     Text(SendTextInput),
-    Key {
-        key: SendKey,
-    },
-    Combo {
-        modifiers: SendModifiers,
-        base: SendComboBase,
-    },
-    Bytes {
-        bytes: SendBytes,
-    },
-    Paste {
-        content: SendPasteContent,
-    },
+    Bytes { bytes: SendBytes },
+    Paste { content: SendPasteContent },
 }
 impl SendRecord {
     /// The decoded payload bytes this record contributes to the aggregate
@@ -271,7 +187,7 @@ impl SendRecord {
     pub fn decoded_bytes(&self) -> usize {
         match self {
             Self::Text(input) => input.record_bytes(),
-            Self::Key { .. } | Self::Combo { .. } | Self::Stroke(_) => 0,
+            Self::Stroke(_) => 0,
             Self::Bytes { bytes } => bytes.as_bytes().len(),
             Self::Paste { content } => content.as_bytes().len(),
         }

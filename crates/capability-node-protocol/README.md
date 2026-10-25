@@ -38,13 +38,7 @@ owns deadlines, ticket bounds, physical-owner preservation and focused evidence 
 
 ## Configured background commands
 
-The retained process-job lane also admits configured Windows commands, without a
-plugin identity or plugin log. OBPJ version 2 adds request action 5 and result
-outcome 5; legacy plugin actions keep their version 1 bytes. Action 5 carries a
-bounded catalog ID, absolute directory, literal command and unique bounded
-`ORCHBEE_*` environment entries. Outcome 5 echoes the job ID and whether that
-same frozen job already exists. Version 1 refuses both new tags. Worker ID,
-generation, operation correlation and the existing closed refusals still apply.
+The process-job lane admits configured Windows commands without a plugin identity or plugin log. OBPJ uses frame version 1 for every action and outcome. Request action 5 carries a bounded catalog ID, absolute directory, literal command and unique bounded `ORCHBEE_*` environment entries; result outcome 5 echoes the job ID and whether the same frozen job already exists. Worker ID, generation, operation correlation and closed refusals apply to plugin and configured jobs alike.
 
 The Server resolves the installed configuration before dispatch. The Worker
 overwrites Site routing, executes the literal command with Windows `cmd /d /c`,
@@ -77,13 +71,7 @@ independent overlay and public CLI remain separate workflow obligations.
 
 ## Authorized editor source capture
 
-An editor launch uses deferred mode, an explicit resolved `LaunchSelection` and
-one `TerminalEditorSource`: existing read attachment ID, Host epoch/terminal ID,
-positive generation and full u64 content revision (including zero).
-It excludes plugin metadata and default-shell selection. Launch extension 4 uses
-zero u16, byte 4, existing selection and environment encoding, then three 16-byte
-IDs and two big-endian u64 fences. Omission preserves every ordinary launch byte.
-The complete source is part of the retained authorized launch's replay identity.
+An editor launch uses deferred mode, an explicit resolved `LaunchSelection` and one `TerminalEditorSource`: existing read attachment ID, Host epoch/terminal ID, positive generation and full u64 content revision (including zero). It excludes plugin metadata and default-shell selection. Launch kind 4 carries the selection and environment, then three 16-byte IDs and two big-endian u64 fences. The complete source is part of the authorized launch's replay identity.
 
 Worker checks the exact open viewer target, current Host epoch and non-disposal
 before Create handoff. Host repeats connection-owned read authority and same-lock
@@ -254,14 +242,9 @@ unknown), never mixed. The grid is at most 262,144 cells, and each total pixel e
 imports or re-exports of Terminal Host wire payloads; a future Worker adapter must convert them
 explicitly and preserve validation.
 
-The optional launch selection is a closed tail after the launch mode: a `u16` executable length,
-the executable bytes, a `u16` argument count, then `u16`-length-prefixed argument strings. The
-executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings
-(empty and dash-leading values allowed) with at most 128 entries and at most 30,720 UTF-8 bytes
-across the executable and all arguments combined. A payload that ends at the mode block decodes as
-the default launch; a present tail is validated with complete consumption, so partial or trailing
-bytes reject. The tail carries `argv[1..]` only — `argv[0]` is the Host's synthesis from the
-executable path — and absence is distinct from an explicit empty argument list.
+Every launch carries one required u8 kind immediately after the launch mode: 0 uses the Worker default, 1 carries an explicit selection, 2 carries a default-shell selection, 3 carries an explicit plugin selection, and 4 carries an explicit editor selection. Each kind includes the caller environment, including a zero entry count when empty. Kinds are alternatives in the current layout, not payload versions. Missing kinds, unknown kinds, truncation and trailing bytes are rejected.
+
+An explicit selection contains a `u16` executable length, executable bytes, a `u16` argument count and `u16`-length-prefixed argument strings. The executable is a nonempty absolute UTF-8 path without NUL; arguments are NUL-free UTF-8 strings (empty and dash-leading values allowed), at most 128 entries and at most 30,720 UTF-8 bytes across executable and arguments. The selection carries `argv[1..]`; Host synthesizes `argv[0]` from the executable. Kind 0 remains distinct from kind 1 with an empty argument list.
 
 ## Read-only viewer messages
 
@@ -378,7 +361,7 @@ Server and Worker guides own single-controller reservation, cleanup and real PTY
 
 Native send requests use a dedicated `OBNS` record: magic, big-endian u16 encoding version 1, reserved zero u16, u32 body length, then request ID (16 bytes), Worker ID (16), Worker generation (u64), Host creation/epoch/terminal IDs (48), Server-assigned input attachment ID (16), u8 record count (1–64), and ordered records. The maximum body is `105 + 64 * 7 + 1,048,576` bytes, checked before allocation. The retired kind-13 request is not decoded as a current request. No target rebinding or controller/viewer/resize authority is granted.
 
-Record tags 1–6 carry text, named key, legacy combo, opaque bytes, paste content, and semantic stroke respectively, with the exact field encodings and bounds in the [native send contract](../../schemas/client-server/README.md#current-native-contract). `SendKeyStroke` independently validates modifier bits 0..15, named keys 1..13, Insert, F1..F25 and non-control Unicode scalar characters. New records preserve legacy bytes and the aggregate 1 MiB decoded payload limit. The Server maps independent OBCS values; Worker forwards semantic keys to the Host encoder.
+Record tags 1, 4, 5 and 6 carry text, opaque bytes, paste content and semantic stroke, respectively; tags 2 and 3 are invalid. Exact fields and bounds belong to the [native send contract](../../schemas/client-server/README.md#current-native-contract). `SendKeyStroke` independently validates modifier bits 0..15, named keys 1..13, Insert, F1..F25 and non-control Unicode scalars. The aggregate decoded payload limit is 1 MiB. Server maps independent OBCS values; Worker forwards every semantic key through the same Host encoder.
 
 Kind 14 results retain request identity, input outcome (unavailable, rejected, accepted or unknown), confirmed prefix progress and independent cleanup state. Progress encodes accepted-record count and first stopped record as u8, then accepted encoded bytes as u64. A stopped request is not atomic; unknown or partially accepted input is never replayed automatically. Existing typed constructors and codecs validate outcome/progress/cleanup consistency. Dedicated request records coexist with the bounded OBCN result frames.
 
@@ -389,7 +372,7 @@ The sequence's single temporary attachment, exact incarnation fence, one total d
 OBCN kind 15 `WorktreeJobRequest` and kind 16 `WorktreeJobResult` carry one bounded
 `git worktree list` discovery job for the `worktree list` Server flow. A request contains
 operation ID (16 bytes), Worker ID (16), Worker generation (u64), then an action tag: 1
-`Start` with a u16 length and 1 through 4,096 directory bytes (an absolute, nonempty,
+`Start` with a u8 optional trust policy (0 absent, 1 false, 2 true), a u16 length and 1 through 4,096 directory bytes (an absolute, nonempty,
 NUL-free local-platform path — validated at construction and decode), 2 `Poll` with a job ID (16),
 or 3 `Cancel` with a job ID (16). The job ID is the Start operation's own operation ID:
 a Server mints one identity per job and reuses it on Poll and Cancel.
@@ -463,12 +446,7 @@ reject these identity and epoch contradictions, so canonical encoding cannot emi
 constructors. The Worker refinement additionally requires a successful Start observation to retain
 the exact authorized geometry before it constructs a result.
 
-The launch payload accepts a bounded literal `LaunchEnvironment` in addition to the optional
-launch selection. Empty environments keep the legacy bytes unchanged. A nonempty environment
-replaces the selection tail with `u16(0)`, extension version `u8(1)`, selection-present `u8(0|1)`,
-the optional existing selection, then a `u16` entry count and `u16`-length-prefixed UTF-8 name/value
-pairs. Zero is an invalid legacy executable length, so older decoders reject this extension.
-Unknown versions, truncated fields, an empty extension and trailing bytes are rejected.
+Every launch kind carries a bounded literal `LaunchEnvironment`: a `u16` entry count followed by `u16`-length-prefixed UTF-8 name/value pairs. Kind 0 carries it directly; kinds 1–4 carry it after their selection fields. Empty and nonempty environments use this same layout.
 
 An environment has at most 32 entries and 1,024 combined UTF-8 name/value bytes. Names match
 `[A-Za-z_][A-Za-z0-9_]*`, are at most 128 bytes, and are unique ignoring ASCII case. NUL values,
@@ -638,7 +616,9 @@ Rollback replaces the cohort and migrates no durable protocol data.
 
 ## Source-based Worktree discovery
 
-Kind 15 additionally admits `StartSource` action tag 4: a bounded absolute UTF-8 directory plus strict 0/1 command-local trust. Legacy Start tag 1 is unchanged. Start result tag 6 means unsupported execution. Poll result tag 13 is `SourceCompleted`: common-directory, source-checkout, listing and stderr bytes share the existing 7936-byte variable-data bound, with four explicit lengths. The Worker owns execution and cleanup; the new read consumes no mutation job receipt. Golden bytes, wrong-direction/trailing/truncated input, strict trust and combined bounds are covered in `tests/worktree_source.rs`.
+Kind 15 uses one `Start` action tag 1. An absent `trust_repository` selects registered-directory listing; a present Boolean selects Windows source discovery and its command-local trust policy. Source paths are bounded absolute UTF-8 directories. Start result tag 6 means unsupported execution. Poll result tag 13 is `SourceCompleted`: common-directory, source-checkout, listing and stderr bytes share the 7936-byte variable-data bound, with four explicit lengths. Worker owns execution and cleanup; the read consumes no mutation job receipt. `tests/worktree_source.rs` covers canonical bytes, truncated/trailing input, optional trust and combined bounds.
+
+Registered-directory list results retain native Unix path bytes when they are not UTF-8; this is a current producer, not an old-peer representation. Source-query results validate one UTF-8 path representation and reject byte-path entries.
 
 ## Styled buffer reads
 
@@ -669,7 +649,7 @@ Launch selections additionally cap worst-case JSON string-content bytes at 30 Ki
 
 An authorized default launch may carry `DefaultShellSelection`: a literal executable of 0–4096 UTF-8 bytes without control characters and mode Auto/Login/NonLogin. Empty executable means platform default; absence means Worker startup fallback. The Worker separately validates Windows executable syntax before effects. Explicit `LaunchSelection` and a default override are mutually exclusive. This value participates in exact replay identity.
 
-The existing zero-u16 launch extension sentinel uses version 2 for this shape: u8 mode (0/1/2), u16 executable byte length, executable UTF-8 bytes, then the existing environment encoding (including empty). There is no explicit selection slot in v2. Legacy payloads and v1 nonempty-environment extensions retain exact bytes. Unknown mode/version, truncation, trailing bytes and invalid bounded values are refused. OBCN frame version and 40 KiB payload limit stay unchanged. Matched private cohorts ship/roll back together; this wire adds no broadcast, persistence or retry.
+Launch kind 2 carries u8 mode (0 Auto, 1 Login, 2 NonLogin), u16 executable byte length, executable UTF-8 bytes, then the environment encoding (including empty). It has no explicit executable/argv selection. Unknown modes, truncation, trailing bytes and invalid bounded values are refused. OBCN frame version 1 and the 40 KiB payload limit remain unchanged. Matched private cohorts ship or roll back together; this wire adds no broadcast, persistence or retry.
 
 ## Plugin job records
 
@@ -677,7 +657,7 @@ Plugin requests/results use distinct `OBPJ` records: magic, encoding version 1 (
 
 ## Plugin terminal display environment
 
-An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN extension 3 transports the explicit selection, ordinary environment and plugin environment; legacy encodings and the 40 KiB frame limit stay unchanged. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.
+An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN launch kind 3 transports the explicit selection, ordinary environment and plugin environment under the 40 KiB frame limit. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.
 
 ## Windows physical title observations
 
@@ -702,7 +682,7 @@ ship/roll back together; no persisted data or Host protocol changes.
 The existing Worktree job request/result kinds 15/16 add `StartStatus` action tag 5
 and `StatusCompleted` poll tag 14. Directory validation and identity/generation
 fences are unchanged; status/stderr use separate u16-prefixed byte fields with the
-existing 7936-byte summed budget. Legacy Start/StartSource encodings stay unchanged.
+existing 7936-byte summed budget. Status observes branch/upstream facts and remains distinct from Start discovery.
 The Windows owner reuses the discovery slot, TTL, cancellation, settlement and
 retained receipt; unsupported platforms reject this action. No mutation/Host
 startup/input authority is added. Runtime ownership is in the

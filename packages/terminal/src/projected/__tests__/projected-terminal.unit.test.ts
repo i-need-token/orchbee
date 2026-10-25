@@ -11942,7 +11942,7 @@ describe('ProjectedTerminal', () => {
 		terminal.clear();
 		terminal.reset();
 		expect(commands.filter((command) => command.kind === 'clear-terminal')).toEqual([
-			{ kind: 'clear-terminal', payload: { attachmentId } },
+			{ kind: 'clear-terminal', payload: { attachmentId, preservePrompt: false } },
 		]);
 		expect(commands.filter((command) => command.kind === 'reset-terminal')).toEqual([
 			{ kind: 'reset-terminal', payload: { attachmentId } },

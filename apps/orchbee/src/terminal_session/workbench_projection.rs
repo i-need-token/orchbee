@@ -1678,9 +1678,8 @@ fn retained_member_tuples(
     }
     current.iter().all(|tab| {
         // A surviving Tab identity must still own at least one of its own
-        // current members under the same Tab identity — a conservative
-        // consumer-side floor, deliberately stricter than the producer's
-        // `last-panel-in-tab` move rejection it is often mistaken for.
+        // current members under the same Tab identity. This consumer-side
+        // continuity check is independent of command rejection reasons.
         let mut retains_member = false;
         for member in member_tuples(tab) {
             let primary = tab

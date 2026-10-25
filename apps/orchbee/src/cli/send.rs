@@ -71,7 +71,7 @@ enum SendTarget<'a> {
 
 pub(super) fn run_agent(
     target: &crate::invocation::AgentTarget,
-    keys: &[crate::invocation::ParsedSendKey],
+    keys: &[orchbee_client_server_protocol::SendKeyStroke],
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
@@ -111,8 +111,8 @@ mod linux {
     use std::time::{Duration, Instant};
 
     use orchbee_client_server_protocol::{
-        SendBytes, SendCleanupStatus, SendComboBase, SendKey, SendModifiers, SendPasteContent,
-        SendRecord, SendRecords, SendRejectedReason, SendText, SendTextInput,
+        SendBytes, SendCleanupStatus, SendKey, SendKeyStroke, SendPasteContent, SendRecord,
+        SendRecords, SendRejectedReason, SendStrokeKey, SendText, SendTextInput,
         SendUnavailableReason, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId,
         TerminalSendOutcome, TerminalSendRequest, TerminalSendResult, WorkerId as ObcsWorkerId,
     };
@@ -126,7 +126,7 @@ mod linux {
         source_failure_output, stage_details,
     };
     use super::{SendTarget, SendVerdict, TERMINAL_SEND_ID};
-    use crate::invocation::{OutputFormat, Target, TerminalSendInput, TerminalSendKey};
+    use crate::invocation::{OutputFormat, Target, TerminalSendInput};
     use crate::local_client::{OutcomeUnknownReason, SubmissionError};
     use crate::localization::Locale;
 
@@ -434,13 +434,15 @@ mod linux {
         if codex_boundary {
             // A semantic key flushes Windows Codex's paste-burst buffer before
             // Enter. Keep it inside this one sequence, never a second send.
-            records.push(SendRecord::Key {
-                key: SendKey::Right,
-            });
+            records.push(SendRecord::Stroke(
+                SendKeyStroke::new(SendStrokeKey::Named(SendKey::Right), 0)
+                    .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+            ));
         }
-        records.push(SendRecord::Key {
-            key: SendKey::Enter,
-        });
+        records.push(SendRecord::Stroke(
+            SendKeyStroke::new(SendStrokeKey::Named(SendKey::Enter), 0)
+                .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+        ));
         let records = SendRecords::new(records).map_err(internal)?;
         let prepared = prepare_records(target, snapshot, (records, "sequence", Some(text.len())))?;
         submit_prepared(client, snapshot, prepared, deadline, wake)
@@ -566,7 +568,8 @@ mod linux {
                 (vec![record], "text", Some(text.len() + usize::from(*enter)))
             }
             TerminalSendInput::Keys(keys) => {
-                let records: Vec<SendRecord> = keys.iter().map(|key| send_record(*key)).collect();
+                let records: Vec<SendRecord> =
+                    keys.iter().copied().map(SendRecord::Stroke).collect();
                 let kind = if records.len() == 1 {
                     "key"
                 } else {
@@ -597,9 +600,10 @@ mod linux {
                     content: SendPasteContent::new(content.clone()).map_err(|_| internal())?,
                 }];
                 if *enter {
-                    records.push(SendRecord::Key {
-                        key: SendKey::Enter,
-                    });
+                    records.push(SendRecord::Stroke(
+                        SendKeyStroke::new(SendStrokeKey::Named(SendKey::Enter), 0)
+                            .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
+                    ));
                 }
                 let kind = if *enter { "sequence" } else { "paste" };
                 (records, kind, Some(content.len()))
@@ -615,35 +619,6 @@ mod linux {
             kind,
             record_bytes,
         ))
-    }
-
-    /// One parsed `--key` value as its wire record: a named semantic key
-    /// stays a `key` record; an explicit modifier combination becomes a
-    /// `combo` record over the closed base vocabulary.
-    fn send_record(key: crate::invocation::ParsedSendKey) -> SendRecord {
-        use crate::invocation::{ParsedSendKey, TerminalComboBase};
-        match key {
-            ParsedSendKey::Stroke(stroke) => SendRecord::Stroke(stroke),
-            ParsedSendKey::Key(key) => SendRecord::Key { key: send_key(key) },
-            ParsedSendKey::Combo(combo) => {
-                let base = match combo.base {
-                    TerminalComboBase::Key(key) => SendComboBase::Named(send_key(key)),
-                    TerminalComboBase::Insert => SendComboBase::Insert,
-                    TerminalComboBase::Function(number) => SendComboBase::Function(number),
-                    TerminalComboBase::Space => SendComboBase::Space,
-                    TerminalComboBase::Letter(letter) => SendComboBase::Letter(letter),
-                    TerminalComboBase::Digit(digit) => SendComboBase::Digit(digit),
-                };
-                SendRecord::Combo {
-                    modifiers: SendModifiers {
-                        control: combo.control,
-                        alt: combo.alt,
-                        shift: combo.shift,
-                    },
-                    base,
-                }
-            }
-        }
     }
 
     /// Map the typed `terminal.send.result` into the two-axis receipt and the
@@ -890,26 +865,6 @@ mod linux {
                     Err(output::TooLarge) => too_large(),
                 }
             }
-        }
-    }
-
-    fn send_key(key: TerminalSendKey) -> SendKey {
-        match key {
-            TerminalSendKey::Enter => SendKey::Enter,
-            TerminalSendKey::Escape => SendKey::Escape,
-            TerminalSendKey::Tab => SendKey::Tab,
-            TerminalSendKey::Backspace => SendKey::Backspace,
-            TerminalSendKey::Delete => SendKey::Delete,
-            TerminalSendKey::Up => SendKey::Up,
-            TerminalSendKey::Down => SendKey::Down,
-            TerminalSendKey::Left => SendKey::Left,
-            TerminalSendKey::Right => SendKey::Right,
-            TerminalSendKey::Home => SendKey::Home,
-            TerminalSendKey::End => SendKey::End,
-            TerminalSendKey::PageUp => SendKey::PageUp,
-            TerminalSendKey::PageDown => SendKey::PageDown,
-            TerminalSendKey::CtrlC => SendKey::CtrlC,
-            TerminalSendKey::CtrlD => SendKey::CtrlD,
         }
     }
 

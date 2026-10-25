@@ -149,6 +149,7 @@ fn worktree_job_before_first_launch_answers_without_a_host() -> TestResult {
         worker_generation: WorkerGeneration::new(GENERATION),
         action: WorktreeJobAction::Start {
             directory: directory.as_os_str().as_encoded_bytes().to_vec(),
+            trust_repository: None,
         },
     };
     write_message(

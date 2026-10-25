@@ -120,10 +120,9 @@ pub use terminal_control::{
 pub use terminal_send::{
     MAXIMUM_SEND_ACCEPTED_BYTES, MAXIMUM_SEND_ACCEPTED_ENCODED_BYTES, MAXIMUM_SEND_AGGREGATE_BYTES,
     MAXIMUM_SEND_BYTES_BYTES, MAXIMUM_SEND_PASTE_BYTES, MAXIMUM_SEND_RECORDS,
-    MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendBytes, SendCleanupStatus, SendComboBase,
-    SendKey, SendModifiers, SendPasteContent, SendProgress, SendRecord, SendRecords, SendRejection,
-    SendText, SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest,
-    TerminalSendResult,
+    MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendBytes, SendCleanupStatus, SendKey,
+    SendPasteContent, SendProgress, SendRecord, SendRecords, SendRejection, SendText,
+    SendTextInput, SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 
 mod launch_environment;

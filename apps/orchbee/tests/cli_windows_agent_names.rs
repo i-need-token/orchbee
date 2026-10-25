@@ -527,9 +527,7 @@ fn agent_keys_use_the_exact_bound_terminal_once_and_preserve_unknown_outcomes() 
             assert_eq!(request.records().len(), 2);
             assert!(matches!(
                 request.records().as_slice()[0],
-                SendRecord::Key {
-                    key: SendKey::Enter
-                }
+                SendRecord::Stroke(stroke) if stroke.key() == orchbee_client_server_protocol::SendStrokeKey::Named(SendKey::Enter) && stroke.modifiers() == 0
             ));
             if mode != "lost" {
                 let target = SendTarget::new(

@@ -148,37 +148,17 @@ inputs. This binding grants no controller authority and never retries an unknown
 
 ## Send binding
 
-`TerminalSendRequest`, `TerminalSendPayload`, `TerminalSendResult`, and `TerminalSendOutcome`
+`TerminalSendRequest`, `SendRecords`, `TerminalSendResult`, and `TerminalSendOutcome`
 carry one Server-authorized non-interactive input submission to an exposed Workbench terminal.
 The request is a flat `requestId` + `siteId`/`workerId`/`terminalId` binding triple + closed
-payload union; the triple is the declared target the Server resolves at authorize time, not an
+record sequence; the triple is the declared target the Server resolves at authorize time, not an
 incarnation lock. The binding grants no controller, viewer, resize, or lease authority, consumes
 no attachment slot, and never rebinds across a restart: a target that changed worker or Host
 incarnation after admission fails or reports an unknown outcome instead of redirecting.
 
-`TerminalSendPayload` is exactly one of `text` or `key`. `text` carries a `SendTextInput`
-pairing validated non-empty UTF-8 `SendText` with an `enter` flag; the carriage return folds into
-the same payload, so one send is always exactly one Host input record. `SendText` accepts up to
-`MAXIMUM_SEND_TEXT_BYTES` (4,096) bytes, and `SendTextInput::new` enforces the combined bound:
-`text` + `enter` together must fit it — a 4,096-byte text is legal only without `enter`. The
-fields are private so no public construction or decoding path can exceed the bound, and the wire
-encoder re-checks it independently. `key` carries one `SendKey` from the closed 15-name set
-(`enter`, `escape`, `tab`, `backspace`, `delete`, `up`, `down`, `left`, `right`, `home`, `end`,
-`page-up`, `page-down`, `ctrl-c`, `ctrl-d`); modifiers are not expressible beyond the named
-`ctrl-` variants, and arbitrary key sequences, multi-record atomicity, raw hex, and paste are
-outside this contract.
+`SendRecords` contains 1–64 ordered `SendRecord` values: text, semantic stroke, opaque bytes or Host-bracketed paste. Text and its optional folded CR together fit 4,096 bytes; opaque bytes fit 1 MiB and paste content fits 256 KiB. The sequence's total decoded content fits 1 MiB; keys contribute no decoded bytes. Every key uses `SendKeyStroke`, including Control-modified characters. Named identities are 1–13; Insert, F1..F25, non-control Unicode scalars and Control/Alt/Shift/Super modifiers use the same stroke encoding. The [native send contract](../../schemas/client-server/README.md#current-native-contract) owns canonical binary layouts. A sequence is not atomic.
 
-Every `TerminalSendOutcome` variant carries the orthogonal `cleanup` axis:
-`accepted`/`rejected`/`unavailable`/`outcome-unknown` each pair their status with
-`not-needed`, `confirmed`, or `unconfirmed` attachment cleanup. Two pairs cannot arise from the
-Attach → input → Detach sequence and are rejected at construction and at both codec boundaries:
-`accepted` + `not-needed` (an accepted input implies a real attachment) and
-`outcome-unknown` + `confirmed` (a confirmed release implies a completed exchange). `accepted`
-echoes `acceptedBytes`, the Host-encoded input-queue count (`SendAcceptedBytes`, zero through
-`Self::MAXIMUM`); zero is legal because a terminal mode may ignore a semantic key. Accepted means
-the Host admitted the record to its input queue — never that a child process read, executed, or
-completed it. Rejection and unavailability reasons are closed sets; `outcome-unknown` means the
-record may have landed and must never be retried automatically.
+Every `TerminalSendOutcome` carries confirmed prefix `progress` and orthogonal `cleanup`. Accepted records never exceed the first stopped index; accepted input requires an equal nonzero count/index and cleanup other than not-needed. Any nonzero prefix excludes not-needed cleanup; unknown input excludes confirmed cleanup. `acceptedEncodedBytes` sums the Host-encoded queue counts (zero is legal for mode-ignored keys). Acceptance means queue admission, not child execution. Rejection and unavailability reasons are closed sets; a partial or unknown result never authorizes automatic replay.
 
 `TerminalSendResult` also carries `target`: the `SendTarget` physical incarnation — worker
 generation, Host epoch, and Host terminal identity — the Server actually admitted for the send.
@@ -276,14 +256,14 @@ or migration.
 ## Native launch environment extension
 
 The native OBCS binding accepts optional `environment` on `terminal.create`, encoded as ordered
-`[name, value]` pairs. Empty environments omit the member, preserving the previous encoding.
+`[name, value]` pairs. Empty environments omit this optional member.
 `LaunchEnvironment` validates at construction and JSON decode: at most 32 pairs and 1,024 combined
 UTF-8 name/value bytes, ASCII identifier names of 1..128 bytes, no NUL, no case-insensitive
 duplicates, and no `ORCHBEE_*`, `TERM`, `COLORTERM` or `TERM_PROGRAM`. Empty values and embedded
 `=` remain literal. Values are omitted from Debug output. The complete request, including this
 overlay, participates in request identity. The Server converts it to the independent OBCN value.
 
-The v1 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all six OBSN input record kinds (including semantic strokes). Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
+The v1 schema/corpus covers launch selection, environment, profile provenance, send sequence progress and all four OBSN input record kinds (including semantic strokes). Conformance verifies independently authored canonical bytes and negative cases. This establishes native OBCS agreement, not Desktop or Workbench schema parity.
 
 Native v1 frames are bounded at 63 KiB before allocation. A combined maximum escaped cwd, executable/argv and environment test covers the request budget; the older 32 KiB bound cannot contain that valid combination.
 
@@ -303,4 +283,4 @@ Launch selections additionally cap worst-case JSON string-content bytes at 30 Ki
 
 ## Plugin terminal display environment
 
-An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN extension 3 transports the explicit selection, ordinary environment and plugin environment; legacy encodings and the 40 KiB frame limit stay unchanged. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.
+An explicit terminal launch may carry a separate `PluginTerminalEnvironment` (`pluginEnvironment` in OBCS). It admits only plugin ID/root/entrypoint/config/state/context, native binary path and optional Workspace/Tab/Pane display IDs: ten unique named entries, seven required, at most 24 KiB combined UTF-8. These are display data, not authority or plugin registration. The ordinary caller environment retains its existing limits and reserved-name refusal. Runtime base/scope and Worker/terminal identities remain owned by the Worker adapter. A plugin environment requires an explicit executable. OBCN launch kind 3 transports the explicit selection, ordinary environment and plugin environment under the 40 KiB frame limit. Server checks the complete encoded plugin launch before reserving a physical operation. Worker removes inherited known plugin display fields before applying this launch's values. Workbench plugin resolution, Pane association and Client placement remain separate integration responsibilities. Focused boundary and launch-fact tests cover this carrier; this is not a complete plugin Pane receipt.

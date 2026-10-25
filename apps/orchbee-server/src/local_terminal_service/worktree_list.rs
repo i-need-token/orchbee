@@ -192,10 +192,7 @@ impl JobDriver {
             return Err(JobFailure::Timeout);
         }
         self.requests += 1;
-        let started = matches!(
-            action,
-            WorktreeJobAction::Start { .. } | WorktreeJobAction::StartSource { .. }
-        );
+        let started = matches!(action, WorktreeJobAction::Start { .. });
         let exchange = self
             .handle
             .admit_worktree_job(WorktreeJobRequest {
@@ -220,14 +217,9 @@ impl JobDriver {
     fn start(&mut self, trust: Option<bool>) -> Result<Option<OperationId>, JobFailure> {
         let operation_id = self.operation_id()?;
         let result = self.request(
-            match trust {
-                Some(trust_repository) => WorktreeJobAction::StartSource {
-                    directory: self.directory_path.clone(),
-                    trust_repository,
-                },
-                None => WorktreeJobAction::Start {
-                    directory: self.directory_path.clone(),
-                },
+            WorktreeJobAction::Start {
+                directory: self.directory_path.clone(),
+                trust_repository: trust,
             },
             operation_id,
         )?;

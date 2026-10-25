@@ -359,7 +359,12 @@ fn one_text(value: &str, enter: bool) -> TestResult<SendRecords> {
 }
 
 fn one_key(key: SendKey) -> TestResult<SendRecords> {
-    Ok(SendRecords::new(vec![SendRecord::Key { key }])?)
+    Ok(SendRecords::new(vec![SendRecord::Stroke(
+        orchbee_client_server_protocol::SendKeyStroke::new(
+            orchbee_client_server_protocol::SendStrokeKey::Named(key),
+            0,
+        )?,
+    )])?)
 }
 
 fn hex_id(value: [u8; 16]) -> String {
@@ -419,7 +424,16 @@ fn send_to_started_terminal_delivers_accepted_with_the_pinned_target() -> TestRe
 fn send_key_payload_maps_to_the_closed_key_set() -> TestResult {
     let fixture = Fixture::new()?;
     fixture.add_terminal(0, true)?;
-    let request = send_request(&fixture, 0, one_key(SendKey::CtrlC)?)?;
+    let request = send_request(
+        &fixture,
+        0,
+        SendRecords::new(vec![SendRecord::Stroke(
+            orchbee_client_server_protocol::SendKeyStroke::new(
+                orchbee_client_server_protocol::SendStrokeKey::Character('c'),
+                1,
+            )?,
+        )])?,
+    )?;
     thread::scope(|scope| -> TestResult {
         let execution = scope.spawn(|| send(&fixture.service, request));
         let delivered = fixture.reply(WorkerOutcome::Rejected {
@@ -430,9 +444,12 @@ fn send_key_payload_maps_to_the_closed_key_set() -> TestResult {
         let result = execution.join().map_err(|_| "execute panicked")?;
         assert_eq!(
             delivered.records,
-            WorkerRecords::new(vec![WorkerRecord::Key {
-                key: orchbee_capability_node_protocol::SendKey::CtrlC,
-            }])?
+            WorkerRecords::new(vec![WorkerRecord::Stroke(
+                orchbee_capability_node_protocol::SendKeyStroke::new(
+                    orchbee_capability_node_protocol::SendStrokeKey::Character('c'),
+                    1
+                )?
+            )])?
         );
         let Outcome::Rejected {
             reason, cleanup, ..

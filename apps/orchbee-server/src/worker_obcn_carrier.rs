@@ -1620,9 +1620,9 @@ fn validate_response(
             let expected_job = match &expected.action {
                 // Start mints the Job identity: the echoed Job ID is the
                 // request's own operation identity.
-                WorktreeJobAction::Start { .. }
-                | WorktreeJobAction::StartSource { .. }
-                | WorktreeJobAction::StartStatus { .. } => expected.operation_id,
+                WorktreeJobAction::Start { .. } | WorktreeJobAction::StartStatus { .. } => {
+                    expected.operation_id
+                }
                 WorktreeJobAction::Poll { job_id } | WorktreeJobAction::Cancel { job_id } => {
                     *job_id
                 }
@@ -1633,9 +1633,7 @@ fn validate_response(
             if !matches!(
                 (&expected.action, &actual.outcome),
                 (
-                    WorktreeJobAction::Start { .. }
-                        | WorktreeJobAction::StartSource { .. }
-                        | WorktreeJobAction::StartStatus { .. },
+                    WorktreeJobAction::Start { .. } | WorktreeJobAction::StartStatus { .. },
                     WorktreeJobOutcome::Start(_)
                 ) | (WorktreeJobAction::Poll { .. }, WorktreeJobOutcome::Poll(_))
                     | (

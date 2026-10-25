@@ -1,8 +1,8 @@
 use crate::record_identities::{identity, identity_bytes};
 use crate::{
-    ClientMessage, ProtocolError, ReadMessageError, RequestId, SendBytes, SendComboBase, SendKey,
-    SendModifiers, SendPasteContent, SendRecord, SendRecords, SendText, SendTextInput, SiteId,
-    TerminalId, TerminalSendRequest, WorkerId,
+    ClientMessage, ProtocolError, ReadMessageError, RequestId, SendBytes, SendPasteContent,
+    SendRecord, SendRecords, SendText, SendTextInput, SiteId, TerminalId, TerminalSendRequest,
+    WorkerId,
 };
 use std::io::Read;
 
@@ -27,18 +27,9 @@ const MAXIMUM_BODY: usize = BODY_PREFIX
     + crate::MAXIMUM_SEND_AGGREGATE_BYTES;
 
 const TEXT_RECORD: u8 = 1;
-const KEY_RECORD: u8 = 2;
-const COMBO_RECORD: u8 = 3;
 const BYTES_RECORD: u8 = 4;
 const PASTE_RECORD: u8 = 5;
 const STROKE_RECORD: u8 = 6;
-
-const COMBO_BASE_NAMED: u8 = 1;
-const COMBO_BASE_INSERT: u8 = 2;
-const COMBO_BASE_FUNCTION: u8 = 3;
-const COMBO_BASE_SPACE: u8 = 4;
-const COMBO_BASE_LETTER: u8 = 5;
-const COMBO_BASE_DIGIT: u8 = 6;
 
 pub(crate) fn encode(request: &TerminalSendRequest) -> Result<Vec<u8>, ProtocolError> {
     let records = request.records().as_slice();
@@ -85,19 +76,6 @@ fn encode_record(body: &mut Vec<u8>, record: &SendRecord) -> Result<(), Protocol
             body.extend(text.as_bytes());
             body.push(u8::from(input.enter()));
         }
-        SendRecord::Key { key } => {
-            body.push(KEY_RECORD);
-            body.push(key.code());
-        }
-        SendRecord::Combo { modifiers, base } => {
-            body.push(COMBO_RECORD);
-            body.push(
-                u8::from(modifiers.control)
-                    | (u8::from(modifiers.alt) << 1)
-                    | (u8::from(modifiers.shift) << 2),
-            );
-            encode_combo_base(body, *base);
-        }
         SendRecord::Bytes { bytes } => {
             body.push(BYTES_RECORD);
             body.extend(
@@ -118,17 +96,6 @@ fn encode_record(body: &mut Vec<u8>, record: &SendRecord) -> Result<(), Protocol
         }
     }
     Ok(())
-}
-
-fn encode_combo_base(body: &mut Vec<u8>, base: SendComboBase) {
-    match base {
-        SendComboBase::Named(key) => body.extend([COMBO_BASE_NAMED, key.code()]),
-        SendComboBase::Insert => body.extend([COMBO_BASE_INSERT, 0]),
-        SendComboBase::Function(number) => body.extend([COMBO_BASE_FUNCTION, number]),
-        SendComboBase::Space => body.extend([COMBO_BASE_SPACE, 0]),
-        SendComboBase::Letter(letter) => body.extend([COMBO_BASE_LETTER, letter]),
-        SendComboBase::Digit(digit) => body.extend([COMBO_BASE_DIGIT, digit]),
-    }
 }
 
 pub(crate) fn decode(frame: &[u8]) -> Result<ClientMessage, ProtocolError> {
@@ -244,37 +211,6 @@ fn decode_record(
                 SendText::new(text.to_owned())?,
                 enter,
             )?));
-            Ok(offset)
-        }
-        KEY_RECORD => {
-            let (raw, offset) = take(offset, 1)?;
-            records.push(SendRecord::Key {
-                key: SendKey::from_code(raw[0])?,
-            });
-            Ok(offset)
-        }
-        COMBO_RECORD => {
-            let (raw, offset) = take(offset, 1)?;
-            let flags = raw[0];
-            if flags & !0b111 != 0 {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            let modifiers =
-                SendModifiers::new(flags & 1 != 0, flags & 0b10 != 0, flags & 0b100 != 0)?;
-            let (raw, offset) = take(offset, 1)?;
-            let tag = raw[0];
-            let (raw, offset) = take(offset, 1)?;
-            let arg = raw[0];
-            let base = match tag {
-                COMBO_BASE_NAMED => SendComboBase::new_named(SendKey::from_code(arg)?)?,
-                COMBO_BASE_INSERT if arg == 0 => SendComboBase::Insert,
-                COMBO_BASE_FUNCTION => SendComboBase::new_function(arg)?,
-                COMBO_BASE_SPACE if arg == 0 => SendComboBase::Space,
-                COMBO_BASE_LETTER => SendComboBase::new_letter(arg)?,
-                COMBO_BASE_DIGIT => SendComboBase::new_digit(arg)?,
-                _ => return Err(ProtocolError::InvalidPayload),
-            };
-            records.push(SendRecord::Combo { modifiers, base });
             Ok(offset)
         }
         STROKE_RECORD => {

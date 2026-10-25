@@ -150,7 +150,7 @@ impl WorkbenchWorktreeQueryResult {
                 }
             }
             // Source discovery is a Windows UTF-8 drive-path contract. The
-            // legacy list continues to preserve arbitrary path bytes separately.
+            // registered-directory list preserves native Unix path bytes.
             let WorktreeEntryText::Utf8(path) = &entry.checkout.path else {
                 return Err(invalid);
             };

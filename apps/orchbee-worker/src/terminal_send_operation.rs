@@ -9,17 +9,17 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    SendAcceptedBytes, SendCleanupStatus, SendComboBase, SendKey, SendProgress, SendRecord,
-    SendRejection, SendUnavailable, TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
+    SendAcceptedBytes, SendCleanupStatus, SendProgress, SendRecord, SendRejection, SendUnavailable,
+    TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InputAccepted,
-    InputMessage, KeyAction, KeyInput, MessageRole, PasteAutoInput, PayloadEncoding, TerminalId,
-    TerminalKeyCode, TerminalModifiers, WriteInput, decode_attachment_control,
-    decode_connection_control, decode_input_message, decode_transport_envelope,
-    encode_attachment_control, encode_input_message, encode_transport_envelope,
+    InputMessage, MessageRole, PasteAutoInput, PayloadEncoding, TerminalId, WriteInput,
+    decode_attachment_control, decode_connection_control, decode_input_message,
+    decode_transport_envelope, encode_attachment_control, encode_input_message,
+    encode_transport_envelope,
 };
 
 use crate::host_connection::{HostBrokerConnection, HostExchange, PeerFailure};
@@ -160,7 +160,7 @@ fn negotiated_excess(request: &TerminalSendRequest, host: &HostBrokerConnection)
             SendRecord::Text(input) => input.record_bytes() as u64,
             SendRecord::Bytes { bytes } => bytes.as_bytes().len() as u64,
             SendRecord::Paste { content } => content.as_bytes().len() as u64,
-            SendRecord::Key { .. } | SendRecord::Combo { .. } | SendRecord::Stroke(_) => 0,
+            SendRecord::Stroke(_) => 0,
         };
         bytes > limit
     })
@@ -581,45 +581,6 @@ fn input_command(
             )?))?,
             None,
         )),
-        SendRecord::Key { key } => {
-            let (code, control, unshifted_codepoint) = key_fields(*key);
-            key_press(
-                attachment_id,
-                capability_revision,
-                code,
-                TerminalModifiers {
-                    control,
-                    ..TerminalModifiers::default()
-                },
-                unshifted_codepoint,
-            )
-        }
-        SendRecord::Combo { modifiers, base } => {
-            let key = match *base {
-                SendComboBase::Named(key) => {
-                    orchbee_capability_node_protocol::SendStrokeKey::Named(key)
-                }
-                SendComboBase::Insert => orchbee_capability_node_protocol::SendStrokeKey::Insert,
-                SendComboBase::Function(number) => {
-                    orchbee_capability_node_protocol::SendStrokeKey::Function(number)
-                }
-                SendComboBase::Space => {
-                    orchbee_capability_node_protocol::SendStrokeKey::Character(' ')
-                }
-                SendComboBase::Letter(value) | SendComboBase::Digit(value) => {
-                    orchbee_capability_node_protocol::SendStrokeKey::Character(char::from(value))
-                }
-            };
-            let flags = u8::from(modifiers.control)
-                | (u8::from(modifiers.alt) << 1)
-                | (u8::from(modifiers.shift) << 2);
-            let input = stroke::input(
-                orchbee_capability_node_protocol::SendKeyStroke::new(key, flags)?,
-                attachment_id,
-                capability_revision,
-            )?;
-            Ok((encode_input_message(&InputMessage::KeyInput(input))?, None))
-        }
     }
 }
 
@@ -637,53 +598,6 @@ fn raw_write(
         }))?,
         Some(expected),
     ))
-}
-
-fn key_press(
-    attachment_id: AttachmentId,
-    capability_revision: NonZeroU64,
-    code: &str,
-    modifiers: TerminalModifiers,
-    unshifted_codepoint: u32,
-) -> Result<(orchbee_terminal_protocol::EncodedInputMessage, Option<u32>), Box<dyn Error>> {
-    Ok((
-        encode_input_message(&InputMessage::KeyInput(KeyInput {
-            action: KeyAction::Press,
-            attachment_id,
-            capability_revision,
-            composing: false,
-            consumed_modifiers: TerminalModifiers::default(),
-            key: TerminalKeyCode::parse(code)?,
-            modifiers,
-            option_as_alt: false,
-            text: String::new(),
-            unshifted_codepoint,
-        }))?,
-        None,
-    ))
-}
-
-/// The terminal-protocol key identity and neutral modifier state for one
-/// closed send key. `ctrl-` combinations are the physical letter under the
-/// control modifier, so the Host encoder derives the control byte itself.
-fn key_fields(key: SendKey) -> (&'static str, bool, u32) {
-    match key {
-        SendKey::Enter => ("Enter", false, 0),
-        SendKey::Escape => ("Escape", false, 0),
-        SendKey::Tab => ("Tab", false, 0),
-        SendKey::Backspace => ("Backspace", false, 0),
-        SendKey::Delete => ("Delete", false, 0),
-        SendKey::Up => ("ArrowUp", false, 0),
-        SendKey::Down => ("ArrowDown", false, 0),
-        SendKey::Left => ("ArrowLeft", false, 0),
-        SendKey::Right => ("ArrowRight", false, 0),
-        SendKey::Home => ("Home", false, 0),
-        SendKey::End => ("End", false, 0),
-        SendKey::PageUp => ("PageUp", false, 0),
-        SendKey::PageDown => ("PageDown", false, 0),
-        SendKey::CtrlC => ("KeyC", true, u32::from(b'c')),
-        SendKey::CtrlD => ("KeyD", true, u32::from(b'd')),
-    }
 }
 
 fn attach_rejection(code: &str) -> SendRejection {

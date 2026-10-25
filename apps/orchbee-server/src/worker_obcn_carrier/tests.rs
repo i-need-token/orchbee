@@ -1975,7 +1975,12 @@ fn one_text(value: &str, enter: bool) -> TestResult<SendRecords> {
 }
 
 fn one_key(key: SendKey) -> TestResult<SendRecords> {
-    Ok(SendRecords::new(vec![SendRecord::Key { key }])?)
+    Ok(SendRecords::new(vec![SendRecord::Stroke(
+        orchbee_capability_node_protocol::SendKeyStroke::new(
+            orchbee_capability_node_protocol::SendStrokeKey::Named(key),
+            0,
+        )?,
+    )])?)
 }
 
 fn send_request(
@@ -2012,7 +2017,12 @@ fn carries_send_requests_and_results_on_the_serialized_wire() -> TestResult {
         13,
         GENERATION.get(),
         LOCAL_WORKER_ID,
-        one_key(SendKey::CtrlC)?,
+        SendRecords::new(vec![SendRecord::Stroke(
+            orchbee_capability_node_protocol::SendKeyStroke::new(
+                orchbee_capability_node_protocol::SendStrokeKey::Character('c'),
+                1,
+            )?,
+        )])?,
     )?;
     let text_result = TerminalSendResult::new(
         text_request.request_id,

@@ -2,7 +2,7 @@ use orchbee_terminal_protocol::*;
 use std::num::NonZeroU64;
 
 #[test]
-fn clear_prompt_option_keeps_legacy_bytes_and_reset_closed() {
+fn clear_requires_explicit_prompt_policy_and_keeps_reset_closed() {
     let id = AttachmentId::from_bytes([1; 16]).unwrap();
     for preserve_prompt in [false, true] {
         let value = ScreenControl::ClearTerminal(ClearTerminal {
@@ -14,7 +14,8 @@ fn clear_prompt_option_keeps_legacy_bytes_and_reset_closed() {
             br#"{"attachmentId":"01010101010101010101010101010101","preservePrompt":true}"#
                 .as_slice()
         } else {
-            br#"{"attachmentId":"01010101010101010101010101010101"}"#.as_slice()
+            br#"{"attachmentId":"01010101010101010101010101010101","preservePrompt":false}"#
+                .as_slice()
         };
         assert_eq!(wire.payload, expected);
         assert_eq!(
@@ -22,6 +23,8 @@ fn clear_prompt_option_keeps_legacy_bytes_and_reset_closed() {
             value
         );
     }
+    let missing = br#"{"attachmentId":"01010101010101010101010101010101"}"#;
+    assert!(decode_screen_control(74, MessageRole::Request, missing).is_err());
     let invalid = br#"{"attachmentId":"01010101010101010101010101010101","preservePrompt":true}"#;
     assert!(decode_screen_control(75, MessageRole::Request, invalid).is_err());
     assert!(decode_screen_control(74, MessageRole::Response, invalid).is_err());

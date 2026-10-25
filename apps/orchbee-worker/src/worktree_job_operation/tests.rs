@@ -46,7 +46,7 @@ fn start_request(operation: u8, directory: &str) -> WorktreeJobRequest {
         operation,
         CapabilityWorkerId::from_bytes(LOCAL_WORKER.as_bytes()).unwrap(),
         LOCAL_GENERATION.get(),
-        WorktreeJobAction::start(directory.as_bytes().to_vec()).unwrap(),
+        WorktreeJobAction::start(directory.as_bytes().to_vec(), None).unwrap(),
     )
 }
 
@@ -97,12 +97,12 @@ fn fencing_rejects_every_action_without_touching_the_slot() -> TestResult {
             ),
             (
                 42,
-                WorktreeJobAction::start_source(b"C:/repo".to_vec(), true)?,
+                WorktreeJobAction::start(b"C:/repo".to_vec(), Some(true))?,
                 WorktreeJobOutcome::Start(WorktreeJobStartOutcome::RejectedFencing),
             ),
             (
                 41,
-                WorktreeJobAction::start(b"/tmp".to_vec())?,
+                WorktreeJobAction::start(b"/tmp".to_vec(), None)?,
                 WorktreeJobOutcome::Start(WorktreeJobStartOutcome::RejectedFencing),
             ),
             (

@@ -354,18 +354,18 @@ Send result 以 `progress` 替代 `acceptedBytes`：数值 `recordsAccepted`、`
 
 OBSN header 为 magic `OBSN`、big-endian u16 encoding version `1`、零 u16 reserved field 和 u32 body length。Body 依次为 request/Site/Worker/Terminal identity（各 16 bytes）、u8 count（1–64）及有序 record。Body 上限为 `64 + 1 + 64 * 7 + 1,048,576` bytes；分配前拒绝错误 header。每个 record 以 u8 kind 开始：
 
-| Kind     | 剩余 record bytes                                                                                                              |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1 text   | u16 UTF-8 byte length、text、u8 enter（0 或 1）；非空 text 加可选 CR <=4,096 bytes                                             |
-| 2 key    | u8 code：enter、escape、tab、backspace、delete、up、down、left、right、home、end、page-up、page-down、ctrl-c、ctrl-d 对应 1–15 |
-| 3 combo  | u8 非零 modifier flags（Control=1、Alt=2、Shift=4）、u8 base kind、u8 base value                                               |
-| 4 bytes  | u32 length、非空 opaque bytes <=1,048,576                                                                                      |
-| 5 paste  | u32 length、非空 opaque content <=262,144；Host 拥有 bracket encoding                                                          |
-| 6 stroke | u8 modifiers（Control=1、Alt=2、Shift=4、Super=8；允许零）、u8 key kind、u32 key value                                         |
+| Kind     | 剩余 record bytes                                                                      |
+| -------- | -------------------------------------------------------------------------------------- |
+| 1 text   | u16 UTF-8 byte length、text、u8 enter（0 或 1）；非空 text 加可选 CR <=4,096 bytes     |
+| 4 bytes  | u32 length、非空 opaque bytes <=1,048,576                                              |
+| 5 paste  | u32 length、非空 opaque content <=262,144；Host 拥有 bracket encoding                  |
+| 6 stroke | u8 modifiers（Control=1、Alt=2、Shift=4、Super=8；允许零）、u8 key kind、u32 key value |
 
-Stroke 身份为具名键 `(1,1..13)`、Insert `(2,0)`、F1..F25 `(3,1..25)` 或单个非控制 Unicode 标量 `(4,codepoint)`。未知位、C0/C1 控制符、代理码点和越界值在分发前拒绝。旧记录字节及 combo 边界不变。两个原生协议责任方独立校验相同字段语义；此未发布扩展要求 Client/Server/Worker/Host 同批部署。
+具名键值 1–13 依次为 `enter`、`escape`、`tab`、`backspace`、`delete`、`up`、`down`、`left`、`right`、`home`、`end`、`page-up` 和 `page-down`。Control 字母按键使用字符身份与 Control 修饰键。
 
-Combo base 为 named key `(1,1..13)`、Insert `(2,0)`、F1..F12 `(3,1..12)`、Space `(4,0)`、ASCII 小写字母 `(5,97..122)` 或数字 `(6,48..57)`。额外 flag bit、无效 base、未知 kind、truncation 与 trailing byte 均拒绝。Decoded text（含折叠 CR）、bytes 与 paste content 聚合最多 1,048,576 bytes；key 不携带 decoded payload。请求不具备原子性：result 保留已确认前缀和首个停止 record。corpus 独立于 Rust encoder 提供 canonical binary bytes、每个 key 和 base kind、混合 record 与 negative control。
+Stroke 身份为具名键 `(1,1..13)`、Insert `(2,0)`、F1..F25 `(3,1..25)` 或单个非控制 Unicode 标量 `(4,codepoint)`。未知位、C0/C1 控制符、代理码点和越界值在分发前拒绝。记录 kind 2、3 无效。两个原生协议责任方独立校验相同字段语义；此未发布扩展要求 Client/Server/Worker/Host 同批部署。
+
+未知 kind、截断及尾随字节均被拒绝。解码后的 text（含折叠 CR）、bytes 和 paste 内容合计至多 1,048,576 字节；stroke 不携带解码内容。请求不具备原子性：结果保留已确认前缀和首个停止记录。语料独立于 Rust 编码器提供规范二进制字节、全部 stroke 身份、混合记录及负向用例。
 
 ## 带样式的 buffer 读取
 
@@ -384,4 +384,4 @@ viewport 读取仍为 text。
 
 ## 插件终端展示环境
 
-显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 扩展 3 传递显式启动选择、普通环境和插件环境；旧编码及 40 KiB 帧上限不变。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
+显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。

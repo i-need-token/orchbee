@@ -58,16 +58,12 @@ fn prompt_request(stream: &mut LocalStream, expected: &str, codex: bool) -> Term
     assert_eq!(content.as_bytes(), expected.as_bytes());
     assert!(matches!(
         records.last().unwrap(),
-        SendRecord::Key {
-            key: SendKey::Enter
-        }
+        SendRecord::Stroke(stroke) if stroke.key() == orchbee_client_server_protocol::SendStrokeKey::Named(SendKey::Enter) && stroke.modifiers() == 0
     ));
     if codex {
         assert!(matches!(
             &records[1],
-            SendRecord::Key {
-                key: SendKey::Right
-            }
+            SendRecord::Stroke(stroke) if stroke.key() == orchbee_client_server_protocol::SendStrokeKey::Named(SendKey::Right) && stroke.modifiers() == 0
         ));
     }
     request

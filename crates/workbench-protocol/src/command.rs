@@ -1084,12 +1084,6 @@ pub enum WorkbenchRejectionReason {
     RequestIdentityConflict,
     /// A conditional action had no effect; explicit reviewed confirmation is required.
     ConfirmationRequired,
-    /// Legacy stacked-Presentation refusal retained for earlier peers. Current
-    /// relocation preserves every child as part of its complete Panel.
-    PanelNotLeaf,
-    /// Legacy last-leaf refusal retained for decoding earlier peers. Current
-    /// relocation removes the empty source Tab without disposing the terminal.
-    LastPanelInTab,
     /// The relocation destination resolved to the source Tab itself.
     SameTab,
 }

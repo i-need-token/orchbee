@@ -4,7 +4,7 @@ Windows 下，绝对 `.cmd`/`.bat` 选择使用系统目录的 `cmd.exe`，参�
 
 ## 保留提示行的清空
 
-`ClearTerminal` 的可选 `preservePrompt: true` 在主屏幕保留光标所在的完整软折行，删除此前历史和其他输出、清除选区／图像并恢复活动视口。备用屏幕在变异前返回 `terminal-clear-alternate-screen`。旧调用省略此字段时保留擦除／光标归位语义；ResetTerminal 不接受此字段。相同运行时锁拥有变异以及一次代次／修订递增，模式和元数据保持不变。操作需要可输入 attachment 的授权，不申请尺寸租约，也不向子进程写合成字节。
+`ClearTerminal` 的必填布尔字段 `preservePrompt` 选择操作。`preservePrompt: true` 在主屏幕保留光标所在的完整软折行，删除此前历史和其他输出、清除选区／图像并恢复活动视口。备用屏幕在变异前返回 `terminal-clear-alternate-screen`。显式 false 选择擦除／光标归位语义；ResetTerminal 不接受此字段。相同运行时锁拥有变异以及一次代次／修订递增，模式和元数据保持不变。操作需要可输入 attachment 的授权，不申请尺寸租约，也不向子进程写合成字节。
 
 ## 滚动历史编辑器捕获
 
