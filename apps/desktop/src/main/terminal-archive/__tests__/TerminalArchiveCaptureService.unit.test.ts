@@ -25,7 +25,6 @@ import {
 	UnderlineKind,
 	type TerminalFrame,
 	type TerminalIdentity,
-	type TerminalStyle,
 } from '@orchbee/terminal-protocol';
 import { ProjectedAttachmentBootstrapSchema } from '@orchbee/workbench-client-protocol';
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
@@ -100,7 +99,7 @@ const emptyMetrics: ProjectedTerminalBrokerMetrics = {
 	selectionExportBytesForwarded: 0,
 	selectionExportChunksForwarded: 0,
 };
-const captureStyle: TerminalStyle = {
+const captureStyle: TerminalFrame['styles'][number] = {
 	background: { kind: TerminalColorKind.default },
 	blink: false,
 	bold: false,
@@ -694,7 +693,7 @@ function createStringCaptureWindow(
 	columns: number,
 	totalRows: bigint,
 	sequence: bigint,
-	styles: readonly TerminalStyle[],
+	styles: readonly TerminalFrame['styles'][number][],
 ): Uint8Array {
 	const distinctGraphemeCount = PROTOCOL_LIMITS.maxFrameStrings - 3;
 	const rows = Array.from({ length: rowCount }, (_value, row) =>
@@ -721,7 +720,7 @@ function createStringCaptureWindow(
 function createCaptureScenario(
 	columns: number,
 	historyRows: number,
-	styles: readonly TerminalStyle[],
+	styles: readonly TerminalFrame['styles'][number][],
 	viewportCells: readonly CaptureCardinalityCell[],
 	later: Uint8Array,
 	earlier: Uint8Array,
@@ -764,7 +763,7 @@ function encodeCaptureWindow(value: {
 	readonly rows: readonly (readonly CaptureCardinalityCell[])[];
 	readonly sequence: bigint;
 	readonly startRow: bigint;
-	readonly styles: readonly TerminalStyle[];
+	readonly styles: readonly TerminalFrame['styles'][number][];
 	readonly title: string;
 	readonly totalRows: bigint;
 }): Uint8Array {
@@ -799,7 +798,7 @@ function createCaptureCardinalityFrame(value: {
 	readonly rows: readonly (readonly CaptureCardinalityCell[])[];
 	readonly scrollbackRows: bigint;
 	readonly sequence?: bigint;
-	readonly styles: readonly TerminalStyle[];
+	readonly styles: readonly TerminalFrame['styles'][number][];
 	readonly title: string;
 }): TerminalFrame {
 	return {
@@ -847,11 +846,11 @@ function createCaptureCardinalityFrame(value: {
 	};
 }
 
-function trueColorCaptureStyle(rgb: number): TerminalStyle {
+function trueColorCaptureStyle(rgb: number): TerminalFrame['styles'][number] {
 	return { ...captureStyle, foreground: { kind: TerminalColorKind.rgb, rgb } };
 }
 
-function hyperlinkCaptureStyles(): readonly TerminalStyle[] {
+function hyperlinkCaptureStyles(): readonly TerminalFrame['styles'][number][] {
 	return [
 		{ ...captureStyle, hyperlink: 'archive-link-a' },
 		{ ...captureStyle, hyperlink: 'archive-link-b' },

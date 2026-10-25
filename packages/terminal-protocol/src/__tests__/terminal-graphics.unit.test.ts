@@ -4,7 +4,6 @@ import { ProtocolErrorCode } from '../protocol-result';
 import {
 	decodeTerminalGraphics,
 	encodeTerminalGraphics,
-	TerminalGraphicsImageFormat,
 	TerminalGraphicsUpdateKind,
 	type TerminalGraphics,
 } from '../terminal-graphics';
@@ -14,7 +13,7 @@ const snapshot: TerminalGraphics = {
 	images: [
 		{
 			data: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 128]),
-			format: TerminalGraphicsImageFormat.rgba,
+			format: 'rgba',
 			generation: 7n,
 			height: 1,
 			id: 11,

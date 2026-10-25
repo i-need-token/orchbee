@@ -5,7 +5,6 @@ import {
 	ApplyTerminalThemeSchema,
 	AttachmentCapabilitiesSchema,
 	AttachTerminalSchema,
-	canonicalEnvironmentName,
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
 	ClaimResizeLeaseSchema,
@@ -14,24 +13,18 @@ import {
 	decodeControlJson,
 	EmptyControlSchema,
 	encodeControlJson,
-	FailureContainmentSchema,
 	FrameAppliedSchema,
 	HelloAcceptedSchema,
 	HelloSchema,
 	InputAcceptedSchema,
 	ListTerminalsSchema,
 	NeedSnapshotSchema,
-	prepareLaunchEnvironment,
-	prepareTerminalEnvironmentOverlay,
-	ProcessObservationSchema,
 	ReadRowsSchema,
 	ResizeAcceptedSchema,
 	ResizeLeaseChangedSchema,
 	ResizeTerminalSchema,
 	ResetTerminalSchema,
 	RowsAppliedSchema,
-	RuntimeCleanupFailureSchema,
-	RuntimeFailureSchema,
 	SelectionChangedSchema,
 	SelectionCommandSchema,
 	SelectionExportSchema,
@@ -54,7 +47,6 @@ import {
 	TerminalMetadataChangedSchema,
 	TerminalStartAcceptedSchema,
 	TerminalProfileSchema,
-	TerminalSummarySchema,
 	TerminalThemeResultSchema,
 	TerminalThemeSchema,
 	TerminalThemeStateSchema,
@@ -548,17 +540,6 @@ describe('control schemas', () => {
 			TerminalEnvironmentOverlaySchema.safeParse([{ name: 'TOKEN', value: 'x'.repeat(4097) }])
 				.success,
 		).toBe(false);
-
-		expect(
-			prepareTerminalEnvironmentOverlay(launch.environment, environmentOverlay, 'posix').ok,
-		).toBe(true);
-		expect(
-			prepareTerminalEnvironmentOverlay(
-				[{ name: 'Path' }],
-				[{ name: 'PATH', value: 'secret' }],
-				'windows',
-			),
-		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
 	});
 
 	it('bounds terminal application signals to the reserved limited-status channel', () => {
@@ -714,54 +695,6 @@ describe('control schemas', () => {
 				],
 			}).success,
 		).toBe(false);
-
-		// Target-specific preparation applies the OS identity rule.
-		expect(canonicalEnvironmentName('Path', 'posix')).toBe('Path');
-		expect(canonicalEnvironmentName('Path', 'windows')).toBe('PATH');
-		const distinctCase = [
-			{ name: 'Path', value: 'a' },
-			{ name: 'PATH', value: 'b' },
-		];
-		expect(prepareLaunchEnvironment(distinctCase, 'posix').ok).toBe(true);
-		expect(prepareLaunchEnvironment(distinctCase, 'windows')).toEqual(
-			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
-		);
-		const exactDuplicate = [
-			{ name: 'Path', value: 'a' },
-			{ name: 'Path', value: 'b' },
-		];
-		expect(prepareLaunchEnvironment(exactDuplicate, 'posix')).toEqual(
-			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
-		);
-		expect(prepareLaunchEnvironment(exactDuplicate, 'windows')).toEqual(
-			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
-		);
-	});
-
-	it('mirrors native launch environment admission for the declared target', () => {
-		// Cross-language parity corpus: the native launch inspector admits the
-		// same entries for the same declared target (launch_test.zig), and the
-		// CreationId digest folds Windows names identically.
-		const corpus = {
-			distinctCase: [
-				{ name: 'Path', value: 'a' },
-				{ name: 'PATH', value: 'b' },
-			],
-			exactDuplicate: [
-				{ name: 'Path', value: 'a' },
-				{ name: 'Path', value: 'b' },
-			],
-			uniqueNames: [
-				{ name: 'ALPHA', value: '1' },
-				{ name: 'BETA', value: null },
-			],
-		} as const;
-		expect(prepareLaunchEnvironment(corpus.distinctCase, 'posix').ok).toBe(true);
-		expect(prepareLaunchEnvironment(corpus.distinctCase, 'windows').ok).toBe(false);
-		expect(prepareLaunchEnvironment(corpus.exactDuplicate, 'posix').ok).toBe(false);
-		expect(prepareLaunchEnvironment(corpus.exactDuplicate, 'windows').ok).toBe(false);
-		expect(prepareLaunchEnvironment(corpus.uniqueNames, 'posix').ok).toBe(true);
-		expect(prepareLaunchEnvironment(corpus.uniqueNames, 'windows').ok).toBe(true);
 	});
 
 	it('bounds direct schema text by encoded bytes', () => {
@@ -1235,17 +1168,20 @@ describe('control schemas', () => {
 			terminateRequested: false,
 		};
 
-		expect(TerminalSummarySchema.parse(awaitingStart)).toEqual(awaitingStart);
-		expect(TerminalSummarySchema.parse(failed)).toEqual(failed);
+		expect(TerminalListSchema.shape.terminals.element.parse(awaitingStart)).toEqual(awaitingStart);
+		expect(TerminalListSchema.shape.terminals.element.parse(failed)).toEqual(failed);
 		for (const closeActivity of ['idle', 'active', 'unknown'] as const) {
-			expect(TerminalSummarySchema.parse({ ...failed, closeActivity }).closeActivity).toBe(
-				closeActivity,
-			);
+			expect(
+				TerminalListSchema.shape.terminals.element.parse({ ...failed, closeActivity })
+					.closeActivity,
+			).toBe(closeActivity);
 		}
 		for (const closeActivity of [null, true, 'running', 1]) {
-			expect(TerminalSummarySchema.safeParse({ ...failed, closeActivity }).success).toBe(false);
+			expect(
+				TerminalListSchema.shape.terminals.element.safeParse({ ...failed, closeActivity }).success,
+			).toBe(false);
 		}
-		expect(RuntimeFailureSchema.safeParse(failure).success).toBe(true);
+		expect(TerminalFailedSchema.shape.failure.safeParse(failure).success).toBe(true);
 		expect(
 			TerminalFailedSchema.safeParse({
 				failure,
@@ -1263,13 +1199,13 @@ describe('control schemas', () => {
 			}).success,
 		).toBe(false);
 		expect(
-			ProcessObservationSchema.safeParse({
+			TerminalFailedSchema.shape.process.safeParse({
 				failure,
 				kind: 'unavailable',
 			}).success,
 		).toBe(false);
 		expect(
-			FailureContainmentSchema.safeParse({
+			TerminalListSchema.shape.terminals.element.options[3].shape.failureContainment.safeParse({
 				cleanupFailure: failure,
 				kind: 'blocked',
 				process: null,
@@ -1282,14 +1218,20 @@ describe('control schemas', () => {
 			{ kind: 'editor-document', stage: 'release-editor-document' },
 		] as const;
 		for (const cleanupFailure of cleanupFailures) {
-			expect(RuntimeCleanupFailureSchema.safeParse(cleanupFailure).success).toBe(true);
-			expect(RuntimeFailureSchema.safeParse(cleanupFailure).success).toBe(false);
 			expect(
-				ProcessObservationSchema.safeParse({ failure: cleanupFailure, kind: 'unavailable' })
-					.success,
+				TerminalListSchema.shape.terminals.element.options[3].shape.failureContainment.options[1].shape.cleanupFailure.safeParse(
+					cleanupFailure,
+				).success,
+			).toBe(true);
+			expect(TerminalFailedSchema.shape.failure.safeParse(cleanupFailure).success).toBe(false);
+			expect(
+				TerminalFailedSchema.shape.process.safeParse({
+					failure: cleanupFailure,
+					kind: 'unavailable',
+				}).success,
 			).toBe(false);
 			expect(
-				FailureContainmentSchema.safeParse({
+				TerminalListSchema.shape.terminals.element.options[3].shape.failureContainment.safeParse({
 					cleanupFailure,
 					kind: 'blocked',
 					process: null,
@@ -1305,13 +1247,13 @@ describe('control schemas', () => {
 			).toBe(false);
 		}
 		expect(
-			TerminalSummarySchema.safeParse({
+			TerminalListSchema.shape.terminals.element.safeParse({
 				...failed,
 				exit: { code: 0, kind: 'exit-code' },
 			}).success,
 		).toBe(false);
 		expect(
-			TerminalSummarySchema.safeParse({
+			TerminalListSchema.shape.terminals.element.safeParse({
 				...common,
 				exit: null,
 				failure,

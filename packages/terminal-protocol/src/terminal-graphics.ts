@@ -18,7 +18,7 @@ export const TerminalGraphicsUpdateKind = {
 	snapshot: 'snapshot',
 } as const;
 
-export const TerminalGraphicsImageFormat = {
+const TerminalGraphicsImageFormat = {
 	gray: 'gray',
 	grayAlpha: 'gray-alpha',
 	rgb: 'rgb',
@@ -27,7 +27,7 @@ export const TerminalGraphicsImageFormat = {
 
 export type TerminalGraphicsUpdateKind =
 	(typeof TerminalGraphicsUpdateKind)[keyof typeof TerminalGraphicsUpdateKind];
-export type TerminalGraphicsImageFormat =
+type TerminalGraphicsImageFormat =
 	(typeof TerminalGraphicsImageFormat)[keyof typeof TerminalGraphicsImageFormat];
 
 export interface TerminalGraphicsImage {

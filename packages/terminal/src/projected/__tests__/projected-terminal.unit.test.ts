@@ -1,4 +1,8 @@
 import {
+	AttachmentIdSchema,
+	HostEpochSchema,
+	TerminalIdSchema,
+	CreationIdSchema,
 	ActiveScreen,
 	CanonicalUint64TextSchema,
 	type CanonicalUint64Text,
@@ -9,10 +13,6 @@ import {
 	KeyAction,
 	MouseAction,
 	MouseButton,
-	parseAttachmentId,
-	parseCreationId,
-	parseHostEpoch,
-	parseTerminalId,
 	PROTOCOL_LIMITS,
 	RowPromptClass,
 	SemanticContent,
@@ -132,12 +132,7 @@ const interaction = {
 	mouseX10: false,
 };
 
-function identifier<T>(
-	result: { readonly ok: true; readonly value: T } | { readonly ok: false },
-): T {
-	if (!result.ok) throw new Error('test identifier is invalid');
-	return result.value;
-}
+
 
 function canonicalText(value: string): CanonicalUint64Text {
 	return CanonicalUint64TextSchema.parse(value);
@@ -178,13 +173,13 @@ function resolvedRowRequestStart(
 	}
 }
 
-const hostEpoch = identifier(parseHostEpoch('11111111111111111111111111111111'));
-const attachmentId = identifier(parseAttachmentId('22222222222222222222222222222222'));
+const hostEpoch = HostEpochSchema.parse('11111111111111111111111111111111');
+const attachmentId = AttachmentIdSchema.parse('22222222222222222222222222222222');
 const capabilityRevision = canonicalText('1');
-const creationId = identifier(parseCreationId('33333333333333333333333333333333'));
-const otherCreationId = identifier(parseCreationId('55555555555555555555555555555555'));
-const terminalId = identifier(parseTerminalId('44444444444444444444444444444444'));
-const otherAttachmentId = identifier(parseAttachmentId('66666666666666666666666666666666'));
+const creationId = CreationIdSchema.parse('33333333333333333333333333333333');
+const otherCreationId = CreationIdSchema.parse('55555555555555555555555555555555');
+const terminalId = TerminalIdSchema.parse('44444444444444444444444444444444');
+const otherAttachmentId = AttachmentIdSchema.parse('66666666666666666666666666666666');
 
 function promptNavigationRow(
 	index: bigint,

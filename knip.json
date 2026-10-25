@@ -51,7 +51,7 @@
 		"packages/terminal-protocol": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!", "scripts/*.mjs!"],
 			"ignoreBinaries": ["java!"],
-			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts"],
+			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts", "!src/__tests__/conformance/**!"],
 			"includeEntryExports": true
 		},
 		"packages/desktop-client-protocol": {

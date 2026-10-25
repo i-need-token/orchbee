@@ -22,7 +22,6 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
-	TerminalGraphicsImageFormat,
 	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TERMINAL_ROW_WINDOW_HEADER_BYTES,
@@ -31,7 +30,6 @@ import {
 	UnderlineKind,
 	type TerminalFrame,
 	type TerminalIdentity,
-	type TerminalStyle,
 	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
 import {
@@ -542,7 +540,7 @@ function createGraphicsSnapshot(row: number) {
 		images: [
 			{
 				data: graphicsPixels,
-				format: TerminalGraphicsImageFormat.rgba,
+				format: 'rgba',
 				generation: 3n,
 				height: 2,
 				id: 7,
@@ -1108,7 +1106,7 @@ function createStringWindow(
 	totalRows: bigint,
 	sequence: bigint,
 	distinctGraphemeCount: number,
-	styles: readonly TerminalStyle[],
+	styles: readonly TerminalFrame['styles'][number][],
 ): Uint8Array {
 	const rows = Array.from({ length: rowCount }, (_value, row) =>
 		Array.from({ length: columns }, (_cell, column) => {
@@ -1137,7 +1135,7 @@ function encodeCardinalityWindow(value: {
 	readonly rows: readonly (readonly CardinalityCell[])[];
 	readonly sequence: bigint;
 	readonly startRow: bigint;
-	readonly styles: readonly TerminalStyle[];
+	readonly styles: readonly TerminalFrame['styles'][number][];
 	readonly title: string;
 	readonly totalRows: bigint;
 }): Uint8Array {
@@ -1172,7 +1170,7 @@ function createCardinalityFrame(value: {
 	readonly rows: readonly (readonly CardinalityCell[])[];
 	readonly scrollbackRows: bigint;
 	readonly sequence?: bigint;
-	readonly styles: readonly TerminalStyle[];
+	readonly styles: readonly TerminalFrame['styles'][number][];
 	readonly title: string;
 }): TerminalFrame {
 	return {
@@ -1224,11 +1222,11 @@ function createCardinalityFrame(value: {
 	};
 }
 
-function trueColorStyle(rgb: number): TerminalStyle {
+function trueColorStyle(rgb: number): TerminalFrame['styles'][number] {
 	return { ...style, foreground: { kind: TerminalColorKind.rgb, rgb } };
 }
 
-function hyperlinkStyles(): readonly TerminalStyle[] {
+function hyperlinkStyles(): readonly TerminalFrame['styles'][number][] {
 	return [
 		{ ...style, hyperlink: 'archive-link-a' },
 		{ ...style, hyperlink: 'archive-link-b' },

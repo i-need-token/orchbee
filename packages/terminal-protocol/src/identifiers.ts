@@ -28,7 +28,6 @@ export type CorrelationId = z.infer<typeof CorrelationIdSchema>;
 export type CreationId = z.infer<typeof CreationIdSchema>;
 export type HostEpoch = z.infer<typeof HostEpochSchema>;
 export type TerminalId = z.infer<typeof TerminalIdSchema>;
-type TerminalThemeOperationId = z.infer<typeof TerminalThemeOperationIdSchema>;
 
 export function identifierBytes(value: string): Uint8Array {
 	const bytes = new Uint8Array(IDENTIFIER_BYTE_LENGTH);
@@ -80,20 +79,6 @@ export function parseCorrelationId(value: unknown): ProtocolResult<CorrelationId
 	return parseIdentifier(CorrelationIdSchema, value, 'CorrelationId');
 }
 
-export function parseCreationId(value: unknown): ProtocolResult<CreationId> {
-	return parseIdentifier(CreationIdSchema, value, 'CreationId');
-}
-
 export function parseHostEpoch(value: unknown): ProtocolResult<HostEpoch> {
 	return parseIdentifier(HostEpochSchema, value, 'HostEpoch');
-}
-
-export function parseTerminalId(value: unknown): ProtocolResult<TerminalId> {
-	return parseIdentifier(TerminalIdSchema, value, 'TerminalId');
-}
-
-export function parseTerminalThemeOperationId(
-	value: unknown,
-): ProtocolResult<TerminalThemeOperationId> {
-	return parseIdentifier(TerminalThemeOperationIdSchema, value, 'TerminalThemeOperationId');
 }

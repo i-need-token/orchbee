@@ -1,7 +1,6 @@
 import {
 	TerminalCellWidthCode,
 	TerminalColorEncoding,
-	TerminalGraphicsImageFormat,
 	TerminalStyleFlag,
 	TerminalUnderlineKindCode,
 } from '@orchbee/terminal-protocol';
@@ -683,7 +682,7 @@ describe('projected terminal renderer', () => {
 						7,
 						{
 							data: new Uint8Array([10, 20, 30]),
-							format: TerminalGraphicsImageFormat.rgb,
+							format: 'rgb',
 							generation: 1n,
 							height: 1,
 							id: 7,
@@ -819,7 +818,7 @@ describe('projected terminal renderer', () => {
 						7,
 						{
 							data: new Uint8Array([10, 20, 30]),
-							format: TerminalGraphicsImageFormat.rgb,
+							format: 'rgb',
 							generation: 1n,
 							height: 1,
 							id: 7,
@@ -901,7 +900,7 @@ describe('projected terminal renderer', () => {
 						7,
 						{
 							data: new Uint8Array([10, 20, 30]),
-							format: TerminalGraphicsImageFormat.rgb,
+							format: 'rgb',
 							generation: 1n,
 							height: 1,
 							id: 7,

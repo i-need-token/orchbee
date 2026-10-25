@@ -2,6 +2,8 @@
 
 私有包入口只导出仓库内有消费者的符号，Knip 的 `includeEntryExports` 检查该边界。内部契约、生成资产与独立一致性证据按其所有权保留；它们的存在不自动扩大公共入口。新增客户端应按已准入用途添加所需导出。
 
+仅供一致性套件使用的输入参考 decoder 位于 `src/__tests__/conformance/input-decoders.ts`。它们与生产编解码器共用 `src/input-fields.ts` 中的真实 authority reader 和字段校验。完整依赖分析包含这些 helper 并拒绝孤儿源码；生产分析仅排除 conformance 目录。
+
 `@orchbee/terminal-protocol` 是原生 Terminal Host 与本地客户端之间语言中立的[终端契约](../../schemas/terminal/README.zh-CN.md)的 TypeScript 绑定。它实现协议标识、当前版本精确校验、安全限额、控制 schema、带附件前缀的二进制输入，以及终端帧、传输信封、行窗口和选择导出 codec。
 
 它不会打开套接字或命名管道、生成进程、解析 VT、路由 Electron IPC、渲染终端或拥有终端生命周期、交付、恢复、项目、工作区、工作台、选项卡、面板、代理或产品会话状态。

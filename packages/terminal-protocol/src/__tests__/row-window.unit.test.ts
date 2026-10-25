@@ -20,7 +20,6 @@ import {
 	encodeTerminalRowWindow,
 	TERMINAL_ROW_WINDOW_FORMAT,
 	TERMINAL_ROW_WINDOW_HEADER_BYTES,
-	TERMINAL_ROW_WINDOW_MAGIC,
 	TerminalRowWindowDetail,
 	viewTerminalRowWindow,
 } from '../row-window';
@@ -159,7 +158,7 @@ function buildTextRowWindow(
 	const total = TERMINAL_ROW_WINDOW_HEADER_BYTES + bodyLength;
 	const bytes = new Uint8Array(total);
 	const view = new DataView(bytes.buffer);
-	bytes.set(TERMINAL_ROW_WINDOW_MAGIC, 0);
+	bytes.set([0x4f, 0x42, 0x52, 0x57], 0);
 	bytes[4] = TERMINAL_ROW_WINDOW_FORMAT.major;
 	bytes[5] = TERMINAL_ROW_WINDOW_FORMAT.minor;
 	bytes[6] = 2; // text detail

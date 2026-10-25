@@ -12,7 +12,7 @@ import { PROTOCOL_LIMITS } from './limits';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
 
-export const SELECTION_EXPORT_CHUNK_HEADER_BYTES = 32;
+const SELECTION_EXPORT_CHUNK_HEADER_BYTES = 32;
 const MAX_UINT32 = 0xffff_ffff;
 const MAX_UINT64 = 0xffff_ffff_ffff_ffffn;
 

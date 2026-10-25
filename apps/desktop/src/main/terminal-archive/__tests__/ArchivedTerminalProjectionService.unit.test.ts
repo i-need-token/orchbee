@@ -19,7 +19,6 @@ import {
 	TerminalColorKind,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
-	TerminalGraphicsImageFormat,
 	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TerminalRowWindowDetail,
@@ -606,7 +605,7 @@ function createGraphicsSnapshot(row: number | null) {
 		images: [
 			{
 				data: graphicsPixels,
-				format: TerminalGraphicsImageFormat.rgba,
+				format: 'rgba',
 				generation: 3n,
 				height: 2,
 				id: 7,

@@ -11,17 +11,12 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
-	TERMINAL_FRAME_HEADER_BYTES,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalFrameSchema,
 	UnderlineKind,
 } from '../frame';
-import {
-	encodeTerminalGraphics,
-	TerminalGraphicsImageFormat,
-	TerminalGraphicsUpdateKind,
-} from '../terminal-graphics';
+import { encodeTerminalGraphics, TerminalGraphicsUpdateKind } from '../terminal-graphics';
 
 function commandCompletionExtension(
 	sequence = 7n,
@@ -259,7 +254,7 @@ describe('packed terminal frame', () => {
 			images: [
 				{
 					data: new Uint8Array([1, 2, 3]),
-					format: TerminalGraphicsImageFormat.rgb,
+					format: 'rgb',
 					generation: 1n,
 					height: 1,
 					id: 1,
@@ -333,7 +328,7 @@ describe('packed terminal frame', () => {
 		);
 		const stringCount = wire.getUint32(124, true);
 		const stringBytes: number[][] = [];
-		let offset = TERMINAL_FRAME_HEADER_BYTES;
+		let offset = 160;
 		for (let index = 0; index < stringCount; index += 1) {
 			const byteLength = wire.getUint32(offset, true);
 			offset += 4;

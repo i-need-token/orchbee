@@ -1,28 +1,21 @@
+import {
+	decodeFocusInput,
+	decodeMouseInput,
+	decodePasteAutoInput,
+	decodeWriteInput,
+} from './conformance/input-decoders';
 import { describe, expect, it } from 'vitest';
 
 import {
-	decodeFocusInput,
 	decodeKeyInput,
-	decodeMouseInput,
-	decodePasteAutoInput,
 	decodePasteInput,
 	decodeTextInput,
-	decodeWriteInput,
 	encodeInputRequest,
-	encodeFocusInput,
-	encodeKeyInput,
-	encodeMouseInput,
-	encodePasteAutoInput,
-	encodePasteInput,
-	encodeTextInput,
-	encodeWriteInput,
 	FocusInputSchema,
 	KEY_INPUT_HEADER_BYTES,
 	KeyAction,
-	PASTE_AUTO_INPUT_HEADER_BYTES,
 	MouseAction,
 	MouseButton,
-	WRITE_INPUT_HEADER_BYTES,
 } from '../input';
 import { MessageKind } from '../envelope';
 import { PROTOCOL_LIMITS } from '../limits';
@@ -75,9 +68,13 @@ describe('input request encoding', () => {
 describe('WriteInput binary payload', () => {
 	it('round-trips an attachment-scoped byte sequence without copying the decoded input', () => {
 		const input = new Uint8Array([0, 0x1b, 0xf0, 0x9f, 0x90, 0x9d]);
-		const encoded = encodeWriteInput({ attachmentId, bytes: input, capabilityRevision });
+		const encoded = encodeInputRequest(MessageKind.writeInput, {
+			attachmentId,
+			bytes: input,
+			capabilityRevision,
+		});
 		if (!encoded.ok) throw new Error(encoded.detail);
-		expect(encoded.value).toHaveLength(WRITE_INPUT_HEADER_BYTES + input.byteLength);
+		expect(encoded.value).toHaveLength(24 + input.byteLength);
 
 		const decoded = decodeWriteInput(encoded.value);
 		if (!decoded.ok) throw new Error(decoded.detail);
@@ -87,10 +84,10 @@ describe('WriteInput binary payload', () => {
 	});
 
 	it('rejects missing, zero, and oversized attachment-scoped input', () => {
-		expect(decodeWriteInput(new Uint8Array(WRITE_INPUT_HEADER_BYTES))).toEqual(
+		expect(decodeWriteInput(new Uint8Array(24))).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.truncated, ok: false }),
 		);
-		expect(decodeWriteInput(new Uint8Array(WRITE_INPUT_HEADER_BYTES + 1))).toEqual(
+		expect(decodeWriteInput(new Uint8Array(24 + 1))).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidIdentifier, ok: false }),
 		);
 		expect(decodeWriteInput(new Uint8Array(PROTOCOL_LIMITS.maxWriteInputPayloadBytes + 1))).toEqual(
@@ -99,7 +96,7 @@ describe('WriteInput binary payload', () => {
 	});
 
 	it('keeps the negotiated terminal byte limit separate from the attachment prefix', () => {
-		const encoded = encodeWriteInput({
+		const encoded = encodeInputRequest(MessageKind.writeInput, {
 			attachmentId,
 			bytes: new Uint8Array(PROTOCOL_LIMITS.maxInputBytes),
 			capabilityRevision,
@@ -123,7 +120,7 @@ describe('semantic terminal input payloads', () => {
 			text: 'A',
 			unshiftedCodepoint: 'a'.codePointAt(0) ?? 0,
 		};
-		const encoded = encodeKeyInput(input);
+		const encoded = encodeInputRequest(MessageKind.keyInput, input);
 		if (!encoded.ok) throw new Error(encoded.detail);
 		expect(decodeKeyInput(encoded.value)).toEqual({ ok: true, value: input });
 	});
@@ -142,19 +139,19 @@ describe('semantic terminal input payloads', () => {
 			unshiftedCodepoint: 'a'.codePointAt(0) ?? 0,
 		};
 		expect(
-			encodeKeyInput({
+			encodeInputRequest(MessageKind.keyInput, {
 				...base,
 				modifiers: { ...noModifiers, shiftRight: true },
 			}),
 		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
 		expect(
-			encodeKeyInput({
+			encodeInputRequest(MessageKind.keyInput, {
 				...base,
 				consumedModifiers: { ...noModifiers, control: true },
 			}),
 		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
 
-		const encoded = encodeKeyInput(base);
+		const encoded = encodeInputRequest(MessageKind.keyInput, base);
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const nonCanonical = encoded.value.slice();
 		new DataView(nonCanonical.buffer).setUint16(26, 1 << 6, true);
@@ -169,7 +166,7 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('classifies malformed key UTF-8 independently from an unknown key', () => {
-		const encoded = encodeKeyInput({
+		const encoded = encodeInputRequest(MessageKind.keyInput, {
 			action: KeyAction.press,
 			attachmentId,
 			capabilityRevision,
@@ -190,7 +187,7 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('rejects a BOM-prefixed key instead of canonicalizing it to F1', () => {
-		const encoded = encodeKeyInput({
+		const encoded = encodeInputRequest(MessageKind.keyInput, {
 			action: KeyAction.press,
 			attachmentId,
 			capabilityRevision,
@@ -218,14 +215,14 @@ describe('semantic terminal input payloads', () => {
 
 	it('keeps committed text separate from approved paste intent', () => {
 		const committed = { attachmentId, capabilityRevision, text: '中文' };
-		const text = encodeTextInput(committed);
+		const text = encodeInputRequest(MessageKind.textInput, committed);
 		const pasteValue = {
 			attachmentId,
 			bracketed: true,
 			capabilityRevision,
 			text: 'line 1\nline 2',
 		};
-		const paste = encodePasteInput(pasteValue);
+		const paste = encodeInputRequest(MessageKind.pasteInput, pasteValue);
 		if (!text.ok) throw new Error(text.detail);
 		if (!paste.ok) throw new Error(paste.detail);
 		expect(decodeTextInput(text.value)).toEqual({ ok: true, value: committed });
@@ -236,11 +233,15 @@ describe('semantic terminal input payloads', () => {
 		expect(decodePasteInput(unknownFlag)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);
-		expect(encodeTextInput({ attachmentId, capabilityRevision, text: '\ud800' })).toEqual(
-			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
-		);
 		expect(
-			encodeKeyInput({
+			encodeInputRequest(MessageKind.textInput, {
+				attachmentId,
+				capabilityRevision,
+				text: '\ud800',
+			}),
+		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
+		expect(
+			encodeInputRequest(MessageKind.keyInput, {
 				action: KeyAction.press,
 				attachmentId,
 				capabilityRevision,
@@ -258,8 +259,8 @@ describe('semantic terminal input payloads', () => {
 	it('round-trips an exact leading U+FEFF through text and paste payloads', () => {
 		const value = { attachmentId, capabilityRevision, text: '\ufeff' };
 		const pasteValue = { ...value, bracketed: false };
-		const text = encodeTextInput(value);
-		const paste = encodePasteInput(pasteValue);
+		const text = encodeInputRequest(MessageKind.textInput, value);
+		const paste = encodeInputRequest(MessageKind.pasteInput, pasteValue);
 		if (!text.ok) throw new Error(text.detail);
 		if (!paste.ok) throw new Error(paste.detail);
 
@@ -274,10 +275,10 @@ describe('semantic terminal input payloads', () => {
 			0x02, 0x80, 0xff, 0x1b, 0x0d, 0x0a, 0x72, 0x61, 0x77, 0x2d, 0x70, 0x61, 0x73, 0x74, 0x65,
 		]);
 		const value = { attachmentId, capabilityRevision, content };
-		const encoded = encodePasteAutoInput(value);
+		const encoded = encodeInputRequest(MessageKind.pasteAutoInput, value);
 		if (!encoded.ok) throw new Error(encoded.detail);
-		expect(encoded.value).toHaveLength(PASTE_AUTO_INPUT_HEADER_BYTES + content.byteLength);
-		expect(encoded.value.subarray(PASTE_AUTO_INPUT_HEADER_BYTES)).toEqual(content);
+		expect(encoded.value).toHaveLength(32 + content.byteLength);
+		expect(encoded.value.subarray(32)).toEqual(content);
 		expect(decodePasteAutoInput(encoded.value)).toEqual({ ok: true, value });
 
 		const dispatched = encodeInputRequest(MessageKind.pasteAutoInput, value);
@@ -291,10 +292,10 @@ describe('semantic terminal input payloads', () => {
 			capabilityRevision,
 			content: new Uint8Array([0x61]),
 		};
-		const encoded = encodePasteAutoInput(value);
+		const encoded = encodeInputRequest(MessageKind.pasteAutoInput, value);
 		if (!encoded.ok) throw new Error(encoded.detail);
 
-		expect(decodePasteAutoInput(new Uint8Array(PASTE_AUTO_INPUT_HEADER_BYTES - 1))).toEqual(
+		expect(decodePasteAutoInput(new Uint8Array(32 - 1))).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.truncated, ok: false }),
 		);
 
@@ -315,19 +316,17 @@ describe('semantic terminal input payloads', () => {
 			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
 		);
 
-		expect(encodePasteAutoInput({ ...value, content: new Uint8Array(0) })).toEqual(
-			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
-		);
 		expect(
-			encodePasteAutoInput({
+			encodeInputRequest(MessageKind.pasteAutoInput, { ...value, content: new Uint8Array(0) }),
+		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
+		expect(
+			encodeInputRequest(MessageKind.pasteAutoInput, {
 				...value,
 				content: new Uint8Array(PROTOCOL_LIMITS.maxPasteAutoInputBytes + 1),
 			}),
 		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
 		expect(
-			decodePasteAutoInput(
-				new Uint8Array(PASTE_AUTO_INPUT_HEADER_BYTES + PROTOCOL_LIMITS.maxPasteAutoInputBytes + 1),
-			),
+			decodePasteAutoInput(new Uint8Array(32 + PROTOCOL_LIMITS.maxPasteAutoInputBytes + 1)),
 		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.limitExceeded, ok: false }));
 	});
 
@@ -342,7 +341,7 @@ describe('semantic terminal input payloads', () => {
 			x: 10.5,
 			y: -2.25,
 		};
-		const encoded = encodeMouseInput(input);
+		const encoded = encodeInputRequest(MessageKind.mouseInput, input);
 		if (!encoded.ok) throw new Error(encoded.detail);
 		expect(decodeMouseInput(encoded.value)).toEqual({ ok: true, value: input });
 	});
@@ -359,13 +358,13 @@ describe('semantic terminal input payloads', () => {
 			x: maximumFloat32,
 			y: -maximumFloat32,
 		};
-		const encoded = encodeMouseInput(input);
+		const encoded = encodeInputRequest(MessageKind.mouseInput, input);
 		if (!encoded.ok) throw new Error(encoded.detail);
 		expect(decodeMouseInput(encoded.value)).toEqual({ ok: true, value: input });
 	});
 
 	it('rejects mouse coordinates that cannot survive float32 encoding', () => {
-		const encoded = encodeMouseInput({
+		const encoded = encodeInputRequest(MessageKind.mouseInput, {
 			action: MouseAction.motion,
 			attachmentId,
 			capabilityRevision,
@@ -379,7 +378,7 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('requires a concrete button for mouse press and release', () => {
-		const press = encodeMouseInput({
+		const press = encodeInputRequest(MessageKind.mouseInput, {
 			action: MouseAction.press,
 			attachmentId,
 			capabilityRevision,
@@ -393,7 +392,7 @@ describe('semantic terminal input payloads', () => {
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
 
-		const motion = encodeMouseInput({
+		const motion = encodeInputRequest(MessageKind.mouseInput, {
 			action: MouseAction.motion,
 			attachmentId,
 			capabilityRevision,
@@ -443,10 +442,10 @@ describe('semantic terminal input payloads', () => {
 				y: 0,
 			},
 		]) {
-			expect(encodeMouseInput(input).ok).toBe(false);
+			expect(encodeInputRequest(MessageKind.mouseInput, input).ok).toBe(false);
 		}
 
-		const wheel = encodeMouseInput({
+		const wheel = encodeInputRequest(MessageKind.mouseInput, {
 			action: MouseAction.press,
 			attachmentId,
 			capabilityRevision,
@@ -460,7 +459,11 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('round-trips focus and rejects reserved focus flags', () => {
-		const encoded = encodeFocusInput({ attachmentId, capabilityRevision, focused: true });
+		const encoded = encodeInputRequest(MessageKind.focusInput, {
+			attachmentId,
+			capabilityRevision,
+			focused: true,
+		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		expect(decodeFocusInput(encoded.value)).toEqual({
 			ok: true,
@@ -491,7 +494,11 @@ describe('semantic-input rejection parity with the native mirror', () => {
 	});
 
 	it('reports length-mismatch for a zero-declared text length with a body', () => {
-		const encoded = encodeTextInput({ attachmentId, capabilityRevision, text: 'abc' });
+		const encoded = encodeInputRequest(MessageKind.textInput, {
+			attachmentId,
+			capabilityRevision,
+			text: 'abc',
+		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const zeroLength = encoded.value.slice();
 		zeroLength[24] = 0;
@@ -501,7 +508,7 @@ describe('semantic-input rejection parity with the native mirror', () => {
 		expect(decodeTextInput(zeroLength)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
 		);
-		const encodedPaste = encodePasteInput({
+		const encodedPaste = encodeInputRequest(MessageKind.pasteInput, {
 			attachmentId,
 			bracketed: false,
 			capabilityRevision,
@@ -528,7 +535,7 @@ describe('semantic-input rejection parity with the native mirror', () => {
 	});
 
 	it('classifies pressed-buttons overflow as invalid-field', () => {
-		const encoded = encodeMouseInput({
+		const encoded = encodeInputRequest(MessageKind.mouseInput, {
 			action: MouseAction.motion,
 			attachmentId,
 			capabilityRevision,
@@ -547,7 +554,7 @@ describe('semantic-input rejection parity with the native mirror', () => {
 	});
 
 	it('retains unknown-required-flag for reserved and unknown modifier bits', () => {
-		const encoded = encodeMouseInput({
+		const encoded = encodeInputRequest(MessageKind.mouseInput, {
 			action: MouseAction.motion,
 			attachmentId,
 			capabilityRevision,

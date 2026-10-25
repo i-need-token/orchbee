@@ -113,8 +113,8 @@ test "launch environment identity follows the target operating system" {
     // Environment names are target-OS identifiers. The same wire corpus admits
     // `Path` and `PATH` as distinct variables on a POSIX target and rejects
     // them as duplicates on a Windows target with the typed InvalidLaunch
-    // failure before any Host dispatch. This mirrors prepareLaunchEnvironment
-    // in schemas/terminal/references/protocol.md.
+    // failure before any Host dispatch. Wire schemas preserve spelling;
+    // this native launch boundary owns target-OS identity.
     const environment_aliases = [_]EnvironmentEntry{
         .{ .name = "Path", .value = "first" },
         .{ .name = "PATH", .value = "second" },

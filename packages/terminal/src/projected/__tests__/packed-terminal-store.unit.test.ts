@@ -1,4 +1,7 @@
 import {
+	AttachmentIdSchema,
+	HostEpochSchema,
+	decodeTerminalProjectionBuffer,
 	ActiveScreen,
 	CellWidth,
 	CursorShape,
@@ -6,8 +9,6 @@ import {
 	encodeTerminalGraphics,
 	encodeTerminalFrame,
 	encodeTerminalProjectionBuffer,
-	parseAttachmentId,
-	parseHostEpoch,
 	ProtocolErrorCode,
 	RowPromptClass,
 	SemanticContent,
@@ -16,10 +17,8 @@ import {
 	TerminalCellWidthCode,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
-	TerminalGraphicsImageFormat,
 	TerminalGraphicsUpdateKind,
 	UnderlineKind,
-	viewTerminalProjectionBuffer,
 	type TerminalFrame,
 	type TerminalGraphicsPlacement,
 } from '@orchbee/terminal-protocol';
@@ -33,15 +32,10 @@ import {
 	ProjectedStorePhase,
 } from '../packed-terminal-store';
 
-function identifier<T>(
-	result: { readonly ok: true; readonly value: T } | { readonly ok: false },
-): T {
-	if (!result.ok) throw new Error('test identifier is invalid');
-	return result.value;
-}
 
-const hostEpoch = identifier(parseHostEpoch('11111111111111111111111111111111'));
-const attachmentId = identifier(parseAttachmentId('22222222222222222222222222222222'));
+
+const hostEpoch = HostEpochSchema.parse('11111111111111111111111111111111');
+const attachmentId = AttachmentIdSchema.parse('22222222222222222222222222222222');
 
 interface PresentationStoreTraceCase {
 	readonly expectedKind: 'connection-terminal' | 'snapshot-required';
@@ -290,7 +284,7 @@ function graphicsExtension(
 			? [
 					{
 						data: new Uint8Array([1, 2, 3]),
-						format: TerminalGraphicsImageFormat.rgb,
+						format: 'rgb',
 						generation: 1n,
 						height: 1,
 						id: 7,
@@ -491,7 +485,7 @@ describe('PackedTerminalStore', () => {
 	it('retains an OBPB 0.0.1 snapshot as direct typed views without per-cell repacking', () => {
 		const encoded = encodeTerminalProjectionBuffer(frame('snapshot', 1n, 1n, ['蜂', 'b']));
 		if (!encoded.ok) throw new Error(encoded.detail);
-		const viewed = viewTerminalProjectionBuffer(encoded.value);
+		const viewed = decodeTerminalProjectionBuffer(encoded.value);
 		if (!viewed.ok) throw new Error(viewed.detail);
 		const store = new PackedTerminalStore(hostEpoch, attachmentId);
 
@@ -519,7 +513,7 @@ describe('PackedTerminalStore', () => {
 			styles: [{ ...projectionStyle, hyperlink }],
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
-		const viewed = viewTerminalProjectionBuffer(encoded.value);
+		const viewed = decodeTerminalProjectionBuffer(encoded.value);
 		if (!viewed.ok) throw new Error(viewed.detail);
 		const store = new PackedTerminalStore(hostEpoch, attachmentId);
 
@@ -921,7 +915,7 @@ describe('PackedTerminalStore', () => {
 		const replacement = frame('snapshot', 10n, 44n, ['n', 'm']);
 		const encodedProjection = encodeTerminalProjectionBuffer(replacement);
 		if (!encodedProjection.ok) throw new Error(encodedProjection.detail);
-		const viewedProjection = viewTerminalProjectionBuffer(encodedProjection.value);
+		const viewedProjection = decodeTerminalProjectionBuffer(encodedProjection.value);
 		if (!viewedProjection.ok) throw new Error(viewedProjection.detail);
 
 		expect(store.replaceSnapshot(bytes(replacement), 1024 * 1024)).toEqual({ kind: 'invalid' });
@@ -1107,7 +1101,7 @@ describe('PackedTerminalStore', () => {
 	});
 
 	it('isolates terminal outcomes and retained state between attachment stores', () => {
-		const otherAttachmentId = identifier(parseAttachmentId('33333333333333333333333333333333'));
+		const otherAttachmentId = AttachmentIdSchema.parse('33333333333333333333333333333333');
 		const first = new PackedTerminalStore(hostEpoch, attachmentId);
 		const second = new PackedTerminalStore(hostEpoch, otherAttachmentId);
 		const firstSnapshot = frame('snapshot', 1n, 1n, ['a', 'b']);

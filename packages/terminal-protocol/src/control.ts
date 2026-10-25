@@ -224,7 +224,7 @@ function validateLaunchEnvironment(
 	// one JSON member and cannot be a delta. Names that differ only by case
 	// (for example `Path` and `PATH`) remain distinct on the wire; the Host
 	// decides their target-operating-system identity when it prepares the
-	// launch (see prepareLaunchEnvironment below).
+	// launch in its native launch owner.
 	const names = launch.environment.map((entry) => entry.name);
 	if (new Set(names).size !== names.length) {
 		context.addIssue({
@@ -233,78 +233,6 @@ function validateLaunchEnvironment(
 			path: ['environment'],
 		});
 	}
-}
-
-/** A Host operating system that defines environment-name identity. */
-type EnvironmentTarget = 'posix' | 'windows';
-
-/**
- * Environment names are target-operating-system environment identifiers. Fold
- * a name to its target-identity canonical form: POSIX names are case-sensitive
- * (identity is the exact name), while Windows names are case-insensitive
- * (identity is the case-folded name). The ASCII fold here mirrors the native
- * Host canonicalization for the tested corpus; the native implementation is
- * authoritative for non-ASCII codepoints.
- */
-export function canonicalEnvironmentName(name: string, target: EnvironmentTarget): string {
-	if (target !== 'windows') return name;
-	let folded = '';
-	for (const character of name) {
-		const code = character.charCodeAt(0);
-		folded += code >= 0x61 && code <= 0x7a ? String.fromCharCode(code - 0x20) : character;
-	}
-	return folded;
-}
-
-/**
- * Host-side preparation for one declared target OS. The wire schema admits
- * distinct names; this boundary applies the target identity rule and rejects
- * duplicates that only the target OS considers equal. The native Host applies
- * the identical rule and reports a typed `invalid-field` failure, and the
- * `CreationId` launch digest uses the same folded names.
- */
-export function prepareLaunchEnvironment(
-	environment: readonly { readonly name: string; readonly value: string | null }[],
-	target: EnvironmentTarget,
-): ProtocolResult<readonly { readonly name: string; readonly value: string | null }[]> {
-	const seen = new Set<string>();
-	for (const entry of environment) {
-		const folded = canonicalEnvironmentName(entry.name, target);
-		if (seen.has(folded)) {
-			return protocolFailure(
-				ProtocolErrorCode.invalidField,
-				`Duplicate environment name '${entry.name}' for the ${target} target`,
-			);
-		}
-		seen.add(folded);
-	}
-	return protocolSuccess(environment);
-}
-
-/**
- * Applies target-operating-system identity to the nonpersistent environment
- * overlay and rejects any duplicate or durable-launch overlap. The native Host
- * repeats this validation at the trust boundary before process preparation.
- */
-export function prepareTerminalEnvironmentOverlay(
-	launchEnvironment: readonly { readonly name: string }[],
-	environmentOverlay: readonly { readonly name: string; readonly value: string }[],
-	target: EnvironmentTarget,
-): ProtocolResult<readonly { readonly name: string; readonly value: string }[]> {
-	const seen = new Set(
-		launchEnvironment.map((entry) => canonicalEnvironmentName(entry.name, target)),
-	);
-	for (const entry of environmentOverlay) {
-		const folded = canonicalEnvironmentName(entry.name, target);
-		if (seen.has(folded)) {
-			return protocolFailure(
-				ProtocolErrorCode.invalidField,
-				`Duplicate or overlapping environment overlay name '${entry.name}' for the ${target} target`,
-			);
-		}
-		seen.add(folded);
-	}
-	return protocolSuccess(environmentOverlay);
 }
 
 const responseTextSchema = z
@@ -900,7 +828,7 @@ const editorDocumentReleaseFailureSchema = z.strictObject({
 	stage: z.literal(RuntimeFailureStage.releaseEditorDocument),
 });
 
-export const RuntimeFailureSchema = z.discriminatedUnion('stage', [
+const RuntimeFailureSchema = z.discriminatedUnion('stage', [
 	z.strictObject({
 		kind: z.literal(RuntimeFailureKind.terminalReply),
 		stage: z.literal(RuntimeFailureStage.admitTerminalReply),
@@ -928,14 +856,14 @@ export const RuntimeFailureSchema = z.discriminatedUnion('stage', [
 	}),
 ]);
 
-export const RuntimeCleanupFailureSchema = z.discriminatedUnion('stage', [
+const RuntimeCleanupFailureSchema = z.discriminatedUnion('stage', [
 	processContainmentFailureSchema,
 	outputReleaseFailureSchema,
 	processIdentityReleaseFailureSchema,
 	editorDocumentReleaseFailureSchema,
 ]);
 
-export const ProcessObservationSchema = z.discriminatedUnion('kind', [
+const ProcessObservationSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('observed'), result: ExitResultSchema }),
 	z.strictObject({
 		failure: processObservationFailureSchema,
@@ -943,7 +871,7 @@ export const ProcessObservationSchema = z.discriminatedUnion('kind', [
 	}),
 ]);
 
-export const FailureContainmentSchema = z.discriminatedUnion('kind', [
+const FailureContainmentSchema = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('stopping'),
 		process: ProcessObservationSchema.nullable(),
@@ -977,7 +905,7 @@ const terminalSummaryWithoutFailureShape = {
 	process: z.null(),
 } as const;
 
-export const TerminalSummarySchema = z.discriminatedUnion('phase', [
+const TerminalSummarySchema = z.discriminatedUnion('phase', [
 	z.strictObject({
 		...terminalSummaryShape,
 		columns: z.null(),

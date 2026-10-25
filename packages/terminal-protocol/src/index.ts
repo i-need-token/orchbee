@@ -164,7 +164,6 @@ export type {
 	TerminalInteraction,
 	TerminalProgress,
 	TerminalCommandCompletion,
-	TerminalStyle,
 } from './frame';
 export {
 	AttachmentIdSchema,
@@ -172,10 +171,6 @@ export {
 	CorrelationIdSchema,
 	CreationIdSchema,
 	HostEpochSchema,
-	parseAttachmentId,
-	parseCreationId,
-	parseHostEpoch,
-	parseTerminalId,
 	TerminalIdSchema,
 	TerminalThemeOperationIdSchema,
 } from './identifiers';
@@ -239,7 +234,6 @@ export type { ProtocolFailure } from './protocol-result';
 export {
 	decodeTerminalGraphics,
 	encodeTerminalGraphics,
-	TerminalGraphicsImageFormat,
 	TerminalGraphicsUpdateKind,
 } from './terminal-graphics';
 export type {
@@ -254,7 +248,6 @@ export {
 	TerminalProjectionSection,
 	TERMINAL_PROJECTION_BUFFER_FORMAT,
 	TERMINAL_PROJECTION_BUFFER_HEADER_BYTES,
-	viewTerminalProjectionBuffer,
 } from './projection-buffer';
 export type { DecodedTerminalProjectionBuffer } from './projection-buffer';
 export { CURRENT_PROTOCOL_VERSION } from './version';

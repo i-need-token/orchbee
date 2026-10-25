@@ -5,7 +5,6 @@ import {
 	decodeSelectionExportChunk,
 	decodeSelectionExportChunkRoute,
 	encodeSelectionExportChunk,
-	SELECTION_EXPORT_CHUNK_HEADER_BYTES,
 } from '../selection';
 
 describe('selection export chunks', () => {
@@ -38,9 +37,9 @@ describe('selection export chunks', () => {
 	});
 
 	it('rejects truncated headers and non-zero reserved bytes', () => {
-		expect(
-			decodeSelectionExportChunk(new Uint8Array(SELECTION_EXPORT_CHUNK_HEADER_BYTES - 1)),
-		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.truncated, ok: false }));
+		expect(decodeSelectionExportChunk(new Uint8Array(32 - 1))).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.truncated, ok: false }),
+		);
 		const encoded = encodeSelectionExportChunk({
 			attachmentId: '22'.repeat(16),
 			bytes: new Uint8Array(),
