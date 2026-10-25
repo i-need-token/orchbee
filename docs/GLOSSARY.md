@@ -28,7 +28,7 @@ may omit a qualifier only when its surface makes the referent unambiguous.
 | Workspace        | 工作区     | A stable unit of work with its own Terminal Context, optional Project membership, and optional primary Directory. Ungrouping or moving it does not create another Workspace. Closing it and removing its disk checkout are distinct effects.                                                                       |
 | Directory        | 目录       | An admitted filesystem location associated with an execution Worker and identified independently of its path spelling. A Workspace may refer to it as its primary Directory; Project grouping is not filesystem ownership. A terminal's observed working directory is a separate fact.                             |
 | Worktree         | 工作树     | A Git working tree on disk, with its own checkout and Git metadata relationship. A Workspace may use it. Closing the Workspace does not mean removing the Worktree or deleting its branch. Do not invent a Worktree identity from a Workspace ID.                                                                  |
-| Terminal Context | 终端上下文 | The Workbench scope that owns an ordered set of Tabs, including a Workspace context or the standalone context. It is not a terminal process, selection, or connection.                                                                                                                                             |
+| Terminal Context | 终端上下文 | The Workbench scope within a Workspace that owns an ordered set of Tabs. It is not a terminal process, selection, or connection.                                                                                                                                                                                   |
 | Tab              | 标签页     | A member of a Terminal Context; a terminal Tab owns a Panel/Split tree. Its title, group, and display position do not define its identity. It is not an OS window or a terminal process.                                                                                                                           |
 | Tab Group        | 标签页组   | An ordered grouping of Tabs within a Terminal Context. It is distinct from a Project's grouping of Workspaces.                                                                                                                                                                                                     |
 | Panel            | 面板       | A stable leaf in a Tab's layout. It owns placement of a primary terminal presentation and any admitted child presentations. Moving a Panel, changing its displayed terminal, and replacing a terminal attachment are distinct operations.                                                                          |
@@ -92,12 +92,15 @@ Their producer is the `server` command family; replacing `orchbee.site.*` with
 `orchbee.session.*` would misname that boundary. Document versions follow
 [Architecture](ARCHITECTURE.md#data-boundaries), independently of terminology.
 
-CLI grammar remains owned under [CLI Command Surface](cli/command-surface.md). A code rename
+CLI grammar remains owned under [CLI Command Surface](cli/command-surface.md). A code rename alone
 does not rename a command, flag, or environment variable. The accepted Session selector is
-`ORCHBEE_SESSION`, with no `ORCHBEE_SITE` fallback or alias; other runtime inputs retain their
-existing contracts. Existing GUI renderer coordination, browser authentication, and interaction
-lifetimes must be classified at their own boundary, not mechanically treated as native Client
-Connections because an identifier contains `Session`.
+`ORCHBEE_SESSION`, with no `ORCHBEE_SITE` fallback or alias. The internal Server and Worker
+entrypoints use `--runtime-directory <absolute-runtime-directory>`, replacing `--local-site`
+without an alias. Its value is an absolute runtime directory; Session names, scopes, and runtime
+IDs remain distinct concepts. Other runtime inputs retain their existing contracts. Existing GUI
+renderer coordination, browser authentication, and interaction lifetimes must be classified at
+their own boundary, not mechanically treated as native Client Connections because an identifier
+contains `Session`.
 
 ## Retired names and platform boundaries
 
