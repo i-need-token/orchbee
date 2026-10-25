@@ -28,7 +28,12 @@
 		"packages/agent": {
 			"entry": ["src/**/*.unit.test.{ts,tsx}!"],
 			"ignoreBinaries": ["java!"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"],
+			"project": [
+				"src/**/*.{ts,tsx}!",
+				"*.ts",
+				"!src/__tests__/conformance/agent-reference.ts!",
+				"!src/__tests__/conformance/agent-reference-contracts.ts!"
+			],
 			"includeEntryExports": true
 		},
 		"packages/foundation": {

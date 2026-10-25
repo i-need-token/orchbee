@@ -30,7 +30,7 @@ export function Example() {
 }
 ```
 
-显式 `@orchbee/ui/components` 入口只导出有消费者的 shadcn Base UI 与 Orchbee 视觉原语；根入口不再提供兼容别名。组件保留所依赖的标准变体、`className` 组合及 Base UI 属性。新增组件与插槽必须有已准入用途，不能只为可能的未来需求扩大库存。
+显式 `@orchbee/ui/components` 入口只导出有消费者的 shadcn Base UI 与 Orchbee 视觉原语；`@orchbee/ui/styles.css` 提供其样式。这是仅有的两个公共入口，该包没有根入口。组件保留所依赖的标准变体、`className` 组合及 Base UI 属性。新增组件与插槽必须有已准入用途，不能只为可能的未来需求扩大库存。
 
 `Tabs` 还公开了用于全高应用工作区域的 `workspace` 变体。由 `TabsBar`、工作区 `TabsList`、每个触发器一个 `TabsItem` 以及相邻项目之间的独立一像素 `TabsDivider` 组成。 Tab 触发器不绘制自己的分隔符。 `TabsBar` 是 `35px` 高，由 `34px` 内容区域和 `1px` 底部边框组成，并且在语义选项卡列表旁边可能包含产品拥有的控件。每个项目的宽度最多为 `200px`，并且当空间受限时会均匀收缩。未选定的选项卡使用较亮的基础表面，悬停会添加较亮的表面而不更改标签颜色，选定的选项卡使用较暗的选定表面。 UI 软件包提供可访问的 Base UI 交互和响应式镶边；产品包仍然负责选项卡数据和语义操作，例如选择、创建和关闭。
 

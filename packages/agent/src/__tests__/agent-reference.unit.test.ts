@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { AgentSessionSnapshotSchema, type AgentSessionSnapshot } from '../../model';
+import { AgentSessionSnapshotSchema, type AgentSessionSnapshot } from '../model';
 
 import {
 	explainAgentSession,
 	matchingAgentWaitConditions,
 	projectAgentSessionSummary,
-} from '../agent-semantic-read-model';
+} from './conformance/agent-reference';
 
 describe('Agent semantic read model', () => {
 	it('projects bounded summaries from the canonical Session', () => {

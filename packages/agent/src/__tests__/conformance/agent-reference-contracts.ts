@@ -7,9 +7,9 @@ import {
 	AgentPresentationAttachmentSchema,
 	AgentProviderIdSchema,
 	AgentSessionIdSchema,
-} from '../model';
+} from '../../model';
 
-import { AgentSemanticStatusSchema } from '../projection';
+import { AgentSemanticStatusSchema } from '../../projection';
 
 const AgentWaitConditionSchema = z.enum([
 	'needs-attention',

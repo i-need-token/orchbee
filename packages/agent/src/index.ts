@@ -39,8 +39,3 @@ export type {
 	AgentSemanticEventListener,
 	AgentSnapshotSource,
 } from './AgentRuntime';
-export {
-	explainAgentSession,
-	matchingAgentWaitConditions,
-	projectAgentSessionSummary,
-} from './semantic-commands';

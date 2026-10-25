@@ -60,7 +60,7 @@ Freshness 保持为独立 overlay，不能把 stale work 静默变成 idle。每
 
 ## Semantic command read model
 
-该包保留规范语料生成器使用的三个确定性参考投影：`projectAgentSessionSummary`、`explainAgentSession` 和 `matchingAgentWaitConditions`。生成器执行所属包的构建产物；在私有开发构建边界准入前，这些参考仍通过现有入口提供。它们不恢复已退役的 TypeScript CLI 或 Desktop semantic-command coordinator。
+该包保留规范语料生成器使用的三个确定性参考投影：`projectAgentSessionSummary`、`explainAgentSession` 和 `matchingAgentWaitConditions`。生成器通过包内私有的 `#conformance-reference` 导入这些参考实现，执行 `dist/__tests__/conformance/agent-reference.js`。`conformance:build` 先构建运行时，再使用已安装的 Rslib API 编译同 owner 的 `src/__tests__/conformance/agent-reference.ts`；生成与检查都会先执行该构建。此开发产物不进入打包内容，也没有公共 export 子路径。完整 Knip 图通过既有 `src` 到 `dist` 映射解析该私有导入；strict 生产范围仅排除两个参考实现/类型文件，所有生产入口检查保持启用。它们不恢复已退役的 TypeScript CLI 或 Desktop semantic-command coordinator。
 
 Summary 投影规范 Session 状态。Explanation 保留 source、fidelity、freshness meaning、generation、sequence、capability ceiling 和 status basis，保持 `navigate-only` 且不含 provider 内容。Semantic wait condition 仅匹配 fresh observation；显式 health condition 匹配所请求的 freshness 值。这些纯投影不拥有订阅、计时器或命令生命周期。
 

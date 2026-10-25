@@ -9,7 +9,7 @@
  *   node conformance/generate-corpus.mjs --check   # regenerate in memory, byte-compare, exit 1 on drift
  *   node conformance/generate-corpus.mjs --base <commit>   # pin provenance.baseCommit
  *
- * Run `pnpm -F @orchbee/agent build` first so dist matches the fingerprinted sources.
+ * Use conformance:generate or test:conformance; both build the runtime and private reference first.
  */
 import { execSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -18,14 +18,12 @@ import { createRequire } from 'node:module';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { AgentRuntime, projectAgentLocation, projectAgentSessionGroup } from '@orchbee/agent';
 import {
-	AgentRuntime,
 	explainAgentSession,
 	matchingAgentWaitConditions,
-	projectAgentLocation,
-	projectAgentSessionGroup,
 	projectAgentSessionSummary,
-} from '@orchbee/agent';
+} from '#conformance-reference';
 
 const require = createRequire(import.meta.url);
 const conformanceDir = dirname(fileURLToPath(import.meta.url));
@@ -327,7 +325,7 @@ const VECTORS = [
 		covers: ['freshness', 'wait-gating', 'status:working'],
 		sourceRefs: [
 			'packages/agent/src/reducer.ts:372-386',
-			'packages/agent/src/semantic-commands/agent-semantic-read-model.ts:46-57',
+			'packages/agent/src/__tests__/conformance/agent-reference.ts:46-57',
 		],
 		assumptions: [],
 		events: [

@@ -9,16 +9,7 @@
 	],
 	"type": "module",
 	"sideEffects": false,
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
 	"exports": {
-		".": {
-			"@orchbee/source": "./src/index.ts",
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js",
-			"require": "./dist/index.cjs"
-		},
 		"./react": {
 			"@orchbee/source": "./src/react/index.ts",
 			"types": "./dist/react/index.d.ts",

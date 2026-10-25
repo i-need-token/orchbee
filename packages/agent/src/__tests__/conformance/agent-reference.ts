@@ -1,12 +1,12 @@
-import type { AgentSessionSnapshot } from '../model';
-import { projectAgentSession } from '../projection';
+import type { AgentSessionSnapshot } from '../../model';
+import { projectAgentSession } from '../../projection';
 import type {
 	AgentFreshnessMeaning,
 	AgentSessionExplanation,
 	AgentSessionSummary,
 	AgentStatusBasis,
 	AgentWaitCondition,
-} from './agent-semantic-command-contracts';
+} from './agent-reference-contracts';
 
 export function projectAgentSessionSummary(session: AgentSessionSnapshot): AgentSessionSummary {
 	return {

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { startLoc } from '../utils.js';
 
@@ -192,12 +192,34 @@ function report(context, node, message) {
 	});
 }
 
+function hasOnlyPrivateSubpaths(sourceRoot) {
+	if (!/\/packages\/[^/]+\/src$/u.test(sourceRoot)) return false;
+	const manifestPath = join(sourceRoot, '..', 'package.json');
+	if (!existsSync(manifestPath)) return false;
+	const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	const exports = manifest.exports;
+	if (
+		manifest.private !== true ||
+		exports === null ||
+		typeof exports !== 'object' ||
+		Array.isArray(exports)
+	)
+		return false;
+	const subpaths = Object.keys(exports);
+	return (
+		subpaths.length > 0 &&
+		subpaths.every((subpath) => subpath.startsWith('./') && !subpath.includes('*')) &&
+		!['main', 'module', 'types'].some((field) => Object.hasOwn(manifest, field))
+	);
+}
+
 function reportMissingIndexes(context, program, filename, sourceRoot, sourceModule) {
 	for (let depth = 0; depth <= sourceModule.length; depth += 1) {
 		const directory = join(sourceRoot, ...sourceModule.slice(0, depth));
 		const indexPath = join(directory, INDEX_FILENAME);
 		const firstFile = firstSourceFile(directory);
 		if (existsSync(indexPath) || firstFile === null || normalize(firstFile) !== filename) continue;
+		if (depth === 0 && hasOnlyPrivateSubpaths(sourceRoot)) continue;
 		report(
 			context,
 			program,

@@ -39,15 +39,15 @@ and the owning language standard.
 
 `orchbee/module-boundaries` enforces:
 
-| Concern                | Contract                                                                                                                                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source module          | Every directory containing TypeScript source under `apps/*/src` or `packages/*/src`, except test directories, authored React component groups, and support directories owned by recognized public or private component trees. |
-| Root module            | The `src` directory of a TypeScript workspace.                                                                                                                                                                                |
-| Test directory         | `__tests__` belongs to its nearest source-module ancestor and does not create a module.                                                                                                                                       |
-| Boundary entry         | Every TypeScript source module has `index.ts`.                                                                                                                                                                                |
-| Same module            | Files import one another directly.                                                                                                                                                                                            |
-| Descendant to ancestor | A descendant may import an ancestor implementation directly because it is inside lexical visibility.                                                                                                                          |
-| Lateral dependency     | TypeScript imports target `index.ts`; paths below a lateral boundary remain private even when TypeScript resolves them.                                                                                                       |
+| Concern                | Contract                                                                                                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source module          | Every directory containing TypeScript source under `apps/*/src` or `packages/*/src`, except test directories, authored React component groups, and support directories owned by recognized public or private component trees.                     |
+| Root module            | The `src` directory of a TypeScript workspace.                                                                                                                                                                                                    |
+| Test directory         | `__tests__` belongs to its nearest source-module ancestor and does not create a module.                                                                                                                                                           |
+| Boundary entry         | Every TypeScript source module has `index.ts`, except the root of a private package exporting only explicit subpaths or assets with no root export or `main`/`module`/`types` fields; see [Packages](PACKAGES.md#public-api-and-package-exports). |
+| Same module            | Files import one another directly.                                                                                                                                                                                                                |
+| Descendant to ancestor | A descendant may import an ancestor implementation directly because it is inside lexical visibility.                                                                                                                                              |
+| Lateral dependency     | TypeScript imports target `index.ts`; paths below a lateral boundary remain private even when TypeScript resolves them.                                                                                                                           |
 
 ## Native source trees
 

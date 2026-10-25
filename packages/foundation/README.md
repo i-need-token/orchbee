@@ -6,7 +6,7 @@ Orchbee's private package for domain-neutral, dependency-light programming primi
 
 An API belongs here only when it has a concrete workspace consumer and remains meaningful without product, feature, platform, transport, persistence, or presentation semantics. Reuse, file shape, or implementation similarity alone does not qualify. Owner-specific helpers stay with their semantic owner.
 
-The root entry is a reviewed allowlist rather than an automatic barrel. Framework and environment integration also has an explicit subpath so consumers can name that dependency boundary directly.
+The package has no root entry. Framework and environment integration uses explicit subpaths so consumers name that dependency boundary directly; `@orchbee/foundation/react` is the only public entry.
 
 ## React
 

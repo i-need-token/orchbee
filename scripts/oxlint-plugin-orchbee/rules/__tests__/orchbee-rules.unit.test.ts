@@ -405,6 +405,57 @@ describe('module-boundaries', () => {
 		expect(reports[0]?.message).toContain('"src/missing" must define index.ts');
 	});
 
+	it('allows only the root index to be absent in a private package with explicit subpaths', () => {
+		const root = createFixture();
+		writeFixture(
+			root,
+			'packages/example/package.json',
+			JSON.stringify({
+				private: true,
+				exports: { './capability': './dist/capability/index.js' },
+			}),
+		);
+		const filename = writeFixture(root, 'packages/example/src/capability/implementation.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries.create(context).Program({ type: 'Program', loc: LOCATION, body: [] });
+		expect(reports).toHaveLength(1);
+		expect(reports[0]?.message).toContain('"src/capability" must define index.ts');
+	});
+
+	it('keeps root entries required outside the private subpath-only contract', () => {
+		for (const manifest of [
+			{ exports: { './capability': './dist/capability.js' } },
+			{ private: true, exports: {} },
+			{ private: true, exports: { '.': './dist/index.js' } },
+			{ private: true, exports: { './*': './dist/*.js' } },
+			...['main', 'module', 'types'].map((field) => ({
+				private: true,
+				exports: { './capability': './dist/capability.js' },
+				[field]: './dist/index.js',
+			})),
+		]) {
+			const root = createFixture();
+			writeFixture(root, 'packages/example/package.json', JSON.stringify(manifest));
+			const filename = writeFixture(root, 'packages/example/src/implementation.ts');
+			const { context, reports } = createContext(filename);
+			moduleBoundaries.create(context).Program({ type: 'Program', loc: LOCATION, body: [] });
+			expect(reports[0]?.message).toContain('"src" must define index.ts');
+		}
+	});
+
+	it('rejects production imports of private conformance references', () => {
+		const root = createModuleTree();
+		writeFixture(root, 'packages/example/src/__tests__/conformance/agent-reference.ts');
+		const filename = join(root, 'packages/example/src/root-utility.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(
+				dependencyNode('ImportDeclaration', './__tests__/conformance/agent-reference'),
+			);
+		expect(reports[0]?.message).toContain('Production source must not import test source');
+	});
+
 	it('keeps boundary indexes export-only and explicit', () => {
 		const root = createModuleTree();
 		const filename = join(root, 'packages/example/src/a/index.ts');

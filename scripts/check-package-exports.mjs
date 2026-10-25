@@ -84,6 +84,44 @@ function exportedTargets(exportsField, packageName) {
 	return targets;
 }
 
+function codeExports(manifest, exportsField, packageName) {
+	const entries = Object.entries(exportsField);
+	if (entries.length === 0) fail(`${packageName}: exports must declare a real entry or asset`);
+	if (!Object.hasOwn(exportsField, '.')) {
+		if (manifest.private !== true)
+			fail(`${packageName}: a publishable package must export its root`);
+		for (const field of ['main', 'module', 'types']) {
+			if (Object.hasOwn(manifest, field)) {
+				fail(`${packageName}: omit ${field} when the private package has no root export`);
+			}
+		}
+	}
+	return entries.filter(([subpath, value]) => {
+		if ((subpath !== '.' && !subpath.startsWith('./')) || subpath.includes('*')) {
+			fail(`${packageName}: exports must use explicit package subpaths: ${subpath}`);
+		}
+		const field = `exports[${JSON.stringify(subpath)}]`;
+		const targets =
+			typeof value === 'string' ? { default: value } : requireObject(value, field, packageName);
+		const isCode =
+			subpath === '.' ||
+			Object.entries(targets).some(
+				([condition, target]) =>
+					['types', 'import', 'require'].includes(condition) ||
+					(condition !== workspaceSourceCondition && /\.[cm]?[jt]sx?$/u.test(target)),
+			);
+		if (isCode) {
+			requireObject(value, field, packageName);
+			for (const condition of ['types', 'import', 'require']) {
+				requireString(targets[condition], `${field}.${condition}`, packageName);
+			}
+		} else {
+			requireString(targets.default, `${field}.default`, packageName);
+		}
+		return isCode;
+	});
+}
+
 async function verifyPackedTargets(packageRoot, manifest, packageName, exportsField) {
 	const files = await packageFiles(packageRoot);
 	for (const [field, target, condition] of exportedTargets(exportsField, packageName)) {
@@ -100,29 +138,20 @@ async function verifyPackedTargets(packageRoot, manifest, packageName, exportsFi
 	}
 }
 
-async function verifyRuntimeFormats(packageRoot, manifest, rootExport) {
+async function verifyRuntimeFormats(packageRoot, manifest, subpath, entryExport) {
 	const packageName = requireString(manifest.name, 'name', basename(packageRoot));
-	const importTarget = requireString(rootExport.import, 'exports["."].import', packageName);
-	const requireTarget = requireString(rootExport.require, 'exports["."].require', packageName);
-	const importPath = exportTargetPath(
-		packageRoot,
-		importTarget,
-		'exports["."].import',
-		packageName,
-	);
-	const requirePath = exportTargetPath(
-		packageRoot,
-		requireTarget,
-		'exports["."].require',
-		packageName,
-	);
+	const field = `exports[${JSON.stringify(subpath)}]`;
+	const importTarget = requireString(entryExport.import, `${field}.import`, packageName);
+	const requireTarget = requireString(entryExport.require, `${field}.require`, packageName);
+	const importPath = exportTargetPath(packageRoot, importTarget, `${field}.import`, packageName);
+	const requirePath = exportTargetPath(packageRoot, requireTarget, `${field}.require`, packageName);
 	const esmApi = await import(pathToFileURL(importPath).href);
 	const cjsApi = createRequire(import.meta.url)(requirePath);
 	const esmExports = Object.keys(esmApi).toSorted();
 	const cjsExports = Object.keys(cjsApi).toSorted();
 	if (JSON.stringify(esmExports) !== JSON.stringify(cjsExports)) {
 		fail(
-			`${packageName}: ESM and CJS exports differ\nESM: ${esmExports.join(', ')}\nCJS: ${cjsExports.join(', ')}`,
+			`${packageName} ${subpath}: ESM and CJS exports differ\nESM: ${esmExports.join(', ')}\nCJS: ${cjsExports.join(', ')}`,
 		);
 	}
 }
@@ -137,21 +166,34 @@ function findWorkspaceRoot(packageRoot) {
 	}
 }
 
-async function verifyDeclarationConsumer(packageRoot, manifest, rootExport) {
+async function verifyDeclarationConsumer(packageRoot, manifest, entries) {
+	if (entries.length === 0) return;
 	const packageName = requireString(manifest.name, 'name', basename(packageRoot));
-	const typesTarget = requireString(rootExport.types, 'exports["."].types', packageName);
-	exportTargetPath(packageRoot, typesTarget, 'exports["."].types', packageName);
+	for (const [subpath, entryExport] of entries) {
+		const field = `exports[${JSON.stringify(subpath)}].types`;
+		exportTargetPath(
+			packageRoot,
+			requireString(entryExport.types, field, packageName),
+			field,
+			packageName,
+		);
+	}
 
 	const workspaceRoot = findWorkspaceRoot(packageRoot);
 	const fixtureRoot = await mkdtemp(join(tmpdir(), 'orchbee-package-consumer-'));
 	try {
 		const packageLink = join(fixtureRoot, 'node_modules', ...packageName.split('/'));
 		await mkdir(dirname(packageLink), { recursive: true });
-		await symlink(packageRoot, packageLink, 'dir');
-		await writeFile(
-			join(fixtureRoot, 'consumer.ts'),
-			`import * as packageApi from '${packageName}';\nvoid packageApi;\n`,
-		);
+		await symlink(packageRoot, packageLink, process.platform === 'win32' ? 'junction' : 'dir');
+		const consumer = entries
+			.map(([subpath], index) => {
+				const specifier = subpath === '.' ? packageName : packageName + subpath.slice(1);
+				return `import * as packageApi${index} from ${JSON.stringify(specifier)};\nvoid packageApi${index};\n`;
+			})
+			.join('');
+		for (const file of ['consumer.mts', 'consumer.cts']) {
+			await writeFile(join(fixtureRoot, file), consumer);
+		}
 		await execFileAsync(
 			process.execPath,
 			[
@@ -168,7 +210,8 @@ async function verifyDeclarationConsumer(packageRoot, manifest, rootExport) {
 				'NodeNext',
 				'--lib',
 				'ES2022,DOM,DOM.Iterable',
-				join(fixtureRoot, 'consumer.ts'),
+				join(fixtureRoot, 'consumer.mts'),
+				join(fixtureRoot, 'consumer.cts'),
 			],
 			{ cwd: fixtureRoot },
 		);
@@ -183,11 +226,13 @@ async function main() {
 	const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 	const packageName = requireString(manifest.name, 'name', basename(packageRoot));
 	const exportsField = requireObject(manifest.exports, 'exports', packageName);
-	const rootExport = requireObject(exportsField['.'], 'exports["."]', packageName);
+	const entries = codeExports(manifest, exportsField, packageName);
 
 	await verifyPackedTargets(packageRoot, manifest, packageName, exportsField);
-	await verifyRuntimeFormats(packageRoot, manifest, rootExport);
-	await verifyDeclarationConsumer(packageRoot, manifest, rootExport);
+	for (const [subpath, entryExport] of entries) {
+		await verifyRuntimeFormats(packageRoot, manifest, subpath, entryExport);
+	}
+	await verifyDeclarationConsumer(packageRoot, manifest, entries);
 	process.stdout.write(`${packageName}: package exports verified\n`);
 }
 

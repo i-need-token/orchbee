@@ -12,9 +12,6 @@
 		"**/*.css",
 		"./src/styles.ts"
 	],
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
 	"imports": {
 		"#components/*": "./src/components/*.tsx",
 		"#hooks/*": "./src/hooks/*.ts",
@@ -22,12 +19,6 @@
 		"#lib/*": "./src/lib/*.ts"
 	},
 	"exports": {
-		".": {
-			"@orchbee/source": "./src/index.ts",
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js",
-			"require": "./dist/index.cjs"
-		},
 		"./components": {
 			"@orchbee/source": "./src/components/index.ts",
 			"types": "./dist/components/index.d.ts",

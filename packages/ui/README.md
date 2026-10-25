@@ -30,7 +30,7 @@ export function Example() {
 }
 ```
 
-The explicit `@orchbee/ui/components` entry exports consumed shadcn Base UI and Orchbee visual primitives; the root has no compatibility aliases. Components retain the relied-on variants, `className` composition and Base UI props. New components and slots require an admitted use rather than speculative inventory.
+The explicit `@orchbee/ui/components` entry exports consumed shadcn Base UI and Orchbee visual primitives; `@orchbee/ui/styles.css` supplies their styles. These are the only public entries; the package has no root entry. Components retain the relied-on variants, `className` composition and Base UI props. New components and slots require an admitted use rather than speculative inventory.
 
 `Tabs` also exposes the `workspace` variant used for full-height application work areas. Compose it with `TabsBar`, a workspace `TabsList`, one `TabsItem` per trigger, and an independent one-pixel `TabsDivider` between adjacent items. Tab triggers do not draw their own separators. `TabsBar` is `35px` high, composed of a `34px` content area and a `1px` bottom border, and may contain product-owned controls beside the semantic tab list. Each item is at most `200px` wide and shrinks equally when space is constrained. Unselected tabs use the brighter base surface, hover adds a lighter surface without changing the label color, and the selected tab uses the darker selected surface. The UI package provides accessible Base UI interaction and responsive chrome; product packages remain responsible for tab data and semantic actions such as selection, creation, and closure.
 

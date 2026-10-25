@@ -26,7 +26,6 @@ export default defineConfig({
 	],
 	source: {
 		entry: {
-			index: './src/index.ts',
 			'components/index': './src/components/index.ts',
 			styles: './src/styles.ts',
 		},

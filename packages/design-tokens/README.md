@@ -20,7 +20,7 @@ Import the CSS registry once through the application stylesheet or a compatibili
 }
 ```
 
-The root has no JavaScript API; products consume CSS custom properties. [`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) generates the internal `designTokenNames` and `responsiveBreakpoints` inventories from [`src/tokens.css`](src/tokens.css); package tests and repository style checks use them to reject stale output.
+The package exports only `tokens.css` and `tailwind-compat.css`, with no root entry or JavaScript API; products consume CSS custom properties. [`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) generates the internal `designTokenNames` and `responsiveBreakpoints` inventories from [`src/tokens.css`](src/tokens.css); package tests and repository style checks use them to reject stale output.
 
 ## Tailwind compatibility
 

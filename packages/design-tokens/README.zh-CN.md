@@ -20,7 +20,7 @@ GUI/TUI 共同语义与主题对应关系遵循
 }
 ```
 
-根入口没有 JavaScript API；产品通过 CSS 自定义属性消费令牌。[`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) 从 [`src/tokens.css`](src/tokens.css) 生成内部 `designTokenNames` 与 `responsiveBreakpoints` 清单，供包测试与仓库样式检查使用并拒绝过时输出。
+该包仅导出 `tokens.css` 和 `tailwind-compat.css`，没有根入口或 JavaScript API；产品通过 CSS 自定义属性消费令牌。[`src/design-token-names.generated.ts`](src/design-token-names.generated.ts) 从 [`src/tokens.css`](src/tokens.css) 生成内部 `designTokenNames` 与 `responsiveBreakpoints` 清单，供包测试与仓库样式检查使用并拒绝过时输出。
 
 ## Tailwind 兼容性
 

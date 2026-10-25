@@ -49,7 +49,7 @@
 		"test:tla:changed": "node scripts/tla/run-models.mjs --cache-dir .tools/tla-cache --changed-since",
 		"test:tla:inventory": "node scripts/run-checks.mjs test:tla:inventory",
 		"test:tla:tooling": "node --test scripts/tla/model-cache-cli.test.mjs scripts/tla/model-mutations.test.mjs",
-		"test:exports": "pnpm -r --if-present test:exports",
+		"test:exports": "node --test scripts/check-package-exports.test.mjs && pnpm -r --if-present test:exports",
 		"experience:list": "node scripts/experience-catalog.mjs list",
 		"experience:find": "node scripts/experience-catalog.mjs find",
 		"experience:show": "node scripts/experience-catalog.mjs show",

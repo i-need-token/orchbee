@@ -36,8 +36,8 @@ semantics; reuse or source-category similarity alone is insufficient.
 
 - Keep owner-specific helpers with their semantic owner.
 - Expose environment or framework integration through an explicit capability subpath such as
-  `@orchbee/foundation/react`; keep the root entry an explicitly reviewed allowlist instead of an
-  automatic barrel.
+  `@orchbee/foundation/react`. Omit a root entry without a root API; any admitted root API is an
+  explicitly reviewed allowlist instead of an automatic barrel.
 - Do not use the package to hide dependency cycles or aggregate unrelated constants, types, Hooks,
   components, adapters, or convenience functions.
 - Document each public subpath, its dependency requirements, and its non-goals in the package
@@ -47,14 +47,14 @@ semantics; reuse or source-category similarity alone is insufficient.
 
 Every library package contains these files:
 
-| Path              | Responsibility                                      |
-| ----------------- | --------------------------------------------------- |
-| `package.json`    | Identity, scripts, dependencies, and public exports |
-| `src/index.ts`    | Deliberately selected root public API               |
-| `rslib.config.ts` | ESM, CJS, declarations, and runtime target          |
-| `tsconfig.json`   | Package type-checking contract                      |
-| `README.md`       | Consumer-facing installation and public API         |
-| `project.json`    | Machine-readable scope and responsibility           |
+| Path              | Responsibility                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `package.json`    | Identity, scripts, dependencies, and public exports                                                    |
+| `src/index.ts`    | Deliberately selected root public API; omitted for private packages with only subpath or asset exports |
+| `rslib.config.ts` | ESM, CJS, declarations, and runtime target                                                             |
+| `tsconfig.json`   | Package type-checking contract                                                                         |
+| `README.md`       | Consumer-facing installation and public API                                                            |
+| `project.json`    | Machine-readable scope and responsibility                                                              |
 
 Tests remain next to their source area according to [`docs/TESTING.md`](TESTING.md#source-and-test-paths). Generated build output belongs in `dist/` and is never committed.
 
@@ -73,12 +73,12 @@ Every library exposes these scripts:
 
 - Every package sets `"type": "module"`.
 - Every package defines `package.json#exports`; files absent from `exports` are private even if they exist in the published tarball.
-- Export the root as `"."`. Add each supported subpath explicitly, including assets. Do not use wildcard subpath exports.
+- Export a root API as `"."`. A private package with no root API exports only its real subpaths or assets and omits `src/index.ts` and the root build entry; never retain an empty root or fabricate an API to satisfy tooling. Publishable packages retain a root API. Declare at least one real export, name every supported subpath and asset explicitly, and do not use wildcard subpath exports.
 - Put the `"types"` condition before `"import"` and `"require"`.
 - Point `"import"` to ESM and `"require"` to CJS. Only the repository-specific `"@orchbee/source"` condition may point at `src/*`.
 - Declare `"@orchbee/source"` first on every source-buildable export. It is a repository development condition, points to the source counterpart of that same public entry, and must never expose a private subpath.
 - Include `@orchbee/source` targets in the package `files` allowlist when the package is publishable. Private packages may omit development source from their pack output.
-- Keep `main`, `module`, and `types` aligned with the root conditional export for consumers that do not fully support `exports`.
+- Keep `main`, `module`, and `types` aligned with the root conditional export for consumers that do not fully support `exports`. Omit all three when a private package has no root export.
 - Import another workspace package only through an allowed package name or exported subpath. Imports from another workspace's `src/*` or `dist/*` are forbidden.
 - Document every public entry point and asset in the package README.
 
@@ -119,7 +119,7 @@ Removing or changing an exported symbol, type, subpath, or asset is a breaking A
 
 - Build every library package with Rslib through `"build": "rslib build --log-level error"` so
   routine success stays concise while build errors remain visible.
-- Produce ESM (`dist/index.js`), CJS (`dist/index.cjs`), TypeScript declarations (`dist/index.d.ts`), and JavaScript source maps.
+- Produce ESM, CJS, TypeScript declarations, and JavaScript source maps for every code entry (`dist/index.js`, `dist/index.cjs`, and `dist/index.d.ts` for a root API). Asset-only packages build their real assets without placeholder JavaScript or declaration entries.
 - Set the Rslib runtime target to the actual consumer environment: `web`, `node`, or a separately reviewed multi-target configuration.
 - Use ES2022 syntax unless the repository runtime baseline changes.
 - Generate declarations from exactly one Rslib output to avoid two formats writing competing declaration files.
@@ -155,7 +155,7 @@ export default defineConfig({
 
 When declarations contain relative imports, enable `redirect.dts.extension` on the declaration-producing output so extensionless TypeScript source emits Node-compatible declaration specifiers.
 
-After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies that runtime export targets and publishable source-condition targets are included by `npm pack`, private source-condition targets exist, root ESM and CJS exports match, and a strict external TypeScript consumer can resolve the root declaration entry.
+After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies every runtime and asset target in `npm pack`, requires publishable source-condition targets to be packed and private source-condition targets to exist, compares ESM and CJS exports for every code entry, and resolves every code entry from strict external ESM and CJS TypeScript consumers. Asset-only packages still receive all target and pack checks; absence of a root never skips subpath verification.
 
 ## Dependency declarations
 
@@ -193,7 +193,7 @@ The repository does not automate package publication yet. Add release planning a
 Before merging a package change:
 
 1. Confirm the name and responsibility remain specific and non-overlapping.
-2. Review `src/index.ts` and `package.json#exports` as public API changes.
+2. Review every public source entry and `package.json#exports` as public API changes.
 3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
 4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
 5. Run `pnpm verify` from the repository root.

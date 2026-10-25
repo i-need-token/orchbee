@@ -148,4 +148,4 @@ Traditional Chinese fallback. The authoritative message and visual-review requir
 
 ## Package contracts
 
-Library packages run `test:exports` after `build` to verify their packed public surface, both JavaScript module formats, and a strict external TypeScript consumer. Cross-package behavior belongs in consumer-facing contract tests rather than tests that import another package's private source.
+Library packages run `test:exports` after `build` to verify every packed public code and asset target. Every code entry, including subpaths, also passes ESM/CJS parity and strict external TypeScript consumption; asset-only packages need no placeholder code entry. The exact export contract lives in [Packages](PACKAGES.md#library-builds). Cross-package behavior belongs in consumer-facing contract tests rather than tests that import another package's private source.

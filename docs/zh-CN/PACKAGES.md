@@ -32,7 +32,7 @@
 `@orchbee/foundation` 是仓库中唯一用于领域中立、轻依赖编程原语的边界，并且这些原语必须有具体工作区使用方。只有当一个 API 的契约无需产品、功能、平台、传输、持久化或展示语义即可稳定成立时，才能准入；仅仅可复用或源码类别相似并不足以准入。
 
 - 把所有者专属辅助函数保留在其语义所有者中。
-- 通过 `@orchbee/foundation/react` 等显式能力子路径公开环境或框架集成；根入口必须是显式审查的允许列表，不得成为自动 barrel。
+- 通过 `@orchbee/foundation/react` 等显式能力子路径公开环境或框架集成。没有根 API 时省略根入口；任何准入的根 API 都必须是显式审查的允许列表，不得成为自动 barrel。
 - 不得使用该包隐藏依赖环，或聚合无关常量、类型、Hook、组件、适配器或便利函数。
 - 在包 README 中记录每个公共子路径、它的依赖要求和非目标。
 
@@ -40,14 +40,14 @@
 
 每个库包包含这些文件：
 
-| 路径              | 职责                       |
-| ----------------- | -------------------------- |
-| `package.json`    | 身份、脚本、依赖和公共导出 |
-| `src/index.ts`    | 有意选择的根公共 API       |
-| `rslib.config.ts` | ESM、CJS、声明和运行时目标 |
-| `tsconfig.json`   | 包类型检查契约             |
-| `README.md`       | 面向使用方的安装和公共 API |
-| `project.json`    | 机器可读的范围和职责       |
+| 路径              | 职责                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| `package.json`    | 身份、脚本、依赖和公共导出                                   |
+| `src/index.ts`    | 有意选择的根公共 API；仅有子路径或资产导出的私有包省略此文件 |
+| `rslib.config.ts` | ESM、CJS、声明和运行时目标                                   |
+| `tsconfig.json`   | 包类型检查契约                                               |
+| `README.md`       | 面向使用方的安装和公共 API                                   |
+| `project.json`    | 机器可读的范围和职责                                         |
 
 测试按照 [`docs/TESTING.md`](TESTING.md#源码和测试路径) 放在源码区域旁。生成的构建输出属于 `dist/`，绝不能提交。
 
@@ -66,12 +66,12 @@
 
 - 每个包都设置 `"type": "module"`。
 - 每个包都定义 `package.json#exports`；未出现在 `exports` 中的文件即使存在于发布的 tarball 中也是私有的。
-- 把根导出定义为 `"."`。显式添加每个受支持的子路径，包括资产。不要使用通配符子路径导出。
+- 把根 API 导出定义为 `"."`。没有根 API 的私有包只导出真实子路径或资产，并省略 `src/index.ts` 与根构建入口；不得为满足工具要求保留空根或虚构 API。可发布包仍须保留根 API。至少声明一个真实导出，显式列出每个受支持的子路径和资产，不使用通配符子路径导出。
 - 把 `"types"` 条件放在 `"import"` 和 `"require"` 之前。
 - 让 `"import"` 指向 ESM，`"require"` 指向 CJS。只有仓库专用的 `"@orchbee/source"` 条件可以指向 `src/*`。
 - 在每个可进行源码构建的导出中首先声明 `"@orchbee/source"`。这是仓库开发条件，指向同一个公共入口的源码对应项，绝不能公开私有子路径。
 - 当包可发布时，把 `@orchbee/source` 目标包含在包的 `files` 允许列表中。私有包可以从打包输出中省略开发源码。
-- 让 `main`、`module` 和 `types` 与根条件导出保持一致，以支持未完全支持 `exports` 的使用方。
+- 让 `main`、`module` 和 `types` 与根条件导出保持一致，以支持未完全支持 `exports` 的使用方。私有包没有根导出时省略这三个字段。
 - 只能通过允许的包名或已导出的子路径导入其他工作区包。禁止从其他工作区的 `src/*` 或 `dist/*` 导入。
 - 在包 README 中记录每个公共入口点和资产。
 
@@ -111,7 +111,7 @@ export type { ResourceDescriptor, ResourceRegistryOptions } from './ResourceRegi
 ## 库构建
 
 - 通过 `"build": "rslib build --log-level error"` 使用 Rslib 构建每个库包，使常规成功输出保持简洁，同时仍显示构建错误。
-- 生成 ESM（`dist/index.js`）、CJS（`dist/index.cjs`）、TypeScript 声明（`dist/index.d.ts`）和 JavaScript source map。
+- 为每个代码入口生成 ESM、CJS、TypeScript 声明和 JavaScript source map（根 API 对应 `dist/index.js`、`dist/index.cjs` 和 `dist/index.d.ts`）。仅有资产的包构建真实资产，不生成占位 JavaScript 或声明入口。
 - 把 Rslib 运行时目标设为实际使用方环境：`web`、`node` 或单独审查的多目标配置。
 - 除非仓库运行时基线发生变化，否则使用 ES2022 语法。
 - 只从一个 Rslib 输出生成声明，避免两种格式写入相互竞争的声明文件。
@@ -147,7 +147,7 @@ export default defineConfig({
 
 当声明包含相对导入时，在生成声明的输出上启用 `redirect.dts.extension`，让无扩展名的 TypeScript 源生成与 Node 兼容的声明说明符。
 
-修改清单或构建配置后，运行包构建和 `test:exports`。仓库检查器会验证运行时导出目标和可发布的源码条件目标已包含在 `npm pack` 中、私有源码条件目标存在、根 ESM 与 CJS 导出一致，并且严格的外部 TypeScript 使用方能够解析根声明入口。
+修改清单或构建配置后，运行包构建和 `test:exports`。仓库检查器会验证每个运行时与资产目标均包含在 `npm pack` 中，要求可发布包的源码条件目标进入打包内容、私有包的源码条件目标实际存在，逐个比较代码入口的 ESM 与 CJS 导出，并通过严格的外部 ESM 和 CJS TypeScript 使用方解析每个代码入口。仅有资产的包仍须接受全部目标与打包检查；没有根入口绝不意味着跳过子路径验证。
 
 ## 依赖声明
 
@@ -185,7 +185,7 @@ Orchbee 包遵循语义化版本控制，并采用 Babel 风格的共享发布�
 合并包变更前：
 
 1. 确认名称和职责仍然具体且互不重叠。
-2. 把 `src/index.ts` 和 `package.json#exports` 作为公共 API 变更审查。
+2. 把每个公共源码入口和 `package.json#exports` 作为公共 API 变更审查。
 3. 使用 `pnpm --filter <package-name>... build` 构建包及其工作区依赖。
 4. 运行 `pnpm --filter <package-name> typecheck`、`pnpm --filter <package-name> test` 和 `pnpm --filter <package-name> test:exports`。
 5. 从仓库根目录运行 `pnpm verify`。
