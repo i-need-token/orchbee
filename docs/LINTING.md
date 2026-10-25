@@ -46,6 +46,32 @@
 | Experience catalog  | `pnpm lint:experience` enforces [`docs/frontend/experience-components.md`](frontend/experience-components.md): schema freshness, package-local ownership, existing owner-scoped paths, named Story exports and generated IDs, unique component IDs, and resolvable composition and deprecation relations.                                                                                                                                                                                                                                                                                                                                                                                             |
 | Policy changes      | Never weaken a rule to pass existing code; fix the code or obtain human approval for a project-policy change.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
+## Dependency graph boundaries
+
+An exact workspace configuration replaces a matching workspace glob; omitted fields use Knip's
+defaults rather than inheriting the glob. Declare both `entry` and `project` when adding a private
+workspace's `includeEntryExports` setting. Private packages keep this setting enabled in both the
+complete and strict runs.
+
+Mark actual production source patterns in `project` with `!`, so strict analysis records consumers
+inside implementation files as well as entries. Discover Stories through the owning Storybook
+configuration and plugin in the development graph; their `entry` and `project` patterns are not
+production patterns. Test and Story consumers cannot keep unused production modules or private
+entry APIs alive in strict mode. Generated inventories used only by tooling remain in the complete
+graph instead of acquiring artificial runtime consumers.
+
+Resolved internal type-only imports are consumers when their source files participate in the
+analyzed graph. Classify runtime and development dependency declarations using actual JavaScript
+and declaration consumers; a strict diagnostic alone does not establish that a dependency is only
+used for types.
+
+`pnpm test:dependency-scope` uses the current workspace graph and plugin settings, including
+`includeEntryExports`. Its isolated application consumes private values and types through a
+non-entry implementation, and its Storybook host exercises configuration-based discovery. Negative
+witnesses reject unconsumed private entries, test-only entry consumers in strict mode, orphan
+helpers, production modules consumed only by tests or Stories, and borrowed runtime dependencies.
+These fixtures verify graph policy, not the repository's current dependency results.
+
 ## Generated source
 
 | Scope                    | Contract                                                                                                                                                                                                                                                                                                                 |

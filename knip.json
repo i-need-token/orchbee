@@ -37,15 +37,15 @@
 			"includeEntryExports": true
 		},
 		"packages/ui": {
-			"entry": ["stories/**/*.stories.tsx!"],
+			"entry": ["stories/**/*.stories.tsx"],
 			"ignoreDependencies": ["shadcn!", "tailwindcss!", "tw-animate-css!"],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"],
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx", "*.ts"],
 			"includeEntryExports": true
 		},
 		"packages/workbench": {
-			"entry": ["stories/**/*.stories.tsx!"],
+			"entry": ["stories/**/*.stories.tsx"],
 			"ignoreBinaries": ["java!"],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts", "!src/**/__tests__/**!"],
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx", "*.ts", "!src/**/__tests__/**!"],
 			"includeEntryExports": true
 		},
 		"packages/terminal-protocol": {
@@ -66,7 +66,7 @@
 		},
 		"packages/terminal": {
 			"entry": ["src/projected/projected-terminal.ts!", "src/**/*.unit.test.{ts,tsx}"],
-			"project": ["src/**/*.{ts,tsx}", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/tab-strip": {
 			"entry": [
@@ -74,7 +74,7 @@
 				"src/**/*.unit.test.{ts,tsx}",
 				"stories/**/*.stories.tsx"
 			],
-			"project": ["src/**/*.{ts,tsx}", "stories/**/*.tsx", "*.ts"],
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx", "*.ts"],
 			"includeEntryExports": true
 		},
 		"apps/web": {
@@ -83,9 +83,9 @@
 				"src/composition/entry.ts!",
 				"src/**/*.unit.test.{ts,tsx}!",
 				"src/**/*.system-fixture.ts!",
-				"stories/**/*.stories.tsx!"
+				"stories/**/*.stories.tsx"
 			],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx", "*.ts"]
 		},
 		"apps/desktop": {
 			"entry": [
@@ -128,16 +128,24 @@
 			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts!"]
 		},
 		"packages/actions": {
-			"includeEntryExports": true
+			"includeEntryExports": true,
+			"entry": ["src/**/*.unit.test.{ts,tsx}"],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/design-tokens": {
-			"includeEntryExports": true
+			"includeEntryExports": true,
+			"entry": ["src/**/*.unit.test.{ts,tsx}"],
+			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
 		"packages/i18n": {
-			"includeEntryExports": true
+			"includeEntryExports": true,
+			"entry": ["src/**/*.unit.test.{ts,tsx}"],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"packages/keyboard-shortcuts": {
-			"includeEntryExports": true
+			"includeEntryExports": true,
+			"entry": ["src/**/*.unit.test.{ts,tsx}"],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		}
 	}
 }

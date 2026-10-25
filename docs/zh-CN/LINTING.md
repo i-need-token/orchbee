@@ -46,6 +46,25 @@
 | 体验目录      | `pnpm lint:experience` 强制执行 [`docs/frontend/experience-components.md`](frontend/experience-components.md)：Schema 新鲜度、包本地所有权、所有者范围内路径存在、命名 Story 导出及其生成 ID、组件 ID 唯一，以及组合与废弃关系可解析。                                                                                                                                                                                                              |
 | 策略变更      | 绝不能为了让现有代码通过而弱化规则；修复代码，或者就项目策略变更取得人工批准。                                                                                                                                                                                                                                                                                                                                                                      |
 
+## 依赖图边界
+
+精确 workspace 配置会替换匹配的 workspace 通配配置；省略的字段采用 Knip 默认值，而不会继承
+通配配置。为私有 workspace 显式声明 `entry` 和 `project`，再添加 `includeEntryExports` 设置。
+私有包在完整图和严格模式中都保持该设置开启。
+
+在 `project` 中用 `!` 标记真实生产源码模式，让严格分析既记录入口，也记录实现文件内部的消费者。
+通过所属 Storybook 配置和插件在开发图中发现 Story；其 `entry` 和 `project` 模式不属于生产模式。
+测试和 Story 消费者不能在严格模式中让未使用的生产模块或私有入口 API 保持存活。只有工具使用的
+生成清单继续留在完整图中，不能为它们伪造运行时消费者。
+
+当来源文件参与被分析的图时，已解析的内部 type-only 导入也是消费者。根据实际 JavaScript 和声明
+消费者区分运行时与开发依赖声明；仅凭一条严格模式诊断，不能断定某个依赖只用于类型。
+
+`pnpm test:dependency-scope` 使用当前 workspace 图和插件设置，包括 `includeEntryExports`。
+隔离应用通过非入口实现消费私有值和类型，其 Storybook host 实际验证基于配置的发现。负向见证
+拒绝未消费的私有入口、严格模式中只有测试消费者的入口、孤儿辅助文件、只有测试或 Story 消费的
+生产模块，以及借用的运行时依赖。这些 fixture 验证的是图策略，不代表仓库当前依赖检查结果。
+
 ## 生成的源码
 
 | 范围               | 契约                                                                                                                                                                                                        |
