@@ -12,14 +12,20 @@ Orchbee 用于可重用视觉图元的私有包，包括由 Base UI 和产品图
 
 ```tsx
 import '@orchbee/ui/styles.css';
-import { Button, Dialog, DialogContent, DialogTrigger } from '@orchbee/ui/components';
+import { useState } from 'react';
+import { Button, Dialog, DialogContent } from '@orchbee/ui/components';
 
 export function Example() {
+	const [open, setOpen] = useState(false);
 	return (
-		<Dialog>
-			<DialogTrigger render={<Button variant='outline' />}>New session</DialogTrigger>
-			<DialogContent>Create a session here.</DialogContent>
-		</Dialog>
+		<>
+			<Button variant='outline' onClick={() => setOpen(true)}>
+				New session
+			</Button>
+			<Dialog open={open} onOpenChange={setOpen}>
+				<DialogContent>Create a session here.</DialogContent>
+			</Dialog>
+		</>
 	);
 }
 ```

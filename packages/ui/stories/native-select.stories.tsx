@@ -1,4 +1,4 @@
-import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from '@orchbee/ui/components';
+import { NativeSelect, NativeSelectOption } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {
@@ -13,10 +13,8 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
 	render: () => (
 		<NativeSelect defaultValue='local' aria-label='Runtime'>
-			<NativeSelectOptGroup label='Runtime'>
-				<NativeSelectOption value='local'>Local</NativeSelectOption>
-				<NativeSelectOption value='remote'>Remote</NativeSelectOption>
-			</NativeSelectOptGroup>
+			<NativeSelectOption value='local'>Local</NativeSelectOption>
+			<NativeSelectOption value='remote'>Remote</NativeSelectOption>
 		</NativeSelect>
 	),
 };

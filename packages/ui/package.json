@@ -17,7 +17,6 @@
 	"types": "./dist/index.d.ts",
 	"imports": {
 		"#components/*": "./src/components/*.tsx",
-		"#hooks": "./src/hooks/index.ts",
 		"#hooks/*": "./src/hooks/*.ts",
 		"#lib": "./src/lib/index.ts",
 		"#lib/*": "./src/lib/*.ts"
@@ -53,11 +52,9 @@
 		"@base-ui/react": "catalog:",
 		"@orchbee/design-tokens": "workspace:^",
 		"@orchbee/foundation": "workspace:^",
-		"@shadcn/react": "^0.2.1",
 		"@vscode/codicons": "catalog:",
 		"class-variance-authority": "catalog:",
 		"clsx": "catalog:",
-		"cmdk": "^1.1.1",
 		"lucide-react": "catalog:",
 		"react-resizable-panels": "^4.12.2",
 		"tailwind-merge": "catalog:"

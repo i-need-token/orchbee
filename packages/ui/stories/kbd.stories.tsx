@@ -1,4 +1,4 @@
-import { Kbd, KbdGroup } from '@orchbee/ui/components';
+import { Kbd } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {
@@ -11,10 +11,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Shortcut: Story = {
-	render: () => (
-		<KbdGroup>
-			<Kbd>⌘</Kbd>
-			<Kbd>K</Kbd>
-		</KbdGroup>
-	),
+	render: () => <Kbd>⌘ K</Kbd>,
 };

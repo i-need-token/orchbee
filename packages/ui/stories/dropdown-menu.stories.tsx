@@ -1,7 +1,6 @@
 import {
 	Button,
 	DropdownMenu,
-	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
@@ -31,7 +30,6 @@ export const Default: Story = {
 					<ProductIcon name='edit' size='menu-leading' />
 					Rename <DropdownMenuShortcut>F2</DropdownMenuShortcut>
 				</DropdownMenuItem>
-				<DropdownMenuCheckboxItem checked>Pin session</DropdownMenuCheckboxItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem variant='destructive'>
 					<ProductIcon name='trash' size='menu-leading' />

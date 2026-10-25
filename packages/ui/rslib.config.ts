@@ -11,7 +11,6 @@ export default defineConfig({
 			dts: {
 				alias: {
 					'#components/*': './src/components/*',
-					'#hooks': './src/hooks/index.ts',
 					'#hooks/*': './src/hooks/*',
 					'#lib': './src/lib/index.ts',
 					'#lib/*': './src/lib/*',

@@ -1,4 +1,5 @@
-import { Checkbox, Label } from '@orchbee/ui/components';
+import { Checkbox } from '@orchbee/ui/components';
+import { Label } from '../src/components/ui/label';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {

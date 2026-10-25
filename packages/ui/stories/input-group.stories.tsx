@@ -3,7 +3,6 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 	InputGroupInput,
-	InputGroupText,
 } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -19,9 +18,7 @@ type Story = StoryObj<typeof meta>;
 export const Command: Story = {
 	render: () => (
 		<InputGroup>
-			<InputGroupAddon>
-				<InputGroupText>$</InputGroupText>
-			</InputGroupAddon>
+			<InputGroupAddon>$</InputGroupAddon>
 			<InputGroupInput defaultValue='pnpm verify' aria-label='Command' />
 			<InputGroupAddon align='inline-end'>
 				<InputGroupButton>Run</InputGroupButton>

@@ -1,9 +1,7 @@
 import {
 	Select,
 	SelectContent,
-	SelectGroup,
 	SelectItem,
-	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from '@orchbee/ui/components';
@@ -25,12 +23,9 @@ export const Default: Story = {
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>
-				<SelectGroup>
-					<SelectLabel>Runtime</SelectLabel>
-					<SelectItem value='local'>Local</SelectItem>
-					<SelectItem value='remote'>Remote</SelectItem>
-					<SelectItem value='sandbox'>Sandbox</SelectItem>
-				</SelectGroup>
+				<SelectItem value='local'>Local</SelectItem>
+				<SelectItem value='remote'>Remote</SelectItem>
+				<SelectItem value='sandbox'>Sandbox</SelectItem>
 			</SelectContent>
 		</Select>
 	),

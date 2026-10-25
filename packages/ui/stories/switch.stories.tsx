@@ -1,4 +1,5 @@
-import { Label, Switch } from '@orchbee/ui/components';
+import { Switch } from '@orchbee/ui/components';
+import { Label } from '../src/components/ui/label';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {

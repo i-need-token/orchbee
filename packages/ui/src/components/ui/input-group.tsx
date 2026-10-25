@@ -95,18 +95,6 @@ function InputGroupButton({
 	);
 }
 
-function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
-	return (
-		<span
-			className={cn(
-				"flex items-center gap-2 text-sm text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-3.5",
-				className,
-			)}
-			{...props}
-		/>
-	);
-}
-
 function InputGroupInput({ className, ...props }: React.ComponentProps<'input'>) {
 	return (
 		<Input
@@ -120,4 +108,4 @@ function InputGroupInput({ className, ...props }: React.ComponentProps<'input'>)
 	);
 }
 
-export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupInput };
+export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput };

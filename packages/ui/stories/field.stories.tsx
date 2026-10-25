@@ -1,11 +1,4 @@
-import {
-	Field,
-	FieldDescription,
-	FieldError,
-	FieldGroup,
-	FieldLabel,
-	Input,
-} from '@orchbee/ui/components';
+import { Field, FieldDescription, FieldLabel, Input } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {
@@ -19,7 +12,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
 	render: () => (
-		<FieldGroup>
+		<>
 			<Field>
 				<FieldLabel htmlFor='field-name'>Session name</FieldLabel>
 				<Input id='field-name' defaultValue='Agent workspace' />
@@ -28,8 +21,8 @@ export const Default: Story = {
 			<Field data-invalid='true'>
 				<FieldLabel htmlFor='field-path'>Workspace path</FieldLabel>
 				<Input id='field-path' aria-invalid defaultValue='/missing' />
-				<FieldError>The directory does not exist.</FieldError>
+				<FieldDescription role='alert'>The directory does not exist.</FieldDescription>
 			</Field>
-		</FieldGroup>
+		</>
 	),
 };
