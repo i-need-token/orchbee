@@ -76,7 +76,8 @@ handle moves directly into one `FindCloseGuard` and is closed once; invalid hand
 are never wrapped or closed. No handle escapes the adapter, and the query never opens
 a pipe connection. The adjacent safe native regression uses an executable file as a
 parent directory and requires `ERROR_DIRECTORY` (267), proving errors cannot become
-absence without changing public pipe-name admission.
+absence without changing public pipe-name admission. It also checks a missing sibling
+in that existing directory; the pipe tests cover namespace absence.
 
 `ChildInputWriter::pipe` pairs a nonblocking parent writer with blocking child stdin;
 `ChildOutputReader::pipe` provides the reverse direction. The terminal stream relay
