@@ -49,6 +49,24 @@ Host 可以提供一个按 Tab identity 索引的 `identityIcons` map。每个�
 
 包 API 没有 React 或浏览器供应商子路径。`TabStrip` 接受 `createCrossWindowDragRuntime` 工厂。其内部 `CrossWindowTabDragRuntime` 负责模型移交、取消恢复、附加模型活性和目标布局排序；`DomTabDragRegistry` 适配宿主的边界、z 顺序、活性和兼容性。这些实现为已准入的跨窗口宿主工作保留，不从包根导出。原生窗口创建、移动、捕获、移动循环与源窗口处置仍属宿主职责；未来宿主接入应按实际消费准入具体出口。浏览器应用不会合成这些操作系统能力。上游来源归属和许可义务记录在 [`NOTICE.reference`](NOTICE.reference) 中。
 
+## 保留开发消费者
+
+[依赖保留记录](dependency-retentions.json) 拥有 `dom-tab-drag-registry.ts` 的精确 strict 文件
+诊断、`CrossWindowDragState` 和 `CrossWindowTabDragRuntime` 出口，以及 `CrossWindowDragHost`
+和 `TabDragPositioningDelegate` 类型诊断。这些文件保持内部所有权。
+[registry 行为 suite](src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts) 实际构造
+registry 并检查目标选择、活性、兼容性和坐标行为。
+[runtime 行为 suite](src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts) 实际用
+带类型的 host/positioning 契约构造 runtime，检查移交、取消、布局排序和附加模型活性。
+当前生产 Host 尚未实例化它们。
+
+上文已准入的跨窗口 Host 工作是保留用途。TabStrip 与原生窗口 Host 负责人通过 ORC-201 承担真实
+factory 接入；保留不启动产品迁移，也不添加公共出口。清单绑定已审阅源码、两个 suite 及其发现
+配置。变化遵循[保留检查契约](../../docs/zh-CN/LINTING.md#保留开发消费者)，继续保持已有 build、
+typecheck、Story、行为与 `test:exports` 证据。真实生产消费或用途撤销时，在同一变更中删除对应
+记录。诊断消失时删除过期记录；删除已耗尽记录、文件及其门禁登记。只更新指纹从不构成消费者
+变化的批准。
+
 ## 来源所有权
 
 ```text

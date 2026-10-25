@@ -12,7 +12,7 @@
 | `pnpm lint:documentation`                      | Validate every repository Markdown pair's path, receipt, and structure                                                                            |
 | `pnpm lint:styles`                             | Validate the token registry and authored frontend styling contract                                                                                |
 | `pnpm lint:storage`                            | Validate browser-storage access, ownership, key shape, and versioning                                                                             |
-| `pnpm lint:dependencies`                       | Run Knip over the complete development graph, then enforce strict production dependencies                                                         |
+| `pnpm lint:dependencies`                       | Run complete and strict Knip analysis, then assess explicitly retained development consumers                                                      |
 | `pnpm lint:projects`                           | Validate every schema-backed workspace project contract                                                                                           |
 | `pnpm lint:experience`                         | Validate experience-component schemas, ownership, paths, and relations                                                                            |
 | `pnpm lint:fix`                                | Apply safe oxlint fixes; remaining diagnostics require code changes                                                                               |
@@ -36,7 +36,7 @@
 | Standards structure | `pnpm test:lint-rules` enforces one-to-one `docs/zh-CN/` coverage, structure, inline identifiers, localized links, admitted paths under `docs/`, and existing concrete `apps/<name>` and `packages/<name>` references.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Markdown content    | `pnpm lint:documentation` discovers tracked and unignored candidate `.md` files, enforces the `docs/zh-CN/` mirror or same-directory `.zh-CN.md` naming contract, and compares every English/Chinese pair with its SHA-256 receipt in `scripts/documentation-pairing.json`. After semantic review, `pnpm docs:confirm-pairing -- <markdown-path>` updates only named pairs; receipts detect unconfirmed content edits but cannot judge translation fidelity.                                                                                                                                                                                                                                          |
 | Severity            | Errors fail `pnpm lint`; routine lint output omits non-blocking warnings to keep automated feedback concise. Run `pnpm lint:code:warnings` when reviewing warnings in affected package files.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Dependencies        | `pnpm lint:dependencies` runs `knip` followed by `knip --strict`. The complete graph checks production, tests and tooling; strict mode separately enforces production liveness and each workspace's direct runtime dependencies. Undeclared imports, unused files, dependencies, exports or types, unresolved imports, duplicate exports and stale catalog entries fail.                                                                                                                                                                                                                                                                                                                              |
+| Dependencies        | The dependency command preserves complete and strict Knip analysis and raw results. Unregistered unused files, exports or types and every dependency, resolution, duplicate-export or stale-catalog error fail. Exact development retentions follow [Retained development consumers](#retained-development-consumers).                                                                                                                                                                                                                                                                                                                                                                                |
 | Knip scope          | Every runnable script, build configuration, test suite and public package entry must be discovered through package manifests, tool plugins or `knip.json#workspaces`. Add only missing actual entry points; redundant entries and stale configuration hints fail. Shared fixtures are project files reached through test consumers, never artificial entry points. Production-only test-helper exclusions retain complete-graph analysis; `pnpm test:dependency-scope` verifies reachability, orphan rejection and strict dependency isolation. Private packages enable `includeEntryExports`, so entry exports also need consumers; fabricated entries or test-only facades must not hide dead APIs. |
 | Type awareness      | Type-aware oxlint rules remain inactive until package review adds `oxlint-tsgolint`; lint does not detect floating promises or unsafe third-party `any` propagation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Rust                | `pnpm lint:rust` verifies the exact toolchain and locked Cargo metadata, requires shared third-party dependencies to inherit with `workspace = true`, and rejects third-party declarations without `default-features = false` directly or by inheritance, including unused workspace declarations. It then runs workspace Clippy with every target and feature and enabled warnings denied. [`docs/RUST.md`](RUST.md#lint-policy-and-enforcement) defines the remaining review boundary.                                                                                                                                                                                                              |
@@ -71,6 +71,40 @@ non-entry implementation, including bundled subpaths, and its Storybook host exe
 witnesses reject unconsumed private entries, test-only entry consumers in strict mode, orphan
 helpers, production modules consumed only by tests or Stories, and borrowed runtime dependencies.
 These fixtures verify graph policy, not the repository's current dependency results.
+
+## Retained development consumers
+
+`pnpm lint:dependencies` invokes `node scripts/dependency-retentions.mjs`. It runs the installed
+Knip CLI over the complete graph and then with `--strict`, using `--reporter json` and a second
+evidence reporter configured by `scripts/dependency-retentions-reporter.config.mjs`. These reporting
+options do not change the analysis scope or private-entry flags.
+The evidence envelope includes the actual report categories, counters, configuration and tag hints;
+Knip's built-in JSON reporter alone does not include those hints.
+
+The complete run must finish with raw exit zero and no diagnostics. A nonzero complete run fails
+before strict execution. Strict raw exit zero is accepted only with no retention records. Strict
+raw exit one may receive a separate aggregate acceptance only when every diagnostic exactly equals
+an approved package-owned `(kind, file, name)` record and every record still has its diagnostic.
+Only individual `files`, `exports` and `types` records are eligible. Dependencies, unresolved
+imports, other categories, unknown fields, duplicates, hints, changed configuration, parse errors,
+process errors, signals and timeouts fail. Counts, globs, ignores and artificial entries never grant
+acceptance. Raw stdout, stderr and exit/signal/error results remain separate from the aggregate result
+in the printed external log directory, including when the aggregate accepts a raw strict exit one.
+
+Each package owns its admitted purpose, real development consumers, next integration owner and
+removal conditions in `dependency-retentions.json` and its README. Consumer file presence is
+insufficient: reviewed full source fingerprints bind actual render/call/assertion use, import/export
+links and discovery/resolution configuration. The gate checks those fingerprints before and after
+analysis; missing or changed inputs fail. Refreshing a digest requires an explicit reviewed change
+with renewed semantic/graph evidence, never an automatic baseline update. These checks preserve an
+already reviewed use; they do not establish new semantics or replace build, typecheck, Story,
+behavior and export verification. Existing dependency-scope negative witnesses remain mandatory.
+
+Add a real production consumer or withdraw a purpose and remove its records in the same change.
+A vanished diagnostic, including strict exit zero with remaining records, fails as stale retention.
+Remove an exhausted record/file and its explicit gate registration. Retentions do not authorize a
+new public entry, dependency or product migration. The invoking task owns the raw logs and removes
+them after the last diagnosis, review or recovery consumer finishes.
 
 ## Generated source
 

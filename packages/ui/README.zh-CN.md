@@ -40,6 +40,20 @@ Portaled 浮动内容在模态框之外保留生成的默认层级。模态框�
 
 默认 Dialog 与 Alert Dialog 表面使用共享的 `480px` 宽度（受视口约束），并使用没有外部轮廓的阴影。他们的操作页脚共享内容表面并依赖于间距而不是分隔线或着色的页脚带。
 
+## 保留开发消费者
+
+[依赖保留记录](dependency-retentions.json) 拥有 `Tabs`、`TabsBar`、`TabsContent`、
+`TabsDivider`、`TabsItem`、`TabsList`、`TabsTrigger` 经 `src/components/ui/tabs.tsx`、
+`src/components/ui/index.ts`、`src/components/index.ts` 三层出口产生的精确 strict 诊断。
+真实当前消费者是 [Tabs Story](stories/tabs.stories.tsx)：`Default` 和 `Workspace` 实际渲染
+所导入的组件。不声称已有产品 Host。上文已准入的工作区组合是保留用途；UI 与未来 Web/Desktop
+组合负责人通过 ORC-201 承担接入，本阶段不启动迁移。
+
+清单用指纹绑定已审阅的 Story、导出链和发现及解析输入。任何输入变化都遵循
+[保留检查契约](../../docs/zh-CN/LINTING.md#保留开发消费者)；只更新 hash 不构成用途变化的批准。
+继续保留原有 build、typecheck、Storybook、行为及 `test:exports` 证据。真实生产消费或用途撤销
+时，在同一变更中删除对应精确记录。诊断消失时删除过期记录；清单耗尽后删除文件及其门禁登记。
+
 ## 产品图标
 
 产品代码通过包 API 消耗 `ProductIcon` 并使用其 Orchbee 拥有的名称白名单。它不得直接导入 Codicons CSS、供应商类名称、字体字符或资源路径。包样式表加载图标字体一次，而 `ProductIcon` 保持每个字形装饰性，以便所属控件提供可访问的名称。 `ProductIcon` 和生成的图元图标默认使用共享的 `14px` 小图标尺寸；非默认字形大小是显式 `ProductIcon` 组件变体，而不是消费者覆盖。紧凑的节标题操作使用记录的 `13px` 节操作变体。前导下拉菜单和上下文图标使用 `16px` 菜单前导变体，而尾随披露箭头仍保留 `14px`。

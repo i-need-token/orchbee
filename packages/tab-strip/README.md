@@ -49,6 +49,26 @@ Hosts that support both orientations pass the controlled `orientation` value and
 
 The package API intentionally has no React or browser-vendor subpath. `TabStrip` accepts a `createCrossWindowDragRuntime` factory. Its internal `CrossWindowTabDragRuntime` owns model handoff, cancel restoration, attached-model liveness, and destination layout sequencing; `DomTabDragRegistry` adapts host bounds, z-order, liveness, and compatibility. These implementations are retained for the admitted cross-window host work and are not exported from the package root. Native window creation, movement, capture, move loops, and source-window disposal remain host responsibilities; a future host integration must admit the concrete exports it consumes. The browser application does not synthesize those operating-system capabilities. Upstream source attribution and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
 
+## Retained development consumers
+
+[Dependency retentions](dependency-retentions.json) owns the exact strict file diagnostic for
+`dom-tab-drag-registry.ts`, the `CrossWindowDragState` and `CrossWindowTabDragRuntime` exports,
+and the `CrossWindowDragHost` and `TabDragPositioningDelegate` types. The files remain internal.
+The [registry behavior suite](src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts)
+constructs the registry and checks target selection, liveness, compatibility and coordinate behavior.
+The [runtime behavior suite](src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts)
+constructs the runtime with the typed host/positioning contracts and checks handoff, cancellation,
+layout sequencing and attached-model liveness. A current production host has not instantiated them.
+
+The admitted cross-window host work above is the retained purpose. TabStrip and native window host
+owners carry the real factory integration through ORC-201; retention does not start product migration
+or add public exports. The manifest binds the reviewed source, both suites and their discovery
+configuration. Apply the [retention check contract](../../docs/LINTING.md#retained-development-consumers)
+to changes, keeping the existing build, typecheck, Story, behavior and `test:exports` evidence.
+Production consumption or withdrawal of the purpose removes the corresponding records in the same
+change. A disappeared diagnostic requires deleting its stale record; remove exhausted records/files
+and their gate registration. Updating fingerprints alone never approves a changed consumer.
+
 ## Source ownership
 
 ```text

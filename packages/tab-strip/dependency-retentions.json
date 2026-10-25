@@ -1,0 +1,123 @@
+{
+	"version": 1,
+	"owner": "@orchbee/tab-strip",
+	"records": [
+		{
+			"id": "cross-window-registry",
+			"reason": "README.md#entry-points retains the internal registry for the admitted cross-window host. Current production hosts do not construct it.",
+			"followUp": "ORC-201: TabStrip owner and native window host owner admit the real registry integration through the existing runtime factory seam.",
+			"removeWhen": "Remove each exact diagnostic in the same change that adds its real production consumer or removes the admitted use. A disappearing diagnostic requires deleting its stale record; remove an exhausted record/file and its gate registration.",
+			"consumers": [
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts",
+					"use": "The suite constructs DomTabDragRegistry, registers real contexts, invokes target resolution and checks z-order, liveness, compatibility, mouse/touch magnetism and coordinate conversion."
+				}
+			],
+			"inputs": [
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts",
+					"sha256": "8ed569ac2736a5b30948aaaf1d914f6fbe222bb784f7fbdd47a285da5107415d"
+				},
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/dom-tab-drag-registry.ts",
+					"sha256": "e6b9bc29c4f357058def8c76706e5e6d6b773270721585d2f9b496897ac88050"
+				},
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/cross-window-drag-runtime.ts",
+					"sha256": "0c64d578b089ca3b9cebbe5aa22edbcad3c65876da598504daf4a8ea574b6f3e"
+				},
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/tab-drag-context.ts",
+					"sha256": "48321e8baf4e795cbe15d36032cae17b6d8d142fd7cf7c736113103c6ec4095e"
+				},
+				{
+					"file": "packages/tab-strip/package.json",
+					"sha256": "e06137d797e0e57a116db51065b37cb938a29f29dc3146666f6fe2ab5da2bd1c"
+				},
+				{
+					"file": "packages/tab-strip/vitest.config.ts",
+					"sha256": "a098b426c697d59e82570566e59f463e426ed4293d37052e2475ef45d11ae680"
+				},
+				{
+					"file": "packages/tab-strip/test/setup.ts",
+					"sha256": "22f95e125bec2b6f2c9cbc271aa314687e4d7bc1f61c74de15096fbc0539651e"
+				},
+				{
+					"file": "packages/tab-strip/tsconfig.json",
+					"sha256": "514315cd44e1ed635125de807368e86f4c366b60141f41d2b8a10b4fc56ba444"
+				}
+			],
+			"diagnostics": [
+				{
+					"kind": "files",
+					"file": "packages/tab-strip/src/tab-strip/dragging/dom-tab-drag-registry.ts",
+					"name": "packages/tab-strip/src/tab-strip/dragging/dom-tab-drag-registry.ts"
+				}
+			]
+		},
+		{
+			"id": "cross-window-runtime",
+			"reason": "README.md#entry-points retains the internal runtime/host/positioning contracts for the admitted cross-window host. The current product host has not instantiated this runtime.",
+			"followUp": "ORC-201: TabStrip owner and native window host owner integrate createCrossWindowDragRuntime; no product migration is authorized by this retention.",
+			"removeWhen": "Remove each exact diagnostic in the same change that adds its real production consumer or removes the admitted use. A disappearing diagnostic requires deleting its stale record; remove an exhausted record/file and its gate registration.",
+			"consumers": [
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts",
+					"use": "The suite imports and constructs CrossWindowTabDragRuntime, asserts CrossWindowDragState transitions, supplies a typed CrossWindowDragHost, and supplies/observes a typed TabDragPositioningDelegate for layout sequencing and elapsed-time behavior."
+				}
+			],
+			"inputs": [
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts",
+					"sha256": "0e2edab917bea0bc3ae70fc4447afb25f31760cf3c76c889c2991c7d00a2bf8a"
+				},
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/cross-window-drag-runtime.ts",
+					"sha256": "0c64d578b089ca3b9cebbe5aa22edbcad3c65876da598504daf4a8ea574b6f3e"
+				},
+				{
+					"file": "packages/tab-strip/src/tab-strip/dragging/tab-drag-context.ts",
+					"sha256": "48321e8baf4e795cbe15d36032cae17b6d8d142fd7cf7c736113103c6ec4095e"
+				},
+				{
+					"file": "packages/tab-strip/package.json",
+					"sha256": "e06137d797e0e57a116db51065b37cb938a29f29dc3146666f6fe2ab5da2bd1c"
+				},
+				{
+					"file": "packages/tab-strip/vitest.config.ts",
+					"sha256": "a098b426c697d59e82570566e59f463e426ed4293d37052e2475ef45d11ae680"
+				},
+				{
+					"file": "packages/tab-strip/test/setup.ts",
+					"sha256": "22f95e125bec2b6f2c9cbc271aa314687e4d7bc1f61c74de15096fbc0539651e"
+				},
+				{
+					"file": "packages/tab-strip/tsconfig.json",
+					"sha256": "514315cd44e1ed635125de807368e86f4c366b60141f41d2b8a10b4fc56ba444"
+				}
+			],
+			"diagnostics": [
+				{
+					"kind": "exports",
+					"file": "packages/tab-strip/src/tab-strip/dragging/cross-window-drag-runtime.ts",
+					"name": "CrossWindowDragState"
+				},
+				{
+					"kind": "exports",
+					"file": "packages/tab-strip/src/tab-strip/dragging/cross-window-drag-runtime.ts",
+					"name": "CrossWindowTabDragRuntime"
+				},
+				{
+					"kind": "types",
+					"file": "packages/tab-strip/src/tab-strip/dragging/cross-window-drag-runtime.ts",
+					"name": "CrossWindowDragHost"
+				},
+				{
+					"kind": "types",
+					"file": "packages/tab-strip/src/tab-strip/dragging/tab-drag-context.ts",
+					"name": "TabDragPositioningDelegate"
+				}
+			]
+		}
+	]
+}

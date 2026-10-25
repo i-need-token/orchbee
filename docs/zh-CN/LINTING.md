@@ -12,7 +12,7 @@
 | `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                                                           |
 | `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                                                      |
 | `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                                                               |
-| `pnpm lint:dependencies`                       | 先用 Knip 分析完整开发图，再强制检查严格的生产依赖                                                       |
+| `pnpm lint:dependencies`                       | 运行完整与严格 Knip 分析，再判定明确保留的开发消费者                                                     |
 | `pnpm lint:projects`                           | 验证每个基于 Schema 的工作区项目契约                                                                     |
 | `pnpm lint:experience`                         | 验证体验组件 Schema、所有权、路径和关系                                                                  |
 | `pnpm lint:fix`                                | 应用安全的 oxlint 修复；剩余诊断需要修改代码                                                             |
@@ -36,7 +36,7 @@
 | 规范结构      | `pnpm test:lint-rules` 强制执行 `docs/zh-CN/` 一一对应、结构、内联标识符、本地化链接、`docs/` 下路径准入，以及具体 `apps/<name>` 和 `packages/<name>` 引用存在性。                                                                                                                                                                                                                                                                                  |
 | Markdown 内容 | `pnpm lint:documentation` 会发现已跟踪和未被忽略的候选 `.md` 文件，强制执行 `docs/zh-CN/` 镜像或同目录 `.zh-CN.md` 命名契约，并将每个中英文文档对与 `scripts/documentation-pairing.json` 中的 SHA-256 凭据比较。完成语义审查后，`pnpm docs:confirm-pairing -- <markdown-path>` 只更新指定的文档对；凭据能发现未经确认的内容修改，但无法判断翻译忠实度。                                                                                             |
 | 严重性        | 错误使 `pnpm lint` 失败；常规 lint 输出会省略不阻塞的 warning，以保持自动化反馈简洁。审查受影响包文件中的 warning 时，运行 `pnpm lint:code:warnings`。                                                                                                                                                                                                                                                                                              |
-| 依赖          | `pnpm lint:dependencies` 先运行 `knip`，再运行 `knip --strict`。完整图检查生产代码、测试和工具；严格模式单独检查生产代码的使用情况及每个工作区的直接运行时依赖。未声明导入、未使用的文件、依赖、导出或类型、无法解析的导入、重复导出和过期 catalog 条目都会失败。                                                                                                                                                                                   |
+| 依赖          | 依赖命令保留完整和严格 Knip 分析及原始结果。未登记的未使用文件、导出或类型，以及全部依赖、解析、重复导出或过期 catalog 错误都会失败。精确开发保留遵循[保留开发消费者](#保留开发消费者)。                                                                                                                                                                                                                                                            |
 | Knip 范围     | 包清单、工具插件或 `knip.json#workspaces` 必须能发现每个可运行脚本、构建配置、测试套件和公共包入口。只补充遗漏的真实入口；冗余入口和过期配置提示都会失败。共享 fixture 是经测试消费者访问的项目文件，不能将其伪装成入口。仅生产模式排除测试辅助文件时，完整图仍须分析它们；`pnpm test:dependency-scope` 验证可达性、孤立文件拒绝和严格依赖隔离。 私有包启用 `includeEntryExports`，入口导出也必须有消费者；不能通过假入口或测试专用外观隐藏死 API。 |
 | 类型感知      | 包审查加入 `oxlint-tsgolint` 前，类型感知 oxlint 规则保持未启用；lint 不会检测悬空 Promise 或来自第三方的不安全 `any` 传播。                                                                                                                                                                                                                                                                                                                        |
 | Rust          | `pnpm lint:rust` 验证精确工具链与锁定的 Cargo metadata，要求共享第三方依赖通过 `workspace = true` 继承，并拒绝未直接或经继承设置 `default-features = false` 的第三方声明，包含未使用的 workspace 声明。随后对每个 target 和 feature 运行 workspace Clippy，并拒绝已启用的 warning。[`docs/RUST.md`](RUST.md#lint-策略与执行边界) 定义其余评审边界。                                                                                                 |
@@ -64,6 +64,33 @@
 隔离应用通过非入口实现消费私有值和类型，包括打包后的子路径；其 Storybook host 实际验证基于配置的发现。负向见证
 拒绝未消费的私有入口、严格模式中只有测试消费者的入口、孤儿辅助文件、只有测试或 Story 消费的
 生产模块，以及借用的运行时依赖。这些 fixture 验证的是图策略，不代表仓库当前依赖检查结果。
+
+## 保留开发消费者
+
+`pnpm lint:dependencies` 调用 `node scripts/dependency-retentions.mjs`。它先用已安装的 Knip CLI
+分析完整图，再以 `--strict` 分析，使用 `--reporter json` 和由
+`scripts/dependency-retentions-reporter.config.mjs` 配置的第二个证据 reporter。
+这些报告选项不改变分析范围或私有入口检查旗标。证据封装包含实际报告类别、计数、配置提示和
+标签提示；Knip 内置 JSON reporter 单独使用时不包含这些提示。
+
+完整图必须正常结束、原始退出码为零且没有诊断。完整图非零时立即失败，不执行 strict。
+strict 原始退出码为零时，只有不存在保留记录才接受。strict 原始退出码为一时，只有全部诊断
+逐条精确等于已批准、归包所有的 `(kind, file, name)` 记录，且每条记录仍有对应诊断，才能作出
+独立的综合接受判定。仅单独的 `files`、`exports`、`types` 记录可准入。依赖、无法解析的导入、
+其他类别、未知字段、重复项、提示、配置变化、解析错误、进程错误、信号和超时都失败。
+数量、glob、ignore 和人工入口不能授权接受。原始 stdout、stderr、exit/signal/error 结果与综合
+结果分开保存在打印出的仓库外日志目录中，包括综合接受原始 strict 退出码一的情况。
+
+各包在 `dependency-retentions.json` 和 README 中拥有其已准入用途、真实开发消费者、下一次
+集成负责人及解除条件。消费者文件存在不足以成立：已审阅完整源码的指纹绑定真实的渲染、调用、
+断言用途、导入导出链及发现和解析配置。门禁在分析前后核对指纹，输入缺失或变化都失败。
+更新摘要必须是包含重新语义审查和图证据的显式可审变更，不能自动更新基线。这些检查保持已经
+审阅的用途，不证明新的语义，也不替代 build、typecheck、Story、行为与出口验证。
+既有依赖范围负向见证仍然必需。
+
+接入真实生产消费者或撤销用途时，必须在同一变更中删除对应记录。诊断消失，包括 strict 退出码
+为零但仍有记录，都作为过期保留失败。删除已耗尽的记录、文件及其显式门禁登记。保留不授权
+新公共入口、依赖或产品迁移。调用任务拥有原始日志，在最后一个诊断、审查或恢复消费者结束后回收。
 
 ## 生成的源码
 

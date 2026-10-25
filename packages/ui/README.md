@@ -40,6 +40,23 @@ Portaled floating content keeps its generated default layer outside a modal. Mod
 
 Default Dialog and Alert Dialog surfaces use the shared `480px` width, constrained by the viewport, and shadow without an outer outline. Their action footers share the content surface and rely on spacing instead of a divider or tinted footer band.
 
+## Retained development consumers
+
+[Dependency retentions](dependency-retentions.json) owns the exact strict diagnostics for
+`Tabs`, `TabsBar`, `TabsContent`, `TabsDivider`, `TabsItem`, `TabsList` and `TabsTrigger`
+through `src/components/ui/tabs.tsx`, `src/components/ui/index.ts` and `src/components/index.ts`.
+The actual current consumer is [the Tabs Story](stories/tabs.stories.tsx): `Default` and
+`Workspace` render the imported components. No current product host is claimed. The admitted
+workspace composition above is the retained purpose; the UI and future Web/Desktop composition
+owners carry the integration through ORC-201, without starting that migration here.
+
+The manifest fingerprints the reviewed Story, export chain and discovery/resolution inputs.
+Follow the [retention check contract](../../docs/LINTING.md#retained-development-consumers) when
+any input changes; updating hashes alone does not approve changed use. Keep the existing build,
+typecheck, Storybook, behavior and `test:exports` evidence. Production consumption or withdrawal
+of the purpose removes the corresponding exact records in the same change. A disappearing diagnostic
+requires removing its stale record; delete the exhausted manifest and its gate registration.
+
 ## Product icons
 
 Product code consumes `ProductIcon` through the package API and uses its Orchbee-owned name allowlist. It must not import Codicons CSS, vendor class names, font characters, or asset paths directly. The package stylesheet loads the icon font once, while `ProductIcon` keeps every glyph decorative so the owning control supplies the accessible name. `ProductIcon` and generated primitive icon defaults use the shared `14px` small-icon size; a non-default glyph size is an explicit `ProductIcon` component variant rather than a consumer override. Compact section-heading actions use the documented `13px` section-action variant. Leading Dropdown and Context icons use the `16px` menu-leading variant while trailing disclosure arrows remain `14px`.

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { assessDependencyReports, readRetentionPolicy } from './dependency-retentions.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const knipBinary = join(repositoryRoot, 'node_modules/knip/bin/knip.js');
@@ -601,3 +602,245 @@ for (const [workspace, helper] of [
 		);
 	});
 }
+
+// These cases cover the newly admitted acceptance boundary; the existing real graph witnesses
+// above still reject root/dev/Story/test-only consumers and production imports of test helpers.
+function retentionProcessReport(rows, production) {
+	const kinds = [
+		'files',
+		'dependencies',
+		'devDependencies',
+		'optionalPeerDependencies',
+		'unlisted',
+		'binaries',
+		'unresolved',
+		'exports',
+		'nsExports',
+		'types',
+		'nsTypes',
+		'enumMembers',
+		'namespaceMembers',
+		'duplicates',
+		'catalog',
+		'cycles',
+	];
+	const report = Object.fromEntries(
+		kinds.map((kind) => [
+			kind,
+			![
+				'nsExports',
+				'nsTypes',
+				'cycles',
+				...(production ? ['devDependencies', 'catalog'] : []),
+			].includes(kind),
+		]),
+	);
+	const issues = new Map();
+	const counters = Object.fromEntries(kinds.map((kind) => [kind, 0]));
+	for (const row of rows) {
+		if (!issues.has(row.file))
+			issues.set(row.file, {
+				file: row.file,
+				...Object.fromEntries(kinds.filter((kind) => report[kind]).map((kind) => [kind, []])),
+			});
+		issues.get(row.file)[row.kind].push({ name: row.name });
+		counters[row.kind] += 1;
+	}
+	const evidence = {
+		version: 1,
+		configFile: 'knip.json',
+		production,
+		configHintsDisabled: production,
+		configHintsAsErrors: true,
+		tagHintsDisabled: false,
+		tagHintsAsErrors: false,
+		report,
+		counters: { ...counters, processed: 1, total: 1 },
+		configurationHints: [],
+		tagHints: [],
+	};
+	return {
+		status: rows.length ? 1 : 0,
+		signal: null,
+		error: null,
+		stdout: `${JSON.stringify({ issues: [...issues.values()] })}\n@@orchbee-knip-evidence@@${JSON.stringify(evidence)}\n`,
+		stderr: '',
+	};
+}
+
+test('retention acceptance rejects new, stale, malformed, dependency and process failures', () => {
+	const { expected } = readRetentionPolicy(repositoryRoot);
+	const full = retentionProcessReport([], false);
+	const strict = retentionProcessReport(expected, true);
+	assert.deepEqual(assessDependencyReports(full, strict, expected), {
+		accepted: true,
+		rawFullExit: 0,
+		rawStrictExit: 1,
+		retained: expected,
+	});
+	const unexpected = {
+		kind: 'exports',
+		file: 'packages/ui/src/components/ui/tabs.tsx',
+		name: 'UnadmittedSlot',
+	};
+	for (const [label, invalid] of [
+		['extra diagnostic', retentionProcessReport([...expected, unexpected], true)],
+		[
+			'same count with a different diagnostic',
+			retentionProcessReport([...expected.slice(1), unexpected], true),
+		],
+		['vanished diagnostic', retentionProcessReport(expected.slice(1), true)],
+		['strict zero with stale records', retentionProcessReport([], true)],
+		['duplicate diagnostic', retentionProcessReport([...expected, expected[0]], true)],
+		[
+			'unlisted dependency',
+			retentionProcessReport(
+				[
+					...expected,
+					{ kind: 'unlisted', file: 'apps/web/src/index.ts', name: 'borrowed-runtime' },
+				],
+				true,
+			),
+		],
+		['parse failure', { ...strict, stdout: '{' }],
+		[
+			'unknown field',
+			{ ...strict, stdout: strict.stdout.replace('"issues":', '"future":true,"issues":') },
+		],
+		['signal', { ...strict, status: null, signal: 'SIGTERM' }],
+		['timeout', { ...strict, status: null, error: 'ETIMEDOUT' }],
+		['launcher failure', { ...strict, status: null, error: 'ENOENT' }],
+		['runtime failure', { ...strict, status: 2 }],
+		['unexpected stderr', { ...strict, stderr: 'warning' }],
+		[
+			'stale configuration',
+			{
+				...strict,
+				stdout: strict.stdout.replace(
+					'"configurationHints":[]',
+					'"configurationHints":[{"type":"unused"}]',
+				),
+			},
+		],
+		[
+			'tag hint',
+			{ ...strict, stdout: strict.stdout.replace('"tagHints":[]', '"tagHints":["unknown-tag"]') },
+		],
+	])
+		assert.throws(() => assessDependencyReports(full, invalid, expected), undefined, label);
+	assert.throws(
+		() => assessDependencyReports({ ...full, status: 1 }, strict, expected),
+		/Full Knip/u,
+	);
+	assert.throws(() => assessDependencyReports(full, strict, expected.slice(1)), /Unregistered/u);
+});
+
+test('retention fingerprints reject missing or disconnected real consumer and discovery inputs', () => {
+	const read = (file) => readFileSync(join(repositoryRoot, file), 'utf8');
+	for (const consumer of [
+		'packages/ui/stories/tabs.stories.tsx',
+		'packages/tab-strip/src/tab-strip/dragging/__tests__/dom-tab-drag-registry.unit.test.ts',
+		'packages/tab-strip/src/tab-strip/dragging/__tests__/cross-window-drag-runtime.unit.test.ts',
+	]) {
+		assert.throws(
+			() =>
+				readRetentionPolicy(repositoryRoot, (file) => (file === consumer ? undefined : read(file))),
+			/Missing input/u,
+		);
+		// The file and old symbol text still exist, but no render/call/assertion remains connected.
+		assert.throws(
+			() =>
+				readRetentionPolicy(repositoryRoot, (file) =>
+					file === consumer ? `/* ${read(file)} */\nexport {};\n` : read(file),
+				),
+			/Reviewed consumer/u,
+		);
+	}
+	for (const config of [
+		'knip.json',
+		'apps/storybook/.storybook/main.ts',
+		'packages/tab-strip/vitest.config.ts',
+	]) {
+		assert.throws(
+			() => readRetentionPolicy(repositoryRoot, (file) => (file === config ? '{}' : read(file))),
+			/configuration changed/u,
+		);
+	}
+});
+
+function retentionEvidenceEnvelope(result) {
+	return JSON.parse(
+		result.stdout.trim().split('\n').at(-1).slice('@@orchbee-knip-evidence@@'.length),
+	);
+}
+
+test('retention evidence reporter accepts exact fixture diagnostics and rejects config and tag hints', () => {
+	withFixture((root) => {
+		const run = (production) => {
+			const child = spawnSync(
+				process.execPath,
+				[
+					knipBinary,
+					'--directory',
+					root,
+					...(production ? ['--strict'] : []),
+					'--reporter',
+					'json',
+					'--reporter',
+					join(repositoryRoot, 'scripts/dependency-retentions-reporter.config.mjs'),
+				],
+				{ cwd: root, encoding: 'utf8', timeout: 30_000, windowsHide: true },
+			);
+			return {
+				status: child.status,
+				signal: child.signal,
+				error: child.error ? String(child.error) : null,
+				stdout: child.stdout,
+				stderr: child.stderr,
+			};
+		};
+		assert.equal(assessDependencyReports(run(false), run(true), []).accepted, true);
+		const retainedFile = 'packages/workbench/src/retained-development.ts';
+		write(root, retainedFile, 'export const retained = 9;\n');
+		write(
+			root,
+			'packages/workbench/src/__tests__/retained-development.unit.test.ts',
+			"import { retained } from '../retained-development';\nvoid retained;\n",
+		);
+		const expected = [{ kind: 'files', file: retainedFile, name: retainedFile }];
+		const full = run(false);
+		const strict = run(true);
+		assert.equal(strict.status, 1);
+		assert.equal(assessDependencyReports(full, strict, expected).accepted, true);
+		const configured = JSON.parse(readFileSync(join(root, 'knip.json'), 'utf8'));
+		configured.workspaces['packages/workbench'].entry.push('src/missing-retention-entry.ts');
+		write(root, 'knip.json', JSON.stringify(configured));
+		const stale = run(false);
+		assert.equal(stale.status, 1);
+		assert.ok(retentionEvidenceEnvelope(stale).configurationHints.length > 0);
+		assert.throws(() => assessDependencyReports(stale, strict, expected), /Full Knip/u);
+		configured.workspaces['packages/workbench'].entry.pop();
+		configured.workspaces['packages/workbench'].ignoreBinaries = ['retention-fixture-unused'];
+		write(root, 'knip.json', JSON.stringify(configured));
+		const staleStrict = run(true);
+		assert.equal(staleStrict.status, 1);
+		assert.equal(retentionEvidenceEnvelope(staleStrict).configHintsDisabled, true);
+		assert.ok(retentionEvidenceEnvelope(staleStrict).configurationHints.length > 0);
+		assert.throws(
+			() => assessDependencyReports(full, staleStrict, expected),
+			/configurationHints/u,
+		);
+		delete configured.workspaces['packages/workbench'].ignoreBinaries;
+		write(root, 'knip.json', JSON.stringify(configured));
+		write(
+			root,
+			'packages/workbench/src/index.ts',
+			'/** @internal */\nexport const value = 7;\nexport interface RuntimeValue { amount: number }\n',
+		);
+		const tagged = run(true);
+		assert.equal(tagged.status, 1);
+		assert.equal(retentionEvidenceEnvelope(tagged).configurationHints.length, 0);
+		assert.equal(retentionEvidenceEnvelope(tagged).tagHints.length, 1);
+		assert.throws(() => assessDependencyReports(full, tagged, expected), /tagHints/u);
+	});
+});

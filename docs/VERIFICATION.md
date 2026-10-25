@@ -117,7 +117,12 @@ stage summaries. `scripts/run-checks.mjs` owns the root command sequences;
 stages remain ordered and fail fast, while explicitly grouped independent checks run concurrently,
 with the same workspace scope, compiler flags, and manual-test exclusions. A group drains every
 member before reporting in declaration order and stopping on its first declared failing member.
-Only the child process result determines success, never parsed log text.
+The generic wrapper judges each command by its process result, never parsed log text.
+The dependency command owns the explicit aggregate acceptance policy in
+[Linting](LINTING.md#retained-development-consumers): it preserves the complete and strict raw
+results and labels an accepted strict exit one separately. This is a check policy, not output
+presentation. Its Knip children have a 180-second deadline; process errors, signals and timeouts
+always fail. Its separately retained stdout/stderr evidence remains available in verbose mode too.
 
 - Each check reports its start, result, and duration from launch to its own process/stdio close,
   excluding time waiting for other group members or formatting summaries. Recognized test totals and bounded warning

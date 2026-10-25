@@ -23,7 +23,7 @@
 		"lint:documentation": "node scripts/documentation-pairing.mjs check",
 		"lint:styles": "node scripts/check-style-contract.mjs",
 		"lint:storage": "node scripts/storage-contract.mjs",
-		"lint:dependencies": "knip && knip --strict",
+		"lint:dependencies": "node scripts/dependency-retentions.mjs",
 		"lint:projects": "node scripts/check-project-contracts.mjs",
 		"lint:experience": "node scripts/experience-catalog.mjs check",
 		"lint:fix": "oxlint --fix .",
