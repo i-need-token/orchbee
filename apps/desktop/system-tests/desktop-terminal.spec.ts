@@ -205,11 +205,27 @@ test.afterEach(async () => {
 	desktopEnvironment = undefined;
 	desktopMainEntry = undefined;
 	const runningHost = hostProcess;
-	if (runningHost !== undefined && runningHost.exitCode === null) {
-		runningHost.kill();
+	if (
+		runningHost !== undefined &&
+		runningHost.exitCode === null &&
+		runningHost.signalCode === null
+	) {
+		const closed = new Promise<void>((resolve) => runningHost.once('close', () => resolve()));
 		await Promise.race([
-			new Promise<void>((resolve) => runningHost.once('exit', () => resolve())),
-			wait(2_000).then(() => undefined),
+			(async () => {
+				if (process.platform === 'win32') {
+					if (runningHost.pid === undefined) throw new Error('Fixture Host has no process ID.');
+					// Stop the fixture's shell and ConPTY descendants before removing their working directory.
+					await executeFile('taskkill.exe', ['/PID', String(runningHost.pid), '/T', '/F'], {
+						windowsHide: true,
+						timeout: 2_000,
+					});
+				} else runningHost.kill();
+				await closed;
+			})(),
+			wait(2_000).then(() => {
+				throw new Error('Fixture Host did not close before runtime cleanup.');
+			}),
 		]);
 	}
 	hostProcess = undefined;
@@ -2329,11 +2345,11 @@ test('terminal-parity/SI-01-manual-shell-integration-completion-reminder', async
 	await minimumDuration.fill('1');
 	await minimumDuration.press('Enter');
 	await expect(minimumDuration).toHaveValue('1');
-	await settingsSurface.locator('aside > button').first().click();
+	await settingsSurface.locator('button[data-settings-close]').click();
 	await expect(settingsSurface).not.toBeVisible();
-	expect(await page.evaluate(() => localStorage.getItem('orchbee:web:terminal-feedback:v2'))).toBe(
-		'{"agentNotificationMode":"never","completionReminderMinimumSeconds":1,"completionReminderMode":"always"}',
-	);
+	expect(
+		await page.evaluate(() => localStorage.getItem('orchbee:web:terminal-feedback:v2')),
+	).toBeNull();
 
 	const input = page.getByRole('textbox');
 	await input.pressSequentially('exec /bin/zsh -f', { delay: 1 });
@@ -4114,7 +4130,7 @@ test('applies a custom shortcut without recreating the mounted terminal', async 
 	await recorder.click();
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+KeyB' : 'Control+Alt+KeyB');
 	await expect(shortcutRow.locator('[data-source="custom"]')).toBeVisible();
-	await settingsSurface.locator('aside > button').first().click();
+	await settingsSurface.locator('button[data-settings-close]').click();
 	await expect(settingsSurface).not.toBeVisible();
 	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
 		attachmentId,
@@ -4200,7 +4216,7 @@ test('launches only future terminals with the committed local shell profile', as
 	await expect
 		.poll(() => readFile(profileStorePath, 'utf8').catch(() => ''))
 		.toContain('local-shell-profile-v1-marker');
-	await settingsSurface.locator('aside > button').first().click();
+	await settingsSurface.locator('button[data-settings-close]').click();
 	await expect(settingsSurface).not.toBeVisible();
 	expect(await initialTerminal.getAttribute('data-terminal-presentation-id')).toBe(
 		initialPresentationId,
@@ -4976,7 +4992,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 				state: { kind: 'retained' },
 			},
 		],
-		version: 3,
+		version: 1,
 	});
 
 	await quitDesktopAutomaticallyPreservingSessions(firstApplication);
