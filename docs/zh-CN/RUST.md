@@ -223,13 +223,18 @@ Workspace policy 对自有代码使用 `unsafe_code = "forbid"`。局部 `allow`
 收窄到一个适配器，记录每项安全不变量，并添加边界测试。此策略不审计第三方依赖内部的
 unsafe 代码；依赖与 feature 评审仍然必要。
 
-已接受的操作系统例外是 `crates/windows-console-host` 中的 `orchbee-windows-console-host`
-package。该 crate 声明 `unsafe_code = "deny"`，而不继承 workspace `forbid`；只有其私有
-`src/sys.rs` 模块带有说明理由的 `allow`，用于 safe API 无法表达的 Win32 call 与 tagged-union
-read。Rust runner 固定 package、manifest、私有 module declaration 与一致的 Clippy policy；其他
-member、location、module 或更宽的 lint escape 都会被拒绝。该 crate 的 safe module 与 test 仍为
-deny。[package contract](../../crates/windows-console-host/README.zh-CN.md) 负责 handle、count 与
-Unicode safety invariant 及其 boundary evidence。
+已接受的操作系统例外仅限以下私有模块：
+
+| 包与位置                                                          | 私有模块                    | 所属安全契约                                                                                    |
+| ----------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `crates/windows-console-host` 中的 `orchbee-windows-console-host` | `src/sys.rs`                | [控制台句柄、计数、Unicode 与标记联合体边界](../../crates/windows-console-host/README.zh-CN.md) |
+| `crates/local-ipc` 中的 `orchbee-local-ipc`                       | `src/windows_name_query.rs` | [精确 Win32 名称查询、即时错误捕获与搜索句柄所有权](../../crates/local-ipc/README.zh-CN.md)     |
+
+这些 crate 声明 `unsafe_code = "deny"`，而不继承 workspace `forbid`；只有列出的私有模块
+带有说明理由的 `allow`。Rust runner 固定每个包、manifest、私有模块声明、相邻安全测试的
+挂接方式及一致的 Clippy 策略。其他成员、位置、模块或更宽的 lint 例外均被拒绝，包括测试
+或获准模块其他子文件中的 unsafe 代码。这些 crate 的其余源码和测试继续 deny；其他成员
+继续继承 workspace `forbid`。链接的包契约负责各适配器的安全不变量及原生边界证据。
 
 `clippy::all` 是默认 lint 组，并非全部可用的 Clippy 检查。针对已证明的风险选择额外检查，并
 区分生产不变量和刻意无效的测试输入。不要仅为增加 lint 数量而启用整个可选组。每次执行规则

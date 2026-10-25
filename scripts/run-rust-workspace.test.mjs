@@ -14,6 +14,20 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 const repositoryRoot = new URL('../', import.meta.url);
+const windowsBoundaries = [
+	{
+		name: 'orchbee-windows-console-host',
+		directory: 'crates/windows-console-host',
+		module: 'sys',
+		reason: 'reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here',
+	},
+	{
+		name: 'orchbee-local-ipc',
+		directory: 'crates/local-ipc',
+		module: 'windows_name_query',
+		reason: 'exact Win32 name queries preserve immediate errors and own the search handle',
+	},
+];
 const validLibrary = `/// Returns the fixture value.
 /// \`\`\`
 /// assert_eq!(runner_fixture::value(), 7);
@@ -267,20 +281,18 @@ runner-shared = { version = "1.0.0", default-features = false }
 	});
 });
 
-function admitWindowsConsoleException(root) {
+function admitWindowsException(root, boundary) {
+	const { name, directory, module, reason } = boundary;
 	const rootManifest = join(root, 'Cargo.toml');
 	writeFileSync(
 		rootManifest,
-		readFileSync(rootManifest, 'utf8').replace(
-			'members = ["fixture"]',
-			'members = ["fixture", "crates/windows-console-host"]',
-		),
+		readFileSync(rootManifest, 'utf8').replace('members = [', `members = ["${directory}", `),
 	);
-	mkdirSync(join(root, 'crates/windows-console-host/src/sys'), { recursive: true });
+	mkdirSync(join(root, directory, 'src', module), { recursive: true });
 	writeFileSync(
-		join(root, 'crates/windows-console-host/Cargo.toml'),
+		join(root, directory, 'Cargo.toml'),
 		`[package]
-name = "orchbee-windows-console-host"
+name = "${name}"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -295,25 +307,25 @@ wildcard_imports = "deny"
 `,
 	);
 	writeFileSync(
-		join(root, 'crates/windows-console-host/src/lib.rs'),
+		join(root, directory, 'src/lib.rs'),
 		`#![deny(unsafe_code)]
 
 #[cfg(windows)]
 #[allow(
     unsafe_code,
-    reason = "reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here"
+    reason = "${reason}"
 )]
-mod sys;
+mod ${module};
 
 #[cfg(windows)]
-pub fn copied(value: &u8) -> u8 { sys::copy_byte(value) }
+pub fn copied(value: &u8) -> u8 { ${module}::copy_byte(value) }
 
 #[cfg(not(windows))]
 pub fn copied(value: &u8) -> u8 { *value }
 `,
 	);
 	writeFileSync(
-		join(root, 'crates/windows-console-host/src/sys.rs'),
+		join(root, directory, `src/${module}.rs`),
 		`pub(super) fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
 
 #[cfg(test)]
@@ -322,7 +334,7 @@ mod tests;
 `,
 	);
 	writeFileSync(
-		join(root, 'crates/windows-console-host/src/sys/tests.rs'),
+		join(root, directory, 'src', module, 'tests.rs'),
 		`//! Safe boundary fixture.
 
 #[test]
@@ -398,7 +410,7 @@ pub fn copy_byte(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }
 		const result = runTask(root, 'lint');
 		assert.notEqual(result.status, 0, result.output);
 		assert.match(result.output, /authored unsafe Rust/u);
-		assert.match(result.output, /src\/sys\.rs exception/u);
+		assert.match(result.output, /outside the accepted private Win32 boundaries/u);
 	});
 });
 
@@ -416,9 +428,9 @@ pub const POLICY_TEXT: &str = r##"#[cfg_attr(windows, allow(unsafe_code))] unsaf
 	});
 });
 
-test('the Rust lint gate admits only the canonical private Windows console unsafe boundary', () => {
+test('the Rust lint gate admits both canonical private Win32 unsafe boundaries together', () => {
 	withFixture((root) => {
-		admitWindowsConsoleException(root);
+		for (const boundary of windowsBoundaries) admitWindowsException(root, boundary);
 		const result = runTask(root, 'lint');
 		assert.equal(result.status, 0, result.output);
 	});
@@ -426,23 +438,29 @@ test('the Rust lint gate admits only the canonical private Windows console unsaf
 
 for (const [name, mutate, diagnostic] of [
 	[
-		'a public sys module',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/lib.rs');
-			writeFileSync(path, readFileSync(path, 'utf8').replace('mod sys;', 'pub mod sys;'));
+		'a public adapter module',
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'src/lib.rs');
+			writeFileSync(
+				path,
+				readFileSync(path, 'utf8').replace(
+					`mod ${boundary.module};`,
+					`pub mod ${boundary.module};`,
+				),
+			);
 		},
-		/private mod sys/u,
+		(boundary) => `private mod ${boundary.module}`,
 	],
 	[
 		'a commented declaration paired with a conditional escape',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/lib.rs');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'src/lib.rs');
 			const declaration = `#[cfg(windows)]
 #[allow(
     unsafe_code,
-    reason = "reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here"
+    reason = "${boundary.reason}"
 )]
-mod sys;`;
+mod ${boundary.module};`;
 			writeFileSync(
 				path,
 				readFileSync(path, 'utf8').replace(
@@ -450,89 +468,106 @@ mod sys;`;
 					`/* ${declaration} */
 #[cfg(windows)]
 #[cfg_attr(windows, allow(unsafe_code))]
-mod sys;`,
+mod ${boundary.module};`,
 				),
 			);
 		},
-		/reasoned unsafe_code allow on private mod sys/u,
+		(boundary) => `reasoned unsafe_code allow on private mod ${boundary.module}`,
 	],
 	[
 		'a missing crate-wide deny',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/lib.rs');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'src/lib.rs');
 			writeFileSync(path, readFileSync(path, 'utf8').replace('#![deny(unsafe_code)]\n\n', ''));
 		},
 		/crate-wide deny\(unsafe_code\)/u,
 	],
 	[
 		'an unsafe escape in a safe sibling',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/lib.rs');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'src/lib.rs');
 			writeFileSync(path, `${readFileSync(path, 'utf8')}\nmod sibling;\n`);
 			writeFileSync(
-				join(root, 'crates/windows-console-host/src/sibling.rs'),
+				join(root, boundary.directory, 'src/sibling.rs'),
 				'#![allow(unsafe_code)]\npub(super) fn copy(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }\n',
 			);
 		},
-		/Only crates\/windows-console-host\/src\/lib\.rs/u,
+		(boundary) =>
+			`Only ${boundary.directory}/src/lib.rs may contain the canonical unsafe_code allow`,
 	],
 	[
 		'an unsafe Rust 2024 attribute in a safe sibling',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/lib.rs');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'src/lib.rs');
 			writeFileSync(path, `${readFileSync(path, 'utf8')}\nmod symbol;\n`);
 			writeFileSync(
-				join(root, 'crates/windows-console-host/src/symbol.rs'),
+				join(root, boundary.directory, 'src/symbol.rs'),
 				'#[unsafe(no_mangle)]\npub extern "C" fn fixture_symbol() {}\n',
 			);
 		},
-		/contains unsafe Rust outside crates\/windows-console-host\/src\/sys\.rs/u,
+		(boundary) => `contains unsafe Rust outside ${boundary.directory}/src/${boundary.module}.rs`,
 	],
 	[
 		'a missing deny on the safe ABI test child',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/sys.rs');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, `src/${boundary.module}.rs`);
 			writeFileSync(path, readFileSync(path, 'utf8').replace('#[deny(unsafe_code)]\n', ''));
 		},
 		/must attach its adjacent tests with deny\(unsafe_code\)/u,
 	],
 	[
 		'a commented-out safe ABI test attachment',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/src/sys.rs');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, `src/${boundary.module}.rs`);
 			const declaration = '#[cfg(test)]\n#[deny(unsafe_code)]\nmod tests;';
 			writeFileSync(path, readFileSync(path, 'utf8').replace(declaration, `/* ${declaration} */`));
 		},
 		/must attach its adjacent tests with deny\(unsafe_code\)/u,
 	],
 	[
-		'a nested unsafe sys child',
-		(root) => {
+		'a nested unsafe adapter child',
+		(root, boundary) => {
 			writeFileSync(
-				join(root, 'crates/windows-console-host/src/sys/hidden.rs'),
+				join(root, boundary.directory, 'src', boundary.module, 'hidden.rs'),
 				'pub(super) fn copy(value: &u8) -> u8 { unsafe { std::ptr::read(value) } }\n',
 			);
 		},
-		/Only the denied safe test child may live below src\/sys/u,
+		(boundary) =>
+			`Only the denied safe test child may live below ${boundary.directory}/src/${boundary.module}`,
 	],
 	[
 		'a widened mirrored Clippy policy',
-		(root) => {
-			const path = join(root, 'crates/windows-console-host/Cargo.toml');
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'Cargo.toml');
 			writeFileSync(path, readFileSync(path, 'utf8').replace('wildcard_imports = "deny"', ''));
 		},
 		/mirrored Clippy policy/u,
 	],
+	[
+		'a different package at the approved path',
+		(root, boundary) => {
+			const path = join(root, boundary.directory, 'Cargo.toml');
+			writeFileSync(path, readFileSync(path, 'utf8').replace(boundary.name, 'unapproved-boundary'));
+			const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
+			assert.equal(lock.status, 0, lock.output);
+		},
+		/requires its exact package/u,
+	],
 ]) {
-	test(`the Rust lint gate rejects ${name}`, () => {
-		withFixture((root) => {
-			admitWindowsConsoleException(root);
-			mutate(root);
-			const result = runTask(root, 'lint');
-			assert.notEqual(result.status, 0, result.output);
-			assert.match(result.output, diagnostic);
+	for (const boundary of windowsBoundaries) {
+		test(`the Rust lint gate rejects ${name} in ${boundary.name}`, () => {
+			withFixture((root) => {
+				admitWindowsException(root, boundary);
+				mutate(root, boundary);
+				const result = runTask(root, 'lint');
+				assert.notEqual(result.status, 0, result.output);
+				if (typeof diagnostic === 'function')
+					assert.ok(result.output.includes(diagnostic(boundary)), result.output);
+				else assert.match(result.output, diagnostic);
+				assert.ok(result.output.includes(boundary.directory), result.output);
+			});
 		});
-	});
+	}
 }
 
 test('the Rust gate rejects production module globs and accepts explicit imports with parent test scope', () => {

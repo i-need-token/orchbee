@@ -1,6 +1,14 @@
 //! Private same-user Windows byte transport; protocol and process owners remain callers.
+#![deny(unsafe_code)]
+
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+#[allow(
+    unsafe_code,
+    reason = "exact Win32 name queries preserve immediate errors and own the search handle"
+)]
+mod windows_name_query;
 #[cfg(windows)]
 pub use windows::{
     ChildInputWriter, ChildOutputReader, ConnectAttemptError, LocalListener, LocalStream,

@@ -558,10 +558,7 @@ pub fn endpoint_exists(path: &Path) -> io::Result<bool> {
     // change between batches. Validation excludes wildcards from this exact query.
     // The extended prefix preserves literal names, including trailing periods.
     let query = name.replacen(r"\\.\", r"\\?\", 1);
-    let (_search, found) =
-        winsafe::HFINDFILE::FindFirstFile(&query, &mut winsafe::WIN32_FIND_DATA::default())
-            .map_err(|error| io::Error::from_raw_os_error(error.raw() as i32))?;
-    Ok(found)
+    crate::windows_name_query::exact_name_exists(&query)
 }
 
 /// Read-only name observation; `None` never claims absence after a budget limit.

@@ -10,8 +10,14 @@ interprocess = { version = "2.4.4", default-features = false }
 winsafe = { workspace = true, features = ["advapi"] }
 widestring = { version = "1.2.1", default-features = false, features = ["std"] }
 
-[lints]
-workspace = true
+# Only the private Windows name-query adapter admits reviewed FFI. The Rust
+# runner pins this exception and keeps the remaining sources and tests denied.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+wildcard_imports = "deny"
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["poll"] }

@@ -13,17 +13,17 @@ Listeners reject remote connections, use a protected current-user DACL, and excl
 handle inheritance. A name alone is never authorization. The existing Terminal Host
 keeps its independently owned endpoint naming and peer validation.
 
-| Field        | Contract                                                                                                                                                                                       |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Validated local pipe name, current token user, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                        |
-| State        | One shared connection owner, at most one prefetched byte, closed flag, caller-selected read/write timeout                                                                                      |
-| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                           |
-| Ownership    | Clones share one connection; shutdown closes every clone's transport and wakes bounded polling; final drop closes the handle                                                                   |
-| Invariants   | Prefetch is consumed exactly once; no blocking pipe I/O or flush; no detached I/O thread; no application bytes before identity verification                                                    |
-| Transitions  | Connect/accept → identity proof → nonblocking admission; readiness may retain one byte; read consumes retained byte before pipe bytes; shutdown/final drop → closed                            |
-| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                     |
-| Dependencies | `interprocess` supplies safe named-pipe bindings, `winsafe` supplies safe process-token inspection, and `widestring` supplies the descriptor's UTF-16 encoding; Windows-only, no async runtime |
-| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, full-buffer timeout, shutdown, and handle release                                   |
+| Field        | Contract                                                                                                                                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Validated local pipe name, current token user, nonblocking pipe results, optional monotonic deadline, explicit shutdown                                                                                                   |
+| State        | One shared connection owner, at most one prefetched byte, closed flag, caller-selected read/write timeout                                                                                                                 |
+| Output       | Exact ordered bytes, would-block, EOF, timeout, or typed OS error; no protocol retry                                                                                                                                      |
+| Ownership    | Clones share one connection; shutdown closes every clone's transport and wakes bounded polling; final drop closes the handle                                                                                              |
+| Invariants   | Prefetch is consumed exactly once; no blocking pipe I/O or flush; no detached I/O thread; no application bytes before identity verification                                                                               |
+| Transitions  | Connect/accept → identity proof → nonblocking admission; readiness may retain one byte; read consumes retained byte before pipe bytes; shutdown/final drop → closed                                                       |
+| Deadline     | A timeout bounds each transport call; protocol owners retain their existing absolute whole-operation deadline across calls                                                                                                |
+| Dependencies | `interprocess` supplies safe named-pipe bindings, `winsafe` supplies safe process-token inspection and search-handle RAII, and `widestring` encodes descriptors and query names as UTF-16; Windows-only, no async runtime |
+| Evidence     | Native two-process round trip, first-instance/name rejection, exact byte ordering across readiness probes, full-buffer timeout, shutdown, and handle release                                                              |
 
 Readiness is advisory: writable notification permits a bounded nonblocking attempt,
 not a promise that the complete record fits. Pipe writes never count as protocol ACKs.
@@ -64,6 +64,19 @@ expired. These are separate-instant name facts, never peer identity or health. O
 query failures preserve their error codes; kernel stalls remain outside the cooperative
 budget. Native tests retain listeners while unrelated pipes churn, verify no connection
 is consumed, and cover case-insensitive names, busy listeners, invalid names and expiry.
+
+The private `src/windows_name_query.rs` adapter is this crate's only authored unsafe
+boundary, admitted by the [Rust policy](../../docs/RUST.md#lint-policy-and-enforcement).
+It owns a NUL-terminated UTF-16 name without interior NULs and a correctly aligned
+`WIN32_FIND_DATAW` buffer through `FindFirstFileW` and immediate `GetLastError` capture.
+An `INVALID_HANDLE_VALUE` result is classified before any buffer destruction or handle
+cleanup: only `ERROR_FILE_NOT_FOUND` (2) and the pipe namespace's `ERROR_NO_MORE_FILES`
+(18) mean absence; every other failure retains its raw OS code. A successful search
+handle moves directly into one `FindCloseGuard` and is closed once; invalid handles
+are never wrapped or closed. No handle escapes the adapter, and the query never opens
+a pipe connection. The adjacent safe native regression uses an executable file as a
+parent directory and requires `ERROR_DIRECTORY` (267), proving errors cannot become
+absence without changing public pipe-name admission.
 
 `ChildInputWriter::pipe` pairs a nonblocking parent writer with blocking child stdin;
 `ChildOutputReader::pipe` provides the reverse direction. The terminal stream relay

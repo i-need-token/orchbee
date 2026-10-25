@@ -462,8 +462,8 @@
 			"zhCnSha256": "294afdb5f0e2cb144c6f506ee3d1dbcf2aab2999f76d9d1196f71735c0921e89"
 		},
 		"crates/local-ipc/README.md": {
-			"englishSha256": "4a1ff3d64693389d6a79ae9526bb47745c2bfe92239347593c418c6a4d1612a0",
-			"zhCnSha256": "62abfe904057511393130b36a7c6f3cc3d6eaec9a9edd43dc52791fcaaa77c1d"
+			"englishSha256": "c6041c13c6c0267f74d8d7f118f41c94039dd9875b4a94bc032bac64da030940",
+			"zhCnSha256": "bdaf661e087f7e767b1c5226d5ca785b5a442f0fbc6bf6c016e2a133f6d1c784"
 		},
 		"crates/local-peer-credentials/README.md": {
 			"englishSha256": "751482f3bbcde8ec843bd67c4ed79b45154b89f259d63fff5dd202247d0a280b",
@@ -554,8 +554,8 @@
 			"zhCnSha256": "fdc03e8b6406a04fef47fc8c217c5147b4dd1f3ab92dc5fd545a58800150a660"
 		},
 		"docs/RUST.md": {
-			"englishSha256": "a742a0f106306fac64343a9c916d0477888a93241c1538564dfc1c31631a606b",
-			"zhCnSha256": "7640b99561c297c70eea7d9b85841444475274a685ee714887842f3a11b54af0"
+			"englishSha256": "c63fa98365ed24117c6588e27f764426630d6370fff07419f68077d30d3eaff1",
+			"zhCnSha256": "148cbb6ce69228316ee94c0bc4a44f80871cfff499bf5fdfd986326c9874ecf0"
 		},
 		"docs/TESTING.md": {
 			"englishSha256": "fc72c5bbed088145644f118d2938b6c19b6ce5a177bbb4ac82ef9cec71fc50e7",

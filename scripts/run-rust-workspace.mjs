@@ -5,15 +5,26 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { checkVerbose, runChecks } from './check-output.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const windowsConsoleHost = Object.freeze({
-	name: 'orchbee-windows-console-host',
-	manifest: 'crates/windows-console-host/Cargo.toml',
-	library: 'crates/windows-console-host/src/lib.rs',
-	system: 'crates/windows-console-host/src/sys.rs',
-	systemTests: 'crates/windows-console-host/src/sys/tests.rs',
-});
-const windowsConsoleUnsafeReason =
-	'reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here';
+const unsafeBoundaries = Object.freeze([
+	{
+		name: 'orchbee-windows-console-host',
+		manifest: 'crates/windows-console-host/Cargo.toml',
+		library: 'crates/windows-console-host/src/lib.rs',
+		module: 'sys',
+		system: 'crates/windows-console-host/src/sys.rs',
+		systemTests: 'crates/windows-console-host/src/sys/tests.rs',
+		reason: 'reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here',
+	},
+	{
+		name: 'orchbee-local-ipc',
+		manifest: 'crates/local-ipc/Cargo.toml',
+		library: 'crates/local-ipc/src/lib.rs',
+		module: 'windows_name_query',
+		system: 'crates/local-ipc/src/windows_name_query.rs',
+		systemTests: 'crates/local-ipc/src/windows_name_query/tests.rs',
+		reason: 'exact Win32 name queries preserve immediate errors and own the search handle',
+	},
+]);
 const task = process.argv[2];
 const selectedPackages = [];
 const presentationArguments = [];
@@ -350,34 +361,35 @@ function enforceAuthoredUnsafePolicy(workspacePackages) {
 		'root workspace Clippy policy',
 	);
 
-	const canonicalManifest = resolve(repositoryRoot, windowsConsoleHost.manifest);
-	const canonicalExists = existsSync(canonicalManifest);
-	const namedExceptions = workspacePackages.filter(
-		(entry) => entry.name === windowsConsoleHost.name,
-	);
-	const pathExceptions = workspacePackages.filter((entry) =>
-		samePath(entry.manifest_path, canonicalManifest),
-	);
-	if (namedExceptions.length > 1 || pathExceptions.length > 1) {
-		throw new Error('The Windows console unsafe-code exception must identify one exact package');
-	}
-	if (
-		(namedExceptions.length === 1 &&
-			!samePath(namedExceptions[0].manifest_path, canonicalManifest)) ||
-		(pathExceptions.length === 1 && pathExceptions[0].name !== windowsConsoleHost.name) ||
-		(canonicalExists && (namedExceptions.length !== 1 || pathExceptions.length !== 1))
-	) {
-		throw new Error(
-			`The only unsafe-code exception is ${windowsConsoleHost.name} at ${windowsConsoleHost.manifest}`,
+	for (const boundary of unsafeBoundaries) {
+		const canonicalManifest = resolve(repositoryRoot, boundary.manifest);
+		const canonicalExists = existsSync(canonicalManifest);
+		const namedExceptions = workspacePackages.filter((entry) => entry.name === boundary.name);
+		const pathExceptions = workspacePackages.filter((entry) =>
+			samePath(entry.manifest_path, canonicalManifest),
 		);
+		if (
+			namedExceptions.length > 1 ||
+			pathExceptions.length > 1 ||
+			(namedExceptions.length === 1 &&
+				!samePath(namedExceptions[0].manifest_path, canonicalManifest)) ||
+			(pathExceptions.length === 1 && pathExceptions[0].name !== boundary.name) ||
+			(canonicalExists && (namedExceptions.length !== 1 || pathExceptions.length !== 1))
+		) {
+			throw new Error(
+				`The unsafe-code exception for ${boundary.name} requires its exact package at ${boundary.manifest}`,
+			);
+		}
 	}
 
 	for (const entry of workspacePackages) {
-		if (
-			entry.name === windowsConsoleHost.name &&
-			samePath(entry.manifest_path, canonicalManifest)
-		) {
-			enforceWindowsConsoleHostPolicy(entry);
+		const boundary = unsafeBoundaries.find(
+			(candidate) =>
+				entry.name === candidate.name &&
+				samePath(entry.manifest_path, resolve(repositoryRoot, candidate.manifest)),
+		);
+		if (boundary !== undefined) {
+			enforcePrivateUnsafeBoundary(entry, boundary);
 			continue;
 		}
 		const manifest = readFileSync(entry.manifest_path, 'utf8');
@@ -397,34 +409,34 @@ function enforceAuthoredUnsafePolicy(workspacePackages) {
 			}
 			if (authoredUnsafePattern().test(rustPolicySource(text))) {
 				throw new Error(
-					`${relativeSource(source)} contains authored unsafe Rust outside the sole ${windowsConsoleHost.system} exception`,
+					`${relativeSource(source)} contains authored unsafe Rust outside the accepted private Win32 boundaries; see docs/RUST.md#lint-policy-and-enforcement`,
 				);
 			}
 		}
 	}
 }
 
-function enforceWindowsConsoleHostPolicy(entry) {
+function enforcePrivateUnsafeBoundary(entry, boundary) {
 	const manifest = readFileSync(entry.manifest_path, 'utf8');
 	assertTomlEntries(
 		manifest,
 		'lints.rust',
 		['unsafe_code = "deny"'],
-		`${windowsConsoleHost.manifest} Rust lint policy`,
+		`${boundary.manifest} Rust lint policy`,
 	);
 	assertTomlEntries(
 		manifest,
 		'lints.clippy',
 		['all = { level = "deny", priority = -1 }', 'wildcard_imports = "deny"'],
-		`${windowsConsoleHost.manifest} mirrored Clippy policy`,
+		`${boundary.manifest} mirrored Clippy policy`,
 	);
 	if (tomlEntries(manifest, 'lints').length > 0) {
-		throw new Error(`${windowsConsoleHost.manifest} must not inherit the workspace unsafe forbid`);
+		throw new Error(`${boundary.manifest} must not inherit the workspace unsafe forbid`);
 	}
 
-	const libraryPath = resolve(repositoryRoot, windowsConsoleHost.library);
-	const systemPath = resolve(repositoryRoot, windowsConsoleHost.system);
-	const testsPath = resolve(repositoryRoot, windowsConsoleHost.systemTests);
+	const libraryPath = resolve(repositoryRoot, boundary.library);
+	const systemPath = resolve(repositoryRoot, boundary.system);
+	const testsPath = resolve(repositoryRoot, boundary.systemTests);
 	for (const path of [libraryPath, systemPath, testsPath]) {
 		if (!existsSync(path))
 			throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(path)}`);
@@ -432,16 +444,16 @@ function enforceWindowsConsoleHostPolicy(entry) {
 	const library = readFileSync(libraryPath, 'utf8');
 	const libraryPolicy = rustPolicySource(library);
 	if (!/#!\[\s*deny\s*\(\s*unsafe_code\s*\)\s*\]/u.test(libraryPolicy)) {
-		throw new Error(`${windowsConsoleHost.library} must keep crate-wide deny(unsafe_code)`);
+		throw new Error(`${boundary.library} must keep crate-wide deny(unsafe_code)`);
 	}
 	const canonicalDeclaration = `#[cfg(windows)]
 #[allow(
     unsafe_code,
-    reason = "${windowsConsoleUnsafeReason}"
+    reason = "${boundary.reason}"
 )]
-mod sys;`;
+mod ${boundary.module};`;
 	const canonicalDeclarationShape =
-		/^[\t ]*#\[\s*cfg\s*\(\s*windows\s*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*allow\s*\(\s*unsafe_code\s*,\s*reason\s*=\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+sys[\t ]*;[\t ]*$/mu.exec(
+		/^[\t ]*#\[\s*cfg\s*\(\s*windows\s*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*allow\s*\(\s*unsafe_code\s*,\s*reason\s*=\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+[a-z_][a-z\d_]*[\t ]*;[\t ]*$/mu.exec(
 			libraryPolicy,
 		);
 	const activeDeclaration =
@@ -456,7 +468,7 @@ mod sys;`;
 		normalizedWhitespace(activeDeclaration) !== normalizedWhitespace(canonicalDeclaration)
 	) {
 		throw new Error(
-			`${windowsConsoleHost.library} must keep the reasoned unsafe_code allow on private mod sys`,
+			`${boundary.library} must keep the reasoned unsafe_code allow on private mod ${boundary.module}`,
 		);
 	}
 	const system = readFileSync(systemPath, 'utf8');
@@ -479,17 +491,15 @@ mod tests;`;
 		activeTestDeclaration === undefined ||
 		normalizedWhitespace(activeTestDeclaration) !== normalizedWhitespace(safeTestDeclaration)
 	) {
-		throw new Error(
-			`${windowsConsoleHost.system} must attach its adjacent tests with deny(unsafe_code)`,
-		);
+		throw new Error(`${boundary.system} must attach its adjacent tests with deny(unsafe_code)`);
 	}
 	const systemDirectory = dirname(testsPath);
 	const unexpectedSystemChildren = readdirSync(systemDirectory, { withFileTypes: true })
 		.filter((child) => !(child.isFile() && child.name === 'tests.rs'))
-		.map((child) => `${windowsConsoleHost.system.replace(/\.rs$/u, '')}/${child.name}`);
+		.map((child) => `${boundary.system.replace(/\.rs$/u, '')}/${child.name}`);
 	if (unexpectedSystemChildren.length > 0) {
 		throw new Error(
-			`Only the denied safe test child may live below src/sys:\n${unexpectedSystemChildren.join('\n')}`,
+			`Only the denied safe test child may live below ${boundary.system.replace(/\.rs$/u, '')}:\n${unexpectedSystemChildren.join('\n')}`,
 		);
 	}
 
@@ -498,17 +508,13 @@ mod tests;`;
 		unsafeEscapeAttributes(readFileSync(source, 'utf8')).map(() => source),
 	);
 	if (escapes.length !== 1 || !samePath(escapes[0], libraryPath)) {
-		throw new Error(
-			`Only ${windowsConsoleHost.library} may contain the canonical unsafe_code allow`,
-		);
+		throw new Error(`Only ${boundary.library} may contain the canonical unsafe_code allow`);
 	}
 	for (const source of sources) {
 		if (samePath(source, systemPath)) continue;
 		const text = readFileSync(source, 'utf8');
 		if (authoredUnsafePattern().test(rustPolicySource(text))) {
-			throw new Error(
-				`${relativeSource(source)} contains unsafe Rust outside ${windowsConsoleHost.system}`,
-			);
+			throw new Error(`${relativeSource(source)} contains unsafe Rust outside ${boundary.system}`);
 		}
 	}
 }
