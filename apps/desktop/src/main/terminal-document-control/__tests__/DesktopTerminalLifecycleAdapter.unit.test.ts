@@ -275,7 +275,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			allocateFreshBindingId,
 			createBindingLifecycle: () => retainedLifecycle,
 			loadBindings: async () => ({
-				document: { bindings: [retainedBinding], version: 3 },
+				document: { bindings: [retainedBinding], version: 1 },
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
@@ -321,7 +321,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			allocateFreshBindingId: () => 'binding-fresh',
 			createBindingLifecycle: () => retainedLifecycle,
 			loadBindings: async () => ({
-				document: { bindings: [retainedBinding], version: 3 },
+				document: { bindings: [retainedBinding], version: 1 },
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
@@ -366,7 +366,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			allocateFreshBindingId: () => 'binding-fresh',
 			createBindingLifecycle: () => retainedLifecycle,
 			loadBindings: async () => ({
-				document: { bindings: [retainedBinding], version: 3 },
+				document: { bindings: [retainedBinding], version: 1 },
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
@@ -407,7 +407,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			allocateFreshBindingId: () => 'replacement-binding',
 			createBindingLifecycle: () => lifecycle,
 			loadBindings: async () => ({
-				document: { bindings: [plannedBinding], version: 3 },
+				document: { bindings: [plannedBinding], version: 1 },
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
@@ -536,7 +536,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 					? restoredLifecycle
 					: otherLifecycle,
 			loadBindings: async () => ({
-				document: { bindings, version: 3 },
+				document: { bindings, version: 1 },
 				kind: 'available',
 			}),
 			registry,
@@ -1293,7 +1293,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			allocateFreshBindingId: () => 'binding-fresh',
 			createBindingLifecycle: () => restoreLifecycle,
 			loadBindings: async () => ({
-				document: { bindings: [retainedBinding], version: 3 },
+				document: { bindings: [retainedBinding], version: 1 },
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
@@ -1385,7 +1385,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			allocateFreshBindingId: () => 'binding-fresh',
 			createBindingLifecycle: () => closingLifecycle,
 			loadBindings: async () => ({
-				document: { bindings: [closingBinding], version: 3 },
+				document: { bindings: [closingBinding], version: 1 },
 				kind: 'available',
 			}),
 			registry,

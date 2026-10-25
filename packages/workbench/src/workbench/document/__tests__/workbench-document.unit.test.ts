@@ -154,7 +154,9 @@ describe('Workbench shared document and Client View', () => {
 		);
 
 		expect(parsedDocumentJson(document)).toEqual(document);
-		expect(() => parseWorkbenchSharedDocument(JSON.parse(serializedWithoutCustomTitles))).toThrow();
+		expect(() => parseWorkbenchSharedDocument(JSON.parse(serializedWithoutCustomTitles))).toThrow(
+			/customTitle/u,
+		);
 		expect(serialized).not.toContain('activeTabId');
 		expect(serialized).not.toContain('activeLocation');
 		expect(serialized).not.toContain('focusedPanelId');

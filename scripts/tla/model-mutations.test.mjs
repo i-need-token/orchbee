@@ -29,7 +29,7 @@ const cases = [
 		'saved publication erases an unknown receipt',
 		'!.receipt[c] = IF @ = "unknown" THEN @ ELSE "saved"',
 		'!.receipt[c] = "saved"',
-		/Temporal properties were violated/u,
+		/Action property UnknownIsTerminalEvidence is violated/u,
 	],
 	[
 		'session-viewer-routing',

@@ -6,8 +6,6 @@ import {
 } from '../keyboard-shortcut-settings-controller';
 
 const CURRENT_STORAGE_KEY = 'orchbee:web:keyboard-shortcut-overrides:v1';
-const CURRENT_OVERRIDE_RECORD =
-	'{"overrides":[{"chord":{"code":"KeyY","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":21}';
 
 describe('KeyboardShortcutSettingsController', () => {
 	it('publishes one immutable effective snapshot and persists a custom binding', () => {

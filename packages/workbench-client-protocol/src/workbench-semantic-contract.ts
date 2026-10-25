@@ -201,7 +201,7 @@ interface WorkbenchPanelNodeSplit {
 	readonly ratio?: number | undefined;
 }
 
-type WorkbenchPanelNode = WorkbenchPanelNodePanel | WorkbenchPanelNodeSplit;
+export type WorkbenchPanelNode = WorkbenchPanelNodePanel | WorkbenchPanelNodeSplit;
 
 export const WorkbenchPanelNodeSchema: z.ZodType<WorkbenchPanelNode> = z.lazy(() =>
 	z.discriminatedUnion('kind', [

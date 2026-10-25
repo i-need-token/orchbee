@@ -559,12 +559,12 @@ function requireDocument(store: MemoryStore): MemoryDocument {
 
 interface MemoryDocument {
 	readonly bindings: TerminalBinding[];
-	readonly version: 3;
+	readonly version: 1;
 }
 
 function createDocument(bindings: readonly TerminalBinding[] = []): MemoryDocument {
 	return {
 		bindings: [...bindings].sort((left, right) => left.bindingId.localeCompare(right.bindingId)),
-		version: 3,
+		version: 1,
 	};
 }

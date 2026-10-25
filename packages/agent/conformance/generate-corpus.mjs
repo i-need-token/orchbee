@@ -25,7 +25,7 @@ import {
 	projectAgentLocation,
 	projectAgentSessionGroup,
 	projectAgentSessionSummary,
-} from '../dist/index.js';
+} from '@orchbee/agent';
 
 const require = createRequire(import.meta.url);
 const conformanceDir = dirname(fileURLToPath(import.meta.url));
