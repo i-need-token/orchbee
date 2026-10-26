@@ -75,6 +75,14 @@ pub(in crate::cli) fn complete(command: &QueryCommand, mut result: Value) -> Val
     if let Some((single, many)) = family {
         missing(&mut result, &["client"], &selection);
         missing(&mut result, &["agents"], &capability);
+        if let Some(sessions) = result["agents"]
+            .get_mut("sessions")
+            .and_then(Value::as_array_mut)
+        {
+            for session in sessions {
+                missing(session, &["client"], &selection);
+            }
+        }
         if single == "workspace" {
             missing(&mut result, &["metadataSource"], &capability);
         }

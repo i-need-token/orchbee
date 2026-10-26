@@ -30,7 +30,9 @@ pub(crate) fn run_close(
     #[cfg(not(any(target_os = "linux", windows)))]
     let answer: Result<(Value, u8), Failure> = {
         let _ = (family, operation_id, generation);
-        Err(Failure::new(FailureKind::ServiceUnavailable))
+        Err(Failure::new(FailureKind::ServiceUnavailable).details(
+            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+        ))
     };
     let mut output = match answer {
         Ok((result, status)) => {

@@ -70,9 +70,7 @@ impl Answer {
             Observation::Unknown(reason) => json!({"outcome":"unknown","reason":reason}),
         };
         value["requestId"] = json!(id_text(self.id));
-        if let Some(wait) = self.wait {
-            value["wait"] = json!(wait);
-        }
+        value["wait"] = json!(self.wait);
         value
     }
     fn status(&self) -> u8 {

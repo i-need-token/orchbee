@@ -1,10 +1,14 @@
 //! Site stop receipts remain inspectable across Client disconnection and Server exit.
-use super::{Failure, FailureKind, Output, failure_output, output};
+#[cfg(windows)]
+use super::output;
+use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{OutputFormat, SiteStopCommand},
     localization::Locale,
 };
+#[cfg(windows)]
 use orchbee_local_client_protocol::StopId;
+#[cfg(windows)]
 use serde_json::{Value, json};
 
 #[cfg(windows)]
@@ -14,7 +18,21 @@ mod windows;
 #[cfg(windows)]
 use reply::{Answer, Observation, render};
 
+#[cfg(not(windows))]
+pub(crate) fn run(command: &SiteStopCommand, format: OutputFormat, locale: Locale) -> Output {
+    let _ = command;
+    failure_output(
+        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        )),
+        Some(format),
+        locale,
+    )
+}
+
 /// Chooses one request identity and returns a bounded stop/status result without Site activation.
+#[cfg(windows)]
 pub(crate) fn run(command: &SiteStopCommand, format: OutputFormat, locale: Locale) -> Output {
     let id = match command {
         SiteStopCommand::Status { id } | SiteStopCommand::Stop { id: Some(id), .. } => *id,
@@ -30,23 +48,10 @@ pub(crate) fn run(command: &SiteStopCommand, format: OutputFormat, locale: Local
             StopId::new(bytes).expect("validated entropy")
         }
     };
-    #[cfg(windows)]
-    {
-        windows::run(command, id, format, locale)
-    }
-    #[cfg(not(windows))]
-    {
-        emit(
-            id,
-            json!({"outcome":"unavailable","reason":"unsupported-platform","requestId":id_text(id)}),
-            4,
-            None,
-            format,
-            locale,
-        )
-    }
+    windows::run(command, id, format, locale)
 }
 
+#[cfg(windows)]
 fn id_text(id: StopId) -> String {
     id.bytes()
         .iter()
@@ -54,6 +59,7 @@ fn id_text(id: StopId) -> String {
         .collect()
 }
 
+#[cfg(windows)]
 fn emit(
     id: StopId,
     result: Value,

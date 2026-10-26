@@ -12,7 +12,9 @@ pub(crate) fn run(message: Notification, format: OutputFormat, locale: Locale) -
     {
         let _ = message;
         failure_output(
-            Failure::new(FailureKind::ServiceUnavailable),
+            Failure::new(FailureKind::ServiceUnavailable).details(
+                crate::cli::stage_reason_details("platform", "unsupported-platform"),
+            ),
             Some(format),
             locale,
         )

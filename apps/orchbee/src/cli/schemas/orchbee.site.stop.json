@@ -27,7 +27,7 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome"],
+					"required": ["requestId", "outcome", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -35,13 +35,16 @@
 						},
 						"outcome": {
 							"const": "stopped"
+						},
+						"wait": {
+							"type": "null"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome"],
+					"required": ["requestId", "outcome", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -49,13 +52,16 @@
 						},
 						"outcome": {
 							"const": "not-recorded"
+						},
+						"wait": {
+							"type": "null"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome"],
+					"required": ["requestId", "outcome", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -63,13 +69,16 @@
 						},
 						"outcome": {
 							"const": "unmanaged"
+						},
+						"wait": {
+							"type": "null"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome", "activeRequestId"],
+					"required": ["requestId", "outcome", "activeRequestId", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -81,13 +90,16 @@
 						"activeRequestId": {
 							"type": "string",
 							"pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+						},
+						"wait": {
+							"type": "null"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome", "attempt", "phase"],
+					"required": ["requestId", "outcome", "attempt", "phase", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -117,14 +129,22 @@
 							]
 						},
 						"wait": {
-							"enum": ["detached", "timed-out", "cancelled"]
+							"enum": [null, "detached", "timed-out", "cancelled"]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome", "attempt", "phase", "reason", "disposedTerminals"],
+					"required": [
+						"requestId",
+						"outcome",
+						"attempt",
+						"phase",
+						"reason",
+						"disposedTerminals",
+						"wait"
+					],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -168,13 +188,16 @@
 							"type": "integer",
 							"minimum": 0,
 							"maximum": 4294967295
+						},
+						"wait": {
+							"type": "null"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome", "reason"],
+					"required": ["requestId", "outcome", "reason", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -186,7 +209,6 @@
 						"reason": {
 							"enum": [
 								"runtime",
-								"unsupported-platform",
 								"signal-registration",
 								"signal-finalization",
 								"activation-record",
@@ -196,14 +218,14 @@
 							]
 						},
 						"wait": {
-							"enum": ["timed-out", "cancelled"]
+							"enum": [null, "timed-out", "cancelled"]
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["requestId", "outcome", "reason"],
+					"required": ["requestId", "outcome", "reason", "wait"],
 					"properties": {
 						"requestId": {
 							"type": "string",
@@ -216,7 +238,7 @@
 							"enum": ["transport", "activation-record"]
 						},
 						"wait": {
-							"enum": ["timed-out", "cancelled"]
+							"enum": [null, "timed-out", "cancelled"]
 						}
 					}
 				}

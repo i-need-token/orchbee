@@ -1,18 +1,23 @@
 //! CLI waiting is separate from the Server's retained group Close operation.
-use super::{Failure, FailureKind, Output, failure_output, output};
+#[cfg(any(windows, test))]
+use super::output;
+use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{OutputFormat, WorkspaceGroupCloseCommand},
     localization::Locale,
 };
+#[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchRequestId, WorkbenchWorkspaceGroupCloseResult, WorkspaceGroupCloseOutcome,
     WorkspaceGroupCloseStatus,
 };
+#[cfg(any(windows, test))]
 use serde_json::json;
 
 #[cfg(windows)]
 mod windows;
 
+#[cfg(any(windows, test))]
 #[derive(Debug)]
 enum Observation {
     Server {
@@ -25,6 +30,7 @@ enum Observation {
         reason: &'static str,
     },
 }
+#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Wait {
     Detached,
@@ -34,11 +40,13 @@ enum Wait {
     ObservationFailed,
 }
 #[derive(Debug)]
+#[cfg(any(windows, test))]
 struct Answer {
     operation_id: WorkbenchRequestId,
     observation: Observation,
     wait: Option<Wait>,
 }
+#[cfg(any(windows, test))]
 impl Answer {
     fn document(&self) -> serde_json::Value {
         let observation = match &self.observation {
@@ -89,6 +97,24 @@ impl Answer {
     }
 }
 
+#[cfg(not(windows))]
+pub(crate) fn run(
+    command: &WorkspaceGroupCloseCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    let _ = command;
+    failure_output(
+        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        )),
+        Some(format),
+        locale,
+    )
+}
+
+#[cfg(windows)]
 pub(crate) fn run(
     command: &WorkspaceGroupCloseCommand,
     format: OutputFormat,
@@ -106,27 +132,10 @@ pub(crate) fn run(
         Ok(id) => id,
         Err(failure) => return failure_output(failure, Some(format), locale),
     };
-    #[cfg(windows)]
-    {
-        windows::run(command, operation_id, format, locale)
-    }
-    #[cfg(not(windows))]
-    {
-        emit(
-            None,
-            Answer {
-                operation_id,
-                observation: Observation::Unavailable {
-                    reason: "unsupported-platform",
-                },
-                wait: None,
-            },
-            format,
-            locale,
-        )
-    }
+    windows::run(command, operation_id, format, locale)
 }
 
+#[cfg(any(windows, test))]
 fn emit(site_id: Option<&SiteId>, answer: Answer, format: OutputFormat, locale: Locale) -> Output {
     let status = answer.exit_code();
     let result = answer.document();

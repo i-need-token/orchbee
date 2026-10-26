@@ -141,7 +141,9 @@ pub(crate) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale)
     {
         let _ = command;
         failure_output(
-            Failure::new(FailureKind::ServiceUnavailable),
+            Failure::new(FailureKind::ServiceUnavailable).details(
+                crate::cli::stage_reason_details("platform", "unsupported-platform"),
+            ),
             Some(format),
             locale,
         )

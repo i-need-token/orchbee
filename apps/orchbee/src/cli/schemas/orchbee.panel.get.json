@@ -608,14 +608,24 @@
 					"maxItems": 512,
 					"items": {
 						"type": "object",
-						"required": ["session"],
+						"required": ["session", "client"],
 						"additionalProperties": false,
 						"properties": {
 							"session": {
 								"$ref": "#/$defs/agentSessionSummary"
 							},
 							"client": {
-								"$ref": "#/$defs/agentClientView"
+								"oneOf": [
+									{
+										"$ref": "#/$defs/agentClientView"
+									},
+									{
+										"type": "null"
+									},
+									{
+										"$ref": "#/$defs/unsupported"
+									}
+								]
 							}
 						}
 					}
@@ -1352,134 +1362,6 @@
 				}
 			]
 		},
-		"panelMetadata": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
-			"properties": {
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
-					"properties": {
-						"siteId": {
-							"$ref": "#/$defs/metadataIdentity"
-						},
-						"workbenchRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"metadataRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"requestIds": {
-							"type": "array",
-							"minItems": 2,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/metadataIdentity"
-							}
-						}
-					}
-				},
-				"binding": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataBinding"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"tokens": {
-					"$ref": "#/$defs/metadataTokens"
-				},
-				"presentations": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"$ref": "#/$defs/metadataPresentation"
-					}
-				},
-				"context": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["agent", "authoritySource"],
-					"properties": {
-						"agent": {
-							"type": "null"
-						},
-						"authoritySource": {
-							"type": "null"
-						}
-					}
-				},
-				"presentation": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["title", "displayAgent", "stateLabels"],
-					"properties": {
-						"title": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/metadataValue"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"displayAgent": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/metadataValue"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"stateLabels": {
-							"$ref": "#/$defs/metadataLabels"
-						}
-					}
-				}
-			},
-			"if": {
-				"properties": {
-					"binding": {
-						"type": "null"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"tokens": {
-						"type": "object",
-						"maxProperties": 0
-					},
-					"presentations": {
-						"type": "array",
-						"maxItems": 0
-					},
-					"presentation": {
-						"type": "object",
-						"properties": {
-							"title": {
-								"type": "null"
-							},
-							"displayAgent": {
-								"type": "null"
-							},
-							"stateLabels": {
-								"type": "object",
-								"maxProperties": 0
-							}
-						}
-					}
-				}
-			}
-		},
 		"reportIdentity": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
@@ -2089,22 +1971,10 @@
 						"metadata": {
 							"oneOf": [
 								{
-									"anyOf": [
-										{
-											"anyOf": [
-												{
-													"$ref": "#/$defs/panelMetadata"
-												},
-												{
-													"$ref": "#/$defs/reportedPanelMetadata"
-												}
-											],
-											"$ref": "#/$defs/reportedPanelMetadata"
-										},
-										{
-											"const": "unknown"
-										}
-									]
+									"$ref": "#/$defs/reportedPanelMetadata"
+								},
+								{
+									"const": "unknown"
 								},
 								{
 									"$ref": "#/$defs/unsupported"
@@ -2129,40 +1999,6 @@
 							]
 						}
 					},
-					"if": {
-						"required": ["terminalObservation"]
-					},
-					"then": {
-						"required": [
-							"cwd",
-							"cwdSource",
-							"foregroundCwd",
-							"terminalTitle",
-							"terminalTitleStripped",
-							"terminalObservation"
-						]
-					},
-					"else": {
-						"not": {
-							"anyOf": [
-								{
-									"required": ["cwd"]
-								},
-								{
-									"required": ["cwdSource"]
-								},
-								{
-									"required": ["foregroundCwd"]
-								},
-								{
-									"required": ["terminalTitle"]
-								},
-								{
-									"required": ["terminalTitleStripped"]
-								}
-							]
-						}
-					},
 					"allOf": [
 						{
 							"if": {
@@ -2174,7 +2010,8 @@
 											"state": {
 												"enum": ["unbound", "unavailable"]
 											}
-										}
+										},
+										"required": ["state"]
 									}
 								}
 							},
@@ -2200,19 +2037,6 @@
 						},
 						{
 							"if": {
-								"required": ["scrollObservation"]
-							},
-							"then": {
-								"required": ["scroll"]
-							},
-							"else": {
-								"not": {
-									"required": ["scroll"]
-								}
-							}
-						},
-						{
-							"if": {
 								"required": ["scrollObservation"],
 								"properties": {
 									"scrollObservation": {
@@ -2221,7 +2045,8 @@
 											"state": {
 												"const": "observed"
 											}
-										}
+										},
+										"required": ["state"]
 									}
 								}
 							},
@@ -2231,8 +2056,25 @@
 										"$ref": "#/$defs/scrollMetrics"
 									}
 								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["scrollObservation"],
+								"properties": {
+									"scrollObservation": {
+										"type": "object",
+										"required": ["state"],
+										"properties": {
+											"state": {
+												"enum": ["no-client", "unavailable", "pending"]
+											}
+										}
+									}
+								}
 							},
-							"else": {
+							"then": {
 								"properties": {
 									"scroll": {
 										"type": "null"
@@ -2277,121 +2119,10 @@
 					]
 				}
 			},
-			"if": {
-				"required": ["client"],
-				"type": "object",
-				"properties": {
-					"client": {
-						"type": "object",
-						"required": ["clientId"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"panel": {
-						"required": ["focused"],
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"else": {
-				"properties": {
-					"panel": {
-						"not": {
-							"required": ["focused"],
-							"type": "object"
-						},
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
 			"allOf": [
 				{
 					"if": {
 						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"required": ["agentStatus", "agentSessionIds"]
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"not": {
-									"anyOf": [
-										{
-											"required": ["agentStatus"]
-										},
-										{
-											"required": ["agentSessionIds"]
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["client"],
-						"properties": {
-							"client": {
-								"type": "object",
-								"required": ["clientId"]
-							}
-						}
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"agents": {
-								"type": "object",
-								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["client"]
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"agents": {
-								"type": "object",
-								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"not": {
-												"required": ["client"]
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
 						"required": ["client"],
 						"properties": {
 							"client": {
@@ -2427,31 +2158,22 @@
 								"type": "object",
 								"properties": {
 									"scrollObservation": {
-										"type": "object",
-										"properties": {
-											"state": {
-												"const": "no-client"
-											}
+										"if": {
+											"type": "object",
+											"required": ["state"]
 										},
-										"required": ["state"],
-										"additionalProperties": false
+										"then": {
+											"type": "object",
+											"properties": {
+												"state": {
+													"const": "no-client"
+												}
+											},
+											"required": ["state"],
+											"additionalProperties": false
+										}
 									}
 								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"panel": {
-								"type": "object",
-								"required": ["scroll", "scrollObservation"]
 							}
 						}
 					}

@@ -116,7 +116,7 @@ fn panel_lists_preserve_primary_labels_and_workspace_identity() {
     )
     .unwrap()
     .result();
-    assert!(all["panels"][0]["workspaceId"].is_null());
+    assert_eq!(all["panels"][0]["workspaceId"], hex(0x01));
     let filtered = project(
         &QueryCommand::PanelList {
             tab: Some(Target::Id(hex(0x52))),
@@ -161,6 +161,10 @@ fn topology_documents_validate_and_text_escapes_labels_in_both_locales() {
             tab: None,
             workspace: None,
         },
+        QueryCommand::PanelGet(Target::Id(hex(0x58))),
+        QueryCommand::PanelCurrent(crate::invocation::PanelQueryTarget::Panel(Target::Id(hex(
+            0x58,
+        )))),
     ] {
         let published =
             crate::cli::schema::answer(Some(schema_id(&command)), OutputFormat::Json, Locale::EnUs);

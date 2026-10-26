@@ -225,44 +225,56 @@
 				}
 			},
 			"if": {
+				"type": "object",
 				"required": ["lines"],
-				"type": "object"
+				"properties": {
+					"lines": {
+						"type": "array"
+					}
+				}
 			},
 			"then": {
-				"required": ["lineCount"],
-				"not": {
-					"required": ["rows"],
-					"type": "object"
-				},
 				"properties": {
+					"rows": {
+						"type": "null"
+					},
+					"lineCount": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 1000
+					},
 					"tail": {
 						"properties": {
 							"entries": {
 								"const": "lines"
 							}
-						},
-						"type": "object"
+						}
 					}
-				},
-				"type": "object"
+				}
 			},
 			"else": {
-				"required": ["rows"],
-				"not": {
-					"required": ["lineCount"],
-					"type": "object"
-				},
 				"properties": {
+					"rows": {
+						"type": "array",
+						"maxItems": 1000,
+						"items": {
+							"$ref": "#/$defs/contentRow"
+						}
+					},
+					"lines": {
+						"type": "null"
+					},
+					"lineCount": {
+						"type": "null"
+					},
 					"tail": {
 						"properties": {
 							"entries": {
 								"const": "rows"
 							}
-						},
-						"type": "object"
+						}
 					}
-				},
-				"type": "object"
+				}
 			}
 		},
 		"logicalLine": {

@@ -18,17 +18,18 @@ pub(crate) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Local
     #[cfg(not(windows))]
     {
         let _ = scope;
-        failed(
+        failure_output(
             Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
                 "platform",
                 "unsupported-platform",
             )),
-            format,
+            Some(format),
             locale,
         )
     }
 }
 
+#[cfg(windows)]
 fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output {
     let kind = failure.kind;
     if matches!(kind, FailureKind::Timeout | FailureKind::Cancelled) {

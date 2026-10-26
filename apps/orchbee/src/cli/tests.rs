@@ -1928,3 +1928,67 @@ fn empty_lists_say_how_to_create_their_first_entry() {
         "A     BB\nlong  x\n"
     );
 }
+
+/// Platform rejection is a command failure, never a fabricated unavailable operation receipt.
+#[cfg(not(windows))]
+#[test]
+fn unsupported_commands_share_the_platform_failure_contract() {
+    use crate::invocation::{
+        ClientCommand, ManifestCommand, SiteStopCommand, WorkspaceGroupCloseCommand,
+        WorktreeCommand,
+    };
+    use orchbee_workbench_protocol::WorkbenchRequestId;
+    let schema: Value =
+        serde_json::from_str(include_str!("schemas/orchbee.cli.failure.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for format in [OutputFormat::Json, OutputFormat::Text] {
+            let operation_id = WorkbenchRequestId::parse(ID).unwrap();
+            for output in [
+                super::site_stop::run(
+                    &SiteStopCommand::Stop {
+                        id: None,
+                        retry: false,
+                        detach: false,
+                        timeout_ms: 1,
+                    },
+                    format,
+                    locale,
+                ),
+                super::worktree_operation::run(
+                    WorktreeCommand::Status {
+                        operation_id: operation_id.clone(),
+                    },
+                    format,
+                    locale,
+                ),
+                super::workspace_group_close::run(
+                    &WorkspaceGroupCloseCommand::Status { operation_id },
+                    format,
+                    locale,
+                ),
+                super::client_control::run(&ClientCommand::List, format, locale),
+                super::agent_manifests::run(&ManifestCommand::Current, format, locale),
+            ] {
+                assert_eq!(output.status, 4);
+                assert!(!output.stderr.is_empty());
+                if format == OutputFormat::Json {
+                    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+                    validator.validate(&document).unwrap();
+                    assert_eq!(document["schema"], "orchbee.cli.failure");
+                    assert_eq!(document["version"], 1);
+                    assert_eq!(document["failure"]["kind"], "service-unavailable");
+                    assert_eq!(
+                        document["failure"]["details"],
+                        json!({
+                            "stage":"platform", "reason":"unsupported-platform",
+                        })
+                    );
+                    assert!(document.get("result").is_none());
+                } else {
+                    assert!(output.stdout.is_empty());
+                }
+            }
+        }
+    }
+}

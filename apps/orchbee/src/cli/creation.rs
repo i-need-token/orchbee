@@ -74,7 +74,9 @@ pub(crate) fn run(command: &CreationCommand, format: OutputFormat, locale: Local
             );
         }
         super::failure_output(
-            super::Failure::new(super::FailureKind::ServiceUnavailable),
+            super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+                crate::cli::stage_reason_details("platform", "unsupported-platform"),
+            ),
             Some(format),
             locale,
         )

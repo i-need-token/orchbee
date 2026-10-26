@@ -155,7 +155,9 @@ pub(crate) fn terminal_attach(
     #[cfg(not(windows))]
     {
         let _ = command;
-        let failure = Failure::new(FailureKind::ServiceUnavailable);
+        let failure = Failure::new(FailureKind::ServiceUnavailable).details(
+            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+        );
         Output {
             status: failure.kind.exit_code(),
             stdout: Vec::new(),
@@ -176,7 +178,9 @@ pub(crate) fn terminal_observe(
     #[cfg(not(windows))]
     {
         let _ = command;
-        let failure = Failure::new(FailureKind::ServiceUnavailable);
+        let failure = Failure::new(FailureKind::ServiceUnavailable).details(
+            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+        );
         Output {
             status: failure.kind.exit_code(),
             stdout: Vec::new(),
@@ -197,7 +201,9 @@ pub(crate) fn terminal_control(
     #[cfg(not(windows))]
     {
         let _ = command;
-        let failure = Failure::new(FailureKind::ServiceUnavailable);
+        let failure = Failure::new(FailureKind::ServiceUnavailable).details(
+            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+        );
         Output {
             status: failure.kind.exit_code(),
             stdout: Vec::new(),

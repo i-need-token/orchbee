@@ -42,7 +42,11 @@ pub(crate) fn read_output(
     _selection: crate::invocation::OutputSelection,
     _ansi: bool,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
-    Err(super::Failure::new(super::FailureKind::ServiceUnavailable))
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -69,7 +73,12 @@ pub(crate) fn wait_source_output(
     _timeout_ms: Option<u32>,
     _after: Option<&crate::invocation::OutputAfter>,
 ) -> Result<(serde_json::Value, super::results::Projection), Failure> {
-    Err(Failure::new(FailureKind::ServiceUnavailable))
+    Err(
+        Failure::new(FailureKind::ServiceUnavailable).details(crate::cli::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        )),
+    )
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -150,7 +159,11 @@ pub(crate) use process_info::{
 pub(crate) fn panel_process_info(
     _target: Option<&crate::invocation::Target>,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
-    Err(super::Failure::new(super::FailureKind::ServiceUnavailable))
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
 }
 #[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
@@ -3273,7 +3286,9 @@ pub(super) fn names_command(
 pub(super) fn names_command(
     _command: &crate::invocation::AgentNamesCommand,
 ) -> super::agent_names::Execution {
-    super::agent_names::Execution::failed(Failure::new(FailureKind::ServiceUnavailable))
+    super::agent_names::Execution::failed(Failure::new(FailureKind::ServiceUnavailable).details(
+        crate::cli::stage_reason_details("platform", "unsupported-platform"),
+    ))
 }
 
 #[cfg(windows)]

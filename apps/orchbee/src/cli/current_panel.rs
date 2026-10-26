@@ -25,8 +25,9 @@ pub(super) fn run(
             PanelQueryTarget::Current => None,
             PanelQueryTarget::Client(_) => {
                 return failure_output(
-                    super::Failure::new(super::FailureKind::ServiceUnavailable)
-                        .details(super::stage_details("discovery")),
+                    super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+                        super::stage_reason_details("platform", "unsupported-platform"),
+                    ),
                     Some(format),
                     locale,
                 );

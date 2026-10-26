@@ -225,14 +225,24 @@
 				}
 			},
 			"if": {
-				"required": ["lines"]
+				"type": "object",
+				"required": ["lines"],
+				"properties": {
+					"lines": {
+						"type": "array"
+					}
+				}
 			},
 			"then": {
-				"required": ["lineCount"],
-				"not": {
-					"required": ["rows"]
-				},
 				"properties": {
+					"rows": {
+						"type": "null"
+					},
+					"lineCount": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 4096
+					},
 					"tail": {
 						"properties": {
 							"entries": {
@@ -243,11 +253,20 @@
 				}
 			},
 			"else": {
-				"required": ["rows"],
-				"not": {
-					"required": ["lineCount"]
-				},
 				"properties": {
+					"rows": {
+						"type": "array",
+						"maxItems": 4096,
+						"items": {
+							"$ref": "#/$defs/contentRow"
+						}
+					},
+					"lines": {
+						"type": "null"
+					},
+					"lineCount": {
+						"type": "null"
+					},
 					"tail": {
 						"properties": {
 							"entries": {

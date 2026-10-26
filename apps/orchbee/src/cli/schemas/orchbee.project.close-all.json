@@ -393,7 +393,6 @@
 								},
 								"reason": {
 									"enum": [
-										"unsupported-platform",
 										"not-submitted",
 										"session-unavailable",
 										"request-encoding",
@@ -417,7 +416,6 @@
 								},
 								"reason": {
 									"enum": [
-										"unsupported-platform",
 										"not-submitted",
 										"session-unavailable",
 										"request-encoding",

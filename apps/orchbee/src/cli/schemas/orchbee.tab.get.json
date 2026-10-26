@@ -665,14 +665,24 @@
 					"maxItems": 512,
 					"items": {
 						"type": "object",
-						"required": ["session"],
+						"required": ["session", "client"],
 						"additionalProperties": false,
 						"properties": {
 							"session": {
 								"$ref": "#/$defs/agentSessionSummary"
 							},
 							"client": {
-								"$ref": "#/$defs/agentClientView"
+								"oneOf": [
+									{
+										"$ref": "#/$defs/agentClientView"
+									},
+									{
+										"type": "null"
+									},
+									{
+										"$ref": "#/$defs/unsupported"
+									}
+								]
 							}
 						}
 					}
@@ -850,121 +860,7 @@
 						}
 					]
 				}
-			},
-			"if": {
-				"required": ["client"],
-				"type": "object",
-				"properties": {
-					"client": {
-						"type": "object",
-						"required": ["clientId"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"tab": {
-						"required": ["focused"],
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"else": {
-				"properties": {
-					"tab": {
-						"not": {
-							"required": ["focused"],
-							"type": "object"
-						},
-						"type": "object"
-					}
-				},
-				"type": "object"
-			},
-			"allOf": [
-				{
-					"if": {
-						"type": "object",
-						"required": ["agents"]
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"tab": {
-								"type": "object",
-								"required": ["agentStatus", "agentSessionIds"]
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"tab": {
-								"type": "object",
-								"not": {
-									"anyOf": [
-										{
-											"required": ["agentStatus"]
-										},
-										{
-											"required": ["agentSessionIds"]
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"type": "object",
-						"required": ["client"],
-						"properties": {
-							"client": {
-								"type": "object",
-								"required": ["clientId"]
-							}
-						}
-					},
-					"then": {
-						"type": "object",
-						"properties": {
-							"agents": {
-								"type": "object",
-								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"required": ["client"]
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"type": "object",
-						"properties": {
-							"agents": {
-								"type": "object",
-								"properties": {
-									"sessions": {
-										"type": "array",
-										"items": {
-											"type": "object",
-											"not": {
-												"required": ["client"]
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			]
+			}
 		}
 	}
 }

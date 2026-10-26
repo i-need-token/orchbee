@@ -372,9 +372,7 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
             assert_eq!(row["agentStatus"], json!("done"));
             assert!(!row["agentSessionIds"].as_array().unwrap().is_empty());
             assert_eq!(
-                doc["result"]["agents"]["sessions"][0]
-                    .get("client")
-                    .is_some(),
+                !doc["result"]["agents"]["sessions"][0]["client"].is_null(),
                 selected
             );
             for missing in ["agents", "agentStatus", "agentSessionIds"] {
