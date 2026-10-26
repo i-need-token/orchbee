@@ -254,3 +254,5 @@ v1 schema/corpus 覆盖 launch selection、environment、profile provenance、se
 ## 插件终端展示环境
 
 显式终端启动可携带独立的 `PluginTerminalEnvironment`（OBCS 字段为 `pluginEnvironment`）。只允许插件 ID/root/entrypoint/config/state/context、原生二进制路径及可选 Workspace/Tab/Pane 展示 ID：十个唯一名称，七项必填，合计最多 24 KiB UTF-8。这些是展示数据，不是权限或插件登记。普通调用者环境保持原有上限及保留名称拒绝规则。runtime base/scope 和 Worker/终端身份仍由 Worker 适配器负责。插件环境必须配合显式可执行文件。OBCN 启动种类 3 在 40 KiB 帧上限内传递显式启动选择、普通环境和插件环境。Server 在预留物理操作前校验完整插件启动编码。Worker 先清除继承的已知插件展示字段，再应用本次值。Workbench 插件解析、Pane 归属和 Client 布局仍是独立的集成职责。定向边界及启动事实测试覆盖此载荷，不代表插件 Pane 已完整接通。
+
+<!-- documentation-pairing: english-sha256=d9976ff5b7d65f897d2d53d1709ea09c3245396b0512ac62ed5623bf28700695 zh-cn-sha256=5e2e31c1eedcb93ce4b92da52aef06a52389a92790c707444eddfa52efb2fb89 -->

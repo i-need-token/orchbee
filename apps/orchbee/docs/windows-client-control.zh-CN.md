@@ -198,3 +198,5 @@ Client 拥有一个独立 popup lane，由明确类型的插件和编辑器变�
 状态转换为 Opening -> Active -> Closing -> Closed。已知拒绝允许新的显式意图；传输不确定为 Failed，并关闭 lane 连接交由 Server 所有者恢复。编辑器提交前观察到 Close，只 detach 来源并关闭，不创建编辑器。Open 已提交时收到 Close，等待唯一答复后退役该准确 popup。Shutdown 中断正在进行的 I/O、加入 actor，依赖既有 EOF 清理所有者，不能靠时间经过宣布处置成功。Active 完成要求匹配的目的帧已安装，而非仅进程创建；自然退出使用同一处置确认路径。
 
 证据使用原生 Windows 管道，覆盖 Rust／TypeScript／JSON 意图和回执封闭、准确来源准入、同连接先来源帧确认后 Open、无来源控制／缩放、一次提交、投影／输入／缩放／关闭、拒绝、畸形／丢失答复和加入式 shutdown。这些定向夹具不证明实际 GUI／编辑器可用或部署后 TUI 验收；后者保留为最终 Windows 用户流程义务。
+
+<!-- documentation-pairing: english-sha256=fefc5a308f8f497d3b2034692818a734b0ef2e171176381f9f6f09732b3a8690 zh-cn-sha256=3d324d3a5c6906986b6bcf1427290be451b9c4bfc192149e32c62a565f45e3c6 -->

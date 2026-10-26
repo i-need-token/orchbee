@@ -62,3 +62,5 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 ## 验证
 
 `pnpm typecheck` 是必需的，因为当前 oxlint 命令不运行类型感知规则。
+
+<!-- documentation-pairing: english-sha256=0e91babf79d212b5790732126930a330beff8f707a5e550437e95c06d74fbd5f zh-cn-sha256=a452377b01a171999fb68f7b2f8b4bd8c5298c1395ba90378584fd4a648ddb21 -->

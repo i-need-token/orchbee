@@ -78,3 +78,5 @@ Action 定义拥有稳定 ID、描述符、动态输入验证、可用性、确�
 pnpm --filter @orchbee/actions verify:correctness
 pnpm --filter @orchbee/actions test:exports
 ```
+
+<!-- documentation-pairing: english-sha256=1a6dae45ac2a61b1fa1d48bae87204152cd760a47f4484a81f2dc15e2168b8af zh-cn-sha256=08f9976956387036fa750e95ef9695d2d3d51e45dbcd80b6ff7b0a2c3671132a -->

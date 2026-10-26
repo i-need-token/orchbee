@@ -1064,3 +1064,5 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
 - Web、TUI、mobile 与 CLI 能否消费一套 semantic Workbench projection contract，而不共享 React、
   DOM、pixel 或 Client-local focus state？
 - migration、compatibility、rollback 与 evidence obligation 是否足够小，可以切成可独立审阅的交付？
+
+<!-- documentation-pairing: english-sha256=bc6905691dee7532cdd3ecd9ef34509464e4fa6028c5c597d8d3c3b9ad3bbe25 zh-cn-sha256=005746a6dd006e29cfc23348de385c62bd35321f6c31780f2c0ed974e6bcb5c7 -->

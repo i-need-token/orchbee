@@ -126,3 +126,5 @@ acceptsOnlyStrings(1);
 ## 包契约
 
 库包在 `build` 后运行 `test:exports`，以验证每个打包后的公共代码与资产目标。每个代码入口（包括子路径）还须通过 ESM/CJS 一致性和严格的外部 TypeScript 使用检查；仅有资产的包无需占位代码入口。精确导出契约见[包](PACKAGES.md#库构建)。跨包行为应放在面向使用方的契约测试中，而不是放在导入其他包私有源码的测试中。
+
+<!-- documentation-pairing: english-sha256=6ce2daf6e6fa36b5edbe1573a87582955d57e11695634251a4d4c679f7cf5f66 zh-cn-sha256=8c5bb7a269f5fd2bb339007c8cc6203f8b5c90fbd8327d87c1b87d36b46ebff5 -->

@@ -93,3 +93,5 @@ CLI 集成还要求以进程检查覆盖修订改变、取消及结果不确定�
 
 交付匹配的 cohort 组件。回滚匹配代码即可撤销，无需持久化迁移或修改用户配置。
 不得从拓扑检查点恢复临时序号／TTL 状态。
+
+<!-- documentation-pairing: english-sha256=af12ce9f41164896aed205949c71c21b16c7e0cdc847e51d832ec40cd1e42bc6 zh-cn-sha256=16d7d0bd14b8ff991945efa90140ae0b4013f9545a2d01ccd497747dce05cc40 -->

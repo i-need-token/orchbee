@@ -1,0 +1,311 @@
+//! Localized Agent board state and startup labels; does not reinterpret Agent state.
+
+use super::Locale;
+
+/// The Agent board's localized copy. Read-state lines, jump-refusal notices,
+/// action labels and shortcut verbs live here; the Board key map supplies the
+/// separately formatted effective key labels.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AgentBoardText {
+    pub(crate) title: &'static str,
+    pub(crate) open_button: &'static str,
+    pub(crate) refresh_button: &'static str,
+    /// No completed read yet — never rendered as "no Agents".
+    pub(crate) unread: &'static str,
+    pub(crate) in_flight: &'static str,
+    /// The page walk exhausted its bound — shown, never hidden.
+    pub(crate) incomplete: &'static str,
+    pub(crate) read_denied: &'static str,
+    pub(crate) read_unavailable: &'static str,
+    pub(crate) read_transport: &'static str,
+    pub(crate) lane_unavailable: &'static str,
+    /// A completed read found zero sessions.
+    pub(crate) empty: &'static str,
+    /// The next step shown when the last completed Agent read has no rows.
+    pub(crate) empty_start: &'static str,
+    /// A partial empty read is not proof that there are no sessions.
+    pub(crate) empty_partial: &'static str,
+    /// PATH-backed startup form copy.
+    pub(crate) start_checking: &'static str,
+    pub(crate) start_catalog_unavailable: &'static str,
+    pub(crate) start_none_found: &'static str,
+    pub(crate) start_providers: &'static str,
+    pub(crate) start_name: &'static str,
+    pub(crate) start_name_placeholder: &'static str,
+    pub(crate) start_name_invalid: &'static str,
+    pub(crate) start_button: &'static str,
+    pub(crate) start_cancel_button: &'static str,
+    pub(crate) start_starting: &'static str,
+    pub(crate) start_waiting_input: &'static str,
+    pub(crate) start_unconfirmed: &'static str,
+    pub(crate) start_cancelling: &'static str,
+    pub(crate) start_started: &'static str,
+    pub(crate) start_failed: &'static str,
+    pub(crate) start_unknown: &'static str,
+    pub(crate) start_cancelled: &'static str,
+    pub(crate) start_provider_hint: &'static str,
+    pub(crate) start_edit_hint: &'static str,
+    pub(crate) start_cancel_hint: &'static str,
+    pub(crate) jumping: &'static str,
+    pub(crate) close_hint: &'static str,
+    pub(crate) select_hint: &'static str,
+    pub(crate) jump_hint: &'static str,
+    pub(crate) refresh_hint: &'static str,
+    pub(crate) stale: &'static str,
+    pub(crate) disconnected: &'static str,
+    pub(crate) no_workspace: &'static str,
+    pub(crate) jump_gone: &'static str,
+    pub(crate) jump_unavailable: &'static str,
+    pub(crate) jump_denied: &'static str,
+    pub(crate) jump_ended: &'static str,
+    pub(crate) jump_no_placement: &'static str,
+    pub(crate) jump_expired: &'static str,
+}
+
+const EN_US_BOARD: AgentBoardText = AgentBoardText {
+    title: "Agent board",
+    open_button: "Open",
+    refresh_button: "Refresh",
+    unread: "No completed Agent read yet",
+    in_flight: "Reading Agent sessions…",
+    incomplete: "listing incomplete",
+    read_denied: "Agent read denied",
+    read_unavailable: "Agent runtime unavailable",
+    read_transport: "Agent read failed: transport",
+    lane_unavailable: "Agent board unavailable: no read lane",
+    empty: "No Agent sessions",
+    empty_start: "Choose an installed Agent. Its name is ready to use or edit.",
+    empty_partial: "No sessions in this partial read.",
+    start_checking: "Looking for installed commands; you can choose now.",
+    start_catalog_unavailable: "Detection incomplete. Choose an Agent installed in this terminal.",
+    start_none_found: "Nothing detected. You can still choose an installed Agent.",
+    start_providers: "Found on PATH",
+    start_name: "Agent name",
+    start_name_placeholder: "choose a name",
+    start_name_invalid: "Name: 1–32 lowercase letters, digits, _ or -; start with a letter.",
+    start_button: "Start Agent",
+    start_cancel_button: "Cancel start",
+    start_starting: "Waiting for startup confirmation. Check the Agent terminal.",
+    start_waiting_input: "Your input is needed in the terminal to continue startup.",
+    start_unconfirmed: "Command sent. Check the terminal prompts; readiness is not confirmed. Do not start again.",
+    start_cancelling: "Cancelling startup…",
+    start_started: "Agent started. Refreshing sessions…",
+    start_failed: "Agent did not start. Check the current panel and try again.",
+    start_unknown: "Startup is unconfirmed. Check the terminal before starting another Agent.",
+    start_cancelled: "Startup canceled. The Agent process may still be running.",
+    start_provider_hint: "more Agents",
+    start_edit_hint: "edit name",
+    start_cancel_hint: "cancel start",
+    jumping: "Jumping…",
+    close_hint: "close",
+    select_hint: "select",
+    jump_hint: "jump",
+    refresh_hint: "refresh",
+    stale: "stale",
+    disconnected: "disconnected",
+    no_workspace: "No workspace",
+    jump_gone: "Session or its panel is gone",
+    jump_unavailable: "Cannot verify session · read unavailable",
+    jump_denied: "Session read denied",
+    jump_ended: "Session has ended",
+    jump_no_placement: "Session has no navigable panel",
+    jump_expired: "Jump timed out",
+};
+
+const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
+    open_button: "打开",
+    refresh_button: "刷新",
+    title: "智能体看板",
+    unread: "尚未完成智能体读取",
+    in_flight: "正在读取智能体会话…",
+    incomplete: "列表不完整",
+    read_denied: "智能体读取被拒绝",
+    read_unavailable: "智能体运行时不可用",
+    read_transport: "智能体读取失败：传输错误",
+    lane_unavailable: "看板不可用：无读取通道",
+    empty: "没有智能体会话",
+    empty_start: "选择已安装的智能体，名称已填好，也可修改。",
+    empty_partial: "本次不完整读取暂未返回会话。",
+    start_checking: "正在查找已安装的命令；也可直接选择。",
+    start_catalog_unavailable: "检测未完成，请选择此终端中已安装的智能体。",
+    start_none_found: "未检测到命令，仍可手动选择已安装的智能体。",
+    start_providers: "已在 PATH 中找到",
+    start_name: "智能体名称",
+    start_name_placeholder: "请输入名称",
+    start_name_invalid: "请以小写字母开头，后接字母、数字、_ 或 -，最多 32 个字符。",
+    start_button: "启动智能体",
+    start_cancel_button: "取消启动",
+    start_starting: "正在等待启动确认，请查看智能体终端并按提示操作。",
+    start_waiting_input: "请在终端中确认或输入，以继续启动。",
+    start_unconfirmed: "命令已发送，请检查终端提示；尚未确认就绪，请勿重复启动。",
+    start_cancelling: "正在取消启动…",
+    start_started: "智能体已启动，正在刷新会话…",
+    start_failed: "智能体未启动，请检查当前面板后重试。",
+    start_unknown: "尚未确认启动结果，请先查看终端，再决定是否重新启动。",
+    start_cancelled: "已取消启动；智能体进程仍可能在运行。",
+    start_provider_hint: "更多智能体",
+    start_edit_hint: "编辑名称",
+    start_cancel_hint: "取消启动",
+    jumping: "正在跳转…",
+    close_hint: "关闭",
+    select_hint: "选择",
+    jump_hint: "跳转",
+    refresh_hint: "刷新",
+    stale: "已过期",
+    disconnected: "已断连",
+    no_workspace: "未打开工作区",
+    jump_gone: "会话或其面板已不存在",
+    jump_unavailable: "无法验证会话 · 读取不可用",
+    jump_denied: "会话读取被拒绝",
+    jump_ended: "会话已结束",
+    jump_no_placement: "会话没有可跳转的面板",
+    jump_expired: "跳转超时",
+};
+
+impl Locale {
+    pub(super) const fn agent_board_text(self) -> AgentBoardText {
+        match self {
+            Self::EnUs => EN_US_BOARD,
+            Self::ZhCn => ZH_CN_BOARD,
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    /// One board row's canonical semantic status, rendered verbatim —
+    /// the board localizes the server's verdict, never reinterprets it.
+    #[cfg(any(unix, windows))]
+    pub(crate) fn agent_status(
+        self,
+        status: &orchbee_agent_observation_protocol::AgentSemanticStatus,
+    ) -> String {
+        use orchbee_agent_observation_protocol::AgentSemanticStatus;
+        match status {
+            AgentSemanticStatus::NeedsAttention { count } => match self {
+                Self::EnUs => format!("needs attention · {}", count.value()),
+                Self::ZhCn => format!("需要关注 · {}", count.value()),
+            },
+            AgentSemanticStatus::Failed {} => match self {
+                Self::EnUs => "failed".to_owned(),
+                Self::ZhCn => "失败".to_owned(),
+            },
+            AgentSemanticStatus::Succeeded {} => match self {
+                Self::EnUs => "succeeded".to_owned(),
+                Self::ZhCn => "已完成".to_owned(),
+            },
+            AgentSemanticStatus::Canceled {} => match self {
+                Self::EnUs => "canceled".to_owned(),
+                Self::ZhCn => "已取消".to_owned(),
+            },
+            AgentSemanticStatus::Interrupted {} => match self {
+                Self::EnUs => "interrupted".to_owned(),
+                Self::ZhCn => "已中断".to_owned(),
+            },
+            AgentSemanticStatus::Working { .. } => match self {
+                Self::EnUs => "working".to_owned(),
+                Self::ZhCn => "工作中".to_owned(),
+            },
+            AgentSemanticStatus::Idle {} => match self {
+                Self::EnUs => "idle".to_owned(),
+                Self::ZhCn => "空闲".to_owned(),
+            },
+            AgentSemanticStatus::Unknown { .. } => match self {
+                Self::EnUs => "unknown".to_owned(),
+                Self::ZhCn => "未知".to_owned(),
+            },
+            AgentSemanticStatus::Ended {} => match self {
+                Self::EnUs => "ended".to_owned(),
+                Self::ZhCn => "已结束".to_owned(),
+            },
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    /// The board body's line for a non-ready read state.
+    #[cfg(any(unix, windows))]
+    pub(crate) fn agent_board_read_line(
+        self,
+        read: crate::workbench_client::AgentBoardRead,
+    ) -> &'static str {
+        use crate::workbench_client::{AgentBoardRead, AgentBoardReadFailure};
+        let board = self.agent_board_text();
+        match read {
+            AgentBoardRead::Unread => board.unread,
+            AgentBoardRead::InFlight => board.in_flight,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Denied) => board.read_denied,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable) => board.read_unavailable,
+            AgentBoardRead::Failed(AgentBoardReadFailure::Transport) => board.read_transport,
+            AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable) => {
+                board.lane_unavailable
+            }
+            AgentBoardRead::Ready { .. } => board.empty,
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    /// A jump refusal's board notice.
+    #[cfg(any(unix, windows))]
+    pub(crate) fn agent_board_notice(
+        self,
+        failure: crate::workbench_client::JumpFailure,
+    ) -> &'static str {
+        use crate::workbench_client::JumpFailure;
+        let board = self.agent_board_text();
+        match failure {
+            JumpFailure::Gone => board.jump_gone,
+            JumpFailure::Unavailable => board.jump_unavailable,
+            JumpFailure::Denied => board.jump_denied,
+            JumpFailure::Ended => board.jump_ended,
+            JumpFailure::NoPlacement => board.jump_no_placement,
+            JumpFailure::Expired => board.jump_expired,
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    /// The sidebar's one-line Agent summary: the last *completed* read's
+    /// count plus its completeness and age marks — `None` input means no
+    /// completed read ever ran and the line must not exist at all.
+    #[cfg(any(unix, windows))]
+    pub(crate) fn agent_sidebar_line(
+        self,
+        summary: crate::workbench_client::AgentBoardSummary,
+        elapsed: std::time::Duration,
+    ) -> String {
+        let seconds = elapsed.as_secs();
+        let mark = if summary.complete { "" } else { "+" };
+        match self {
+            Self::EnUs => {
+                format!(
+                    "  {} {} · {}s ago",
+                    summary.sessions,
+                    if summary.sessions == 1 {
+                        "agent"
+                    } else {
+                        "agents"
+                    },
+                    seconds,
+                ) + mark
+            }
+            Self::ZhCn => format!("  智能体 {} · {}秒前", summary.sessions, seconds) + mark,
+        }
+    }
+
+    #[cfg(windows)]
+    #[cfg(windows)]
+    pub(crate) fn agent_start_phase(
+        self,
+        phase: crate::workbench_client::AgentStartPhase,
+    ) -> &'static str {
+        use crate::workbench_client::AgentStartPhase as Phase;
+        let text = self.agent_board_text();
+        match phase {
+            Phase::Starting => text.start_starting,
+            Phase::WaitingInput => text.start_waiting_input,
+            Phase::Unconfirmed => text.start_unconfirmed,
+            Phase::Cancelling => text.start_cancelling,
+            Phase::Started => text.start_started,
+            Phase::Failed => text.start_failed,
+            Phase::Unknown => text.start_unknown,
+            Phase::Cancelled => text.start_cancelled,
+        }
+    }
+}

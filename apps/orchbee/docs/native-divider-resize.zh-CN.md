@@ -39,3 +39,5 @@ Windows Client 可用无修饰左键按住已绘制的 pane 分隔线。按住�
 在 `src/tui_layout/divider/tests.rs`、`src/tui_pointer/tests/divider.rs`、`src/workbench_client/client_control/tests/divider.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。命名／生成实现轨迹证明有界所有权及投影主张，不证明全部交错或物理终端外观。真实宿主验收须在独立松手前捕获至少两次按住移动及其中的已渲染帧，同时检查可见 pane 边界和实际内部终端尺寸。覆盖两个轴、嵌套 split、侧栏宽度、限幅及取消／退役。宿主观测不证明未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+
+<!-- documentation-pairing: english-sha256=7de663d12d0fa221bf50cf2e371b115d774f9f0a2e3acba45480de07e04c8df2 zh-cn-sha256=7f4482a5e779991a06c41f6ff1f1aa71017681467eb247054cd52108d2248bfc -->

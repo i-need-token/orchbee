@@ -245,3 +245,5 @@ OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 H
 ## 受限图片解码信封
 
 消息注册表包含只读 PNG 请求／结果 80/81 及 graphics-image 载荷编码（5）。最大载荷为 32 MiB 加 56 字节结果头，独立于键盘／粘贴及帧限制。运行时生产者验证 OBPI／OBPX 正文和物理附件；消费者不能将任意解出的信封视作已授权图片。原生 Host、Worker 和 Server 是此操作当前的消费者。
+
+<!-- documentation-pairing: english-sha256=f545483b65bd37177bbe0da428c912395b442d3c29994a5f288c3bcbf0691763 zh-cn-sha256=20bd276bfb00e4846e016a7e0a3933e142aa784eb3f097f13261aedde2867dee -->

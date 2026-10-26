@@ -73,3 +73,5 @@
 输入值、输出字节、分配／错误行为及既有 `encode.zig` 公开命名空间保持一致。
 不引入状态、写入者、模块依赖或生命周期转移。已有 control 及跨语言协议一致性
 检查负责判断字节保留。
+
+<!-- documentation-pairing: english-sha256=23b51121ce295792c49e2d77dbfe71309e977baf31e46c8a3526c6551f4ba22b zh-cn-sha256=589752ac49bf2489540714a60c0c9d41a63bf99430aa1838a02e5f5b8b412516 -->

@@ -580,7 +580,12 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 `LC_ALL`、`LC_MESSAGES` 与 `LANG`；以 `zh` 开头的 language prefix 选择 `zh-CN`，其他 value
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
-只有 help/version/usage 一次性路径仅依赖标准库参数、环境和流。Windows 与 Linux 的 bare invocation 组合共享 runtime、私有 Client transport 与 TUI；platform adapter 负责 console 与 transport effect。原生应用拥有当前开发中的 CLI/TUI 界面。
+`src/localization.rs` 负责语言选择和显式本地化边界；功能文案位于
+`src/localization/<feature>.rs`。CLI 文案位于 `src/localization/cli/<feature>.rs`，
+`src/localization/cli.rs` 只声明模块和共享类型。新增文案应归入本地化目录树内对应的功能模块；
+领域模块继续返回类型化结果。
+
+只有 help/version/usage 一次性路径仅依赖标准库参数、环境和流。Windows、Linux 与 macOS 的 bare invocation 组合共享 runtime、私有 Client transport 与 TUI；platform adapter 负责 console 与 transport effect。原生应用拥有当前开发中的 CLI/TUI 界面。
 
 ## POSIX 本机 Session rendezvous 底座
 
@@ -882,3 +887,5 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 参见[原生设置契约](docs/native-settings.zh-CN.md)与[共享清单](../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)。
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
+
+<!-- documentation-pairing: english-sha256=b977a7febb23f0e3b0fd90856507ba79140fda89ea6eabf8a92f175a008c590c zh-cn-sha256=ebf690a8bbf326066089b7c8696e165486af590d80bda1b5f530b1e23358b0ef -->

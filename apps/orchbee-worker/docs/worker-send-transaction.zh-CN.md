@@ -163,3 +163,5 @@ acceptedBytes={0}`：语义键合法地以零字节应答。
 ## 语义 stroke 细化
 
 有序 send 实现把每个已校验 stroke 映射成一个语义 Host 按下事件。按键身份、文本、已消费 Shift 和 Super 影响编码，不改变 Attach/Input/Detach 所有权或顺序。Host 在终端锁内按当前模式选择字节；编码为零字节的按键仍合法。这些确定性映射细化模型中的抽象输入动作，以 parser/codec/Worker/Host 边界回归为证据。抽象模型不证明键盘编码或多记录字节语义。
+
+<!-- documentation-pairing: english-sha256=15d4d44e5f65c99a3a94dfb23ebbc95a4a525e5f1185cbcb70b69b1c336f1458 zh-cn-sha256=6ea27c3227709e41e51409f94e45b38ae860e26f5480e3be6c16f82466385713 -->

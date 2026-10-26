@@ -141,3 +141,5 @@ Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓
 产生声明的回退／空恢复提醒，且不得绕过 Site owner 准入。缓存捕获测试覆盖物理替换、乱序采样与
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。
 原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录；机器重启及交互负载仍须单独提供证据。
+
+<!-- documentation-pairing: english-sha256=a266eeb5149ee10c11e222bdbda94ba90f3e271cf41b52ad6bda9d2a4b2107ae zh-cn-sha256=aa43ff08e4622e65da11f0b5b71da6773db54c53dcbac1fe7cf24505275552ad -->

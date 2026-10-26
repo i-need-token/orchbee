@@ -148,3 +148,5 @@ CSS 自定义属性无法为 `@media` 或 `@container` 条件提供值。来自 
 修改 Tailwind 版本后，运行 `pnpm generate:tailwind-token-compat`。如果 Tailwind 添加了主题变量，生成器会拒绝未知 namespace，或者 `pnpm lint:styles` 会报告缺失 Orchbee 目标 Token。有意识地添加该参考 Token、重新生成兼容文件、更新本文档和测试中的 419 变量基线，并运行完整验证门禁。不要手工编辑生成的兼容输出。
 
 不要仅为保留尚未发布的名称而添加 alias。以原子方式重命名实验性 Token 及其所有使用方。一旦 Token 成为稳定已发布包的一部分，遵循 [`docs/PACKAGES.md`](../PACKAGES.md#版本管理) 中的包兼容性规则。
+
+<!-- documentation-pairing: english-sha256=a187cda51cda608cd929a74ee3a56a45f99a59231cedf632caf9e561ed0036b8 zh-cn-sha256=bae4114671e7939107c1d1c74b0934a01d8ad3924d2a0ebc2e9946a700a949d3 -->

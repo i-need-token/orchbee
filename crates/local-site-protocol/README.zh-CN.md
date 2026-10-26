@@ -64,3 +64,5 @@ cargo clippy -p orchbee-local-site-protocol --all-targets --all-features --locke
 node scripts/tla/run-models.mjs --models local-site-startup
 pnpm verify
 ```
+
+<!-- documentation-pairing: english-sha256=a233896a88b1f526c8ba39d1e47d644fca27c69ee1cada51018ff80609b7c478 zh-cn-sha256=b4cb8b10df6cecdaf208f2ce37fbc0cf0d2a8d5d288fd2b11fd33988ab24b0cf -->

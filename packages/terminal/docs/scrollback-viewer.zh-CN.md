@@ -78,3 +78,5 @@ Apple 和 Standard 平台都把显示回滚缓冲区默认绑定为 `Ctrl+Shift+
 | 主屏幕准入、可见顶部捕获、取消与最终过时拒绝                      | `src/projected/__tests__/projected-terminal.unit.test.ts` 加 row-flight 模型 | 模拟 Host 行窗口与现有通用缓冲区 lane |
 | 带标签查看器替换、搜索、锚点、焦点、复制、Action、绑定与 v10 迁移 | Web controller、component、Action、快捷键、Settings、i18n 与 storage 测试    | 进程内 DOM、effects 与设备本地存储    |
 | 快捷键与可见控件到达同一生产查看器                                | `terminal-parity/FS-09-scrollback-viewer`                                    | 使用有界合成保留历史快照的 Chromium   |
+
+<!-- documentation-pairing: english-sha256=00ee0cab1e3118431ec392d25fddef96c30fdc3ebe721d9eb54040ae08a17c29 zh-cn-sha256=6ec5d62e573c84c3caa4fc4b71e17f7b9f58c3d8b9b3e66109e4b6967447e539 -->

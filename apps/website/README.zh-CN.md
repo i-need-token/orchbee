@@ -47,3 +47,5 @@ pnpm website:preview
 运行[验证规范](../../docs/zh-CN/VERIFICATION.md)中的受影响根门禁；修改静态生成或资源时还需运行 `pnpm website:build`。`pnpm --filter @orchbee/website test` 检查外观边界以及无需服务端的双语内容渲染。
 
 在真实浏览器中检查生成的静态站点：两种语言和主题下的桌面与窄屏手机截图；导航、键盘焦点与 Escape、所有示意切换、FAQ、语言链接、外观持久化及系统实时变化。同时检查 320px 布局、放大文字、减少动态效果、禁用 JavaScript、存储被拒绝、直接加载语言页面、SEO 产物，以及没有第三方或上报请求。这些浏览器检查属于人工证据，不在单元测试覆盖范围内。
+
+<!-- documentation-pairing: english-sha256=f121576098344f55be2ca57490c3778f12b39321aeae066e701b0a4cee8c49cc zh-cn-sha256=f8f896d8e884fa0e1b6f0df7f75e51c34a25473b0a84d866398e1c21b95b282c -->

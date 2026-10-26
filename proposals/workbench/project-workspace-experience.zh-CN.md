@@ -80,3 +80,5 @@ Desktop 已经持久化 canonical shared Workbench document 和 durable terminal
 文件系统 mutation 或 Git 实现，不向 renderer 暴露通用原生 capability，不包含远程 Folder 连接、
 自动删除源码数据、Workbench 中的 PTY ownership 或跨设备同步。每个新增的带 effect 平台切片仍需
 各自的有限授权和验证。
+
+<!-- documentation-pairing: english-sha256=42ad28b6258f15bb9b3e02ffb88ed34263f72e8398ffc7883845ba0c8b179580 zh-cn-sha256=82ef6afdf67d50042b3c0c8a3601dc2d4529a93f301b9fe0234608060e5fb0ff -->

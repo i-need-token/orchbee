@@ -129,3 +129,5 @@ ordering 与 broadcast。
 | 应用停止先持久提交再关闭，且可批量重试                     | [Stop 生命周期测试](../src/workbench/model/__tests__/terminal-session-stop.unit.test.ts)和[文档运行时测试](../src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts)                                                                       | 受控运行时夹具；不声明 OS 终止保证         |
 
 纯文档/视图投影及严格当前形状准入使用确定性/属性测试。受控生命周期测试覆盖提交先于关闭、可重试失败、无 binding 的停止态、新替换身份以及位置、标题和 launch-CWD 的保留。Desktop 文档存储 CAS 保留独立有界协议模型；该模型不证明整个多 Client 或生命周期组合。
+
+<!-- documentation-pairing: english-sha256=a8a2db63a8957bccb5fbd535b2f95c830c4cf2713083a02ab29270053ef3ad7a zh-cn-sha256=a0ff3747bf6cc7f8f32f295aea2fedccafcd6630eceef17f567d05accda1a295 -->

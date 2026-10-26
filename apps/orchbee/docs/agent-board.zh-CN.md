@@ -119,3 +119,5 @@ worker 失联、Pending 或 Unknown 预留、已接受或部分接受输入，�
 在 `src/workbench_client/agent_board/tests.rs`、`src/tui_render/agent_board.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+
+<!-- documentation-pairing: english-sha256=d35ce544a6a6d2bba501ec63bc63a6b603071760f4d25b73f3be8b97904c8f98 zh-cn-sha256=f66f0396f727155a3d7a8a96e6bb99007fed6ab54c1ef9eff72b2c08d797f6ac -->

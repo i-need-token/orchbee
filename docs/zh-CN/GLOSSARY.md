@@ -124,3 +124,5 @@ CLI 语法仍由 [CLI 命令表面](cli/command-surface.md) 管理。仅做代�
 实现清单。语义审查必须检查中英文文档对和有源码依据的映射：文档配对验证结构与已审阅内容，
 不能证明翻译或改名正确。按 [文档](DOCUMENTATION.md#本地化) 确认变更的文档对，再运行
 [验证](VERIFICATION.md#合并门禁) 规定的适用门禁。
+
+<!-- documentation-pairing: english-sha256=2a268b77218193abd9ba0cf19a30ef1388cc7a9667cbdfa8b87f3a91d1790ea6 zh-cn-sha256=fee65182a5618fc21bd2cb4afe6ebccf552f16108a9c2ef4d5eaef3a90d37f47 -->

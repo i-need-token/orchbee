@@ -264,3 +264,5 @@ Execution Observation 可以包含 Action ID、Invocation Source、Result Kind�
 Action 流程使用受控完成顺序、取消、过期结果、失败及清理测试。仅当独立排序参与者带来的具体所有权/提交/进展风险无法由实现轨迹充分覆盖时，才按 [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) 采用共享 TLA 协议。异步工作或取消分支本身不要求功能模型。
 
 Browser Verification 通过每条可见路径调用一个代表性动作，并比较 Owned Semantic Result、Pending Behavior、Focus 和 Error Presentation，而不只是比较渲染像素。
+
+<!-- documentation-pairing: english-sha256=986f10b0b2d4b00e026f8ab9a60a1acf004cfe975c38ee0677974327011ff7e7 zh-cn-sha256=8f80d84497a4689ef339ef4ac8c885222e00c46c48178510e8f40cd175ea4992 -->

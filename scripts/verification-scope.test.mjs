@@ -170,27 +170,13 @@ test('shared PowerShell startup assets select the Host and its native process co
 	}
 });
 
-test('paired TUI standards and changed pairing receipts retain native ownership without selecting every suite', () => {
+test('paired TUI standards and their colocated receipts retain native ownership without selecting every suite', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
-	const receipt = (digest) => ({ englishSha256: digest.repeat(64), zhCnSha256: 'b'.repeat(64) });
-	const before = JSON.stringify({
-		formatVersion: 1,
-		pairs: { 'docs/tui/terminal-environment.md': receipt('a') },
-	});
-	const after = JSON.stringify({
-		formatVersion: 1,
-		pairs: { 'docs/tui/terminal-environment.md': receipt('c') },
-	});
-	const selected = selectVerificationScope(
-		actual,
-		[
-			'apps/orchbee/src/workbench_client/ui/action_menus.rs',
-			'docs/tui/terminal-environment.md',
-			'docs/zh-CN/tui/terminal-environment.md',
-			'scripts/documentation-pairing.json',
-		],
-		{ before, after },
-	);
+	const selected = selectVerificationScope(actual, [
+		'apps/orchbee/src/workbench_client/ui/action_menus.rs',
+		'docs/tui/terminal-environment.md',
+		'docs/zh-CN/tui/terminal-environment.md',
+	]);
 	assert.equal(selected.all, false, selected.reasons.join('\n'));
 	assert.deepEqual(selected.cargo, ['orchbee']);
 	assert.deepEqual(selected.pnpm, []);
@@ -209,52 +195,14 @@ test('paired TUI standards and changed pairing receipts retain native ownership 
 			assert.deepEqual(result.cargo, ['orchbee']);
 		}
 	}
-	for (const versions of [
-		{ before, after },
-		{ before, after: before, intermediate: [before, after] },
-		{ before, after: JSON.stringify({ formatVersion: 1, pairs: {} }) },
-		{ before: JSON.stringify({ formatVersion: 1, pairs: {} }), after },
+	for (const source of [
+		'docs/TESTING.md',
+		'docs/zh-CN/TESTING.md',
+		'docs/tui/new.md',
+		'docs/zh-CN/tui/new.md',
 	]) {
-		const receiptsOnly = selectVerificationScope(
-			actual,
-			['scripts/documentation-pairing.json'],
-			versions,
-		);
-		assert.deepEqual(receiptsOnly.cargo, ['orchbee']);
+		assert.equal(selectVerificationScope(actual, [source]).all, true);
 	}
-	const reorder = selectVerificationScope(actual, ['scripts/documentation-pairing.json'], {
-		before,
-		after: JSON.stringify(JSON.parse(before), null, 2),
-	});
-	assert.deepEqual(reorder.cargo, []);
-	assert.equal(reorder.all, false);
-	for (const versions of [
-		undefined,
-		{ before, after: before, intermediate: ['{invalid', before] },
-		{ before, after: '{invalid' },
-		{ before, after: JSON.stringify({ formatVersion: 2, pairs: {} }) },
-		{ before, after: JSON.stringify({ formatVersion: 1, pairs: {}, unexpected: true }) },
-		{
-			before,
-			after: JSON.stringify({ formatVersion: 1, pairs: { 'docs/TESTING.md': receipt('c') } }),
-		},
-		{
-			before,
-			after: before,
-			intermediate: [
-				JSON.stringify({ formatVersion: 1, pairs: { 'docs/TESTING.md': receipt('c') } }),
-				before,
-			],
-		},
-		{
-			before,
-			after: JSON.stringify({ formatVersion: 1, pairs: { 'docs/tui/new.md': receipt('c') } }),
-		},
-	])
-		assert.equal(
-			selectVerificationScope(actual, ['scripts/documentation-pairing.json'], versions).all,
-			true,
-		);
 });
 
 test('only declared verification helpers use root tooling evidence; new helpers and shared policies remain conservative', () => {

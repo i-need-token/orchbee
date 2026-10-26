@@ -118,3 +118,5 @@ Workspace 链接只使用稳定 Workspace/Tab 身份。旧的 Project 限定 Wor
 确定性测试涵盖路由编码、有效和不可用的解析、根规范化、逐上下文首次打开空上下文转换、route-to-Client-View 应用、Client View 回退、推送与替换历史意图和重入防护。集成测试涵盖首次终端创建、关闭后保持空白、针对同一 Workbench 运行时的应用内导航和后退/前进。Desktop 测试涵盖 scheme 注册顺序、origin 和 method 校验、path containment 检查、asset delivery 以及导航回退到 `index.html`。
 
 打包命令在 Desktop 之前构建 Web 渲染器，将渲染器打包为只读资源，并将可执行文件 Terminal Host 放置在 `app.asar` 之外。发布验证必须针对 `orchbee://app` 启动解压的应用程序，并在自定义源无法加载嵌套规范路由时拒绝候选者。恢复版本会恢复以前的渲染器条目，而无需迁移共享文档，因为路由仅更改 Client View。
+
+<!-- documentation-pairing: english-sha256=4924f42195df728d7f0383666ee9ffbc3c506ec690d58b4a9bc6e70bc409ca97 zh-cn-sha256=2eb70d11e2a893c55b3bb8cf047365d8105ae204aab5b5a1b9c4d0d4c57fb4eb -->

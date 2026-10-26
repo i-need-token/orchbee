@@ -77,3 +77,5 @@ runtime base 及恶意管理员不在声明范围。runtime 叶目录被移除�
 
 有限边界及 OS／进程适配假设不证明任意内核行为或 Host 接管。实际 Windows 重启与人工
 Windows Terminal 验收为独立证据。
+
+<!-- documentation-pairing: english-sha256=6e75c915d1284e12e85fc8ea95425f559bfe6c151e3e9ec5a6d659feb7e9ed88 zh-cn-sha256=49aa15199beeb99b94ba12f8205b47be9d8c8f223441b6d9764273afc4d825e5 -->

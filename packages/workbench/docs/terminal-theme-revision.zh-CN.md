@@ -73,3 +73,5 @@ Reducer 在发布新状态前按自身严格失败形状验证所保留的失败
 client reducer 把 `prepare-client-theme` 排在 `apply-host-theme` 之前。因此，渲染器预检失败会使主机和可见应用程序状态保持不变。主机成功后，`ProjectedTerminal` 将匹配帧确认到私有存储中，并保持先前​​存储、覆盖、光标和应用程序表面可见。它拒绝高于目标的分阶段修订，在隐藏、暂停或呈现保留历史记录时等待，并且仅当实时呈现可以恢复时才使确切目标符合条件。 `canCommitThemePresentation` 为最终同步预检； `commitThemePresentation` 交换存储并准备好覆盖层/光标，无需等待。
 
 Web 设置所有者等待每个已安装终端的准备提交。如果任何参与者失败、被取代或失去资格，它将中止所有准备好的句柄并保留先前的应用程序主题。否则，它会提交每个终端并在同一 JavaScript 任务中更改 `data-theme`。 Desktop Main 转发应用/协调命令，将完整恢复的主机主题保留在其生命周期引导程序中，并清楚地报告未知的传输结果，以便客户端在重试之前进行协调。失去应用程序屏障的主机提交不会回滚；其帧（frame）保持隔离，直到 replacement 或 disposal 恢复对齐。
+
+<!-- documentation-pairing: english-sha256=91d013736f7f3a11ed4eb9bc91aa536f2e38fc6361223fd5f0847b7676421c17 zh-cn-sha256=acc6acb948a6705cff5819615a209205a78ec27771c0ffbbb08789663c02d965 -->

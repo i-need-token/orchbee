@@ -40,3 +40,5 @@ pnpm --filter @orchbee/desktop-client-protocol typecheck
 pnpm --filter @orchbee/desktop-client-protocol test
 pnpm --filter @orchbee/desktop-client-protocol test:exports
 ```
+
+<!-- documentation-pairing: english-sha256=12614ebeea608aaa80ab579eb0cd616bbab2fddddd2f190b7ce007a5e0396410 zh-cn-sha256=9d0bffc0ccf7b1187302a7b9c3ba2fbc084a63f3a90b7224c4132614a443f782 -->

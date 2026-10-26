@@ -118,3 +118,5 @@
   schema 标识符、枚举值、补全脚本和退出码在每种 locale 下保持一致。
 - 帮助提示指明一条真实路径，拼写与语法权威完全一致，且无需运行时即以 `0` 退出。
 - 每条诊断在同一变更中同时存在于两种已交付的 locale。
+
+<!-- documentation-pairing: english-sha256=97b44c43590b08912ecf3b612cba3f16bd2ca47cdc6ecc444e7f2d57899e29a3 zh-cn-sha256=7237eec49e740a1305787d79e164242385cda9afad13acea6021297e1eb62753 -->

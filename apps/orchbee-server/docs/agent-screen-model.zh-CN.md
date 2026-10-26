@@ -144,3 +144,5 @@ Client 激活传递不可变、已校验的设置快照（检查值及来源、�
 旧版严格设置读取器要求先移除本次新增的 update 配置节。
 
 自动启用遵循缓存重载条件：provider 有新提交，或成功检查的当前缓存版本与已加载缓存版本不同，才需要启用。无变化的当前检查记录 NotAttempted，保留检测器修订和稳定状态。显式 Update 保持其请求启用的行为。
+
+<!-- documentation-pairing: english-sha256=720c8308419dabfdbf0ec8720f96f008c33dce7ca0487472cdd2407f3d405159 zh-cn-sha256=ae3a1073acdba11cd6b546d118f7ab3823ef63d19815886998021a8ca8146098 -->

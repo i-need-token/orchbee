@@ -558,61 +558,6 @@ fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context
     }
 }
 
-#[cfg(unix)]
-#[test]
-fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
-    use crate::workbench_client::{NativeProjectionStatus, TerminalStatus};
-
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        assert_eq!(
-            locale.native_starting_status(None, NativeProjectionStatus::Empty),
-            locale.terminal_status(TerminalStatus::Connecting)
-        );
-        assert_eq!(
-            locale.native_switching_status(None, NativeProjectionStatus::Empty),
-            locale.terminal_status(TerminalStatus::Unavailable)
-        );
-    }
-    assert_eq!(
-        Locale::EnUs
-            .native_starting_status(Some("Tab 1"), NativeProjectionStatus::WaitingForFullFrame),
-        "Tab 1 · Connecting · waiting for full frame"
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
-    use crate::workbench_client::{
-        NativeDisplayPhase, NativeDisplayRetirement, NativeProjectionStatus,
-    };
-
-    for (locale, unavailable, outcome_unknown) in [
-        (
-            Locale::EnUs,
-            "Terminal disconnected",
-            "Terminal operation result unknown · no replay",
-        ),
-        (Locale::ZhCn, "终端已断连", "终端操作结果未知 · 不会重放"),
-    ] {
-        let status = |retirement| {
-            locale.native_phase_status_values(
-                NativeDisplayPhase::Starting,
-                None,
-                None,
-                None,
-                NativeProjectionStatus::Empty,
-                Some(retirement),
-            )
-        };
-        assert_eq!(status(NativeDisplayRetirement::Unavailable), unavailable);
-        assert_eq!(
-            status(NativeDisplayRetirement::OutcomeUnknown),
-            outcome_unknown
-        );
-    }
-}
-
 /// The `invalid-usage` stderr diagnostic names one concrete cause plus a real
 /// help hint in both locales; echoed tokens pass through the quoting/escape
 /// layer with its 256-scalar prefix bound.

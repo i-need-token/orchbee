@@ -175,3 +175,5 @@ PTY/ConPTY 回放属于补充的画面组织和协议证据，不能替代实际
 | 布局层级或降级   | 每个层级的渲染证据；每个降级步骤一个测试                           |
 | 通知或等待指示器 | 注入时间的测试覆盖到期、替换和恒定宽度                             |
 | 仓库门禁         | [适用的根门禁](../VERIFICATION.md#合并门禁)通过                    |
+
+<!-- documentation-pairing: english-sha256=ac10ae28c7baedb56c44332aa3a5791282365da6c262677999af496029e98046 zh-cn-sha256=ed0d4331012c5a64dbd3f7f3f4d38dc4e60141b64cc6a1f09a0a7258101fd5ed -->

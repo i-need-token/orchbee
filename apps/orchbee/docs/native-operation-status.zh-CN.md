@@ -55,3 +55,5 @@ Client、Project、Worktree 和 Server 保留既有结果 Schema 与失败语义
 Server 权威用例覆盖保留身份和权限检查。本地验证遵循仓库受影响宿主门禁。
 
 一次性 Client 提示、原生提示及已结算的设置结果在现有单调时钟 UI tick 上经过四秒后消失。同类提示合并，重绘不延长寿命。进行中的工作、未知结果、需恢复的结果与持久配置警告仍由所属流程管理；提示过期不丢弃回执，也不重试操作。
+
+<!-- documentation-pairing: english-sha256=c1804b50d732b35bcd566c9f1df9b2225f340a71327e64ed31ce184e0a175a31 zh-cn-sha256=f4d4c2d6461fb9db482eb794f52af451025e0f3bf822c7ee8256b19814ef06b2 -->

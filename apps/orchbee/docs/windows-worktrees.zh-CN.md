@@ -122,3 +122,5 @@ Start/Resume 使用同一个总预算（默认 120000 毫秒，允许 1–360000
 `orchbee.project.close-all` v1 将 Server 保留事实与可空等待状态分开。Pending/Closed 退出 0，已知拒绝/失败 3，不可用/Worker 丢失/Session 停止 4，未知 8，不一致/内部观测 1，等待连接中断/超时/取消 5/7/130，保留最后回执。它与普通 `orchbee.workspace.close-status` v1 独立；后者只需稳定 Workspace 选择器，不再需要 Project 身份。离线帮助、补全与 `--skill` 声明两类操作；旧 `workspace close --group` 被拒绝。
 
 语法、精确副作用进程测试、空成员和部分/未知 schema 测试覆盖 CLI 契约。Server 与真实终端验收拥有捕获成员执行、物理终端清理及 Git 路径/分支保留验证。这些有界测试不宣称 Git/UI 原子事务或穷尽竞态。
+
+<!-- documentation-pairing: english-sha256=94e1ed25eaef38a631e9773fe70378f954dbd2378796c662e16e440d5db28445 zh-cn-sha256=84bef55a54caec06288037127280aa3c539246c2345a275ab9d5b88d5728cdd1 -->

@@ -60,3 +60,5 @@ pnpm lint:rust
 pnpm test:rust-runner
 pnpm verify
 ```
+
+<!-- documentation-pairing: english-sha256=23598bcc944e9fd0cd5005411a7f2b722f787b628be9f38da58d907cb695454a zh-cn-sha256=14a56f84b1ef27c36d40e0cb7cfcd9ec00b75f80c72a23ce26fac6e4d0876cd4 -->

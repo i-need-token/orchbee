@@ -58,3 +58,5 @@ Workspaces、Automations、Skills 等其他功能组必须先拥有稳定的 sea
 3. 删除这些集成暴露出来的重复 callback 或 metadata。
 4. 把维护行为和证据迁入对应的当前指南与测试。
 5. 删除本提案及其译本。
+
+<!-- documentation-pairing: english-sha256=d2d218daa25eb082ad10a216780b5352000af10d2cbeb01343e204557d7d946b zh-cn-sha256=1be6c71b12f6beec3f399c18017de23465a615e5a15c0e5ddc92062bc45704a2 -->

@@ -96,3 +96,5 @@ Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
 规范位置键为 `ui.toast.overlay.position`。生成的配置与 Session profile 使用规范配置节；profile 发布与回滚要求同一 cohort。
+
+<!-- documentation-pairing: english-sha256=774adde050741632ed71ab3d587d51bf86d7241753591846083ec980ba76903e zh-cn-sha256=2431cc3ed02e2522e74511f41051f54b54860aba5482cc7f41fc28b9a43de250 -->

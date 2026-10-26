@@ -182,3 +182,5 @@ OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 H
 ## 终端输入输出的 Panel 目标
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
+
+<!-- documentation-pairing: english-sha256=425ab9c7ac176224acacebbda9a00f7a0826bc0c241e66f6b44626e47e19a81f zh-cn-sha256=b6edd35e51dfd8171701ec7005e1c002bdcc77c96347d80b1a9bbfa0bce1489d -->

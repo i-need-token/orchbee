@@ -30,3 +30,5 @@ Provider 的默认打开延迟为 `300ms`。不要在各个 Trigger 上重复这
 - 键盘审查能够到达 Trigger、展示等价内容，并且在不困住焦点的情况下关闭。
 - 本地化审查覆盖每个已发布 Locale，并让快捷键符号格式化留在消息目录之外。
 - 浏览器审查检查 Tooltip 在消费界面中的位置、裁剪和对比度。
+
+<!-- documentation-pairing: english-sha256=9c5476284a01630405264a8cc7afef9c6e0bd5af31cfb10924a13f2a2ff4a7f3 zh-cn-sha256=d426d23584dbd2ff67b59eeb908861d7ce09a89e64a845874484a9d327a43c4b -->

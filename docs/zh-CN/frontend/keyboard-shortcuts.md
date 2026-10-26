@@ -77,3 +77,5 @@
 - 在 Apple 与非 Apple 平台类别上测试每个默认绑定，包括意外修饰键、组合输入、重复、上下文条件 true/false、动作禁用状态、作用域回退、冲突优先级和阻止默认行为。
 - 浏览器验证同时调用可见控件和键盘组合键，确认两者产生相同的状态转换，并检查焦点仍然有效。
 - 具体产品绑定记录在所属 Package Guide 中，而不是本仓库标准中。
+
+<!-- documentation-pairing: english-sha256=85e1330e33dce8e3bb7956fd10831c24b4bff68b7deeaabd929aee96d99c465a zh-cn-sha256=a45645c022b47665e7dfcf9c00605a68422f41ed9a54d3cf246cacd24ed99635 -->

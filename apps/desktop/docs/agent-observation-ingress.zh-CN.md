@@ -142,3 +142,5 @@ delivery、correlation、semantic application 或 notification；没有 matching
 这些受控/生成实现轨迹保留 ingress 契约，不证明全部交错、provider 真实性、无界重放保护或跨重启/断开的交付。不另设 observation-join TLA 模型。
 
 变更此契约或实现后，运行 Desktop 单元测试及适用根门禁。
+
+<!-- documentation-pairing: english-sha256=ea8bf48f7404daf00b08f821a59ab60ba7cfce0fbf0502ce48789d3cba796f20 zh-cn-sha256=52510f5b3d8e3995a2b9254f3609d56f1f76c88a507755b14176a0619e5c9fe8 -->

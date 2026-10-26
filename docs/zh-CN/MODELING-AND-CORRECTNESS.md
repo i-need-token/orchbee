@@ -387,3 +387,5 @@ declare function observe<State, Observable>(state: State): Observable;
 - 建模记录选定的每个变更触发正确性命令都无重试通过；
 - [适用的根门禁](VERIFICATION.md#合并门禁)无重试通过；并且
 - 完成报告说明已检查声明、边界、参考修订、证据和排除项，不使用“完全验证”或“完美复制”等无界声明。
+
+<!-- documentation-pairing: english-sha256=22eafcea1ab6bf0e709f06efb03495044c3f11d93c8fdd7af9965903d67d1152 zh-cn-sha256=77d7877bc465302b85c0765a9af63ecaa51472202783e49d65e35e3c413c9256 -->

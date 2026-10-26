@@ -45,3 +45,5 @@ Event role 仍被拒绝，已有 payload 上限不变。
 ## 只读 PNG 解码
 
 80/81 消息使用 graphics-image 编码（5）以及借用视图 `GraphicsDecodeRequest`／`GraphicsDecodeResult`。OBPI 请求有 40 字节头，包含附件、声明尺寸和精确 PNG 长度；OBPX 结果有 56 字节头，包含附件、终端、尺寸和精确 RGBA 长度。绑定检查非零身份、PNG 头一致性、1–4096 尺寸、16 MiB 输入和 32 MiB 解码像素。PNG 内容解码和物理读取授权归 Host 所有；Worker 和 Server 在消费像素前检查信封关联、epoch 和目标。此编码有独立上限，不扩大原始键盘或粘贴限制。
+
+<!-- documentation-pairing: english-sha256=d2cfbf0c6e09e49dc2fb672879cf2545d320adbf79a9c32d6944246a7efeaf59 zh-cn-sha256=55a2ffe76ac7483c3bc8d28d566651806744042ce7e855d687d2eb50d11bf210 -->

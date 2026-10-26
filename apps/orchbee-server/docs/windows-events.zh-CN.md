@@ -94,3 +94,5 @@ stream 以自己的 closed 记录结束，并明确确定关闭或释放连接�
 物理或 Client 滚动探测必须先取得首个准入基线，才能确定报告未匹配超时。此前结束的等待
 片段返回 Busy，保留订阅与 actor。CLI 在整体截止时间内沿原所有者重试 Busy；截止时仍未
 观察到基线则返回实际 Busy 回执，不伪造超时。
+
+<!-- documentation-pairing: english-sha256=defb0538044abe10cf1189c256a2dd6715e9214a8b9258c753301130ad0b1302 zh-cn-sha256=4a9675a2dd42776f80525bf27beaca355a0b59954eeec0a4c6442a2f1aefbe24 -->

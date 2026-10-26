@@ -124,3 +124,5 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 [target-tests]: ../src/main/client-session/__tests__/desktop-terminal-effect-target.unit.test.ts
 [reconciler-tests]: ../src/main/client-session/__tests__/DesktopTerminalIntentReconciler.unit.test.ts
 [adapter-tests]: ../src/main/terminal-document-control/__tests__/DesktopTerminalLifecycleAdapter.unit.test.ts
+
+<!-- documentation-pairing: english-sha256=95a55ca9ac783613c2f36ddadf875901a15a03737e2b1e64edba696b20a6e5ff zh-cn-sha256=466290946d3e089386330884ae3a861b56964f52c6f572bdb1ad532a2d4bfe0a -->

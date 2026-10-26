@@ -55,3 +55,5 @@ Action 搜索、快捷键 Settings 与本地化结果反馈。Apple 和标准平
 | 固定可见读取、overlay 所有权、选择与失效 | `src/projected/__tests__/projected-terminal.unit.test.ts`      | 确定性投影终端与模拟 Host 行窗口               |
 | 效果、取消、提交、绑定、标签与 v8 迁移   | Web Action、快捷键、Settings、i18n、controller 与 storage 测试 | 进程内效果、键盘事件与设备本地存储             |
 | 四种目标通过生产 Canvas 界面工作         | `terminal-parity/FS-07-keyboard-hints`                         | 使用合成固定行与捕获 opener 的 headed Chromium |
+
+<!-- documentation-pairing: english-sha256=60b01805058fd1e9e1a2af0a2dd00dd2872d665eb64a5dd124379a944f8c1965 zh-cn-sha256=6120b48b4c4fd6bcc311c1310cf1532be6e75d154d2cb6a0b83177b7d0adff45 -->

@@ -61,3 +61,5 @@ Main 观察确认的共享快照，包括 TUI 编辑。
 
 配置不包含环境、秘密、启动目录策略、SSH 或 Workspace 配置。
 单次非默认选择、远端同步、任意可执行文件行为及未测试系统上的原生执行不属于本契约。
+
+<!-- documentation-pairing: english-sha256=835f7afb36e0636f5f55a7a1838111ec8975382e3c6a00815566731be8adb43a zh-cn-sha256=a038c99c4e3f6614a9d0a67dd0f0d7a53e4e0363ff0dee16aa9ddb0fb6d04051 -->

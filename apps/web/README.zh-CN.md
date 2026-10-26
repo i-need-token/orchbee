@@ -202,3 +202,5 @@ Electron 加载 Web 开发 URL，并通过 User-Agent 发现 adapter。打包 El
 ## 单元验证
 
 运行 `pnpm --filter @orchbee/web test` 执行单元测试。Windows 上 Vitest 最多使用四个工作进程（可用 CPU 更少时取其数量），以限制其他 workspace 套件并发时的进程创建及文件系统竞争。所有文件、断言和 deadline 保留；其他平台沿用运行器默认值。
+
+<!-- documentation-pairing: english-sha256=4b7fbf293ba018689a32c74958b17e47ec649ff53b78ac83e67f7e1a7f9090d6 zh-cn-sha256=139088658d079a65ca41c93fa5d75b4a3541db312ededb1d37b20975f7b94512 -->

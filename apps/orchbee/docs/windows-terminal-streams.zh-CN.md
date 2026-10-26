@@ -136,3 +136,5 @@ attach 仍是独立验收义务。流超时使用专门诊断；拒绝保留控�
 的输入被撤销。脚本化证据不能替代最终对 Windows 打包运行时的验收。
 
 直接 attach 独立于主 TUI 键位配置，拥有固定 Ctrl+B/q 转义。扩展键盘、图形、像素输入及 Windows 视觉验收仍是独立验证义务。
+
+<!-- documentation-pairing: english-sha256=a5123ee22acb449d4ce543acaddb4ce2cda821e752dfe67857746cc542aa84d8 zh-cn-sha256=1fda65b986d1e73084eb21a087e9b7db4f2ba020bc028de6cd744db7fc7b2965 -->

@@ -90,3 +90,5 @@ owner 测试直接断言该存储的界限：
   经由 owner 上限字段到达同一检查。
 
 session 持有的已交付记录与临时传入分配按构造不在此预算内，此处不声称其有界。
+
+<!-- documentation-pairing: english-sha256=db3051314047ab2e7309721772b8fd08ae787b9f6450da3d1a3cecfce552b30b zh-cn-sha256=1e38a878e77a26705581aae7e9b503a00b31f09b3c9593f96a209f27799fd0ca -->

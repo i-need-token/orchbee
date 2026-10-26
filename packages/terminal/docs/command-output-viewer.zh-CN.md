@@ -62,3 +62,5 @@ Apple 和标准平台都把显示上一条命令输出默认绑定为 `Ctrl+Shif
 | 精确快照读取、取消、过时拒绝与主屏幕准入                   | `src/projected/__tests__/projected-terminal.unit.test.ts` 加 row-flight 模型 | 模拟 Host 行窗口与现有有界通用缓冲区 lane |
 | 查看器搜索、焦点、无障碍、复制效果、Action、绑定与 v9 迁移 | Web controller、component、Action、快捷键、Settings、i18n 与 storage 测试    | 进程内 DOM、效果与设备本地存储            |
 | 快捷键与可见控件到达同一生产界面                           | `terminal-parity/FS-08-command-output-viewer`                                | 使用合成 OSC 133 render 行的 Chromium     |
+
+<!-- documentation-pairing: english-sha256=96a1708641168c4de16ac74bfe8bfec80620e8865d27294047c1a5ea742e7501 zh-cn-sha256=f65bc74b04dc0928abc263516662df920bbd6022b403592b17142b7e018a0957 -->

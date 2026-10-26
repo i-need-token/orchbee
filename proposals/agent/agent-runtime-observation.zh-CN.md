@@ -898,3 +898,5 @@ admission outcome 未知的 observation。
 
 实现遇到受这些决策影响的最早切片时必须停止，直到所需 decision owner 接受相应的 alternatives、
 consequences、evidence limit、rollout 与 recovery。
+
+<!-- documentation-pairing: english-sha256=85cb01553d147fd7a8ff70a833439dea9ce3f51c19fc286a4b5719a4b231d43e zh-cn-sha256=14aa76b6d5423cdbc55e001768563db48ebd732a8d04afa904edebdf723c51a4 -->

@@ -137,3 +137,5 @@ Client process-info 以既有缺失终端结果失败，绝不借用已绑定兄
 拒绝新形状。严格跨绑定向量、状态／UI 读取和真实 Windows CLI 管道轨迹覆盖这些规则；
 provider 与多 Client 视觉验收仍留在最终验证。这扩展匹配的私有 cohort 及公开 current v1／control v1，
 按源码回滚无需数据迁移。
+
+<!-- documentation-pairing: english-sha256=adb703424fba562db8c1aac3bcfec1c1416e8f2c05caab28139e60068185d476 zh-cn-sha256=866513abe5e469824d1f98cfba942cc06393e2dd9c073f1d39a227320f0af378 -->

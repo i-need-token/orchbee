@@ -27,3 +27,5 @@ Lean 启动器校验 elan 4.2.1 的公开 SHA-256，安装在被忽略的包内 
 ## 来源限制
 
 迁移源码固定在上游提交 `e4f73f6`；BSD 归属保留在 `NOTICE.reference`。尚未基于单独固定浏览器构建捕获可移植参考语料。证据提供内部一致性及回归保护，不证明与每个浏览器版本等价。
+
+<!-- documentation-pairing: english-sha256=6aaf96c102a50db12fa9d2272863a1fc8b272d1bc363c06d2548460d71188125 zh-cn-sha256=1c02a617e599329a2503d98c239021267fc2f32e26b7023460402e23a74af8d6 -->

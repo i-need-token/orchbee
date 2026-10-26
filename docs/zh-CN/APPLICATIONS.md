@@ -89,3 +89,5 @@ Rust 专属位置、依赖、安全和命令规则以 [`docs/RUST.md`](RUST.md) 
 应用包通过显式工作区构建或 `pnpm build:full` 生成；其他平台的编译使用 `pnpm test:cross`。
 日常影响范围选择和构建触发条件由[验证规范](VERIFICATION.md#合并门禁)管理。
 应用构建输出在本地或 CI 中生成，并保持未跟踪状态。
+
+<!-- documentation-pairing: english-sha256=cab81af6ee740bb7dd9e57dc2cb9a26f81879fb6d804555be05032c8e503bd14 zh-cn-sha256=3daa2a8358535ca257fe955ab486fffaded370962aa8c824c4bd7979651e701b -->

@@ -38,3 +38,5 @@ pnpm verify
 ## Windows 对端证明
 
 对于 Windows 的 `LocalStream`，`require_same_effective_user` 委托给 `orchbee-local-ipc`：管道提供对端 PID，内核进程句柄提供其令牌 SID，该 SID 必须等于当前令牌用户。不使用 PID 文件、用户名或环境变量作为身份证据。原生同用户测试覆盖此适配器；不宣称已执行跨用户进程反例测试。
+
+<!-- documentation-pairing: english-sha256=751482f3bbcde8ec843bd67c4ed79b45154b89f259d63fff5dd202247d0a280b zh-cn-sha256=7c2be4fd87b2f68bac59bc54e236247499ef2475e5c7ea067b2f5e1a281f06ea -->

@@ -83,3 +83,5 @@ Zustand 只用于拥有状态的浏览器工作区内的共享客户端 UI 状�
 在同一变更中更新受影响的 `project.json` 契约、导出、README、包参考、测试和消费者，并删除旧路径和权威来源。不得把未创建的工作区或实现顺序描述为当前架构。
 
 变更包边界后，运行 [`docs/PACKAGES.md`](../PACKAGES.md#验证和审查) 中的包检查。
+
+<!-- documentation-pairing: english-sha256=594df0f6673b7bcec3f564c5c5d94a560b321a26eda663884c2d72ab90601a58 zh-cn-sha256=cc4183019dea6396104565a01ccca409ad6de6cd09001dda48153a77ed4c7256 -->

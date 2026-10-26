@@ -62,3 +62,5 @@ Browser Preview 保持独立 origin 存储，省略不可用的原生启动与�
 运行时与真实辅助进程测试覆盖竞争写入和共享存储。
 模型及负向对照见[原生契约](../../orchbee/docs/native-settings.zh-CN.md#正确性与证据)。
 执行受影响根门禁。原生进程证据仅适用于实际运行的宿主。
+
+<!-- documentation-pairing: english-sha256=5a5f1d27030e9c189880fb387c5a211041809c13699dfca49ee9a6dec737fae3 zh-cn-sha256=22b24fa1cd7e4756df78b420dca604c0e26664079d3ab10bece58ac430166a06 -->

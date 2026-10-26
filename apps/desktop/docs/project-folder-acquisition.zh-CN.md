@@ -108,3 +108,5 @@ Project-create Action 返回自身捕获的 transition 回执，而非稍后的�
 `project-folder-acquisition` 配置检查至多两个请求标识与 Workbench 目标类型。它只在显式建模的原生结果后检查：单一活动请求；只有当前选择才能变更状态；取消与失败为空操作；退役会撤销权限；以及最终结算。
 
 创建回执中的 Project 成员关系仅是信息。移动或解散分组不会使源资源命名空间或精确 Workspace 回执失效。文件夹添加使用 `resourceScopeId`；已关闭或替换的精确 Workspace 不能被迟到结果重新激活。
+
+<!-- documentation-pairing: english-sha256=bb59102a5a9f1b4512112c636afdd93c15811d8b377ddd052517e037e18a5c94 zh-cn-sha256=ac230e37066b52d955479be89aad4e2a97f5acd33db12827e4ce773adbb4b949 -->

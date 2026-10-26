@@ -109,3 +109,5 @@ provider有一个稳定的 ID，声明它支持的过滤器，公开有界的默
 - 修改实现前，将发现的失败缩减为确定性回归。
 - 通过公开 provider 与 Action Runtime 契约组合 provider，不提供 Workbench 状态写入器或任意执行回调。
 - 仅在语义所有者公开已接受 read-model 与 Action 契约后，准入 Agent 或 Terminal 结果。
+
+<!-- documentation-pairing: english-sha256=1b94e92bb2d36e3e52d33efa427260201a3c579b7c15ec50f82b367f159dfbeb zh-cn-sha256=8285741eb3b32047a27056aea04de725049e00b0e82b1b243f99440c9c68b019 -->

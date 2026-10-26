@@ -1013,3 +1013,5 @@ bundled-ConPTY 光标套件还会检查真实 Windows PowerShell 和可用 Power
 私有 APC `orchbee.command.v1;ready`、`start;<32-lowercase-hex-id>` 和 `finish;<id>;<i32-status>` 是有界的协作式 Shell 事实。Start 记录 generation、epoch 和光标坐标；只有匹配且未完成的调用接受 finish。语义 C 清除 ready。读取批次将这些事实与终端内容一起暂存并提交。OBTF 可选 kind 5 发布它们，旧消费者可跳过。这些标记不授予输入、焦点、关闭或进程生命周期权限。
 
 受管 PowerShell reader 只剥离返回命令开头的 `<#orchbee-run:<id>#> `。Prompt 在集成工作前捕获 `$?`，在渲染原提示符前发出 D 和匹配的 0/1 finish，然后清除 ID。原命令在正常作用域中运行。就绪标记说明集成能力和当前 reader 入口，不为调用者独占输入行。
+
+<!-- documentation-pairing: english-sha256=a2dd3fd5de66a92067449f6c2ba83a5220c01885001dc5896c9b9efbd96005a8 zh-cn-sha256=5f894833c03b133132fc028cef5cb8f97b0bcc9625d76335b073f48c310782ef -->

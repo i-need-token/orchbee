@@ -364,3 +364,5 @@ scrollback 谓词）；agent 控制域归属与任何独立的 agent 域策略�
 模型义务：本切片不新增 Server 状态机、持久化或重试——它组合已注册的 OBCS viewer/control
 模型与一个客户端有界观察循环——因此不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源与
 测试路径的已注册模型仍必须实际运行；inventory 输出不能替代运行。
+
+<!-- documentation-pairing: english-sha256=2918ea125a62b8696adc50cc5a3be531bbfe5c52235f5413c2ea4da1f4419d18 zh-cn-sha256=6fdd03902769a5d6efe8f6c1088a2c21573f691165ea5b6637aeb343e4eee1ef -->

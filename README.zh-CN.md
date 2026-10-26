@@ -124,3 +124,5 @@ Desktop 会打印一个 `ORCHBEE_BROWSER_CLIENT_URL`。在浏览器中打开这�
 
 - [Discord](https://discord.gg/orchbee) — 产品讨论与社区交流
 - [GitHub Issues](https://github.com/orchbee/orchbee/issues) — Bug 报告与功能请求
+
+<!-- documentation-pairing: english-sha256=7681b060ade8f3ed999aa742e408c1993fa79033222286d9f72f2f952154486e zh-cn-sha256=a27b113436a0d0c6e36680632301d392e24f735e130ae739700acfe719d55787 -->

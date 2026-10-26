@@ -150,3 +150,5 @@ Owned 后准入新 carrier；Worker 代际保持原值。
 15 秒租约、物理资源及过期。确定过期通过匹配 Abort／Commit -> NotPrepared 对账；队列
 不能续租或推断 Worker 租约。原生命名管道及确定性调度见证覆盖在飞顺序、阻塞清理释放、
 精确回显、回滚准入及提交后退休。规范导入与公开在线交接结果仍需队列边界之外的 Server 集成。
+
+<!-- documentation-pairing: english-sha256=36a374ecc8f4b9bb4a227c24774c5d0b73b120d63d99649a8d3ae29b69024c01 zh-cn-sha256=6b1b83f9b042408ba1ec9bf7a7724b36c16ca80977f6ee32f54653b053a9d7f9 -->

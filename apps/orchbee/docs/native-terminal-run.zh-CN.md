@@ -23,3 +23,5 @@ Host 重启、generation 变化、历史淘汰或超出所选窗口的间隙会�
 ## 证据与兼容
 
 解析、游标、线格式解码和 Host 读取批次用例覆盖精确关联、无关完成、无效记录及不重放。Windows 命名管道用例覆盖既有单次 paste/Enter 回执路径。证据来自同作者实现测试，不声称独立审查或穷尽调度证明。帮助、补全适配器、离线 Agent 指南与 schema 同步演进。旧二进制拒绝新选项；既有会话须使用新初始化的受管 PowerShell 才支持关联等待。
+
+<!-- documentation-pairing: english-sha256=4ff6c2d5d95038b9f2a591c951262b982f20946e0800eca2f6fe072ecc681de5 zh-cn-sha256=fb98aa495843959542998dd15b0824a85130bb376af71a5049af6b64d4119162 -->

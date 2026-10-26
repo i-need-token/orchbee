@@ -96,3 +96,5 @@
 | 文本渲染或截断     | 文本类别；预期文本更新按可视 diff 审查                              |
 | 运行时发现         | 不安全路径、缺失端点和 cohort 不匹配用例，并拒绝修复                |
 | 仓库门禁           | [适用的根门禁](../VERIFICATION.md#合并门禁)通过                     |
+
+<!-- documentation-pairing: english-sha256=7c8aa6072b5ab7f50dd9aace4b1a217a47246318114de27aabc5176f97264090 zh-cn-sha256=dce64db1e6ac86b254ea0fc6b687aa8998c876815dba1b573124778dec2241ae -->

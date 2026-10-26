@@ -117,3 +117,5 @@ Orchbee 使用专用实时输入表面，向固定目标集分发文本与非文
 | DOM 输入细化为提交文本或一次物理按键敲击                       | 规范化器测试和确定性 Chromium 系统轨迹             | 其他浏览器引擎和操作系统保留快捷键不在范围内                       |
 | 焦点、目标 shield、可见性控件、Action/菜单路径和本地化通知一致 | React 集成、双语言 Story 和受控三 Panel 浏览器轨迹 | 像素一致性、compositor 时序和手工 native-window 焦点测试不在范围内 |
 | 输入与目标行为遵循自有契约                                     | 确定性 Orchbee 契约场景                            | 不声明源码、远程控制、匹配器或像素一致性                           |
+
+<!-- documentation-pairing: english-sha256=eae4fff85b099dc8ed3bc10e48167df73d15af576ca0bbc5ab3bbefd48d771eb zh-cn-sha256=7fe92ce1d5a72c78e41bc25ec2681e7b41fbf62ae14332e99b96b53577f3769e -->

@@ -144,3 +144,5 @@ Client 结束释放；未捕获描述的其他失败使用通用指引，不声�
 创建回执始终包含可空的 `resolvedLaunch`：`orchbee.creation.result`、`orchbee.workspace.creation`、`orchbee.panel.terminal-create` 和 `orchbee.mutation.result` 均使用版本 1。程序名解析填写 `exec` 与 `args`，其他情况该成员为 null。文本显示解析后的程序。解析是输入事实，不证明进程已经启动；原始提交、失败及清理观测仍是权威。
 
 例如，`orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"` 解析 PowerShell 一次，并将命令作为一个字面参数传递。PATH 查找覆盖顺序、程序缺失、无效名称与相对目录项；回执覆盖固定成员及不确定结果的保留。
+
+<!-- documentation-pairing: english-sha256=5794366545bcaa05d896a98c6ff5573029d162f6191741198ebc7c805f5d3215 zh-cn-sha256=7090e18f26ec4a754fb3e15440f8e2fc30613c781c1f8cd3410332ddd0b9ccb9 -->

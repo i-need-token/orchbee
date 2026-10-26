@@ -326,3 +326,5 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
 `DecodeGraphicsPng` 解析请求连接的可读附件，复用现有 Wuffs PNG 解码器，不写入终端输入或修改终端图形。服务先预留受限输出空间，验证完整图片，返回带关联标识及真实终端身份的 RGBA 像素。无效 PNG、尺寸不匹配和其他连接的附件返回明确失败。输入最多 16 MiB、解码像素最多 32 MiB，每个尺寸轴最多 4096。
 
 `zig build test-graphics` 检查 PNG 服务、附件授权、终端文本保持及已有直接图形投影。Windows 服务测试自行创建并释放 ConPTY 进程和运行时，不打开 Desktop 窗口。
+
+<!-- documentation-pairing: english-sha256=e5cdbc27d7213112266372e978a7590e2a730e0e4c0b54843d180610f67eb8fc zh-cn-sha256=0e6436c356aa36066b7eceaf7efa7e7d6957cb21ba4d6eab1a3968077504a07a -->

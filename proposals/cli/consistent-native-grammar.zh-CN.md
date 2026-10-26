@@ -33,3 +33,5 @@
 语法清单、补全、本地化帮助、Agent 指南、公开 Schema 和成对包文档同步修改。
 解析及补全用例覆盖接纳／拒绝写法，投影用例覆盖精确 Panel／Terminal 路由及事件名称转换。
 按用户要求，本批次逐项实现并提交，最后统一运行验证门禁。
+
+<!-- documentation-pairing: english-sha256=1a0030560ea84724e182265ba4b387667681ca0a7e619e4df56e6a17cd975377 zh-cn-sha256=5f2fcbec87149f1d8ead5b057f1ee286af49f75d2a7de723b4eb6d26c954a2fc -->

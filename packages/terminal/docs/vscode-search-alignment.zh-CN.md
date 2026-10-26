@@ -31,3 +31,5 @@ Host 选择与 Canvas 覆盖仍是权威状态，但活动搜索匹配不会占�
 窄 ASCII 页面使用其字节/UTF-16/终端列标识映射，而不具体化每个单元的映射对象。 Unicode、宽字和组合字素保留显式映射，因此可以将匹配项投影回精确的终端坐标。
 
 搜索超时、过时或被逐出的页面、无效的正则表达式、不可用的 Worker 和修订替换是显式状态，而不是 UI-thread 异常。
+
+<!-- documentation-pairing: english-sha256=6e12b8ae5fff0ef849383710b1fb18e85b3f168d742db54fecedb969d1440767 zh-cn-sha256=08eaeaa603730f870f26fa95273769b16e761dc02f77649519fc8823534eb3d0 -->

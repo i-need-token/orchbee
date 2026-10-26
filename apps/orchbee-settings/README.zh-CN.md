@@ -31,3 +31,5 @@ Desktop 为每个新终端解析系统 Shell；自定义配置绕过发现。
 绑定及共享一致性夹具。Desktop 的 build-settings-bridge.mjs 以 release 模式构建显式原生 Rust 宿主目标，
 在 out/settings-bridge 暂存可执行文件与 SHA-256 清单，打包复制完整资源目录。
 开发编译构建相同的匹配产物。
+
+<!-- documentation-pairing: english-sha256=b502041f920602491684e97a66cce062ed00f10060d75cc465f3fafdee81ad4b zh-cn-sha256=7793673404e33ac0ba299bd28d0ef595b3bf47e50a46166a8f9a667ae5173641 -->

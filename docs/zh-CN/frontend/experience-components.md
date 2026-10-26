@@ -173,3 +173,5 @@ pnpm verify
 `lint:experience` 校验 Schema 新鲜度、包所有权、路径存在、命名 Story 导出及其生成 ID、组件 ID
 唯一性和目录关系。查询命令按 ID 排序并返回确定性结果。根级 `lint`、`test` 和 `verify` Gate 包含
 目录检查。
+
+<!-- documentation-pairing: english-sha256=a92631f520503269a20975306f8035ea28ab24fede7fd84f0181cc6a9012dbb7 zh-cn-sha256=6104be3976fa4ef1ec1d345752ac2e5f996ba8f8d069e9e6f3110b0e644a5445 -->

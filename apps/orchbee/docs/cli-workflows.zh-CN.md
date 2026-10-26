@@ -288,3 +288,5 @@ orchbee workspace close-resume --workspace <workspace-id> \
 Worker 从继承环境依次选择非空 VISUAL、EDITOR，否则使用 Windows 系统目录 notepad.exe。修改 CLI 进程环境不会改变已运行 Worker 的偏好。参数保持字面值，Host 追加独占临时文档路径。捕获使用当前主／备用屏幕，解开软换行，超过 32 MiB 时整项拒绝。配置的编辑器可以是 popup 中的控制台编辑器，也可以是拥有独立窗口的 GUI 编辑器。
 
 保留编辑器控制操作的已知答复为 `orchbee.client.control` v1，保留准确操作／来源／成员、观察视图和等待状态；文本使用本地化 popup／控制结果。`popup-opened` 要求编辑器帧已安装；保留的 queued／delivered、拒绝、超时、取消和 unknown 结果不宣称编辑器就绪。未知提交绝不自动重放，应保留操作 ID 供 `client control-status` 查询。Ctrl+C 以退出码130停止等待，不撤销已提交请求。通过既有 popup 关闭控制／按钮关闭；恢复普通来源输入要求已知结算或模型规定的连接清理路径。实际编辑器／GUI 验收仍属于最终 Windows 验证。
+
+<!-- documentation-pairing: english-sha256=9274ae7d6b0cb5b910603f7133691ee2df757c6ba88c56aa0498779b9548dea9 zh-cn-sha256=143591d5e740ef54bb73ce47e65f92726529ce34656e320372b09617eb894870 -->

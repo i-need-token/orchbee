@@ -270,3 +270,5 @@ Desktop 和宽屏浏览器的设置表面使用下述外壳、密度、层级与
 本标准定义 Orchbee 设置的组合、行为与架构。
 
 - [WAI-ARIA Authoring Practices：Switch Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/switch/)
+
+<!-- documentation-pairing: english-sha256=cb7ece6e59a14234d8adce1c83449821e822ecffcf48b207b74262c89172aaec zh-cn-sha256=c277ac50ba345f3c2ab2a01076d64c5fb61775111feffe3533d241226bfbebf1 -->

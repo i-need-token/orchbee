@@ -84,3 +84,5 @@ Windows 适配器负责精确绑定关联、单次提交、所有权围栏、取
 分割比例由 Server 共享并持久保存，导出记录当前标称比例；apply 使用同一规范修改路径。各窗口仍独立保留焦点、zoom 和控制权。兼容边界见[共享比例契约](../../orchbee-server/docs/shared-split-ratios.zh-CN.md)。
 
 每个已知共享比例回执仅以该有身份的比例变化推进流程拥有的 Tab 副本。下一次 Server 读取仍围住完整新 Tab 和被替换 Tab，包括其他比例、标签、绑定及有序身份。未知结果不扩大或刷新所有权；不把并发修改吸收为流程的一部分。
+
+<!-- documentation-pairing: english-sha256=a0f8a2b77c256a685705dd44f4573fe2ac339c5e5a72742e9d54ffd192bbd4b2 zh-cn-sha256=af1d809654889103f617320ed48096dcf65a2d757827073798188dd0060af2f3 -->

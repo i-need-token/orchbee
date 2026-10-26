@@ -42,3 +42,5 @@ Zod 源保持同步。对于 `packages/*`，它还会验证 `@orchbee/<directory
 Cargo manifest；根 Rust 门禁验证 workspace membership、工具链与 Cargo 工作。
 
 验证器刻意不对文字打分、不统计源码行数、不限制依赖数量，也不复制导出映射。依赖方向和源码可见性仍由架构 lint 规则强制执行。
+
+<!-- documentation-pairing: english-sha256=bd53cb8ef5d076c8422a326c7ec924559908ebcd4af9a2a185e52f7fad813ea6 zh-cn-sha256=9ae8cffdb2950ba0daff551f33818e1e858d8b3ca031ac2b2a089bcbbbeea343 -->

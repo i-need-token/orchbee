@@ -148,3 +148,5 @@ pnpm --filter @orchbee/tab-strip test:exports
 ```
 
 要求像素精确的动画中点验证为拖起、帧回调和指针重新定位控制同一个单调时钟，保留精确几何与起始时间不变断言。用实时小数时间戳构造中点可能跨过整数像素取整边界。
+
+<!-- documentation-pairing: english-sha256=b854b4ec1b02d7d5a0d6e7f9039633bf3c6bef525a6596724a60916c65756567 zh-cn-sha256=59937e5d258405a0b009c641e645c9a2895bd177f83ed880d06ef4f00e848f80 -->

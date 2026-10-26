@@ -83,3 +83,5 @@ orchbee:editor:panel-width:latest   # 版本不是整数
 - 所有者模块单元测试覆盖规范 key、有效往返、损坏输入、范围校验、不可用存储和写入失败。
 - 集成测试验证能力注入、默认值恢复，以及只有在用户交互完成后才发生写入。
 - 公开偏好、默认值、约束、key 版本或迁移行为发生变化时，同步更新所属包文档。
+
+<!-- documentation-pairing: english-sha256=22ed2a3a2ff2256ffbff7de442f94b5032c83b0fdefdc429792860ad6a357cf4 zh-cn-sha256=2f5cb5c0655e0573d610d46f4ca912378025082be5cd05919518890000faf572 -->

@@ -199,3 +199,5 @@ Windows cohort 的整链见证。
 ## 保留 Close 身份查询
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 Site／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
+
+<!-- documentation-pairing: english-sha256=42cb7657b535efd03e44a452fb47679fee74f0a9cc713a2af4e6d532cbdff40c zh-cn-sha256=8571973bde57509e90ad8a01aee23f36840cdf266b8512bdf81f7fddc0b2a1e5 -->

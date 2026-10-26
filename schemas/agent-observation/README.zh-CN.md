@@ -75,3 +75,5 @@ list 分页游标是服务端铸造的不透明令牌：`v1.` + 44 字节负载�
 略；CLI 拥有调用与呈现。
 
 Launch Status 使用只读 kind 25/26、精确会话身份及规范修订。其闭合 management 阶段为 unmanaged、携带原预留及 blocked 标志的 pending，或携带原预留／provider／物理绑定的 active。结果仍限 1,024 字节；只有 status 操作接受 status outcome。[Rust 绑定契约](../../crates/agent-observation-protocol/README.zh-CN.md#托管启动状态) 及 Server 名称所有者定义验证和生命周期。
+
+<!-- documentation-pairing: english-sha256=37611cad403fb70ef55c41c0173f37f97c73662b4063a7600e88c92f6bd1e38d zh-cn-sha256=7284c0ad211d8c1d0b4d0a3be0a51be81d16b90e484d76f79d9da47b506c7c97 -->

@@ -248,3 +248,5 @@ Action，或者先关闭第一个模态表面，再打开另一个。
 - [Apple Human Interface Guidelines：Modality](https://developer.apple.com/design/human-interface-guidelines/modality)
 - [GOV.UK Design System：Question pages](https://design-system.service.gov.uk/patterns/question-pages/)
 - [GOV.UK Design System：Text input](https://design-system.service.gov.uk/components/text-input/)
+
+<!-- documentation-pairing: english-sha256=a3bd779741516b166fbf23e7f01b3a0d142c4f10a218a607b19efd6f617d50da zh-cn-sha256=4bb05bc6136e54c3aa3b03e95c7081274902505ebd76bc8875df55909c63845f -->

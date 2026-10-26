@@ -34,3 +34,5 @@ UI 拥有一条独立 Client 连接的读取通路，复用既有 Agent 读取�
 证据必须覆盖两个修订号校验、身份变化、旧 epoch、取消、事实缺失、元数据守卫、全角／控制字符、窄标题及真实 Windows 原生 TUI 对实时上报变化的观察。渲染与进程证据不认证 provider，也不证明最终产品对齐。交付匹配 cohort；源码／cohort 回退即回滚。六态词汇改变匹配 cohort，并使用[原生 CLI 查询](native-cli-query.zh-CN.md#独立-agent-状态的-schema-版本)列出的新版公共 CLI 文档；无需持久迁移。交付前完成受影响宿主门禁及真实窗口中的状态／已读组合验收。
 
 选中子项立即使先前主项观察失效。新精确范围加载期间，叶标题保留该成员自身标签与序号；无边框 Panel 的标签栏选择器保留成员计数。仅完整关联轮次可提供该成员的上报、受守卫约束的标题及 tokens；读取期间切换不能发布旧成员的结果。子项报告写入仍属独立集成；选择器箭头使用既有精确成员选择所有者。
+
+<!-- documentation-pairing: english-sha256=a7d58f303ed30979952f8d63b17d55b0e20ae1f76a43fa5b4fff5860db3c16e5 zh-cn-sha256=bbeb31bfbf4d0ca66bb6c741c4ee3407c8c44d7ba8c1ebfdd4abe9ad8efc6707 -->

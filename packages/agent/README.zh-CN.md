@@ -98,3 +98,5 @@ pnpm --filter @orchbee/agent verify:correctness
 ```
 
 更广泛的未来设计与仍保留的产品决策继续记录在双语 [Agent runtime observation 提案](../../proposals/agent/agent-runtime-observation.zh-CN.md)中。
+
+<!-- documentation-pairing: english-sha256=e8121248fca1c41580673a8e796e91fd0dca3c63d7199f09d8317d7e6163bf20 zh-cn-sha256=3dfaa60ff1e8c491a99f187672c00f4f78b0b21b3c21c571042b79b6c367f885 -->

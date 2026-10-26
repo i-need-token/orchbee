@@ -63,3 +63,5 @@ Terminal Host 拥有监听器、端点生命周期锁、绑定后端点验证，
 ## 交付与回滚
 
 Desktop 和 Terminal Host 一起构建和打包。本机适配器是构建产物，不是单独版本化的运行时依赖，并且私有 Host 协议和端点身份不迁移。回滚会一起还原先前的 Desktop/Host 构建；没有持久数据迁移或端点转换。生产环境绝不为已移除的帮助 ABI 保留兼容标志或不安全回退路径。
+
+<!-- documentation-pairing: english-sha256=15b0f07557b1373bc23d72ff51893b9fdcb52cafe6b89ec8787f69f5f9082ad1 zh-cn-sha256=765263e76f887a4b35fad58d5f1d6b179994b00fb1aaa73e28951196d6cbd564 -->

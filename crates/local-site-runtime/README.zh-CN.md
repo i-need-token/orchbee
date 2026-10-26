@@ -470,3 +470,5 @@ Agent 布局保留 Provider 覆盖。启动、CLI 检查及 Site 重载共同消
 cohort 准入、备用租约及进程／Server 所有权；普通 client／worker／Host 端点沿用既有身份。
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
+
+<!-- documentation-pairing: english-sha256=fa29eeab86a378fccd50566e464ace6c91dbda3a243d940378d766d0219d4eed zh-cn-sha256=16f5bb28b06171d4601da444bf08c6e3761bfd5487c710e9976c2da610c45536 -->

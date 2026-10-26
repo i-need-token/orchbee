@@ -348,3 +348,5 @@ pnpm --filter @orchbee/workbench test
 pnpm --filter @orchbee/web typecheck
 pnpm --filter @orchbee/web test
 ```
+
+<!-- documentation-pairing: english-sha256=f738455d7d7ad13be8cea00c291ea93fc39f7c8990a7e802bf38baa5b4f8bd55 zh-cn-sha256=41e3c061d4dc2f4526e2d1c48f0a851b10325f1b488442131bb152ed3b8206a5 -->

@@ -108,3 +108,5 @@ OBWP 57/58 承载封闭的请求和结果。OBNG 承载受限、由 viewer 定�
 ## 消费者实现顺序
 
 在同一已授权 Windows 补齐目标下，基础完成后先接入 CLI 上传及保留流，再接入实际 TUI 渲染与能力事实；两项均完成之后才进行组合验收。CLI 语法与输入规范由 [Windows Panel 图形 CLI](../../orchbee/docs/windows-panel-graphics.zh-CN.md) 拥有。实现顺序调整不改变对齐完成条件。
+
+<!-- documentation-pairing: english-sha256=40cb1fad4b41f850a28712db94d87a84099e6db81388d66babe127cf9792600d zh-cn-sha256=0f6166b95606c953350668faee202d1e1a73face64cf0e59fc98de6561c10e1d -->

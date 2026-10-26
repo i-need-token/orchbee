@@ -75,3 +75,5 @@
 5. 运行 `git diff --check` 和 [`docs/VERIFICATION.md`](VERIFICATION.md) 要求的验证。
 
 即使新文件技术上正确，只要没有具体的未来使用方或生命周期，审查者就应要求删除它。
+
+<!-- documentation-pairing: english-sha256=34deeb5c6a3d28ae8c05d44e10c63f67e6f29962b1f0bb9b06583074c540850d zh-cn-sha256=04b1550e238f028ba59ac05356b1b897c9d3990990dc34f2bdb44e49d7f038f1 -->

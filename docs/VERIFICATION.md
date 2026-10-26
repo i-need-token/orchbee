@@ -63,12 +63,10 @@ Shared paths need explicit ownership. The existing `docs/tui/` standards and the
 counterparts select the native terminal client and its consumers. Root verification commands,
 their declared helpers/tests select root tooling evidence; the
 complete prerequisites above still run. New root helpers or standards remain unknown until reviewed.
-For `scripts/documentation-pairing.json`, parse base, HEAD, index and worktree manifests with the
-pairing schema and resolve every receipt added, removed or changed between any of those snapshots
-to its English document's owner. A
-JSON/schema error, unavailable version or unknown receipt owner selects the full test scope.
-Receipt ordering or whitespace alone introduces no product owner. Pairing integrity is still
-checked for every document by the complete lint gate.
+Documentation pairing receipts live on each Chinese document’s final line, so receipt edits use
+that document’s ordinary path ownership. There is no separate receipt manifest or history lookup.
+An unknown document owner selects the full test scope. Pairing integrity is still checked for
+every document by the complete lint gate.
 
 The evidence is Git boundary fixtures, dependency-closure positive and negative controls, command
 selection witnesses and the existing real Cargo runner tests. These establish the supported ownership

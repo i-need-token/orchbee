@@ -201,3 +201,5 @@ Hook 与组件测试覆盖立即创建、菜单、稳定管理目标、Agent 行
 ## 交付与恢复
 
 GUI 共享文档与 Client View 只接受当前 version-1 形状。完整图在使用前校验；无效图不会迁移、重置或修复。旧开发形状不享有兼容承诺。见 [shared-workbench-document.md](shared-workbench-document.zh-CN.md)。
+
+<!-- documentation-pairing: english-sha256=9cec3bbf8005e03c1a68e354ee577d070c453c6b4c6dd6466e186308f03872bb zh-cn-sha256=05e218a659cb4df164433e32f22aa5553da23223f0931d1c6b334f148013536b -->

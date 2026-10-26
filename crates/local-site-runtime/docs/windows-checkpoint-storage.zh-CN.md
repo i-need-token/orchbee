@@ -88,3 +88,5 @@ digest／格式／领域拒绝、与文件名无关的排序、generation 冲突
 且尚未执行真实机器重启见证。原生进程崩溃／重启验收及可见提醒证据仍须单独执行。Server 的
 [Workbench checkpoint 契约](../../../apps/orchbee-server/docs/workbench-checkpoint.zh-CN.md)
 拥有 payload、调度与确切物理目录 fence。
+
+<!-- documentation-pairing: english-sha256=09d1988789d032dd1fa8a90c1470077330dc3a743308efcbc9591f04f23f611f zh-cn-sha256=ba3b89ded86391ce3e534e9c7dbee0b217e59992ebb335338407dac9126bf802 -->

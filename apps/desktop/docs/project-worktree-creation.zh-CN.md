@@ -54,3 +54,5 @@ Discovery 读取源 Workspace 资源 scope 内可用本地 Directory，优先所
 ## 验证
 
 Workbench 测试覆盖原子分组、scope 资源身份、首 shell 分配与稳定选择。Desktop 协议、broker、client、runtime 和日志测试覆盖类型化边界、当前组竞争、来源关闭、规范提交失败、保留的重启记录和跨组重新打开同一 Worktree。既有 Git 适配器测试使用临时仓库验证参数安全和精确残留归属。不宣称持续文件系统观察或原生窗口焦点行为。
+
+<!-- documentation-pairing: english-sha256=5ac88cc1c3b5466ac2d99cd289e68480ac6efd1e34f98b19364148e18f80d733 zh-cn-sha256=38a2ec3724bf89f3d3327834a68cd178941bade85f70ac5e79fb2ad9ed58310e -->

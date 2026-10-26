@@ -90,3 +90,5 @@ Windows Panel list/get 输出 v1，current 输出 v1，Agent Get 输出 v1（带
 上报及查询，不代表最终 TUI 或认证 provider 任务证明。
 
 Windows TUI 现通过独立修订号校验的一轮上报／元数据读取，展示当前 Tab 各 Panel 所选 Presentation 的状态。自定义标题保持优先；有效元数据、字面 token 和本地化 Agent 状态绘制在既有单面板、分屏或放大标题栏中。范围、失败与关闭规则见 [Panel 上报展示](windows-panel-report-presentation.zh-CN.md)。
+
+<!-- documentation-pairing: english-sha256=4e0ba2bc086ddc02f5665ed23d000ce309be6c84e8e096640c2f53b9cf62e494 zh-cn-sha256=d09dd4546139e42231fdf78f8fdd97289dd35de1180a466a1fe16de05cb91e56 -->

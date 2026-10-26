@@ -61,3 +61,5 @@ pnpm storybook:build
 浏览器 Agent 先在侧边栏发现 Story，再使用 `iframe.html?id=<story-id>&viewMode=story` 进行 DOM、交互、无障碍、计算样式和截图检查。
 
 主要参考：[Story 加载](https://storybook.js.org/docs/configure/index)、[tag](https://storybook.js.org/docs/writing-stories/tags)、[Composition](https://storybook.js.org/docs/sharing/storybook-composition) 和 [Rsbuild 集成](https://storybook.rsbuild.dev/guide/)。
+
+<!-- documentation-pairing: english-sha256=c3860dc526c6e51d8d062603db24b031050f0c35d42babfa2a9885919ec0546d zh-cn-sha256=81a83ff0030a5f679f2abb8b5f7e2c27260551a51c1cd12b3bd0dee9aa4068f6 -->

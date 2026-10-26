@@ -102,3 +102,5 @@ pnpm lint:styles
 ```
 
 主要参考：[Tailwind 主题变量](https://tailwindcss.com/docs/theme)、[shadcn 手动安装](https://ui.shadcn.com/docs/installation/manual)、[Base UI 支持](https://ui.shadcn.com/docs/changelog/2026-01-base-ui)、[`components.json`](https://ui.shadcn.com/docs/components-json)、[Rslib CSS](https://rslib.rs/guide/advanced/css) 和 [Codicons](https://github.com/microsoft/vscode-codicons)。
+
+<!-- documentation-pairing: english-sha256=04f01c2175f6937bee1b8ddf1088429f12fa8b37321a5e21d86d2949761c8153 zh-cn-sha256=53c8c7ffebd1fff778dd2dad862189ea5b662eb537c1948969e67d56aaba0ca5 -->

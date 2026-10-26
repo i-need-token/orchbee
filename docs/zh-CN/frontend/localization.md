@@ -118,3 +118,5 @@ navigation.emptyState.title
 默认断言行为和消息身份；只有 Locale 选择、插值或文案本身是被测行为时，才断言准确翻译输出。
 
 主要参考：[React Intl](https://formatjs.github.io/docs/react-intl/)、[消息描述符](https://formatjs.github.io/docs/react-intl/api/#message-descriptor) 和 [ICU 语法](https://formatjs.github.io/docs/core-concepts/icu-syntax/)。
+
+<!-- documentation-pairing: english-sha256=1c4a961e821876fe685b1ece654bd03ffc637590ea6f9d8d201803e652334b63 zh-cn-sha256=c57c5cb7459dd6ae1bf9133852ac5c5f9737ccf3dbbdb6aa1bf0b40725a56226 -->

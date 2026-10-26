@@ -60,3 +60,5 @@ Main 拥有的 Action 运行时注册了两个稳定的、不可自动化的意�
 ## 证据限制
 
 Electron 和操作系统在显示枚举、`getNormalBounds()`、最大化事件和本机全屏转换方面仍然受信任。 macOS 本机行为在当前开发运行程序上执行。 Linux 和 Windows 被确定性模型和适配器测试覆盖，直到它们的本机运行程序执行相同的系统跟踪；即使 Orchbee 始终提供安全请求的矩形，Wayland 合成器也可能会限制绝对定位。
+
+<!-- documentation-pairing: english-sha256=14882568810444148b55dba19af03bacd7e629e3f56044cfa8bd2e23164b1611 zh-cn-sha256=dbd21314357aad7c0360b3c78087a131636f84e589d03251f1f7f976fc20005b -->

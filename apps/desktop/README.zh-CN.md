@@ -488,3 +488,5 @@ pnpm --filter @orchbee/desktop benchmark -- \
 交互目标始终限定在同一个终端 presentation 内。线束根据稳定 presentation root 的几何位置放置指针，并在该 root 上观测滚轮开始，因此瞬态历史快照 Canvas 与 Canvas transform 是被测行为，而不是 actionability 前置条件。它的输出命令会在一个已渲染的完成标记之后保持 shell 打开，直到历史、搜索和复制测量结束；因此，进程退出不会在这些交互期间把实时终端替换成 stopped presentation。捕获 terminal-exit trace 后，线束会终止其隔离的临时 Electron 实例，而不会执行产品的交互式用户退出流程。报告会以 KiB 汇总 `app.getAppMetrics()` 返回的 Browser、renderer（`Tab`）、GPU 与 Electron 合计工作集。这些进程数据支持同机比较；它们不会计入所有由驱动拥有的 GPU 分配，也不定义整个系统的 RSS。
 
 它还可以收集受控的 Ghostty 和仅主机引用。结果是诊断证据；它们不是当前开发阶段的合并或切片完成门。
+
+<!-- documentation-pairing: english-sha256=3251b67a0bc34b49690d6029cb864fd32d13a30a17c0a3628e904c8e3b6f2eeb zh-cn-sha256=53661c24930c7f94c06e0de1667f8a19c6cfaf83f735fbe3441c3ab88f7e0125 -->

@@ -74,3 +74,5 @@ const payload = rawPayload as RequestPayload;
 // ✅
 const payload = RequestPayloadSchema.parse(rawPayload);
 ```
+
+<!-- documentation-pairing: english-sha256=a67863acbf260084f520a2072be1750e0af57033ae36420231a3daac82e29de8 zh-cn-sha256=143e2c9035ce3b6d97ad81cd08745d53f11fbfa1024a0b9aa4fe461f8c9ef08c -->

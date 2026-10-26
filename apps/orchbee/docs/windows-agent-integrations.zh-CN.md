@@ -324,3 +324,5 @@ Doctor 核对安装字节与自身清单，并与当前 sidecar 身份比较。�
 Windows 公开 doctor 用例将可执行文件、当前 sidecar 和安装树复制到隔离用户目录，修改运行时及文档字节，
 通过 Desktop 的摘要实现更新来源清单，核对更新状态、本地化重装命令及安装树保持不变。
 Unicode 摘要向量区分 UTF-16 路径顺序与 UTF-8 字节顺序。
+
+<!-- documentation-pairing: english-sha256=133b5f8fdc9a2b0b004b25045067948362b75b4553682114baa9a12c570b9d6a zh-cn-sha256=f4ca62e721cd3eb2e561198205456c2895dddabb8e6a0e6534e15d5ce58eab40 -->

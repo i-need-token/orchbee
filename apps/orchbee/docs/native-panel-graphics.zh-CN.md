@@ -45,3 +45,5 @@ Windows shell 的固定后端拥有一个 UI 线程图像界面，并与终端�
 新增有界图形观察由已有 Client 控制连接在普通视图同步后提交。Server 核对认证 generation 派生的 Client ID、heartbeat、Workbench 版本、规范目标/绑定及已安装版本界限。其他连接不能替换该 Client 的事实。Info 采用新鲜匹配观察，从实际绘制路径报告 cell-raster 或已准入物理 Kitty 能力及 pixelMouse false，只发布来自当前有界宿主测量的单元格像素。部分表面列表不能把未包含 Pane 判为隐藏。过期、断开或不匹配观察不能声称可见性或成功绘制。
 
 回退路径不声称已协商 Kitty/Sixel 或像素鼠标。托管私有生产者文件租约和完整文件帧 CLI 输入已由 [Session 图形所有者](../../orchbee-server/docs/windows-graphics.zh-CN.md) 实现。物理 Kitty 路径已集成有界探测、上传、放置和恢复；不宣告像素鼠标能力。定向证据覆盖真实原生渲染输出、alpha/z/裁剪、完整块/资源栅栏及 Client 归属。判定对齐或合入 main 前仍需真实 Windows 图形组合流程和最终全量回归。不运行 TLA、WSL、新增 macOS/Linux 运行时或手动抢焦点 Desktop 测试。
+
+<!-- documentation-pairing: english-sha256=cf1dd7ca36a924b644d56240e1e7357eae78f16d7cc057098954623aec935afe zh-cn-sha256=ce003feedc329b02e18f45b0fbd0940872f9b0a065d7888195615fa6b24bd9a4 -->

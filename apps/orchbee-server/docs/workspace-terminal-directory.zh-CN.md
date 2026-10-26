@@ -80,3 +80,5 @@ lazy 循环回归区分 `server_transport::send` 的 Host 关闭标志与 Server
 仅关联成功不能证明重启或全新终端启动。远程 Worker、SSH、安装和公开发布仍为独立工作。
 回退恢复先前未使用的 cohort，不能丢弃已接受执行效果或复活已终止进程。交付后本文继续保留于
 Server，作为持续维护的行为和证据所有者。
+
+<!-- documentation-pairing: english-sha256=a52ad11c55bfcf4548529effd71087ac84f83566857e92311653c5c3a1271ed6 zh-cn-sha256=0995c768b872a7d533de540cc8ebf62420770b101bee3f3f3ec2043338a457e2 -->

@@ -68,3 +68,5 @@ panel 关闭不是 Tab 关闭。确认后的效果就是针对被冻结叶走既
 | `tui_render/panel_close.rs`             | 内容区覆盖层绘制（首选有限尺寸）、fit 门、类型化 `Presented`/`NotPresented` 回执                                                                                              |
 | `localization/panel_close.rs`           | `en-US`/`zh-CN` 标题、影响警示、原始操作标签与按键提示标签                                                                                                                    |
 | `workbench_client/ui.rs`                | `ClientAction::ClosePanel` 接入 `request_panel_close_confirmation`                                                                                                            |
+
+<!-- documentation-pairing: english-sha256=11837d617b0356f31d591cfb7159e7a3812788356c446c0e40cf11ec7c23f520 zh-cn-sha256=473957f5b1767f6bceb48913dcd5bc3454cbaad9cd4f23dac3ad9ffeb5ede001 -->

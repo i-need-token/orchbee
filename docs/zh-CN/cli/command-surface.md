@@ -134,3 +134,5 @@ Provider 统一使用 `--provider` 及规范名称，须说明能力支持子集
 | Locale       | `LC_ALL`、`LC_MESSAGES` 和 `LANG` 按 [Rust](../RUST.md#本地化产品文案) 选择诊断 locale；没有 `ORCHBEE_*` 变量能覆盖它们。                 |
 | 别无其他     | 没有未记录的变量、当前目录内容或仓库文件影响一次调用。                                                                                    |
 | 用户目录输入 | 命令可声明平台主目录变量，仅用于显式用户路径操作数。所属指南列出读取方、优先级、校验和失败行为；这些变量绝不选择运行时或引入 shell 展开。 |
+
+<!-- documentation-pairing: english-sha256=545a89cf7d49a799f66f2dc514fbaa4100585d80647aac39b97709620d3d04ad zh-cn-sha256=fe5cba3562f0c50185d5c026bd1594c426c14db6466f560c4b9c9758290e19e4 -->

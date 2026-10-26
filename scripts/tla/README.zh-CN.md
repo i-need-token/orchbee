@@ -153,3 +153,5 @@ JVM/GC 辅助线程、操作系统调度、实际 RSS 和无关进程不在声�
 `pnpm test:tla:tooling` 执行真实 TLC 缓存和变异证据。工具准备校验固定 SHA-256，使用唯一临时下载文件。每个 JVM 拥有独立状态和标准模块提取目录。成功要求进程与 stdio 关闭、完整成功报告、状态队列归零和所需动作覆盖。被终止或超时的运行不能视为通过。
 
 进程 fixture 控制子进程完成和发布顺序，不证明任意操作系统调度、后代管道行为、恶意文件系统 writer 或 Windows 控制台信号传递。
+
+<!-- documentation-pairing: english-sha256=13e5aab47816ef9edcb082b6838c62913793415624df58145b69c6e6bbbe080c zh-cn-sha256=7020dd129a72e02b53fb337f7fdc2be44ccfd7ed925e0b6041bb737ada67fe7e -->

@@ -184,3 +184,5 @@ pnpm --filter @orchbee/web test
 共享观察边界接收 Devin 会话身份；其配置管理由 Windows 原生 CLI 持有。
 
 共享接收器接收 Hermes 会话身份；Windows 原生接入与 Desktop 管理仍相互独立。
+
+<!-- documentation-pairing: english-sha256=b09f20a2f381f049a4fe83ac35cac3032df82b9a830822315d029b6fe505f34a zh-cn-sha256=8c7a54cda9810004823767682f4a6e443eb9eb98a34053866604059ea7a648c8 -->

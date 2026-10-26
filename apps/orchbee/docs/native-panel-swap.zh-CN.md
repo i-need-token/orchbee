@@ -85,3 +85,5 @@ canonical 状态仍遵循原生契约。
 验证取消会退役不确定交换且不重放。Windows 进程测试覆盖实际解析、输出／schema、阶段顺序、
 回复丢失、过期布局／选择、拒绝、无操作及总截止时间；两个真实
 TUI 验证嵌套交换、终端身份、比例、缩放保持及源焦点，同时不改变另一 Client。
+
+<!-- documentation-pairing: english-sha256=1c7219b40bb123480f7c62f89617d56e59f489bd7e9e81efb3ae38856082d6ae zh-cn-sha256=f1ab60460b210d6edb17f2f99cba91d22cde8469b7fd0b15da1aa754ed4b7a55 -->

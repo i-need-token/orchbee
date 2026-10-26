@@ -118,3 +118,5 @@ TUI 作为对等 renderer 消费该投影；它只拥有呈现。
 - Journal 符合性证据：有序批量、连续 revision 页、保留溢出、cursor fencing 与 coordinator 退休行为，对齐已接受的 TypeScript journal 测试与有界模型。
 - TUI 证据：缺失、拒绝与 reset-required 下真实降级、不捏造状态；CLI 证据：机器输出、exit 类别与有界调用。
 - 该切片触及的每个仓库文档都要完成双语文档配对。
+
+<!-- documentation-pairing: english-sha256=1aeaef9659bcacdc4027f2838593bd1ed67fc917f5ed1f3a4586f003b6facbd6 zh-cn-sha256=31dd3b298206cccaf6ebd81edfbc54d6b233b07b02352229c5d1bb9b4ffbac8e -->

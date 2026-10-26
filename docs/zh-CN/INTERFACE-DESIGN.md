@@ -185,3 +185,5 @@ CSS 注册表仍是 [`frontend/design-tokens.md`](frontend/design-tokens.md) 下
 宿主证据遵循 [`tui/verification.md`](tui/verification.md)。断言共同含义和端特有行为，而不是
 像素相等或原始事件相同。证据限制和未解决差异留在既有任务中。这些跨端要求由审查和功能测试
 承担；目前不存在仓库级自动一致性检查器来强制执行它们。
+
+<!-- documentation-pairing: english-sha256=a6eba8a341c44106696e02362180e7dd5d744140152f453e04ffbcd816742e59 zh-cn-sha256=0184f2f1ec210039def79152cdc797687051e79d561741e650842ba3bce5e429 -->

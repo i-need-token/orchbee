@@ -66,3 +66,5 @@ NUL 的 UTF-16 名称和正确对齐的 `WIN32_FIND_DATAW` 缓冲区，覆盖 `F
 `ChildInputWriter::pipe` 将非阻塞父进程写端与阻塞子进程 stdin 配对；
 `ChildOutputReader::pipe` 提供反向通道。终端流转发进程同时使用两者，不改变用户继承句柄的模式。
 进程所有者须限制读写预算、关闭管道并停止／join 子进程；传输写入不代表数据已被消费。
+
+<!-- documentation-pairing: english-sha256=f9e4ec0e0accf131afc9f42a3f9736a545b37aca6fc52c3a9e7bdf287853485c zh-cn-sha256=9d2ab6bf52d4d1a52fc02d3abd1b537e53c0b3bd03b0120268b4035d266657d0 -->

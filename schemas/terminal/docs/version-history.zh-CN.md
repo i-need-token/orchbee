@@ -40,3 +40,5 @@ NPM 包版本、Terminal Host 可执行文件版本、Zig 工具链版本和第�
 ## 已发布版本
 
 没有。发布历史条目从第一个公开的 `1.0.0` 合约开始。
+
+<!-- documentation-pairing: english-sha256=2fd3d19dcab4c60e2d0a29f12a46a56825bf03d17e220477529972621706b7e6 zh-cn-sha256=c22793d0274bdcca59645042d29e9e1d21ef6b28e962428464c85e1c4ee6b64d -->

@@ -59,3 +59,5 @@ Zig 专属的命名、资源、失败、边界、并发和测试规则的权威�
 ## Rust
 
 Rust 专属的类型、可见性、数值、错误、资源和 lint 例外规则以 [`docs/RUST.md`](RUST.md) 为权威。
+
+<!-- documentation-pairing: english-sha256=c833fc82e12d6c6288c3975c2e26ca918217a95ab0fcf79fb1482a0197b1e76d zh-cn-sha256=ecfce3ba66c26a6475ad09ecb22acc72ae18e4204f76b69d8d79fe79e8a7b1a5 -->

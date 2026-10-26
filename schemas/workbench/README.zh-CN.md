@@ -673,3 +673,5 @@ Client 先准入全部四个 profile 及命名选择再安装任何字段；重�
 ## 原生设置协议契约
 
 [设置](v1/workbench-settings.schema.json) 定义匹配 Windows cohort 的闭合 Open/Save 请求及结果。三个必需但可空的字段区分未修改设置与明确的主题／提醒／声音修改；全部为空的补丁非法。来源令牌区分文件不存在与规范 SHA-256 内容摘要。Save 同时约束发布 revision；结果区分磁盘持久化、在线应用与写入前拒绝。共享语料在 Rust、TypeScript 和 JSON Schema 中检查额外字段拒绝、全宽 revision、完整快照及独立的 4 KiB 请求／256 KiB 结果限制。[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责写入、输入捕获、不确定结果和恢复。
+
+<!-- documentation-pairing: english-sha256=f9601683ef62072a52405797079f77ad198c0e4b3fef31f7cbd08a96e5d9647b zh-cn-sha256=320538909d5d0561ac44958a94931731a0315404a5fa99579c7e8bcdea0653a9 -->

@@ -102,3 +102,5 @@ Site 门内先证明 Presentation 属于该 Panel，再要求其绑定非空、�
 标志与视图。应答字节准入仍先于提交。与旧的仅主项 `report` 一样，要求导航权限。精确成员
 轨迹覆盖隔离、重放、错误所属／绑定和未绑定目标。不新增持久化迁移；替换配套 cohort 发布
 或回滚。
+
+<!-- documentation-pairing: english-sha256=cae39e69eb898a3f64fd78e42ccb3ac5479e8642e3e005dd364b63efd88550ab zh-cn-sha256=a2c1cb0311aa3a4c4a879214439d937f59c3557a6a03bc494ede2408d7437248 -->

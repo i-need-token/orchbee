@@ -22,3 +22,5 @@ Client 所有的异步流程使用受控实现测试。共享跨进程 attachmen
 ## 验证
 
 运行 `pnpm --filter @orchbee/terminal test`。共享 attachment 协议变化还需相应已注册 Desktop 模型和适配器测试。仍须执行仓库根门禁；此包不提供 `test:tla` 命令。
+
+<!-- documentation-pairing: english-sha256=8c2c0c813949256448f123c86c4d9c5bbdf056a9525bd15ad8ac53f77641049f zh-cn-sha256=eb000ea14ed49df1de0ad8aed748819b7824403e94e8b01ea72b15073568915d -->

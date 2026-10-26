@@ -120,3 +120,5 @@ TUI reducer 可以产生窄化的效果请求，但存储、进程、传输、�
 
 依据 [`verification.md`](verification.md) 使用单元格网格、输入、尺寸调整、区域设置和宿主证据。只有当独立排序的参与者或效果所有权风险满足
 [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) 的触发条件时才添加形式化模型；仅有异步语法并不足以要求模型。
+
+<!-- documentation-pairing: english-sha256=39f0b55f2c772374aaec8b25081e74bb74080355a317fc6df122bb91eb5f9788 zh-cn-sha256=9a881d644413abd67359124e7e60d7a532603c500be8c6047ba97b596ac0ba86 -->

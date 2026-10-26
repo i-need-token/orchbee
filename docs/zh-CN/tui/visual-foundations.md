@@ -183,3 +183,5 @@ Client 中编写或审查渲染代码前先阅读本标准。
 | 外部来源文本           | 测试证明控制字符和转义序列不会到达缓冲区                                                                    |
 | 截断或换行             | 测试包含宽字符和一个比行更宽的 token                                                                        |
 | 新增字形               | 已声明其 ASCII 回退，并在简化字形测试中渲染                                                                 |
+
+<!-- documentation-pairing: english-sha256=f438de513e0587ed2b662b0fa23c2806d50eb19875c65d9f7823aec6f68c4969 zh-cn-sha256=f8d22f062ab64727b6d4c518a30ea6294741fc1dee26b93551e315a5ad18674b -->

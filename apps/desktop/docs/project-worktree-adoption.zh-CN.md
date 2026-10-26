@@ -29,3 +29,5 @@ Main 读取 `git worktree list --porcelain -z`，规范化已有路径，排除 
 ## 验证
 
 纯 Workbench 与 Desktop runtime 测试覆盖 scope 身份、多仓库、当前组变化、等价 Directory 复用、陈旧来源拒绝和已移动 Worktree 重新打开。协议/client/broker 与 Git 适配器测试覆盖不透明边界、解析、规范提交失败和退役。Hook 与组件测试覆盖 discovery 菜单及结果/发布顺序，不允许迟到导航抢占。持续外部 Git 观察和原生窗口焦点不在这些证据内。
+
+<!-- documentation-pairing: english-sha256=06652ae2edf314ec6b5d071402daa88bf1b3f27a263718ba2f177d6e7efc43f7 zh-cn-sha256=22aba2d2d63ae04daf5270187cceb0dd46313a03ae6769da38574d3cabd606a3 -->

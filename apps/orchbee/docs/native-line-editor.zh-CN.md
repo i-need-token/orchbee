@@ -60,3 +60,5 @@ emoji、组合符与零宽字段。草稿级测试覆盖文末预填编辑、导
 [设置渲染器见证](../src/tui_render/settings/tests.rs) 检查移除控制字符/ANSI 后组合符或 emoji
 变体选择符合并成簇、正常宽字形及文末光标。[设置输入轨迹](../src/terminal_input/dispatcher/tests/settings.rs)
 让字面粘贴与 Ctrl+W 经过解码器，验证删词且不保存、不向窗格转发。
+
+<!-- documentation-pairing: english-sha256=b246fce1d09dbdba3abb03cda5687736c4e21bb6e6e2bdc243ab9f09f4e690ee zh-cn-sha256=5f2e7918910976423a7986056d83e32c0216cbe440832415723f6e779822bbf1 -->

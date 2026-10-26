@@ -115,3 +115,5 @@ import { createA1 as hiddenA1 } from '../../a/a1'; // 禁止：A1 对 B1 隐藏�
 - 模块实现绝不能导入自身的 `index.ts`；直接导入本地实现文件以避免 barrel 循环。
 - `import/no-cycle` 以 `ignoreTypes: false` 运行；仅类型和运行时循环依赖都会失败。
 - 通过把共享契约移动到双方都可见的最近模块、在接口后反转依赖或引入专用同级模块来打破循环；绝不能抑制或降级规则。
+
+<!-- documentation-pairing: english-sha256=7ad51ef67d4bc536a08a85eb7facfe3a0ec995dc92ba75cb96784bd19b9ac943 zh-cn-sha256=c629f737348d17ab6d2862f9da9632641d344c70946ed5d350428b690e6ead23 -->

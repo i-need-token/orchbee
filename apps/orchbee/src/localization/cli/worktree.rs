@@ -1,3 +1,7 @@
+//! Localized worktree operations, query failures, and command help; does not inspect or mutate checkouts.
+
+use super::failure_target;
+use crate::cli::Failure;
 use crate::{
     cli::escape::{escape, native_path},
     invocation::CommandPath,
@@ -359,6 +363,128 @@ impl Locale {
                 };
                 format!("{message}\n")
             }
+        }
+    }
+}
+
+pub(super) const HELP_WORKTREE_LIST_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee worktree list [--workspace <target>|--cwd <path>] [--trust-repository] [--client <id>] [--format text|json]\norchbee worktree list --directory <directory-id> [--format text|json]",
+        "Windows: list Git checkouts and associated Workspaces. With no source selector,\n--client selects an exact ready TUI; otherwise use the validated caller, then a unique\ncurrent ready TUI, then CLI cwd only when neither exists. A Workspace source keeps its exact identity and must have a primary directory. No Project is required for a directory query. Invalid caller identity\nnever falls back. --trust-repository trusts this repository for this query only.\nThe query is read-only, does not activate a session, and has a 5-second total budget.\nJSON source queries emit orchbee.worktree.query; failed Server results keep typed reasons.\nThe globally stable --directory selector keeps orchbee.worktree.list and its failure schema;\nthese selectors cannot be combined with --workspace, --cwd, --client or --trust-repository.\nWorkspace targets accept exact IDs, @workspace:0x<hex> or exact labels; ambiguity is rejected.\nBranches keep refs/heads/ prefixes; all-zero HEAD marks an unborn repository.\nWindows --cwd accepts absolute, relative and ~ paths; the final executing CLI resolves its own cwd/home after routing. Home precedence: USERPROFILE, HOMEDRIVE+HOMEPATH, HOME.",
+    );
+
+pub(super) const HELP_WORKTREE_LIST_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee worktree list [--workspace <target>|--cwd <路径>] [--trust-repository] [--client <id>] [--format text|json]\norchbee worktree list --directory <directory-id> [--format text|json]",
+        "Windows：列出 Git 检出目录及关联 Workspace。省略来源选择器时，已验证的调用者终端\n优先，其次为唯一当前就绪 TUI，均无时才使用 CLI cwd。--client 选择精确就绪 TUI，\n覆盖隐式调用者。Workspace 来源保留其精确标识且必须有主目录。目录查询无需 Project。无效调用者身份\n绝不回退。--trust-repository 仅在本次查询中信任该仓库。\n查询只读、不激活会话，总预算 5 秒。来源查询 JSON 使用 orchbee.worktree.query，\nServer 失败结果保留类型化原因。全局稳定 --directory 选择器保留 orchbee.worktree.list\n及其失败 Schema；不可混用 --workspace、--cwd、--client 或 --trust-repository。\nWorkspace 目标支持精确 ID、@workspace:0x<hex> 或精确标签；拒绝歧义。\n分支保留 refs/heads/ 前缀；全零 HEAD 表示未出生仓库。\nWindows --cwd 接受绝对、相对和 ~ 路径；路由后由最终执行的 CLI 使用自身 cwd／主目录解析。主目录优先级：USERPROFILE、HOMEDRIVE+HOMEPATH、HOME。",
+    );
+
+impl Locale {
+    /// `worktree list` failure diagnostics, keyed by the details the typed
+    /// outcome mapping produced. Every line states what the listing observed.
+    pub(super) fn cli_worktree_failure(self, failure: &Failure) -> String {
+        use crate::cli::FailureKind;
+        let detail = |name: &str| {
+            failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get(name))
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+        };
+        match failure.kind {
+            FailureKind::NotFound => {
+                let (_resource, target) = failure_target(failure);
+                match self {
+                    Self::EnUs => {
+                        format!("No directory with ID {target} is registered to the project.\n")
+                    }
+                    Self::ZhCn => format!("该项目未注册 ID 为 {target} 的目录。\n"),
+                }
+            }
+            FailureKind::Denied => match self {
+                Self::EnUs => "The local session denied the worktree listing.\n".to_owned(),
+                Self::ZhCn => "本地会话拒绝了该 worktree 列举。\n".to_owned(),
+            },
+            FailureKind::ServiceUnavailable => {
+                let reason = detail("reason");
+                match (self, reason) {
+                    (Self::EnUs, "job-dead") => {
+                        "The directory's worktree listing job is no longer alive.\n".to_owned()
+                    }
+                    (Self::ZhCn, "job-dead") => {
+                        "该目录的 worktree 列举作业已不存在。\n".to_owned()
+                    }
+                    (Self::EnUs, "job-unknown") => {
+                        "The directory's worktree listing job is unknown to the Worker.\n"
+                            .to_owned()
+                    }
+                    (Self::ZhCn, "job-unknown") => {
+                        "Worker 不认识该目录的 worktree 列举作业。\n".to_owned()
+                    }
+                    (Self::EnUs, "worker-unavailable") => {
+                        "The directory's Worker is not available for the worktree listing right now.\n"
+                            .to_owned()
+                    }
+                    (Self::ZhCn, "worker-unavailable") => {
+                        "该目录的 Worker 当前无法进行 worktree 列举。\n".to_owned()
+                    }
+                    (Self::EnUs, _) => {
+                        "The local session could not run the worktree listing right now.\n".to_owned()
+                    }
+                    (Self::ZhCn, _) => "本地会话当前无法执行 worktree 列举。\n".to_owned(),
+                }
+            }
+            FailureKind::CheckFailed => {
+                let stage = detail("stage");
+                match (self, stage) {
+                    (Self::EnUs, "parse") => {
+                        "The directory's Git worktree listing was malformed.\n".to_owned()
+                    }
+                    (Self::ZhCn, "parse") => {
+                        "该目录的 Git worktree 列表输出格式无效。\n".to_owned()
+                    }
+                    (Self::EnUs, stage) => {
+                        format!("The directory's Git worktree {stage} stage failed.\n")
+                    }
+                    (Self::ZhCn, stage) => {
+                        format!("该目录的 Git worktree {stage} 阶段失败。\n")
+                    }
+                }
+            }
+            FailureKind::Timeout => match self {
+                Self::EnUs => {
+                    "The worktree listing did not complete within the time limit.\n".to_owned()
+                }
+                Self::ZhCn => "worktree 列举未在时限内完成。\n".to_owned(),
+            },
+            FailureKind::OutputTooLarge => {
+                let origin = detail("origin");
+                match self {
+                    Self::EnUs => {
+                        format!("The worktree listing exceeded its output bound ({origin}).\n")
+                    }
+                    Self::ZhCn => format!("worktree 列举超出其输出上限（{origin}）。\n"),
+                }
+            }
+            FailureKind::TransportLoss => match self {
+                Self::EnUs => {
+                    "The connection to the local session was lost during the worktree listing.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "与本地会话的连接在 worktree 列举期间中断。\n".to_owned(),
+            },
+            FailureKind::ProtocolInvalid => match self {
+                Self::EnUs => {
+                    "The local session answered the worktree listing with an invalid protocol response.\n"
+                        .to_owned()
+                }
+                Self::ZhCn => "本地会话对 worktree 列举返回了无效的协议响应。\n".to_owned(),
+            },
+            _ => match self {
+                Self::EnUs => "The CLI hit an internal failure; no data was written.\n".to_owned(),
+                Self::ZhCn => "CLI 发生内部错误；未写出任何数据。\n".to_owned(),
+            },
         }
     }
 }

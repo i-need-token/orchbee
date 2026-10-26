@@ -99,3 +99,5 @@ Menu Item 添加框线。
 - 模态框覆盖验证 Portaled Menu 渲染在所属 Dialog 之上，并保持 Pointer 可操作。
 - 键盘覆盖验证遍历、调用、嵌套关闭和焦点恢复。
 - 修改菜单 Primitive、共享菜单模型、触发器行为或本规范后运行 `pnpm verify`。
+
+<!-- documentation-pairing: english-sha256=4cd6cdd91cac8f47e12150e58d8fc4796bd427d43761e5f6c49ee04542debdb2 zh-cn-sha256=94b0b4bd8aeb8f1c99eaaf56f14a965c65185af907acc04ec261263930114874 -->

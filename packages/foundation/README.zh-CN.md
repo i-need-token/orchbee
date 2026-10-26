@@ -23,3 +23,5 @@ const handleCommit = useMemoizedFn(() => {
 `useMemoizedFn` 在每次渲染间保持同一个函数标识，同时调用最新提交的实现。暂停或被丢弃的渲染无法改变上一次提交所暴露的可调用行为。该 Hook 保留原始参数、返回类型和调用方提供的 `this`。
 
 仓库级准入和包规则见 [`docs/PACKAGES.md`](../../docs/PACKAGES.md#foundation-boundary)。
+
+<!-- documentation-pairing: english-sha256=f7c8203372942407192f71559e30feeb3d218122cfb10b493e42c0250a45dbdc zh-cn-sha256=d6376820161555276530a8bfdfcf1553d71e5801c12e78727453bca829ed2073 -->

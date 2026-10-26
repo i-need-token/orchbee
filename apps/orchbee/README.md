@@ -657,6 +657,11 @@ Authored help and diagnostics ship in `en-US` and `zh-CN`. Locale selection chec
 falls back to canonical `en-US`. Locale data affects presentation only and is never persisted or
 used as authority.
 
+`src/localization.rs` owns locale selection and the explicit localization boundary; feature copy
+lives in `src/localization/<feature>.rs`. CLI copy lives in `src/localization/cli/<feature>.rs`,
+and `src/localization/cli.rs` only declares modules and shared types. Add messages to their feature
+owner within this localization tree; domain modules continue returning typed outcomes.
+
 Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone. Bare Windows, Linux, and macOS invocation composes the shared runtime, private Client transport, and TUI; platform adapters own console and transport effects. The native application owns the current development CLI/TUI surface.
 
 ## POSIX local Session rendezvous foundation

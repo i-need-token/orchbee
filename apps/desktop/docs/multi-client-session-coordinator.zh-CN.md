@@ -276,3 +276,5 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 [host-tests]: ../src/main/host/__tests__/HostConnection.unit.test.ts
 [renderer-start-tests]: ../../web/src/workbench-client/projected-terminal-renderer/__tests__/startProjectedTerminalRenderer.unit.test.ts
 [recovery-tests]: ../../web/src/workbench-client/projected-terminal-surface/model/__tests__/ProjectedTerminalRecoveryController.unit.test.ts
+
+<!-- documentation-pairing: english-sha256=d92867be76360338a5b0e915f4b74322a685d09575fd3237daf8b026e681247b zh-cn-sha256=5478392238931e5621b12a398bee9deab1bf000522664ce9a9c4271e7a642ef2 -->

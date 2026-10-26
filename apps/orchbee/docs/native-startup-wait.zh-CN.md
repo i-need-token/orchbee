@@ -58,3 +58,5 @@ TTY 准入验证终端身份与描述符安全，并探测几何查询本身可�
 workbench——在帧的真实末行上验证——并干净退出。上报零像素的可绘制启动同样到达
 Ready，覆盖合法的 pixel 未知状态。PTY 观察器是与初始 winsize 无关的固定容量画布，
 超出该容量的 witness resize 被拒绝。
+
+<!-- documentation-pairing: english-sha256=fd79279b2d22c735357a488a680f8e9bef7b97d407108189bb5018dee91a8d00 zh-cn-sha256=4afdfcb8a8054920f98c04401b2d7da5bf376d40ed6d0999ea82188de5dccdd5 -->

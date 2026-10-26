@@ -57,3 +57,5 @@ checkout 可以并行运行。
 确定性 resolver 测试覆盖三种 profile、严格打包 descriptor、环境不可覆盖、规范路径稳定性、平台
 规范化、marker 创建与不匹配，以及不同 checkout 隔离。Desktop 配置测试验证选定的 `userData`
 根目录进入托管 Worktree 与恢复路径；Main 入口会在请求单实例锁之前选择 `userData`。
+
+<!-- documentation-pairing: english-sha256=ff9d36ffe0efb3dcc9698ea401ab5c5e8c5490f35314e0e91fd2d489d473469e zh-cn-sha256=4a6669be7920d62d7328f64138ae4e4f3cabc7a4f3d967767fe8564fddf431e7 -->

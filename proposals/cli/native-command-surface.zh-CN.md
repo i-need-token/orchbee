@@ -293,3 +293,5 @@ response 不明确后只对账该 identity；它绝不会自动重放 effect。
 6. 从实测 release candidate 推导支持平台的 startup、artifact-size 与 peak-memory budget；Phase 3A
    reference baseline 不设置 acceptance budget。
 7. 未来 packaged public cutover 需要 consumer、compatibility、signed-cohort upgrade、rollback、documentation 与 installed-artifact 证据。本次旧源代码退役已另行获得授权，不以该未来发布为前提。
+
+<!-- documentation-pairing: english-sha256=190f058eac7acc7a5cc35bd2bedf09f14a83068b65d69bf927d6dc6b438eaa5c zh-cn-sha256=882583d5e021ea07ca1896b6c9e9931fe91592c5b29a6ba8e323ba70c7ee307d -->

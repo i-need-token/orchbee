@@ -337,3 +337,5 @@
 所有渲染证据都包含 `en-US` 与 `zh-CN`、宽内容、[`verification.md`](verification.md#渲染证据)
 中的必需几何，以及隐藏目标不留下陈旧命中区域的检查。组件渲染通过不能证明现有屏幕已经采用
 该组件。
+
+<!-- documentation-pairing: english-sha256=107abd541f4c50335f0d90f52b9fc3fe1b70ba6b5d05498664d2247caeec46a7 zh-cn-sha256=f96e74a5e9a68714e0ba6186c1eb8674f56e5f80725c068ac1fe24a203010931 -->

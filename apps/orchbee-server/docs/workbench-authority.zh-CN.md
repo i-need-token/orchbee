@@ -499,3 +499,5 @@ Site 冻结 cwd／环境／程序／来源，在联合提交与分发前准备�
 [rename-process]: ../tests/client_process/tab_create/tab_rename.rs
 [create-process]: ../tests/client_process/tab_create.rs
 [create-authority-tests]: ../src/workbench_authority/terminal_tab_create/tests.rs
+
+<!-- documentation-pairing: english-sha256=5903c670bf4897ffaaf8ee2abe0016afeac9dea6a09216dec565aded41b1887d zh-cn-sha256=c13884757b9112840943d16a73c387f8793203107e3303e31dd00f77c5ae7c13 -->

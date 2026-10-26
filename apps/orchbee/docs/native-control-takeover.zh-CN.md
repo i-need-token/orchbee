@@ -69,3 +69,5 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 原生 ConPTY Client，验证程序身份连续且输入可双向交接。这些检查不代表真人
 Windows Terminal 或真实 Agent provider 验收，也不建立主动更新控制标签的通知契约。
 同作者审读不等同独立确认。
+
+<!-- documentation-pairing: english-sha256=ab35fd0f187c27793ad087dfcba277c59dc86fa6f4b097043ddcf568f98bd145 zh-cn-sha256=ae5092a1854f82d3f13bf80fefa78924c2fdf6edcfc6bf76b9cf92fabce113b9 -->

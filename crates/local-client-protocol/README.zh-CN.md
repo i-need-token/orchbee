@@ -172,3 +172,5 @@ Windows 使用 `orchbee-local-ipc` 本地命名管道承载相同的 OBLC 消息
 `src/connection/windows_admission/tests.rs` 控制完成顺序与时钟推进，覆盖跨切片、等待时
 取消、连接后失败、迟到完成和候选清理。原生元数据／停止测试覆盖真实管道适配器。
 这些具名轨迹补充既有协议模型，不建模或限制 Windows 内核调度。
+
+<!-- documentation-pairing: english-sha256=7d798fe8db0abc8c21c4c1409ed68089b0b1d03821725383217dc2df2a0e5ede zh-cn-sha256=d76a95b63d7ee476ab594366cfbc690bafbe0489590ff7160e45ec65c667ffa1 -->

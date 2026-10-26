@@ -97,3 +97,5 @@ launch。
 未选择 TLA+ 模型，因为细化没有可变状态、并发、异步完成、重试排序或取消。未选择 Lean 证明，因为
 schema 验证与有限的 Shell/argument 决策表会被直接执行。真实 Shell 与 Desktop trace 是有界的平台
 证据，不声明覆盖每个 Shell 版本、启动插件、系统级配置、符号链接 executable 或损坏的安装。
+
+<!-- documentation-pairing: english-sha256=15bd8abb16742449044ad22de6c90a1be25b00463516c0e0642254a09e4f599d zh-cn-sha256=1f63d6f0c159a5e8fb4b62798f0580b194733e451fe8562b3e87fcb787b2b9cf -->

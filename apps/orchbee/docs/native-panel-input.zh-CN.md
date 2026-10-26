@@ -67,3 +67,5 @@ Windows 命令进程及双 TUI 验证覆盖调用者目标、响应丢失、共�
 不新增 macOS 或 Linux 运行时实现。
 
 读取契约：`orchbee.panel.list` v1、`orchbee.panel.get/current` v1、`orchbee.tab.get` v1 及 `orchbee.api.snapshot` v1；目录列出当前文档与命令路径。
+
+<!-- documentation-pairing: english-sha256=590bb9869e235156409d33d1d0245d371b781b7680255c46c4764332a1270b00 zh-cn-sha256=d7d0d87d4fe8a698402306328b2eca5f80a29943c8bd63abbb48649afe7e654a -->

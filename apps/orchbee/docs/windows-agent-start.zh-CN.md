@@ -130,3 +130,5 @@ Windows Agent Get v1（指定 Client 时为 v1）包含 `management`，携带自
 Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v1 中标记 operation management。成功的 Start v1 在现有完成和发送证据上增加必需的 interactiveReady true。CLI 的启动受阻取消策略保持不变。交互看板可在原始预算内等待规范关注解除；两个路径均不通过屏幕文本猜测信任提示。
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。
+
+<!-- documentation-pairing: english-sha256=15a0ac30ad71834cd50dcefdf85943ce688f2a2fcb0373bbb2cdeecb9d6fcc44 zh-cn-sha256=2e4a56ebe01917f6c09965f623d6fe6aff1229fda8d109598f6877478c815333 -->

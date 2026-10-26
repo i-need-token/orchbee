@@ -340,3 +340,5 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 再统一发布。每个 profile 最多 32 KiB；匹配 cohort 的配置帧包括转义最多 256 KiB。
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
+
+<!-- documentation-pairing: english-sha256=29157d2728fd786a09a71cdf26f4dd8a1705eee05ffce4c85547a62118f1df2c zh-cn-sha256=e99e5162c57f4d2071bff6cecd0791cdeb2f54e1e032127b96be80603190eb40 -->

@@ -67,3 +67,5 @@ CLI Tab 行、Workspace 的 Tab 引用以及所有 Tab 标签选择器均使用�
 焦点身份不变的实际 Windows TUI 显示。其他操作系统的运行时行为不在 Windows 验收证据内。
 
 自动终端标题若为 Windows 可执行文件绝对路径，只显示文件名；原始标题观察保持不变。紧凑标签栏溢出时保留当前标签及分组上下文，在空间允许时于隐藏的一侧绘制不可交互的省略标记。关闭控件与省略标记各占独立区域。
+
+<!-- documentation-pairing: english-sha256=069f3707c95b64bf8fa7cbeeb7cb28cf5c1e053b41cb3f8ea96ca8bc382d6d24 zh-cn-sha256=26fd1db6ad66411a3202de7faff87182ce52ad2272ffc92dc80ad94e11e8c527 -->

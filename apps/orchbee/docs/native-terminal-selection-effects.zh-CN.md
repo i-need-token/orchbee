@@ -161,3 +161,5 @@ carrier，且不发送另一请求。这些传输测试中继 opaque record；Ho
 选择 viewer 动作和效果路由是由一个精确原生 Client、Server、Worker 与 Host cohort 交付的加法
 契约。它们不产生持久选区或屏幕数据迁移。回退时整体替换该 cohort。旧二进制可以继续原有行为，
 但不能在混合 cohort 中使用新动作。
+
+<!-- documentation-pairing: english-sha256=d4b368e35c358e8b1771d74b34af5c724c04193685a21eee06b4358b8670e160 zh-cn-sha256=2b79ba75b5d5c8139999bdda14568124108842485391502dbdc68ccec8eb0709 -->

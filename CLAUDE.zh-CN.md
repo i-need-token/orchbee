@@ -95,3 +95,5 @@ schemas/        # 机器可读的仓库契约 Schema
 - **格式化**：oxfmt + rustfmt + `zig fmt`
 - **Schema**：Zod 4（在边界 parse，内部信任）
 - **Monorepo**：pnpm workspaces（`apps/*`、`packages/*`）+ 一个根 Cargo workspace（`apps/*`、`crates/*` Rust member）
+
+<!-- documentation-pairing: english-sha256=84e1c03e7c491c9e8731f953e4ed401af2dd84bf19f75afcbdcda621936bfa13 zh-cn-sha256=9a2360f893959a8c8fdda150f62dc39ddb55107d73924dc9745de8f73f0f9749 -->

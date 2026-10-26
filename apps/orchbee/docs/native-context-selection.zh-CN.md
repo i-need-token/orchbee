@@ -153,3 +153,5 @@ provenance、不启动或销毁终端、不改 checkpoint，也不移动其他�
 选中的 pane-membership 模型仍抽象离开、清理和 anchor 前进；落到空 Workspace 不创建 pane。
 control-takeover 和 viewport 模型保留原有 grant 与 epoch 防护。这些抽象不证明 Workspace
 排序、兼容过滤、启动接纳或 adapter/UI 行为；这些仍需具体实现测试及原生验收提供证据。
+
+<!-- documentation-pairing: english-sha256=1ffdd4fa03111aa613cd43414cc097da6e69750fcb3cc3de1215ca1add61d06f zh-cn-sha256=9fe1145bfa4b88fee209e21fc0277c8b74677cd6326391f36cb46aaadf4c13bb -->

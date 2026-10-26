@@ -235,3 +235,5 @@ Terminal 滚动条和专用 overlay 滚动条属于独立组件行为，不继�
 每个产品组合都必须适应 [`localization.md`](localization.md) 要求的每个 locale。当翻译文本可能换行时，根据内容确定容器尺寸或使用 `min-height`。由一个英文标签推导的宽度或高度不是可复用组件尺寸。
 
 不要为了容纳翻译而缩小字号、删除必需上下文，或者截断操作和说明。截断仅用于用户提供的条目名称等数据，并且必须保留对完整值的访问。让文本远离图片，并在两个发布的 locale 中验证换行、键盘焦点、缩放和窄布局。
+
+<!-- documentation-pairing: english-sha256=d15700919f6eef7b21b8bcdea4f8e99501f0c7d426c4bb6cbc32a89164a6cae4 zh-cn-sha256=179eef8d123910bc6234abc0dda61ec15b2f8c1d3869c5b5e6ebf9060e75a9f2 -->

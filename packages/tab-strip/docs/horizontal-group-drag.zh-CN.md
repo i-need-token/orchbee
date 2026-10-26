@@ -173,3 +173,5 @@ armed（已预备）或活动的组拖拽记录：
 - 确定性浏览器跟踪覆盖每个可观察的检查点；
 - TypeScript、Lean 和跟踪 Schema 之间的映射始终有文档记录；并且
 - 包的单元测试、构建、导出契约与仓库验证继续通过。
+
+<!-- documentation-pairing: english-sha256=9d37d0a030529ffacb78bf88583aa12cc4777d6ada48eb1db1c3633af4e63e37 zh-cn-sha256=9643566c3e359ca0993a27dd570b4ea7527c4f75f33df06bc0cb847944fa2975 -->

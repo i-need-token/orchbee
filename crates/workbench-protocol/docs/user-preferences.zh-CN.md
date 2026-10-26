@@ -96,3 +96,5 @@ Schema 语料检查 Rust/TypeScript 词汇、边界和非法输入。Local Site 
 终端呈现。[原生设置模型](../../../apps/orchbee/docs/native-settings.zh-CN.md#正确性与证据)
 检查两个写入者、重置、不确定回执和发布。可见同步及宿主特有
 效果仍要求真实 GUI/TUI 验收；交叉编译不能替代运行时验收。
+
+<!-- documentation-pairing: english-sha256=6e4d5c82a436d6e09c84824503e46175fe63046b548dd973907ff663a02c8da6 zh-cn-sha256=22bef16dcfeed699771955b30ae4cd469ef3947e26e5a5100efb26988f82e6f9 -->

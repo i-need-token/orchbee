@@ -76,3 +76,5 @@ CLI Panel 读取保留创建时的 `label`，增加可空 `customLabel` 及实�
 [原生 CLI 查询](native-cli-query.zh-CN.md)负责。
 
 叶窗格标题中，已提供的自定义 Presentation 标题或 metadata 标题不再附加 Panel 序号，包括显式提供的数字标题。两者都没有时，生成的标题保留本地化资源前缀和 Panel 序号。创建标签若是继承的纯 ASCII 数字，则从该标题省略；非数字创建标签显示在序号后。这一显示选择不重写不可变标签。所有形式使用同一净化和显示单元截断规则。
+
+<!-- documentation-pairing: english-sha256=c944e291d997fb57437773eb4ce9684e99fbdbe369375484b71406865589d25f zh-cn-sha256=834854d294a4cfad29d10f8194a8ef0167ea783d224f77f2fe5566d29c496574 -->

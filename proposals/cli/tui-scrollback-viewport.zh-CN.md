@@ -443,3 +443,5 @@ Scrollback 恰好落在该边界内：
 ```sh
 pnpm docs:confirm-pairing -- proposals/cli/tui-scrollback-viewport.md
 ```
+
+<!-- documentation-pairing: english-sha256=e52d3a4dfe6038660641b413765c26bea3e2254f7e3b564e46befcfa7c214777 zh-cn-sha256=180fd14d57d61d7ef503294f1e6fe03f9d251af761d0a3f2a83a4f80da5db98e -->

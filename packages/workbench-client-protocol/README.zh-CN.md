@@ -354,3 +354,5 @@ pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产
 ## 保留操作身份
 
 封闭的 `CloseOperationReadSchema` 与 `CloseOperationResultSchema` 加入请求／结果联合及命令一致性语料。它们对应[保留 Close 身份查询](../../crates/workbench-protocol/README.zh-CN.md#保留-close-身份查询)，不引入 Client 所有的生命周期状态。
+
+<!-- documentation-pairing: english-sha256=8c4a2b02d3c4c24c9e47740a2f9e914f02127e0721d2cf25be0998b10b663dc9 zh-cn-sha256=a393f692f403845cdce029f95f9c3b3224c3a3b94e2148f38bd523f042d332db -->

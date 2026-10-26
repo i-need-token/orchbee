@@ -94,3 +94,5 @@ pnpm storybook
 ```
 
 UI 故事存在于 [`stories`](stories) 中，并由 `apps/storybook` 消耗。 `src/components/ui`中的每个组件模块都有一个匹配的Story文件； Storybook 应用程序测试强制执行该库存合同。 Storybook 是开发基础设施，不是该包公共导出的一部分。
+
+<!-- documentation-pairing: english-sha256=0c7b4a9e9057fc84b49070cc051e980cc7e2e315fabfcffb21a9b57a81335e13 zh-cn-sha256=458d11742bb163496928c046406f96bc214214a4486270846ceb86a40a03d1a8 -->

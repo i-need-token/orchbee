@@ -83,3 +83,5 @@ Agent 等待关注、运行、空闲、完成、失败与未读是独立角色�
 | 已完成   | `#9ECE6A` |
 | 失败     | `#F7768E` |
 | 空闲     | `#585858` |
+
+<!-- documentation-pairing: english-sha256=c68b33e4877268b7b86297d8a940b1942fb027be2ba7b501f7a883fea3db5f53 zh-cn-sha256=abad96922a5ca805b835df47edbacfc0d3d7a5ce232105b3f60a8a196ddf6c44 -->

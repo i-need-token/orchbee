@@ -147,3 +147,5 @@ TUI 向现有持久化边界发送类型化补丁。除非公共所有者明确�
 
 依据 [`verification.md`](verification.md) 使用渲染、输入、尺寸调整、区域设置、降级色彩和受支持宿主证据。当竞争写入者、比较交换发布或未知提交结果的风险满足
 [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) 时对其建模；普通行渲染不需要独立形式化模型。
+
+<!-- documentation-pairing: english-sha256=b10c4de9e22c03a3f089115323494e3f19988fea539a7408cb070fd230046e80 zh-cn-sha256=83ccf9ea28b22b3d54076470bf9ab64b5a20b7217d2476efaf2bfe781aef4d41 -->

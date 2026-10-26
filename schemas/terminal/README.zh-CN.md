@@ -32,3 +32,5 @@ TypeScript 绑定既有的 `fixtures:generate` 和 `test:fixtures` 命令在本�
 
 Terminal Host 既有的 `surface-fixtures:generate` 和 `test:surface-fixtures` 命令生成并逐字节比较三个
 `ghostty-*.bin` 记录。终端渲染器消费相同记录进行语义检查。原生生产、夹具权威和消费者断言各自保持职责。
+
+<!-- documentation-pairing: english-sha256=46f261c4916a5064884c66fb5d91b459263df7891501adacfb9c6ecffb231763 zh-cn-sha256=9df80c7dc9298a850078916bb88088dfbe0c51e15bb4298112de45137548d584 -->

@@ -42,3 +42,5 @@ Windows Client 通过 `Ctrl+B P` 进入调整模式。普通方向键将附近�
 在 `src/workbench_client/client_control/tests.rs`、`src/workbench_client/ui.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+
+<!-- documentation-pairing: english-sha256=afa7a6e8bf5ae9f209de58ebd942614568ad1fb790a86cbe4b0a0267ae46646b zh-cn-sha256=a3b97921a023a6b27f3038d74936821adeeac73567e7ae12ff223010bc6e3414 -->

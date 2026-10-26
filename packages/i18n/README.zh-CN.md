@@ -98,3 +98,5 @@ pnpm --filter @orchbee/i18n test:exports
 ```
 
 创作、回退和验证契约见 [`docs/frontend/localization.md`](../../docs/frontend/localization.md)。
+
+<!-- documentation-pairing: english-sha256=61290148c90e520fc7177df0f3305525273876280280cf84014f13d4a7bacc37 zh-cn-sha256=a361dca84fa86d774c6d2c2aa3eee53df2f0551605d19406fa556a360e69651b -->

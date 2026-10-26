@@ -1,14 +1,14 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
-const FORMAT_VERSION = 1;
 const LOCALIZED_MARKDOWN_SUFFIX = '.zh-CN.md';
-const SHA_256_PATTERN = /^[a-f0-9]{64}$/u;
+const RECEIPT_LINE =
+	/^<!-- documentation-pairing: english-sha256=([a-f0-9]{64}) zh-cn-sha256=([a-f0-9]{64}) -->$/u;
 
 function errorMessage(error) {
 	return error instanceof Error ? error.message : String(error);
@@ -23,15 +23,6 @@ function comparePaths(left, right) {
 	if (left < right) return -1;
 	if (left > right) return 1;
 	return 0;
-}
-
-function repositoryPath(repositoryRoot, absolutePath) {
-	return relative(repositoryRoot, absolutePath).split(sep).join('/');
-}
-
-function displayPath(repositoryRoot, absolutePath) {
-	const candidate = repositoryPath(repositoryRoot, absolutePath);
-	return candidate === '..' || candidate.startsWith('../') ? absolutePath : candidate;
 }
 
 function repositoryPathEntryExists(repositoryRoot, repositoryRelativePath) {
@@ -71,19 +62,6 @@ function discoverRepositoryMarkdownPaths(repositoryRoot) {
 		.toSorted();
 }
 
-function assertRecord(value, label) {
-	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-		throw new Error(`${label} must be an object`);
-	}
-}
-
-function assertExactKeys(value, expectedKeys, label) {
-	const actualKeys = Object.keys(value).toSorted();
-	if (!isDeepStrictEqual(actualKeys, expectedKeys.toSorted())) {
-		throw new Error(`${label} must contain exactly: ${expectedKeys.join(', ')}`);
-	}
-}
-
 function assertSourcePath(sourcePath) {
 	const segments = sourcePath.split('/');
 	if (
@@ -111,14 +89,6 @@ function sourcePathForLocalizedPath(localizedPath) {
 	return sourcePath;
 }
 
-function readManifest(manifestPath) {
-	if (!existsSync(manifestPath)) {
-		throw new Error('documentation pairing manifest does not exist');
-	}
-	const raw = readFileSync(manifestPath, 'utf8');
-	return { manifest: parsePairingManifest(raw), raw };
-}
-
 function sourcePathFromInput(repositoryRoot, input) {
 	if (typeof input !== 'string' || input.length === 0) {
 		throw new Error('Documentation pairing paths must be non-empty strings');
@@ -140,20 +110,6 @@ function sourcePathFromInput(repositoryRoot, input) {
 			: normalizedPath;
 	assertSourcePath(sourcePath);
 	return sourcePath;
-}
-
-function writeManifestAtomically(manifestPath, manifest) {
-	const temporaryPath = `${manifestPath}.${process.pid}.${randomUUID()}.tmp`;
-	try {
-		writeFileSync(temporaryPath, renderPairingManifest(manifest), {
-			encoding: 'utf8',
-			flag: 'wx',
-			mode: 0o644,
-		});
-		renameSync(temporaryPath, manifestPath);
-	} finally {
-		rmSync(temporaryPath, { force: true });
-	}
 }
 
 export function contentSha256(content) {
@@ -183,7 +139,10 @@ function tableColumnCount(row) {
 }
 
 export function documentationStructure(markdown) {
-	const normalizedMarkdown = normalizeNewlines(markdown);
+	const normalizedMarkdown = normalizeNewlines(markdown).replace(
+		/^<!-- documentation-pairing: english-sha256=[a-f0-9]{64} zh-cn-sha256=[a-f0-9]{64} -->(?:\n)?$/mu,
+		'',
+	);
 	const matches = (pattern) =>
 		Array.from(normalizedMarkdown.matchAll(pattern), (match) => match[0]);
 
@@ -246,127 +205,82 @@ function discoverLocalizedPairs(repositoryRoot) {
 	};
 }
 
-export function parsePairingManifest(raw) {
-	let value;
-	try {
-		value = JSON.parse(raw);
-	} catch (error) {
-		throw new Error(`documentation pairing manifest is not valid JSON: ${errorMessage(error)}`, {
-			cause: error,
-		});
+function readPairingReceipt(markdown) {
+	const normalized = normalizeNewlines(markdown);
+	const markers = [
+		...normalized.matchAll(/^[ \t]*<!--\s*documentation-pairing\b[^\n]*(?:\n|$)/gmu),
+	];
+	if (markers.length === 0) return { content: normalized, receipt: undefined };
+	if (markers.length !== 1) {
+		throw new Error('documentation pairing receipt must occur exactly once');
 	}
-	assertRecord(value, 'Documentation pairing manifest');
-	assertExactKeys(value, ['formatVersion', 'pairs'], 'Documentation pairing manifest');
-	if (value.formatVersion !== FORMAT_VERSION) {
-		throw new Error(`Documentation pairing formatVersion must be ${FORMAT_VERSION}`);
-	}
-	assertRecord(value.pairs, 'Documentation pairing pairs');
-
-	const pairs = {};
-	for (const [sourcePath, receipt] of Object.entries(value.pairs)) {
-		assertSourcePath(sourcePath);
-		assertRecord(receipt, `Documentation pairing receipt for ${sourcePath}`);
-		assertExactKeys(
-			receipt,
-			['englishSha256', 'zhCnSha256'],
-			`Documentation pairing receipt for ${sourcePath}`,
+	const [marker] = markers;
+	const receipt = RECEIPT_LINE.exec(marker[0].replace(/\n$/u, ''));
+	if (receipt === null) {
+		throw new Error(
+			'malformed documentation pairing receipt; expected lowercase SHA-256 digests on one HTML comment line',
 		);
-		if (!SHA_256_PATTERN.test(receipt.englishSha256)) {
-			throw new Error(`${sourcePath} englishSha256 must be a lowercase SHA-256 digest`);
-		}
-		if (!SHA_256_PATTERN.test(receipt.zhCnSha256)) {
-			throw new Error(`${sourcePath} zhCnSha256 must be a lowercase SHA-256 digest`);
-		}
-		pairs[sourcePath] = {
-			englishSha256: receipt.englishSha256,
-			zhCnSha256: receipt.zhCnSha256,
-		};
 	}
-	return { formatVersion: FORMAT_VERSION, pairs };
+	if (marker.index + marker[0].length !== normalized.length) {
+		throw new Error('documentation pairing receipt must be the final line');
+	}
+	return {
+		content: normalized.slice(0, marker.index),
+		receipt: { englishSha256: receipt[1], zhCnSha256: receipt[2] },
+	};
 }
 
-export function renderPairingManifest(manifest) {
-	const pairs = Object.fromEntries(
-		Object.entries(manifest.pairs)
-			.toSorted(([left], [right]) => comparePaths(left, right))
-			.map(([sourcePath, receipt]) => [
-				sourcePath,
-				{
-					englishSha256: receipt.englishSha256,
-					zhCnSha256: receipt.zhCnSha256,
-				},
-			]),
-	);
-	return `${JSON.stringify({ formatVersion: FORMAT_VERSION, pairs }, null, '\t')}\n`;
+function renderPairingReceipt(english, chinese) {
+	return `<!-- documentation-pairing: english-sha256=${contentSha256(english)} zh-cn-sha256=${contentSha256(chinese)} -->\n`;
 }
 
-export function collectDocumentationPairingDiagnostics({
-	repositoryRoot = REPOSITORY_ROOT,
-	manifestPath,
-} = {}) {
-	const resolvedManifestPath =
-		manifestPath ?? join(repositoryRoot, 'scripts', 'documentation-pairing.json');
-	const manifestDisplayPath = displayPath(repositoryRoot, resolvedManifestPath);
-	let manifest;
-	let rawManifest;
-	try {
-		({ manifest, raw: rawManifest } = readManifest(resolvedManifestPath));
-	} catch (error) {
-		return [`${manifestDisplayPath}: ${errorMessage(error)}`];
-	}
-
+export function collectDocumentationPairingDiagnostics({ repositoryRoot = REPOSITORY_ROOT } = {}) {
 	const diagnostics = [];
-	if (normalizeNewlines(rawManifest) !== renderPairingManifest(manifest)) {
-		diagnostics.push(`${manifestDisplayPath}: documentation pairing manifest is not canonical`);
-	}
-
 	const sourcePaths = discoverDocumentationSources(repositoryRoot);
 	const sourcePathSet = new Set(sourcePaths);
 	const { diagnostics: localizedDiagnostics, pairs: localizedPairs } =
 		discoverLocalizedPairs(repositoryRoot);
 	diagnostics.push(...localizedDiagnostics);
-	const localizedSourcePaths = localizedPairs.map(({ sourcePath }) => sourcePath);
-	const localizedSourcePathSet = new Set(localizedSourcePaths);
-	const receiptPaths = Object.keys(manifest.pairs).toSorted();
+	const localizedSourcePathSet = new Set(localizedPairs.map(({ sourcePath }) => sourcePath));
 
 	for (const { localizedPath, sourcePath } of localizedPairs) {
 		if (!sourcePathSet.has(sourcePath)) {
 			diagnostics.push(`${localizedPath} has no English Markdown source`);
 		}
 	}
-	for (const receiptPath of receiptPaths) {
-		if (!sourcePathSet.has(receiptPath)) {
-			diagnostics.push(
-				`${manifestDisplayPath}: receipt has no English Markdown source: ${receiptPath}`,
-			);
-		}
-	}
 
 	for (const sourcePath of sourcePaths) {
 		const localizedPath = localizedPathForSource(sourcePath);
-		const receipt = manifest.pairs[sourcePath];
 		if (!localizedSourcePathSet.has(sourcePath)) {
 			diagnostics.push(`${sourcePath}: missing localized counterpart ${localizedPath}`);
+			continue;
 		}
-		if (receipt === undefined) {
-			diagnostics.push(
-				`${sourcePath}: missing documentation pairing receipt; review the pair, then run pnpm docs:confirm-pairing -- ${sourcePath}`,
-			);
-		}
-		if (!localizedSourcePathSet.has(sourcePath)) continue;
 
 		const english = readFileSync(join(repositoryRoot, sourcePath), 'utf8');
 		const chinese = readFileSync(join(repositoryRoot, localizedPath), 'utf8');
 		if (!isDeepStrictEqual(documentationStructure(english), documentationStructure(chinese))) {
 			diagnostics.push(`${sourcePath}: English and Simplified Chinese structures differ`);
 		}
-		if (receipt === undefined) continue;
+		let reviewed;
+		try {
+			reviewed = readPairingReceipt(chinese);
+		} catch (error) {
+			diagnostics.push(`${localizedPath}: ${errorMessage(error)}`);
+			continue;
+		}
+		const { content, receipt } = reviewed;
+		if (receipt === undefined) {
+			diagnostics.push(
+				`${localizedPath}: missing documentation pairing receipt; review the pair, then run pnpm docs:confirm-pairing -- ${sourcePath}`,
+			);
+			continue;
+		}
 		if (contentSha256(english) !== receipt.englishSha256) {
 			diagnostics.push(
 				`${sourcePath}: English content changed after pairing confirmation; review the pair, then run pnpm docs:confirm-pairing -- ${sourcePath}`,
 			);
 		}
-		if (contentSha256(chinese) !== receipt.zhCnSha256) {
+		if (contentSha256(content) !== receipt.zhCnSha256) {
 			diagnostics.push(
 				`${localizedPath}: Simplified Chinese content changed after pairing confirmation; review the pair, then run pnpm docs:confirm-pairing -- ${sourcePath}`,
 			);
@@ -376,21 +290,14 @@ export function collectDocumentationPairingDiagnostics({
 	return diagnostics.toSorted();
 }
 
-export function confirmDocumentationPairs({
-	inputs,
-	repositoryRoot = REPOSITORY_ROOT,
-	manifestPath,
-}) {
+export function confirmDocumentationPairs({ inputs, repositoryRoot = REPOSITORY_ROOT }) {
 	if (!Array.isArray(inputs) || inputs.length === 0) {
 		throw new Error('Confirm requires at least one explicit English or Simplified Chinese path');
 	}
-	const resolvedManifestPath =
-		manifestPath ?? join(repositoryRoot, 'scripts', 'documentation-pairing.json');
-	const { manifest } = readManifest(resolvedManifestPath);
 	const sourcePaths = [
 		...new Set(inputs.map((input) => sourcePathFromInput(repositoryRoot, input))),
 	].toSorted();
-	const pairs = { ...manifest.pairs };
+	const writes = new Map();
 	const changes = [];
 
 	for (const sourcePath of sourcePaths) {
@@ -403,31 +310,43 @@ export function confirmDocumentationPairs({
 			const missingPath = englishExists ? localizedPath : sourcePath;
 			throw new Error(`${sourcePath}: cannot confirm while ${missingPath} is missing`);
 		}
-
 		if (!englishExists) {
-			if (!Object.hasOwn(pairs, sourcePath)) {
-				throw new Error(`${sourcePath}: cannot confirm deletion without an existing receipt`);
-			}
-			delete pairs[sourcePath];
 			changes.push({ sourcePath, status: 'removed' });
 			continue;
 		}
 
+		// Write through in-repository aliases, so AGENTS keeps sharing CLAUDE's receipt.
+		const target = realpathSync(chineseFile);
+		const relativeTarget = relative(realpathSync(repositoryRoot), target);
+		if (
+			relativeTarget === '..' ||
+			relativeTarget.startsWith(`..${sep}`) ||
+			isAbsolute(relativeTarget)
+		) {
+			throw new Error(`${localizedPath}: receipt target must stay inside the repository`);
+		}
 		const english = readFileSync(englishFile, 'utf8');
-		const chinese = readFileSync(chineseFile, 'utf8');
+		const { content } = readPairingReceipt(readFileSync(chineseFile, 'utf8'));
+		// Keep a blank separator so Markdown formatters do not change the reviewed body.
+		const body = content.replace(/\n*$/u, '');
+		const chinese = body === '' ? '' : `${body}\n\n`;
 		if (!isDeepStrictEqual(documentationStructure(english), documentationStructure(chinese))) {
 			throw new Error(
 				`${sourcePath}: cannot confirm because English and Simplified Chinese structures differ`,
 			);
 		}
-		pairs[sourcePath] = {
-			englishSha256: contentSha256(english),
-			zhCnSha256: contentSha256(chinese),
-		};
+		const confirmed = chinese + renderPairingReceipt(english, chinese);
+		if (writes.has(target) && writes.get(target) !== confirmed) {
+			throw new Error(
+				`${sourcePath}: aliased pairs cannot share different documentation pairing receipts`,
+			);
+		}
+		writes.set(target, confirmed);
 		changes.push({ sourcePath, status: 'confirmed' });
 	}
 
-	writeManifestAtomically(resolvedManifestPath, { formatVersion: FORMAT_VERSION, pairs });
+	// Validate every requested pair before changing any document.
+	for (const [target, content] of writes) writeFileSync(target, content, 'utf8');
 	return changes;
 }
 

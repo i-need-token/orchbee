@@ -30,3 +30,5 @@ Server 负责授权、修订／Close 约束、身份分配、启动及结算。
 真实 provider 和完整 TUI 验收继续纳入最终 Windows 回归。
 
 程序名使用最终 CLI 的 PATH，回执保留解析出的绝对路径；参见[可执行程序名](native-terminal-creation.zh-CN.md#可执行程序名)。
+
+<!-- documentation-pairing: english-sha256=b0463a35e94eb089c8ac99e2254209b5cf7f260b1f6cc3359201e01e485d6e88 zh-cn-sha256=c0852de75ab7bca5dfca97d8fd38b5bb471c847a1e888dc9f10f973a03ba8efd -->

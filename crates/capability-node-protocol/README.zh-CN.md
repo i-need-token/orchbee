@@ -668,3 +668,5 @@ receipt。交接前仍校验 Worker generation、绑定 fence、lease 和完整 
 Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端数量或 Client frame 均不构成
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
+
+<!-- documentation-pairing: english-sha256=f5ab75d792208206c81d1d7de6965898fdac856ab1c95f4d397570d07c952fc2 zh-cn-sha256=eba6e8cd3f555fdd4f283df98d24d651066b3c96e7d27b56c2af3766637cc2d4 -->

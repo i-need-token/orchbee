@@ -170,3 +170,5 @@ Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回
 ## 终端输入输出的 Panel 目标
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
+
+<!-- documentation-pairing: english-sha256=f68115b0adfa26a64ea6b21d40ee16166404bf83b02f0dd8f697ee8dc115c52a zh-cn-sha256=e33df6a6a20755d73418756307dcb5ab03750648fd2eda19e68c4f2b1f2dd691 -->

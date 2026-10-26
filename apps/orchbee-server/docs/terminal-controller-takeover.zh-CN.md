@@ -56,3 +56,5 @@ lease。已撤销 lease 在锁外释放；其清理绝不影响替代者。仍�
 resize 封锁。同作者定向测试包含同一批 Viewer 的反复交接与核实自身授权；不代表独立
 审查、崩溃恢复或真人 Windows Terminal 验收。原生集成增加受控状态／carrier 与 ConPTY
 证据；最终整体版本验收仍然必需。
+
+<!-- documentation-pairing: english-sha256=36010f5569b8f566ef6a3a1c5950041771d90f9b3268f6eaccefef3931def99a zh-cn-sha256=f5d1dd0aad30b48deae2ac7175273cf37dedbbf9c1c6d60ad1f0941a8de434ec -->

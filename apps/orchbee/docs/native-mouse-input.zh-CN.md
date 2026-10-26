@@ -494,3 +494,5 @@ control/attach 字节实测覆盖。
 无修饰左键按下为绘制时的精确目标 Presentation 建立手势，只有匹配释放才选择它。按钮按规范成员顺序循环，与当前有效的 Previous/Next Presentation 绑定等价（默认 `Ctrl+B (`／`Ctrl+B )`）。已绑定目标包含当前 `PaneRef` 和目的 Presentation ID。空目标包含结构 Pane key 与精确选中的 Presentation ID；新鲜探针必须仍确认该成员未绑定。空 Panel 内容区的按下只聚焦，不开始终端手势。新鲜探针必须仍在当前 desired anchor 下保留同一实例或空选择；UI 随后在活动 Tab 内解析 Panel／成员，才提交既有 Switch 事务。已删除／替换成员、旧 anchor、模态输入、捕获 overlay 和已释放鼠标捕获均不能改投手势。终端只读模式不禁止 Client 本地导航；选择从不转发终端字节，也不绕过子项仅 binding 附着。成功点击后旧命中图失效，直到重绘。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
+
+<!-- documentation-pairing: english-sha256=6bf15b15a63708e580809959c939ac6d65fdeddc28098e6839f52a5e77172153 zh-cn-sha256=70c4b85326894f13f2f0600cb62f5811aa929f23f8ad864aab824cde70cb666c -->

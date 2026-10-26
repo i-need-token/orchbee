@@ -536,3 +536,5 @@ Letta 仅准入 session-identified，保留未知或现有轮次状态。默认�
 Devin 六组 hook 仅接收 session-identified。身份刷新保留未知或已有轮次状态，不解决权限请求，也不推断完成。
 
 Hermes 仅准入 session-identified。会话启动／重置和 CLI 恢复观察保留规范轮次状态，不制造空闲或完成。
+
+<!-- documentation-pairing: english-sha256=0032b22b4c934c4b1d65c0ca11d5c811ebb57ce23985f68f3d66ff774be6f6ed zh-cn-sha256=5d5222102eaba2fd72ccb212cd7ba5e45a977d5b558287004ca01e308e4e72db -->

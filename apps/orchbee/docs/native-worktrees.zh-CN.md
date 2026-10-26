@@ -165,3 +165,5 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 共享归属和提交协议继续保留各自注册的模型。
 
 Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。
+
+<!-- documentation-pairing: english-sha256=a2e888e37a7ad6fc440e172f38f290e0d22e15c1d12669fc97eb35c3e1534499 zh-cn-sha256=d886528a24717c07ae35438c74ca81a7b3b00ba3e668aa7da64e725cda00df60 -->

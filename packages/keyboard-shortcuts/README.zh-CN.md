@@ -35,3 +35,5 @@ pnpm --filter @orchbee/keyboard-shortcuts test
 pnpm --filter @orchbee/keyboard-shortcuts build
 pnpm --filter @orchbee/keyboard-shortcuts test:exports
 ```
+
+<!-- documentation-pairing: english-sha256=81836d9b728a57471a52a94b436e5d9c654f1c101837bb53ac359e2501491bfc zh-cn-sha256=826ff6e2d1e3983ff2bc89046e272f158c7ec433ab31ae14276e3416101222a7 -->

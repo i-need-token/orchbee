@@ -88,3 +88,5 @@ flight 或 Host 历史刷新期间，如果物理锚点快照准确，则调用�
 | Action 可用性、替换最新执行、无操作与取消映射          | Web 投影终端 Action 单元测试                                       | 进程内 Action 运行时                                                            |
 | 物理默认值、无冲突、自定义及 v5 到 v6 迁移             | Web 快捷键声明、目录、控制器和存储单元测试                         | 合成键盘事件与存储                                                              |
 | OSC 133 行标记到达键盘驱动的历史导航                   | `terminal-parity/SI-02-prompt-navigation`                          | 使用显式 OSC 133 标记的真实 Desktop 附件和 Terminal Host；不声明自动 Shell 注入 |
+
+<!-- documentation-pairing: english-sha256=4c2e0a83c28c6db0befbaf2ed31e28fec88fb5871c498e6a074d5bc2098b59f8 zh-cn-sha256=5a22f3b4ab2a9911360691cd43d04c01b847f425d92a30033d58be86ca82e5bd -->

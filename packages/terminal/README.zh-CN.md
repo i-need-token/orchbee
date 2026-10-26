@@ -485,3 +485,5 @@ Client 所有的运行时呈现、输入修复、row-flight、搜索与选择流
 `benchmark:renderer` 会针对稳定帧、单个变化行与移动光标，测量确定性的 JavaScript WebGPU 行准备和模拟队列提交。它是用于同一机器前后对比的诊断工具；不测量真实 GPU 执行、浏览器调度、字体光栅化、驱动内存或整个进程的 RSS。
 
 当 `../ghostty` 或 `GHOSTTY_SOURCE` 可用时，`pnpm audit:ghostty-panel` 将维护的渲染器/字体出处和生成的数据与固定的 Ghostty 源进行比较。审计和生成都会拒绝 HEAD 与 Terminal Host pin 不同或工作树不干净的 checkout。仅当固定的 Nerd Font 约束、精灵范围或精灵参考栅格更改时才运行 `pnpm generate:ghostty-panel-data`。
+
+<!-- documentation-pairing: english-sha256=73878d79680981b383fcf3631bbac89dee59ef42e2c68557a2a224c2621ab588 zh-cn-sha256=7d33ea10f036d676052a183b74537007ac4b914bffeaa88d54ab3993d9f5491f -->

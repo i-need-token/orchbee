@@ -1,9 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
-
-import { parsePairingManifest } from './documentation-pairing.mjs';
 
 const packageName = /^(?:@[a-z\d._-]+\/)?[a-z\d][a-z\d._-]*$/u;
 const manifestName =
@@ -88,21 +85,6 @@ const rootToolInputs = new Set([
 		'select-changed-models.mjs',
 	].map((name) => `scripts/tla/${name}`),
 ]);
-const pairingPath = 'scripts/documentation-pairing.json';
-
-function pairingChanges(versions) {
-	if (!versions) throw new Error('Documentation pairing history is unavailable');
-	const manifests = [versions.before, ...(versions.intermediate ?? []), versions.after].map(
-		parsePairingManifest,
-	);
-	return [...new Set(manifests.flatMap((manifest) => Object.keys(manifest.pairs)))].filter(
-		(source) =>
-			manifests.some(
-				(manifest) => !isDeepStrictEqual(manifests[0].pairs[source], manifest.pairs[source]),
-			),
-	);
-}
-
 function capture(root, command, args) {
 	return execFileSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 ** 2 });
 }
@@ -248,15 +230,12 @@ function validateGraph(graph) {
 	for (const entry of graph) visit(entry.root, new Set());
 }
 
-export function selectVerificationScope(graph, paths, pairingVersions) {
+export function selectVerificationScope(graph, paths) {
 	try {
 		validateGraph(graph);
 		const selected = new Set();
 		const reasons = [];
-		const ownedPaths = paths.flatMap((changed) =>
-			changed === pairingPath ? pairingChanges(pairingVersions) : [changed],
-		);
-		for (const changed of ownedPaths) {
+		for (const changed of paths) {
 			if (manifestName.test(changed)) throw new Error(`Dependency manifest changed: ${changed}`);
 			if (rootToolInputs.has(changed)) {
 				reasons.push(`root tooling <- ${changed}`);
@@ -333,18 +312,8 @@ export function selectVerificationScope(graph, paths, pairingVersions) {
 export function resolveVerificationScope(root, reference) {
 	try {
 		const { base, paths } = changedVerificationPaths(root, reference);
-		const pairingVersions = paths.includes(pairingPath)
-			? {
-					before: capture(root, 'git', ['show', `${base}:${pairingPath}`]),
-					intermediate: [
-						capture(root, 'git', ['show', `HEAD:${pairingPath}`]),
-						capture(root, 'git', ['show', `:${pairingPath}`]),
-					],
-					after: readFileSync(path.join(root, pairingPath), 'utf8'),
-				}
-			: undefined;
 		return Object.freeze({
-			...selectVerificationScope(readVerificationGraph(root), paths, pairingVersions),
+			...selectVerificationScope(readVerificationGraph(root), paths),
 			base,
 			changedPathCount: paths.length,
 		});

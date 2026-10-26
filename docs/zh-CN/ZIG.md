@@ -50,3 +50,5 @@ Zig 允许将 `test` 声明放在被测源码中，也允许放在独立 Zig 源
 - 每个测试根节点都必须接入所属构建图和非交互式测试脚本。测试文件仅仅存在，并不代表它进入了仓库门禁。
 - 分配型测试使用 `std.testing.allocator`；所有权逻辑不简单时，覆盖错误路径上的清理。
 - 除正常路径外，还要覆盖无效输入、配置限制、边界值和预期失败路径。原生行为和交叉编译证据遵循[原生应用测试契约](TESTING.md#原生应用测试)。
+
+<!-- documentation-pairing: english-sha256=2e1db4d1c77689cc3528dea21e1e7e4fb89e5c7da76c386399ef6f0f586c49c4 zh-cn-sha256=b4d5b679fe929bab38736df0d5be912d48c884ed06a65d3ef77d4216f153609c -->

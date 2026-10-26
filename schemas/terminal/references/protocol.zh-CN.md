@@ -526,3 +526,5 @@ fixture。
 可选 OBTF 扩展 kind `5` 包含正输出原点 epoch（`u64`）、reader-ready（`u8`，0/1）和调用阶段（`u8`，0 缺失、1 运行、2 完成）。没有调用时长度精确为 10 字节；否则 66 字节负载继续包含：非零 16 字节调用 ID；开始行 `u64`、开始列 `u16`、结束行 `u64`、结束列 `u16`、正开始 generation `u64`、正开始输出 epoch `u64` 和有符号 `i32` 状态，整数均为小端。运行中的调用要求结束坐标和状态为零。理解该扩展的消费者遇到重复、非法阶段／布尔值、零身份／epoch／generation 或长度错误时，拒绝整个帧。
 
 该观察代表最近一次协作式 Shell 调用，不含命令文本，也不替代 kind 4 的呈现元数据。只有 generation 和输出 epoch 仍一致时，坐标才属于当前保留物理行。最旧保留行 pin 失去连续性时 Host 改变输出 epoch；客户端绝不能由饱和行数推断连续性。旧消费者跳过这一可选扩展。Windows CLI 将其与终端身份及 Host epoch 结合，为不透明输出游标提供围栏。
+
+<!-- documentation-pairing: english-sha256=13f512bccd9a8cfe09839128641f5f3426595f4e886e8c2ca598590aef0033f9 zh-cn-sha256=875ae809bc7b42739cb57464abc5b027662281186d54897bb4d9d3ebd76a9d23 -->

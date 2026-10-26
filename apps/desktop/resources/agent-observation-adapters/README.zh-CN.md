@@ -297,3 +297,5 @@ Doctor 先核对安装字节与清单是否一致，再将已校验的身份与�
 只有核对实际摘要、必需运行时文件及带准确名称的 Orchbee 包标记后，才将非当前 capsule 元数据
 诊断为过期。这一只读诊断不将非当前来源准入为就绪，也不允许替换不明文件。
 不执行自动迁移或后台清理。
+
+<!-- documentation-pairing: english-sha256=9de886d2df77377e6103bcb666a5dce8097e187e1dda9ce039671eb86777c7b9 zh-cn-sha256=f5234e8fb4e9c2436f430667dea9e8ff98768b42545c3f88568955d198a7a4f2 -->

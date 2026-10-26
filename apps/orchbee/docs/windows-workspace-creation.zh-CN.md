@@ -61,3 +61,5 @@ Create-project 原子创建 Project 并移入选中 Workspace。Dissolve 仅移�
 语法与 schema 测试覆盖可选组织、精确全局目标、必填可空 Project 元数据、离线帮助/补全及先解析后副作用。Windows 进程脚本测试检查零/一/多个 Project 时都只启动一次、高级选项、来源优先级、精确副作用、未知身份不重放、终端失败与聚焦保护。原始路由和真实进程证据覆盖先语法后上下文、发送端/中继操作数不变、最终进程的 home/cwd 解析，以及早于配置或运行时副作用的上下文拒绝。fixture owner 释放临时 pipe、profile 和进程。真实终端验收属于匹配的原生 cohort 测试；这些局部测试不宣称覆盖全部并发竞态。
 
 程序名使用最终 CLI 的 PATH，回执保留解析出的绝对路径；参见[可执行程序名](native-terminal-creation.zh-CN.md#可执行程序名)。
+
+<!-- documentation-pairing: english-sha256=ce4c111d2e10df6a9dd9e2993f58fe8ab446571f3b321fd0b0cf0241d1d0ddcc zh-cn-sha256=1d521eb2a5dc2c8c6d6ee9fa0957d0df0d7399ee926f4fd27f663eda065117d0 -->

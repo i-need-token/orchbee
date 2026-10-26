@@ -65,3 +65,5 @@ Owned 发送失败属于结果不确定，不能连接回旧 Server。导入方�
 定向检查不代表独立审查、全量回归、真实发布升级或真实终端视觉验收。此边界不启动服务或
 后台线程；已有 Worker 循环负责备用清理，已有 carrier 负责请求结算。
 准入沿用原有同用户原生开发信任边界；恶意同用户进程及进程崩溃不在此传输模型范围内。
+
+<!-- documentation-pairing: english-sha256=a18db2ebdb76c507c61d397fe488e520e8d3952d6f8d19846fdbf7f1d91d504f zh-cn-sha256=210dd2216bdface57b2f3f416698b1aa364a5216fcbbd6862b66d0fd3cba4b12 -->

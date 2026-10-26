@@ -265,3 +265,5 @@ schema。每个已接受切片在同一变更中更新所属 app 文档。
 - **D5 — mouse capture：** 在 session 开始启用 `?1002`+`?1006` 并接入 lifecycle restoration。
 - **D6 — navigator 捕获：** 保持不捕获，或准入捕获版草案映射。
 - **D7 — zoom：** 准入 Client-local zoom toggle，或放弃 `z`。
+
+<!-- documentation-pairing: english-sha256=fd5f0d7b4a5e280a77f47c8dc852ffda37f22e2f39a06733eb219419a94ac08b zh-cn-sha256=67510abca81a3b6b1c149d08e5f23bf3cbec41739c57aa67834c414c3caa2590 -->

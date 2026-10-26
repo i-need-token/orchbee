@@ -413,3 +413,5 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 每个 implementation slice 都必须保留已接受 role boundary，并证明自身 security、privacy、
 compatibility、observability、rollback 与 recovery claim。历史交付细节留在所属现行指南；本提案
 记录尚未解决的目标决策，而不是任务 chronology。
+
+<!-- documentation-pairing: english-sha256=c42c6d5df401069521340af9decbd5d22ff8d543fbe72503c82f69731b4e07a4 zh-cn-sha256=ec6575b7744f44d999b454c7e8fc961be149575afc33f940cb6162fab02d9b41 -->

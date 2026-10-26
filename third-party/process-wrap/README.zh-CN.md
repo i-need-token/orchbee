@@ -42,3 +42,5 @@ Worker 发现测试覆盖输出边界、取消和失败清理；原生 Client �
 更新时明确审核上游版本，对照完整源码差异、保留许可证，并重跑原生句柄判据。
 当上游版本提供等价完成语义并通过这些测试时，删除本目录和根 patch。根进程退出、
 成功发起终止或成员列表为空，都不能替代完成事件。
+
+<!-- documentation-pairing: english-sha256=74f13798eea2a5e3ed45ae056aa28862882c2e552ebac1ebed65ba7b1d6c9bde zh-cn-sha256=6359e629e0f78619c80a6b670d17eee9946fc7dadffaf0d2f44b08e703b22924 -->

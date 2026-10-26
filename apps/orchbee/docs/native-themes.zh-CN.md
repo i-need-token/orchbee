@@ -201,3 +201,5 @@ Terminal-native 把 `accent-action` 映射为不带修饰的 ANSI 青色。Hover
 物理宿主外观及未测试平台需要独立执行证据。
 
 单色选中背景将终端默认前景与背景显式配对，并使用反色，使不同标签与标记角色保持在同一可见背景带上。
+
+<!-- documentation-pairing: english-sha256=ffa931ef4cafda07236e75c4d91aa75c10674b7a4fc829eba48cdcc40b92688d zh-cn-sha256=3f8cdf7310c20a2087ccc49b347904cd00dc87a05036b99cbfe48cdeb70d32cc -->

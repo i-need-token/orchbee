@@ -32,3 +32,5 @@ TUI命令交换使用独立可取消连接和负责join的线程，等待命令�
 定向证据包括真实Windows shell环境／退出处理、Worker后台所有权及重复／冲突／关闭检查、CLI可执行进程的目录／调用／拒绝／unknown用例、Server已安装目录／来源／权限检查、TUI绑定／发现／来源失效及actor取消，以及Rust／TypeScript／JSON共享的[一致性语料](../../../schemas/workbench/v1/workbench-configured-command-conformance-v1.json)。原生命令输出为 `orchbee.command` v1；过期ID使用封闭的 `orchbee.cli.failure.command` v1文档。配置popup控制使用v11，在v1-v10下仍无效。这些定向检查不声明最终全cohort或交互式Windows验收完成。
 
 配置shell见证在原有三秒预算内等待完整的command-ID回执；文件创建本身不能证明写入完成。夹具在成功路径显式检查清理。panic展开期间，清理失败报告准确保留目录，不替换原始panic。反例覆盖初始空回执，以及暂不允许删除目录的消费者：原始panic保持可观察，消费者释放句柄后再回收目录。
+
+<!-- documentation-pairing: english-sha256=35cf404a57940824cdf172749670f21b4138f0739e23d6c28ace1fedb506ba64 zh-cn-sha256=08a7c02fba6caf0c52ef48a9349ba198cce2ab038a0b33bf579accecfb5c2831 -->

@@ -59,3 +59,5 @@ Workbench 拥有这六个语义 Action。Web 在已聚焦终端作用域中注�
 | Action 可用性、类型化结果、共享并发与分发  | Web 投影终端 Action 和快捷键单元测试                      | 进程内 Action 运行时与合成键盘事件              |
 | 目录标签、无冲突、自定义以及 v7 恢复       | Web 目录、设置、控制器和存储单元测试                      | 合成的设备本地存储                              |
 | 六个物理组合键移动一个生产保留历史视口     | `terminal-parity/HS-11-keyboard-scrollback`               | 主屏幕上的一个真实 Desktop 附件和 Terminal Host |
+
+<!-- documentation-pairing: english-sha256=be44bab54851fcfc04918fe0a2ff5fd6252d54ccfd31f8872e0e7553d0e0fbe2 zh-cn-sha256=cd81a0327e0785a5433f13eda433e6273e3ec13a650d3155c1ad484067e563bd -->

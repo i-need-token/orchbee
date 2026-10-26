@@ -382,3 +382,5 @@ Copy 只根据有界 Agent identity 与 event kind 生成，是本地化且 cura
 - Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。受控实现轨迹检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。
 - Browser Preview 与 Desktop 组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。独立的 macOS Electron 见证执行随附发布的 Zsh 资源的 source，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。
+
+<!-- documentation-pairing: english-sha256=bd69bb43dec95194291f7a2b5b9ea2d1a394202aa8471b85e89e409819720968 zh-cn-sha256=fdffed61a792b357a3ce2f93ed625ca5397e3dc6e0d46304f256900afa787c61 -->

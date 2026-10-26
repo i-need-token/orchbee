@@ -56,7 +56,9 @@
 - `docs/<path>.md` 与 `docs/zh-CN/<path>.md` 配对；`docs/` 之外的 `<path>/<name>.md` 与同目录的 `<path>/<name>.zh-CN.md` 配对。
 - 本契约覆盖已跟踪 Markdown，以及拟跟踪且未被忽略的未跟踪 Markdown，包括 Markdown 符号链接。被忽略的依赖、构建产物和一次性文件不属于仓库文档。
 - 每次新增、删除、移动、标题、示例、命令、链接或内容修改都要在同一个变更中更新两种语言，并保持含义、覆盖范围和结构一致。
-- 审查两份文件含义一致后，每个新增、修改、移动或删除的文档对都要运行 `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>`；确认操作会记录已审查内容或移除过期凭据，但无法判断翻译质量。
+- 审查两份文件含义一致后，每个新增、修改或移动的文档对都要运行 `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>`；确认操作只更新指定的中文文档，无法判断翻译质量。删除两份文件时，回执随之删除。
+- 每份中文文档都以唯一的回执行结束：`<!-- documentation-pairing: english-sha256=<64 lowercase hex digits> zh-cn-sha256=<64 lowercase hex digits> -->`。摘要分别覆盖英文文档和去掉该行的中文文档，CRLF 与单独的回车均规范化为 LF。确认操作在回执前保留一个空白分隔行，该行计入中文摘要。结构比较忽略回执；任一语言修改都会使确认失效。
+- 配对的符号链接别名共用目标文档的回执；确认操作保留符号链接，且只写入仓库内的目标。不同文档对不会更新共享的回执文件。
 - 翻译所有文字；准确保留标识符、路径、命令、配置键、规则 ID 和代码语义。发生冲突时以英文为准。
 - 两个版本都逐字保留第三方版权与许可文本；翻译其周围由项目编写的标题、标签和说明。
 - 运行时配置、Schema、lint 诊断、`CLAUDE.md` 和工程权威来源链接到英文来源。本地化 Markdown 可以链接到本地化对应文件。
@@ -80,3 +82,5 @@
 | 修改强制规则   | 同时更新实现、配置、规范、本地化镜像和规则测试。                                                                                                                                                       |
 | 验证 Markdown  | 运行 `pnpm lint:documentation` 和 `pnpm test:lint-rules`；它们检查已确认内容对、规范镜像、标识符，以及仓库自有文档对中的本地行内链接路径和 Markdown 标题锚点。围栏代码块与行内代码示例不参与链接解析。 |
 | 修改契约       | 运行 `pnpm format:check`、`pnpm lint`、`pnpm typecheck` 和相关测试。                                                                                                                                   |
+
+<!-- documentation-pairing: english-sha256=8a486059c9bb6a9d831c25d9e55c2724930a61aa520cf2dccc9b39be45ed25dd zh-cn-sha256=7e26f160ea227874973da905378b4c9aea52c7e623bcf7ebc81d147ae7737ecd -->

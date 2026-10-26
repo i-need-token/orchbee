@@ -123,3 +123,5 @@ owner。变化后的精确 sequence 可以调度本地工作。精确可见版�
 也不能抑制本 Client 的工作。基线、reset、不可用及替换轮次不提供通知转移。触发矩阵、
 延迟、配置、sink 及正确性契约见
 [Windows CLI 通知](windows-notifications.zh-CN.md#自动物理-agent-通知)。
+
+<!-- documentation-pairing: english-sha256=0bf110b9ce1eef738f6b0f3afcae8dd74ff34eb8bcacef2f4d398dc832976611 zh-cn-sha256=642572be6950e92bc234453c355ac71e96eca852121fdc85f02e05b911b522db -->

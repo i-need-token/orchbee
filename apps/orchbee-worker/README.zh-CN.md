@@ -857,3 +857,5 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 授权内核、终端身份、Agent Drain 及作业所有者；普通 EOF 不会重连。此内部传输在 Host
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
+
+<!-- documentation-pairing: english-sha256=e2a2d9e9ad4661c6d748609c004152f05ea3dcb445fde7311f2345565c834948 zh-cn-sha256=1e63dca0d522dfa1b02b5593287a6b402e90920ca5b96235f10e3dc529d81080 -->

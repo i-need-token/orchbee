@@ -731,3 +731,5 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 已接受模型和当前实现边界由 [Windows Panel 图形](docs/windows-graphics.zh-CN.md) 维护。规范状态提交立即清理无效图层；已认证连接拥有生产者，共用临时 viewer 观察者保留不确定的 PNG 读取清理责任。UI 像素、能力观察、CLI 生产者和最终组合验收仍各自需要完成。
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
+
+<!-- documentation-pairing: english-sha256=ecb4621278085bc6ad5aaed36d6e8c9811b647549e44f5b253fb376a17b9b927 zh-cn-sha256=d04d8d60e4aa68da88dfc4402a985eda532ee1930d0aa5a45521fbc8b984872f -->

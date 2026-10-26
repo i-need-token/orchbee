@@ -92,3 +92,5 @@ worker 拥有 deadline 和关闭唤醒端点；创建者在释放资源前 join�
 同样适用。
 
 selected 成功可使用更新修订，只要 split 身份及提交比例仍保持；回执记录实际绘制缓存修订。`splitRevision` 使用投影缓存的规范 Workbench 修订。
+
+<!-- documentation-pairing: english-sha256=b887add08b59c1c1b60b0c02cd5dc6db2889a90012f972338ff641d90208c01e zh-cn-sha256=6030b014df52676af43b14a2f4effb648b722e64104ac6c3ae29decd9ee81f09 -->

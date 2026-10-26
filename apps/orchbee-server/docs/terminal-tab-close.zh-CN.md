@@ -539,3 +539,5 @@ Panel、Tab 和 Workspace Close 按规范 Tab／树顺序捕获全部已绑定�
 ## 回执身份读取
 
 OBWP 61/62 在既有 Site 读取权限下，按原始请求 ID 读取精确保留 Close 账本项，包括空范围及已完成范围。它返回原始目标和 generation，不解析当前布局成员。[CLI 状态与恢复](../../orchbee/docs/native-operation-status.zh-CN.md) 复用既有 generation 围栏恢复准入；读取本身不续期尝试，也不调度清理。
+
+<!-- documentation-pairing: english-sha256=8d055e45e6f31c71367fd46d0e97fbc6a5da4c30b11d838d3e95eb91aed9f3c4 zh-cn-sha256=7d63fc0f24805bd1945a6d0c9c3f5cfd29fa5cb1d3aa7053ea5ec65f24061ecc -->

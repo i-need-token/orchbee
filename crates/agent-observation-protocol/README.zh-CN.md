@@ -91,3 +91,5 @@ Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省�
 ## 原生进程输入规则
 
 `identify_agent_process` 和 `select_agent_process` 现同时服务原生 CLI 诊断与 Windows Server Host 适配器。识别依据实际映像和受支持的运行时入口，不搜索任意参数中的名称；伪造的运行时 argv[0] 不能替代映像身份。原生可执行文件后缀和 `agent` 别名仍与上报标签规范化分开。纯候选选择器要求唯一的外层 Agent 祖先链，拒绝环、父 PID 复用的创建时间倒置及并列歧义，并明确保留缺失。这些函数不采集进程、不解析 Windows 命令行、不授予前台／控制权，也不创建规范 Agent 会话。各 Windows 调用方使用既有 OS 解析器；只有 Server 适配器在身份和时间守卫内接纳经证明的 Host 样本。
+
+<!-- documentation-pairing: english-sha256=b8f40a76902c365a5b6c31bef50e03c7680c99c122fa3678040c92e638b6b8e1 zh-cn-sha256=18ad0ccf97db0d7557f73ea4cdb2fc467d284e5acb8b71b1832fb608c24d947b -->

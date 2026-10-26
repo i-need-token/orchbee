@@ -49,3 +49,5 @@ pnpm -F @orchbee/agent test:conformance       # 内存中再生成并逐字节�
 - `packages/agent` 拥有生成器，当 TypeScript 模型变化时可再运行作为证据。
 
 英文原文为权威版本：[README.md](README.md)。
+
+<!-- documentation-pairing: english-sha256=57db05e670b0726ccc909f2b4ec5eb5256f9ec640451ba9a07b59f03ee9930e8 zh-cn-sha256=95b0650763a5519a038df364ac9e4e54945f84a4bf37bfde295864b97b9810d7 -->

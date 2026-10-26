@@ -202,3 +202,5 @@ Orchbee 包遵循语义化版本控制，并采用 Babel 风格的共享发布�
 - [Babel 固定版本发布说明](https://babeljs.io/docs/faq#why-isnt-a-certain-babel-x-package-updated)
 - [语义化版本 2.0.0](https://semver.org/)
 - [pnpm 最短发布时间](https://pnpm.io/settings#minimumreleaseage)
+
+<!-- documentation-pairing: english-sha256=8f76fb8ca4cc11afdbb43d1b58f7f157df8ab038952532bce79c9ee057dca6ab zh-cn-sha256=7bf61c39607e1adefa4f5bbf22e3b7f06ccd4b418f8049f39726623e50cde36f -->

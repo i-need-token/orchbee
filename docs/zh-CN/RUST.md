@@ -345,3 +345,5 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 `--locked` 和 `--release` 构建确切 package 与 binary，再把已验证 artifact 暂存到所属 distribution
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
+
+<!-- documentation-pairing: english-sha256=f1213e857b6685eecaaf215f5548f5aa86d965e642cb129ef7258b06e4ad9829 zh-cn-sha256=9b438c0ec9952511e926bb397f94b1374761dfc0ce38ba0e3bd47391201d7e41 -->

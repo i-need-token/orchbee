@@ -178,3 +178,5 @@ Provider 与外部生命周期集成保持窄化、显式。组件可以组合�
 | `react/no-danger`           | 使用结构化 React 内容替代注入 HTML  |
 
 生成的 shadcn `ChartStyle` 是唯一 `react/no-danger` 例外；其样式文本只能包含可信的开发者编写图表配置，绝不能包含持久化值或其他不可信值。
+
+<!-- documentation-pairing: english-sha256=3f6bf2c4b2312a3f99586dceb8438af696df830ede98d51c134532c9ecf69106 zh-cn-sha256=bf12b20968a5b2db9801223c084b616f958f8f739bfbe951eb5f21dce62df2ca -->
