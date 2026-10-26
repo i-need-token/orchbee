@@ -119,6 +119,13 @@ surfaces withdraw their Client-control, notification and outer-title subscriptio
 returning reopens them and transfers the host focus observation. A hidden surface
 must not advertise a Ready control destination or acknowledge visible drawing.
 
+The shared connection workflow admits the saved-machine capability before inspecting the
+profile or cancellation source. Unix refuses at that boundary without environment or process
+access. Windows retains enabled-profile checking, one bounded Client probe, and the cancellation
+check before passing the admitted Client facts to the carrier port. The port retains executable
+lookup, relay creation, native admission, its final cancellation check and guard transfer under
+the original deadline; it never repeats the probe.
+
 The persistent transport owner creates a private, same-user local pipe endpoint
 and a bounded SSH byte relay for each required native Client lane. SSH authenticates
 the remote account; the exact admitted remote executable verifies its installed

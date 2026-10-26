@@ -7,8 +7,9 @@ use crate::{
 };
 use std::{io, time::Instant};
 
-pub(crate) fn connect(
+pub(super) fn connect(
     _profile: &Profile,
+    _admitted: crate::machine_ssh::Client,
     _deadline: Instant,
     _cancelled: Cancellation<'_>,
 ) -> io::Result<LocalClient> {

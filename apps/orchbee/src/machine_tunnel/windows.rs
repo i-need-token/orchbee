@@ -38,18 +38,12 @@ impl Drop for Tunnel {
     }
 }
 /// An admitted remote Session carrier. Cancellation belongs to the connection's owner.
-pub(crate) fn connect(
+pub(super) fn connect(
     profile: &Profile,
+    admitted: machine_ssh::Client,
     deadline: Instant,
     cancelled: Cancellation<'_>,
 ) -> io::Result<LocalClient> {
-    if !profile.enabled {
-        return Err(io::ErrorKind::PermissionDenied.into());
-    }
-    let admitted = machine_ssh::probe(&profile.draft, deadline, || cancelled.is_cancelled())?;
-    if cancelled.is_cancelled()? {
-        return Err(io::ErrorKind::Interrupted.into());
-    }
     let ssh = machine_ssh::executable()?;
     let remote = program::command(
         &admitted.executable,
