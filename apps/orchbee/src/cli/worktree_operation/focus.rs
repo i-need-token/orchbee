@@ -3,7 +3,7 @@ use super::post_open::Receipt;
 use crate::{
     cli::{
         Failure,
-        source::ArmedSignals,
+        console_interrupt::ArmedSignals,
         workspace_focus::{self, Navigation, Target},
     },
     local_client::LocalClient,

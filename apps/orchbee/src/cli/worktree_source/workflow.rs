@@ -1,11 +1,11 @@
-//! Windows preparation resolves Client membership to an explicit Workspace source.
+//! Admitted Client preparation resolves Client membership to an explicit Workspace source.
 use crate::cli::source_context as context;
 use crate::{
     cli::{
         Failure, FailureKind,
         caller_context::PanelTarget,
-        client_control::{selection, windows as control},
-        source::{ArmedSignals, SignalWatch},
+        client_control::{exchange as control, selection},
+        console_interrupt::SignalWatch,
     },
     invocation::Target,
     local_client::LocalClient,
@@ -34,7 +34,7 @@ pub(in crate::cli) fn prepare(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Prepared, Failure> {
     check(signals, deadline)?;
     let implicit =

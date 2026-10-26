@@ -2,7 +2,7 @@
 use super::{Engine, error, internal, ownership};
 use crate::cli::{
     Failure, FailureKind,
-    client_control::{Answer, windows as control},
+    client_control::{Answer, exchange as control},
     query,
     source::SignalWatch,
 };

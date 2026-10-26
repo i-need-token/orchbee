@@ -901,7 +901,7 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
     // Query and read callers keep their accepted budget: a fresh network
     // deadline sampled only after the preamble completes.
     let deadline = deadline_after(NETWORK_BUDGET)?;
-    admit_snapshot(&cohort, &session, deadline, None)
+    admit_snapshot(&cohort, &session, deadline, || Ok(()))
 }
 
 /// Existing-only stream admission and Snapshot read under one cancellable budget.
@@ -960,7 +960,6 @@ pub(crate) fn snapshot_from_origin(
 /// once at entry. The cohort check still never exceeds its own budget: it
 /// runs under the earlier of `COHORT_BUDGET` and `deadline`, and the
 /// admission plus snapshot read share what remains.
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn snapshot_session_until(
     deadline: Instant,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
@@ -985,16 +984,9 @@ fn snapshot_session_before(
     let (cohort, session) = session_preamble(gate.budget(COHORT_BUDGET)?, || gate.settle())?;
     // A slow filesystem step may already have spent the whole wait budget;
     // the network deadline is priced only from what remains.
-    admit_snapshot(&cohort, &session, gate.budget(NETWORK_BUDGET)?, Some(gate))
-}
-
-/// The wait gate's post-step settlement, a no-op for ungated callers.
-#[cfg(any(target_os = "linux", windows))]
-fn settle(gate: Option<&WaitGate<'_>>) -> Result<(), Failure> {
-    match gate {
-        Some(gate) => gate.settle(),
-        None => Ok(()),
-    }
+    admit_snapshot(&cohort, &session, gate.budget(NETWORK_BUDGET)?, || {
+        gate.settle()
+    })
 }
 
 /// Everything before the network exchange: the cohort check under its own
@@ -1029,16 +1021,15 @@ fn session_preamble(
 /// One admission and one snapshot read under the shared deadline. On success
 /// the caller owns the still admitted session; on any failure the session is
 /// already dropped.
-#[cfg(any(target_os = "linux", windows))]
 fn admit_snapshot(
     cohort: &Cohort,
     session: &ModeCheckedLocalSessionRendezvous,
     deadline: Instant,
-    gate: Option<&WaitGate<'_>>,
+    settle: impl Fn() -> Result<(), Failure>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let connected =
         LocalClient::connect_before(session.client_socket_path(), cohort.identity(), deadline);
-    if let Err(failure) = settle(gate) {
+    if let Err(failure) = settle() {
         drop(connected);
         return Err(failure);
     }
@@ -1054,7 +1045,7 @@ fn admit_snapshot(
     // A snapshot answer that arrives past the total deadline — or under a
     // pending cancel — is still settled as timeout/cancelled, never a late
     // success.
-    if let Err(failure) = settle(gate) {
+    if let Err(failure) = settle() {
         drop(client);
         return Err(failure);
     }
@@ -1123,7 +1114,6 @@ fn deadline_after(budget: Duration) -> Result<Instant, Failure> {
 /// or `ceiling`, whichever lands first. The deterministic pin for the
 /// shared-budget contract — stages keep their own bound but can never
 /// outlive the command's absolute deadline.
-#[cfg(any(target_os = "linux", windows))]
 fn bounded_deadline(now: Instant, budget: Duration, ceiling: Instant) -> Result<Instant, Failure> {
     Ok(now
         .checked_add(budget)

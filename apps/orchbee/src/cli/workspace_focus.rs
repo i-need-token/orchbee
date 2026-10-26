@@ -1,9 +1,9 @@
 //! Focus admission is shared by Workspace creation and Worktree opening, with distinct navigation guards.
 use super::{
     Failure, FailureKind,
-    client_control::{self, windows as control},
+    client_control::{self, exchange as control},
+    console_interrupt::SignalWatch,
     query,
-    source::ArmedSignals,
 };
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
@@ -34,7 +34,7 @@ pub(super) fn execute(
     target: Target<'_>,
     selected: &ClientViewRecord,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<client_control::Answer, Failure> {
     let fresh = query::refresh_snapshot(
         client,

@@ -5,6 +5,8 @@ use super::{Failure, FailureKind, stage_reason_details};
 #[derive(Clone, Copy)]
 pub(super) enum Capability {
     AgentProjection,
+    WorkspaceGroupClose,
+    WorktreeOperation,
 }
 
 pub(super) struct Unsupported(Capability);
@@ -18,7 +20,9 @@ mod platform;
 
 pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
     platform::admit(capability).map_err(|Unsupported(capability)| match capability {
-        Capability::AgentProjection => Failure::new(FailureKind::ServiceUnavailable)
+        Capability::AgentProjection
+        | Capability::WorkspaceGroupClose
+        | Capability::WorktreeOperation => Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform")),
     })
 }

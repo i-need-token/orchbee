@@ -1,9 +1,7 @@
 //! The invocation owns this second commit boundary; canonical results always survive it.
-#[cfg(any(windows, test))]
 use super::Observation;
 use crate::cli::FailureKind;
 use orchbee_workbench_protocol::WorkbenchClientId;
-#[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
     WorkbenchTerminalOutcome, WorkbenchWorkspaceId, WorkbenchWorktreeOutcome,
     WorktreeOperationStatus,
@@ -55,7 +53,6 @@ impl Receipt {
     pub(super) fn document(&self) -> Value {
         json!({"clientId":self.client_id,"focus":self.focus.as_ref().map(|focus| &focus.document),"stage":self.stage,"failure":self.failure.map(FailureKind::as_str),"outcome":if self.complete() {"completed"} else {"incomplete"}})
     }
-    #[cfg(any(windows, test))]
     pub(super) fn record(&mut self, answer: crate::cli::client_control::Answer) {
         use orchbee_workbench_protocol::{ClientViewControlStatus, ClientViewOutcome};
         let applied = matches!(answer.reply.as_ref().map(|reply| &reply.outcome), Some(ClientViewOutcome::Operation {operation}) if matches!(operation.status, ClientViewControlStatus::Applied { .. }));
@@ -70,7 +67,6 @@ impl Receipt {
     }
 }
 
-#[cfg(any(windows, test))]
 pub(super) fn opened(observation: &Observation) -> Option<&WorkbenchWorkspaceId> {
     let Observation::Server { reply } = observation else {
         return None;
@@ -92,5 +88,5 @@ pub(super) fn opened(observation: &Observation) -> Option<&WorkbenchWorkspaceId>
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;

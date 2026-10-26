@@ -73,12 +73,9 @@ pub(crate) mod user_path;
 pub(crate) mod user_path_windows;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
-#[cfg(any(windows, test))]
 pub(crate) use worktree::WorktreeCommand;
-#[cfg(windows)]
 pub(crate) use worktree::WorktreeQueryCommand;
 pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand};
-#[cfg(any(windows, test))]
 pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
 use orchbee_agent_observation_protocol::{

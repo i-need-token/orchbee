@@ -5,40 +5,24 @@ use crate::{
     localization::Locale,
 };
 
-#[cfg(windows)]
-mod windows;
+mod workflow;
 
 pub(crate) fn run(
     command: ParsedWorktreeQueryCommand,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    #[cfg(windows)]
-    {
-        let command = match command.into_resolved(
-            format,
-            |name| std::env::var_os(name),
-            std::env::current_dir,
-        ) {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::WorktreeOperation) {
+        return failure_output(failure, Some(format), locale);
+    }
+    let command =
+        match command.into_resolved(format, |name| std::env::var_os(name), std::env::current_dir) {
             Ok(command) => command,
             Err(failure) => return super::parse_failure(failure, locale),
         };
-        windows::run(&command, format, locale)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
+    workflow::run(&command, format, locale)
 }
 
-#[cfg(any(windows, test))]
 fn emit(
     result: orchbee_workbench_protocol::WorkbenchWorktreeQueryResult,
     format: OutputFormat,

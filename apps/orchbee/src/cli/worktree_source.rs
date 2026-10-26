@@ -6,8 +6,7 @@ use orchbee_workbench_protocol::{
 };
 use std::path::PathBuf;
 
-#[cfg(windows)]
-pub(super) mod windows;
+pub(super) mod workflow;
 
 pub(super) fn resolve(
     project_target: &Option<Target>,

@@ -3,8 +3,8 @@ use crate::{
     cli::{
         Failure, FailureKind,
         configuration::Error,
+        console_interrupt::{ArmedSignals, SignalWatch},
         query,
-        source::{ArmedSignals, SignalWatch},
     },
     invocation::{WorktreeStartCommand, WorktreeStartKind},
     local_client::{LocalClient, workbench::worktree_query::WorktreeQueryError},

@@ -5,7 +5,7 @@ mod view;
 use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
-    client_control::{selection, windows as control},
+    client_control::{exchange as control, selection},
     failure_output, mutation, query, results,
     source::{ArmedSignals, Finish, SignalWatch},
 };

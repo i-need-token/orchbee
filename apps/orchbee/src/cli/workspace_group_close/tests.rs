@@ -169,7 +169,6 @@ fn every_shared_response_embeds_in_the_offline_schema_and_unknown_is_not_success
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn waiting_refuses_changed_scope_members_child_identity_and_regressed_observations() {
     use orchbee_workbench_protocol::{WorkbenchLabel, WorkbenchTabCloseAttemptGeneration};
@@ -177,7 +176,7 @@ fn waiting_refuses_changed_scope_members_child_identity_and_regressed_observatio
     let observed = Observation::Server {
         reply: previous.clone(),
     };
-    assert!(windows::same_attempt(&observed, &previous));
+    assert!(workflow::same_attempt(&observed, &previous));
     for mutation in 0..7 {
         let mut next = previous.clone();
         let WorkspaceGroupCloseOutcome::Available {
@@ -208,17 +207,17 @@ fn waiting_refuses_changed_scope_members_child_identity_and_regressed_observatio
             }
         }
         assert!(
-            !windows::same_attempt(&observed, &next),
+            !workflow::same_attempt(&observed, &next),
             "mutation {mutation}"
         );
     }
     let before = reply("pending-frozen-members");
     let after = reply("accepted-not-observed");
-    assert!(windows::same_attempt(
+    assert!(workflow::same_attempt(
         &Observation::Server { reply: before },
         &after
     ));
-    assert!(windows::same_attempt(
+    assert!(workflow::same_attempt(
         &Observation::Server { reply: after },
         &previous
     ));

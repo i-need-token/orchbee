@@ -3,7 +3,7 @@ use crate::{
     cli::{
         Failure, FailureKind,
         caller_context::PanelTarget,
-        client_control::{selection, windows as control},
+        client_control::{exchange as control, selection},
         query, results,
         source::{ArmedSignals, SignalWatch},
         source_context,

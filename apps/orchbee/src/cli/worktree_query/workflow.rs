@@ -1,13 +1,12 @@
-//! Resolves a Windows Worktree query source and reads the bounded correlated Server result
+//! Resolves an admitted Worktree query source and reads the bounded correlated Server result
 //! under one deadline and signal watch. It does not fetch remote Git state or mutate canonical
 //! Workspace associations.
 
 use super::{Failure, FailureKind, Output, emit, failure_output};
 use crate::{
     cli::{
-        query,
-        source::{ArmedSignals, Finish, SignalWatch},
-        worktree_source,
+        console_interrupt::{ArmedSignals, Finish},
+        query, worktree_source,
     },
     invocation::{OutputFormat, WorktreeQueryCommand},
     local_client::workbench::worktree_query::WorktreeQueryError,
@@ -56,8 +55,8 @@ fn observe(
     check(signals, deadline)?;
     let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
     check(signals, deadline)?;
-    let prepared = worktree_source::windows::prepare(
-        worktree_source::windows::Request {
+    let prepared = worktree_source::workflow::prepare(
+        worktree_source::workflow::Request {
             project: &None,
             workspace: &command.workspace,
             cwd: &command.cwd,

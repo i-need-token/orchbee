@@ -1,12 +1,13 @@
-//! Submits and observes an exact retained Windows Worktree operation, preserving independent
+//! Submits and observes an exact retained Worktree operation, preserving independent
 //! Git, Workspace, and restoration outcomes in its receipt. It does not execute Git locally or
 //! replay a mutation after unknown delivery.
 
 use super::{Answer, Observation, Wait, emit};
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish},
+        failure_output, query,
     },
     invocation::{OutputFormat, WorktreeCommand, WorktreeStartKind},
     localization::Locale,
@@ -122,8 +123,8 @@ fn observe(
             let (project_id, intent) = if matches!(start.kind, WorktreeStartKind::Remove { .. }) {
                 super::selection::intent(start, &snapshot, std::env::current_dir)?
             } else {
-                let prepared = crate::cli::worktree_source::windows::prepare(
-                    crate::cli::worktree_source::windows::Request {
+                let prepared = crate::cli::worktree_source::workflow::prepare(
+                    crate::cli::worktree_source::workflow::Request {
                         project: &start.project,
                         workspace: &start.workspace,
                         cwd: &start.cwd,
@@ -254,7 +255,7 @@ fn observe(
         && let Some(workspace) = super::post_open::opened(&answer.observation)
     {
         receipt.stage = "focus-observation";
-        if let Err(failure) = super::focus_windows::execute(
+        if let Err(failure) = super::focus::execute(
             &mut client,
             &snapshot,
             workspace,

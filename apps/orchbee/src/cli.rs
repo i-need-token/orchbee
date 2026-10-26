@@ -50,14 +50,12 @@ mod current_panel;
 #[cfg(windows)]
 mod current_presentation;
 mod launch_receipt;
-#[cfg(any(windows, test))]
 mod source_context;
 #[cfg(windows)]
 pub(crate) mod workspace_creation;
 #[cfg(not(windows))]
 #[path = "cli/workspace_creation_unix.rs"]
 pub(crate) mod workspace_creation;
-#[cfg(windows)]
 mod workspace_focus;
 pub(crate) use creation::run_parsed as run_creation;
 mod agent_request;
@@ -133,7 +131,6 @@ mod worktree_operation;
 pub(crate) use workspace_group_close::run as run_workspace_group_close;
 mod worktree_query;
 pub(crate) use worktree_query::run as run_worktree_query;
-#[cfg(any(windows, test))]
 mod worktree_source;
 pub(crate) use worktree_operation::run as run_worktree;
 #[cfg(any(target_os = "linux", windows))]

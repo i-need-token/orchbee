@@ -1,12 +1,13 @@
-//! Submits and observes one retained Windows Workspace-group close with exact attempt identity
+//! Submits and observes one retained Workspace-group close with exact attempt identity
 //! under a cancellable total deadline. It does not close member terminals locally or retract
 //! accepted closure when observation stops.
 
 use super::{Answer, Observation, Wait, emit};
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish},
+        failure_output, query,
     },
     invocation::{OutputFormat, WorkspaceGroupCloseCommand},
     localization::Locale,

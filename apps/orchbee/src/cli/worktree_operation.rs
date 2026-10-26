@@ -1,40 +1,29 @@
 //! CLI waiting is separate from the Server's retained Worktree operation.
-#[cfg(any(windows, test))]
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
-#[cfg(any(windows, test))]
 use crate::invocation::WorktreeCommand;
 use crate::{
     invocation::{OutputFormat, ParsedWorktreeCommand},
     localization::Locale,
 };
-#[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchRequestId, WorkbenchTerminalOutcome, WorkbenchWorktreeOutcome,
     WorkbenchWorktreeResult, WorktreeOperationStatus,
 };
-#[cfg(any(windows, test))]
 use serde_json::json;
 
-#[cfg(windows)]
 mod configured_path;
-#[cfg(windows)]
-mod focus_windows;
-#[cfg(any(windows, test))]
+mod focus;
 mod post_open;
-#[cfg(any(windows, test))]
 mod selection;
-#[cfg(windows)]
-mod windows;
+mod workflow;
 
-#[cfg(any(windows, test))]
 #[derive(Debug)]
 enum Observation {
     Server { reply: WorkbenchWorktreeResult },
     Unavailable { reason: &'static str },
     Unknown { reason: &'static str },
 }
-#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Wait {
     Detached,
@@ -43,14 +32,12 @@ enum Wait {
     TransportLost,
     ObservationFailed,
 }
-#[cfg(any(windows, test))]
 struct Answer {
     operation_id: WorkbenchRequestId,
     observation: Observation,
     wait: Option<Wait>,
     post_open: Option<post_open::Receipt>,
 }
-#[cfg(any(windows, test))]
 impl Answer {
     fn document(&self) -> serde_json::Value {
         let observation = match &self.observation {
@@ -144,21 +131,10 @@ impl Answer {
     }
 }
 
-#[cfg(not(windows))]
 pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: Locale) -> Output {
-    let _ = command;
-    failure_output(
-        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-            "platform",
-            "unsupported-platform",
-        )),
-        Some(format),
-        locale,
-    )
-}
-
-#[cfg(windows)]
-pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::WorktreeOperation) {
+        return failure_output(failure, Some(format), locale);
+    }
     let command =
         match command.into_resolved(format, |name| std::env::var_os(name), std::env::current_dir) {
             Ok(command) => command,
@@ -179,10 +155,9 @@ pub(crate) fn run(command: ParsedWorktreeCommand, format: OutputFormat, locale: 
         Ok(id) => id,
         Err(failure) => return failure_output(failure, Some(format), locale),
     };
-    windows::run(command, operation_id, format, locale)
+    workflow::run(command, operation_id, format, locale)
 }
 
-#[cfg(any(windows, test))]
 fn emit(
     session_id: Option<&SessionId>,
     answer: Answer,

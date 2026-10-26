@@ -12,6 +12,8 @@ Agent startup, saved-machine management and relay, and configuration reporting k
 
 Agent projection reads, exact terminal metadata, Client attention interpretation and retained Client exchanges share their protocol and rendering owners. Native interrupt borrowing does not register another handler or replace Unix cancellation. Projection admission precedes effects; canonical Unix Agent reads keep their current selectors and `AgentListCursor`, while the projection backend decodes its own cursor.
 
+Workspace-group closure, Worktree operations and source queries keep request preparation, retained observation and post-open focus receipts in shared workflows. Their capability admission runs before literal-path resolution or operation ID generation. Windows path decoding remains explicit operand grammar; compiling that decoder on another host does not enable filesystem or Git operations there. A completed canonical operation is not erased by a failed or cancelled Client-focus observation.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
