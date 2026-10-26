@@ -10,10 +10,10 @@ use orchbee_capability_node_protocol::{
 use orchbee_server::CloseStepObservation;
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 use orchbee_workbench_protocol::{
-    PublicationReadIntent, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSplitDirection,
-    WorkbenchPublicationOutcome, WorkbenchRejectionReason, WorkbenchRevision, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
+    WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome,
 };
 use std::time::Instant;
 
@@ -235,49 +235,6 @@ fn move_command(
             direction,
         },
     }
-}
-
-fn workbench_snapshot_unavailable(coordinator: &mut SessionCoordinator) -> bool {
-    let response = coordinator
-        .execute_workbench(
-            WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
-                protocol_version: ProtocolVersion,
-                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 889)).unwrap(),
-            })
-            .try_into()
-            .unwrap(),
-            false,
-        )
-        .unwrap();
-    matches!(
-        response,
-        WorkbenchResponse::Snapshot(result)
-            if matches!(result.outcome, WorkbenchSnapshotOutcome::Unavailable { .. })
-    )
-}
-
-fn publication_available(
-    coordinator: &mut SessionCoordinator,
-    request: u128,
-    known_revision: WorkbenchRevision,
-) -> bool {
-    let response = coordinator
-        .execute_workbench(
-            WorkbenchRequest::PublicationRead(PublicationReadIntent {
-                protocol_version: ProtocolVersion,
-                request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
-                known_revision,
-            })
-            .try_into()
-            .unwrap(),
-            false,
-        )
-        .unwrap();
-    matches!(
-        response,
-        WorkbenchResponse::Publication(result)
-            if !matches!(result.outcome, WorkbenchPublicationOutcome::Unavailable { .. })
-    )
 }
 
 #[test]
