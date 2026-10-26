@@ -16,11 +16,9 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "startup/unix.rs"]
 mod platform;
-#[cfg(windows)]
-pub(crate) use platform::stream_snapshot;
 pub(crate) use platform::{
-    read_agent_observation, read_terminal_processes_cancellable, snapshot_from_origin,
-    submit_prompt_on_session,
+    admit, read_agent_observation, read_terminal_processes_cancellable, snapshot_from_origin,
+    stream_snapshot, submit_prompt_on_session,
 };
 
 pub(crate) fn obap_request_id() -> Result<ObapRequestId, Failure> {

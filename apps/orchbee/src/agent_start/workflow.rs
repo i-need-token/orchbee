@@ -1,4 +1,4 @@
-//! Windows runtime workflow. One absolute budget covers admission, reservation,
+//! Agent startup workflow. One absolute budget covers admission, reservation,
 //! the single send, observation and best-effort name release.
 
 use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
@@ -40,7 +40,6 @@ struct Workflow<'a> {
     last_read_failure: Option<Value>,
 }
 
-#[cfg(windows)]
 pub(super) fn run_local(
     request: Request,
     started: Instant,

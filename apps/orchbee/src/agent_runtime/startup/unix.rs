@@ -15,6 +15,17 @@ use std::time::Instant;
 fn unsupported() -> Failure {
     from_unsupported(Unsupported(Capability::AgentLaunch))
 }
+pub(crate) fn admit() -> Result<(), Failure> {
+    Err(unsupported())
+}
+
+pub(crate) fn stream_snapshot(
+    _deadline: Instant,
+    _wake: Option<LocalIo<'_>>,
+) -> Result<(LocalClient, Snapshot), Failure> {
+    Err(unsupported())
+}
+
 fn from_unsupported(_unsupported: Unsupported) -> Failure {
     Failure::new(FailureKind::ServiceUnavailable).details(crate::cli::stage_reason_details(
         "platform",

@@ -8,6 +8,10 @@ use crate::{cli::Failure, invocation::Target, local_client::LocalClient};
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::Snapshot;
 use std::time::Instant;
+pub(crate) fn admit() -> Result<(), Failure> {
+    Ok(())
+}
+
 pub(crate) fn submit_prompt_on_session(
     client: &mut LocalClient,
     snapshot: &Snapshot,

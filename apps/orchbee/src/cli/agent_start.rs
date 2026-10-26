@@ -2,55 +2,35 @@
 //! canonical readiness. Every failure retains the independently known effects.
 
 use super::Failure;
-#[cfg(windows)]
 use super::output;
 use super::{FailureKind, Output, failure_output};
-#[cfg(windows)]
 use crate::{
     agent_start::{Report, Request, Verdict},
-    cli::{
-        caller_context::PanelTarget,
-        source::{ArmedSignals, Finish, SignalWatch},
-    },
+    cli::caller_context::PanelTarget,
 };
 use crate::{
     invocation::{AgentStartCommand, OutputFormat},
     localization::Locale,
 };
-#[cfg(windows)]
 use orchbee_agent_observation_protocol::AgentProviderId;
-#[cfg(windows)]
 use serde_json::json;
-#[cfg(windows)]
 use std::time::{Duration, Instant};
-
 #[cfg(windows)]
+#[path = "agent_start/signals_windows.rs"]
+mod signals;
+#[cfg(not(windows))]
+#[path = "agent_start/signals_unix.rs"]
+mod signals;
+
 const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-start";
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;
 
 pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        run_windows(command, format, locale)
+    if let Err(failure) = crate::agent_runtime::startup::admit() {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-                "platform",
-                "unsupported-platform",
-            )),
-            Some(format),
-            locale,
-        )
-    }
-}
-
-#[cfg(windows)]
-fn run_windows(command: &AgentStartCommand, format: OutputFormat, locale: Locale) -> Output {
     let started = Instant::now();
     let provider = AgentProviderId::parse(&command.provider)
         .expect("agent start parser admits only canonical providers");
@@ -79,37 +59,30 @@ fn run_windows(command: &AgentStartCommand, format: OutputFormat, locale: Locale
             None,
         );
     }
-    let armed = match ArmedSignals::arm_interrupts() {
-        Ok(armed) => armed,
-        Err(_) => {
+    let result = signals::run(request, |request, wake| {
+        match PanelTarget::prepare(command.panel.as_ref(), |name| std::env::var_os(name)) {
+            Ok(prepared) => {
+                crate::agent_start::run_local(request, started, deadline, wake, |snapshot| {
+                    prepared.resolve(snapshot)
+                })
+            }
+            Err(failure) => Report::preflight(request, started, failure),
+        }
+    });
+    let (mut report, finish) = match result {
+        Ok(result) => result,
+        Err((request, failure)) => {
             return project(
-                Report::preflight(
-                    request,
-                    started,
-                    crate::agent_start::failure(
-                        FailureKind::InternalFailure,
-                        "signal-registration-failed",
-                    ),
-                ),
+                Report::preflight(request, started, failure),
                 format,
                 locale,
                 None,
             );
         }
     };
-    let mut report = match PanelTarget::prepare(command.panel.as_ref(), |name| {
-        std::env::var_os(name)
-    }) {
-        Ok(prepared) => {
-            crate::agent_start::run_local(request, started, deadline, armed.poll_fd(), |snapshot| {
-                prepared.resolve(snapshot)
-            })
-        }
-        Err(failure) => Report::preflight(request, started, failure),
-    };
-    let finalization = match armed.finish() {
-        Ok(Finish::Clear) => None,
-        Ok(Finish::Cancelled { finalization, .. }) => {
+    let finalization = match finish {
+        Ok(None) => None,
+        Ok(Some(finalization)) => {
             if !report.completed() && report.failure_kind() != Some(FailureKind::OutcomeUnknown) {
                 report.replace_failure(crate::agent_start::failure(
                     FailureKind::Cancelled,
@@ -137,7 +110,6 @@ fn run_windows(command: &AgentStartCommand, format: OutputFormat, locale: Locale
 
 /// The local inspection never consumes more than this share of the start
 /// budget; an inspection it cuts short is inconclusive, not a refusal.
-#[cfg(windows)]
 const PREFLIGHT_BUDGET: Duration = Duration::from_secs(10);
 
 /// Refuse before any reservation or input when this machine's managed
@@ -146,7 +118,6 @@ const PREFLIGHT_BUDGET: Duration = Duration::from_secs(10);
 /// An unmanaged provider, a manual-only platform or an inconclusive inspection
 /// leaves the decision to canonical readiness. Nothing here enables anything:
 /// enabling edits the provider's own configuration.
-#[cfg(windows)]
 fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
     use crate::agent_integrations::{
         IntegrationId, State,
@@ -174,7 +145,6 @@ fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
     ))
 }
 
-#[cfg(windows)]
 fn project(
     mut report: Report,
     format: OutputFormat,

@@ -40,7 +40,6 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
             locale,
         ),
         Ok(started) => {
-            #[cfg(windows)]
             let warning = started
                 .restore_notice
                 .map(|notice| match notice {
@@ -53,8 +52,6 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                 })
                 .map(|notice| format!("{}\n", locale.shell_notice(Some(notice))))
                 .unwrap_or_default();
-            #[cfg(not(windows))]
-            let warning = String::new();
             let result = json!({
                 "outcome": started.outcome,
                 "scope": started.scope,

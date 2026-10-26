@@ -324,7 +324,7 @@ mod imp {
 
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use capsule::bundled_payload_sha256;
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 pub(crate) use imp::context_before;
 #[cfg(any(unix, windows))]
 pub(crate) use imp::{

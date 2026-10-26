@@ -4,7 +4,6 @@ use super::Locale;
 use crate::cli::Failure;
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_agent_started(self, name: &str, session: &str) -> String {
         match self {
             Self::EnUs => format!(
