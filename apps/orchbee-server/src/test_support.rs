@@ -36,8 +36,7 @@ pub(crate) trait WorkbenchFixture {
 impl WorkbenchFixture for WorkbenchAuthority {
     fn workspace_fixture(session: SessionId) -> Result<Self, ContractError> {
         let mut authority = Self::new(session)?;
-        authority
-            .seed_fixture_workspace(WorkerId::parse("0909090909090909090909090909090909").unwrap());
+        authority.seed_fixture_workspace(WorkerId::parse(&"09".repeat(16)).unwrap());
         Ok(authority)
     }
 
