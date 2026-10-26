@@ -14,7 +14,7 @@ fn controller_cleanup_preserves_replacements_and_requires_both_transfer_receipts
         thread,
     };
 
-    let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes([7; 16]);
+    let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([7; 16]);
     let old_id = OperationId::from_bytes([8; 16]).unwrap();
     let new_id = OperationId::from_bytes([9; 16]).unwrap();
     for (current_owner, has_previous, previous_refused, armed) in [

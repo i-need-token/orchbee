@@ -10,7 +10,7 @@ use orchbee_local_client_protocol::{
     ClientHello, LocalClientMessage, read_message as read_oblc_message,
     write_message as write_oblc_message,
 };
-use orchbee_local_site_protocol::{LocalSiteMessage, RejectionReason as WorkerRejectionReason};
+use orchbee_local_worker_protocol::{LocalWorkerMessage, RejectionReason as WorkerRejectionReason};
 
 use super::{
     FIRST_WORKER, RunningServer, SECOND_WORKER, TestResult, connect_bounded_client,
@@ -62,7 +62,7 @@ fn sequential_create_and_start_report_missing_worker_and_reference() -> TestResu
     expect_connection_closed(&mut client)?;
     assert_eq!(
         exchange_worker(server.worker_endpoint(), SECOND_WORKER)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: WorkerRejectionReason::DuplicateWorker,
         }
     );

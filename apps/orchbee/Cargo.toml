@@ -80,7 +80,7 @@ nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
 workspace = true
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
-orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
+orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 rustix = { workspace = true, features = ["process"] }
 serde_json.workspace = true
 

@@ -147,7 +147,7 @@ fn stale_worker_and_generation_reject_all_actions_before_owner_access() {
             };
             let result = crate::worktree_mutation_operation::execute(
                 request,
-                orchbee_local_site_protocol::WorkerId::from_bytes([2; 16]),
+                orchbee_local_worker_protocol::WorkerId::from_bytes([2; 16]),
                 NonZeroU64::new(3).unwrap(),
                 &slot,
             );

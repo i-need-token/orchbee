@@ -141,7 +141,7 @@ generation-scoped cleanup 由其
 本 crate 只拥有 Client framing、handshake validation、connecting adapter，以及把 accepted byte
 stream 交给调用方；它既不定义也不解码下一 semantic phase。Server 拥有 listener 与 Client
 Client Connection state。`orchbee-local-peer-credentials` 拥有 kernel same-user proof。
-`orchbee-local-site-protocol` 单独拥有 Worker handshake。endpoint discovery、lazy activation、
+`orchbee-local-worker-protocol` 单独拥有 Worker handshake。endpoint discovery、lazy activation、
 公开 `orchbee` 集成、Workbench snapshot 与 command、terminal relay、controller policy、
 persistence、Windows named pipe、remote authentication 与 production service lifecycle 不在本
 切片内。
@@ -173,4 +173,4 @@ Windows 使用 `orchbee-local-ipc` 本地命名管道承载相同的 OBLC 消息
 取消、连接后失败、迟到完成和候选清理。原生元数据／停止测试覆盖真实管道适配器。
 这些具名轨迹补充既有协议模型，不建模或限制 Windows 内核调度。
 
-<!-- documentation-pairing: english-sha256=9cef004e586f382e756db26df54d398b915f762ac3b3b13a816ec8c9283a504d zh-cn-sha256=de2f6d9967cdd8ddf0819b1fb71cc5cf9da7a78cb96dfcff9ab6ba4fa076102f -->
+<!-- documentation-pairing: english-sha256=3ab791f63745e21fbf29947311aaa152fe1b8c2fa8ff076a18bd40dd5aee150a zh-cn-sha256=c50951b505a965997d5618f35ec0b9d730784eb46dd12ca0c25cfd00530bb1a2 -->

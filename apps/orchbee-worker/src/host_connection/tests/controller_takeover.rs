@@ -81,7 +81,7 @@ fn execute(
 ) -> Result<Outcome, Box<dyn Error>> {
     crate::terminal_control_operation::execute(
         request,
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         NonZeroU64::MIN,
         host,
         server,

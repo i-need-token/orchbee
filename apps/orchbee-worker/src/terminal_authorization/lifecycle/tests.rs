@@ -155,7 +155,7 @@ fn original() -> TestResult<AuthorizedTerminalStart> {
 }
 fn kernel() -> TestResult<AuthorizedHostOperationKernel> {
     let mut kernel = AuthorizedHostOperationKernel::new(
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),
     )?;
     let start = original()?;
@@ -454,7 +454,7 @@ fn close_owner_blocks_higher_fence_launch_start_but_keeps_exact_launch_replay() 
         None,
     );
     let mut kernel = AuthorizedHostOperationKernel::new(
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),
     )?;
     let HostOperationAdmission::Dispatch(dispatch) = kernel.admit_launch(launch.clone(), 100)?

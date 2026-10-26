@@ -16,7 +16,7 @@ use orchbee_agent_observation_protocol::{
 use orchbee_capability_node_protocol::{
     AgentDrainReply, AgentDrainRequest, CapabilityNodeMessage, read_message, write_message,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::{AgentPolicy, AgentService, DrainExpectation};

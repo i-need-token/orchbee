@@ -73,7 +73,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             TERMINAL_LAUNCH_CAPABILITY_VERSION,
         );
         let mut kernel = AuthorizedHostOperationKernel::new(
-            orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+            orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
             n,
         )?;
         let request = AuthorizedTerminalLaunch::new(

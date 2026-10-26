@@ -12,7 +12,7 @@ fn viewport_response_detail_must_match_the_request() {
     let route = decode_terminal_render_row_window(bytes).unwrap().route();
     let service = super::super::tests::service();
     let carrier = crate::worker_obcn_carrier::create_worker_carrier(
-        orchbee_local_site_protocol::WorkerId::from_bytes([7; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([7; 16]),
         NonZeroU64::MIN,
     );
     let mut viewer = super::super::tests::viewer(&service, carrier.request_handle());

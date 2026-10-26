@@ -8,7 +8,7 @@ use orchbee_capability_node_protocol::{
     ViewerSelectionExportFormat, ViewerSelectionGestureAction, ViewerSnapshotReason,
     ViewportRowOrigin,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, EncodedRowAccessControl, Envelope,

@@ -79,7 +79,7 @@ invocation, connection, authentication, handshake rejection, framing, output, or
 has the same silent status-`1` result. A valid operation-level rejection returns its typed OBCN result
 and leaves the loop available for the next request.
 
-Worker consumes authorization only from the admitted same-user Server and uses the OBLS generation
+Worker consumes authorization only from the admitted same-user Server and uses the OBLW generation
 for its authorization kernel. It sends Create/Start only after local admission and a fresh handoff
 check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the lazy workflow below.
 Connection retry, restart, inventory adoption, PTY/VT operations, Agent behavior, service installation,
@@ -314,7 +314,7 @@ carrier-neutral deterministic kernel for the private Host launch adapter. It con
 Start values. The loop constructs one kernel per admitted Server attachment.
 
 The composition root constructs this intrinsically version 2 kernel with only the current
-local-Session `WorkerId` and the nonzero Worker generation accepted by OBLS.
+local-Session `WorkerId` and the nonzero Worker generation accepted by OBLW.
 Its carrier must authenticate the active authoritative Server and supply only well-formed issuance:
 within that Server authority, every `OperationId` is globally fresh across Terminals, Workers, and
 Worker generations. The kernel deliberately keeps no unbounded cross-terminal collision ledger and
@@ -344,7 +344,7 @@ observed, so a caller-visible wall-clock rollback cannot revive any expired leas
 | Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | The OBCN carrier may deliver a Server-authorized Launch or Start more than once, late, for the wrong Worker generation, or after authority has advanced. Worker must decide locally whether one Host operation may begin and must preserve the exact terminal result without acquiring Server placement authority or performing the Host effect itself.                                                                                                                                                                                                                                                                                                                                                             |
-| Inputs       | Canonical OBCN `AuthorizedTerminalLaunch` or `AuthorizedTerminalStart` from an authenticated authoritative Server that obeys the globally fresh `OperationId` producer invariant, with its authorization capability checked against the kernel's intrinsic version 2 policy; the caller-supplied current local-Session Worker ID, nonzero OBLS generation, and current Unix-millisecond time; the observed Host epoch at Start admission and again at the handoff boundary; and a typed Host completion. A missing result or occupied slot remains explicit state rather than inferred success.                                                                                                                     |
+| Inputs       | Canonical OBCN `AuthorizedTerminalLaunch` or `AuthorizedTerminalStart` from an authenticated authoritative Server that obeys the globally fresh `OperationId` producer invariant, with its authorization capability checked against the kernel's intrinsic version 2 policy; the caller-supplied current local-Session Worker ID, nonzero OBLW generation, and current Unix-millisecond time; the observed Host epoch at Start admission and again at the handoff boundary; and a typed Host completion. A missing result or occupied slot remains explicit state rather than inferred success.                                                                                                                     |
 | Data         | `AuthorizedHostOperationKernel` owns at most 1,024 complete highest-fence bindings per Worker generation, keyed by product `TerminalId` and including operation kind, full authorization, Launch or Start payload, and an optional exact cached result. It separately owns one process-local slot in `empty`, `awaiting-handoff`, `handed-off`, or `result-ready` state and a maximum-observed Unix-millisecond high-water mark. A private `AuthorizedHostDispatch` retains the complete admitted operation and therefore its generation and authority binding.                                                                                                                                                     |
 | Outputs      | Admission returns `Dispatch`, `ResultReady`, or `SlotOccupied`; handoff returns `HandedOff` or `ResultReady`; `take_result` returns one typed OBCN Launch or Start result, including `CapacityExceeded` for a valid unseen terminal after the retained-binding limit is reached; invalid completion observations return a typed internal error without changing the slot. The kernel opens no carrier, performs no Host call, emits no product event, and writes no durable state.                                                                                                                                                                                                                                  |
 | Invariants   | Wrong Worker, stale generation, unsupported capability, expired new lease, lower fence, conflicting same-fence binding, and a valid unseen terminal beyond capacity never dispatch. An exact binding dispatches at most once and replays only its cached exact result, even after expiry or at capacity. Once the kernel observes a lease as expired, a lower later time cannot revive it. A valid higher fence replaces the prior binding and clears its cache even at capacity. Capacity rejection never inserts a tombstone or changes any binding. At most one operation or undelivered result occupies the global slot. Only `handed-off` can become a Host outcome.                                           |
@@ -509,7 +509,7 @@ Deterministic socket witnesses cover handoff, exact completion, mismatch, ordere
 ## Integrated authorized request loop
 
 `terminal_operations` composes the accepted local-terminal milestone inside the private Worker.
-Its inputs are the admitted Server stream, admitted Host broker, local Worker identity, and OBLS
+Its inputs are the admitted Server stream, admitted Host broker, local Worker identity, and OBLW
 generation. It owns their serialized operation lifetime; `terminal_authorization` remains the only
 launch binding/cache/operation authority. Viewer/control requests use the Host broker
 attachment state and their respective operation adapters. Its private `server_transport` child adapts canonical OBCN
@@ -608,7 +608,7 @@ owner, token, and acknowledgement state survives the first launch.
 The integrated request loop handles `TerminalCwdValidationRequest` before terminal authorization or
 viewer/controller cleanup. The lazy Linux loop handles it before resolving launch facts or starting
 a Terminal Host. Worker first compares the request's exact logical Worker ID and generation with its
-admitted OBLS identity. A mismatch returns `WorkerUnavailable` without observing the path. A match
+admitted OBLW identity. A mismatch returns `WorkerUnavailable` without observing the path. A match
 uses one synchronous `std::fs::metadata` lookup, follows symbolic links, preserves the supplied path
 spelling, and returns `DirectoryAvailable` only for an existing directory. Missing paths, regular
 files and every metadata error return `DirectoryUnavailable`; arbitrary OS error details do not
@@ -624,7 +624,7 @@ regular and missing paths, and Worker identity/generation rejection without a Ho
 
 ## Ownership
 
-The [`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.md) crate owns the
+The [`orchbee-local-worker-protocol`](../../crates/local-worker-protocol/README.md) crate owns the
 Server-Worker framing. The
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.md) crate owns the
 kernel same-user proof used for both local connections. The
@@ -813,7 +813,7 @@ source before Server connection. `WorkerHello`, retained `ServerConnection`, and
 operation kernel share that exact identity. Separate connections do not reuse the
 old fixed local diagnostic ID: otherwise different Sites' terminal counters could
 alias a stale caller. RNG failure or zero fails before connecting. Identity collision
-resistance relies on the OS random source. This changes no OBLS/OBCN fields and does
+resistance relies on the OS random source. This changes no OBLW/OBCN fields and does
 not enable reconnect, inventory adoption, or migration of old Worker bindings.
 Mac/Linux retain their existing identity behavior. Two independent Windows Session
 process traces cover reused Terminal IDs and refusal of the old Worker context.

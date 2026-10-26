@@ -11,7 +11,7 @@ use orchbee_capability_node_protocol::{
     AbsoluteCwd, OperationId, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
     WorkerGeneration, WorkerId as CapabilityWorkerId,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 use super::validate;
 

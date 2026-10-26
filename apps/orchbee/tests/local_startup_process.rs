@@ -761,7 +761,7 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
         TerminalOperationLease, WorkerGeneration, WorkerId, read_message as read_obcn,
         write_message as write_obcn,
     };
-    use orchbee_local_site_protocol::{LocalSiteMessage, read_message, write_message};
+    use orchbee_local_worker_protocol::{LocalWorkerMessage, read_message, write_message};
     use std::{
         num::NonZeroU64,
         os::unix::net::UnixListener,
@@ -797,13 +797,13 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
     };
     server.set_read_timeout(Some(Duration::from_secs(7)))?;
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
-    let LocalSiteMessage::WorkerHello(hello) = read_message(&mut server)? else {
+    let LocalWorkerMessage::WorkerHello(hello) = read_message(&mut server)? else {
         panic!("Worker hello")
     };
     assert_eq!(hello.cohort(), cohort_identity);
     write_message(
         &mut server,
-        &LocalSiteMessage::WorkerAccepted {
+        &LocalWorkerMessage::WorkerAccepted {
             generation: NonZeroU64::MIN,
         },
     )?;

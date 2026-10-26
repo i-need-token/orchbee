@@ -23,8 +23,8 @@ use std::{
     time::Instant,
 };
 
-const LOCAL_WORKER: orchbee_local_site_protocol::WorkerId =
-    orchbee_local_site_protocol::WorkerId::from_bytes(*b"orchbee-local-v1");
+const LOCAL_WORKER: orchbee_local_worker_protocol::WorkerId =
+    orchbee_local_worker_protocol::WorkerId::from_bytes(*b"orchbee-local-v1");
 
 fn workbench_id(value: u128) -> TestResult<WorkbenchRequestId> {
     Ok(WorkbenchRequestId::parse(&format!("{value:032x}"))?)

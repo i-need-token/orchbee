@@ -22,7 +22,7 @@ use orchbee_capability_node_protocol::{
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
     TerminalStartOutcome, TerminalStartRejection, WorkerGeneration, WorkerId,
 };
-use orchbee_local_site_protocol::WorkerId as LocalWorkerId;
+use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 use orchbee_terminal_protocol::{
     ColorScheme, CursorShape, DeviceAttributes, HelloAccepted, InventoryControl, ListTerminals,
     MAXIMUM_CONTROL_JSON_BYTES, TERMINAL_THEME_PALETTE_ENTRIES, TRANSPORT_ENVELOPE_HEADER_BYTES,

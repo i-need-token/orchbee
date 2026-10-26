@@ -27,7 +27,7 @@ use orchbee_capability_node_protocol::{
     TerminalStartRejection, TerminalStartResult, WorkerGeneration, WorkerId as CapabilityWorkerId,
     read_message, write_message,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 use crate::worker_registry::{RegisteredWorkerWireOwner, WorkerAdmission, WorkerRegistry};
 

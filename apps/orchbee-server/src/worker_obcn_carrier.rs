@@ -20,7 +20,7 @@ use orchbee_capability_node_protocol::{
     WorktreeJobResult, encode_message, read_message,
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 mod lifecycle;
 pub(crate) use lifecycle::PendingLifecycleResult;

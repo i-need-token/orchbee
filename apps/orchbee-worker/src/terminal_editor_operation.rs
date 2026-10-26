@@ -3,7 +3,7 @@ use orchbee_capability_node_protocol::{
     TerminalEditorCommandOutcome as Outcome, TerminalEditorCommandRefusal as Refusal,
     TerminalEditorCommandRequest as Request, TerminalEditorCommandResult as Result,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use std::num::NonZeroU64;
 
 #[cfg(windows)]

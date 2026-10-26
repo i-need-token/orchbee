@@ -3,7 +3,7 @@
 Private, experimental Rust semantic contract for authorized terminal operations and bounded
 directory observations between Orchbee Server and a Capability Node. The initial Capability Node
 is the Worker, but this crate does not bind the messages to a local socket or any other carrier. The
-local Server adapter now consumes its codec in an application-private post-OBLS carrier. The local
+local Server adapter now consumes its codec in an application-private post-OBLW carrier. The local
 Server coordinator submits authorized Create/Start and generation-pinned cwd validation through
 that carrier. It is not a public API or a compatibility promise.
 
@@ -480,7 +480,7 @@ This crate owns only the closed semantic values and canonical `OBCN` frame codec
 authenticate, admit, retain, retry, reconnect, multiplex, or apply backpressure to a connection.
 Its streaming helpers borrow a caller-owned `Read` or `Write` only for one frame and retain no
 socket, buffer, connection, or phase state.
-Unix-domain sockets, same-user peer credentials, executable cohort, the `OBLS` admission handshake,
+Unix-domain sockets, same-user peer credentials, executable cohort, the `OBLW` admission handshake,
 remote transport, encryption, and connection state machines belong to carrier adapters and their
 own protocols. The current local Server adapter owns a capacity-one submitted slot behind at most
 one wire request, serializes complete request/result exchanges, validates exact correlation and

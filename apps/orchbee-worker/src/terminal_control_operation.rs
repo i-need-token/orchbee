@@ -9,7 +9,7 @@ use orchbee_capability_node_protocol::{
     TerminalControlOutcome as Outcome, TerminalControlRequest, TerminalControlResult,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     ConnectionControl, CorrelationId, InputMessage, PasteAutoInput, PayloadEncoding, ResizeControl,

@@ -24,7 +24,7 @@ use orchbee_capability_node_protocol::{
     AgentDrainEntry, SendRecord, SendRecords, SendText, SendTextInput, TerminalPixelGeometry,
     TerminalSendOutcome, TerminalSendRequest,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};
 
 use super::run;

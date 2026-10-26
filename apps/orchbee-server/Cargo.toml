@@ -23,7 +23,7 @@ orchbee-capability-node-protocol = { path = "../../crates/capability-node-protoc
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
-orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
+orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 
 [target.'cfg(unix)'.dependencies]

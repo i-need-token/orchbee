@@ -10,7 +10,7 @@ use orchbee_capability_node_protocol::{
     WorkerId as CapabilityWorkerId, read_message, write_message,
 };
 use orchbee_local_ipc::LocalStream;
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use std::{
     num::NonZeroU64,
     sync::{Arc, atomic::AtomicBool, mpsc},

@@ -10,9 +10,9 @@ terminal protocol 或 compatibility promise。
 
 ## Framing 与 message
 
-每个 connection 的 OBLS 部分恰好承载一条从 Worker 到 Server 的 handshake frame 和一条从 Server
+每个 connection 的 OBLW 部分恰好承载一条从 Worker 到 Server 的 handshake frame 和一条从 Server
 到 Worker 的 response frame。接受后，本机 Server adapter 可以把同一个 stream 保留为单独拥有的
-OBCN carrier；之后不再允许 OBLS frame。OBLS frame 包含固定 `OBLS` magic、unsigned big-endian
+OBCN carrier；之后不再允许 OBLW frame。OBLW frame 包含固定 `OBLW` magic、unsigned big-endian
 protocol version、unsigned big-endian payload length，以及最多 256 byte 的 payload。Unknown magic、
 version、kind、enum value、missing byte、extra byte、oversized payload、zero generation、invalid
 UTF-8、empty cohort、non-ASCII cohort 或超过 64 byte 的 cohort 均被拒绝。
@@ -36,14 +36,14 @@ Directory 与 socket mode 继续作为纵深防御；持有 path 或有效 byte 
 authentication。
 
 Read 与 write 使用有限 frame bound，并拒绝 partial EOF。Server 还提供 finite handshake timeout。
-`WorkerAccepted` 之后，OBLS 不再准入 local-site frame。当前 Server adapter 只在一条 request
+`WorkerAccepted` 之后，OBLW 不再准入 local-worker frame。当前 Server adapter 只在一条 request
 outstanding 时允许其 serialized OBCN request/result exchange；unsolicited byte 或其他 protocol 会
-违反该 carrier 并关闭 Worker attachment。本 crate 不解析或拥有 post-OBLS phase。当前 protocol
+违反该 carrier 并关闭 Worker attachment。本 crate 不解析或拥有 post-OBLW phase。当前 protocol
 version 是私有的，可以随尚未发布 cohort 原子替换。
 
-当前 Server adapter 必须把 OBLS Worker identity 映射为 OBCN 的 nonzero Worker identity。因此，它会
+当前 Server adapter 必须把 OBLW Worker identity 映射为 OBCN 的 nonzero Worker identity。因此，它会
 在 admission 或 `WorkerAccepted` 前，把全零 `WorkerHello` identity 拒绝为 `MalformedFrame`，且不消耗
-Server generation。这是一项 adapter compatibility precondition，而不是新的 OBLS codec restriction。
+Server generation。这是一项 adapter compatibility precondition，而不是新的 OBLW codec restriction。
 
 ## Ownership 与排除项
 
@@ -59,10 +59,10 @@ crate。
 从仓库根目录运行：
 
 ```sh
-cargo test -p orchbee-local-site-protocol --all-targets --all-features --locked
-cargo clippy -p orchbee-local-site-protocol --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee-local-worker-protocol --all-targets --all-features --locked
+cargo clippy -p orchbee-local-worker-protocol --all-targets --all-features --locked -- -D warnings
 node scripts/tla/run-models.mjs --models local-site-startup
 pnpm verify
 ```
 
-<!-- documentation-pairing: english-sha256=297734512ddecf6fa2964bfbfdf0853530ef291d51f30effce18689f805bdacb zh-cn-sha256=f6a964422651a3485151a11a37873d7ac79bc9cf5723a7b12a3e15a38b67fe40 -->
+<!-- documentation-pairing: english-sha256=d5b8ef99f89b956d974a71a1ef53d851577d5f1e0a74bc0ebc518b27e29a82e4 zh-cn-sha256=476c3da826ce267e16132135714b8bf3f54ed1fbf525f145b944f14c9cec778e -->

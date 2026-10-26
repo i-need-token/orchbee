@@ -67,7 +67,7 @@ invocation、connection、authentication、handshake rejection、framing、outpu
 也采用同样的静默 status-`1` 结果。合法的 operation-level rejection 返回 typed OBCN result，并让
 loop 继续接收下一请求。
 
-Worker 只消费已准入 same-user Server 的 authorization，并用 OBLS generation 构造授权 kernel。
+Worker 只消费已准入 same-user Server 的 authorization，并用 OBLW generation 构造授权 kernel。
 只有 local admission 与新的 handoff check 通过后才发送 Create/Start。显式端点模式不启动 Host；
 托管 Linux 模式使用下面的按需启动流程。不提供连接重试、重启、inventory 接管、PTY/VT 操作、
 Agent 行为、服务安装或恢复。
@@ -265,7 +265,7 @@ launch adapter 使用的 carrier-neutral deterministic kernel，消费
 [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.zh-CN.md) 的
 semantic Launch 与 Start value。Loop 为每个已准入 Server attachment 构造一个 kernel。
 
-Composition root 只用当前 local-会话 `WorkerId` 与 OBLS 接受的非零 Worker generation，
+Composition root 只用当前 local-会话 `WorkerId` 与 OBLW 接受的非零 Worker generation，
 构造这个本身固定为 version 2 的 kernel。其 carrier 必须认证 active
 authoritative Server，并且只提供 well-formed issuance：在该 Server
 authority 内，每个 `OperationId` 跨 Terminal、Worker 与 Worker generation 均全局 fresh。Kernel
@@ -294,7 +294,7 @@ rollback 不能让任何 expired lease 复活。
 | 字段   | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题   | OBCN carrier 可能重复、延迟、针对错误 Worker generation 或在 authority 已前移后交付 Server-authorized Launch 或 Start。Worker 必须在本地决定是否可以开始恰好一次 Host operation，并保留精确 terminal result，同时不取得 Server placement authority，也不自行执行 Host effect。                                                                                                                                                                                                                                                                                                                                             |
-| 输入   | 来自经过认证且遵守全局 fresh `OperationId` producer invariant 的 authoritative Server 的 canonical OBCN `AuthorizedTerminalLaunch` 或 `AuthorizedTerminalStart`，其 authorization capability 会根据 kernel 内置的 version 2 policy 检查；caller 提供的当前 local-会话 Worker ID、非零 OBLS generation 与当前 Unix-millisecond time；Start admission 与 handoff boundary 再次观察到的 Host epoch；以及 typed Host completion。缺失 result 或 occupied slot 保持为显式 state，而不推断成 success。                                                                                                                           |
+| 输入   | 来自经过认证且遵守全局 fresh `OperationId` producer invariant 的 authoritative Server 的 canonical OBCN `AuthorizedTerminalLaunch` 或 `AuthorizedTerminalStart`，其 authorization capability 会根据 kernel 内置的 version 2 policy 检查；caller 提供的当前 local-会话 Worker ID、非零 OBLW generation 与当前 Unix-millisecond time；Start admission 与 handoff boundary 再次观察到的 Host epoch；以及 typed Host completion。缺失 result 或 occupied slot 保持为显式 state，而不推断成 success。                                                                                                                           |
 | 数据   | `AuthorizedHostOperationKernel` 为每个 Worker generation 最多持有 1,024 个完整 highest-fence binding，以 product `TerminalId` 为 key，并包含 operation kind、完整 authorization、Launch 或 Start payload，以及可选的精确 cached result。它另外持有一个处于 `empty`、`awaiting-handoff`、`handed-off` 或 `result-ready` 的 process-local slot，以及 maximum-observed Unix-millisecond high-water mark。私有 `AuthorizedHostDispatch` 保留完整 admitted operation，因此也保留其 generation 与 authority binding。                                                                                                            |
 | 输出   | Admission 返回 `Dispatch`、`ResultReady` 或 `SlotOccupied`；handoff 返回 `HandedOff` 或 `ResultReady`；`take_result` 返回一个 typed OBCN Launch 或 Start result，其中在达到 retained-binding limit 后，对有效且未见过的 terminal 返回 `CapacityExceeded`；非法 completion observation 返回 typed internal error，且不改变 slot。内核不开 carrier、不执行 Host call、不发 product event，也不写 durable state。                                                                                                                                                                                                             |
 | 不变量 | Wrong Worker、stale generation、unsupported capability、expired new lease、lower fence、conflicting same-fence binding，以及超出 capacity 的有效 unseen terminal 绝不 dispatch。Exact binding 最多 dispatch 一次，且即使 expiry 后或处于 capacity 时也只 replay 其 cached exact result。Kernel 一旦观察到 lease expired，之后较低的时间不能使它复活。即使在 capacity 时，有效 higher fence 也会替换 prior binding 并清除其 cache。Capacity rejection 绝不插入 tombstone，也不改变任何 binding。Global slot 最多由一个 operation 或 undelivered result 占用。只有 `handed-off` 才能变成 Host outcome。                      |
@@ -456,7 +456,7 @@ byte I/O，并在每次 Host wait 时同时 poll Server；不导入 product poli
 ## 已集成的 authorized request loop
 
 `terminal_operations` 在私有 Worker 内组合已接受的 local-terminal milestone。输入为已准入
-Server stream、已准入 Host broker、local Worker identity 与 OBLS generation。它拥有串行 operation
+Server stream、已准入 Host broker、local Worker identity 与 OBLW generation。它拥有串行 operation
 lifetime；`terminal_authorization` 仍是唯一 launch binding/cache/operation authority。查看／控制请求使用 Host broker
 附件状态及各自 operation adapter。私有
 `server_transport` child 将 canonical OBCN `Read`/`Write` codec 适配为 nonblocking socket 与 peer
@@ -545,7 +545,7 @@ Pre-Host loop 用与 admitted loop 相同的共享 dispatch 应答 drain request
 
 集成 request loop 在 terminal authorization 或 viewer/controller 清理之前处理
 `TerminalCwdValidationRequest`。Linux lazy loop 会在解析 launch fact 或启动 Terminal Host 之前
-处理它。Worker 首先将请求中的精确逻辑 Worker ID 与代次同自身已准入 OBLS 身份比较。不匹配
+处理它。Worker 首先将请求中的精确逻辑 Worker ID 与代次同自身已准入 OBLW 身份比较。不匹配
 时不观察路径，直接返回 `WorkerUnavailable`。匹配时执行一次同步 `std::fs::metadata` 查询，
 跟随符号链接并保留输入路径拼写；仅当现有对象为目录时返回 `DirectoryAvailable`。路径缺失、
 普通文件及所有元数据错误均返回 `DirectoryUnavailable`；OBCN 不传输任意 OS 错误细节。
@@ -559,7 +559,7 @@ state。文件系统元数据调用为同步调用，carrier deadline 不会使�
 
 ## 所有权
 
-[`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.zh-CN.md) crate 拥有
+[`orchbee-local-worker-protocol`](../../crates/local-worker-protocol/README.zh-CN.md) crate 拥有
 Server-Worker framing。
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.zh-CN.md) crate 拥有两条
 本机 connection 使用的 kernel same-user proof。
@@ -727,7 +727,7 @@ Windows 还会在连接 Server 之前，使用已有的 OS 随机源生成一个
 `WorkerHello`、保留的 `ServerConnection` 和操作内核共享该精确身份。不同连接不再
 复用原先固定的本地诊断 ID，否则不同 会话 的终端计数器可能误匹配旧调用者。随机源
 失败或返回零值时，在连接前失败。抵抗身份碰撞依赖 OS 随机源。此修改不新增
-OBLS/OBCN 字段，也不启用重连、inventory 接管或旧 Worker 绑定迁移。
+OBLW/OBCN 字段，也不启用重连、inventory 接管或旧 Worker 绑定迁移。
 Mac/Linux 保留原有身份行为。两次独立 Windows 会话 进程轨迹覆盖 Terminal ID 复用
 时对旧 Worker 上下文的拒绝。
 
@@ -858,4 +858,4 @@ Windows 可运行的本地管道测试覆盖真实协议交换，不代表打包
 启动前后均可用。[所属模型](docs/windows-server-handoff.zh-CN.md) 定义精确票据、截止点、
 回滚及证据边界。公开 Server 状态／端点交接仍需独立集成；传输回执不是最终 CLI 成功。
 
-<!-- documentation-pairing: english-sha256=69ffca6d9524b01d096779f6f42276087cde0b328518bba989c64235efa99e63 zh-cn-sha256=d41e55a39e4e97e7e18d4ebb04e20d862ce3e6b675347c03d1e894d2c7119c27 -->
+<!-- documentation-pairing: english-sha256=8f5ca0c70737104815ee0d67e43a3c3ec37b9fa038b8df03669016afc15a1a6f zh-cn-sha256=ffc5e8d47701154d6c86617e1ce9972e94e7b8bb842d2c295d40c8e6f002389c -->

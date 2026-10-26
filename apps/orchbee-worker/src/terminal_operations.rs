@@ -9,7 +9,7 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, HostEpoch};
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
 
 use crate::{

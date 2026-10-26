@@ -63,7 +63,7 @@ fn request(action: TerminalLifecycleAction) -> TestResult<TerminalLifecycleReque
 fn kernel() -> TestResult<AuthorizedHostOperationKernel> {
     let request = request(TerminalLifecycleAction::Dispose)?;
     let mut kernel = AuthorizedHostOperationKernel::new(
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),
     )?;
     let authorization = request.authorization;
@@ -538,7 +538,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
     let outcome = crate::terminal_operations::run_admitted(
         fixture.server.try_clone()?,
         &mut fixture.host,
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),
         kernel,
         crate::terminal_operations::AdmittedAux {
@@ -929,7 +929,7 @@ fn viewer_lifecycle_reads_only_exact_settlement_without_acquiring_a_close_owner(
         };
         let result = crate::terminal_viewer_operation::execute(
             read,
-            orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+            orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
             nz(7),
             &fixture.host,
             &fixture.server,
@@ -1017,7 +1017,7 @@ fn viewer_lifecycle_absence_and_recycled_host_identity_never_mean_exit() -> Test
                 action: TerminalViewerAction::ReadLifecycle { target },
                 ..attach
             },
-            orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+            orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
             nz(7),
             &fixture.host,
             &fixture.server,

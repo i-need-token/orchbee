@@ -10,8 +10,8 @@ use std::{
 };
 
 use orchbee_local_peer_credentials::require_same_effective_user;
-use orchbee_local_site_protocol::{
-    LocalSiteMessage, WorkerHello, WorkerId, read_message, write_message,
+use orchbee_local_worker_protocol::{
+    LocalWorkerMessage, WorkerHello, WorkerId, read_message, write_message,
 };
 
 use crate::{
@@ -137,8 +137,8 @@ fn connect_to_server(
     stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
 
     let hello = WorkerHello::new(cohort, worker_id)?;
-    write_message(&mut stream, &LocalSiteMessage::WorkerHello(hello))?;
-    let LocalSiteMessage::WorkerAccepted { generation } = read_message(&mut stream)? else {
+    write_message(&mut stream, &LocalWorkerMessage::WorkerHello(hello))?;
+    let LocalWorkerMessage::WorkerAccepted { generation } = read_message(&mut stream)? else {
         return Err(io::Error::new(io::ErrorKind::PermissionDenied, "Worker was rejected").into());
     };
     stream.set_read_timeout(None)?;

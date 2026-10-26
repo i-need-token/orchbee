@@ -353,7 +353,7 @@ fn selection_actions_convert_exactly_and_preserve_data_bearing_responses() -> Te
         outcomes.push(
             crate::terminal_viewer_operation::execute(
                 request,
-                orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+                orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
                 NonZeroU64::MIN,
                 &host,
                 &server,
@@ -449,7 +449,7 @@ fn selection_failures_preserve_the_exact_host_record_for_client_cancellation() -
         outcomes.push(
             crate::terminal_viewer_operation::execute(
                 request,
-                orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+                orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
                 NonZeroU64::MIN,
                 &host,
                 &server,

@@ -11,7 +11,7 @@ use std::{
 use std::io::{Read, Write};
 
 use orchbee_capability_node_protocol::{WorkerGeneration, WorkerId as CapabilityWorkerId};
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 use crate::agent::native_observation::CarrierIdentity;
 use crate::agent_service::AgentService;

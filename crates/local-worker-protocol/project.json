@@ -1,6 +1,6 @@
 {
 	"$schema": "../../schemas/project-contract.schema.json",
-	"domain": "local-site-protocol",
+	"domain": "local-worker-protocol",
 	"runtime": ["native"],
 	"stability": "experimental",
 	"responsibility": "Private bounded Rust framing for the concrete local Orchbee Server-Worker handshake.",

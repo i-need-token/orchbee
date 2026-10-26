@@ -281,7 +281,7 @@ fn late_retired_frames_require_exact_epoch_and_id_and_old_detach_is_local() -> T
             action: TerminalViewerAction::Detach,
             ..request
         },
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         NonZeroU64::MIN,
         &host,
         &server,
@@ -289,7 +289,7 @@ fn late_retired_frames_require_exact_epoch_and_id_and_old_detach_is_local() -> T
     assert_eq!(detached.outcome, TerminalViewerOutcome::Detached);
     let attached = crate::terminal_viewer_operation::execute(
         viewer(2, 5)?,
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         NonZeroU64::MIN,
         &host,
         &server,
@@ -485,7 +485,7 @@ fn retired_controller_events_keep_exact_terminal_identity_and_existing_preack_ru
             },
             ..viewer
         },
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         NonZeroU64::MIN,
         &host,
         &server,

@@ -137,17 +137,17 @@ fn assert_authorized_binding(
 
 fn connect_worker_with_generation(
     endpoint: &Path,
-    worker_id: orchbee_local_site_protocol::WorkerId,
+    worker_id: orchbee_local_worker_protocol::WorkerId,
 ) -> TestResult<(UnixStream, NonZeroU64)> {
     let mut stream = super::super::connect_candidate(endpoint)?;
-    orchbee_local_site_protocol::write_message(
+    orchbee_local_worker_protocol::write_message(
         &mut stream,
-        &orchbee_local_site_protocol::LocalSiteMessage::WorkerHello(
-            orchbee_local_site_protocol::WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?,
+        &orchbee_local_worker_protocol::LocalWorkerMessage::WorkerHello(
+            orchbee_local_worker_protocol::WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?,
         ),
     )?;
-    match orchbee_local_site_protocol::read_message(&mut stream)? {
-        orchbee_local_site_protocol::LocalSiteMessage::WorkerAccepted { generation } => {
+    match orchbee_local_worker_protocol::read_message(&mut stream)? {
+        orchbee_local_worker_protocol::LocalWorkerMessage::WorkerAccepted { generation } => {
             Ok((stream, generation))
         }
         response => Err(io::Error::other(format!(

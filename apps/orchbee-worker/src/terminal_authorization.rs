@@ -8,7 +8,7 @@ use orchbee_capability_node_protocol::{
     TerminalOperationAuthorization, TerminalStartFailure, TerminalStartOutcome,
     TerminalStartRejection, TerminalStartResult, WorkerGeneration, WorkerId,
 };
-use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
+use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 
 pub(crate) const MAXIMUM_RETAINED_TERMINAL_BINDINGS: usize = 1_024;
 
@@ -200,7 +200,7 @@ pub(crate) struct AuthorizedHostOperationKernel {
 
 impl AuthorizedHostOperationKernel {
     pub(crate) fn new(
-        current_worker_id: LocalSiteWorkerId,
+        current_worker_id: LocalWorkerId,
         current_worker_generation: NonZeroU64,
     ) -> Result<Self, ProtocolError> {
         Ok(Self {

@@ -10,10 +10,10 @@ English remains canonical.
 
 ## Framing and messages
 
-The OBLS portion of each connection carries exactly one handshake frame from Worker to Server and
+The OBLW portion of each connection carries exactly one handshake frame from Worker to Server and
 one response frame from Server to Worker. After acceptance, a local Server adapter may retain that
-same stream as a separately owned OBCN carrier; no further OBLS frame is valid. An OBLS frame
-contains the fixed `OBLS` magic, unsigned big-endian protocol version, unsigned big-endian payload
+same stream as a separately owned OBCN carrier; no further OBLW frame is valid. An OBLW frame
+contains the fixed `OBLW` magic, unsigned big-endian protocol version, unsigned big-endian payload
 length, and a payload of at most 256 bytes. Unknown magic, version, kind, enum value, missing byte,
 extra byte, oversized payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or a
 cohort over 64 bytes is rejected.
@@ -37,16 +37,16 @@ evidence covers macOS and Linux. Directory and socket modes remain defense in de
 a path or valid bytes never replaces peer authentication.
 
 Reads and writes use finite frame bounds and reject partial EOF. Server additionally supplies the
-finite handshake timeout. After `WorkerAccepted`, OBLS admits no further local-site frame. The
+finite handshake timeout. After `WorkerAccepted`, OBLW admits no further local-worker frame. The
 Server adapter currently permits only its serialized OBCN request/result exchange while one request
 is outstanding; unsolicited bytes or another protocol violate that carrier and close the Worker
-attachment. This crate does not parse or own the post-OBLS phase. The current protocol version is
+attachment. This crate does not parse or own the post-OBLW phase. The current protocol version is
 private and may be replaced atomically with the unshipped cohort.
 
-The current Server adapter must map the OBLS Worker identity into OBCN's nonzero Worker identity.
+The current Server adapter must map the OBLW Worker identity into OBCN's nonzero Worker identity.
 It therefore rejects an all-zero `WorkerHello` identity as `MalformedFrame` before admission or
 `WorkerAccepted`, without consuming a Server generation. This is an adapter compatibility
-precondition, not a new OBLS codec restriction.
+precondition, not a new OBLW codec restriction.
 
 ## Ownership and exclusions
 
@@ -62,8 +62,8 @@ named pipes, and compatibility negotiation remain outside this crate.
 Run from the repository root:
 
 ```sh
-cargo test -p orchbee-local-site-protocol --all-targets --all-features --locked
-cargo clippy -p orchbee-local-site-protocol --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee-local-worker-protocol --all-targets --all-features --locked
+cargo clippy -p orchbee-local-worker-protocol --all-targets --all-features --locked -- -D warnings
 node scripts/tla/run-models.mjs --models local-site-startup
 pnpm verify
 ```

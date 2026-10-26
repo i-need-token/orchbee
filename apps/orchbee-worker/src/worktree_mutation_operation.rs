@@ -4,7 +4,7 @@ use orchbee_capability_node_protocol::{
     WorktreeMutationOutcome as Outcome, WorktreeMutationPollOutcome as Poll,
     WorktreeMutationRequest, WorktreeMutationResult, WorktreeMutationStartOutcome as Start,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use std::num::NonZeroU64;
 
 #[cfg(windows)]

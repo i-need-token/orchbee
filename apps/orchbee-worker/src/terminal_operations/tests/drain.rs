@@ -32,8 +32,8 @@ use crate::{
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-const LOCAL_WORKER_ID: orchbee_local_site_protocol::WorkerId =
-    orchbee_local_site_protocol::WorkerId::from_bytes(*b"orchbee-local-v1");
+const LOCAL_WORKER_ID: orchbee_local_worker_protocol::WorkerId =
+    orchbee_local_worker_protocol::WorkerId::from_bytes(*b"orchbee-local-v1");
 const GENERATION: u64 = 7;
 
 fn nz(value: u64) -> NonZeroU64 {

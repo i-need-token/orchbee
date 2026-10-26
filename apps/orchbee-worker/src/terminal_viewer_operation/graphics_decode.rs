@@ -13,7 +13,7 @@ use std::{error::Error, num::NonZeroU64};
 
 pub(crate) fn execute(
     request: TerminalGraphicsDecodeRequest,
-    worker_id: orchbee_local_site_protocol::WorkerId,
+    worker_id: orchbee_local_worker_protocol::WorkerId,
     generation: NonZeroU64,
     host: &HostBrokerConnection,
     server: &UnixStream,

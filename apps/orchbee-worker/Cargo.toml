@@ -13,7 +13,7 @@ orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
 
 orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
-orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
+orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 
 [target.'cfg(unix)'.dependencies]

@@ -47,7 +47,7 @@ impl Fixture {
         let service = Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
             Mutex::new(WorkerRegistry::new()),
         )));
-        let worker = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
+        let worker = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
         let WorkerAdmission::Accepted { generation } =
             service.workers.lock().unwrap().admit(worker)
         else {

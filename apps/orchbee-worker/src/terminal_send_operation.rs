@@ -12,7 +12,7 @@ use orchbee_capability_node_protocol::{
     SendAcceptedBytes, SendCleanupStatus, SendProgress, SendRecord, SendRejection, SendUnavailable,
     TerminalSendOutcome, TerminalSendRequest, TerminalSendResult,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InputAccepted,

@@ -161,7 +161,7 @@ fn row_exchange(
     let peer_thread = host_peer(peer, payload_bytes, forwarded);
     let result = crate::terminal_viewer_operation::execute(
         read(request_maximum, detail)?,
-        orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         NonZeroU64::MIN,
         &host,
         &server,

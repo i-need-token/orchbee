@@ -1,7 +1,7 @@
 use orchbee_capability_node_protocol::{
     PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use std::num::NonZeroU64;
 pub(crate) fn execute(
     request: PluginJobRequest,

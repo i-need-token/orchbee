@@ -16,8 +16,8 @@ use std::{
     time::Instant,
 };
 
-const WORKER: orchbee_local_site_protocol::WorkerId =
-    orchbee_local_site_protocol::WorkerId::from_bytes([3; 16]);
+const WORKER: orchbee_local_worker_protocol::WorkerId =
+    orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]);
 fn launch(id: u8, executable: &str) -> AuthorizedTerminalLaunch {
     let n = NonZeroU64::MIN;
     AuthorizedTerminalLaunch::new(

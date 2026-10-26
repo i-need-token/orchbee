@@ -62,7 +62,7 @@ fn id(value: u128) -> WorkbenchRequestId {
 
 fn fixture() -> Fixture {
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
-    let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes([9; 16]);
+    let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes([9; 16]);
     let WorkerAdmission::Accepted { generation } = registry.lock().unwrap().admit(worker_id) else {
         panic!("Worker admission")
     };

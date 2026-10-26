@@ -1,7 +1,7 @@
 use std::{io::Cursor, num::NonZeroU64};
 
 use super::{
-    FRAME_HEADER_BYTES, LocalSiteMessage, MAXIMUM_COHORT_BYTES, MAXIMUM_FRAME_PAYLOAD_BYTES,
+    FRAME_HEADER_BYTES, LocalWorkerMessage, MAXIMUM_COHORT_BYTES, MAXIMUM_FRAME_PAYLOAD_BYTES,
     PROTOCOL_VERSION, ProtocolError, ReadMessageError, RejectionReason, WorkerHello, WorkerId,
     read_message, write_message,
 };
@@ -12,24 +12,24 @@ const WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
 fn round_trips_every_admitted_message() -> Result<(), Box<dyn std::error::Error>> {
     let generation = NonZeroU64::new(3).ok_or("generation must be nonzero")?;
     let messages = [
-        LocalSiteMessage::WorkerHello(WorkerHello::new("0.1.0", WORKER_ID)?),
-        LocalSiteMessage::WorkerAccepted { generation },
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::WorkerHello(WorkerHello::new("0.1.0", WORKER_ID)?),
+        LocalWorkerMessage::WorkerAccepted { generation },
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::IncompatibleProtocol,
         },
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::IncompatibleCohort,
         },
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::DuplicateWorker,
         },
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::WrongMessage,
         },
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::MalformedFrame,
         },
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::HandshakeTimeout,
         },
     ];
@@ -124,7 +124,7 @@ fn rejects_unknown_truncated_and_noncanonical_payloads() {
 fn frame(version: u16, payload: &[u8]) -> Vec<u8> {
     let payload_length = u16::try_from(payload.len()).unwrap_or(u16::MAX);
     let mut encoded = Vec::with_capacity(FRAME_HEADER_BYTES + payload.len());
-    encoded.extend_from_slice(b"OBLS");
+    encoded.extend_from_slice(b"OBLW");
     encoded.extend_from_slice(&version.to_be_bytes());
     encoded.extend_from_slice(&payload_length.to_be_bytes());
     encoded.extend_from_slice(payload);

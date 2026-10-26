@@ -10,7 +10,7 @@ use orchbee_capability_node_protocol::{
     TerminalPixelGeometry, TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection,
     TerminalStartResult, WorkerGeneration, WorkerId,
 };
-use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
+use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 
 use super::{
     AuthorizationKernelError, AuthorizedHostDispatch, AuthorizedHostOperation,
@@ -19,7 +19,7 @@ use super::{
     StartHostCompletion,
 };
 
-const CURRENT_LOCAL_WORKER_ID: LocalSiteWorkerId = LocalSiteWorkerId::from_bytes([3; 16]);
+const CURRENT_LOCAL_WORKER_ID: LocalWorkerId = LocalWorkerId::from_bytes([3; 16]);
 const NOW: u64 = 100;
 const LIVE_EXPIRY: u64 = 200;
 
@@ -1247,7 +1247,7 @@ fn start_completion_rejects_changed_geometry_without_consuming_handoff() -> Test
 #[test]
 fn rejects_zero_local_site_worker_identity_at_the_kernel_boundary() {
     let result =
-        AuthorizedHostOperationKernel::new(LocalSiteWorkerId::from_bytes([0; 16]), NonZeroU64::MIN);
+        AuthorizedHostOperationKernel::new(LocalWorkerId::from_bytes([0; 16]), NonZeroU64::MIN);
     assert_eq!(result, Err(ProtocolError::InvalidIdentity));
 }
 

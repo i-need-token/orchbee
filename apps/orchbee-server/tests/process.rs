@@ -16,8 +16,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use orchbee_local_site_protocol::{
-    LocalSiteMessage, PROTOCOL_VERSION, RejectionReason, WorkerHello, WorkerId, read_message,
+use orchbee_local_worker_protocol::{
+    LocalWorkerMessage, PROTOCOL_VERSION, RejectionReason, WorkerHello, WorkerId, read_message,
     write_message,
 };
 
@@ -73,12 +73,12 @@ fn admits_one_worker_replaces_it_after_disconnect_and_closes_it_on_server_loss()
     assert_eq!(
         exchange(
             server.endpoint(),
-            LocalSiteMessage::WorkerHello(WorkerHello::new(
+            LocalWorkerMessage::WorkerHello(WorkerHello::new(
                 env!("CARGO_PKG_VERSION"),
                 SECOND_WORKER,
             )?),
         )?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::DuplicateWorker,
         }
     );
@@ -117,9 +117,9 @@ fn rejects_bounded_invalid_candidates_without_consuming_worker_authority() -> Te
     assert_eq!(
         exchange(
             server.endpoint(),
-            LocalSiteMessage::WorkerHello(WorkerHello::new("different-cohort", FIRST_WORKER)?),
+            LocalWorkerMessage::WorkerHello(WorkerHello::new("different-cohort", FIRST_WORKER)?),
         )?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::IncompatibleCohort,
         }
     );
@@ -129,16 +129,16 @@ fn rejects_bounded_invalid_candidates_without_consuming_worker_authority() -> Te
     assert_eq!(
         exchange(
             server.endpoint(),
-            LocalSiteMessage::WorkerAccepted { generation },
+            LocalWorkerMessage::WorkerAccepted { generation },
         )?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::WrongMessage,
         }
     );
 
     assert_eq!(
         exchange_raw(server.endpoint(), &frame(PROTOCOL_VERSION + 1, &[1]),)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::IncompatibleProtocol,
         }
     );
@@ -147,7 +147,7 @@ fn rejects_bounded_invalid_candidates_without_consuming_worker_authority() -> Te
     malformed[0] = b'X';
     assert_eq!(
         exchange_raw(server.endpoint(), &malformed)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::MalformedFrame,
         }
     );
@@ -155,7 +155,7 @@ fn rejects_bounded_invalid_candidates_without_consuming_worker_authority() -> Te
     let mut silent_candidate = connect_candidate(server.endpoint())?;
     assert_eq!(
         read_message(&mut silent_candidate)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::HandshakeTimeout,
         }
     );
@@ -174,10 +174,10 @@ fn connect_worker(
     let mut stream = connect_candidate(endpoint)?;
     write_message(
         &mut stream,
-        &LocalSiteMessage::WorkerHello(WorkerHello::new(cohort, worker_id)?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(cohort, worker_id)?),
     )?;
     match read_message(&mut stream)? {
-        LocalSiteMessage::WorkerAccepted { generation } => Ok((stream, generation)),
+        LocalWorkerMessage::WorkerAccepted { generation } => Ok((stream, generation)),
         response => Err(io::Error::other(format!(
             "expected Worker admission, received {response:?}"
         ))
@@ -195,11 +195,11 @@ fn wait_for_worker_admission(
         let mut stream = connect_candidate(endpoint)?;
         write_message(
             &mut stream,
-            &LocalSiteMessage::WorkerHello(WorkerHello::new(cohort, worker_id)?),
+            &LocalWorkerMessage::WorkerHello(WorkerHello::new(cohort, worker_id)?),
         )?;
         match read_message(&mut stream)? {
-            LocalSiteMessage::WorkerAccepted { generation } => return Ok((stream, generation)),
-            LocalSiteMessage::Rejected {
+            LocalWorkerMessage::WorkerAccepted { generation } => return Ok((stream, generation)),
+            LocalWorkerMessage::Rejected {
                 reason: RejectionReason::DuplicateWorker,
             } if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
             response => {
@@ -212,13 +212,13 @@ fn wait_for_worker_admission(
     }
 }
 
-fn exchange(endpoint: &Path, message: LocalSiteMessage) -> TestResult<LocalSiteMessage> {
+fn exchange(endpoint: &Path, message: LocalWorkerMessage) -> TestResult<LocalWorkerMessage> {
     let mut stream = connect_candidate(endpoint)?;
     write_message(&mut stream, &message)?;
     Ok(read_message(&mut stream)?)
 }
 
-fn exchange_raw(endpoint: &Path, bytes: &[u8]) -> TestResult<LocalSiteMessage> {
+fn exchange_raw(endpoint: &Path, bytes: &[u8]) -> TestResult<LocalWorkerMessage> {
     let mut stream = connect_candidate(endpoint)?;
     stream.write_all(bytes)?;
     Ok(read_message(&mut stream)?)
@@ -234,7 +234,7 @@ fn connect_candidate(endpoint: &Path) -> io::Result<UnixStream> {
 fn frame(version: u16, payload: &[u8]) -> Vec<u8> {
     let payload_length = u16::try_from(payload.len()).unwrap_or(u16::MAX);
     let mut encoded = Vec::with_capacity(8 + payload.len());
-    encoded.extend_from_slice(b"OBLS");
+    encoded.extend_from_slice(b"OBLW");
     encoded.extend_from_slice(&version.to_be_bytes());
     encoded.extend_from_slice(&payload_length.to_be_bytes());
     encoded.extend_from_slice(payload);

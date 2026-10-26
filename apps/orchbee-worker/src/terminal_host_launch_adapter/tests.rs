@@ -12,7 +12,7 @@ use orchbee_capability_node_protocol::{
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
     WorkerGeneration, WorkerId,
 };
-use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
+use orchbee_local_worker_protocol::WorkerId as LocalWorkerId;
 use orchbee_terminal_protocol::{
     ColorScheme, CursorShape, DeviceAttributes, MAXIMUM_LAUNCH_ARGUMENTS,
     MAXIMUM_LAUNCH_ENVIRONMENT_ENTRIES, MAXIMUM_TYPED_FAILURE_CODE_BYTES, ProtocolErrorCode,
@@ -24,7 +24,7 @@ use crate::terminal_authorization::{
     AuthorizedHostDispatch, AuthorizedHostOperationKernel, HostOperationAdmission,
 };
 
-const CURRENT_LOCAL_WORKER_ID: LocalSiteWorkerId = LocalSiteWorkerId::from_bytes([3; 16]);
+const CURRENT_LOCAL_WORKER_ID: LocalWorkerId = LocalWorkerId::from_bytes([3; 16]);
 const PRODUCT_TERMINAL: u8 = 11;
 const HOST_CREATION: u8 = 17;
 const HOST_EPOCH: u8 = 12;

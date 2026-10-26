@@ -14,7 +14,7 @@ use orchbee_capability_node_protocol::{
     TerminalViewerResult as WorkerResult, WorkerGeneration, WorkerId as CapabilityWorkerId,
     read_message, write_message,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HistoryAnchorStatus,
     HistoryChanged, HistoryControl, HostEpoch, MessageRole, PayloadEncoding,

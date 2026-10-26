@@ -292,7 +292,7 @@ fn plugin_capacity_fencing_cancellation_and_shutdown_join_owners() {
     };
     let refused = crate::plugin_job_operation::execute(
         request,
-        orchbee_local_site_protocol::WorkerId::from_bytes([4; 16]),
+        orchbee_local_worker_protocol::WorkerId::from_bytes([4; 16]),
         std::num::NonZeroU64::MIN,
         &jobs,
         None,

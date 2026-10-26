@@ -15,8 +15,8 @@ use orchbee_capability_node_protocol::{
     TerminalOperationLease, WorkerGeneration, WorkerId as CapabilityWorkerId,
     read_message as read_capability_message, write_message as write_capability_message,
 };
-use orchbee_local_site_protocol::{
-    LocalSiteMessage, RejectionReason, WorkerHello, WorkerId, read_message as read_site_message,
+use orchbee_local_worker_protocol::{
+    LocalWorkerMessage, RejectionReason, WorkerHello, WorkerId, read_message as read_site_message,
     write_message as write_site_message,
 };
 
@@ -109,14 +109,14 @@ fn rejects_an_unmappable_zero_worker_id_before_acceptance() -> TestResult {
     worker.set_write_timeout(Some(COMPLETION_TIMEOUT))?;
     write_site_message(
         &mut worker,
-        &LocalSiteMessage::WorkerHello(WorkerHello::new(COHORT, WorkerId::from_bytes([0; 16]))?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(COHORT, WorkerId::from_bytes([0; 16]))?),
     )?;
 
     handle_candidate(server, &registry, COHORT, None);
 
     assert_eq!(
         read_site_message(&mut worker)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: RejectionReason::MalformedFrame,
         }
     );
@@ -141,11 +141,11 @@ fn admit_worker(
     worker.set_write_timeout(Some(COMPLETION_TIMEOUT))?;
     write_site_message(
         &mut worker,
-        &LocalSiteMessage::WorkerHello(WorkerHello::new(COHORT, worker_id)?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(COHORT, worker_id)?),
     )?;
     handle_candidate(server, registry, COHORT, None);
     let reply = read_site_message(&mut worker)?;
-    let LocalSiteMessage::WorkerAccepted { generation } = reply else {
+    let LocalWorkerMessage::WorkerAccepted { generation } = reply else {
         return Err(io::Error::other(format!(
             "fake Worker {worker_id:?} was not accepted: {reply:?}"
         ))

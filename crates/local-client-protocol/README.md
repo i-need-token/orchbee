@@ -155,7 +155,7 @@ generation-scoped cleanup are owned by its
 This crate owns only Client framing, handshake validation, the connecting adapter, and transfer of
 the accepted byte stream to its caller. It neither defines nor decodes the next semantic phase.
 Server owns listener and Client Connection state. `orchbee-local-peer-credentials` owns kernel
-same-user proof. `orchbee-local-site-protocol` separately owns the Worker handshake. Endpoint
+same-user proof. `orchbee-local-worker-protocol` separately owns the Worker handshake. Endpoint
 discovery, lazy activation, public `orchbee` integration, Workbench snapshots and commands,
 terminal relay, controller policy, persistence, Windows named pipes, remote authentication, and
 production service lifecycle remain outside this slice.

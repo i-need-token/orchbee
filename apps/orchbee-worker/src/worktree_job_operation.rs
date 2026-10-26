@@ -4,7 +4,7 @@ use orchbee_capability_node_protocol::{
     WorktreeJobAction, WorktreeJobCancelOutcome, WorktreeJobOutcome, WorktreeJobPollOutcome,
     WorktreeJobRequest, WorktreeJobResult, WorktreeJobStage, WorktreeJobStartOutcome,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 use crate::worktree_discovery_job::{
     CancelOutcome, JobId, JobOutcome, PollOutcome, Stage, StartOutcome, WorktreeDiscoverySlot,

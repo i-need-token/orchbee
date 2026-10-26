@@ -7,7 +7,7 @@ use crate::{
 };
 use orchbee_capability_node_protocol::CapabilityNodeMessage;
 use orchbee_local_ipc::LocalStream as UnixStream;
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 #[cfg(unix)]
 use orchbee_local_site_runtime::HOST_ENDPOINT_ID;
 use orchbee_local_site_runtime::{

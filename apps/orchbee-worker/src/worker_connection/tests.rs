@@ -29,7 +29,7 @@ fn separate_windows_connections_retain_their_own_admitted_worker_identity()
             };
             stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
             stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
-            let LocalSiteMessage::WorkerHello(hello) =
+            let LocalWorkerMessage::WorkerHello(hello) =
                 read_message(&mut stream).map_err(io::Error::other)?
             else {
                 return Err(io::Error::other("expected WorkerHello"));
@@ -37,7 +37,7 @@ fn separate_windows_connections_retain_their_own_admitted_worker_identity()
             assert_eq!(hello.cohort(), "caller-context-test");
             write_message(
                 &mut stream,
-                &LocalSiteMessage::WorkerAccepted {
+                &LocalWorkerMessage::WorkerAccepted {
                     generation: NonZeroU64::new(7).expect("generation"),
                 },
             )

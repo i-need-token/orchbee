@@ -4,7 +4,7 @@ use std::{
     num::NonZeroU64,
 };
 
-const FRAME_MAGIC: [u8; 4] = *b"OBLS";
+const FRAME_MAGIC: [u8; 4] = *b"OBLW";
 const FRAME_HEADER_BYTES: usize = 8;
 const WORKER_ID_BYTES: usize = 16;
 const WORKER_HELLO_KIND: u8 = 1;
@@ -70,7 +70,7 @@ pub enum RejectionReason {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum LocalSiteMessage {
+pub enum LocalWorkerMessage {
     WorkerHello(WorkerHello),
     WorkerAccepted { generation: NonZeroU64 },
     Rejected { reason: RejectionReason },
@@ -179,7 +179,7 @@ impl From<ProtocolError> for WriteMessageError {
     }
 }
 
-pub fn read_message(reader: &mut impl Read) -> Result<LocalSiteMessage, ReadMessageError> {
+pub fn read_message(reader: &mut impl Read) -> Result<LocalWorkerMessage, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
     if header.get(..FRAME_MAGIC.len()) != Some(FRAME_MAGIC.as_slice()) {
@@ -206,7 +206,7 @@ pub fn read_message(reader: &mut impl Read) -> Result<LocalSiteMessage, ReadMess
 
 pub fn write_message(
     writer: &mut impl Write,
-    message: &LocalSiteMessage,
+    message: &LocalWorkerMessage,
 ) -> Result<(), WriteMessageError> {
     let payload = encode_payload(message)?;
     let payload_length =
@@ -223,9 +223,9 @@ pub fn write_message(
     writer.flush().map_err(Into::into)
 }
 
-fn encode_payload(message: &LocalSiteMessage) -> Result<Vec<u8>, ProtocolError> {
+fn encode_payload(message: &LocalWorkerMessage) -> Result<Vec<u8>, ProtocolError> {
     let payload = match message {
-        LocalSiteMessage::WorkerHello(hello) => {
+        LocalWorkerMessage::WorkerHello(hello) => {
             let cohort_length =
                 u8::try_from(hello.cohort.len()).map_err(|_error| ProtocolError::InvalidCohort)?;
             let mut payload = Vec::with_capacity(2 + WORKER_ID_BYTES + hello.cohort.len());
@@ -235,13 +235,13 @@ fn encode_payload(message: &LocalSiteMessage) -> Result<Vec<u8>, ProtocolError> 
             payload.extend_from_slice(hello.cohort.as_bytes());
             payload
         }
-        LocalSiteMessage::WorkerAccepted { generation } => {
+        LocalWorkerMessage::WorkerAccepted { generation } => {
             let mut payload = Vec::with_capacity(9);
             payload.push(WORKER_ACCEPTED_KIND);
             payload.extend_from_slice(&generation.get().to_be_bytes());
             payload
         }
-        LocalSiteMessage::Rejected { reason } => vec![REJECTED_KIND, encode_reason(*reason)],
+        LocalWorkerMessage::Rejected { reason } => vec![REJECTED_KIND, encode_reason(*reason)],
     };
     if payload.len() > MAXIMUM_FRAME_PAYLOAD_BYTES {
         return Err(ProtocolError::PayloadTooLarge {
@@ -252,7 +252,7 @@ fn encode_payload(message: &LocalSiteMessage) -> Result<Vec<u8>, ProtocolError> 
     Ok(payload)
 }
 
-fn decode_payload(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError> {
+fn decode_payload(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolError> {
     match payload.first().copied() {
         Some(WORKER_HELLO_KIND) => decode_worker_hello(payload),
         Some(WORKER_ACCEPTED_KIND) => decode_worker_accepted(payload),
@@ -261,7 +261,7 @@ fn decode_payload(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError> {
     }
 }
 
-fn decode_worker_hello(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError> {
+fn decode_worker_hello(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolError> {
     let cohort_length = usize::from(
         payload
             .get(1)
@@ -282,13 +282,13 @@ fn decode_worker_hello(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError
         .ok_or(ProtocolError::InvalidPayload)?;
     let cohort =
         std::str::from_utf8(cohort_bytes).map_err(|_error| ProtocolError::InvalidCohort)?;
-    Ok(LocalSiteMessage::WorkerHello(WorkerHello::new(
+    Ok(LocalWorkerMessage::WorkerHello(WorkerHello::new(
         cohort,
         WorkerId::from_bytes(worker_id_bytes),
     )?))
 }
 
-fn decode_worker_accepted(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError> {
+fn decode_worker_accepted(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolError> {
     let encoded_generation: [u8; 8] = payload
         .get(1..)
         .ok_or(ProtocolError::InvalidPayload)?
@@ -296,10 +296,10 @@ fn decode_worker_accepted(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolEr
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     let generation = NonZeroU64::new(u64::from_be_bytes(encoded_generation))
         .ok_or(ProtocolError::InvalidPayload)?;
-    Ok(LocalSiteMessage::WorkerAccepted { generation })
+    Ok(LocalWorkerMessage::WorkerAccepted { generation })
 }
 
-fn decode_rejected(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError> {
+fn decode_rejected(payload: &[u8]) -> Result<LocalWorkerMessage, ProtocolError> {
     if payload.len() != 2 {
         return Err(ProtocolError::InvalidPayload);
     }
@@ -308,7 +308,7 @@ fn decode_rejected(payload: &[u8]) -> Result<LocalSiteMessage, ProtocolError> {
         .copied()
         .ok_or(ProtocolError::InvalidPayload)?;
     let reason = decode_reason(encoded_reason).ok_or(ProtocolError::InvalidPayload)?;
-    Ok(LocalSiteMessage::Rejected { reason })
+    Ok(LocalWorkerMessage::Rejected { reason })
 }
 
 const fn encode_reason(reason: RejectionReason) -> u8 {

@@ -851,7 +851,7 @@ dependencies = [
  "orchbee-client-server-protocol",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
- "orchbee-local-site-protocol",
+ "orchbee-local-worker-protocol",
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
  "orchbee-windows-console-host",
@@ -923,7 +923,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "orchbee-local-site-protocol"
+name = "orchbee-local-worker-protocol"
 version = "0.1.0"
 
 [[package]]
@@ -961,7 +961,7 @@ dependencies = [
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
- "orchbee-local-site-protocol",
+ "orchbee-local-worker-protocol",
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
@@ -1017,7 +1017,7 @@ dependencies = [
  "orchbee-capability-node-protocol",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
- "orchbee-local-site-protocol",
+ "orchbee-local-worker-protocol",
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
  "rustix",

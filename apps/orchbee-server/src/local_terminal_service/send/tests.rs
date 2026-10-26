@@ -46,7 +46,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> TestResult<Self> {
         let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
-        let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes(WORKER_BYTES);
+        let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes(WORKER_BYTES);
         let WorkerAdmission::Accepted { generation } = registry
             .lock()
             .map_err(|_| "registry poisoned")?
@@ -228,7 +228,7 @@ impl Fixture {
     fn replace_worker(&self) -> TestResult {
         self.kill_carrier()?;
         let registry = &self.service.workers;
-        let worker_id = orchbee_local_site_protocol::WorkerId::from_bytes(WORKER_BYTES);
+        let worker_id = orchbee_local_worker_protocol::WorkerId::from_bytes(WORKER_BYTES);
         let WorkerAdmission::Accepted { generation } =
             registry.lock().map_err(|_| "poisoned")?.admit(worker_id)
         else {

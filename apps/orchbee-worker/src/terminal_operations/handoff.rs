@@ -7,7 +7,7 @@ use orchbee_capability_node_protocol::{
     WorkerHandoffResult, WorkerHandoffTarget,
 };
 use orchbee_local_ipc::LocalStream;
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 use std::{
     collections::BTreeSet,
     error::Error,

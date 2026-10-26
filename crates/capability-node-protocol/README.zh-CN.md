@@ -3,7 +3,7 @@
 这是 Orchbee Server 与 Capability Node 之间 authorized terminal operation 及有界目录观察的
 私有实验性 Rust semantic contract。首个 Capability Node 是 Worker，但本 crate 不会把 message
 绑定到本机 socket 或任何其他 carrier。本机 Server adapter 现在会在 application-private
-post-OBLS carrier 中消费其 codec。本机 Server coordinator 通过该 carrier 提交获授权的
+post-OBLW carrier 中消费其 codec。本机 Server coordinator 通过该 carrier 提交获授权的
 Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compatibility promise。
 
 英文规范原文：
@@ -434,7 +434,7 @@ Cohort 校验要求部署匹配的二进制；本扩展不承诺混合版本运�
 admit、retain、retry、reconnect、multiplex connection，也不向 connection 应用 backpressure。
 其 streaming helper 仅为一条 frame 借用 caller-owned `Read` 或 `Write`，不会保留 socket、
 buffer、connection 或 phase state。
-Unix-domain socket、same-user peer credential、executable cohort、`OBLS` admission handshake、
+Unix-domain socket、same-user peer credential、executable cohort、`OBLW` admission handshake、
 remote transport、encryption 与 connection state machine 属于 carrier adapter 及其独立
 protocol。当前本机 Server adapter 在最多一条 wire request 后拥有一个 capacity-one submitted
 slot，序列化完整 request/result exchange，校验确切 correlation 与 echoed authorization，并区分
@@ -684,4 +684,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=9164ca75203c2c9c4936cffac7ca2fadef1680add3a333da6e10d678261aadca zh-cn-sha256=2eed704df4f6d2dca81a9cbbd614c3db1f914a0beb69f12bb25ba9bf65e8c75e -->
+<!-- documentation-pairing: english-sha256=e8474fd86599b8908f11a3ad951d735d74bf2d555fa118fb2db0f33895653226 zh-cn-sha256=0c5691227e17a56cfaec589fb3c78b1d2a9d8aaa10886551a16c20ce459b3702 -->

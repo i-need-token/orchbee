@@ -21,8 +21,8 @@ use orchbee_local_client_protocol::{
     PROTOCOL_VERSION as CLIENT_PROTOCOL_VERSION, RejectionReason as ClientRejectionReason,
     read_message as read_client_message, write_message as write_client_message,
 };
-use orchbee_local_site_protocol::{
-    LocalSiteMessage, RejectionReason as WorkerRejectionReason, WorkerHello, WorkerId,
+use orchbee_local_worker_protocol::{
+    LocalWorkerMessage, RejectionReason as WorkerRejectionReason, WorkerHello, WorkerId,
     read_message as read_worker_message, write_message as write_worker_message,
 };
 
@@ -105,7 +105,7 @@ fn concurrent_clients_are_independent_and_disconnect_preserves_worker() -> TestR
     assert!(replacement.generation() > second.generation());
     assert_eq!(
         exchange_worker(server.worker_endpoint(), SECOND_WORKER)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: WorkerRejectionReason::DuplicateWorker,
         }
     );
@@ -157,7 +157,7 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
     let mut worker_on_client = connect_candidate(server.client_endpoint())?;
     write_worker_message(
         &mut worker_on_client,
-        &LocalSiteMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), FIRST_WORKER)?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), FIRST_WORKER)?),
     )?;
     assert_eq!(
         read_client_message(&mut worker_on_client)?,
@@ -173,7 +173,7 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
     )?;
     assert_eq!(
         read_worker_message(&mut client_on_worker)?,
-        LocalSiteMessage::Rejected {
+        LocalWorkerMessage::Rejected {
             reason: WorkerRejectionReason::MalformedFrame,
         }
     );
@@ -318,10 +318,10 @@ fn connect_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<UnixStream
     let mut stream = connect_candidate(endpoint)?;
     write_worker_message(
         &mut stream,
-        &LocalSiteMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?),
     )?;
     match read_worker_message(&mut stream)? {
-        LocalSiteMessage::WorkerAccepted { .. } => Ok(stream),
+        LocalWorkerMessage::WorkerAccepted { .. } => Ok(stream),
         response => Err(io::Error::other(format!(
             "expected Worker admission, received {response:?}"
         ))
@@ -329,11 +329,11 @@ fn connect_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<UnixStream
     }
 }
 
-fn exchange_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<LocalSiteMessage> {
+fn exchange_worker(endpoint: &Path, worker_id: WorkerId) -> TestResult<LocalWorkerMessage> {
     let mut stream = connect_candidate(endpoint)?;
     write_worker_message(
         &mut stream,
-        &LocalSiteMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?),
+        &LocalWorkerMessage::WorkerHello(WorkerHello::new(env!("CARGO_PKG_VERSION"), worker_id)?),
     )?;
     Ok(read_worker_message(&mut stream)?)
 }

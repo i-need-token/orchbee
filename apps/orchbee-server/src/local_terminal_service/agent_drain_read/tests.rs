@@ -52,7 +52,7 @@ use orchbee_capability_node_protocol::{
     write_message,
 };
 use orchbee_client_server_protocol::RequestId;
-use orchbee_local_site_protocol::WorkerId as LspWorkerId;
+use orchbee_local_worker_protocol::WorkerId as LspWorkerId;
 
 const WORKER_BYTES: [u8; 16] = [9; 16];
 const RETRY: Duration = Duration::from_millis(1);

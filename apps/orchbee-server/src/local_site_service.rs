@@ -14,8 +14,8 @@ use std::{
 
 use orchbee_capability_node_protocol::WorkerId as CapabilityWorkerId;
 use orchbee_local_peer_credentials::require_same_effective_user;
-use orchbee_local_site_protocol::{
-    LocalSiteMessage, ProtocolError, ReadMessageError, RejectionReason, read_message, write_message,
+use orchbee_local_worker_protocol::{
+    LocalWorkerMessage, ProtocolError, ReadMessageError, RejectionReason, read_message, write_message,
 };
 
 use crate::{
@@ -211,7 +211,7 @@ fn admit_candidate(
             return None;
         }
     };
-    let LocalSiteMessage::WorkerHello(hello) = message else {
+    let LocalWorkerMessage::WorkerHello(hello) = message else {
         send_rejection(&mut stream, RejectionReason::WrongMessage);
         return None;
     };
@@ -238,7 +238,7 @@ fn admit_candidate(
     };
     if write_message(
         &mut stream,
-        &LocalSiteMessage::WorkerAccepted { generation },
+        &LocalWorkerMessage::WorkerAccepted { generation },
     )
     .is_err()
     {
@@ -268,7 +268,7 @@ fn admit_candidate(
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {
-    let _result = write_message(stream, &LocalSiteMessage::Rejected { reason });
+    let _result = write_message(stream, &LocalWorkerMessage::Rejected { reason });
 }
 
 fn cancel_pending_admission(

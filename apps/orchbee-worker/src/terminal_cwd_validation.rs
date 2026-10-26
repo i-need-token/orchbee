@@ -3,7 +3,7 @@ use std::{fs, num::NonZeroU64, path::Path};
 use orchbee_capability_node_protocol::{
     TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
 };
-use orchbee_local_site_protocol::WorkerId;
+use orchbee_local_worker_protocol::WorkerId;
 
 pub(crate) fn validate(
     request: TerminalCwdValidationRequest,

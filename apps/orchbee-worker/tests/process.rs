@@ -20,8 +20,8 @@ use std::{
 };
 
 use orchbee_local_peer_credentials::require_same_effective_user;
-use orchbee_local_site_protocol::{
-    LocalSiteMessage, RejectionReason, WorkerHello, WorkerId, read_message, write_message,
+use orchbee_local_worker_protocol::{
+    LocalWorkerMessage, RejectionReason, WorkerHello, WorkerId, read_message, write_message,
 };
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ClientId, ConnectionControl, CorrelationId, Envelope, Hello,
@@ -106,7 +106,7 @@ fn server_rejection_prevents_any_terminal_host_contact() -> TestResult {
         let hello = read_worker_hello(&mut stream)?;
         write_message(
             &mut stream,
-            &LocalSiteMessage::Rejected {
+            &LocalWorkerMessage::Rejected {
                 reason: RejectionReason::IncompatibleCohort,
             },
         )
@@ -276,14 +276,14 @@ fn admit_worker(listener: &UnixListener) -> io::Result<(UnixStream, WorkerHello)
         NonZeroU64::new(7).ok_or_else(|| io::Error::other("test generation must be nonzero"))?;
     write_message(
         &mut stream,
-        &LocalSiteMessage::WorkerAccepted { generation },
+        &LocalWorkerMessage::WorkerAccepted { generation },
     )
     .map_err(protocol_io)?;
     Ok((stream, hello))
 }
 
 fn read_worker_hello(stream: &mut UnixStream) -> io::Result<WorkerHello> {
-    let LocalSiteMessage::WorkerHello(hello) = read_message(stream).map_err(protocol_io)? else {
+    let LocalWorkerMessage::WorkerHello(hello) = read_message(stream).map_err(protocol_io)? else {
         return Err(io::Error::other(
             "Worker sent the wrong Server handshake message",
         ));

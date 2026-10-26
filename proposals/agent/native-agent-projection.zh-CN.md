@@ -57,7 +57,7 @@
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A. 在 Workbench `Snapshot`/`Delta` 中内嵌 Agent 字段                | 向 `crates/workbench-protocol` 文档加入 session 集合或 per-presentation 标记                               | 融合两个权威与两个 revision 空间：Workbench journal（64 条已提交 publication、Workbench revision）将携带无关的 Agent 变化（512 条迁移 journal、自有 cursor 与 reset 语义），且每个 Workbench 消费者都要解析它不拥有的域。拒绝 |
 | B. 在现有 OBWP 请求枚举中准入 `agent.observation.*` 请求与结果 kind | 在同一带帧连接上扩展 `WorkbenchRequest` 与响应枚举加入 Agent intent                                        | 复用带帧连接、请求标识、版本与 dispatch，无需新解复用分支；但该枚举与 crate 以 Workbench 投影协议命名和归属，Agent kind 要么误名该族，要么迫使重命名/泛化。仅当 owner 接受命名空间张力时可行                                  |
-| C. 独立 Agent-observation 协议族                                    | 在同一已认证本地 Client 连接上新增四字节 magic 与 crate，拥有自己的请求/结果文档、journal 与 revision 空间 | 与仓库的一域一族解复用（`OBCS`、`OBCQ`、`OBWP`、`OBCN`、`OBLS`）一致，所有权无歧义，且不触碰 Workbench；代价是一个新解复用分支、一个 crate 及其自身的符合性证据                                                               |
+| C. 独立 Agent-observation 协议族                                    | 在同一已认证本地 Client 连接上新增四字节 magic 与 crate，拥有自己的请求/结果文档、journal 与 revision 空间 | 与仓库的一域一族解复用（`OBCS`、`OBCQ`、`OBWP`、`OBCN`、`OBLW`）一致，所有权无歧义，且不触碰 Workbench；代价是一个新解复用分支、一个 crate 及其自身的符合性证据                                                               |
 | D. 在 `ClientMessage`/`ServerMessage`（OBCS）内做 Agent 读取        | 扩展终端控制帧族                                                                                           | OBCS 当前承载终端 attachment 与控制消息，而非投影读取；把域投影混入控制族会在第二个载体上重演选项 B 的所有权问题。拒绝                                                                                                        |
 
 ### 推荐
@@ -119,4 +119,4 @@ TUI 作为对等 renderer 消费该投影；它只拥有呈现。
 - TUI 证据：缺失、拒绝与 reset-required 下真实降级、不捏造状态；CLI 证据：机器输出、exit 类别与有界调用。
 - 该切片触及的每个仓库文档都要完成双语文档配对。
 
-<!-- documentation-pairing: english-sha256=1aeaef9659bcacdc4027f2838593bd1ed67fc917f5ed1f3a4586f003b6facbd6 zh-cn-sha256=31dd3b298206cccaf6ebd81edfbc54d6b233b07b02352229c5d1bb9b4ffbac8e -->
+<!-- documentation-pairing: english-sha256=fb53b7c07daa3b31560dac672c2a5b5565fb766bcbcc05bdbafafa4e74aac50f zh-cn-sha256=722e4dc537abe8313c26b5e7995db10dd6067f1013a88619e4c6250b4b7c1e93 -->
