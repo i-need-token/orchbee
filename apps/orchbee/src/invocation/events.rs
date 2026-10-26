@@ -27,19 +27,6 @@ pub(super) struct Options {
     pub(super) filters: Vec<String>,
     pub(super) after: Option<String>,
 }
-impl Options {
-    pub(super) fn first_option(&self) -> Option<&'static str> {
-        if !self.events.is_empty() {
-            Some("--event")
-        } else if !self.filters.is_empty() {
-            Some("--filter")
-        } else if self.after.is_some() {
-            Some("--after-cursor")
-        } else {
-            None
-        }
-    }
-}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Command {
     pub wait: bool,

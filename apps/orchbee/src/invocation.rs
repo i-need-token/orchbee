@@ -446,10 +446,6 @@ pub(crate) enum MutationCommand {
         target: Target,
         label: WorkbenchLabel,
     },
-    WorkspaceCreate {
-        project: Target,
-        label: WorkbenchLabel,
-    },
     WorkspaceLaunch {
         project: Option<Target>,
         label: WorkbenchLabel,

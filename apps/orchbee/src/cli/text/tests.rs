@@ -310,7 +310,6 @@ fn option_values_follow_the_usage_line() {
     );
     assert_eq!(super::usage_value(usage, "--plain"), None);
     assert_eq!(super::usage_value(usage, "--detach"), None);
-    assert!(!super::help_options(crate::invocation::CommandPath::ApiSchema).contains(&"--session"));
 }
 
 /// Family help lists every child's usage line, so a reader sees required

@@ -328,6 +328,18 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
     )
 }
 
+#[cfg(target_os = "linux")]
+pub(super) use linux::create_workspace;
+#[cfg(not(any(target_os = "linux", windows)))]
+pub(super) fn create_workspace(
+    _project: &crate::invocation::Target,
+    _label: &orchbee_workbench_protocol::WorkbenchLabel,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    super::unsupported_platform(Some(format), locale)
+}
+
 #[cfg(windows)]
 pub(super) use linux::{submit_action, submit_creation, success_output};
 
@@ -614,6 +626,44 @@ mod linux {
         }
     }
 
+    /// Unix's existing empty-Workspace effect is selected only by its creation adapter.
+    #[cfg(target_os = "linux")]
+    pub(in crate::cli) fn create_workspace(
+        project: &Target,
+        label: &orchbee_workbench_protocol::WorkbenchLabel,
+        format: OutputFormat,
+        locale: Locale,
+    ) -> Output {
+        let result = (|| {
+            let (mut client, deadline, snapshot) = snapshot_session()?;
+            let resolved = (|| {
+                let project_id = resolve_project(&snapshot, project)?.project_id.clone();
+                Ok(Resolved {
+                    site_id: snapshot.site_id.clone(),
+                    expected_revision: snapshot.revision,
+                    request_id: request_id()?,
+                    action: WorkbenchAction::WorkspaceCreate {
+                        project_id: Some(project_id),
+                        label: label.clone(),
+                    },
+                })
+            })()
+            .map_err(|failure: Failure| failure.source(results::snapshot_source(&snapshot)))?;
+            let source = command_source(
+                resolved.site_id.as_str(),
+                resolved.request_id.as_str(),
+                resolved.expected_revision,
+            );
+            let submission = submit(&mut client, deadline, resolved);
+            drop(client);
+            submission.map_err(|failure| failure.source(source))
+        })();
+        match result {
+            Ok(receipt) => success_output(&receipt, format, locale),
+            Err(failure) => failure_output(failure, Some(format), locale),
+        }
+    }
+
     fn execute(command: &MutationCommand) -> Result<Receipt, Failure> {
         if matches!(
             command,
@@ -885,13 +935,6 @@ mod linux {
                     launch: launch.clone(),
                     profile: profile.clone(),
                     options: Box::new(options.clone()),
-                })
-            }
-            MutationCommand::WorkspaceCreate { project, label } => {
-                let project = resolve_project(snapshot, project)?;
-                Ok(WorkbenchAction::WorkspaceCreate {
-                    project_id: Some(project.project_id.clone()),
-                    label: label.clone(),
                 })
             }
             MutationCommand::WorkspaceMove {

@@ -69,7 +69,7 @@ pub(super) fn run(
         {
             return super::unsupported_platform(Some(format), locale);
         }
-        MutationCommand::WorkspaceCreate { project, label }
+        return super::mutation::create_workspace(&project, &label, format, locale);
     };
     super::mutation(mutation, format, locale)
 }

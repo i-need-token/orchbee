@@ -15,11 +15,6 @@ pub(super) struct Options {
     pub(super) message: Option<String>,
 }
 impl Options {
-    pub(super) fn first_option(&self) -> Option<&'static str> {
-        self.flags()
-            .into_iter()
-            .find_map(|(seen, flag)| seen.then_some(flag))
-    }
     fn flags(&self) -> [(bool, &'static str); 2] {
         [
             (self.state.is_some(), "--state"),

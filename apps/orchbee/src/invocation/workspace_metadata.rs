@@ -14,26 +14,6 @@ pub(super) struct Options {
     pub(super) sequence: Option<String>,
     pub(super) ttl: Option<String>,
 }
-impl Options {
-    pub(super) fn first_option(&self) -> Option<&'static str> {
-        self.first_option_with_sequence(true)
-    }
-    pub(super) fn first_option_with_sequence(
-        &self,
-        include_sequence: bool,
-    ) -> Option<&'static str> {
-        self.updates
-            .first()
-            .map(|entry| entry.0)
-            .or_else(|| {
-                self.sequence
-                    .as_ref()
-                    .filter(|_| include_sequence)
-                    .map(|_| "--seq")
-            })
-            .or_else(|| self.ttl.as_ref().map(|_| "--ttl-ms"))
-    }
-}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceMetadataCommand {
     pub(crate) target: Target,

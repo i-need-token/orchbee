@@ -57,13 +57,7 @@ pub(crate) fn wait_source_output(
     timeout_ms: Option<u32>,
     after: Option<&crate::invocation::OutputAfter>,
 ) -> Result<(serde_json::Value, Projection), Failure> {
-    wait_output_inner(
-        target,
-        pattern,
-        WaitWindow::Source(selection),
-        timeout_ms,
-        after.cloned(),
-    )
+    wait_output_inner(target, pattern, selection, timeout_ms, after.cloned())
 }
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn wait_source_output(
@@ -81,23 +75,6 @@ pub(crate) fn wait_source_output(
     )
 }
 
-#[cfg(any(target_os = "linux", windows))]
-#[derive(Clone, Copy)]
-enum WaitWindow {
-    #[cfg(test)]
-    Retained(u16),
-    Source(crate::invocation::OutputSelection),
-}
-#[cfg(any(target_os = "linux", windows))]
-impl WaitWindow {
-    fn selection(self) -> Option<crate::invocation::OutputSelection> {
-        match self {
-            Self::Source(selection) => Some(selection),
-            #[cfg(test)]
-            Self::Retained(_) => None,
-        }
-    }
-}
 #[cfg(any(target_os = "linux", windows))]
 struct WaitSample {
     observation: super::results::WaitObservation,
@@ -1843,34 +1820,11 @@ impl WaitRun<'_> {
     }
 }
 
-/// Resolve and attach one read-only viewer, then poll, project, acknowledge
-/// and match each consistent selected sample. Legacy mode reads the retained
-/// `--rows` window; source mode shares the read command's range and trimming.
-/// Every exchange checks cancellation and the optional total deadline, with
-/// a finite network budget even for `--forever`. Detach uses the same gate;
-/// session drop always releases the connection.
-#[cfg(any(target_os = "linux", windows))]
-#[cfg(test)]
-pub(crate) fn wait_output(
-    target: &Target,
-    pattern: &crate::invocation::WaitPattern,
-    rows: u16,
-    timeout_ms: u32,
-) -> Result<(serde_json::Value, Projection), Failure> {
-    wait_output_inner(
-        target,
-        pattern,
-        WaitWindow::Retained(rows),
-        Some(timeout_ms),
-        None,
-    )
-}
-
 #[cfg(any(target_os = "linux", windows))]
 fn wait_output_inner(
     target: &Target,
     pattern: &crate::invocation::WaitPattern,
-    window: WaitWindow,
+    window: crate::invocation::OutputSelection,
     timeout_ms: Option<u32>,
     after: Option<crate::invocation::OutputAfter>,
 ) -> Result<(serde_json::Value, Projection), Failure> {
@@ -1983,9 +1937,7 @@ fn wait_output_inner(
                     elapsed_ms,
                 },
             );
-            if let Some(selection) = window.selection() {
-                doc.selection = Some(selection);
-            }
+            doc.selection = Some(window);
             if let Some(crate::invocation::OutputAfter::Cursor(cursor)) = &run.after {
                 doc.after = Some(cursor.encode());
             }
@@ -2027,7 +1979,7 @@ fn wait_observe(
     viewer_id: &ViewerId,
     mut projection: TerminalProjection,
     matcher: &super::results::WaitMatcher<'_>,
-    window: WaitWindow,
+    window: crate::invocation::OutputSelection,
 ) -> Result<WaitSample, Failure> {
     loop {
         run.check()?;
@@ -2076,46 +2028,10 @@ fn wait_observe(
                             let frame = projection
                                 .frame()
                                 .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-                            if let Some(selection) = window.selection() {
-                                if let Some(sample) = terminal_output::wait_sample(
-                                    client, run, viewer_id, frame, selection, matcher,
-                                )? {
-                                    return Ok(sample);
-                                }
-                                continue;
-                            }
-                            #[cfg(test)]
-                            {
-                                let rows = match window {
-                                    #[cfg(test)]
-                                    WaitWindow::Retained(rows) => rows,
-                                    WaitWindow::Source(_) => unreachable!("source handled above"),
-                                };
-                                if let Some(window) =
-                                    wait_read_window(client, run, viewer_id, frame, rows)?
-                                {
-                                    run.observations += 1;
-                                    // One bounded match pass over the pinned
-                                    // window; a cancel or expiry observed right
-                                    // after it still wins over continuing.
-                                    let matched = super::results::match_window(&window, matcher);
-                                    run.check()?;
-                                    if let Some(matched) = matched {
-                                        return Ok(WaitSample {
-                                            requested_rows: rows,
-                                            capacity_omitted: None,
-                                            observation: super::results::WaitObservation {
-                                                matched,
-                                                revision: window.revision,
-                                                generation: window.generation.get(),
-                                                window_start: window.start_row,
-                                                window_rows: u64::try_from(window.rows.len())
-                                                    .unwrap_or(u64::MAX),
-                                                total_rows: window.total_rows,
-                                            },
-                                        });
-                                    }
-                                }
+                            if let Some(sample) = terminal_output::wait_sample(
+                                client, run, viewer_id, frame, window, matcher,
+                            )? {
+                                return Ok(sample);
                             }
                         }
                     }
@@ -2134,79 +2050,6 @@ fn wait_observe(
             | TerminalViewerOutcome::Detached { .. }
             | TerminalViewerOutcome::RowsRejected { .. } => return Err(viewer_protocol_invalid()),
         }
-    }
-}
-
-/// One consistent `ReadRows` over the pinned frame's most recent retained
-/// window: `[max(0, total − K), total)` in the unified screen+scrollback
-/// absolute space, `K = min(requested, total, MAXIMUM_FRAME_CELLS/columns)`.
-/// `Some(window)` is a fully validated consistent answer; `None` means the
-/// pinned snapshot aged between frame and read — stale revision, stale
-/// generation, or history eviction — and the caller resumes polling for a
-/// fresh consistent frame instead of splicing half windows.
-#[cfg(any(target_os = "linux", windows))]
-#[cfg(test)]
-fn wait_read_window(
-    client: &mut LocalClient,
-    run: &mut WaitRun<'_>,
-    viewer_id: &ViewerId,
-    frame: &TerminalTextFrame,
-    requested: u16,
-) -> Result<Option<orchbee_terminal_protocol::TerminalTextRowWindow>, Failure> {
-    let total_rows = frame
-        .scrollback_rows
-        .checked_add(u64::from(frame.geometry.rows))
-        .ok_or_else(viewer_protocol_invalid)?;
-    let capacity = u64::try_from(orchbee_terminal_protocol::MAXIMUM_FRAME_CELLS)
-        .unwrap_or(u64::MAX)
-        / u64::from(frame.geometry.columns);
-    let count = u64::from(requested).min(total_rows).min(capacity);
-    let start_row = total_rows - count;
-    let row_count = u16::try_from(count).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    let request_sequence = run.next_sequence()?;
-    let request = TerminalViewerRequest::new(
-        obcs_request_id()?,
-        TerminalViewerAction::ReadRows {
-            detail: orchbee_client_server_protocol::ViewerRowDetail::Text,
-            attachment_id: viewer_id.clone(),
-            start_row,
-            row_count,
-            revision: frame.route.revision,
-            generation: frame.route.generation,
-            request_sequence,
-            maximum_bytes: orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES,
-        },
-    );
-    let deadline = run.step_deadline()?;
-    let result = client.submit_terminal_viewer_before(request, deadline);
-    run.check()?;
-    let result = result.map_err(classify_viewer)?;
-    match result.outcome() {
-        TerminalViewerOutcome::Record(record) => decode_history_window(
-            record.clone(),
-            frame.route.attachment_id,
-            frame.route.host_epoch,
-            frame,
-            start_row,
-            count,
-            request_sequence,
-        )
-        .map(Some),
-        TerminalViewerOutcome::RowsRejected { reason } => {
-            use orchbee_client_server_protocol::ViewerRowsRejectedReason as Reason;
-            match reason {
-                Reason::StaleRevision | Reason::StaleGeneration | Reason::HistoryEvicted => {
-                    Ok(None)
-                }
-                other => Err(classify_rows_rejected(*other, "wait-output")),
-            }
-        }
-        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
-        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        TerminalViewerOutcome::Attached { .. }
-        | TerminalViewerOutcome::Empty { .. }
-        | TerminalViewerOutcome::FeedbackAccepted { .. }
-        | TerminalViewerOutcome::Detached { .. } => Err(viewer_protocol_invalid()),
     }
 }
 
@@ -3203,21 +3046,6 @@ pub(crate) fn worktree_list(
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn launch_profile_catalog(
     _selector: Option<orchbee_workbench_protocol::LaunchProfileSelector>,
-) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
-    Err(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    )
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-#[cfg(test)]
-pub(crate) fn wait_output(
-    _target: &crate::invocation::Target,
-    _pattern: &crate::invocation::WaitPattern,
-    _rows: u16,
-    _timeout_ms: u32,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

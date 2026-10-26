@@ -17,25 +17,6 @@ pub(super) struct Options {
     pub(super) clear_display_agent: bool,
     pub(super) clear_state_labels: bool,
 }
-impl Options {
-    pub(super) fn first_option(&self) -> Option<&'static str> {
-        self.first_option_with_agent(true)
-    }
-    pub(super) fn first_option_with_agent(&self, include_agent: bool) -> Option<&'static str> {
-        [
-            (include_agent && self.agent.is_some(), "--agent"),
-            (self.applies_to_source.is_some(), "--applies-to-source"),
-            (self.title.is_some(), "--title"),
-            (self.display_agent.is_some(), "--display-agent"),
-            (!self.state_labels.is_empty(), "--state-label"),
-            (self.clear_title, "--clear-title"),
-            (self.clear_display_agent, "--clear-display-agent"),
-            (self.clear_state_labels, "--clear-state-labels"),
-        ]
-        .into_iter()
-        .find_map(|(seen, flag)| seen.then_some(flag))
-    }
-}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PanelMetadataCommand {
     pub(crate) target: Target,

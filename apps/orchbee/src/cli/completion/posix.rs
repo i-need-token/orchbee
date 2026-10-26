@@ -22,7 +22,7 @@ pub(super) fn render(shell: CompletionShell) -> String {
     script.push_str("  esac\n}\n");
     script.push_str(&include_str!("posix.sh").replace(
         "__ORCHBEE_TRIM_CHARACTERS__",
-        &super::metadata::quote(crate::invocation::grammar::trim_characters()),
+        &quoted_characters(crate::invocation::grammar::trim_characters()),
     ));
     script.push_str(match shell {
         CompletionShell::Bash => {
@@ -53,4 +53,14 @@ compdef _orchbee orchbee
         _ => unreachable!("POSIX renderer receives Bash or Zsh"),
     });
     script
+}
+
+// MSYS Bash may discard literal CR while reading a script, even inside quotes.
+// Escapes preserve the authority's exact Unicode character set on every host.
+fn quoted_characters(value: &str) -> String {
+    let escaped = value
+        .chars()
+        .map(|character| format!("\\U{:08x}", u32::from(character)))
+        .collect::<String>();
+    format!("$'{escaped}'")
 }
