@@ -1,3 +1,7 @@
+//! Carries bounded plain-text selection export controls, progress acknowledgements,
+//! cancellation reasons, and final statuses. It does not retain an export, assemble chunks, or
+//! write a clipboard.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

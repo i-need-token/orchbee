@@ -1,3 +1,7 @@
+//! Prepares and executes one authorized Host launch or start, preserving pre-handoff failure
+//! versus uncertain delivery and recording only validated responses in the kernel. It does not
+//! retry an unknown effect or own the Host process.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{fmt, time::Duration};
 

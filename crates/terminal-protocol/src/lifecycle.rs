@@ -1,3 +1,7 @@
+//! Defines closed terminal start, termination, disposal, and lifecycle observation payloads
+//! with validated geometry and process facts. It transports requested transitions and reported
+//! outcomes without owning a child process or deciding whether termination is authorized.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

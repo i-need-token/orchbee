@@ -1,3 +1,7 @@
+//! Distinguishes malformed Capability Node values and frames from transport read or write
+//! failures, preserving underlying I/O causes. It does not classify a terminal or job's
+//! reported outcome or decide whether an effect may be retried.
+
 use std::{fmt, io};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

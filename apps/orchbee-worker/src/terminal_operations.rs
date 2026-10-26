@@ -1,3 +1,7 @@
+//! Serializes admitted Server requests across the authorization kernel, Host connection,
+//! retained jobs, and managed lifecycle operations. This loop preserves one physical operation
+//! owner without deciding Workbench membership or implementing PTY and VT behavior.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     cell::RefCell,

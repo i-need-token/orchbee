@@ -1,3 +1,7 @@
+//! Serializes checked Git mutation operands and retained-job receipts, preserving typed
+//! effect, failure, and cancellation outcomes. It performs no repository lookup, Git effect,
+//! or recovery replay.
+
 use super::PayloadReader;
 use crate::{
     AbsoluteCwd, GitReference, OperationId, ProtocolError, WorkerGeneration, WorkerId,

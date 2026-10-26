@@ -1,3 +1,7 @@
+//! Defines checked terminal incarnation, exit, failure, cleanup, and process-observation facts
+//! and their shared JSON refinements. These facts carry reported state without observing a
+//! process or inferring lifecycle transitions.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

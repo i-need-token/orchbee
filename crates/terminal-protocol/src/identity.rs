@@ -1,3 +1,7 @@
+//! Separates Terminal Host identity domains and validates nonzero 16-byte values and canonical
+//! lowercase hexadecimal text. It does not mint identities, resolve an attachment, or
+//! establish that an identity belongs to the current Host incarnation.
+
 use std::fmt;
 
 const IDENTITY_BYTE_LENGTH: usize = 16;

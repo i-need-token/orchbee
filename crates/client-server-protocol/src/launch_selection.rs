@@ -1,3 +1,7 @@
+//! Validates a literal absolute executable and bounded argv tail for an explicit launch,
+//! including its encoded size budget. It performs no executable lookup, shell expansion,
+//! filesystem access, or launch authorization.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};

@@ -1,3 +1,7 @@
+//! Parses the exact explicit-endpoint Worker invocation into literal Server and Host paths
+//! with a checked endpoint identity. It does not discover a runtime, inspect endpoint
+//! ownership, or connect either peer.
+
 use std::{ffi::OsString, io, path::PathBuf};
 
 const LOCAL_ENDPOINT_OPTION: &str = "--local-endpoint";

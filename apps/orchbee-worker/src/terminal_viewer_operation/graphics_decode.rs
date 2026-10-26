@@ -1,3 +1,7 @@
+//! Fences a bounded PNG decode request to an existing viewer and validates the exact
+//! correlated Host result. It creates no viewer or Host and does not render or retain the
+//! decoded image.
+
 use super::{HostBrokerConnection, HostExchange, UnixStream, invalid};
 use orchbee_capability_node_protocol::{
     TerminalGraphicsDecodeRequest, TerminalViewerOutcome as Outcome, TerminalViewerResult,

@@ -1,3 +1,7 @@
+//! Validates frame-applied proofs and snapshot requests with exact attachment, generation,
+//! revision, and sequence fields. It carries feedback without committing a renderer frame or
+//! deciding whether a proof matches Host state.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

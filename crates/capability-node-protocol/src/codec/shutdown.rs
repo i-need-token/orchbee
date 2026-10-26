@@ -1,3 +1,6 @@
+//! Carries Worker shutdown budgets and closed stage, refusal, and failure outcomes in the
+//! binary protocol. It does not stop admission, dispose Hosts, or own a shutdown deadline.
+
 use super::PayloadReader;
 use crate::{
     HostEpoch, OperationId, ProtocolError, ShutdownBudget, ShutdownFailure, ShutdownRefusal,

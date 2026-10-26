@@ -1,3 +1,7 @@
+//! Defines checked launch and start authorizations, lease and fence values, bounded launch
+//! operands, and consistent physical Host observations. It represents authorization and
+//! outcomes without issuing leases, selecting a Worker, or launching a terminal.
+
 use std::num::{NonZeroU16, NonZeroU64};
 
 use crate::{

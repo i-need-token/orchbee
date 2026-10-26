@@ -1,3 +1,7 @@
+//! Fences plugin-job requests by Worker identity and generation before dispatching
+//! retained-job actions or typed platform refusal. It maps protocol outcomes without executing
+//! a process or owning job history.
+
 use orchbee_capability_node_protocol::{
     PluginJobOutcome, PluginJobRefusal, PluginJobRequest, PluginJobResult,
 };

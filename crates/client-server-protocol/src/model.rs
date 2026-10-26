@@ -1,3 +1,8 @@
+//! Defines correlated terminal creation and start intents with their closed Client-visible
+//! outcomes, keeping start and create request identities distinct. It records the protocol's
+//! state alternatives without selecting a Worker, retaining requests, or driving terminal
+//! lifecycle.
+
 use std::fmt;
 
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,8 @@
+//! Owns the admitted same-user Host broker connection, negotiated limits, and
+//! connection-scoped viewer, controller, title, and event state. It validates the Host
+//! handshake without owning the Host child, product Workbench membership, or Agent
+//! interpretation.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     cell::RefCell,

@@ -1,3 +1,7 @@
+//! Encodes and inspects one bounded transport envelope, checking roles, flags, identities,
+//! lengths, and registered message encodings before exposing its borrowed payload. Payload
+//! interpretation and live correlation or Host-epoch admission remain with consumers.
+
 use crate::{
     CorrelationId, HostEpoch, MessageRole, PayloadEncoding, ProtocolError, ProtocolErrorCode,
     ProtocolVersion,

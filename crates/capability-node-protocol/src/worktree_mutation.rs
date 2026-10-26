@@ -1,4 +1,7 @@
-//! Checked semantic operands and receipts for a retained Worker Git operation.
+//! Defines checked Git mutation operands and retained-job receipts with explicit effect and
+//! failure distinctions. It performs no repository mutation and does not turn an unknown
+//! outcome into permission to retry.
+
 use crate::{AbsoluteCwd, OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
 pub const MAXIMUM_WORKTREE_MUTATION_FIELDS_BYTES: usize = 7936;

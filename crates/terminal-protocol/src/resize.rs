@@ -1,3 +1,6 @@
+//! Validates attachment-scoped resize requests and accepted geometry with canonical revision
+//! fields. It does not acquire the resize lease, compare live authority, or resize the PTY.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

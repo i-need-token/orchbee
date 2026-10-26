@@ -1,3 +1,7 @@
+//! Carries attachment-scoped history demand, changed-anchor observations, and their exact
+//! sequence and revision acknowledgements as closed JSON controls. It owns no retained rows,
+//! viewport anchor, or history-delivery state machine.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

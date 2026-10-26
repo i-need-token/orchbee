@@ -1,3 +1,7 @@
+//! Translates generation-fenced viewer actions into Host attachment, read, demand, selection,
+//! and feedback exchanges and updates connection-owned viewer state. It routes opaque
+//! projections without rendering them or deciding product exposure and Client authorization.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{error::Error, io, num::NonZeroU64, time::Duration};
 

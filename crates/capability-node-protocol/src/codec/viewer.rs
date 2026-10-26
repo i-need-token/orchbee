@@ -1,3 +1,7 @@
+//! Maps viewer controls and responses to binary messages and bounded opaque record carriers
+//! while validating action operands. It preserves physical routing and correlation without
+//! interpreting inner terminal records or retaining a viewer.
+
 use std::io::Read;
 
 use super::PayloadReader;

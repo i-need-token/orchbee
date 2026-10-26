@@ -1,3 +1,7 @@
+//! Refines JSON numeric tokens to finite binary64 safe integers and counters to canonical
+//! decimal strings, preserving required nullable counter semantics. These adapters validate
+//! representation; they do not allocate sequences or judge whether a counter is current.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, de};

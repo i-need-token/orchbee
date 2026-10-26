@@ -1,3 +1,7 @@
+//! Separates malformed Client-Server frames from stream I/O failures while preserving the
+//! underlying I/O cause. These errors describe decoding and delivery boundaries, not
+//! terminal-operation outcomes or retry policy.
+
 use std::{fmt, io};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

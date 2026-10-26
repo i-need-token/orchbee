@@ -1,3 +1,7 @@
+//! Dispatches bounded raw and semantic input payloads and validates queue-admission
+//! acknowledgements under the registered input message kinds. Encoding a message neither
+//! validates live input capability nor promises that the child executed the accepted bytes.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

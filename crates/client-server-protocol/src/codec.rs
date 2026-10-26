@@ -1,3 +1,7 @@
+//! Encodes and reads one bounded Client-Server frame, dispatching JSON and direction-specific
+//! paste, send, or viewer records without consuming a following frame. Transport connection,
+//! flushing, authentication, and operation execution remain with callers.
+
 use std::io::{Read, Write};
 
 use crate::{

@@ -1,3 +1,7 @@
+//! Retains bounded controller reservations, committed capability revisions, and input
+//! sequences for exact viewer and terminal identities. It admits local grant use without
+//! granting Server authorization or performing Host I/O.
+
 use orchbee_capability_node_protocol::{ControlRejection, HostTerminalId, OperationId};
 use std::{collections::BTreeMap, num::NonZeroU64};
 

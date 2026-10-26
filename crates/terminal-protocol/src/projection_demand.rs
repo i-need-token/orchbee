@@ -1,3 +1,7 @@
+//! Carries active or paused attachment projection demand, its acknowledgement, and typed
+//! blocked observations. These values do not schedule projection output or decide whether a
+//! Client is currently visible.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

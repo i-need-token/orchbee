@@ -1,3 +1,7 @@
+//! Requests process information through an existing read attachment and validates the Host's
+//! correlated response and target. It does not query processes directly or grant input and
+//! lifecycle authority from the sample.
+
 use super::{
     AttachmentId, AttachmentTarget, CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId,
     Envelope, Error, HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding,

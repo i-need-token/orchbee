@@ -1,3 +1,7 @@
+//! Encodes closed selection gestures, commands, and observed selection states with bounded
+//! coordinates, geometry, and preview text. The Host retains selection authority; this binding
+//! neither updates selection nor maps pointers against live terminal contents.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

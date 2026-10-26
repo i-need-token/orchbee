@@ -1,3 +1,7 @@
+//! Owns terminal operation admission, lease and fence checks, single-flight handoff, and
+//! retained launch or start receipts for one Worker incarnation. It records physical outcomes
+//! without opening a Host transport, creating a terminal, or selecting product membership.
+
 use std::{cmp::Ordering, collections::BTreeMap, fmt, num::NonZeroU64};
 
 use orchbee_capability_node_protocol::{

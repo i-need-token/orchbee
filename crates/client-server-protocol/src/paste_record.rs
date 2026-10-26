@@ -1,3 +1,7 @@
+//! Encodes and decodes one bounded OBCQ paste record with exact request, attachment,
+//! controller, and sequence fields before admitting its opaque content. It neither brackets
+//! paste for a terminal mode nor submits input or retries delivery.
+
 use crate::{
     ClientMessage, ControllerId, MAXIMUM_PASTE_CONTENT_BYTES, PasteContent, ProtocolError,
     ReadMessageError, RequestId, TerminalControlAction, TerminalControlRequest, ViewerId,

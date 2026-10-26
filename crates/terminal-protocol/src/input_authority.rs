@@ -1,3 +1,7 @@
+//! Reads and writes the shared binary attachment and positive capability-revision prefix used
+//! by input payloads. The prefix preserves an authority claim; only the Host can compare it
+//! with current attachment capability state.
+
 use std::num::NonZeroU64;
 
 use crate::{AttachmentId, ProtocolError, ProtocolErrorCode};

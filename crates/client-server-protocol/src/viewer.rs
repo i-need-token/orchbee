@@ -1,3 +1,7 @@
+//! Defines attachment-scoped viewer requests, semantic bounds, and admissible response classes
+//! for projection, history, selection, and read feedback. It carries opaque records without
+//! interpreting terminal contents, deciding target exposure, or owning viewer lifetime.
+
 use crate::{
     HostEpoch, HostTerminalId, ProtocolError, RequestId, SessionId, TerminalId, ViewerId, WorkerId,
 };

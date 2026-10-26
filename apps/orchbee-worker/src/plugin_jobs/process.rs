@@ -1,3 +1,7 @@
+//! Runs one frozen plugin command with bounded captured output, cancellation, and a sanitized
+//! Orchbee context, mapping physical process outcomes into its retained log. It does not
+//! select a command or own the job slot and receipt history.
+
 use super::{Failure, PluginCommandIntent, PluginCommandLog, now_ms};
 use orchbee_local_runtime::{CommandFailure, resolve_windows_program, run_windows_command};
 use std::{

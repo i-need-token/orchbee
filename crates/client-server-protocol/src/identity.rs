@@ -1,3 +1,7 @@
+//! Keeps Client-Server identity domains distinct while enforcing nonzero canonical lowercase
+//! hexadecimal values at construction and deserialization. Parsing proves lexical identity
+//! only; allocation, existence, and ownership belong to the issuing process.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, de};

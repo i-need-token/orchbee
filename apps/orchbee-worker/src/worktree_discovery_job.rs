@@ -1,3 +1,7 @@
+//! Owns the retained worktree read-job slot, bounded Git process output, cancellation and
+//! cleanup, and expiring correlated receipts. It preserves physical cleanup uncertainty
+//! without mutating worktrees or equating cancellation registration with process completion.
+
 use std::{
     ffi::OsString,
     io::{self, Read},

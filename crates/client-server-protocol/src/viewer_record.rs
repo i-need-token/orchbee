@@ -1,3 +1,7 @@
+//! Wraps an opaque viewer record with its correlated request identity in the bounded OBSR
+//! binary layout and preserves the next stream frame. It validates carrier framing without
+//! decoding the inner terminal record or checking live viewer ownership.
+
 use crate::{
     MAXIMUM_VIEWER_RECORD_BYTES, ProtocolError, ReadMessageError, RequestId, ServerMessage,
     TerminalViewerOutcome, TerminalViewerResult,

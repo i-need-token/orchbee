@@ -1,3 +1,7 @@
+//! Translates direction-specific closed JSON shapes into validated Client-Server values and
+//! deterministic payloads, enforcing version, nullable-field, and numeric refinements. Binary
+//! record framing and live authorization remain outside this JSON boundary.
+
 use std::str;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};

@@ -1,3 +1,7 @@
+//! Resolves literal per-launch cwd, environment, shell policy, and terminal profile facts for
+//! the Host adapter on the current platform. It does not issue authorization, start a Host, or
+//! submit a terminal creation request.
+
 use std::{error::Error, io};
 
 #[cfg(all(test, windows))]

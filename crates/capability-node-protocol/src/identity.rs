@@ -1,3 +1,7 @@
+//! Provides distinct nonzero 16-byte identity domains for Capability Node operations and
+//! physical Host bindings. Construction proves representation only; identity allocation,
+//! target existence, and authorization remain runtime responsibilities.
+
 use crate::error::ProtocolError;
 
 const IDENTITY_BYTES: usize = 16;

@@ -1,3 +1,7 @@
+//! Defines one literal directory-validation request tied to a Worker generation and its closed
+//! correlated outcome. It neither probes the filesystem nor grants terminal creation or
+//! directory-use authority.
+
 use crate::{AbsoluteCwd, OperationId, WorkerGeneration, WorkerId};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

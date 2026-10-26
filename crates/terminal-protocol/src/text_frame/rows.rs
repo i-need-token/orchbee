@@ -1,3 +1,7 @@
+//! Validates OBTF row ordering, cell widths, string references, and style references while
+//! materializing the text-frame rows. It consumes the admitted frame tables without routing
+//! attachments or applying a projection to a renderer.
+
 use super::{Reader, TerminalTextCell, TerminalTextRow, TerminalTextStyle, error};
 use crate::{ProtocolError, ProtocolErrorCode, TerminalPixelGeometry};
 use std::sync::Arc;

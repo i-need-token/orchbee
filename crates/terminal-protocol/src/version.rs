@@ -1,3 +1,6 @@
+//! Defines the semantic version value and the supported Terminal Host protocol version. It
+//! does not negotiate a connection, compare peer cohorts, or select a fallback encoding.
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ProtocolVersion {
     pub major: u16,

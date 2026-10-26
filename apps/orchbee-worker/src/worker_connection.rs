@@ -1,3 +1,7 @@
+//! Owns explicit-endpoint Worker admission to the same-user Server and Host, readiness
+//! publication, and entry into the serialized operation loop. It does not start a managed
+//! Host, retry enrollment, or adopt terminals after peer loss.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
     cell::RefCell,

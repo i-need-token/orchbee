@@ -1,4 +1,7 @@
-//! The single semantic key-press encoding, independent of terminal keyboard modes.
+//! Validates semantic key identities and modifier bits and maps them to the fixed send-record
+//! stroke encoding. Terminal keyboard modes and the bytes ultimately delivered to the child
+//! remain Host responsibilities.
+
 use crate::{ProtocolError, SendKey};
 
 /// A key identity, independent of its modifiers and the terminal's encoding mode.

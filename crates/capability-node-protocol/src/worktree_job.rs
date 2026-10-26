@@ -1,3 +1,7 @@
+//! Defines bounded operands and correlated start, poll, status, and cancellation outcomes for
+//! retained worktree read jobs. It represents job progress without running Git, retaining a
+//! process, or settling cancellation.
+
 use crate::{OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
 /// Byte bound on the Start action's directory operand: one absolute local-platform

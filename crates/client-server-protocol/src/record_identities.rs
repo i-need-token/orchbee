@@ -1,3 +1,7 @@
+//! Converts typed canonical hexadecimal identities to and from the big-endian 16-byte fields
+//! used by binary request records. It preserves each identity domain's parser and does not
+//! resolve targets or confer authority.
+
 use crate::ProtocolError;
 
 /// Shared 16-byte identity codec for the dedicated binary record frames

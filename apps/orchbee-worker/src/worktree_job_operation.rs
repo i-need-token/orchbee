@@ -1,3 +1,7 @@
+//! Fences worktree read-job requests by Worker incarnation, converts literal directory
+//! operands, and maps retained slot outcomes to protocol receipts. It does not run Git or
+//! decide that a cancelled physical owner has settled.
+
 use std::{num::NonZeroU64, path::Path};
 
 use orchbee_capability_node_protocol::{

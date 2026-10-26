@@ -1,4 +1,7 @@
-//! Large PNG request carrier; the response reuses the correlated viewer record carrier.
+//! Frames a bounded PNG decode request in its dedicated binary carrier and carries the
+//! correlated result through the viewer-record carrier. It does not decode pixels or decide
+//! whether the attachment is admitted.
+
 use crate::{
     CapabilityNodeMessage, MAXIMUM_GRAPHICS_PNG_BYTES, OperationId, ProtocolError,
     ReadMessageError, TerminalGraphicsDecodeRequest, WorkerGeneration, WorkerId,

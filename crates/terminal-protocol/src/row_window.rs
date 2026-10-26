@@ -1,5 +1,7 @@
-//! Shared bounded OBRW routing with distinct strict text and render decoders.
-//! Each decoder validates the complete record and rejects the other detail.
+//! Validates bounded OBRW routing and text-row windows, retaining explicit detail, origin,
+//! generation, and revision facts. It does not own retained history or admit a row window into
+//! a Client viewport.
+
 use crate::{
     AttachmentId, HostEpoch, MAXIMUM_FRAME_CELLS, MAXIMUM_FRAME_COLUMNS, MAXIMUM_FRAME_ROWS,
     MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode,

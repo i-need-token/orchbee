@@ -1,4 +1,6 @@
-//! OBCN request 23; OBNT v1 reply carries complete bounded titles without a screen.
+//! Carries physical title requests and complete bounded OBNT title replies without a screen
+//! projection. It neither observes OSC events nor interprets titles as Agent state.
+
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
     CapabilityNodeMessage, MAXIMUM_TERMINAL_TITLE_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, OperationId,

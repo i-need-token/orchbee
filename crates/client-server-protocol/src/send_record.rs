@@ -1,3 +1,7 @@
+//! Carries one send sequence in the bounded OBSN binary layout, validating record tags,
+//! identities, lengths, and aggregate content before construction. It preserves opaque input
+//! bytes and semantic strokes without encoding terminal modes or executing the sequence.
+
 use crate::record_identities::{identity, identity_bytes};
 use crate::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, SendBytes, SendPasteContent,
@@ -10,8 +14,8 @@ use std::io::Read;
 /// alone may carry a megabyte of opaque payload, so the whole request is one
 /// dedicated binary record — `OBSN` magic, record-encoding version 1, a
 /// reserved zero u16, and a big-endian u32 body length. The record version
-/// is this encoding's own; the protocol version bump lives in the OBCS
-/// JSON message bodies; OBCS framing remains version 1.
+/// is independent of the protocol version in OBCS JSON message bodies and
+/// the OBCS frame version.
 pub const SEND_RECORD_MAGIC: [u8; 4] = *b"OBSN";
 
 const HEADER: usize = 12;

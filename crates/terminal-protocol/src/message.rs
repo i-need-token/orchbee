@@ -1,3 +1,7 @@
+//! Registers each Terminal Host message kind's permitted roles, payload encodings, success
+//! response, and maximum payload size. It supplies envelope validation metadata without
+//! decoding payload contents or maintaining request correlation.
+
 use crate::limits::{
     MAXIMUM_CONTROL_JSON_BYTES, MAXIMUM_RAW_PAYLOAD_BYTES, MAXIMUM_ROW_WINDOW_BYTES,
     MAXIMUM_TERMINAL_FRAME_BYTES,

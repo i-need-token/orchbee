@@ -1,3 +1,7 @@
+//! Bounds Host socket connection and handshake I/O by one absolute deadline, preserving
+//! platform-specific nonblocking descriptor setup. It establishes a transport opportunity
+//! without authenticating the peer or accepting protocol negotiation.
+
 #[cfg(target_os = "macos")]
 use nix::fcntl::{FcntlArg, FdFlag, OFlag, fcntl};
 #[cfg(unix)]

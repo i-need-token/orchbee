@@ -1,3 +1,7 @@
+//! Defines bounded row-window requests and acknowledgement tuples, including explicit detail,
+//! purpose, origin, and revision policy. It validates those operands without reading retained
+//! history or promoting a pending viewport anchor.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

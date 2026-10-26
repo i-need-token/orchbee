@@ -1,3 +1,7 @@
+//! Maps working-directory validation requests and closed outcomes to exact binary fields. It
+//! carries the Worker generation and literal path without inspecting the filesystem or
+//! deciding whether the Worker is current.
+
 use std::num::NonZeroU64;
 
 use super::PayloadReader;

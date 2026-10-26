@@ -1,4 +1,7 @@
-//! Complete OBKG resource-snapshot validation without copying decoded pixels.
+//! Validates the complete bounded OBKG resource snapshot and placement references nested in a
+//! render row window. It checks resource consistency without copying pixels or owning a
+//! graphics-resource cache.
+
 use super::super::Reader;
 use crate::{ProtocolError, ProtocolErrorCode, wire_constants::GRAPHICS};
 use std::collections::HashMap;

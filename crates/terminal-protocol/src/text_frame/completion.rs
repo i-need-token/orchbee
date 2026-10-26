@@ -1,4 +1,7 @@
-//! Extension 4 is the same closed 25-byte OSC 133 completion fact consumed by the GUI.
+//! Validates the fixed OBTF OSC 133 completion extension and exposes its sequence, timestamps,
+//! duration, and exit code. It reports a shell observation without deciding Agent completion
+//! or matching a submitted command.
+
 use super::{Reader, error};
 use crate::{ProtocolError, ProtocolErrorCode};
 use std::num::NonZeroU64;

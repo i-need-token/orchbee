@@ -1,3 +1,7 @@
+//! Refines terminal cell and pixel dimensions against scalar and product bounds for wire
+//! controls. It validates geometry values without measuring an outer terminal, selecting a
+//! resize lease, or applying a resize.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

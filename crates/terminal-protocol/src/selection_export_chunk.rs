@@ -1,3 +1,7 @@
+//! Validates and frames bounded opaque export chunks with their attachment, export sequence,
+//! chunk sequence, and final marker, including a borrowed routing inspection. It does not
+//! assemble text or decide whether a chunk belongs to a live export.
+
 use std::num::NonZeroU64;
 
 use crate::{

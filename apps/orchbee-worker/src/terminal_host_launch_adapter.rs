@@ -1,3 +1,7 @@
+//! Maps authorized launches and starts to Host controls and validates correlated physical
+//! observations, preserving literal launch facts and managed environment overlays. It does not
+//! authorize the operation, perform transport I/O, or create editor capture files.
+
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{fmt, path::Path};

@@ -1,3 +1,7 @@
+//! Prepares exact-binding Host lifecycle exchanges and maps inventory, inspection,
+//! termination, and disposal responses into authorization-kernel outcomes. It performs no
+//! independent target selection and never turns an uncertain mutation into a retry.
+
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{error::Error, io, time::Duration};
 

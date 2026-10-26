@@ -1,3 +1,7 @@
+//! Validates Host event envelopes against the admitted epoch and reads one bounded event under
+//! a caller deadline. It routes the validated record to connection state without issuing
+//! operations or interpreting Agent semantics.
+
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{

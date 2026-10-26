@@ -1,3 +1,7 @@
+//! Provides stable typed rejection codes with static protocol details for malformed Terminal
+//! Host values and records. These failures identify a validation boundary without representing
+//! a runtime terminal failure or choosing connection recovery.
+
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

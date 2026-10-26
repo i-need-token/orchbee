@@ -1,3 +1,7 @@
+//! Defines physical-target-fenced send sequences and validates confirmed prefix progress
+//! against cleanup and failure outcomes. It carries queue-admission facts without executing
+//! input, guaranteeing atomicity, or authorizing replay after a partial or unknown result.
+
 use crate::{HostTerminalIdentity, OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
 /// One admitted send request carries an ordered sequence of input records.

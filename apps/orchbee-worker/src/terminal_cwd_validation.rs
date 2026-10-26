@@ -1,3 +1,7 @@
+//! Checks the requested Worker incarnation before probing whether a literal launch directory
+//! exists as a directory and returning a typed outcome. A successful probe neither reserves
+//! the path nor grants terminal creation authority.
+
 use std::{fs, num::NonZeroU64, path::Path};
 
 use orchbee_capability_node_protocol::{

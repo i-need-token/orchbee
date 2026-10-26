@@ -1,3 +1,7 @@
+//! Encodes bounded OBNS send sequences and their correlated prefix-progress and cleanup
+//! outcomes, rejecting malformed records before domain construction. It neither executes
+//! records nor treats accepted input as child completion or permission to replay.
+
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
     HostTerminalIdentity, OperationId, ProtocolError, SendBytes, SendCleanupStatus,

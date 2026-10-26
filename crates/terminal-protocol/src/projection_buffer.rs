@@ -1,4 +1,6 @@
-//! Strict borrowed OBPB views. Canonical wire validation precedes every exposed cell.
+//! Exposes borrowed OBPB rows and cells only after validating the complete bounded columnar
+//! layout and canonical cell data. It does not own the bytes, apply incremental frames, or
+//! render the projection.
 
 use std::num::NonZeroU64;
 

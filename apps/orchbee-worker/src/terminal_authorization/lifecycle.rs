@@ -1,3 +1,7 @@
+//! Extends the authorization kernel with exact-binding lifecycle admission, mutation slots,
+//! and correlated retained receipts. It separates inspection from mutation authority without
+//! querying a Host or performing termination and disposal.
+
 use orchbee_capability_node_protocol::{
     HostEpoch, HostTerminalIdentity, LifecycleRejection, TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
     TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleRequest,

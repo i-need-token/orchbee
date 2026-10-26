@@ -1,3 +1,7 @@
+//! Inspects the bounded terminal-frame header and exposes attachment, Host epoch, sequence,
+//! generation, and revision routing facts. Success does not validate cell tables or
+//! presentation data and does not prove that the frame belongs to a live attachment.
+
 use std::num::NonZeroU64;
 
 use crate::{

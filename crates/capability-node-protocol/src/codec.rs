@@ -1,3 +1,7 @@
+//! Frames bounded Capability Node messages and dispatches their binary payload codecs,
+//! preserving exact record boundaries and checked domain construction. It opens no transport
+//! and does not validate live Worker generations, leases, or operation authorization.
+
 use std::{
     io::{Read, Write},
     num::{NonZeroU16, NonZeroU64},

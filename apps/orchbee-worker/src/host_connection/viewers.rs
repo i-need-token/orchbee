@@ -1,3 +1,7 @@
+//! Owns bounded viewer attachment state, retained event delivery, and exact feedback matching
+//! for one Host connection. It routes validated records without decoding terminal cells,
+//! rendering output, or authorizing product target exposure.
+
 use std::{
     collections::{BTreeMap, VecDeque},
     io,

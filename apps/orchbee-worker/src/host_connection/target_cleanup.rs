@@ -1,3 +1,7 @@
+//! Prepares and commits retirement of a disposed physical target's viewer, controller, title,
+//! and color state, retaining bounded tombstones for late events. It does not dispose the Host
+//! terminal or publish cleanup before its owner confirms the physical outcome.
+
 use std::io;
 
 use orchbee_capability_node_protocol::{HostTerminalId, HostTerminalIdentity, OperationId};

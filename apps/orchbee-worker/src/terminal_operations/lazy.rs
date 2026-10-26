@@ -1,3 +1,7 @@
+//! Owns the managed lazy-Host loop, starting the verified Host only after an admitted launch
+//! and retaining its child and connection for subsequent operations. It does not adopt an
+//! existing Host or replay a launch whose delivery is uncertain.
+
 use super::{server_transport, unix_milliseconds};
 use crate::{
     agent_drain::AgentDrain,

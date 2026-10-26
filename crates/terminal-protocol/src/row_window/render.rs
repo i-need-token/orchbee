@@ -1,4 +1,7 @@
-//! Styled buffer rows require the whole nested projection and graphics snapshot.
+//! Admits styled OBRW rows only after validating their nested projection and complete graphics
+//! snapshot, exposing borrowed data. It does not decode image pixels, retain resources, or
+//! paint the window.
+
 use super::{Detail, TERMINAL_ROW_WINDOW_HEADER_BYTES, decode_header};
 use crate::{
     ProtocolError, ProtocolErrorCode, TerminalProjectionBuffer, TerminalRowWindowRoute,

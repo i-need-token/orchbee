@@ -1,3 +1,7 @@
+//! Defines the hard size, count, and geometry ceilings used by Terminal Host payload
+//! validators and carrier readers. These protocol bounds do not choose negotiated connection
+//! limits, queue capacity, or runtime scheduling policy.
+
 pub const TRANSPORT_ENVELOPE_HEADER_BYTES: usize = 64;
 pub const MAXIMUM_CONTROL_JSON_BYTES: usize = 64 * 1024;
 pub const MAXIMUM_INPUT_BYTES: usize = 1024 * 1024;

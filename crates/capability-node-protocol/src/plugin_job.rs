@@ -1,4 +1,7 @@
-//! Frozen plugin commands and generation-fenced, bounded execution receipts.
+//! Defines frozen plugin and configured-command operands and bounded generation-fenced
+//! execution receipts. It carries selected commands and observations without resolving
+//! configuration, executing a process, or owning retained history.
+
 use crate::{OperationId, ProtocolError, WorkerGeneration, WorkerId};
 
 pub const MAXIMUM_PLUGIN_OUTPUT_BYTES: usize = 64 * 1024;

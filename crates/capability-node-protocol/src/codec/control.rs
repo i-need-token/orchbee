@@ -1,3 +1,7 @@
+//! Encodes generation-fenced terminal controls and their closed results, using the bounded
+//! OBNQ carrier for opaque paste content. It validates wire fields without granting controller
+//! authority, interpreting terminal modes, or submitting input.
+
 use super::{PayloadReader, decode_geometry, encode_geometry};
 use crate::{
     CapabilityNodeMessage, ControlInput, ControlRejection, HostDefaultColors,

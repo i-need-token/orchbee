@@ -1,3 +1,7 @@
+//! Serializes lifecycle authorization, physical bindings, inspections, and mutation outcomes
+//! with closed binary tags. It does not verify a live lease, perform process inspection, or
+//! decide when a terminal may be terminated.
+
 use std::num::{NonZeroU16, NonZeroU64};
 
 use super::{PayloadReader, decode_host_identity, encode_host_identity};

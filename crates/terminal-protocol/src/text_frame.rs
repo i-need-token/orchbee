@@ -1,4 +1,7 @@
-//! Bounded OBTF text projection and typed progress; other optional extension contents are skipped.
+//! Decodes bounded OBTF text projections, interaction modes, and recognized command and
+//! progress extensions while skipping unrecognized optional extension contents. It does not
+//! apply frame history, render cells, or interpret Agent state.
+
 use crate::{
     MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode, TerminalFrameRoute,
     TerminalPixelGeometry, inspect_terminal_frame_route,

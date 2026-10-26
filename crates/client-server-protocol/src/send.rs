@@ -1,3 +1,8 @@
+//! Defines bounded ordered send records and validates the relationship between confirmed
+//! prefix progress, cleanup status, and the admitted physical target. Queue acceptance is
+//! represented without promising child execution, atomic delivery, or permission to replay
+//! partial or unknown effects.
+
 use crate::{HostEpoch, HostTerminalId, ProtocolError, RequestId, SessionId, TerminalId, WorkerId};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::num::NonZeroU64;

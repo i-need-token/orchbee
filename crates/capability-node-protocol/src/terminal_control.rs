@@ -1,3 +1,7 @@
+//! Defines generation-fenced controller requests, bounded input and color values, and
+//! admissible action-result pairs. It carries an authorization claim without checking live
+//! Worker, viewer, controller, or capability state.
+
 use crate::{OperationId, ProtocolError, TerminalPixelGeometry, WorkerGeneration, WorkerId};
 use std::num::NonZeroU64;
 pub const MAXIMUM_CONTROL_INPUT_BYTES: usize = 4096;

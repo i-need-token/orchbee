@@ -1,4 +1,7 @@
-//! Application screen mutations use control JSON, never a synthetic PTY stream.
+//! Defines closed application clear and reset controls with exact attachment or terminal
+//! targets and accepted revision facts. It carries screen mutations as control messages
+//! without synthesizing PTY input or applying the mutation.
+
 use crate::{
     AttachmentId, MessageRole, ProtocolError, ProtocolErrorCode, TerminalId,
     control::{decode_wire, preflight_json, serialize_wire},

@@ -1,3 +1,7 @@
+//! Validates connection-control JSON, negotiated limit values, and typed failures, including
+//! duplicate-member and numeric refinements reused by other controls. Handshake transitions,
+//! feature policy, and connection lifetime remain with the transport owner.
+
 use std::{collections::HashSet, fmt, marker::PhantomData};
 
 use serde::{

@@ -1,3 +1,7 @@
+//! Defines attachment-scoped controller actions, bounded input values, and their admissible
+//! result classes, including the exact resize echo. These values carry requested authority;
+//! they neither grant a controller nor validate live attachment ownership.
+
 use crate::{ControllerId, Geometry, ProtocolError, RequestId, ViewerId};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::num::NonZeroU64;

@@ -1,3 +1,7 @@
+//! Defines generation-fenced viewer controls, opaque record outcomes, and admissible response
+//! classes for attachment-scoped reads and feedback. It neither decodes terminal presentation
+//! nor owns attachment lifetime or live target admission.
+
 use std::num::NonZeroU64;
 
 use crate::{HostEpoch, HostTerminalId, OperationId, WorkerGeneration, WorkerId};

@@ -1,3 +1,7 @@
+//! Encodes and validates bounded attachment-scoped process samples, preserving unavailable
+//! process facts and UTF-16 text limits. It does not query the operating system or turn
+//! sampled process identity into control authority.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

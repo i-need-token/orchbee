@@ -1,3 +1,7 @@
+//! Performs deadline-bounded Host round trips while draining interleaved events and
+//! classifying failure before or after possible delivery. It owns exchange I/O, not operation
+//! authorization, effect replay, or Host process lifetime.
+
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{

@@ -1,3 +1,7 @@
+//! Fences controller requests and translates admitted acquire, takeover, input, resize, and
+//! release operations into exact Host exchanges. It maintains connection grant state without
+//! deciding Server-side Client authority or replaying uncertain effects.
+
 use crate::{
     host_connection::{HostBrokerConnection, exchange},
     worker_identity::fresh_identity,

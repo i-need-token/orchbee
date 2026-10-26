@@ -1,3 +1,7 @@
+//! Encodes and decodes Agent Drain requests and bounded event or gap pages with exact sequence
+//! and watermark fields. Queue eviction, acknowledgement advancement, and Agent interpretation
+//! remain with runtime owners.
+
 use std::num::NonZeroU64;
 
 use super::{PayloadReader, decode_host_identity, encode_host_identity};

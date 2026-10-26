@@ -1,4 +1,7 @@
-//! Closed OBCN editor preference records reuse the bounded literal launch-selection codec.
+//! Carries closed editor-preference requests and outcomes using the bounded literal
+//! launch-selection encoding. It resolves no editor preference and creates no source document
+//! or editor process.
+
 use super::{PayloadReader, decode_launch_selection, encode_launch_selection};
 use crate::{
     OperationId, ProtocolError, TerminalEditorCommandOutcome as Outcome,

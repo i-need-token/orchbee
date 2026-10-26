@@ -1,3 +1,7 @@
+//! Validates attachment-scoped bell, clipboard, metadata, and application-signal events with
+//! bounded text and sequence fields. It reports requested effects and observations without
+//! ringing a bell, writing a clipboard, or interpreting Agent state.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

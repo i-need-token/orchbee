@@ -1,3 +1,7 @@
+//! Carries bounded terminal defaults and per-terminal configuration updates with Host-issued
+//! revisions and typed acknowledgements. It validates the wire values without persisting
+//! settings or applying configuration to a terminal.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

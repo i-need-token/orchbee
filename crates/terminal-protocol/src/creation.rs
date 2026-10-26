@@ -1,3 +1,8 @@
+//! Admits closed terminal creation payloads with bounded literal launches, profiles,
+//! environment overlays, and source-fenced scrollback capture. It validates the request
+//! representation without resolving executables, inspecting a source terminal, or launching a
+//! process.
+
 use std::{collections::HashSet, num::NonZeroU64};
 
 use serde::{Deserialize, Serialize};

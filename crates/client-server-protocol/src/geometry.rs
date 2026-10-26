@@ -1,3 +1,7 @@
+//! Admits terminal dimensions only when scalar, cell-count, pixel-extent, and paired
+//! cell-pixel bounds hold, including through JSON deserialization. It validates requested
+//! geometry without observing a display or resizing a terminal.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, de};

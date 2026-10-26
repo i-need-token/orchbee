@@ -1,3 +1,7 @@
+//! Defines and validates attachment capability, detach, and resize-lease control messages with
+//! canonical identities and revisions. It carries capability changes without admitting a
+//! connection, retaining attachments, or deciding who may acquire a lease.
+
 use std::num::NonZeroU64;
 
 use serde::{Deserialize, Serialize};

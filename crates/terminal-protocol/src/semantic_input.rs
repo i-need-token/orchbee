@@ -1,3 +1,7 @@
+//! Encodes and validates binary semantic key, text, mouse, focus, and paste payloads while
+//! preserving their attachment capability prefix. Terminal mode interpretation, PTY byte
+//! generation, and input admission remain Host responsibilities.
+
 use std::num::NonZeroU64;
 
 use crate::{

@@ -1,3 +1,7 @@
+//! Encodes retained worktree read-job actions and bounded start, poll, and cancellation
+//! results with closed tags. Job identity, thread lifetime, Git execution, and cancellation
+//! settlement remain with the Worker.
+
 use std::num::NonZeroU64;
 
 use super::PayloadReader;

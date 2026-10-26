@@ -1,3 +1,7 @@
+//! Defines bounded replay pages of physical terminal application signals and explicit gaps,
+//! validating contiguous coverage and queue watermarks. It carries the connection-owned
+//! queue's observations without retaining that queue or interpreting Agent sessions.
+
 use std::num::NonZeroU64;
 
 use crate::{HostTerminalIdentity, ProtocolError, WorkerGeneration, WorkerId};

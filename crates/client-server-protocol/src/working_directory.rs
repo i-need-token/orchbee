@@ -1,3 +1,7 @@
+//! Validates bounded NUL-free absolute path syntax for supported Unix and Windows wire
+//! spellings without consulting the current platform. Existence, traversal safety, and
+//! permission to launch in that directory belong to the execution owner.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, de};

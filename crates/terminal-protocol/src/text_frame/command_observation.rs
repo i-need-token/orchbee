@@ -1,4 +1,7 @@
-//! Closed shell correlation and retained-row origin facts in OBTF extension 5.
+//! Decodes the closed OBTF shell-observation extension into Host row-origin, readiness, and
+//! correlated-command facts. It does not infer a command from screen text or decide whether a
+//! Client operation completed.
+
 use super::{Reader, error};
 use crate::{ProtocolError, ProtocolErrorCode};
 use std::num::NonZeroU64;

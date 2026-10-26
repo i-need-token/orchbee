@@ -1,3 +1,7 @@
+//! Reads and writes one Server protocol record under bounded deadlines while continuing to
+//! consume admitted Host events. It owns transport progress without dispatching requests,
+//! issuing authorization, or recovering a lost connection.
+
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{

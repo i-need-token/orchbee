@@ -1,4 +1,7 @@
-//! OBPJ v1 uses a bounded u32 body for argv and captured output, independently of OBCN.
+//! Encodes bounded plugin and configured-command job operands and captured-output receipts in
+//! OBPJ records. It preserves job and Worker identities without selecting commands, spawning
+//! processes, or retaining job history.
+
 use super::{CapabilityNodeMessage, PayloadReader};
 use crate::{
     OperationId, ProtocolError, ReadMessageError, WorkerGeneration, WorkerId,

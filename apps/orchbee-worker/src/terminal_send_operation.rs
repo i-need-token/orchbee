@@ -1,3 +1,7 @@
+//! Executes an exact-physical-target send through a transient input attachment, retaining
+//! confirmed prefix progress and an independent bounded detach outcome. It does not claim
+//! child execution, atomicity, or permission to replay accepted or uncertain records.
+
 mod stroke;
 
 use orchbee_local_ipc::LocalStream as UnixStream;

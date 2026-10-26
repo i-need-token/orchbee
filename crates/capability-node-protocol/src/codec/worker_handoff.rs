@@ -1,4 +1,6 @@
-//! Closed fixed-size handoff records, separate from ordinary Worker enrollment.
+//! Encodes fixed-size managed-Worker handoff records with explicit ticket and endpoint fields.
+//! It does not enroll a Worker, authenticate a ticket, or transfer transport ownership.
+
 use super::PayloadReader;
 use crate::{
     OperationId, ProtocolError, WorkerGeneration, WorkerHandoffAction, WorkerHandoffId,
