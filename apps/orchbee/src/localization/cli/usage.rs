@@ -325,7 +325,6 @@ impl Locale {
             (Self::EnUs, ExpectedValue::SendKey) => "one of the accepted '--key' names",
             (Self::ZhCn, ExpectedValue::SendKey) => "'--key' 接受的按键名之一",
             #[cfg(windows)]
-            #[cfg(windows)]
             (Self::EnUs, ExpectedValue::MachineId) => {
                 "a nonzero 32-character lowercase hexadecimal machine profile ID"
             }

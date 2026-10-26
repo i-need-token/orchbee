@@ -170,7 +170,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// One board row's canonical semantic status, rendered verbatim —
     /// the board localizes the server's verdict, never reinterprets it.
     #[cfg(any(unix, windows))]
@@ -219,7 +218,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// The board body's line for a non-ready read state.
     #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_read_line(
@@ -241,7 +239,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// A jump refusal's board notice.
     #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_notice(
@@ -260,7 +257,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// The sidebar's one-line Agent summary: the last *completed* read's
     /// count plus its completeness and age marks — `None` input means no
     /// completed read ever ran and the line must not exist at all.
@@ -289,7 +285,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     #[cfg(windows)]
     pub(crate) fn agent_start_phase(
         self,
