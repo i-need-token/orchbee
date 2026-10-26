@@ -96,8 +96,8 @@ Windows TUI 在运行中读取已保存目录并提供机器选择器，按 Ctrl
 Client 事实传给通道端口。端口在原有期限内保留可执行文件定位、中继创建、原生准入、
 最终取消检查和守卫转移，不会重复探测。
 
-持续传输所有者创建私有同用户本地管道，为原生 Client 所需各条通道提供有界 SSH
-字节中继。SSH 认证远端账户；已接纳的精确远端程序验证安装 cohort，只连接所选
+持续传输所有者创建私有同用户本地管道，为每条物理原生 Client 连接提供有界 SSH
+字节中继；逻辑 lane 共用该已准入 carrier。SSH 认证远端账户；已接纳的精确远端程序验证安装 cohort，只连接所选
 已有 Session 的同用户管道。原生 Client 接纳及应用帧不变地经过此通道，不伪造已接纳
 代数，不绕过 Server cohort 检查。远端终端输入、布局、元数据和控制仍由原有模块负责。
 
@@ -527,4 +527,4 @@ null/unknown 区分、样式／Unicode 绘制及导航几何。整套 cohort 与
 
 Agent 选择器显示指定名称，并在存在不同的任务标题时一并显示。详情为工作区、提供商、标题和自定义令牌分别保留行；存在远程配置时再增加机器上下文，同时保留复制 ID 操作。模式栏使用共用的当前状态轨道，使每个模式都有独立的可见标签和命中区域。
 
-<!-- documentation-pairing: english-sha256=afd50840d691ede556f55617e6ef41debd76b89958e62ecb49cb8ab33ebdcb4f zh-cn-sha256=dfbd11ed45dc8b60fe368371911cd758924d68653356c2c0aaf28d4c7089ddba -->
+<!-- documentation-pairing: english-sha256=8646ee23607f50a657a89b6bd1cd6f6b8d670eb1862ee1ebb16ef19f2f24a1c9 zh-cn-sha256=6c85a1a6237583603ab00f4f42d7b52f1f67099ea3d03dc6f5186dbefcfafda8 -->

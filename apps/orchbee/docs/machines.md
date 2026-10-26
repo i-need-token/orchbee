@@ -127,7 +127,8 @@ lookup, relay creation, native admission, its final cancellation check and guard
 the original deadline; it never repeats the probe.
 
 The persistent transport owner creates a private, same-user local pipe endpoint
-and a bounded SSH byte relay for each required native Client lane. SSH authenticates
+and a bounded SSH byte relay for each physical native Client connection. Logical lanes
+share that admitted carrier. SSH authenticates
 the remote account; the exact admitted remote executable verifies its installed
 cohort and opens only the selected existing Session's same-user pipe. Native Client
 admission and application frames pass unchanged through that stream. Neither end
