@@ -1,8 +1,10 @@
-//! Projects untrusted text into terminal-safe display strings with raw-to-visible cursor
-//! boundaries, display-width limits, and distinct chrome filtering. It does not mutate the
+//! Projects untrusted text into terminal-safe display strings through visible escaping or chrome
+//! filtering, with raw-to-visible cursor boundaries and display-width limits. It does not mutate
 //! source text or parse canonical protocol identities from rendered labels.
 
 use std::borrow::Cow;
+mod escape;
+pub(crate) use escape::{escape, quoted, unquoted};
 pub(crate) mod line_editor;
 
 use ratatui::{

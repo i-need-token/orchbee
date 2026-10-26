@@ -173,12 +173,12 @@ pub(crate) fn render(
     if area.width < 8 || area.height < 3 {
         return None;
     }
-    let title = crate::cli::escape::escape(&visible.message.title);
+    let title = crate::terminal_text::escape(&visible.message.title);
     let body = visible
         .message
         .body
         .as_deref()
-        .map(crate::cli::escape::escape);
+        .map(crate::terminal_text::escape);
     let width = crate::terminal_text::display_width(&title)
         .max(
             body.as_deref()
