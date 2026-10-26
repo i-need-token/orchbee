@@ -56,11 +56,20 @@ compdef _orchbee orchbee
 }
 
 // MSYS Bash may discard literal CR while reading a script, even inside quotes.
-// Escapes preserve the authority's exact Unicode character set on every host.
+// Fixed three-digit UTF-8 byte escapes preserve the exact character set on
+// Bash 3.2 as well; Unicode escape syntax requires a newer Bash interpreter.
+// Separate quoted words let byte locales compare whole encoded characters.
 fn quoted_characters(value: &str) -> String {
-    let escaped = value
+    value
         .chars()
-        .map(|character| format!("\\U{:08x}", u32::from(character)))
-        .collect::<String>();
-    format!("$'{escaped}'")
+        .map(|character| {
+            let escaped = character
+                .to_string()
+                .bytes()
+                .map(|byte| format!("\\{byte:03o}"))
+                .collect::<String>();
+            format!("$'{escaped}'")
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }

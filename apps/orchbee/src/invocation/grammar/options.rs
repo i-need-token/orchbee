@@ -2344,7 +2344,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         joined: true,
         help: None,
         apply: |options, value, _| {
-            options.session = Some(value);
+            options.agent_session = Some(value);
             Ok(())
         },
     },

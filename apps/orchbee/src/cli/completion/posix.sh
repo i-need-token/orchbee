@@ -21,14 +21,21 @@ __orchbee_limit() {
   done
 }
 __orchbee_string() {
-  local key=$1 value=$2 allowed minimum maximum whitespace=__ORCHBEE_TRIM_CHARACTERS__
+  local key=$1 value=$2 allowed minimum maximum previous character
   __orchbee_meta "minimum|$key"; ((${#reply[@]})) || return 0
   minimum=${reply[0]}
   __orchbee_meta "maximum|$key"; maximum=${reply[0]-}
   __orchbee_meta "trim|$key"
   if ((${#reply[@]})); then
-    value="${value#"${value%%[!$whitespace]*}"}"
-    value="${value%"${value##*[!$whitespace]}"}"
+    # Match whole encoded characters even when the caller uses a byte locale.
+    while :; do
+      previous=$value
+      for character in __ORCHBEE_TRIM_CHARACTERS__; do
+        value="${value#"$character"}"
+        value="${value%"$character"}"
+      done
+      [[ $value == "$previous" ]] && break
+    done
   fi
   ((${#value} >= minimum)) || return 1
   [[ -z $maximum ]] || ((${#value} <= maximum)) || return 1
