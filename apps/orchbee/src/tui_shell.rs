@@ -229,15 +229,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), TuiFailure> {
     run_with_client(locale, None, mouse)
 }
 
-#[cfg(all(test, unix))]
-pub(crate) fn run_connected(
-    locale: Locale,
-    client: crate::local_client::LocalClient,
-    mouse: bool,
-) -> Result<(), TuiFailure> {
-    run_with_client(locale, Some(client), mouse)
-}
-
 fn run_with_client(
     locale: Locale,
     connection: Option<crate::local_client::LocalClient>,
