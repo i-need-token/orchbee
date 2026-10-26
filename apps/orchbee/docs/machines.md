@@ -33,6 +33,11 @@ committed receipt.
 
 ## Remote preparation
 
+The app-private `machine_ssh` owner exposes executable discovery and bounded process execution
+through the same typed ports for CLI preparation and TUI admission. Each workflow retains its
+own readiness and submission facts. Windows ports keep the system OpenSSH and process owner;
+Unix ports return `SavedMachines` unsupported before executable lookup or process creation.
+
 Add uses the OS OpenSSH executable and a 60-second total deadline. Batch mode,
 strict host-key checking, no forwarding, bounded output, and an owned process
 Job apply. Password prompts and new host trust must first be handled through

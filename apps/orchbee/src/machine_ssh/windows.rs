@@ -1,7 +1,7 @@
 //! Windows OpenSSH discovery and process ownership.
 use super::Output;
 use std::{io, path::PathBuf, process::Command, time::Instant};
-pub(super) fn execute(
+pub(crate) fn execute(
     command: Command,
     deadline: Option<Instant>,
     interrupted: impl FnMut() -> io::Result<bool>,

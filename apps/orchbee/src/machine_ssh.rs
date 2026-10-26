@@ -119,8 +119,8 @@ pub(crate) fn probe(
     deadline: Instant,
     interrupted: impl FnMut() -> io::Result<bool>,
 ) -> io::Result<Client> {
-    let ssh = platform::executable()?;
-    let result = platform::execute(
+    let ssh = executable()?;
+    let result = execute(
         command(
             &ssh,
             &draft.target,
@@ -188,8 +188,7 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "machine_ssh/unix.rs"]
 mod platform;
-#[cfg(windows)]
-pub(crate) use platform::executable;
+pub(crate) use platform::{executable, execute};
 
 use orchbee_local_runtime::{CommandFailure as Failure, CommandOutput as Output};
 

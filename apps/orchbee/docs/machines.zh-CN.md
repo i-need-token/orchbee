@@ -29,6 +29,10 @@ IPv6。拒绝密码和 shell 元字符。会话名称使用原生 Windows Sessio
 
 ## 远端准备
 
+应用私有的 `machine_ssh` 所有者通过同一组类型化端口，向 CLI 准备流程与 TUI 准入流程提供
+可执行文件定位和有界进程执行。每条流程保留自己的就绪与提交事实。Windows 端口保留系统
+OpenSSH 与进程所有权；Unix 端口在定位可执行文件或创建进程之前返回 `SavedMachines` 不支持。
+
 Add 使用系统 OpenSSH 可执行文件及 60 秒总期限，启用批处理模式、严格主机密钥
 检查、禁止转发、有界输出及进程 Job 所有权。密码提示和新主机信任应先通过
 OpenSSH 处理。SSH 诊断不复制到机器 JSON 或产品错误中。Windows 远端命令
@@ -514,4 +518,4 @@ null/unknown 区分、样式／Unicode 绘制及导航几何。整套 cohort 与
 
 Agent 选择器显示指定名称，并在存在不同的任务标题时一并显示。详情为工作区、提供商、标题和自定义令牌分别保留行；存在远程配置时再增加机器上下文，同时保留复制 ID 操作。模式栏使用共用的当前状态轨道，使每个模式都有独立的可见标签和命中区域。
 
-<!-- documentation-pairing: english-sha256=e41d42e10a2f4d5b8e88daba8ee83fb8851b5f4d87130506b29529a87ae53e98 zh-cn-sha256=2a64eee459e16e845253e335f985c703ecf6c961919bb460d231947eb88bf3bc -->
+<!-- documentation-pairing: english-sha256=fcb7f0decce22b02e6519d3ce42b89481e8faee16035a48034e775d5e30e9016 zh-cn-sha256=c50cec42ef8a77b3fc2d3f402fcff7004c5119f5ba34dfb67e4f03a14dc1a2ec -->
