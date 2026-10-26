@@ -29,6 +29,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::AgentViewSpec
         | Capability::ChannelPreference
         | Capability::Events
+        | Capability::SchemaPublication
         | Capability::AgentProjection
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation

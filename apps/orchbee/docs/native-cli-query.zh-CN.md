@@ -2266,7 +2266,8 @@ Windows `project close-all <target> --confirm` 显式关闭一个 Project 捕获
 
 解析器接受非空、不超过 4,096 UTF-8 字节的字面文件路径，在副作用前校验全部参数，不展开变量或前导波浪号。相对路径以调用进程目录为基准。拒绝 Windows 设备名、备用数据流和含糊的盘符相对路径。此命令不选择或启动 Session，不读取运行时配置，也不从网络获取 schema。本次不新增 Mac/Linux 文件导出运行时。
 
-Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的有界文档。未知 ID 保留现有 not-found 结果且不创建内容。Windows 导出器解析目标，拒绝已有的非普通文件或重解析目标，以独占方式创建随机同目录临时文件 `.orchbee-schema-<nonce>.tmp`，写入并同步完整文档，关闭句柄，再通过一次重命名发布。允许替换已有普通目标文件；不创建父目录，不回退为截断写入，不自动重试。
+Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的有界文档。未知 ID 保留现有 not-found 结果且不创建内容。共享发布流程解析目标，通过 Windows 元数据端口拒绝已有的非普通文件或重解析目标，以独占方式创建随机同目录临时文件 `.orchbee-schema-<nonce>.tmp`，写入并同步完整文档，关闭句柄，再通过一次重命名发布。允许替换已有普通目标文件；不创建父目录，不回退为截断写入，不自动重试。
+Windows 端口保留临时文件的独占打开模式；其他 host 在同样的 schema 准备之后返回平台不支持，不解析文件目标、不生成随机临时名，也不执行文件操作。
 
 | 阶段                   | 结果与归属                                                          |
 | ---------------------- | ------------------------------------------------------------------- |
@@ -2504,4 +2505,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=947276c18c5ecfecce5318275ea1baeb71ed49509f1f4d96e20bb83965f66baf zh-cn-sha256=e0add49cdd83b7b44c9cebcfa34c9215eeca6f272c0ac30acadf13b6f96ab9d5 -->
+<!-- documentation-pairing: english-sha256=cb16707c9ce091e147006e901139e450e9a1c8a28319a63e3c2297b2bdfffb4f zh-cn-sha256=9cdbd3779891bfaf3041a89729c80b929226610682455daaf6b21e25a7cbc7a7 -->
