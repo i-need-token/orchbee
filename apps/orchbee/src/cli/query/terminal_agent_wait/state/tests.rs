@@ -346,7 +346,8 @@ fn physical_wait_documents_reject_fabricated_fields_and_incomplete_client_views(
         .unwrap()
         .remove("sequence");
     assert!(!validator.is_valid(&doc));
-    doc["result"].as_object_mut().unwrap().remove("clientView");
+    doc["result"]["clientView"] = serde_json::Value::Null;
+    assert!(validator.is_valid(&doc));
     doc["result"]["session"] = json!({});
     assert!(!validator.is_valid(&doc));
     let schema: serde_json::Value = serde_json::from_str(include_str!(

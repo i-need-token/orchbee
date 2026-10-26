@@ -278,7 +278,7 @@ fn caller_explicit_and_client_targets_preserve_precedence_without_mutating_contr
                 );
                 if mode < 3 {
                     assert!(doc["result"]["client"].is_null());
-                    assert!(doc["result"]["panel"].get("focused").is_none());
+                    assert_eq!(doc["result"]["panel"].get("focused"), Some(&Value::Null));
                     assert!(doc["result"]["panel"]["scroll"].is_null());
                     assert_eq!(
                         doc["result"]["panel"]["scrollObservation"]["state"],
