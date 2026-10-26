@@ -8,7 +8,7 @@ Panel 命令族使用位置 Panel 或 `--current`。Agent 目标额外接受 `--
 
 Windows、Linux 和 macOS 的语法与可发现性完全一致。不支持的执行在两种语言下均返回 `stage: "platform"`、`reason: "unsupported-platform"`、退出码 `4`。解析请求保留 Agent wait 条件／超时的省略意图及不透明列表游标；现有后端各自保留默认值、游标编码与观察行为。Unix Workspace 创建对已支持请求继续使用原有 Workbench create/launch 适配。不恢复任何已退役参数、后缀选择器、环境变量回退或配置导入。
 
-Agent 启动、已保存机器的管理与中继、配置报告的准备、结算和展示均归共享 CLI 所有者负责。不可用操作的能力准入先于环境读取、信号注册、连接和持久化。具名原生端口保留 Windows 的中断仲裁、SSH 进程所有权及有界输入获取；Unix 拒绝不改变现有已支持的查询或配置检查结果。
+Agent 启动、已保存机器的管理与中继、配置报告的准备、结算和展示均归共享 CLI 所有者负责。不可用操作的能力准入先于环境读取、信号注册、连接和持久化。具名原生端口保留 Windows 的中断仲裁、SSH 进程所有权及有界输入获取；Unix 拒绝不改变现有已支持的查询或配置检查结果。配置检查和 Server 诊断共用分类与报告组装；原生端口保留路径编码、scope 发现及元数据／私有激活观察。Linux 和 Windows 保留既有观察与字段支持，macOS 则在环境或文件系统检查前拒绝。
 
 Agent 投影读取、精确终端元数据、Client 注意力解释及保留的 Client 交换共用协议与渲染所有者。借用原生中断不会再次注册处理器，也不会替换 Unix 取消机制。投影能力准入先于副作用；Unix canonical Agent 读取保留当前选择器及 `AgentListCursor`，投影后端则解析自己的游标。
 
@@ -2505,4 +2505,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=e2da535fdee00c47d9949ca2003c67e77e2ab58fb33ec2fe654044d9e39ecac3 zh-cn-sha256=4d29f97b8430ff6338fb290d42cb8a5c72f11cf7fa40b58d12e0a5902d3dac62 -->
+<!-- documentation-pairing: english-sha256=d8a397776ac0385317f56d94d17a5b0f3b4fa5d2d70d56bbb04869005386c9c1 zh-cn-sha256=5524180b5768939b216cab72e3d22699cba457ec4138abb89e73ed966c2405dc -->

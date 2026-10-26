@@ -10,6 +10,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
+        | Capability::RuntimeInspection
             if cfg!(target_os = "linux") =>
         {
             Ok(())
@@ -20,6 +21,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::AgentNames
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
+        | Capability::RuntimeInspection
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus

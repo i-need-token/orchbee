@@ -1,15 +1,15 @@
-//! `server diagnose`: bounded read-only observation of the implicit per-euid
-//! local Session runtime scope. It inspects a finite set of known paths through
-//! the rendezvous' own validated directory descriptor — no endpoint is
+//! `server diagnose`: bounded read-only metadata and private-runtime reports.
+//! Native ports preserve the host scope and the finite pathname/descriptor observations.
+//! The shared workflows only interpret those observed facts — no endpoint is
 //! connected, no lock file is created, no marker or socket is touched, and
 //! no repair is attempted or implied. Every row is a pathname or descriptor
 //! fact at its own observation instant: `held` means some owner held the
 //! lifetime lock then, never that a Session or any process is alive; `absent`
 //! is a pathname fact, never proof that an execution ended.
 
-#[cfg(target_os = "linux")]
-use std::path::{Path, PathBuf};
-#[cfg(target_os = "linux")]
+use std::path::Path;
+#[cfg(all(test, target_os = "linux"))]
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
@@ -18,12 +18,9 @@ use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-use windows::collect;
+mod native;
+mod private;
 
-#[cfg(target_os = "linux")]
 use orchbee_local_runtime::{
     EntryKind, EntryObservation, ModeCheckedLocalSessionRendezvous, RendezvousError,
     SessionLifetimeObservation, SessionScope,
@@ -33,30 +30,23 @@ use orchbee_local_runtime::{LockAttempt, LockKind};
 
 /// A cooperative budget checked between bounded filesystem operations —
 /// not a hard wall promise on synchronous filesystems.
-#[cfg(target_os = "linux")]
 const DIAGNOSE_BUDGET: Duration = Duration::from_secs(5);
 
 /// The advisory emitted when a valid activation marker was observed.
-#[cfg(target_os = "linux")]
 const ADVISORY_ACTIVATION_RECORDED: &str = "activation-recorded";
 /// The advisory emitted when a valid client or worker socket residue was
 /// observed — the other half of the current activation predicate.
-#[cfg(target_os = "linux")]
 const ADVISORY_SOCKET_RESIDUE: &str = "socket-residue";
 
 /// The collected diagnose product: the machine envelope plus the row table
 /// and advisory tokens the text renderer shares with it.
 pub(crate) struct DiagnoseDocument {
-    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     pub(crate) envelope: Value,
-    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     pub(crate) rows: Vec<(String, Map<String, Value>)>,
-    #[cfg_attr(not(any(target_os = "linux", windows)), allow(dead_code))]
     pub(crate) advisories: Vec<&'static str>,
 }
 
 /// Platform-specific observations share one machine shape. Text keeps its concise rows.
-#[cfg(any(target_os = "linux", windows))]
 fn complete_rows(value: &mut Value) {
     let Some(object) = value.as_object_mut() else {
         return;
@@ -77,17 +67,7 @@ fn complete_rows(value: &mut Value) {
             "activation",
             "stopRequestId",
         ] {
-            let unsupported = if cfg!(windows) {
-                matches!(
-                    key,
-                    "pathBytesHex" | "kind" | "ownerMatch" | "mode" | "size" | "linkCount"
-                )
-            } else {
-                matches!(
-                    key,
-                    "pathUtf16" | "private" | "activation" | "stopRequestId"
-                )
-            };
+            let unsupported = native::unsupported_field(key);
             object.entry(key.to_owned()).or_insert_with(|| {
                 if unsupported {
                     json!({"kind":"unsupported"})
@@ -163,7 +143,6 @@ pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
 /// The expected shape of one finite entry — the caller's verdict table over
 /// the raw `EntryObservation` facts, mirroring the checks the activation
 /// predicate itself performs on the same names.
-#[cfg(target_os = "linux")]
 #[derive(Clone, Copy, PartialEq)]
 enum Expect {
     Socket,
@@ -174,7 +153,6 @@ enum Expect {
     Directory,
 }
 
-#[cfg(target_os = "linux")]
 impl Expect {
     fn matches(self, kind: EntryKind) -> bool {
         match self {
@@ -195,12 +173,10 @@ impl Expect {
 /// The `state` fact one built row carries — for token comparisons only;
 /// callers that need the `&'static` literal itself reuse the same statics
 /// they built the row from.
-#[cfg(target_os = "linux")]
 fn row_state(row: &Map<String, Value>) -> &str {
     row.get("state").and_then(Value::as_str).unwrap_or("")
 }
 
-#[cfg(target_os = "linux")]
 fn state_row(state: &'static str, reason: Option<&'static str>) -> Map<String, Value> {
     let mut row = Map::from_iter([("state".to_owned(), json!(state))]);
     if let Some(reason) = reason {
@@ -212,7 +188,6 @@ fn state_row(state: &'static str, reason: Option<&'static str>) -> Map<String, V
 /// Map one raw entry observation onto the closed row vocabulary against
 /// this row's expectation: facts are always reported; the verdict only
 /// arbitrates `known`/`unsafe`/`absent`/`uninspectable`.
-#[cfg(target_os = "linux")]
 fn entry_row(observation: std::io::Result<EntryObservation>, expect: Expect) -> Map<String, Value> {
     match observation {
         Ok(EntryObservation::Absent) => state_row("absent", None),
@@ -266,7 +241,6 @@ fn entry_row(observation: std::io::Result<EntryObservation>, expect: Expect) -> 
 /// The host endpoint row: a `PermissionDenied` from the rendezvous means
 /// the parent Host directory itself was unadmitted, so the row is honestly
 /// `uninspectable` with `unsafe-parent` — never traversed, never guessed.
-#[cfg(target_os = "linux")]
 fn host_endpoint_row(observation: std::io::Result<EntryObservation>) -> Map<String, Value> {
     match observation {
         Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
@@ -276,7 +250,6 @@ fn host_endpoint_row(observation: std::io::Result<EntryObservation>) -> Map<Stri
     }
 }
 
-#[cfg(target_os = "linux")]
 fn lifetime_row(observation: std::io::Result<SessionLifetimeObservation>) -> Map<String, Value> {
     match observation {
         Ok(SessionLifetimeObservation::Absent) => state_row("absent", None),
@@ -290,7 +263,6 @@ fn lifetime_row(observation: std::io::Result<SessionLifetimeObservation>) -> Map
 /// The row for a descendant under an unadmitted runtime directory: the
 /// parent verdict selects `unsafe-parent` (unsafe to traverse) versus
 /// `parent-unavailable` (absent, invalid, or itself uninspectable).
-#[cfg(target_os = "linux")]
 fn descendant_row(parent_unsafe: bool) -> Map<String, Value> {
     state_row(
         "uninspectable",
@@ -305,7 +277,6 @@ fn descendant_row(parent_unsafe: bool) -> Map<String, Value> {
 /// Classify a rendezvous validation failure onto the runtime-directory row:
 /// typed states and reasons only — an inspection failure is a fact row,
 /// never an engine failure merely because validation refused the path.
-#[cfg(target_os = "linux")]
 fn classify_directory(
     error: &RendezvousError,
 ) -> (Map<String, Value>, &'static str, Option<&'static str>, bool) {
@@ -341,7 +312,6 @@ fn classify_directory(
 /// One bounded observation step: while budget remains the observation runs;
 /// once it is spent every later row closes `uninspectable`/`deadline` and
 /// the document reports partial coverage.
-#[cfg(target_os = "linux")]
 fn step(
     deadline: Instant,
     exhausted: &mut bool,
@@ -358,7 +328,6 @@ fn step(
 /// The conditional advisory vocabulary: each token fires only on the same
 /// facts the current activation predicate reads — a fully valid marker, or
 /// a fully valid client/worker socket leaf.
-#[cfg(target_os = "linux")]
 fn advisories(marker: &str, client: &str, worker: &str) -> Vec<&'static str> {
     let mut advisories = Vec::new();
     if marker == "known" {
@@ -370,11 +339,17 @@ fn advisories(marker: &str, client: &str, worker: &str) -> Vec<&'static str> {
     advisories
 }
 
-#[cfg(target_os = "linux")]
 fn collect() -> Result<DiagnoseDocument, Failure> {
-    let base = std::env::var_os("ORCHBEE_RUNTIME_BASE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
+    super::execution::admit(super::execution::Capability::RuntimeInspection)?;
+    if native::PRIVATE_RUNTIME {
+        private::collect()
+    } else {
+        collect_metadata()
+    }
+}
+
+fn collect_metadata() -> Result<DiagnoseDocument, Failure> {
+    let base = native::metadata_base().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let deadline = Instant::now()
         .checked_add(DIAGNOSE_BUDGET)
         .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
@@ -383,9 +358,9 @@ fn collect() -> Result<DiagnoseDocument, Failure> {
 
 /// The bounded collection itself, split from environment reads so tests can
 /// drive every row class against a scratch runtime base and a past deadline.
-#[cfg(target_os = "linux")]
 fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failure> {
-    let scope_text = format!("orchbee-native-{}", nix::unistd::geteuid().as_raw());
+    let scope_text =
+        native::metadata_scope().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
         SessionScope::parse(&scope_text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope_directory = base.join(&scope_text);
@@ -451,33 +426,54 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
 
             let mut exhausted = false;
             let marker_row = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_activation_marker(), Expect::MarkerFile)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::Marker),
+                    Expect::MarkerFile,
+                )
             });
             let activation_row = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_activation_lock(), Expect::RegularFile)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::ActivationLock),
+                    Expect::RegularFile,
+                )
             });
             let lifetime = step(deadline, &mut exhausted, || {
                 lifetime_row(session.observe_session_lifetime_lock())
             });
             let client_row = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_client_socket(), Expect::Socket)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::ClientSocket),
+                    Expect::Socket,
+                )
             });
             let worker_row = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_worker_socket(), Expect::Socket)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::WorkerSocket),
+                    Expect::Socket,
+                )
             });
             let pending_row = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_client_pending_socket(), Expect::Socket)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::ClientPendingSocket),
+                    Expect::Socket,
+                )
             });
             let observation_row = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_agent_observation_socket(), Expect::Socket)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::AgentObservationSocket),
+                    Expect::Socket,
+                )
             });
             // The host endpoint is observed before the host directory row so
             // its parent admission re-check precedes the traversal.
             let host_endpoint = step(deadline, &mut exhausted, || {
-                host_endpoint_row(session.observe_host_endpoint())
+                host_endpoint_row(native::observe_entry(&session, native::Entry::HostEndpoint))
             });
             let host_scope = step(deadline, &mut exhausted, || {
-                entry_row(session.observe_host_directory(), Expect::Directory)
+                entry_row(
+                    native::observe_entry(&session, native::Entry::HostDirectory),
+                    Expect::Directory,
+                )
             });
 
             let emitted = advisories(
@@ -515,7 +511,6 @@ fn collect_at(base: &Path, deadline: Instant) -> Result<DiagnoseDocument, Failur
 
 /// Assemble the `orchbee.server.diagnose` v1 envelope: `complete` is the
 /// attempted-or-classified coverage fact, never a health verdict.
-#[cfg(target_os = "linux")]
 fn envelope(
     complete: bool,
     rows: Vec<(String, Map<String, Value>)>,
@@ -545,16 +540,6 @@ fn envelope(
         rows,
         advisories,
     }
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-fn collect() -> Result<DiagnoseDocument, Failure> {
-    Err(
-        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-            "platform",
-            "unsupported-platform",
-        )),
-    )
 }
 
 #[cfg(all(test, target_os = "linux"))]

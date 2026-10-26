@@ -1,4 +1,4 @@
-//! Windows-only projection of admitted file and unauthenticated pipe-name facts.
+//! Private-runtime report workflow over admitted file and unauthenticated endpoint-name facts.
 use super::{DiagnoseDocument, Failure, FailureKind};
 use crate::cli::config;
 use orchbee_local_runtime::{
@@ -101,8 +101,10 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
     let mut advisories = Vec::new();
     let descendant = || row("uninspectable", Some("parent-unavailable"));
     let (marker, activation, lifetime, endpoints) = if let Some(session) = session {
-        let marker = step(deadline, &mut complete, || {
-            match session.activation_state() {
+        let marker = step(
+            deadline,
+            &mut complete,
+            || match super::native::activation_state(&session) {
                 Ok(ActivationState::Absent) => row("absent", None),
                 Ok(state) => {
                     let mut result = private_row("known");
@@ -121,10 +123,10 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
                     result
                 }
                 Err(error) => error_row(&error),
-            }
-        });
+            },
+        );
         let activation = step(deadline, &mut complete, || {
-            presence(session.activation_lock_exists())
+            presence(super::native::activation_lock_exists(&session))
         });
         let lifetime = step(deadline, &mut complete, || {
             match session.observe_session_lifetime_lock() {
@@ -219,5 +221,5 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

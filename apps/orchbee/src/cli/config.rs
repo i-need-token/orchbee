@@ -1,11 +1,9 @@
 //! `config check`: pure local inspection. No socket is connected, no process
 //! is started, no directory is created, and no lock is taken.
 
-#[cfg(any(unix, windows))]
 use std::path::Path;
 #[cfg(all(test, target_os = "linux"))]
 use std::path::PathBuf;
-#[cfg(any(target_os = "linux", windows))]
 use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
@@ -14,15 +12,19 @@ use super::{Failure, FailureKind, Output, failure_output, output};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
-#[cfg(any(target_os = "linux", windows))]
 use orchbee_local_client_protocol::{UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits};
-#[cfg(any(target_os = "linux", windows))]
 use orchbee_local_runtime::{
     Cohort, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
 
-#[cfg(any(target_os = "linux", windows))]
 const CHECK_BUDGET: Duration = Duration::from_secs(5);
+
+#[cfg(windows)]
+#[path = "config/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "config/unix.rs"]
+mod platform;
 
 pub(crate) struct CheckReport {
     pub(crate) name: &'static str,
@@ -30,7 +32,6 @@ pub(crate) struct CheckReport {
     pub(crate) details: Map<String, Value>,
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn pass(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -39,7 +40,6 @@ fn pass(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn fail(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -48,7 +48,6 @@ fn fail(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn warning(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -57,7 +56,6 @@ fn warning(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn not_applicable(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -66,31 +64,14 @@ fn not_applicable(name: &'static str, details: Map<String, Value>) -> CheckRepor
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn detail(pairs: impl IntoIterator<Item = (String, Value)>) -> Map<String, Value> {
     Map::from_iter(pairs)
 }
 
-/// A filesystem path as a machine field: UTF-8 paths are `path`, others are
-/// `pathBytesHex`; never a lossy display string.
-#[cfg(unix)]
+/// A filesystem path as a machine field: UTF-8 paths are `path`; native
+/// non-Unicode representations retain bytes or UTF-16 without lossy display.
 pub(crate) fn path_detail(path: &Path) -> (String, Value) {
-    match path.to_str() {
-        Some(text) => ("path".to_owned(), json!(text)),
-        None => {
-            use std::os::unix::ffi::OsStrExt;
-            let hex: String =
-                path.as_os_str()
-                    .as_bytes()
-                    .iter()
-                    .fold(String::new(), |mut output, byte| {
-                        use std::fmt::Write;
-                        let _ = write!(output, "{byte:02x}");
-                        output
-                    });
-            ("pathBytesHex".to_owned(), json!(hex))
-        }
-    }
+    platform::path_detail(path)
 }
 
 pub(crate) fn local_runtime_source() -> Value {
@@ -102,7 +83,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
         Err(failure) => failure_output(failure, Some(format), locale),
         Ok(checks) => {
             let failed = checks.iter().any(|check| check.status == "fail");
-            let check_documents = checks
+            let mut check_documents = checks
                 .iter()
                 .map(|check| {
                     json!({
@@ -110,12 +91,9 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                     })
                 })
                 .collect::<Vec<_>>();
-            #[cfg(not(windows))]
-            let check_documents = {
-                let mut documents = check_documents;
-                documents.push(json!({"kind":"unsupported"}));
-                documents
-            };
+            if platform::APPEND_UNSUPPORTED_CHECK {
+                check_documents.push(json!({"kind":"unsupported"}));
+            }
             let result = json!({
                 "ok": !failed,
                 "checks": check_documents,
@@ -173,18 +151,8 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
     }
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
 fn run_checks() -> Result<Vec<CheckReport>, Failure> {
-    Err(
-        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-            "platform",
-            "unsupported-platform",
-        )),
-    )
-}
-
-#[cfg(any(target_os = "linux", windows))]
-fn run_checks() -> Result<Vec<CheckReport>, Failure> {
+    super::execution::admit(super::execution::Capability::RuntimeInspection)?;
     let (base, scope_text) = crate::local_activation::runtime_location()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let scope =
@@ -231,7 +199,6 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     Ok(checks)
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn classify_paths(
     session: &Result<ModeCheckedLocalSessionRendezvous, RendezvousError>,
     base: &Path,
@@ -334,7 +301,6 @@ fn classify_paths(
 
 /// The path one `RendezvousError` names, when it names one — shared with
 /// `server diagnose`, which classifies the same error family onto rows.
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
     match error {
         RendezvousError::InvalidSessionScope => None,
@@ -354,7 +320,6 @@ pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
 
 /// The cohort check reports only what the verifier established: `verified`
 /// plus `reason` `deadline`/`invalid-cohort` on failure.
-#[cfg(any(target_os = "linux", windows))]
 fn cohort_report(result: std::io::Result<Cohort>) -> CheckReport {
     match result {
         Ok(_) => pass("cohort", detail([("verified".to_owned(), json!(true))])),
@@ -375,7 +340,6 @@ fn cohort_report(result: std::io::Result<Cohort>) -> CheckReport {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 fn locale_check() -> CheckReport {
     let (locale, source) = crate::localization::locale_source();
     pass(
@@ -389,7 +353,6 @@ fn locale_check() -> CheckReport {
 
 /// `sockets` reports presence and the derived address budget; presence never
 /// means a live service.
-#[cfg(any(target_os = "linux", windows))]
 fn socket_checks(
     session: &Result<ModeCheckedLocalSessionRendezvous, RendezvousError>,
     scope_directory: &Path,
@@ -451,7 +414,6 @@ fn socket_checks(
 /// One derived-address budget entry: `presence` is always `unchecked`, the
 /// path fact and both byte counts are always reported, and only the ABI fit
 /// decides between `presence-not-inspected` and `address-too-long`.
-#[cfg(any(target_os = "linux", windows))]
 fn socket_budget_entry(path: &Path) -> (Map<String, Value>, bool) {
     let fits = unix_socket_path_fits(path);
     let mut details = detail([
@@ -493,7 +455,6 @@ fn socket_budget_entry(path: &Path) -> (Map<String, Value>, bool) {
 /// directory cannot be inspected: an address that cannot fit this platform's
 /// socket ABI can never be bound or connected, so it fails `address-too-long`
 /// regardless of presence.
-#[cfg(any(target_os = "linux", windows))]
 fn socket_entry(
     exists: Option<&std::io::Result<bool>>,
     path: &Path,
@@ -571,15 +532,3 @@ fn socket_entry(
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests;
-
-#[cfg(windows)]
-pub(crate) fn path_detail(path: &std::path::Path) -> (String, Value) {
-    use std::os::windows::ffi::OsStrExt;
-    match path.to_str() {
-        Some(text) => ("path".to_owned(), json!(text)),
-        None => (
-            "pathUtf16".to_owned(),
-            json!(path.as_os_str().encode_wide().collect::<Vec<_>>()),
-        ),
-    }
-}
