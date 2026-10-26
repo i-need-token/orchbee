@@ -1,14 +1,6 @@
-//! Preserve the installed Windows release verifier's native file observations.
-use super::{Unsupported, VerifiedRelease};
-use orchbee_local_runtime::Cohort;
-use std::path::Path;
+//! Admit the existing Windows installed-release observer without filesystem effects.
+use super::Unsupported;
 
-pub(super) fn observe(
-    executable: &Path,
-    admitted: Option<&Cohort>,
-    version: &str,
-) -> Result<Result<Option<VerifiedRelease>, ()>, Unsupported> {
-    Ok(crate::cli::update::observe_installation(
-        executable, admitted, version,
-    ))
+pub(super) fn admit() -> Result<(), Unsupported> {
+    Ok(())
 }

@@ -68,19 +68,22 @@ pub(super) fn inspect(
     admitted: Option<&Cohort>,
     version: &str,
 ) -> Result<Installation, Unsupported> {
-    platform::observe(executable, admitted, version).map(|observation| match observation {
-        Ok(None) => Installation::Development,
-        Ok(Some(VerifiedRelease {
-            channel,
-            version,
-            build_id,
-            manifest,
-        })) => Installation::Verified {
-            channel,
-            version,
-            build_id,
-            manifest,
+    platform::admit()?;
+    Ok(
+        match crate::cli::update::observe_installation(executable, admitted, version) {
+            Ok(None) => Installation::Development,
+            Ok(Some(VerifiedRelease {
+                channel,
+                version,
+                build_id,
+                manifest,
+            })) => Installation::Verified {
+                channel,
+                version,
+                build_id,
+                manifest,
+            },
+            Err(()) => Installation::Unavailable,
         },
-        Err(()) => Installation::Unavailable,
-    })
+    )
 }

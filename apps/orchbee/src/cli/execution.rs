@@ -24,6 +24,8 @@ pub(super) enum Capability {
     Plugins,
     ConfiguredCommands,
     NamedSessions,
+    ReleaseUpdate,
+    ServerStop,
 }
 
 pub(super) struct Unsupported(Capability);
@@ -56,7 +58,9 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::PaneGraphics
         | Capability::Plugins
         | Capability::ConfiguredCommands
-        | Capability::NamedSessions => Failure::new(FailureKind::ServiceUnavailable)
+        | Capability::NamedSessions
+        | Capability::ReleaseUpdate
+        | Capability::ServerStop => Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform")),
     })
 }

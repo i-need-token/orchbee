@@ -1,7 +1,6 @@
 //! Windows installation diagnostics, separate from language-neutral receipt reasons.
 use super::Locale;
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_update_message(self, code: &str) -> &'static str {
         let pair = match code {
             "complete" => (

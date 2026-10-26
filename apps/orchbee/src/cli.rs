@@ -92,7 +92,6 @@ mod server;
 mod server_diagnose;
 mod server_stop;
 mod terminal_observation;
-#[cfg(windows)]
 pub(crate) mod update;
 mod workbench_agents;
 mod workbench_metadata;

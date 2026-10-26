@@ -32,7 +32,6 @@ mod native_settings;
 mod notifications;
 mod onboarding;
 mod presentation;
-#[cfg(windows)]
 mod release_store;
 mod startup_wait;
 mod terminal_buffer_text;
@@ -167,7 +166,6 @@ fn main() -> ExitCode {
                 invocation::Request::TerminalClear { format, .. }
                 | invocation::Request::Events { format, .. }
                 | invocation::Request::ChannelShow { format, .. }
-                | invocation::Request::Update { format, .. }
                 | invocation::Request::AgentView { format, .. },
             ) => cli::unsupported_platform(Some(format), locale),
             #[cfg(not(windows))]
@@ -257,7 +255,6 @@ fn main() -> ExitCode {
             }
             #[cfg(windows)]
             Ok(invocation::Request::ChannelShow { format }) => cli::channel::show(format, locale),
-            #[cfg(windows)]
             Ok(invocation::Request::Update { channel, format }) => {
                 cli::update::run(channel, 600_000, format, locale)
             }
