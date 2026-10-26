@@ -171,6 +171,13 @@ enum ConsistentOutcome {
     /// A self-consistent declaration — `present` with the carried reason.
     Present { reason: HookReason },
     /// Proven entries whose declared event set needs repair. Root guards still apply.
+    #[cfg_attr(
+        target_os = "linux",
+        expect(
+            dead_code,
+            reason = "Only the Windows configuration-hook inspector produces this shared root outcome; Linux refuses that inspection before reading provider files."
+        )
+    )]
     Incomplete,
 }
 
