@@ -2049,6 +2049,7 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
     }
 }
 
+/// Preserve startup lane/Snapshot failure classification and its existing CLI schema selection.
 pub(in crate::cli) fn classify_startup_admission(
     error: crate::agent_runtime::startup::AdmissionError,
 ) -> Failure {
@@ -2073,6 +2074,7 @@ pub(in crate::cli) fn classify_startup_admission(
     }
 }
 
+/// Translate a shared Snapshot exchange failure without adding a caller-specific schema or retry.
 pub(in crate::cli) fn classify_snapshot(
     error: crate::agent_runtime::startup::snapshot::Error,
 ) -> Failure {

@@ -71,6 +71,10 @@ pub(super) fn run_on_origin(
     }
 }
 
+/// Cap one startup exchange at five seconds without extending the caller's absolute budget.
+///
+/// # Errors
+/// Returns a deadline failure when no part of the original budget remains.
 pub(crate) fn step_deadline(deadline: Instant) -> Result<Instant, Failure> {
     let now = Instant::now();
     if now >= deadline {

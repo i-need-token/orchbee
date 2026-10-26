@@ -80,12 +80,15 @@ impl ReservationState {
     }
 }
 
+/// Retain the sole input attempt's typed receipt or failure independently of startup readiness.
 #[derive(Debug)]
 pub(crate) enum Submission {
     Sent(Box<send::Receipt>),
     Failed(Arc<send::Error>),
 }
 
+/// Startup completion or its terminal failure, with the last failed read retained as a separate cause.
+/// Delivery and reservation facts in the Report remain authoritative even when this verdict fails.
 #[derive(Debug)]
 pub(crate) enum Verdict {
     Started {
@@ -111,6 +114,7 @@ pub(crate) struct Report {
     pub(crate) verdict: Verdict,
 }
 impl Report {
+    /// Record a failure before reservation or input, preserving the caller's elapsed-time origin.
     pub(crate) fn preflight(request: Request, started: Instant, failure: Failure) -> Self {
         Self {
             name: request.name,
@@ -134,6 +138,10 @@ fn elapsed_ms(started: Instant) -> u64 {
 
 pub(crate) use workflow::step_deadline;
 
+/// Run startup against the exact Panel in the caller's admitted Snapshot and owned Client.
+/// Native admission precedes startup effects. Every path drops the Client before returning,
+/// so the caller may then finalize its process-wide signal source without a live lane.
+/// Failures preserve reservation and delivery facts in the returned Report; input is never replayed.
 pub(crate) fn run_on_client(
     request: Request,
     started: Instant,
@@ -158,6 +166,9 @@ pub(crate) enum Progress {
     WaitingInput,
 }
 
+/// Open one lane on the supplied origin and run startup within the original clock and deadline.
+/// Native admission precedes lane creation. Progress callbacks describe observations only;
+/// callers retain signal finalization and surface-generation ownership after this returns.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_on_origin(
     request: Request,

@@ -2,6 +2,7 @@
 use orchbee_client_server_protocol::{SessionId, TerminalId, WorkerId};
 use orchbee_workbench_protocol::{PanelNode, Snapshot, TerminalPresentationId, WorkbenchPanelId};
 
+/// Protocol-validated routing identities; construction alone does not prove Snapshot membership.
 #[derive(Clone, Debug)]
 pub(crate) struct Binding {
     pub(crate) session: SessionId,
@@ -10,6 +11,10 @@ pub(crate) struct Binding {
 }
 
 impl Binding {
+    /// Admit wire identity syntax without querying or selecting a live terminal.
+    ///
+    /// # Errors
+    /// Returns `InvalidBinding` if any Session, Worker or terminal identity is malformed.
     pub(crate) fn parse(
         session: &str,
         worker: &str,
@@ -23,20 +28,29 @@ impl Binding {
     }
 }
 
+/// At least one routing identity failed the destination protocol's syntax checks.
 #[derive(Debug)]
 pub(crate) struct InvalidBinding;
 
+/// Separate an absent primary binding from identities invalid for the input protocol.
 #[derive(Debug)]
 pub(crate) enum PrimaryError {
     Unavailable(WorkbenchPanelId),
     InvalidBinding,
 }
 
+/// The exact Panel's primary presentation and physical routing from one admitted Snapshot.
 pub(crate) struct PrimaryTerminal {
     pub(crate) binding: Binding,
     pub(crate) presentation: TerminalPresentationId,
 }
 
+/// Resolve only the requested Panel's primary presentation; never fall back to a child terminal.
+/// The caller owns Snapshot admission and freshness checks.
+///
+/// # Errors
+/// Returns `Unavailable` for a missing Panel or unbound primary, and `InvalidBinding`
+/// when its routing identities cannot be admitted by the input protocol.
 pub(crate) fn primary(
     snapshot: &Snapshot,
     panel: &WorkbenchPanelId,

@@ -25,6 +25,7 @@ pub(crate) use platform::admit;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Unsupported;
 
+/// Fresh OS entropy could not be obtained or admitted as a protocol request identity.
 #[derive(Debug)]
 pub(crate) struct IdentityError;
 
@@ -34,17 +35,31 @@ fn identity() -> Result<String, IdentityError> {
     Ok(format!("{:032x}", u128::from_be_bytes(bytes)))
 }
 
+/// Generate a fresh OBAP request identity without a fallback or reusable counter.
+///
+/// # Errors
+/// Returns `IdentityError` if entropy acquisition or protocol admission fails.
 pub(crate) fn obap_identity() -> Result<ObapRequestId, IdentityError> {
     ObapRequestId::parse(&identity()?).map_err(|_| IdentityError)
 }
+/// Generate a fresh OBCS request identity before any associated submission.
+///
+/// # Errors
+/// Returns `IdentityError` if entropy acquisition or protocol admission fails.
 pub(crate) fn obcs_identity() -> Result<orchbee_client_server_protocol::RequestId, IdentityError> {
     orchbee_client_server_protocol::RequestId::parse(&identity()?).map_err(|_| IdentityError)
 }
+/// Generate a fresh Workbench request identity without consulting caller presentation state.
+///
+/// # Errors
+/// Returns `IdentityError` if entropy acquisition or protocol admission fails.
 pub(crate) fn workbench_request_id()
 -> Result<orchbee_workbench_protocol::WorkbenchRequestId, IdentityError> {
     orchbee_workbench_protocol::WorkbenchRequestId::parse(&identity()?).map_err(|_| IdentityError)
 }
 
+/// Failure to obtain a usable Snapshot on a new lane of an already selected origin.
+/// Connection and exchange evidence remain distinct from a settled deadline or Server refusal.
 #[derive(Debug)]
 pub(crate) enum AdmissionError {
     Connect(LocalClientConnectError),
@@ -55,6 +70,11 @@ pub(crate) enum AdmissionError {
 }
 
 /// Preserve the caller's operation clock, retained carrier and absolute budget on its new lane.
+/// The returned Client owns that lane; callers must release it before finalizing their signal source.
+///
+/// # Errors
+/// Distinguishes connection and Snapshot exchange failures from a post-read deadline,
+/// access denial, or unavailable Snapshot. No new budget or alternate origin is chosen.
 pub(crate) fn snapshot_from_origin(
     origin: &LocalClientOrigin,
     clock: LocalOperationClock,

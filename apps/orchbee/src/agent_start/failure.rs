@@ -10,6 +10,8 @@ use crate::local_client::{
 use orchbee_agent_observation_protocol::{AgentLaunchRejectionReason, AgentWireError};
 use std::{io, sync::Arc};
 
+/// Retain the failing operation's typed evidence without assigning a CLI status or document.
+/// Reservation and input-delivery facts remain in the accompanying startup Report.
 #[derive(Debug)]
 pub(crate) enum Failure {
     Unsupported,
@@ -22,6 +24,8 @@ pub(crate) enum Failure {
     Start(StartFailure),
 }
 
+/// A startup workflow decision after observing its deadline, binding, reservation or input result.
+/// These decisions do not replace independently known delivery or reservation state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum StartFailure {
     Deadline,
@@ -41,6 +45,7 @@ pub(crate) enum StartFailure {
     InputNotAccepted(send::InputFailure),
 }
 
+/// Classify a launch exchange failure after reservation uncertainty has been recorded separately.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ExchangeFailure {
     Timeout,
@@ -49,6 +54,8 @@ pub(crate) enum ExchangeFailure {
 }
 
 impl Failure {
+    /// Identify a deadline failure for presentation alongside the separately retained delivery fact.
+    /// A cancellation wake marker is never interpreted as an observation timeout.
     pub(crate) fn timed_out(&self) -> bool {
         match self {
             Self::Start(
@@ -66,6 +73,8 @@ impl Failure {
             _ => false,
         }
     }
+    /// Identify explicit unconfirmed replies or unknown submissions in this failure.
+    /// Callers must also inspect reservation and delivery state before deciding retry safety.
     pub(crate) fn unknown(&self) -> bool {
         match self {
             Self::Start(
@@ -78,10 +87,13 @@ impl Failure {
             _ => false,
         }
     }
+    /// Identify the workflow's settled cancellation decision, without erasing prior input effects.
     pub(crate) fn cancelled(&self) -> bool {
         matches!(self, Self::Start(StartFailure::Cancelled))
     }
 
+    /// Select transport failures eligible for the workflow's existing recovery classification.
+    /// Observation wake markers and response deadlines keep their separate meanings.
     pub(super) fn transport_lost(&self) -> bool {
         match self {
             Self::Start(StartFailure::Exchange(ExchangeFailure::Transport)) => true,
@@ -104,6 +116,7 @@ impl Failure {
             _ => false,
         }
     }
+    /// Permit another read only for the Host's changed or temporarily unavailable process sample.
     pub(super) fn transient_sample(&self) -> bool {
         matches!(self, Self::Process(error) if matches!(error.as_ref(), processes::Error::Host(processes::HostFailure::Changed | processes::HostFailure::Unavailable)))
     }

@@ -662,6 +662,8 @@ fn send_source_parts(
     })
 }
 
+/// Project the domain's actual input result through the ordinary send answer's envelope and status.
+/// The original routing, request identity and payload dimensions survive later startup failures.
 pub(in crate::cli) fn startup_receipt(
     receipt: &crate::agent_runtime::startup::send::Receipt,
 ) -> (Value, u8) {
@@ -688,6 +690,8 @@ pub(in crate::cli) fn startup_receipt(
     )
 }
 
+/// Retain the attempted input request's source while applying the existing CLI exchange classifier.
+/// Preparation failures have no submitted request source; neither branch retries or invents a receipt.
 pub(in crate::cli) fn startup_failure(
     error: &crate::agent_runtime::startup::send::Error,
 ) -> Failure {

@@ -144,6 +144,10 @@ pub(in crate::cli) fn resolve_session_terminal(
     })
 }
 
+/// Read through the shared OBAP operation and retain the CLI's existing Agent failure documents.
+///
+/// # Errors
+/// Maps deadline, correlation, Server refusal and exchange failures without retrying or reselecting.
 pub(crate) fn read_agent_observation(
     client: &mut LocalClient,
     session_id: &AgentSessionId,
@@ -154,6 +158,7 @@ pub(crate) fn read_agent_observation(
         .map_err(classify_observation)
 }
 
+/// Project typed OBAP read failures with their original operation, request source and Agent schema.
 pub(in crate::cli) fn classify_observation(
     error: crate::agent_runtime::startup::observation::Error,
 ) -> Failure {

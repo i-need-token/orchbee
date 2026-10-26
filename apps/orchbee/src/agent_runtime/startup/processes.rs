@@ -13,6 +13,7 @@ use orchbee_terminal_protocol::{
 };
 use std::time::Instant;
 
+/// Preserve request/exchange failures separately from invalid Host evidence and admitted Host codes.
 #[derive(Debug)]
 pub(crate) enum Error {
     Identity,
@@ -24,6 +25,7 @@ pub(crate) enum Error {
     Host(HostFailure),
 }
 
+/// The closed set of Host failures admitted for a process sample; unknown codes are protocol errors.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostFailure {
     LimitExceeded,
@@ -33,6 +35,7 @@ pub(crate) enum HostFailure {
     Unavailable,
 }
 impl HostFailure {
+    /// Return the original wire code for a caller's diagnostics without reclassifying the failure.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::LimitExceeded => "limit-exceeded",
@@ -44,6 +47,8 @@ impl HostFailure {
     }
 }
 
+/// Correlated viewer identities returned by the Server, with Client-owned teardown as fallback.
+/// This descriptor does not detach on drop; its caller owns explicit viewer release.
 pub(crate) struct Attachment {
     pub(crate) viewer: ViewerId,
     pub(crate) id: AttachmentId,
@@ -52,6 +57,8 @@ pub(crate) struct Attachment {
     pub(crate) host_terminal: orchbee_client_server_protocol::HostTerminalId,
 }
 
+/// A validated Host process sample and its separate OBCS and Host correlation identities.
+/// The evidence describes one attachment and epoch, not a guarantee of future process identity.
 pub(crate) struct Observation {
     pub(crate) info: TerminalProcessInfo,
     pub(crate) request: RequestId,
@@ -60,6 +67,11 @@ pub(crate) struct Observation {
     pub(crate) attachment: AttachmentId,
 }
 
+/// Attach once to the exact physical binding on the borrowed Client, without selecting a target.
+/// A successful caller owns the returned viewer until explicit detach or Client teardown.
+///
+/// # Errors
+/// Preserves identity and exchange failures, Server refusals, and unexpected response variants.
 pub(crate) fn attach(
     client: &mut LocalClient,
     deadline: Instant,
@@ -99,6 +111,12 @@ pub(crate) fn attach(
     }
 }
 
+/// Attach, read one process sample, then attempt detach after all fallible read work has settled.
+/// Detach uses the same deadline and wake; failure cannot replace the sample result, and Client
+/// teardown remains the final release fallback. No alternate binding or retry is chosen.
+///
+/// # Errors
+/// Returns the attachment or read failure, including correlation and Host-code validation errors.
 pub(crate) fn read(
     client: &mut LocalClient,
     deadline: Instant,
@@ -129,6 +147,12 @@ pub(crate) fn read(
     outcome
 }
 
+/// Read through a borrowed viewer and validate the Host epoch and attachment in its bounded reply.
+/// The caller retains viewer release ownership; this operation never detaches it.
+///
+/// # Errors
+/// Distinguishes identity/exchange failure, post-read timeout, Server refusal, invalid Host
+/// envelopes or correlation, and the closed set of admitted Host sample failures.
 pub(crate) fn read_attached(
     client: &mut LocalClient,
     deadline: Instant,

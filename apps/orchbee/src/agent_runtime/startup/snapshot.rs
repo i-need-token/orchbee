@@ -4,12 +4,18 @@ use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchSnapshotOutcome};
 use std::time::Instant;
 
+/// Distinguish failure before request submission from the Client's typed Snapshot exchange failure.
 #[derive(Debug)]
 pub(crate) enum Error {
     Identity,
     Exchange(SnapshotReadError),
 }
 
+/// Submit one Snapshot read on the borrowed Client, retaining the caller's deadline and wake.
+/// Return the Server outcome unchanged so each caller can retain its post-read settlement policy.
+///
+/// # Errors
+/// Returns `Identity` before submission, or preserves the exchange failure without retrying.
 pub(crate) fn read(
     client: &mut LocalClient,
     deadline: Instant,

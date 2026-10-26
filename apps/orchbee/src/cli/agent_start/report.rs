@@ -7,6 +7,7 @@ use orchbee_agent_observation_protocol::{
 use serde_json::{Value, json};
 use std::time::Instant;
 
+/// Presentation of startup completion or failure, including the CLI reason and optional read cause.
 #[derive(Debug)]
 pub(crate) enum Verdict {
     Started {
@@ -34,6 +35,7 @@ pub(crate) struct Report {
 }
 
 impl Report {
+    /// Present a CLI preflight failure with no reservation or submission and the original start time.
     pub(crate) fn preflight(request: Request, started: Instant, failure: Failure) -> Self {
         let reason = failure
             .details
@@ -67,6 +69,7 @@ impl Report {
         }
     }
 
+    /// Expose the current presentation failure for signal-finalization arbitration.
     pub(crate) const fn failure_kind(&self) -> Option<FailureKind> {
         match &self.verdict {
             Verdict::Started { .. } => None,
@@ -74,10 +77,13 @@ impl Report {
         }
     }
 
+    /// Report confirmed startup completion; accepted input alone does not satisfy this condition.
     pub(crate) const fn completed(&self) -> bool {
         matches!(self.verdict, Verdict::Started { .. })
     }
 
+    /// Apply a CLI signal-boundary failure without replacing the recorded submission or reservation.
+    /// Preserve a previous read cause only when it belonged to an Agent startup failure.
     pub(crate) fn replace_failure(&mut self, failure: Failure) {
         let read_cause = match &self.verdict {
             Verdict::Failed {
@@ -126,6 +132,7 @@ fn elapsed_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
+/// Project the existing failure's diagnostic identity without embedding its complete document.
 pub(super) fn cause(failure: &Failure) -> Value {
     let field = |key| {
         failure
@@ -137,6 +144,8 @@ pub(super) fn cause(failure: &Failure) -> Value {
     json!({"kind":failure.kind.as_str(), "stage":field("stage"), "operation":field("operation"), "reason":field("reason"), "requestId":failure.source.as_ref().and_then(|source| source.get("requestId")).and_then(Value::as_str)})
 }
 
+/// Project typed startup facts through the existing query/send formatters before CLI overrides.
+/// A later workflow failure cannot replace the submission envelope or its independent status.
 impl From<crate::agent_start::Report> for Report {
     fn from(report: crate::agent_start::Report) -> Self {
         use crate::agent_start::{Submission, Verdict as DomainVerdict};
@@ -202,6 +211,8 @@ impl From<crate::agent_start::Report> for Report {
     }
 }
 
+/// Translate operation-specific domain evidence into the existing CLI failure schema and reasons.
+/// This presentation boundary performs no recovery, observation or input submission.
 pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
     use crate::agent_runtime::startup::{binding::PrimaryError, send::InputFailure};
     use crate::agent_start::{ExchangeFailure, Failure as DomainFailure, StartFailure};

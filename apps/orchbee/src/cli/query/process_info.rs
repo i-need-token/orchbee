@@ -34,6 +34,10 @@ fn read_on_session(
         .map(|(source, document)| (source, Projection::PanelProcessInfo(document)))
 }
 
+/// Resolve a CLI terminal against the admitted Snapshot and project one shared process observation.
+///
+/// # Errors
+/// Preserve CLI selection errors and process-query failures; this form supplies no cancellation wake.
 pub(crate) fn read_terminal_processes(
     client: &mut LocalClient,
     deadline: Instant,
@@ -43,6 +47,10 @@ pub(crate) fn read_terminal_processes(
     read_terminal_processes_cancellable(client, deadline, snapshot, terminal, None)
 }
 
+/// Keep CLI target selection and document projection around the shared attach/read/detach operation.
+///
+/// # Errors
+/// Preserve selection, identity and process-query failures under the caller's deadline and wake.
 pub(crate) fn read_terminal_processes_cancellable(
     client: &mut LocalClient,
     deadline: Instant,
@@ -62,6 +70,10 @@ pub(crate) fn read_terminal_processes_cancellable(
     Ok(project(snapshot, row, observed))
 }
 
+/// Project a process observation for an already selected row without taking viewer release ownership.
+///
+/// # Errors
+/// Return the shared read's classified failure; the caller still owns the supplied viewer lease.
 pub(super) fn read_attached(
     client: &mut LocalClient,
     deadline: Instant,
@@ -100,6 +112,7 @@ fn project(
     )
 }
 
+/// Map shared process evidence to the existing viewer failures and process-info schema/Host codes.
 pub(in crate::cli) fn classify_process(
     error: crate::agent_runtime::startup::processes::Error,
 ) -> Failure {
@@ -121,6 +134,10 @@ pub(in crate::cli) fn classify_process(
     }
 }
 
+/// Resolve CLI Panel syntax to its exact primary terminal through the existing Panel projection.
+///
+/// # Errors
+/// Preserve Panel selection errors and report an unbound primary as not found; no child fallback exists.
 pub(crate) fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<Target, Failure> {
     let Projection::PanelGet(panel) = results::project(
         &crate::invocation::QueryCommand::PanelGet(target.clone()),

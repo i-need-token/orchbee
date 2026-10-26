@@ -8,6 +8,7 @@ use orchbee_agent_observation_protocol::{
 use orchbee_local_ipc::LocalIo;
 use std::time::Instant;
 
+/// Preserve exchange evidence, response correlation failures and explicit Server read refusals.
 #[derive(Debug)]
 pub(crate) enum Error {
     Identity,
@@ -24,6 +25,12 @@ pub(crate) enum Error {
     },
 }
 
+/// Read one Agent session using the admitted Client and the caller's absolute budget.
+/// A successful observation matches the requested session and includes its request and revision.
+///
+/// # Errors
+/// Distinguishes identity or exchange failure, an expired post-read deadline, malformed
+/// response correlation, and the Server's rejected or unavailable outcome. It never retries.
 pub(crate) fn read(
     client: &mut LocalClient,
     session: &AgentSessionId,
