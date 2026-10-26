@@ -1,5 +1,6 @@
-//! Named-pipe witnesses prove that incomplete or drifting reads never establish a target set.
+//! Local transport witnesses prove that incomplete or drifting reads never establish a target set.
 use super::*;
+use crate::local_client::cancellation::OwnedCancellation;
 use crate::local_client::tests::server::FakeServer;
 use orchbee_agent_observation_protocol::{
     AgentListOutcomeEnvelope, AgentRequest, AgentResult, read_agent_request, write_agent_result,
@@ -215,7 +216,7 @@ fn complete_read_requires_both_sources_and_all_revision_fences() -> io::Result<(
             &machine_agents::tests::fixture(),
             false,
             deadline,
-            &AtomicU8::new(0),
+            OwnedCancellation::new().unwrap().borrow(),
         );
         match expected {
             Some(error) => assert_eq!(result.unwrap_err(), error, "{case:?}"),
@@ -242,12 +243,16 @@ fn expired_and_cancelled_reads_have_no_source_or_effect_requests() -> io::Result
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
             .map_err(io::Error::other)?;
+        let cancel = OwnedCancellation::new()?;
+        if cancelled {
+            cancel.cancel();
+        }
         let result = read(
             &mut client,
             &machine_agents::tests::fixture(),
             false,
             if cancelled { deadline } else { Instant::now() },
-            &AtomicU8::new(u8::from(cancelled)),
+            cancel.borrow(),
         );
         assert_eq!(
             result.unwrap_err(),
@@ -267,7 +272,7 @@ fn expired_and_cancelled_reads_have_no_source_or_effect_requests() -> io::Result
 fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io::Result<()> {
     use std::sync::Arc;
     for cancelled in [false, true] {
-        let cancel = Arc::new(AtomicU8::new(0));
+        let cancel = Arc::new(OwnedCancellation::new().unwrap());
         let server_cancel = Arc::clone(&cancel);
         let peer = FakeServer::start(move |mut stream| {
             accept(&mut stream)?;
@@ -276,7 +281,7 @@ fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io:
                 AgentRequest::Read(AgentReadRequest::List { .. })
             ));
             if cancelled {
-                server_cancel.store(1, std::sync::atomic::Ordering::Release);
+                server_cancel.cancel();
             }
             // No answer is sent. The original admission must close without a
             // second source request or any operation after interruption.
@@ -296,7 +301,7 @@ fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io:
             &machine_agents::tests::fixture(),
             false,
             deadline,
-            &cancel,
+            cancel.borrow(),
         );
         assert_eq!(
             result.unwrap_err(),

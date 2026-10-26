@@ -14,7 +14,7 @@ use orchbee_local_ipc::{AsLocalIo, LocalStream};
 
 use super::{Action, Admission, Failure, Outcome, QueryIdentity, Request, Value};
 use crate::{
-    local_client::{LocalClientOrigin, LocalOperationClock},
+    local_client::{LocalClientOrigin, LocalOperationClock, cancellation::Cancellation},
     machine_observation,
     terminal_content::{ContentSource, Guard, ReadAttachment},
     terminal_copy::{self, CopyError},
@@ -257,8 +257,12 @@ fn execute(
     let mut client = origin
         .reconnect_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
         .map_err(|_| Failure::TransportUnavailable)?;
-    let snapshot = machine_observation::snapshot(&mut client, job.deadline, stopping)
-        .map_err(|()| Failure::TransportUnavailable)?;
+    let snapshot = machine_observation::snapshot(
+        &mut client,
+        job.deadline,
+        Cancellation::new(Some(wake.as_local_io())),
+    )
+    .map_err(|()| Failure::TransportUnavailable)?;
     if job.request.source.snapshot_member(&snapshot).is_none() {
         return Err(Failure::SourceChanged);
     }
@@ -277,8 +281,12 @@ fn execute(
         }
         result?
     };
-    let current = machine_observation::snapshot(&mut client, job.deadline, stopping)
-        .map_err(|()| Failure::TransportUnavailable)?;
+    let current = machine_observation::snapshot(
+        &mut client,
+        job.deadline,
+        Cancellation::new(Some(wake.as_local_io())),
+    )
+    .map_err(|()| Failure::TransportUnavailable)?;
     if job.request.source.snapshot_member(&current).is_none() {
         return Err(Failure::SourceChanged);
     }

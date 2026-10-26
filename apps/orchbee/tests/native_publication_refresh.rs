@@ -12,6 +12,12 @@
 mod native_cohort;
 #[path = "local_startup_process/pty_client.rs"]
 mod pty_client;
+#[path = "support/mod.rs"]
+mod support;
+#[path = "support/tui_observer.rs"]
+mod tui_observer;
+#[path = "local_startup_process/workbench_peer.rs"]
+mod workbench_peer;
 
 use native_cohort::{Fixture, ManagedProcess};
 use pty_client::{Client, ReadyMode, wait_file};

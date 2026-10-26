@@ -1,4 +1,4 @@
-//! Recognized interactive Agent identities and their Windows command names.
+//! Recognized interactive Agent identities and their canonical command names.
 
 pub(crate) const CANONICAL_IDS: &[&str] = &[
     "pi",
@@ -27,7 +27,6 @@ pub(crate) const CANONICAL_IDS: &[&str] = &[
     "muse",
 ];
 
-#[cfg(windows)]
 pub(crate) use orchbee_agent_observation_protocol::native_agent_basename as basename;
 pub(crate) use orchbee_agent_observation_protocol::{
     native_agent_provider as provider, normalize_agent_report_label as reported_label,
@@ -49,7 +48,6 @@ pub(crate) fn executable(canonical: &str) -> Option<&'static str> {
 }
 
 /// A generic command name is not enough evidence to advertise a provider as installed.
-#[cfg(windows)]
 pub(crate) fn detection_executable(canonical: &str) -> Option<&'static str> {
     executable(canonical).filter(|command| *command != "agent")
 }

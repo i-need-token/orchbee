@@ -1,16 +1,13 @@
 //! Complete canonical pages overlap one physical checkpoint and its final revision fence.
 use super::{MAXIMUM_BYTES, Row};
+use crate::local_client::cancellation::Cancellation;
 use crate::{local_client::LocalClient, machine_agents, machine_observation, machines::ProfileId};
 use orchbee_agent_observation_protocol::{
     AgentListCursor, AgentListOutcome, AgentListRejectionReason, AgentReadRequest, AgentReadResult,
     AgentSafeInteger, AgentSessionSummary, ObapRequestId,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
-use std::{
-    collections::BTreeSet,
-    sync::atomic::{AtomicU8, Ordering},
-    time::Instant,
-};
+use std::{collections::BTreeSet, time::Instant};
 const MAXIMUM_CANONICAL_ROWS: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,8 +26,8 @@ pub(crate) struct Checkpoint {
     pub(crate) report_revision: WorkbenchRevision,
     pub(crate) rows: Vec<Row>,
 }
-fn check(deadline: Instant, cancel: &AtomicU8) -> Result<(), Error> {
-    if cancel.load(Ordering::Acquire) != 0 {
+fn check(deadline: Instant, cancel: Cancellation<'_>) -> Result<(), Error> {
+    if cancel.is_cancelled().map_err(|_| Error::Unavailable)? {
         Err(Error::Cancelled)
     } else if Instant::now() >= deadline {
         Err(Error::Timeout)
@@ -43,7 +40,7 @@ fn page(
     include_ended: bool,
     cursor: Option<AgentListCursor>,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<
     (
         AgentSafeInteger,
@@ -67,7 +64,7 @@ fn page(
             cursor,
         },
         deadline,
-        Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+        cancel.wake(),
     );
     check(deadline, cancel)?;
     let AgentReadResult::List { result, .. } = result.map_err(|_| Error::Unavailable)? else {
@@ -92,7 +89,7 @@ pub(crate) fn read(
     snapshot: &Snapshot,
     include_ended: bool,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<Checkpoint, Error> {
     let mut cursor = None;
     let mut cursors = BTreeSet::new();
@@ -174,7 +171,7 @@ pub(crate) fn confirm(
     read: &Checkpoint,
     include_ended: bool,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<(), Error> {
     let (last, _, _) = page(client, include_ended, None, deadline, cancel)?;
     if last != read.canonical_revision {

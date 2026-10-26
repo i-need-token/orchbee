@@ -225,10 +225,10 @@ fn machine_switch_restores_local_view_and_host_mouse_state_without_reconnecting(
 #[test]
 fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_completion() {
     let (mut manager, mut view, mut surface) = setup();
-    let cancelled = Arc::new(AtomicU8::new(0));
+    let cancelled = Arc::new(OwnedCancellation::new().unwrap());
     let worker = cancelled.clone();
     let task = thread::spawn(move || {
-        while worker.load(Ordering::Acquire) == 0 {
+        while !worker.is_cancelled() {
             thread::sleep(Duration::from_millis(1));
         }
         Err(io::Error::other("cancelled"))
@@ -253,7 +253,7 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
         assert!(Instant::now() < deadline);
         thread::sleep(Duration::from_millis(1));
     }
-    assert_eq!(cancelled.load(Ordering::Acquire), 1);
+    assert!(cancelled.is_cancelled());
     assert_eq!(view.machines.current, Choice::Local);
     assert!(view.machines.error.is_none());
     view.machines.show();
@@ -261,7 +261,7 @@ fn machine_cancel_and_failed_attempt_preserve_active_surface_and_ignore_stale_co
     manager.attempt = Some(Attempt {
         profile: Some(profile()),
         context: None,
-        cancel: Arc::new(AtomicU8::new(0)),
+        cancel: Arc::new(OwnedCancellation::new().unwrap()),
         task: Some(thread::spawn(|| Err(io::Error::other("unavailable")))),
     });
     while manager.attempt.is_some() {

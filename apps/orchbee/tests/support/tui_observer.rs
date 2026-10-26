@@ -285,7 +285,7 @@ impl Screen {
         let frame = self
             .latest_completed
             .as_ref()
-            .filter(|frame| frame.marker_offset > checkpoint)?;
+            .filter(|frame| frame.marker_offset() > checkpoint)?;
         let value = predicate(frame)?;
         (Instant::now() < deadline).then_some(value)
     }

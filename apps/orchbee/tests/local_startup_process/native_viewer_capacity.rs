@@ -1,6 +1,6 @@
 use super::{
     native_cli_query::{run_json, validate, validators},
-    native_context::WorkbenchPeer,
+    workbench_peer::WorkbenchPeer,
     *,
 };
 use orchbee_workbench_protocol::{

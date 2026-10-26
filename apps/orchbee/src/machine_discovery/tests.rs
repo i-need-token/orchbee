@@ -1,4 +1,5 @@
 use super::*;
+use crate::local_client::cancellation::OwnedCancellation;
 use crate::{local_client::tests::server::FakeServer, machines::Draft};
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
@@ -6,7 +7,7 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalContextId,
     read_workbench_request, write_workbench_response,
 };
-use std::{io::Read, num::NonZeroU64, sync::atomic::Ordering, thread};
+use std::{io::Read, num::NonZeroU64, thread};
 
 fn profile(n: u8) -> Profile {
     Profile {
@@ -52,7 +53,7 @@ fn snapshot() -> Snapshot {
 }
 fn blocked_worker(_: Profile, generation: u64) -> io::Result<Worker> {
     Worker::spawn(generation, |cancel| {
-        while cancel.load(Ordering::Acquire) == 0 {
+        while !cancel.is_cancelled()? {
             thread::sleep(Duration::from_millis(1));
         }
         Err(io::ErrorKind::Interrupted.into())
@@ -261,7 +262,9 @@ fn discovered_origin_opens_a_separate_admitted_lane() -> io::Result<()> {
     let Event::Healthy { ready, .. } = update.event else {
         panic!("discovery failed");
     };
-    let mut selected = ready.connection.reconnect(deadline, &AtomicU8::new(0))?;
+    let mut selected = ready
+        .connection
+        .reconnect(deadline, OwnedCancellation::new().unwrap().borrow())?;
     let result = selected
         .submit_workbench_snapshot_read_before(
             orchbee_workbench_protocol::SnapshotReadIntent {

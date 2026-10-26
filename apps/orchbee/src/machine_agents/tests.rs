@@ -1,4 +1,5 @@
 use super::*;
+use crate::local_client::cancellation::OwnedCancellation;
 use crate::local_client::tests::server::FakeServer;
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
@@ -9,7 +10,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId, Workspace, read_workbench_request,
     write_workbench_response,
 };
-use std::{io, num::NonZeroU64, sync::atomic::Ordering, thread, time::Duration};
+use std::{io, num::NonZeroU64, thread, time::Duration};
 
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -368,7 +369,12 @@ fn agent_checkpoint_joins_exact_primary_and_child_without_terminal_effects() -> 
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
         .map_err(io::Error::other)?;
-    let rows = read(&mut client, deadline, &AtomicU8::new(0)).unwrap();
+    let rows = read(
+        &mut client,
+        deadline,
+        OwnedCancellation::new().unwrap().borrow(),
+    )
+    .unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[1].target, target());
     assert_eq!(rows[0].target.member.as_str(), id(12));
@@ -393,7 +399,14 @@ fn agent_checkpoint_rejects_partial_membership_and_spliced_report_revisions() ->
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
             .map_err(io::Error::other)?;
-        assert!(read(&mut client, deadline, &AtomicU8::new(0)).is_err());
+        assert!(
+            read(
+                &mut client,
+                deadline,
+                OwnedCancellation::new().unwrap().borrow()
+            )
+            .is_err()
+        );
         drop(client);
         peer.finish()?;
     }
@@ -463,13 +476,13 @@ fn agent_checkpoint_cancel_interrupts_real_inflight_read_without_followup() -> i
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
         .map_err(io::Error::other)?;
-    let cancel = Arc::new(AtomicU8::new(0));
+    let cancel = Arc::new(OwnedCancellation::new().unwrap());
     let worker = cancel.clone();
-    let task = thread::spawn(move || read(&mut client, deadline, &worker));
+    let task = thread::spawn(move || read(&mut client, deadline, worker.borrow()));
     reading
         .recv_timeout(Duration::from_secs(2))
         .map_err(io::Error::other)?;
-    cancel.store(1, Ordering::Release);
+    cancel.cancel();
     assert!(task.join().unwrap().is_err());
     peer.finish()
 }
@@ -627,7 +640,14 @@ fn agent_checkpoint_metadata_requires_overlapping_revisions_exact_binding_and_ma
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
             .map_err(io::Error::other)?;
-        assert!(read(&mut client, deadline, &AtomicU8::new(0)).is_err());
+        assert!(
+            read(
+                &mut client,
+                deadline,
+                OwnedCancellation::new().unwrap().borrow()
+            )
+            .is_err()
+        );
         drop(client);
         peer.finish()?;
     }
@@ -641,7 +661,12 @@ fn agent_checkpoint_metadata_uses_authority_guards_without_losing_independent_to
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
             .map_err(io::Error::other)?;
-        let rows = read(&mut client, deadline, &AtomicU8::new(0)).unwrap();
+        let rows = read(
+            &mut client,
+            deadline,
+            OwnedCancellation::new().unwrap().borrow(),
+        )
+        .unwrap();
         assert_eq!(rows[1].sequence, WorkbenchRevision::new(8));
         if bad == 0 {
             assert_eq!(rows[1].title(), "Title 23");

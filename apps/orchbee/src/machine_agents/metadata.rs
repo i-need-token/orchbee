@@ -1,6 +1,6 @@
 //! An overlapping complete metadata/report checkpoint joined by exact member identity.
 use super::{
-    AtomicU8, Instant, LocalClient, MAXIMUM_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS,
+    Cancellation, Instant, LocalClient, MAXIMUM_BYTES, MAXIMUM_PANEL_AGENT_READ_ROWS,
     MAXIMUM_PANEL_METADATA_READ_ROWS, PanelAgentAction, PanelAgentOutcome, PanelAgentRequest,
     PanelAgentView, PanelMetadataAction, PanelMetadataOutcome, PanelMetadataRequest,
     PanelMetadataRow, Placement, PresentationAgentRow, PresentationBinding,
@@ -18,7 +18,7 @@ struct Reader<'a> {
     snapshot: &'a Snapshot,
     placements: &'a [Placement],
     deadline: Instant,
-    cancel: &'a AtomicU8,
+    cancel: Cancellation<'a>,
     bytes: &'a mut usize,
     physical_revision: Option<WorkbenchRevision>,
 }
@@ -64,7 +64,7 @@ impl Reader<'_> {
                     },
                 },
                 self.deadline,
-                Some(orchbee_local_ipc::LocalIo::Wake(self.cancel, 1)),
+                self.cancel.wake(),
             )
             .map_err(|_| ())?;
         match reply.outcome {
@@ -109,7 +109,7 @@ impl Reader<'_> {
                     },
                 },
                 self.deadline,
-                Some(orchbee_local_ipc::LocalIo::Wake(self.cancel, 1)),
+                self.cancel.wake(),
             )
             .map_err(|_| ())?;
         match reply.outcome {
@@ -205,7 +205,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     placements: &[Placement],
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
     bytes: &mut usize,
     physical_revision: Option<WorkbenchRevision>,
 ) -> Result<BTreeMap<TerminalPresentationId, Extra>, ()> {

@@ -1,4 +1,5 @@
 //! Complete canonical Workspace metadata and local Git checkpoints. No paint-time I/O.
+use crate::local_client::cancellation::Cancellation;
 use crate::{
     local_client::LocalClient,
     machine_observation::{check, request_id, snapshot},
@@ -10,11 +11,7 @@ use orchbee_workbench_protocol::{
     WorkspaceGitFailure, WorkspaceGitOutcome, WorkspaceGitRequest, WorkspaceMetadataAction,
     WorkspaceMetadataOutcome, WorkspaceMetadataRequest, WorkspaceMetadataRow,
 };
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, atomic::AtomicU8},
-    time::Instant,
-};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 mod navigation_projection;
@@ -85,7 +82,7 @@ struct Reader<'a> {
     client: &'a mut LocalClient,
     before: Snapshot,
     deadline: Instant,
-    cancel: &'a AtomicU8,
+    cancel: Cancellation<'a>,
     bytes: usize,
     metadata_revision: Option<WorkbenchRevision>,
 }
@@ -104,7 +101,7 @@ impl Reader<'_> {
                     },
                 },
                 self.deadline,
-                Some(orchbee_local_ipc::LocalIo::Wake(self.cancel, 1)),
+                self.cancel.wake(),
             )
             .map_err(|_| ())?;
         let WorkspaceMetadataOutcome::Read {
@@ -154,7 +151,7 @@ impl Reader<'_> {
                     workspace_id: id.clone(),
                 },
                 self.deadline,
-                Some(orchbee_local_ipc::LocalIo::Wake(self.cancel, 1)),
+                self.cancel.wake(),
             )
             .map_err(|_| ())?;
         self.count(&reply)?;
@@ -259,7 +256,7 @@ impl Reader<'_> {
 fn read(
     client: &mut LocalClient,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
     git_requested: bool,
 ) -> Result<Arc<Checkpoint>, ()> {
     let before = snapshot(client, deadline, cancel)?;
@@ -277,14 +274,14 @@ fn read(
 pub(crate) fn read_with_git(
     client: &mut LocalClient,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
     read(client, deadline, cancel, true)
 }
 pub(crate) fn read_metadata(
     client: &mut LocalClient,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
     read(client, deadline, cancel, false)
 }

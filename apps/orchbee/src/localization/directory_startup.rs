@@ -1,7 +1,6 @@
 use super::Locale;
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn directory_startup_failure(
         self,
         workspace: Option<&str>,

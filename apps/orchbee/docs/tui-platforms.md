@@ -20,6 +20,24 @@ adapters reuse these same facts. The current Windows execution adapter retains t
 bounded query/send bridge, while the Unix startup adapter refuses before connection, reservation,
 viewer or input admission. The pure startup workflow and its receipt reasoning remain compiled.
 
+`local_client::cancellation` privately owns one-shot cancellation for observation jobs, event
+watches, saved-machine observers and selection attempts. Creation finishes before thread spawn;
+creation failure follows the caller's existing unavailable result. The owner publishes `0 -> 1`
+before notifying and remains alive through cancellation and join. Worker completion stays in the
+join/result channel. Consumers borrow the readiness source without draining or resetting it.
+Collectors cancel every active and retired job before joining any of them.
+
+The Unix adapter writes one sticky byte to a real nonblocking pipe and keeps native FD polling.
+An already-full pipe remains ready; interrupted writes have a bounded retry budget. A terminal
+write failure or poisoned notification lock closes the sole writer so blocked readers receive a
+wake fault and can settle before join. The Windows adapter retains exact expected-byte matching;
+the CLI's independent `0/1/2` signal lifecycle is unchanged. Borrowed CLI signal descriptors and
+existing copy/link lane wakes pass through unchanged. Readiness inspection is a nonconsuming
+zero-time poll: readable means cancellation, only HUP/error/invalid means a wake fault, and no
+readiness means pending. Blocking transport waits use the native wake directly; no periodic
+Unix cancellation poll or new transport thread substitutes for it. Existing observer cooldowns
+and SSH-guard retirement scheduling keep their original cadence.
+
 ## Current adapters
 
 | Responsibility                                                                       | Windows                                      | Linux and macOS                                    |
@@ -41,6 +59,9 @@ The optional-capability list does not gate the whole TUI. In particular, an abse
 adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
 A local Client on Unix does not read the Windows catalog or invent an empty persisted catalog.
 Shared preferences keep their existing platform support independently of legacy Windows TOML.
+Local activation retains the admitted runtime directory on every platform. Remembered-position
+storage derives its cache path only inside the Windows adapter; the Unix adapter returns the
+typed `PositionStorage` refusal without reading Windows environment variables or inventing a path.
 
 ## Admission and unsupported outcomes
 
@@ -71,6 +92,11 @@ Pure state, rendering, input, capability refusal and receipt-settlement traces r
 supported platform. Real Win32, process and private-cache witnesses stay with their Windows
 adapter. The Client crate has no macOS-wide `dead_code` exemption. Unreachable implementations and
 companions are removed instead of keeping a test-only copy of a retired renderer.
+The Linux startup and peer-publication process witnesses share one bounded Workbench peer helper;
+fixture preparation does not import another scenario's test module.
+Cancellation evidence retains the existing in-flight read/no-retry and joined-retirement witnesses,
+and adds the readiness gap: sticky independent borrowers, borrowed wake faults, failed notification
+closure and exact Windows signal-byte matching. Unix FD witnesses still require a native Unix run.
 
 Run `cargo check -p orchbee --all-targets --all-features --locked` and
 `cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings` on each native

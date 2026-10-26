@@ -1,4 +1,4 @@
-use super::native_context::WorkbenchPeer;
+use super::workbench_peer::WorkbenchPeer;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{

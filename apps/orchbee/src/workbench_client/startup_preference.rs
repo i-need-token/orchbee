@@ -5,6 +5,15 @@ use super::workbench_projection::{
 };
 use orchbee_workbench_protocol::Snapshot;
 
+#[cfg(unix)]
+mod unix;
+#[cfg(windows)]
+mod windows;
+#[cfg(unix)]
+use unix::storage_path;
+#[cfg(windows)]
+use windows::storage_path;
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Position {
@@ -122,16 +131,7 @@ pub(super) struct Preferences {
 }
 impl Preferences {
     pub(super) fn load(runtime: &std::path::Path) -> Self {
-        let path = std::env::var_os("LOCALAPPDATA")
-            .map(std::path::PathBuf::from)
-            .map(|root| {
-                root.join("Orchbee").join("tui-position").join(
-                    orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::host_endpoint_id(
-                        runtime,
-                    ),
-                )
-            });
-        let Some(path) = path else {
+        let Ok(path) = storage_path(runtime) else {
             return Self {
                 path: Default::default(),
                 position: None,

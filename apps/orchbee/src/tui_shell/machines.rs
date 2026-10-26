@@ -2,7 +2,7 @@
 use super::{SurfaceSlot, TerminalSurface, terminal_geometry};
 use crate::{
     client_view::ClientView,
-    local_client::LocalClient,
+    local_client::{LocalClient, cancellation::OwnedCancellation},
     machine_discovery::{Connection, Context, Discovery, display_label, same_endpoint},
     machine_picker::{Choice, SelectionOrigin, SelectionScope},
     machines::{Profile, Store},
@@ -14,10 +14,7 @@ use crate::{
 };
 use std::{
     io,
-    sync::{
-        Arc,
-        atomic::{AtomicU8, Ordering},
-    },
+    sync::Arc,
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
@@ -31,7 +28,7 @@ const AGENT_EVENTS: &[orchbee_workbench_protocol::SemanticEventKind] = &[
 struct Attempt {
     profile: Option<Profile>,
     context: Option<ClientStartupTarget>,
-    cancel: Arc<AtomicU8>,
+    cancel: Arc<OwnedCancellation>,
     task: Option<JoinHandle<io::Result<PreparedSelection>>>,
 }
 enum PreparedSelection {
@@ -43,7 +40,7 @@ enum PreparedSelection {
 }
 impl Drop for Attempt {
     fn drop(&mut self) {
-        self.cancel.store(1, Ordering::Release);
+        self.cancel.cancel();
         if let Some(task) = self.task.take() {
             let _settled = task.join();
         }
@@ -133,7 +130,7 @@ impl Manager {
     }
     fn cancel(&mut self) {
         if let Some(attempt) = &self.attempt {
-            attempt.cancel.store(1, Ordering::Release);
+            attempt.cancel.cancel();
         }
         self.candidate = None;
         self.queued = None;
@@ -341,7 +338,7 @@ impl Manager {
                 .expect("attempt task")
                 .join()
                 .unwrap_or_else(|_| Err(io::Error::other("machine connection worker failed")));
-            if attempt.cancel.load(Ordering::Acquire) == 0
+            if !attempt.cancel.is_cancelled()
                 && self.selection_current(view)
                 && attempt.profile.as_ref().is_none_or(|p| self.valid(p))
             {
@@ -433,8 +430,6 @@ impl Manager {
                 Some(profile) => self.discovery.connection(profile, now),
                 None => self.local_source(surface),
             } {
-                let cancel = Arc::new(AtomicU8::new(0));
-                let worker_cancel = cancel.clone();
                 let Destination::Startup(context) = queued.destination else {
                     unreachable!("verified Agent destinations are handled without a new Session");
                 };
@@ -448,36 +443,42 @@ impl Manager {
                         Some(ClientStartupTarget::Agent(target)) => Some(target.clone()),
                         _ => None,
                     });
-                match thread::Builder::new()
-                    .name("orchbee-machine-connect".into())
-                    .spawn(move || {
-                        let mut client = connection.reconnect(queued.deadline, &worker_cancel)?;
-                        if let Some(target) = direct_agent {
-                            let snapshot = crate::machine_observation::snapshot(
-                                &mut client,
-                                queued.deadline,
-                                &worker_cancel,
-                            )
-                            .map_err(|()| {
-                                io::Error::other("Agent selection snapshot unavailable")
-                            })?;
-                            crate::machine_agents::verify(
-                                &mut client,
-                                &snapshot,
-                                &target,
-                                queued.deadline,
-                                &worker_cancel,
-                            )
-                            .map_err(|()| io::Error::other("Agent selection is stale"))?;
-                            Ok(PreparedSelection::Agent {
-                                target,
-                                deadline: queued.deadline,
-                            })
-                        } else {
-                            Ok(PreparedSelection::Connection(client))
-                        }
-                    }) {
-                    Ok(task) => {
+                match OwnedCancellation::new().and_then(|cancel| {
+                    let cancel = Arc::new(cancel);
+                    let worker_cancel = cancel.clone();
+                    let task = thread::Builder::new()
+                        .name("orchbee-machine-connect".into())
+                        .spawn(move || {
+                            let mut client =
+                                connection.reconnect(queued.deadline, worker_cancel.borrow())?;
+                            if let Some(target) = direct_agent {
+                                let snapshot = crate::machine_observation::snapshot(
+                                    &mut client,
+                                    queued.deadline,
+                                    worker_cancel.borrow(),
+                                )
+                                .map_err(|()| {
+                                    io::Error::other("Agent selection snapshot unavailable")
+                                })?;
+                                crate::machine_agents::verify(
+                                    &mut client,
+                                    &snapshot,
+                                    &target,
+                                    queued.deadline,
+                                    worker_cancel.borrow(),
+                                )
+                                .map_err(|()| io::Error::other("Agent selection is stale"))?;
+                                Ok(PreparedSelection::Agent {
+                                    target,
+                                    deadline: queued.deadline,
+                                })
+                            } else {
+                                Ok(PreparedSelection::Connection(client))
+                            }
+                        })?;
+                    Ok((cancel, task))
+                }) {
+                    Ok((cancel, task)) => {
                         self.attempt = Some(Attempt {
                             profile: queued.profile,
                             context,

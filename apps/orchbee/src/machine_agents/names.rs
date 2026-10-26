@@ -1,5 +1,5 @@
 //! Read display aliases once within the physical observation's deadline and byte budget.
-use super::{AtomicU8, Instant, LocalClient, MAXIMUM_BYTES, check, request_id};
+use super::{Cancellation, Instant, LocalClient, MAXIMUM_BYTES, check, request_id};
 use orchbee_agent_observation_protocol::{
     AgentNameTarget, AgentNamedTarget, AgentNamesListOutcome, AgentNamesRequest, AgentNamesResult,
     MAXIMUM_NAME_BINDINGS, ObapRequestId,
@@ -10,7 +10,7 @@ use orchbee_agent_observation_protocol::{
 pub(super) fn read(
     client: &mut LocalClient,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
     bytes: &mut usize,
 ) -> Result<Vec<AgentNamedTarget>, ()> {
     check(deadline, cancel)?;
@@ -20,7 +20,7 @@ pub(super) fn read(
                 request_id: ObapRequestId::parse(request_id()?.as_str()).map_err(|_| ())?,
             },
             deadline,
-            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+            cancel.wake(),
         )
         .map_err(|_| ())?;
     *bytes = bytes

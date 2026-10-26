@@ -1,5 +1,6 @@
 //! One observer owns one native read lane and one coalescing result slot.
 use super::{Connection, Overview, Ready};
+use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::{
     local_client::{
         LocalClient,
@@ -13,10 +14,7 @@ use orchbee_workbench_protocol::{
 };
 use std::{
     io,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU8, Ordering},
-    },
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
@@ -30,7 +28,7 @@ pub(super) struct Update {
     pub(super) event: Event,
 }
 pub(super) struct Worker {
-    cancel: Arc<AtomicU8>,
+    cancel: Arc<OwnedCancellation>,
     latest: Arc<Mutex<Option<Update>>>,
     task: Option<JoinHandle<()>>,
 }
@@ -46,9 +44,9 @@ impl Worker {
     }
     pub(super) fn spawn(
         generation: u64,
-        connect: impl FnOnce(&AtomicU8) -> io::Result<LocalClient> + Send + 'static,
+        connect: impl FnOnce(Cancellation<'_>) -> io::Result<LocalClient> + Send + 'static,
     ) -> io::Result<Self> {
-        let cancel = Arc::new(AtomicU8::new(0));
+        let cancel = Arc::new(OwnedCancellation::new()?);
         let latest = Arc::new(Mutex::new(None));
         let worker_cancel = cancel.clone();
         let worker_latest = latest.clone();
@@ -56,11 +54,11 @@ impl Worker {
             .name("orchbee-machine-observe".into())
             .spawn(move || {
                 let mut retained_origin = None;
-                let result = connect(&worker_cancel).and_then(|client| {
+                let result = connect(worker_cancel.borrow()).and_then(|client| {
                     retained_origin = Some(client.origin());
-                    observe(client, generation, &worker_cancel, &worker_latest)
+                    observe(client, generation, worker_cancel.borrow(), &worker_latest)
                 });
-                if worker_cancel.load(Ordering::Acquire) == 0
+                if !worker_cancel.is_cancelled()
                     && let Err(error) = result
                 {
                     *worker_latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Update {
@@ -74,7 +72,7 @@ impl Worker {
                 // The UI acknowledges failure by cancelling after dropping its cached origin.
                 // Keep the last transport guard here so SSH teardown cannot block a UI tick.
                 if retained_origin.is_some() {
-                    while worker_cancel.load(Ordering::Acquire) == 0 {
+                    while !worker_cancel.is_cancelled() {
                         thread::sleep(Duration::from_millis(20));
                     }
                     worker_latest
@@ -91,7 +89,7 @@ impl Worker {
         })
     }
     pub(super) fn cancel(&self) {
-        self.cancel.store(1, Ordering::Release);
+        self.cancel.cancel();
     }
     pub(super) fn finished(&self) -> bool {
         self.task.as_ref().is_none_or(JoinHandle::is_finished)
@@ -111,7 +109,7 @@ impl Drop for Worker {
 fn observe(
     mut client: LocalClient,
     generation: u64,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
     latest: &Mutex<Option<Update>>,
 ) -> io::Result<()> {
     let connection = Connection {
@@ -119,7 +117,7 @@ fn observe(
         clock: client.operation_clock(),
     };
     let mut online_since = None;
-    while cancel.load(Ordering::Acquire) == 0 {
+    while !cancel.is_cancelled()? {
         let identity = ProfileId::generate().map_err(|_| io::ErrorKind::Other)?;
         let request = SnapshotReadIntent {
             protocol_version: ProtocolVersion,
@@ -129,7 +127,7 @@ fn observe(
             .submit_workbench_snapshot_read_before_cancellable(
                 request,
                 Instant::now() + Duration::from_secs(5),
-                Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+                cancel.wake(),
             )
             .map_err(snapshot_error)?;
         let overview = match result.outcome {
@@ -156,7 +154,7 @@ fn observe(
             },
         });
         let next = observed + Duration::from_secs(2);
-        while cancel.load(Ordering::Acquire) == 0 && Instant::now() < next {
+        while !cancel.is_cancelled()? && Instant::now() < next {
             thread::sleep(Duration::from_millis(20));
         }
     }

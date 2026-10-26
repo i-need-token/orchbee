@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::{
-    local_client::{LocalClientOrigin, LocalOperationClock},
+    local_client::{LocalClientOrigin, LocalOperationClock, cancellation::Cancellation},
     machine_observation,
     terminal_link_activation::{
         Activation, Guard, PaintedLinkSource, ReadAttachment,
@@ -323,7 +323,11 @@ fn execute(
     else {
         return Notice::Failed;
     };
-    let Ok(snapshot) = machine_observation::snapshot(&mut client, job.deadline, stopping) else {
+    let Ok(snapshot) = machine_observation::snapshot(
+        &mut client,
+        job.deadline,
+        Cancellation::new(Some(wake.as_local_io())),
+    ) else {
         return Notice::Failed;
     };
     if job.source.snapshot_member(&snapshot).is_none() {
@@ -371,7 +375,11 @@ fn execute(
 
     // Effect handoff gets a fresh canonical membership and a fresh attachment
     // read. It validates the same URL/carrier; it never adopts a replacement.
-    let Ok(current) = machine_observation::snapshot(&mut client, job.deadline, stopping) else {
+    let Ok(current) = machine_observation::snapshot(
+        &mut client,
+        job.deadline,
+        Cancellation::new(Some(wake.as_local_io())),
+    ) else {
         return Notice::Failed;
     };
     if job.source.snapshot_member(&current).is_none() {

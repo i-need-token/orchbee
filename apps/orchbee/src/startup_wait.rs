@@ -115,7 +115,6 @@ impl<M: TerminalModes> WaitModeGuard for TerminalModeGuard<M> {
                 PointerCaptureRequest::Release => None,
                 PointerCaptureRequest::ButtonOnly => Some(PointerTrackingLevel::ButtonOnly),
                 PointerCaptureRequest::AnyMotion => Some(PointerTrackingLevel::AnyMotion),
-                #[cfg(windows)]
                 PointerCaptureRequest::MenuMotion => Some(PointerTrackingLevel::MenuMotion),
             },
         )
@@ -210,7 +209,6 @@ where
                         | crate::terminal_input::ModeRequest::Bell => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
-                        #[cfg(windows)]
                         crate::terminal_input::ModeRequest::WindowTitle(_)
                         | crate::terminal_input::ModeRequest::Notification(_) => {
                             Err(io::ErrorKind::Unsupported.into())

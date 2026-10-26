@@ -2,7 +2,6 @@
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
 mod action_menu;
-#[cfg(windows)]
 mod agent_projection;
 mod control_takeover;
 mod directory_startup;

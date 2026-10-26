@@ -1,4 +1,5 @@
 //! Bounded physical Agent checkpoints and UI-owned cross-machine observation jobs.
+use crate::local_client::cancellation::Cancellation;
 use crate::{
     local_client::LocalClient,
     machine_discovery::display_label,
@@ -17,10 +18,7 @@ use orchbee_workbench_protocol::{
     SessionId, Snapshot, TerminalAgentStateRow, TerminalAgentStateSnapshot, TerminalPresentationId,
     TerminalTitleObservation, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId,
 };
-use std::{
-    sync::{Arc, atomic::AtomicU8},
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 
 mod attention;
 mod metadata;
@@ -86,7 +84,7 @@ fn source_view(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<AgentViewSnapshot, ()> {
     check(deadline, cancel)?;
     match client
@@ -98,7 +96,7 @@ fn source_view(
                 action: AgentViewAction::Read {},
             },
             deadline,
-            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+            cancel.wake(),
         )
         .map_err(|_| ())?
         .outcome
@@ -112,7 +110,7 @@ fn states(
     snapshot: &Snapshot,
     ids: &[TerminalPresentationId],
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<(WorkbenchRevision, Vec<TerminalAgentStateRow>), ()> {
     check(deadline, cancel)?;
     match client
@@ -126,7 +124,7 @@ fn states(
                 },
             },
             deadline,
-            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+            cancel.wake(),
         )
         .map_err(|_| ())?
         .outcome
@@ -280,7 +278,7 @@ fn collect(
 pub(crate) fn read(
     client: &mut LocalClient,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
     let snapshot = snapshot(client, deadline, cancel)?;
     read_at(client, &snapshot, deadline, cancel)
@@ -291,7 +289,7 @@ pub(crate) fn read_at(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<Arc<Checkpoint>, ()> {
     let initial_view = source_view(client, snapshot, deadline, cancel)?;
     let StateCheckpoint {
@@ -399,7 +397,7 @@ pub(crate) fn read_states_at(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<StateCheckpoint, ()> {
     let placements = placements(snapshot)?;
     let ids: Vec<_> = placements.iter().map(|p| p.member.clone()).collect();
@@ -446,7 +444,7 @@ pub(crate) fn confirm(
     snapshot: &Snapshot,
     revision: WorkbenchRevision,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<(), ()> {
     let (head, rows) = states(client, snapshot, &[], deadline, cancel)?;
     if head != revision || !rows.is_empty() {
@@ -459,7 +457,7 @@ pub(crate) fn verify(
     snapshot: &Snapshot,
     target: &Target,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<(), ()> {
     if !placements(snapshot)?.iter().any(|p| {
         p.context == target.context

@@ -1,8 +1,9 @@
 //! Compact title reads join only the already-observed exact physical Agent bindings.
 use super::{
-    AtomicU8, Instant, LocalClient, MAXIMUM_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS, PanelAgentAction,
-    PanelAgentOutcome, PanelAgentRequest, ProtocolVersion, Snapshot, TerminalAgentStateSnapshot,
-    TerminalPresentationId, TerminalTitleObservation, check, request_id,
+    Cancellation, Instant, LocalClient, MAXIMUM_BYTES, MAXIMUM_TERMINAL_TITLE_ROWS,
+    PanelAgentAction, PanelAgentOutcome, PanelAgentRequest, ProtocolVersion, Snapshot,
+    TerminalAgentStateSnapshot, TerminalPresentationId, TerminalTitleObservation, check,
+    request_id,
 };
 use std::collections::BTreeMap;
 pub(super) fn read(
@@ -10,7 +11,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     states: &BTreeMap<TerminalPresentationId, Option<TerminalAgentStateSnapshot>>,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
     bytes: &mut usize,
 ) -> Result<BTreeMap<TerminalPresentationId, TerminalTitleObservation>, ()> {
     let bindings: Vec<_> = states
@@ -33,7 +34,7 @@ pub(super) fn read(
                     },
                 },
                 deadline,
-                Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+                cancel.wake(),
             )
             .map_err(|_| ())?;
         let PanelAgentOutcome::Titles {

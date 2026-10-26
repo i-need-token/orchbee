@@ -6,7 +6,6 @@ use super::Locale;
 pub(crate) enum RecoveryVerb {
     Cancel,
     Close,
-    #[cfg(windows)]
     Hide,
 }
 
@@ -17,9 +16,7 @@ impl Locale {
             (Self::ZhCn, RecoveryVerb::Cancel) => "取消",
             (Self::EnUs, RecoveryVerb::Close) => "Close",
             (Self::ZhCn, RecoveryVerb::Close) => "关闭",
-            #[cfg(windows)]
             (Self::EnUs, RecoveryVerb::Hide) => "Hide",
-            #[cfg(windows)]
             (Self::ZhCn, RecoveryVerb::Hide) => "隐藏",
         }
     }

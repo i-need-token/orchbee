@@ -156,7 +156,7 @@ impl Fixture {
             String::from_utf8_lossy(&output.stderr)
         );
         let deadline = Instant::now() + super::STARTUP_OR_CREATE_TIMEOUT;
-        let mut peer = super::native_context::WorkbenchPeer::connect(&fixture, deadline).unwrap();
+        let mut peer = super::workbench_peer::WorkbenchPeer::connect(&fixture, deadline).unwrap();
         peer.reserve_fixture_request_range();
         let outcome = peer
             .prepare(

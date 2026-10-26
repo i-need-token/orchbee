@@ -3,6 +3,8 @@
 //! activate a Session, authorize Server effects, or treat local cancellation as retraction of
 //! a delivered operation.
 
+pub(crate) mod cancellation;
+
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use std::path::PathBuf;
 use std::{

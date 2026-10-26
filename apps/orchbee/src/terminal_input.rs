@@ -14,8 +14,9 @@ use orchbee_workbench_protocol::WorkbenchTabId;
 use crate::workbench_client::{WorktreeEdit, WorktreeToken};
 
 mod decoder;
-pub(crate) use decoder::DecodedItem;
-pub(crate) use decoder::{DecodedKind, LegacyDecoder};
+#[cfg(any(windows, test))]
+pub(crate) use decoder::LegacyDecoder;
+pub(crate) use decoder::{DecodedItem, DecodedKind};
 mod dispatcher;
 mod modal;
 mod mouse;

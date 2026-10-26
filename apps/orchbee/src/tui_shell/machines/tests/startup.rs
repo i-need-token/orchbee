@@ -154,7 +154,7 @@ fn attempt(server: &FakeServer, context: Option<ClientContextTarget>) -> Attempt
     Attempt {
         profile: Some(profile()),
         context: context.map(Into::into),
-        cancel: Arc::new(AtomicU8::new(0)),
+        cancel: Arc::new(OwnedCancellation::new().unwrap()),
         task: Some(thread::spawn(move || {
             LocalClient::connect_before(
                 &endpoint,

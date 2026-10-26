@@ -43,7 +43,7 @@ fn completed(at: Instant) -> Job<Checkpoint> {
         thread::yield_now();
     }
     Job {
-        cancel: Arc::new(AtomicU8::new(0)),
+        cancel: Arc::new(OwnedCancellation::new().unwrap()),
         task: Some(task),
     }
 }
@@ -55,11 +55,11 @@ fn observation_collector_bounds_workers_and_cancels_removed_sources() -> io::Res
     let mut flags = Vec::new();
     collector.tick_with_start(sources(&connection, 10), now, |_, deadline| {
         assert_eq!(deadline, now + Duration::from_secs(5));
-        let cancel = Arc::new(AtomicU8::new(0));
+        let cancel = Arc::new(OwnedCancellation::new().unwrap());
         flags.push(cancel.clone());
         let worker = cancel.clone();
         let task = thread::spawn(move || {
-            while worker.load(Ordering::Acquire) == 0 && Instant::now() < deadline {
+            while !worker.is_cancelled() && Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(1));
             }
             Completed {
@@ -81,7 +81,7 @@ fn observation_collector_bounds_workers_and_cancels_removed_sources() -> io::Res
             .tick_with_start(Vec::new(), now, |_, _| panic!("removed source"))
             .is_empty()
     );
-    assert!(flags.iter().all(|f| f.load(Ordering::Acquire) == 1));
+    assert!(flags.iter().all(|f| f.is_cancelled()));
     drop(collector); // Joins every cancelled writer before fixture disposal.
     Ok(())
 }
@@ -127,12 +127,15 @@ fn observation_collector_ages_from_worker_completion_and_discards_previous_gener
     Ok(())
 }
 
-fn pending<T: Send + Sync + 'static>(deadline: Instant, flags: &mut Vec<Arc<AtomicU8>>) -> Job<T> {
-    let cancel = Arc::new(AtomicU8::new(0));
+fn pending<T: Send + Sync + 'static>(
+    deadline: Instant,
+    flags: &mut Vec<Arc<OwnedCancellation>>,
+) -> Job<T> {
+    let cancel = Arc::new(OwnedCancellation::new().unwrap());
     flags.push(cancel.clone());
     let flag = cancel.clone();
     let task = thread::spawn(move || {
-        while flag.load(Ordering::Acquire) == 0 && Instant::now() < deadline {
+        while !flag.is_cancelled() && Instant::now() < deadline {
             thread::sleep(Duration::from_millis(1));
         }
         Completed {
@@ -168,7 +171,7 @@ fn independent_agent_and_workspace_pools_bound_eight_jobs_and_join_both_on_retir
     });
     agents.clear();
     spaces.clear();
-    assert!(flags.iter().all(|f| f.load(Ordering::Acquire) == 1));
+    assert!(flags.iter().all(|f| f.is_cancelled()));
     drop(agents);
     drop(spaces);
     Ok(())

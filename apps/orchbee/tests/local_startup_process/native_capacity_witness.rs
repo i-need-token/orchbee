@@ -10,8 +10,8 @@
 //! boundary event, never as a hang, a crash, or an outcome-unknown.
 
 use super::native_cli_query::run_json;
-use super::native_context::{DeadlineStream, WorkbenchPeer};
 use super::native_multiview;
+use super::workbench_peer::{DeadlineStream, WorkbenchPeer};
 use super::*;
 use orchbee_client_server_protocol::{
     ClientMessage, ControlInput, ControlRejectedReason, ControlUnavailableReason, ControllerId,

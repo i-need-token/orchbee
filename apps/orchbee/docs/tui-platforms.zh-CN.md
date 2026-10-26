@@ -17,6 +17,21 @@ Server 仍逐项授权请求；编译可达不代表 Server 或 Host 实现了�
 已有的有界 query／send 桥，Unix 启动适配器则在连接、预留、viewer 或输入准入前拒绝。
 纯启动工作流及其回执推理仍参与编译。
 
+`local_client::cancellation` 私有地负责观察任务、事件观察、已保存机器观察及选择尝试的
+单次取消。在线程启动前完成创建；创建失败走调用方既有的不可用结果。所有者先发布
+`0 -> 1` 再通知，并存活到取消和 join 完成。线程完成仍通过 join／结果通道传递。
+消费者借用 readiness 来源，不读取清空或重置它。Collector 先取消所有活跃及已退休任务，
+再 join 任何任务。
+
+Unix 适配器向真实非阻塞管道写入一个保持可读的字节，并保留原生 FD poll。
+管道已满时保持就绪；被中断的写入只有有限重试预算。终止性写入失败或通知锁中毒时，
+关闭唯一写端，使阻塞中的读取方收到唤醒故障，并在 join 前结算。Windows 适配器保留
+精确的期望字节匹配；CLI 独立的 `0/1/2` 信号生命周期不变。借用的 CLI 信号描述符和
+既有复制／链接 lane 的 wake 原样传递。readiness 检查采用不消费数据的零等待 poll：
+可读代表取消，只有 HUP／错误／无效事件代表唤醒故障，没有就绪则仍在等待。
+阻塞中的传输等待直接使用原生 wake，不以周期性的 Unix 取消轮询或新增传输线程替代。
+既有观察冷却期与 SSH guard 退休调度保留原有节奏。
+
 ## 当前适配
 
 | 职责                                                         | Windows                           | Linux 与 macOS               |
@@ -37,6 +52,8 @@ Server 仍逐项授权请求；编译可达不代表 Server 或 Host 实现了�
 可选能力列表不控制整个 TUI。尤其是缺少已保存机器适配时，本地 Workspace／Agent 侧栏
 仍可使用，其观察结果不会被反复退休。Unix 本地 Client 不读取 Windows 目录，也不伪造
 空的持久化目录。共享偏好保留既有平台支持，与旧 Windows TOML 相互独立。
+本地激活在所有平台保留已准入的运行时目录。记忆位置存储只在 Windows 适配器内推导
+缓存路径；Unix 适配器返回类型化 `PositionStorage` 拒绝，不读取 Windows 环境变量，也不伪造路径。
 
 ## 准入与不支持结果
 
@@ -62,6 +79,11 @@ Server 仍逐项授权请求；编译可达不代表 Server 或 Host 实现了�
 纯状态、渲染、输入、能力拒绝和回执结算轨迹在所有支持的平台运行。真实 Win32、进程和
 私有缓存证据留在 Windows 适配层。Client crate 不再有覆盖整个 macOS 的 `dead_code` 豁免。
 删除不可达实现及其伴随内容，不把退休渲染器保留为只用于测试的副本。
+Linux 启动与 peer-publication 进程验证共用一个有界 Workbench peer 辅助模块；
+fixture 准备不导入另一组场景的测试模块。
+取消证据保留既有在途读取／不重试及退休 join 验证，并补充 readiness 缺口：独立借用者
+持续可读、借用 wake 故障、通知失败关闭以及 Windows 精确信号字节匹配。
+Unix FD 验证仍需要在原生 Unix 上运行。
 
 在每个原生平台运行 `cargo check -p orchbee --all-targets --all-features --locked` 和
 `cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings`，
@@ -74,4 +96,4 @@ OS、模拟器／版本、几何、locale、主题和能力，覆盖共享导航
 以及缺失适配的本地化拒绝。远程连接失败或 Windows 检查都不能证明 macOS 或 Linux 通过。
 [TUI 验证](../../../docs/zh-CN/tui/verification.md)管理证据类别。
 
-<!-- documentation-pairing: english-sha256=03da4404f5a2d00c87e493bf332bd55dc5716cadce3307866393405689df8963 zh-cn-sha256=f940e784fdbd8a52ee8321a84fad690ea4a3359f60ba451fda9aedea505facf6 -->
+<!-- documentation-pairing: english-sha256=25c754787c60cf514f33b429980fb2f1e3d3e8b99e02f11ff8c49f9cd1b90062 zh-cn-sha256=e5012a423aa228e0bc9b886e4fed75ff9f99fd96ab653a9d5bf5520bd78e8c82 -->

@@ -48,6 +48,8 @@ mod pty_client;
 mod startup_wait;
 #[path = "support/tui_observer.rs"]
 mod tui_observer;
+#[path = "local_startup_process/workbench_peer.rs"]
+mod workbench_peer;
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
 #[path = "support/mod.rs"]

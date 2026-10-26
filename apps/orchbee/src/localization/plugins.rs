@@ -1,4 +1,5 @@
 use super::Locale;
+#[cfg(windows)]
 use orchbee_local_runtime::PluginRegistryError as Error;
 impl Locale {
     pub(super) fn cli_plugin_preparation_failure(self, reason: &str) -> &'static str {
@@ -109,7 +110,6 @@ impl Locale {
             (Self::ZhCn, false) => "当前没有 popup。\n",
         }
     }
-    #[cfg(windows)]
     pub(crate) const fn plugin_popup_pending(self, closing: bool) -> &'static str {
         match (self, closing) {
             (Self::EnUs, false) => "Opening…",
@@ -118,7 +118,6 @@ impl Locale {
             (Self::ZhCn, true) => "正在关闭…",
         }
     }
-    #[cfg(windows)]
     pub(crate) const fn plugin_popup_resize_recovery(self) -> &'static str {
         match self {
             Self::EnUs => "Enlarge the terminal to restore the popup.",

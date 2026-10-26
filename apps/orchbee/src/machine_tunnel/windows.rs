@@ -7,6 +7,7 @@ mod relay;
 #[path = "tests.rs"]
 mod tests;
 use super::admission_error;
+use crate::local_client::cancellation::Cancellation;
 use crate::{local_client::LocalClient, machine_ssh, machines::Profile};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous, SessionScope};
@@ -15,7 +16,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{AtomicBool, Ordering},
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -40,15 +41,13 @@ impl Drop for Tunnel {
 pub(crate) fn connect(
     profile: &Profile,
     deadline: Instant,
-    cancelled: &AtomicU8,
+    cancelled: Cancellation<'_>,
 ) -> io::Result<LocalClient> {
     if !profile.enabled {
         return Err(io::ErrorKind::PermissionDenied.into());
     }
-    let admitted = machine_ssh::probe(&profile.draft, deadline, || {
-        Ok(cancelled.load(Ordering::Acquire) != 0)
-    })?;
-    if cancelled.load(Ordering::Acquire) != 0 {
+    let admitted = machine_ssh::probe(&profile.draft, deadline, || cancelled.is_cancelled())?;
+    if cancelled.is_cancelled()? {
         return Err(io::ErrorKind::Interrupted.into());
     }
     let ssh = machine_ssh::executable()?;
@@ -64,10 +63,10 @@ pub(crate) fn connect(
         &endpoint,
         &admitted.cohort,
         deadline,
-        Some(orchbee_local_ipc::LocalIo::Wake(cancelled, 1)),
+        cancelled.wake(),
     )
     .map_err(admission_error)?;
-    if cancelled.load(Ordering::Acquire) != 0 {
+    if cancelled.is_cancelled()? {
         return Err(io::ErrorKind::Interrupted.into());
     }
     Ok(client.with_tunnel(guard))

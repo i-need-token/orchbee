@@ -3,6 +3,7 @@ mod policy;
 #[cfg(test)]
 mod tests;
 mod worker;
+use crate::local_client::cancellation::Cancellation;
 use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
     machines::{Profile, ProfileId},
@@ -13,7 +14,6 @@ use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchProjectId, Workbe
 use policy::{Phase, Policy};
 use std::{
     io,
-    sync::atomic::AtomicU8,
     time::{Duration, Instant},
 };
 use unicode_segmentation::UnicodeSegmentation;
@@ -132,14 +132,10 @@ impl Connection {
     pub(crate) fn reconnect(
         &self,
         deadline: Instant,
-        cancel: &AtomicU8,
+        cancel: Cancellation<'_>,
     ) -> io::Result<LocalClient> {
         self.origin
-            .reconnect_before_cancellable(
-                deadline,
-                self.clock.clone(),
-                Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
-            )
+            .reconnect_before_cancellable(deadline, self.clock.clone(), cancel.wake())
             .map_err(crate::machine_tunnel::admission_error)
     }
 }

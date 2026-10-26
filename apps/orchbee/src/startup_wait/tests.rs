@@ -141,7 +141,6 @@ impl WaitModeGuard for RecordingGuard {
             PointerCaptureRequest::Release => "disable-pointer-capture",
             PointerCaptureRequest::ButtonOnly => "enable-pointer-capture",
             PointerCaptureRequest::AnyMotion => "enable-pointer-any-motion",
-            #[cfg(windows)]
             PointerCaptureRequest::MenuMotion => "enable-pointer-menu-motion",
         })
     }

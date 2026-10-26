@@ -1,4 +1,5 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
+use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::{
     local_client::LocalClient, machine_discovery::Connection, machine_picker::Choice,
     machines::ProfileId, workbench_client::UiWakeup,
@@ -12,7 +13,7 @@ use orchbee_workbench_protocol::{
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicU8, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -33,12 +34,12 @@ pub(crate) struct Source {
     pub(crate) choice: Choice,
     pub(crate) connection: Connection,
 }
-type Reader<T> = fn(&mut LocalClient, Instant, &AtomicU8) -> Result<Arc<T>, ()>;
+type Reader<T> = fn(&mut LocalClient, Instant, Cancellation<'_>) -> Result<Arc<T>, ()>;
 pub(crate) fn request_id() -> Result<WorkbenchRequestId, ()> {
     WorkbenchRequestId::parse(ProfileId::generate().map_err(|_| ())?.as_str()).map_err(|_| ())
 }
-pub(crate) fn check(deadline: Instant, cancel: &AtomicU8) -> Result<(), ()> {
-    if Instant::now() >= deadline || cancel.load(Ordering::Acquire) != 0 {
+pub(crate) fn check(deadline: Instant, cancel: Cancellation<'_>) -> Result<(), ()> {
+    if Instant::now() >= deadline || cancel.is_cancelled().map_err(|_| ())? {
         Err(())
     } else {
         Ok(())
@@ -47,7 +48,7 @@ pub(crate) fn check(deadline: Instant, cancel: &AtomicU8) -> Result<(), ()> {
 pub(crate) fn snapshot(
     client: &mut LocalClient,
     deadline: Instant,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<Snapshot, ()> {
     check(deadline, cancel)?;
     match client
@@ -57,7 +58,7 @@ pub(crate) fn snapshot(
                 request_id: request_id()?,
             },
             deadline,
-            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+            cancel.wake(),
         )
         .map_err(|_| ())?
         .outcome
@@ -73,7 +74,7 @@ struct Completed<T> {
     rows: Result<Arc<T>, ()>,
 }
 struct Job<T> {
-    cancel: Arc<AtomicU8>,
+    cancel: Arc<OwnedCancellation>,
     task: Option<JoinHandle<Completed<T>>>,
 }
 impl<T: Send + Sync + 'static> Job<T> {
@@ -83,14 +84,14 @@ impl<T: Send + Sync + 'static> Job<T> {
         read: Reader<T>,
         wakeup: Option<UiWakeup>,
     ) -> Result<Self, ()> {
-        let cancel = Arc::new(AtomicU8::new(0));
+        let cancel = Arc::new(OwnedCancellation::new().map_err(|_| ())?);
         let flag = cancel.clone();
         let task = thread::Builder::new()
             .name("orchbee-machine-observation".into())
             .spawn(move || {
                 let result = (|| {
-                    let mut client = source.reconnect(deadline, &flag).map_err(|_| ())?;
-                    read(&mut client, deadline, &flag)
+                    let mut client = source.reconnect(deadline, flag.borrow()).map_err(|_| ())?;
+                    read(&mut client, deadline, flag.borrow())
                 })();
                 let completed = Completed {
                     at: Instant::now(),
@@ -108,7 +109,7 @@ impl<T: Send + Sync + 'static> Job<T> {
         })
     }
     fn stop(&self) {
-        self.cancel.store(1, Ordering::Release);
+        self.cancel.cancel();
     }
     fn finished(&self) -> bool {
         self.task.as_ref().is_none_or(JoinHandle::is_finished)
@@ -117,7 +118,7 @@ impl<T: Send + Sync + 'static> Job<T> {
 /// Long-polls one source's semantic event journal and counts admitted matching changes. The count
 /// is only a refresh hint: coalesced, evicted or missed events still reach the periodic read.
 struct Watch {
-    cancel: Arc<AtomicU8>,
+    cancel: Arc<OwnedCancellation>,
     changes: Arc<AtomicU64>,
     task: Option<JoinHandle<()>>,
 }
@@ -127,13 +128,13 @@ impl Watch {
         kinds: &'static [SemanticEventKind],
         wakeup: Option<UiWakeup>,
     ) -> Result<Self, ()> {
-        let cancel = Arc::new(AtomicU8::new(0));
+        let cancel = Arc::new(OwnedCancellation::new().map_err(|_| ())?);
         let changes = Arc::new(AtomicU64::new(0));
         let (flag, counter) = (cancel.clone(), changes.clone());
         let task = thread::Builder::new()
             .name("orchbee-machine-watch".into())
             .spawn(move || {
-                let _ended = watch(&source, kinds, &flag, &counter, wakeup.as_ref());
+                let _ended = watch(&source, kinds, flag.borrow(), &counter, wakeup.as_ref());
             })
             .map_err(|_| ())?;
         Ok(Self {
@@ -146,7 +147,7 @@ impl Watch {
         self.changes.load(Ordering::Acquire)
     }
     fn stop(&self) {
-        self.cancel.store(1, Ordering::Release);
+        self.cancel.cancel();
     }
     fn finished(&self) -> bool {
         self.task.as_ref().is_none_or(JoinHandle::is_finished)
@@ -163,7 +164,7 @@ impl Drop for Watch {
 fn watch(
     source: &Connection,
     kinds: &'static [SemanticEventKind],
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
     changes: &AtomicU64,
     wakeup: Option<&UiWakeup>,
 ) -> Result<(), ()> {
@@ -197,7 +198,7 @@ fn watch(
     if let Some(wakeup) = wakeup {
         wakeup.signal();
     }
-    while cancel.load(Ordering::Acquire) == 0 {
+    while !cancel.is_cancelled().map_err(|_| ())? {
         match events(
             &mut client,
             &session_id,
@@ -228,9 +229,9 @@ fn events(
     client: &mut LocalClient,
     session_id: &SessionId,
     action: SemanticEventsAction,
-    cancel: &AtomicU8,
+    cancel: Cancellation<'_>,
 ) -> Result<SemanticEventsOutcome, ()> {
-    if cancel.load(Ordering::Acquire) != 0 {
+    if cancel.is_cancelled().map_err(|_| ())? {
         return Err(());
     }
     client
@@ -242,14 +243,14 @@ fn events(
                 action,
             },
             Instant::now() + Duration::from_secs(3),
-            Some(orchbee_local_ipc::LocalIo::Wake(cancel, 1)),
+            cancel.wake(),
         )
         .map(|result| result.outcome)
         .map_err(|_| ())
 }
 impl<T> Drop for Job<T> {
     fn drop(&mut self) {
-        self.cancel.store(1, Ordering::Release);
+        self.cancel.cancel();
         if let Some(task) = self.task.take() {
             let _settled = task.join();
         }
@@ -444,11 +445,11 @@ impl<T> Drop for Collector<T> {
     fn drop(&mut self) {
         for entry in &self.entries {
             if let Some(job) = &entry.job {
-                job.cancel.store(1, Ordering::Release);
+                job.cancel.cancel();
             }
         }
         for job in &self.retired {
-            job.cancel.store(1, Ordering::Release);
+            job.cancel.cancel();
         }
         for watch in self.entries.iter().filter_map(|entry| entry.watch.as_ref()) {
             watch.stop();

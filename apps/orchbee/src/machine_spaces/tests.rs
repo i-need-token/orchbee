@@ -1,4 +1,5 @@
 use super::*;
+use crate::local_client::cancellation::OwnedCancellation;
 mod navigation_projection;
 use crate::{local_client::tests::server::FakeServer, machine_agents::tests::accept};
 use orchbee_workbench_protocol::{
@@ -183,8 +184,13 @@ fn workspace_checkpoint_is_complete_and_reads_git_for_each_workspace() -> io::Re
         let deadline = Instant::now() + Duration::from_secs(3);
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
             .map_err(io::Error::other)?;
-        let checkpoint = read(&mut client, deadline, &AtomicU8::new(0), git_requested)
-            .map_err(|_| io::Error::other("complete checkpoint"))?;
+        let checkpoint = read(
+            &mut client,
+            deadline,
+            OwnedCancellation::new().unwrap().borrow(),
+            git_requested,
+        )
+        .map_err(|_| io::Error::other("complete checkpoint"))?;
         assert_eq!(checkpoint.rows.len(), 3);
         assert_eq!(
             checkpoint.projects,
@@ -249,7 +255,13 @@ fn workspace_checkpoint_rejects_changed_reports_topology_and_wrong_git_identity(
         let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
             .map_err(io::Error::other)?;
         assert!(
-            read(&mut client, deadline, &AtomicU8::new(0), true).is_err(),
+            read(
+                &mut client,
+                deadline,
+                OwnedCancellation::new().unwrap().borrow(),
+                true
+            )
+            .is_err(),
             "accepted torn checkpoint {bad}"
         );
         drop(client);
@@ -294,14 +306,14 @@ fn workspace_checkpoint_cancellation_retires_inflight_io_and_sends_no_followup()
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", deadline)
         .map_err(io::Error::other)?;
-    let cancel = Arc::new(AtomicU8::new(0));
+    let cancel = Arc::new(OwnedCancellation::new().unwrap());
     let flag = cancel.clone();
-    let task = thread::spawn(move || read(&mut client, deadline, &flag, true));
+    let task = thread::spawn(move || read(&mut client, deadline, flag.borrow(), true));
     reading
         .recv_timeout(Duration::from_secs(2))
         .map_err(io::Error::other)?;
     let start = Instant::now();
-    cancel.store(1, Ordering::Release);
+    cancel.cancel();
     assert!(task.join().unwrap().is_err());
     assert!(start.elapsed() < Duration::from_secs(1));
     peer.finish()?;

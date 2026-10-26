@@ -214,7 +214,7 @@ fn superseded_connection_completion_cannot_fail_or_replace_new_direct_navigation
     manager.selection_scope = view.machines.selection_scope();
     view.machines.request.take();
     let (release, receive) = std::sync::mpsc::channel();
-    let cancel = Arc::new(AtomicU8::new(0));
+    let cancel = Arc::new(OwnedCancellation::new().unwrap());
     manager.attempt = Some(Attempt {
         profile: Some(super::profile()),
         context: Some(targets[1].clone().into()),
@@ -226,7 +226,7 @@ fn superseded_connection_completion_cannot_fail_or_replace_new_direct_navigation
     });
     request(&mut view, &targets[2]);
     manager.tick(&mut surface, &mut view, dimensions(), now, &mut |_| {});
-    assert_eq!(cancel.load(Ordering::Acquire), 1);
+    assert!(cancel.is_cancelled());
     assert!(manager.queued.is_some());
     assert!(state.borrow().admitted.is_empty());
     release.send(()).unwrap();
@@ -441,7 +441,7 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
         while !task.is_finished() {
             thread::yield_now();
         }
-        let cancel = Arc::new(AtomicU8::new(0));
+        let cancel = Arc::new(OwnedCancellation::new().unwrap());
         manager.attempt = Some(Attempt {
             profile: None,
             context: Some(ClientStartupTarget::Agent(Box::new(targets[1].clone()))),
@@ -454,7 +454,7 @@ fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
             view.machines.cancel_selection();
         }
         manager.tick(&mut surface, &mut view, dimensions(), now, &mut |_| {});
-        assert_eq!(cancel.load(Ordering::Acquire), 1);
+        assert!(cancel.is_cancelled());
         assert!(state.borrow().admitted.is_empty());
         assert_eq!(view.machines.open, explicit);
         assert!(

@@ -1366,7 +1366,7 @@ mod tests;
 #[cfg(all(test, windows))]
 mod windows_tests;
 
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 fn captured_window_title(result: io::Result<String>) -> io::Result<String> {
     let raw = match result {
         Ok(raw) => raw,

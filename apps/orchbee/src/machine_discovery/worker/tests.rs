@@ -2,7 +2,7 @@ use super::*;
 #[test]
 fn mailbox_coalesces_and_failures_distinguish_transport_from_protocol() {
     let worker = Worker {
-        cancel: Arc::new(AtomicU8::new(0)),
+        cancel: Arc::new(OwnedCancellation::new().unwrap()),
         latest: Arc::new(Mutex::new(None)),
         task: None,
     };

@@ -424,7 +424,7 @@ impl ClientExecutor {
                 &snapshot,
                 target,
                 startup_deadline,
-                &std::sync::atomic::AtomicU8::new(0),
+                crate::local_client::cancellation::Cancellation::new(None),
             )
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
             selection = Some(

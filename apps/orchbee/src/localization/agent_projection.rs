@@ -46,7 +46,6 @@ impl Locale {
             (Self::ZhCn, _) => "未知",
         }
     }
-    #[cfg(windows)]
     pub(crate) fn cli_projection_failure(self, failure: &Failure) -> String {
         let reason = failure
             .details

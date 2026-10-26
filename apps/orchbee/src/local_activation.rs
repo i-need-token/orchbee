@@ -114,7 +114,6 @@ pub(crate) struct StartedSession {
     /// machine-readable output.
     pub(crate) runtime_base: PathBuf,
     /// The admitted canonical runtime, used for per-Session Client preferences.
-    #[cfg(windows)]
     pub(crate) runtime_directory: PathBuf,
     #[cfg(windows)]
     pub(crate) restore_notice: Option<orchbee_local_runtime::CheckpointRestoreNotice>,
@@ -216,7 +215,6 @@ pub(crate) fn activate_local_session(
         spawned,
         scope: scope_text,
         runtime_base: base,
-        #[cfg(windows)]
         runtime_directory: session.runtime_directory().to_owned(),
         #[cfg(windows)]
         restore_notice: session
