@@ -1,4 +1,4 @@
-use super::super::*;
+use super::*;
 use serde_json::{Value, json};
 #[test]
 fn devin_group_set_is_complete_repairable_and_preserves_foreign_settings() {
