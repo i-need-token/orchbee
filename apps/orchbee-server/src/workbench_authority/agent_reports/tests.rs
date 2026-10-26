@@ -6,13 +6,7 @@ fn author(source: &str, agent: &str) -> Author {
 fn seq(value: u64) -> Option<Sequence> {
     Some(Sequence::new(value))
 }
-fn state(
-    source: &str,
-    agent: &str,
-    status: Status,
-    sequence: Option<Sequence>,
-    _untrusted_session: Option<&str>,
-) -> Event {
+fn state(source: &str, agent: &str, status: Status, sequence: Option<Sequence>) -> Event {
     Event::State {
         author: author(source, agent),
         status,
@@ -50,13 +44,13 @@ fn strict_source_watermarks_survive_clear_and_reject_unsequenced_replays() {
     let mut current = Reports::default();
     step(
         &mut current,
-        state("", "Custom Agent", Status::Idle, seq(10), None),
+        state("", "Custom Agent", Status::Idle, seq(10)),
         1,
     );
     for sequence in [None, seq(9), seq(10)] {
         let refused = step(
             &mut current,
-            state("", "Custom Agent", Status::Working, sequence, None),
+            state("", "Custom Agent", Status::Working, sequence),
             2,
         );
         assert_eq!(refused.disposition, Disposition::Ignored);
@@ -100,7 +94,7 @@ fn strict_source_watermarks_survive_clear_and_reject_unsequenced_replays() {
     assert!(
         !step(
             &mut current,
-            state("", "Custom Agent", Status::Working, seq(10), None),
+            state("", "Custom Agent", Status::Working, seq(10)),
             6
         )
         .changed
@@ -108,7 +102,7 @@ fn strict_source_watermarks_survive_clear_and_reject_unsequenced_replays() {
     assert!(
         step(
             &mut current,
-            state("", "Custom Agent", Status::Working, seq(12), None),
+            state("", "Custom Agent", Status::Working, seq(12)),
             7
         )
         .changed
@@ -127,7 +121,7 @@ fn custom_release_preserves_live_process() {
     );
     step(
         &mut current,
-        state("custom", "codex", Status::Working, seq(1), None),
+        state("custom", "codex", Status::Working, seq(1)),
         2,
     );
     assert!(
@@ -174,7 +168,7 @@ fn custom_release_preserves_live_process() {
     let mut custom = Reports::default();
     step(
         &mut custom,
-        state("custom", "Unrecognised", Status::Working, None, None),
+        state("custom", "Unrecognised", Status::Working, None),
         1,
     );
     assert!(
@@ -202,7 +196,7 @@ fn delayed_exit_preserves_newer_custom_authority_and_newer_blocker_remains_visib
     );
     step(
         &mut current,
-        state("custom", "codex", Status::Working, None, None),
+        state("custom", "codex", Status::Working, None),
         30,
     );
     let delayed = step(
@@ -324,7 +318,7 @@ fn generated_custom_traces_preserve_watermarks_without_inventing_process_facts()
                 Status::Unknown,
             ][(random(&mut generator) % 4) as usize];
             let event = match random(&mut generator) % 5 {
-                0 | 1 => state(source, "Model Agent", status, sequence, Some("untrusted")),
+                0 | 1 => state(source, "Model Agent", status, sequence),
                 2 => Event::Clear {
                     source: Some(source.into()),
                     sequence,
@@ -384,7 +378,7 @@ fn presence_preserves_screen_age_and_replacement_clears_it() {
     );
     step(
         &mut current,
-        state("custom", "codex", Status::Working, seq(1), None),
+        state("custom", "codex", Status::Working, seq(1)),
         20,
     );
     let present = step(
