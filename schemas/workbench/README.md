@@ -130,9 +130,9 @@ invariants apply to the complete snapshot in addition to JSON Schema validation.
 
 ### Workspace display order
 
-Workspace move commands use a nonempty unique list of at most 1023 Workspace IDs for block input and reordered output. Dedicated request/result limits are 48 KiB; other commands retain their existing limits. The complete reordered output carries the committed revision. An unchanged move uses the existing `unchanged` outcome. The optional block before-target accepts omission or null; a target within the source block is rejected before mutation.
+Workspace move commands use a nonempty unique list of at most 1024 Workspace IDs for block input and reordered output. Dedicated request/result limits are 48 KiB; other commands retain their existing limits. The complete reordered output carries the committed revision. An unchanged move uses the existing `unchanged` outcome. The optional block before-target accepts omission or null; a target within the source block is rejected before mutation.
 
-Navigation optionally carries `workspaceOrder`, bounded to 1023 Workspace identities. Absent or
+Navigation optionally carries `workspaceOrder`, bounded to 1024 Workspace identities. Absent or
 empty means the global Workspace identity order. A nonempty order is an exact permutation
 of all Workspace identities in that navigation: duplicates, missing members and foreign identities
 are invalid. This invariant applies to a complete navigation replacement as well as a snapshot.

@@ -7411,7 +7411,7 @@ fn workspace_creation_defaults_are_accepted_with_and_without_site_selection() {
 
 #[test]
 fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
-    for value in ["0", "1", "1023", "002"] {
+    for value in ["0", "1", "1024", "002"] {
         assert_eq!(
             parse(&["workspace", "move", ID, "--insert-index", value]),
             Ok(mutation(
@@ -7436,7 +7436,7 @@ fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
             OutputFormat::Text
         ))
     );
-    for value in ["-1", "1024", "1.5", "+1", "1e1", ""] {
+    for value in ["-1", "1025", "1.5", "+1", "1e1", ""] {
         assert!(
             parse(&["workspace", "move", ID, "--insert-index", value]).is_err(),
             "{value}"
@@ -7459,7 +7459,7 @@ fn workspace_move_grammar_covers_boundaries_blocks_and_scope() {
         assert!(parse(&args).is_err(), "{args:?}");
     }
     let mut maximum = vec!["workspace", "move-block"];
-    maximum.extend(std::iter::repeat_n(ID, 1023));
+    maximum.extend(std::iter::repeat_n(ID, 1024));
     assert!(parse(&maximum).is_ok());
     maximum.push(ID);
     assert!(parse(&maximum).is_err());
