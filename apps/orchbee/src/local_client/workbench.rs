@@ -16,6 +16,7 @@ mod pane_graphics;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 mod plugins;
+#[cfg(test)]
 mod settings;
 mod terminal_editor;
 mod window_title;

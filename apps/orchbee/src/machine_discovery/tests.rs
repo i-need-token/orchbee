@@ -1,13 +1,14 @@
 use super::*;
 use crate::local_client::cancellation::OwnedCancellation;
+use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
 use crate::{local_client::tests::server::FakeServer, machines::Draft};
-use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::{
-    Navigation, ProtocolVersion, TerminalContext, WorkbenchRequest, WorkbenchResponse,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalContextId,
-    read_workbench_request, write_workbench_response,
+    MultiplexMessage, Navigation, ProtocolVersion, StreamFrameKind, StreamMode, TerminalContext,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
+    WorkbenchTerminalContextId, read_multiplex_message, read_workbench_request,
+    write_multiplex_message,
 };
-use std::{io::Read, num::NonZeroU64, thread};
+use std::{num::NonZeroU64, thread, time::Duration};
 
 fn profile(n: u8) -> Profile {
     Profile {
@@ -141,24 +142,46 @@ fn repeated_failures_cannot_starve_later_profiles_when_the_ui_ticks_slowly() {
     assert!(d.entries[..4].iter().all(|e| e.worker.is_none()));
     assert!(d.entries[4..].iter().all(|e| e.worker.is_some()));
 }
+fn next_update(worker: &Worker) -> Update {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        if let Some(update) = worker.take() {
+            return update;
+        }
+        assert!(Instant::now() < deadline, "observer update");
+        thread::yield_now();
+    }
+}
+fn drain_close(stream: &mut orchbee_local_ipc::LocalStream) -> io::Result<()> {
+    loop {
+        match read_multiplex_message(stream) {
+            Ok(MultiplexMessage::StreamClose { .. } | MultiplexMessage::LaneClose { .. }) => {}
+            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+            result => panic!("only cancellation or carrier close expected: {result:?}"),
+        }
+    }
+}
+fn observer(endpoint: std::path::PathBuf, generation: u64) -> io::Result<Worker> {
+    Worker::spawn(generation, move |_| {
+        LocalClient::connect_before(
+            &endpoint,
+            "test-cohort",
+            Instant::now() + Duration::from_secs(2),
+        )
+        .map_err(io::Error::other)
+    })
+}
 #[test]
 fn denied_or_uncorrelated_native_snapshot_requires_attention_without_automatic_retry()
 -> io::Result<()> {
     for wrong_identity in [false, true] {
         let server = FakeServer::start(move |mut stream| {
-            assert!(matches!(
-                read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
-            ));
-            write_message(
-                &mut stream,
-                &LocalClientMessage::ClientAccepted {
-                    generation: NonZeroU64::new(1).unwrap(),
-                },
-            )
-            .map_err(io::Error::other)?;
+            admit(&mut stream, 1)?;
+            let open = read_open(&mut stream)?;
+            assert_eq!(open.mode, StreamMode::State);
             let WorkbenchRequest::SnapshotRead(read) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
+                read_workbench_request(&mut io::Cursor::new(&open.request))
+                    .map_err(io::Error::other)?
             else {
                 panic!("observer sent a mutation");
             };
@@ -170,35 +193,20 @@ fn denied_or_uncorrelated_native_snapshot_requires_attention_without_automatic_r
             } else {
                 read.request_id
             };
-            write_workbench_response(
+            respond(
                 &mut stream,
+                &open,
                 &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
                     protocol_version: ProtocolVersion,
                     request_id,
                     outcome: WorkbenchSnapshotOutcome::Denied {},
                 }),
-            )
-            .map_err(io::Error::other)?;
-            assert_eq!(stream.read(&mut [0])?, 0);
-            Ok(())
+                1,
+            )?;
+            drain_close(&mut stream)
         })?;
-        let endpoint = server.endpoint().to_path_buf();
-        let worker = Worker::spawn(1, move |_| {
-            LocalClient::connect_before(
-                &endpoint,
-                "test-cohort",
-                Instant::now() + Duration::from_secs(2),
-            )
-            .map_err(io::Error::other)
-        })?;
-        let deadline = Instant::now() + Duration::from_secs(3);
-        let update = loop {
-            if let Some(update) = worker.take() {
-                break update;
-            }
-            assert!(Instant::now() < deadline);
-            thread::sleep(Duration::from_millis(1));
-        };
+        let worker = observer(server.endpoint().to_path_buf(), 1)?;
+        let update = next_update(&worker);
         let mut d = Discovery::default();
         d.reconcile(&[profile(1)], Instant::now());
         d.entries[0].accept(update);
@@ -212,56 +220,38 @@ fn denied_or_uncorrelated_native_snapshot_requires_attention_without_automatic_r
     Ok(())
 }
 #[test]
-fn discovered_origin_opens_a_separate_admitted_lane() -> io::Result<()> {
-    let server = FakeServer::start_connections(2, |_, mut stream| {
-        assert!(matches!(
-            read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
-        ));
-        write_message(
-            &mut stream,
-            &LocalClientMessage::ClientAccepted {
-                generation: NonZeroU64::new(1).unwrap(),
-            },
-        )
-        .map_err(io::Error::other)?;
-        let WorkbenchRequest::SnapshotRead(read) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("unexpected mutation");
-        };
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: snapshot(),
-                },
-            }),
-        )
-        .map_err(io::Error::other)
-    })?;
-    let endpoint = server.endpoint().to_path_buf();
-    let worker = Worker::spawn(1, move |_| {
-        LocalClient::connect_before(
-            &endpoint,
-            "test-cohort",
-            Instant::now() + Duration::from_secs(2),
-        )
-        .map_err(io::Error::other)
-    })?;
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let update = loop {
-        if let Some(update) = worker.take() {
-            break update;
+fn discovered_origin_derives_a_logical_lane_on_the_single_admitted_carrier() -> io::Result<()> {
+    let server = FakeServer::start(|mut stream| {
+        admit(&mut stream, 1)?;
+        for mode in [StreamMode::State, StreamMode::Request] {
+            let open = read_open(&mut stream)?;
+            assert_eq!(open.mode, mode);
+            let WorkbenchRequest::SnapshotRead(read) =
+                read_workbench_request(&mut io::Cursor::new(&open.request))
+                    .map_err(io::Error::other)?
+            else {
+                panic!("unexpected mutation");
+            };
+            respond(
+                &mut stream,
+                &open,
+                &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: read.request_id,
+                    outcome: WorkbenchSnapshotOutcome::Available {
+                        snapshot: snapshot(),
+                    },
+                }),
+                1,
+            )?;
         }
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(1));
-    };
-    let Event::Healthy { ready, .. } = update.event else {
+        drain_close(&mut stream)
+    })?;
+    let worker = observer(server.endpoint().to_path_buf(), 1)?;
+    let Event::Healthy { ready, .. } = next_update(&worker).event else {
         panic!("discovery failed");
     };
+    let deadline = Instant::now() + Duration::from_secs(2);
     let mut selected = ready
         .connection
         .reconnect(deadline, OwnedCancellation::new().unwrap().borrow())?;
@@ -282,106 +272,102 @@ fn discovered_origin_opens_a_separate_admitted_lane() -> io::Result<()> {
         WorkbenchSnapshotOutcome::Available { .. }
     ));
     drop(selected);
-    drop(worker);
     drop(ready);
+    drop(worker);
     server.finish()
 }
 #[test]
-fn native_observer_only_reads_snapshots_and_cancels_inflight_read_without_replay() -> io::Result<()>
-{
-    let (sent, received) = std::sync::mpsc::sync_channel(1);
+fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapshot_polling()
+-> io::Result<()> {
+    let (gap, send_gap) = std::sync::mpsc::sync_channel(1);
+    let (fresh, send_fresh) = std::sync::mpsc::sync_channel(1);
     let server = FakeServer::start(move |mut stream| {
-        stream.set_read_timeout(Some(Duration::from_secs(5)))?;
-        assert!(matches!(
-            read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
-        ));
-        write_message(
-            &mut stream,
-            &LocalClientMessage::ClientAccepted {
-                generation: NonZeroU64::new(1).unwrap(),
-            },
-        )
-        .map_err(io::Error::other)?;
+        admit(&mut stream, 1)?;
+        let open = read_open(&mut stream)?;
+        assert_eq!(open.mode, StreamMode::State);
         let WorkbenchRequest::SnapshotRead(read) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request(&mut io::Cursor::new(&open.request))
+                .map_err(io::Error::other)?
         else {
             panic!("observer sent a mutation");
         };
-        write_workbench_response(
+        let result = WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: read.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(),
+            },
+        });
+        respond(&mut stream, &open, &result, 1)?;
+        send_gap.recv_timeout(Duration::from_secs(2)).unwrap();
+        write_multiplex_message(
             &mut stream,
-            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: snapshot(),
-                },
-            }),
-        )
-        .map_err(io::Error::other)?;
-        assert!(matches!(
-            read_workbench_request(&mut stream).map_err(io::Error::other)?,
-            WorkbenchRequest::SnapshotRead(_)
-        ));
-        sent.send(()).map_err(io::Error::other)?;
-        let mut byte = [0];
-        assert_eq!(
-            stream.read(&mut byte)?,
-            0,
-            "cancellation must close the read lane, without control or replay"
-        );
-        Ok(())
+            &MultiplexMessage::Gap {
+                stream_id: open.id,
+                through: NonZeroU64::new(1).unwrap(),
+            },
+        )?;
+        send_fresh.recv_timeout(Duration::from_secs(2)).unwrap();
+        let mut record = Vec::new();
+        orchbee_workbench_protocol::write_workbench_response(&mut record, &result)
+            .map_err(io::Error::other)?;
+        write_multiplex_message(
+            &mut stream,
+            &MultiplexMessage::StreamFrame {
+                stream_id: open.id,
+                sequence: NonZeroU64::new(2).unwrap(),
+                kind: StreamFrameKind::Snapshot,
+                record,
+            },
+        )?;
+        drain_close(&mut stream)
     })?;
-    let endpoint = server.endpoint().to_path_buf();
-    let worker = Worker::spawn(7, move |_| {
-        LocalClient::connect_before(
-            &endpoint,
-            "test-cohort",
-            Instant::now() + Duration::from_secs(2),
-        )
-        .map_err(io::Error::other)
-    })?;
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let update = loop {
-        if let Some(update) = worker.take() {
-            break update;
-        }
-        assert!(Instant::now() < deadline);
-        thread::sleep(Duration::from_millis(1));
-    };
+    let worker = observer(server.endpoint().to_path_buf(), 7)?;
+    let update = next_update(&worker);
     let mut d = Discovery::default();
     let p = profile(1);
     d.reconcile(std::slice::from_ref(&p), Instant::now());
     d.entries[0].generation = 7;
+    d.entries[0].worker = Some(worker);
     d.entries[0].accept(update);
-    let observed = d.entries[0]
-        .ready
-        .as_ref()
-        .expect("successful native snapshot")
-        .observed;
+    let observed = Instant::now();
     assert!(matches!(
         d.observations(observed)[0].1,
         Observation::Online(_)
     ));
     assert!(d.connection(&p, observed).is_some());
     assert!(
-        d.connection(&p, observed + Duration::from_secs(11))
-            .is_none()
+        d.connection(&p, observed + Duration::from_secs(8))
+            .is_none(),
+        "projection cannot outlive carrier progress deadline"
     );
-    assert_eq!(
-        d.observations(observed + Duration::from_secs(11))[0].1,
-        Observation::Stale
-    );
-    let mut replacement = p;
+    let mut replacement = p.clone();
     replacement.draft.target = "changed.invalid".into();
     assert!(d.connection(&replacement, observed).is_none());
-    received
-        .recv_timeout(Duration::from_secs(4))
-        .map_err(io::Error::other)?;
+    gap.send(()).unwrap();
+    let reset = next_update(d.entries[0].worker.as_ref().unwrap());
+    assert!(matches!(reset.event, Event::Reset));
+    d.entries[0].accept(reset);
+    d.tick(Instant::now());
+    assert_eq!(
+        d.observations(Instant::now())[0].1,
+        Observation::Reconnecting
+    );
+    assert!(d.connection(&p, Instant::now()).is_none());
+    assert!(
+        !d.entries[0].worker.as_ref().unwrap().finished(),
+        "gap must not cancel the carrier owner"
+    );
+    fresh.send(()).unwrap();
+    let update = next_update(d.entries[0].worker.as_ref().unwrap());
+    d.entries[0].accept(update);
+    assert!(matches!(
+        d.observations(Instant::now())[0].1,
+        Observation::Online(_)
+    ));
     let cancelled = Instant::now();
-    drop(worker);
-    assert!(cancelled.elapsed() < Duration::from_secs(2));
     drop(d);
+    assert!(cancelled.elapsed() < Duration::from_secs(2));
     server.finish()
 }
 #[test]

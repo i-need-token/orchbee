@@ -1,16 +1,14 @@
-//! One observer owns one native read lane and one coalescing result slot.
+//! One observer promotes its bootstrap carrier before publishing an origin, then consumes push.
 use super::{Connection, Overview, Ready};
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::{
-    local_client::{
-        LocalClient,
-        workbench::{SnapshotReadError, SnapshotReadFailure},
-    },
+    local_client::{LocalClient, multiplex::StreamEvent},
     machines::{Profile, ProfileId},
 };
+use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
-    WorkbenchWireError,
+    ProtocolVersion, SnapshotReadIntent, StreamMode, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchSnapshotOutcome, read_workbench_response,
 };
 use std::{
     io,
@@ -21,6 +19,7 @@ use std::{
 
 pub(super) enum Event {
     Healthy { ready: Ready, online_since: Instant },
+    Reset,
     Failed { permanent: bool, at: Instant },
 }
 pub(super) struct Update {
@@ -54,10 +53,13 @@ impl Worker {
             .name("orchbee-machine-observe".into())
             .spawn(move || {
                 let mut retained_origin = None;
-                let result = connect(worker_cancel.borrow()).and_then(|client| {
-                    retained_origin = Some(client.origin());
-                    observe(client, generation, worker_cancel.borrow(), &worker_latest)
-                });
+                let result = connect(worker_cancel.borrow())
+                    .and_then(LocalClient::into_multiplexed)
+                    .and_then(|client| {
+                        // No Direct origin escapes: every derived read uses this actor's carrier.
+                        retained_origin = Some(client.origin());
+                        observe(client, generation, worker_cancel.borrow(), &worker_latest)
+                    });
                 if !worker_cancel.is_cancelled()
                     && let Err(error) = result
                 {
@@ -73,7 +75,18 @@ impl Worker {
                 // Keep the last transport guard here so SSH teardown cannot block a UI tick.
                 if retained_origin.is_some() {
                     while !worker_cancel.is_cancelled() {
-                        thread::sleep(Duration::from_millis(20));
+                        let mut sources = [PollFd::new(
+                            worker_cancel
+                                .borrow()
+                                .wake()
+                                .expect("owned cancellation wake"),
+                            PollFlags::POLLIN,
+                        )];
+                        if poll(&mut sources, PollTimeout::NONE).is_err()
+                            || sources[0].revents().is_some_and(|flags| !flags.is_empty())
+                        {
+                            break;
+                        }
                     }
                     worker_latest
                         .lock()
@@ -91,6 +104,9 @@ impl Worker {
     pub(super) fn cancel(&self) {
         self.cancel.cancel();
     }
+    pub(super) fn cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
     pub(super) fn finished(&self) -> bool {
         self.task.as_ref().is_none_or(JoinHandle::is_finished)
     }
@@ -107,7 +123,7 @@ impl Drop for Worker {
     }
 }
 fn observe(
-    mut client: LocalClient,
+    client: LocalClient,
     generation: u64,
     cancel: Cancellation<'_>,
     latest: &Mutex<Option<Update>>,
@@ -117,19 +133,36 @@ fn observe(
         clock: client.operation_clock(),
     };
     let mut online_since = None;
+    let identity = ProfileId::generate().map_err(|_| io::ErrorKind::Other)?;
+    let request = SnapshotReadIntent {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(identity.as_str()).map_err(io::Error::other)?,
+    };
+    let stream = client.origin().subscribe(
+        &WorkbenchRequest::SnapshotRead(request.clone()),
+        StreamMode::State,
+    )?;
     while !cancel.is_cancelled()? {
-        let identity = ProfileId::generate().map_err(|_| io::ErrorKind::Other)?;
-        let request = SnapshotReadIntent {
-            protocol_version: ProtocolVersion,
-            request_id: WorkbenchRequestId::parse(identity.as_str()).map_err(io::Error::other)?,
+        let record = match stream.wait(cancel.wake())? {
+            StreamEvent::Record(record) => record,
+            StreamEvent::Gap | StreamEvent::Disconnected => {
+                online_since = None;
+                *latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Update {
+                    generation,
+                    event: Event::Reset,
+                });
+                continue;
+            }
         };
-        let result = client
-            .submit_workbench_snapshot_read_before_cancellable(
-                request,
-                Instant::now() + Duration::from_secs(5),
-                cancel.wake(),
-            )
-            .map_err(snapshot_error)?;
+        let mut encoded = std::io::Cursor::new(record.as_slice());
+        let WorkbenchResponse::Snapshot(result) =
+            read_workbench_response(&mut encoded).map_err(|_| io::ErrorKind::InvalidData)?
+        else {
+            return Err(io::ErrorKind::InvalidData.into());
+        };
+        if encoded.position() != record.len() as u64 || result.request_id != request.request_id {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
         let overview = match result.outcome {
             WorkbenchSnapshotOutcome::Available { snapshot } => {
                 Overview::from_snapshot(&snapshot).map_err(|_| io::ErrorKind::InvalidData)?
@@ -138,7 +171,12 @@ fn observe(
                 return Err(io::ErrorKind::PermissionDenied.into());
             }
             WorkbenchSnapshotOutcome::Unavailable { .. } => {
-                return Err(io::ErrorKind::ConnectionRefused.into());
+                online_since = None;
+                *latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Update {
+                    generation,
+                    event: Event::Reset,
+                });
+                continue;
             }
         };
         let observed = Instant::now();
@@ -148,15 +186,10 @@ fn observe(
                 ready: Ready {
                     overview,
                     connection: connection.clone(),
-                    observed,
                 },
                 online_since: *online_since.get_or_insert(observed),
             },
         });
-        let next = observed + Duration::from_secs(2);
-        while !cancel.is_cancelled()? && Instant::now() < next {
-            thread::sleep(Duration::from_millis(20));
-        }
     }
     Ok(())
 }
@@ -170,21 +203,5 @@ fn permanent(kind: io::ErrorKind) -> bool {
             | io::ErrorKind::InvalidInput
     )
 }
-fn snapshot_error(error: SnapshotReadError) -> io::Error {
-    match error {
-        SnapshotReadError::ConnectionUnavailable => io::ErrorKind::NotConnected.into(),
-        SnapshotReadError::RequestNotSubmitted(error) => error,
-        SnapshotReadError::Failed {
-            reason:
-                SnapshotReadFailure::Write(error)
-                | SnapshotReadFailure::ResponseDeadline(error)
-                | SnapshotReadFailure::Response(WorkbenchWireError::Io(error)),
-            ..
-        } => error,
-        // Only the explicitly recognized protocol failures have a more specific transport classification here.
-        _ => io::ErrorKind::InvalidData.into(),
-    }
-}
-
 #[cfg(test)]
 mod tests;

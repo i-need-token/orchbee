@@ -927,6 +927,23 @@ impl WorkbenchClientConnection<'_> {
             journal.watch(signal);
         }
     }
+    /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
+    pub(crate) fn maintain_subscription_deadline(
+        &self,
+    ) -> std::io::Result<Option<std::time::Instant>> {
+        #[cfg(windows)]
+        {
+            self.service
+                .terminals
+                .maintain_event_deadline()
+                .map_err(|_| std::io::ErrorKind::ConnectionAborted.into())
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
+        }
+    }
+    #[cfg(test)]
     pub(crate) fn execute_with_terminal_connection(
         &self,
         request: WorkbenchRequest,

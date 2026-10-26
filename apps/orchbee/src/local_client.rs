@@ -142,6 +142,20 @@ pub(crate) struct LocalClientOrigin {
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 impl LocalClientOrigin {
+    /// A promoted carrier bounds silence by one shared application-progress probe.
+    pub(crate) fn is_current(&self, now: Instant) -> bool {
+        self.multiplex
+            .as_ref()
+            .is_none_or(|connection| connection.is_current(now))
+    }
+    /// Collector identity includes the carrier, so replacing an origin retires old read jobs.
+    pub(crate) fn shares_connection(&self, other: &Self) -> bool {
+        match (&self.multiplex, &other.multiplex) {
+            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+            (None, None) => self.endpoint == other.endpoint && self.cohort == other.cohort,
+            _ => false,
+        }
+    }
     /// Locality belongs to the logical origin; OS transport ownership is separate.
     pub(crate) fn is_local(&self) -> bool {
         self.local

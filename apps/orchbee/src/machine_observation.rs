@@ -1,28 +1,27 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
 use crate::local_client::cancellation::{Cancellation, OwnedCancellation};
 use crate::{
-    local_client::LocalClient, machine_discovery::Connection, machine_picker::Choice,
-    machines::ProfileId, workbench_client::UiWakeup,
+    local_client::{
+        LocalClient,
+        subscription::{ChangeEvent, ChangeSubscription},
+    },
+    machine_discovery::Connection,
+    machine_picker::Choice,
+    machines::ProfileId,
+    workbench_client::UiWakeup,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SemanticEventFilter, SemanticEventKind, SemanticEventMatch,
-    SemanticEventScope, SemanticEventsAction, SemanticEventsFailure, SemanticEventsOutcome,
-    SemanticEventsRequest, SessionId, Snapshot, SnapshotReadIntent, WorkbenchRequestId,
-    WorkbenchSnapshotOutcome,
+    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
 use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 const FRESH_FOR: Duration = Duration::from_secs(10);
-/// Periodic reads remain the authority; a change hint only starts the next read early.
-const READ_INTERVAL: Duration = Duration::from_secs(2);
-const WATCH_RETRY: Duration = Duration::from_secs(10);
-const WATCH_WAIT_MILLISECONDS: u16 = 1000;
+// Host process titles and optional external Git observations have no committed notification source.
+// Only collectors requesting those observations sample; canonical metadata follows invalidations.
+const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Observation<T> {
     Loading,
@@ -115,139 +114,6 @@ impl<T: Send + Sync + 'static> Job<T> {
         self.task.as_ref().is_none_or(JoinHandle::is_finished)
     }
 }
-/// Long-polls one source's semantic event journal and counts admitted matching changes. The count
-/// is only a refresh hint: coalesced, evicted or missed events still reach the periodic read.
-struct Watch {
-    cancel: Arc<OwnedCancellation>,
-    changes: Arc<AtomicU64>,
-    task: Option<JoinHandle<()>>,
-}
-impl Watch {
-    fn start(
-        source: Connection,
-        kinds: &'static [SemanticEventKind],
-        wakeup: Option<UiWakeup>,
-    ) -> Result<Self, ()> {
-        let cancel = Arc::new(OwnedCancellation::new().map_err(|_| ())?);
-        let changes = Arc::new(AtomicU64::new(0));
-        let (flag, counter) = (cancel.clone(), changes.clone());
-        let task = thread::Builder::new()
-            .name("orchbee-machine-watch".into())
-            .spawn(move || {
-                let _ended = watch(&source, kinds, flag.borrow(), &counter, wakeup.as_ref());
-            })
-            .map_err(|_| ())?;
-        Ok(Self {
-            cancel,
-            changes,
-            task: Some(task),
-        })
-    }
-    fn changes(&self) -> u64 {
-        self.changes.load(Ordering::Acquire)
-    }
-    fn stop(&self) {
-        self.cancel.cancel();
-    }
-    fn finished(&self) -> bool {
-        self.task.as_ref().is_none_or(JoinHandle::is_finished)
-    }
-}
-impl Drop for Watch {
-    fn drop(&mut self) {
-        self.stop();
-        if let Some(task) = self.task.take() {
-            let _settled = task.join();
-        }
-    }
-}
-fn watch(
-    source: &Connection,
-    kinds: &'static [SemanticEventKind],
-    cancel: Cancellation<'_>,
-    changes: &AtomicU64,
-    wakeup: Option<&UiWakeup>,
-) -> Result<(), ()> {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let mut client = source.reconnect(deadline, cancel).map_err(|_| ())?;
-    let session_id = snapshot(&mut client, deadline, cancel)?.session_id;
-    let subscription_id = request_id()?;
-    let filters = kinds
-        .iter()
-        .map(|kind| SemanticEventFilter::Event {
-            event: *kind,
-            scope: SemanticEventScope::All {},
-            condition: SemanticEventMatch::Any {},
-        })
-        .collect();
-    let opened = events(
-        &mut client,
-        &session_id,
-        SemanticEventsAction::Subscribe {
-            subscription_id: subscription_id.clone(),
-            filters,
-            after: None,
-        },
-        cancel,
-    )?;
-    if !matches!(opened, SemanticEventsOutcome::Opened { .. }) {
-        return Err(());
-    }
-    // A change can commit between the consumer's last read and this baseline.
-    changes.fetch_add(1, Ordering::AcqRel);
-    if let Some(wakeup) = wakeup {
-        wakeup.signal();
-    }
-    while !cancel.is_cancelled().map_err(|_| ())? {
-        match events(
-            &mut client,
-            &session_id,
-            SemanticEventsAction::Wait {
-                subscription_id: subscription_id.clone(),
-                timeout_milliseconds: WATCH_WAIT_MILLISECONDS,
-            },
-            cancel,
-        )? {
-            SemanticEventsOutcome::Matched { .. } | SemanticEventsOutcome::Gap { .. } => {
-                changes.fetch_add(1, Ordering::AcqRel);
-                if let Some(wakeup) = wakeup {
-                    wakeup.signal();
-                }
-            }
-            SemanticEventsOutcome::TimedOut { .. } => {}
-            SemanticEventsOutcome::Failed {
-                reason: SemanticEventsFailure::Busy,
-            } => thread::sleep(Duration::from_millis(20)),
-            // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
-            _ => return Err(()),
-        }
-    }
-    // Connection EOF releases the subscription; no close exchange is owed.
-    Ok(())
-}
-fn events(
-    client: &mut LocalClient,
-    session_id: &SessionId,
-    action: SemanticEventsAction,
-    cancel: Cancellation<'_>,
-) -> Result<SemanticEventsOutcome, ()> {
-    if cancel.is_cancelled().map_err(|_| ())? {
-        return Err(());
-    }
-    client
-        .semantic_events(
-            SemanticEventsRequest {
-                protocol_version: ProtocolVersion,
-                request_id: request_id()?,
-                session_id: session_id.clone(),
-                action,
-            },
-            Instant::now() + Duration::from_secs(3),
-            cancel.wake(),
-        )
-        .map(|result| result.outcome)
-        .map_err(|_| ())
-}
 impl<T> Drop for Job<T> {
     fn drop(&mut self) {
         self.cancel.cancel();
@@ -258,34 +124,37 @@ impl<T> Drop for Job<T> {
 }
 struct Entry<T> {
     choice: Choice,
+    connection: Connection,
     job: Option<Job<T>>,
     observation: Observation<T>,
     observed: Option<Instant>,
-    next: Instant,
-    watch: Option<Watch>,
-    watch_retry: Instant,
-    seen_changes: u64,
-    /// A change hint arrived after the latest read started.
+    next: Option<Instant>,
+    watch: Option<ChangeSubscription>,
+    watch_started: bool,
+    waiting_snapshot: bool,
+    /// A publication arriving during a read requires another complete read afterwards.
     changed: bool,
 }
 pub(crate) struct Collector<T> {
     entries: Vec<Entry<T>>,
     retired: Vec<Job<T>>,
-    retired_watches: Vec<Watch>,
     cursor: usize,
-    watch_kinds: &'static [SemanticEventKind],
+    sample_external: bool,
     hinted: Vec<Choice>,
     wakeup: Option<UiWakeup>,
 }
 impl<T: Clone + Send + Sync + 'static> Collector<T> {
-    /// Reads each source again as soon as it publishes one of `kinds`.
-    pub(crate) fn watching(kinds: &'static [SemanticEventKind], wakeup: UiWakeup) -> Self {
-        let mut collector = Self::default();
-        collector.watch_kinds = kinds;
-        collector.wakeup = Some(wakeup);
-        collector
+    pub(crate) fn new(wakeup: UiWakeup, sample_external: bool) -> Self {
+        Self {
+            wakeup: Some(wakeup),
+            sample_external,
+            ..Self::default()
+        }
     }
-    /// Whether `choice` published a watched change during the latest tick.
+    pub(crate) fn sample_external_sources(&mut self, enabled: bool) {
+        self.sample_external = enabled;
+    }
+    /// Whether this source published a change during the latest UI tick.
     pub(crate) fn hinted(&self, choice: &Choice) -> bool {
         self.hinted.contains(choice)
     }
@@ -295,10 +164,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 job.stop();
                 self.retired.push(job);
             }
-            if let Some(watch) = entry.watch.take() {
-                watch.stop();
-                self.retired_watches.push(watch);
-            }
+            // Dropping the subscription cancels only its logical stream, without a join thread.
         }
     }
     pub(crate) fn tick(
@@ -307,35 +173,34 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         now: Instant,
         read: Reader<T>,
     ) -> Vec<(Choice, Observation<T>)> {
+        self.reconcile(&sources, now);
+        self.observe_changes();
         let wakeup = self.wakeup.clone();
-        self.tick_with_start(sources, now, |source, deadline| {
+        self.tick_jobs(now, |source, deadline| {
             Job::start(source, deadline, read, wakeup.clone())
         })
     }
-    fn tick_with_start(
-        &mut self,
-        sources: Vec<Source>,
-        now: Instant,
-        mut start: impl FnMut(Connection, Instant) -> Result<Job<T>, ()>,
-    ) -> Vec<(Choice, Observation<T>)> {
+    fn reconcile(&mut self, sources: &[Source], now: Instant) {
         self.retired.retain(|job| !job.finished());
-        self.retired_watches.retain(|watch| !watch.finished());
         self.hinted.clear();
         let mut old = std::mem::take(&mut self.entries);
-        for source in &sources {
+        for source in sources {
             let entry = old
                 .iter()
-                .position(|e| e.choice == source.choice)
+                .position(|e| {
+                    e.choice == source.choice && e.connection.same_owner(&source.connection)
+                })
                 .map(|i| old.remove(i))
                 .unwrap_or_else(|| Entry {
                     choice: source.choice.clone(),
+                    connection: source.connection.clone(),
                     job: None,
                     observation: Observation::Loading,
                     observed: None,
-                    next: now,
+                    next: Some(now),
                     watch: None,
-                    watch_retry: now,
-                    seen_changes: 0,
+                    watch_started: false,
+                    waiting_snapshot: false,
                     changed: false,
                 });
             self.entries.push(entry);
@@ -345,11 +210,54 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 job.stop();
                 self.retired.push(job);
             }
-            if let Some(watch) = entry.watch.take() {
-                watch.stop();
-                self.retired_watches.push(watch);
+        }
+    }
+    fn observe_changes(&mut self) {
+        for entry in &mut self.entries {
+            if !entry.watch_started {
+                entry.watch_started = true;
+                entry.waiting_snapshot = true;
+                entry.next = None;
+                // Enqueue registration before any domain read. A publication concurrent with
+                // capture/read remains in this mailbox until the next UI drain.
+                match entry.connection.watch_changes() {
+                    Ok(watch) => entry.watch = Some(watch),
+                    Err(_) => {
+                        entry.waiting_snapshot = true;
+                        entry.observation = Observation::Unavailable;
+                    }
+                }
+            }
+            loop {
+                let Some(watch) = &entry.watch else { break };
+                match watch.poll() {
+                    Ok(Some(ChangeEvent::Published)) => {
+                        entry.waiting_snapshot = false;
+                        entry.changed = true;
+                        self.hinted.push(entry.choice.clone());
+                    }
+                    Ok(Some(ChangeEvent::Reset)) | Err(_) => {
+                        // A completed old read must not reinstall pre-gap/pre-reconnect state.
+                        if let Some(job) = entry.job.take() {
+                            job.stop();
+                            self.retired.push(job);
+                        }
+                        entry.waiting_snapshot = true;
+                        entry.changed = false;
+                        entry.next = None;
+                        entry.observed = None;
+                        entry.observation = Observation::Unavailable;
+                    }
+                    Ok(None) => break,
+                }
             }
         }
+    }
+    fn tick_jobs(
+        &mut self,
+        now: Instant,
+        mut start: impl FnMut(Connection, Instant) -> Result<Job<T>, ()>,
+    ) -> Vec<(Choice, Observation<T>)> {
         for entry in &mut self.entries {
             if entry.job.as_ref().is_some_and(Job::finished) {
                 let mut job = entry.job.take().expect("finished job");
@@ -363,35 +271,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                         Observation::Unavailable
                     }
                 };
-                entry.next = now + READ_INTERVAL;
-            }
-        }
-        if !self.watch_kinds.is_empty() {
-            for (index, entry) in self.entries.iter_mut().enumerate() {
-                if entry.watch.as_ref().is_some_and(Watch::finished) {
-                    self.retired_watches.extend(entry.watch.take());
-                    entry.watch_retry = now + WATCH_RETRY;
-                }
-                if entry.watch.is_none() && now >= entry.watch_retry {
-                    match Watch::start(
-                        sources[index].connection.clone(),
-                        self.watch_kinds,
-                        self.wakeup.clone(),
-                    ) {
-                        Ok(watch) => {
-                            entry.watch = Some(watch);
-                            entry.seen_changes = 0;
-                        }
-                        Err(()) => entry.watch_retry = now + WATCH_RETRY,
-                    }
-                }
-                if let Some(changes) = entry.watch.as_ref().map(Watch::changes)
-                    && changes != entry.seen_changes
-                {
-                    entry.seen_changes = changes;
-                    entry.changed = true;
-                    self.hinted.push(entry.choice.clone());
-                }
+                entry.next = self.sample_external.then_some(now + SAMPLE_INTERVAL);
             }
         }
         let mut active =
@@ -403,19 +283,20 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
             if active >= 4 {
                 break;
             }
-            if entry.job.is_none() && (now >= entry.next || entry.changed) {
+            if entry.job.is_none()
+                && !entry.waiting_snapshot
+                && (entry.next.is_some_and(|next| now >= next) || entry.changed)
+            {
                 entry.changed = false;
-                match start(
-                    sources[index].connection.clone(),
-                    now + Duration::from_secs(5),
-                ) {
+                entry.next = None;
+                match start(entry.connection.clone(), now + Duration::from_secs(5)) {
                     Ok(job) => {
                         entry.job = Some(job);
                         active += 1;
                     }
                     Err(()) => {
                         entry.observation = Observation::Unavailable;
-                        entry.next = now + READ_INTERVAL;
+                        entry.next = self.sample_external.then_some(now + SAMPLE_INTERVAL);
                     }
                 }
             }
@@ -428,9 +309,11 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
             .map(|entry| {
                 (
                     entry.choice.clone(),
-                    if entry
-                        .observed
-                        .is_some_and(|at| now.saturating_duration_since(at) > FRESH_FOR)
+                    if !entry.connection.is_current(now)
+                        || (self.sample_external
+                            && entry
+                                .observed
+                                .is_some_and(|at| now.saturating_duration_since(at) > FRESH_FOR))
                     {
                         Observation::Unavailable
                     } else {
@@ -439,6 +322,17 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 )
             })
             .collect()
+    }
+    #[cfg(test)]
+    fn tick_with_start(
+        &mut self,
+        sources: Vec<Source>,
+        now: Instant,
+        start: impl FnMut(Connection, Instant) -> Result<Job<T>, ()>,
+    ) -> Vec<(Choice, Observation<T>)> {
+        // Scheduling evidence injects completed/bounded jobs; carrier evidence uses tick itself.
+        self.reconcile(&sources, now);
+        self.tick_jobs(now, start)
     }
 }
 impl<T> Drop for Collector<T> {
@@ -451,12 +345,6 @@ impl<T> Drop for Collector<T> {
         for job in &self.retired {
             job.cancel.cancel();
         }
-        for watch in self.entries.iter().filter_map(|entry| entry.watch.as_ref()) {
-            watch.stop();
-        }
-        for watch in &self.retired_watches {
-            watch.stop();
-        }
         // Job::drop joins every writer after the cancellation pass.
     }
 }
@@ -465,9 +353,8 @@ impl<T> Default for Collector<T> {
         Self {
             entries: Vec::new(),
             retired: Vec::new(),
-            retired_watches: Vec::new(),
             cursor: 0,
-            watch_kinds: &[],
+            sample_external: false,
             hinted: Vec::new(),
             wakeup: None,
         }

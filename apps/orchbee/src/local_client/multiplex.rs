@@ -23,6 +23,7 @@ const QUEUED: u8 = 0;
 const HANDED_OFF: u8 = 1;
 const CANCELLED: u8 = 2;
 const EVENT_RECORDS: usize = 32;
+mod health;
 
 /// One aggregate retained-byte budget covers admitted requests, their encoded output and inboxes.
 #[derive(Debug)]
@@ -217,7 +218,7 @@ impl Delivery {
     }
     fn wait(
         &self,
-        deadline: Instant,
+        deadline: Option<Instant>,
         clock: &dyn super::MonotonicClock,
         wake: Option<LocalIo<'_>>,
         cancel: Option<LocalIo<'_>>,
@@ -226,10 +227,15 @@ impl Delivery {
             if let Some(event) = self.take()? {
                 return Ok(event);
             }
-            let remaining = deadline
-                .checked_duration_since(clock.now())
-                .filter(|remaining| !remaining.is_zero())
-                .ok_or(io::ErrorKind::TimedOut)?;
+            let timeout = match deadline {
+                Some(deadline) => super::poll_timeout(
+                    deadline
+                        .checked_duration_since(clock.now())
+                        .filter(|remaining| !remaining.is_zero())
+                        .ok_or(io::ErrorKind::TimedOut)?,
+                ),
+                None => PollTimeout::NONE,
+            };
             let mut fds = vec![PollFd::new(self.ready.as_local_io(), PollFlags::POLLIN)];
             if let Some(wake) = wake {
                 fds.push(PollFd::new(wake, PollFlags::POLLIN));
@@ -238,7 +244,7 @@ impl Delivery {
             if let Some(cancel) = cancel {
                 fds.push(PollFd::new(cancel, PollFlags::POLLIN));
             }
-            poll(&mut fds, super::poll_timeout(remaining))?;
+            poll(&mut fds, timeout)?;
             if cancel.is_some()
                 && fds[cancel_index]
                     .revents()
@@ -270,6 +276,10 @@ impl Drop for Delivery {
 
 #[derive(Debug)]
 enum Command {
+    Probe {
+        id: MultiplexStreamId,
+        request: Vec<u8>,
+    },
     Open {
         id: MultiplexStreamId,
         lane: MultiplexLaneId,
@@ -297,6 +307,7 @@ struct Shared {
     generation: AtomicU64,
     budget: Arc<AtomicUsize>,
     streams: Arc<AtomicUsize>,
+    current_until: Mutex<Option<Instant>>,
 }
 impl Shared {
     fn signal(&self) {
@@ -387,7 +398,14 @@ impl Connection {
     }
     pub(super) fn start(
         connection: ClientConnection,
+        origin: LocalClientOrigin,
+    ) -> io::Result<Arc<Self>> {
+        Self::start_with_timing(connection, origin, health::Timing::default())
+    }
+    fn start_with_timing(
+        connection: ClientConnection,
         mut origin: LocalClientOrigin,
+        timing: health::Timing,
     ) -> io::Result<Arc<Self>> {
         let (reader, wake) = LocalStream::pair()?;
         reader.set_nonblocking(true)?;
@@ -398,13 +416,15 @@ impl Connection {
             wake,
             stopped: AtomicBool::new(false),
             generation: AtomicU64::new(connection.generation().get()),
-            budget: Arc::new(AtomicUsize::new(0)),
-            streams: Arc::new(AtomicUsize::new(0)),
+            // The control reservation is part of, not additional to, the public connection cap.
+            budget: Arc::new(AtomicUsize::new(health::RESERVED_BYTES)),
+            streams: Arc::new(AtomicUsize::new(health::RESERVED_STREAMS)),
+            current_until: Mutex::new(Some(Instant::now() + timing.idle + timing.response)),
         });
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-client-connection".into())
-            .spawn(move || actor(connection, origin, reader, state))?;
+            .spawn(move || actor(connection, origin, reader, state, timing))?;
         Ok(Arc::new(Self {
             shared,
             task: Mutex::new(Some(task)),
@@ -413,6 +433,15 @@ impl Connection {
     pub(super) fn generation(&self) -> NonZeroU64 {
         NonZeroU64::new(self.shared.generation.load(Ordering::Acquire))
             .expect("admitted connection generation is nonzero")
+    }
+    pub(super) fn is_current(&self, now: Instant) -> bool {
+        !self.shared.stopped.load(Ordering::Acquire)
+            && self
+                .shared
+                .current_until
+                .lock()
+                .ok()
+                .is_some_and(|until| until.is_some_and(|until| now < until))
     }
     pub(super) fn shutdown(&self) -> io::Result<()> {
         self.shared.stopped.store(true, Ordering::Release);
@@ -495,7 +524,10 @@ impl Connection {
         let subscription = self
             .open(lane, frame.to_vec(), StreamMode::Request)
             .map_err(|error| (false, error))?;
-        match subscription.delivery.wait(deadline, clock, wake, cancel) {
+        match subscription
+            .delivery
+            .wait(Some(deadline), clock, wake, cancel)
+        {
             Ok(StreamEvent::Record(bytes)) => {
                 NonZeroU64::new(subscription.delivery.generation.load(Ordering::Acquire))
                     .map(|generation| (bytes, generation))
@@ -522,6 +554,11 @@ pub(crate) struct Subscription {
     delivery: Arc<Delivery>,
 }
 impl Subscription {
+    /// Wait on the shared actor's mailbox and the caller's cancellation source, without polling.
+    pub(crate) fn wait(&self, wake: Option<LocalIo<'_>>) -> io::Result<StreamEvent> {
+        self.delivery
+            .wait(None, &super::SystemMonotonicClock, wake, None)
+    }
     pub(crate) fn cancel(&self) -> bool {
         let submitted = self.delivery.cancel();
         self.owner.shared.cancel(self.id);
@@ -562,6 +599,7 @@ fn actor(
     origin: LocalClientOrigin,
     wake: LocalStream,
     shared: Arc<Shared>,
+    timing: health::Timing,
 ) {
     let mut connection = Some(connection);
     let mut active = BTreeMap::<MultiplexStreamId, Active>::new();
@@ -570,6 +608,7 @@ fn actor(
     let mut decoder = MultiplexDecoder::default();
     let mut reconnect_at = Instant::now();
     let mut partial_at = None;
+    let mut health = health::Health::new(timing, Instant::now());
     loop {
         if shared.stopped.load(Ordering::Acquire) {
             break;
@@ -580,6 +619,27 @@ fn actor(
         };
         for command in commands {
             match command {
+                Command::Probe { id, request } => {
+                    if connection.is_some()
+                        && let Some(deadline) = health.queued(id)
+                    {
+                        let Ok(bytes) = encode_multiplex_message(&MultiplexMessage::StreamOpen {
+                            stream_id: id,
+                            lane_id: MultiplexLaneId::ROOT,
+                            mode: StreamMode::Request,
+                            request,
+                        }) else {
+                            break;
+                        };
+                        outgoing.push_back(Outgoing {
+                            id: Some(id),
+                            bytes,
+                            offset: 0,
+                            deadline,
+                            _reservation: None,
+                        });
+                    }
+                }
                 Command::Open {
                     id,
                     lane,
@@ -683,6 +743,7 @@ fn actor(
                 Some(wake.as_local_io()),
             ) {
                 Ok(next) => {
+                    health.reset(Instant::now());
                     shared
                         .generation
                         .store(next.generation().get(), Ordering::Release);
@@ -732,14 +793,30 @@ fn actor(
             break;
         }
         let result = match connection.as_mut() {
-            Some(connection) => drive(
-                connection,
-                &wake,
-                &mut active,
-                &mut outgoing,
-                &mut decoder,
-                &mut partial_at,
-            ),
+            Some(connection) => {
+                let probing = !active.is_empty();
+                let queued = if probing {
+                    health.enqueue(&shared, Instant::now())
+                } else {
+                    Ok(())
+                };
+                *shared
+                    .current_until
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(health.valid_until());
+                queued.and_then(|()| {
+                    drive(
+                        connection,
+                        &wake,
+                        &mut active,
+                        &mut outgoing,
+                        &mut decoder,
+                        &mut partial_at,
+                        &mut health,
+                        probing,
+                    )
+                })
+            }
             None => {
                 let timeout = if active.is_empty() {
                     PollTimeout::NONE
@@ -775,6 +852,11 @@ fn actor(
                 break;
             }
             connection.take();
+            health.reset(Instant::now());
+            *shared
+                .current_until
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
             outgoing.clear();
             decoder = MultiplexDecoder::default();
             partial_at = None;
@@ -792,6 +874,10 @@ fn actor(
             reconnect_at = Instant::now() + Duration::from_millis(250);
         }
     }
+    *shared
+        .current_until
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
     for item in active.into_values() {
         item.delivery.close();
     }
@@ -830,6 +916,8 @@ fn drive(
     outgoing: &mut VecDeque<Outgoing>,
     decoder: &mut MultiplexDecoder,
     partial_at: &mut Option<Instant>,
+    health: &mut health::Health,
+    probing: bool,
 ) -> io::Result<()> {
     connection.set_nonblocking(true)?;
     let interest = if outgoing.is_empty() {
@@ -843,7 +931,11 @@ fn drive(
         .into_iter()
         .chain(*partial_at)
         .min();
-    let timeout = deadline.map_or(PollTimeout::NONE, |deadline| {
+    let wait_until = deadline
+        .into_iter()
+        .chain((probing || health.pending()).then(|| health.deadline()))
+        .min();
+    let timeout = wait_until.map_or(PollTimeout::NONE, |deadline| {
         super::poll_timeout(deadline.saturating_duration_since(Instant::now()))
     });
     let mut fds = [
@@ -852,7 +944,8 @@ fn drive(
     ];
     poll(&mut fds, timeout)?;
     let flags = fds[0].revents().unwrap_or(PollFlags::empty());
-    if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+    if deadline.is_some_and(|deadline| Instant::now() >= deadline) || health.expired(Instant::now())
+    {
         return Err(io::ErrorKind::TimedOut.into());
     }
     if flags.contains(PollFlags::POLLIN) {
@@ -862,7 +955,11 @@ fn drive(
             Ok(count) => {
                 decoder.push(&buffer[..count])?;
                 while let Some(message) = decoder.next_message()? {
-                    deliver(message, active, outgoing)?;
+                    if !health.receive(&message, connection.generation(), Instant::now())?
+                        && deliver(message, active, outgoing)?
+                    {
+                        health.business_progress(Instant::now());
+                    }
                 }
                 if decoder.is_empty() {
                     *partial_at = None;
@@ -877,6 +974,11 @@ fn drive(
     if flags.contains(PollFlags::POLLOUT)
         && let Some(item) = outgoing.front_mut()
     {
+        if item.offset == 0
+            && let Some(id) = item.id
+        {
+            health.handoff(id, connection.generation());
+        }
         if item.offset == 0
             && let Some(active) = item.id.and_then(|id| active.get(&id))
         {
@@ -922,7 +1024,7 @@ fn deliver(
     message: MultiplexMessage,
     active: &mut BTreeMap<MultiplexStreamId, Active>,
     outgoing: &mut VecDeque<Outgoing>,
-) -> io::Result<()> {
+) -> io::Result<bool> {
     match message {
         MultiplexMessage::StreamFrame {
             stream_id,
@@ -931,11 +1033,11 @@ fn deliver(
             record,
         } => {
             let Some(item) = active.get_mut(&stream_id) else {
-                return Ok(());
+                return Ok(false);
             }; // cancelled stream's in-flight frame
             if item.needs_snapshot && kind == StreamFrameKind::Update {
                 // Already-buffered updates preceding the resnapshot request cannot fill the gap.
-                return Ok(());
+                return Ok(false);
             }
             if sequence.get() <= item.sequence
                 || (item.needs_snapshot && kind != StreamFrameKind::Snapshot)
@@ -970,11 +1072,15 @@ fn deliver(
                 item.needs_snapshot = true;
                 item.delivery
                     .publish(StreamEvent::Gap, StreamMode::Events)?;
+            } else {
+                return Ok(false);
             }
         }
         MultiplexMessage::StreamClose { stream_id, .. } => {
             if let Some(item) = active.remove(&stream_id) {
                 item.delivery.close();
+            } else {
+                return Ok(false);
             }
         }
         MultiplexMessage::Disconnect { reason } => {
@@ -990,7 +1096,7 @@ fn deliver(
             return Err(io::ErrorKind::InvalidData.into());
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 fn queue_lane(outgoing: &mut VecDeque<Outgoing>, lane_id: MultiplexLaneId, open: bool) {

@@ -372,6 +372,7 @@ fn handle_candidate_control(
             connections.borrow_mut().remove(&lane);
             workbench_connection.close_lane(lane);
         },
+        || workbench_connection.maintain_subscription_deadline(),
     );
 }
 

@@ -12,15 +12,11 @@ use crate::{
 };
 use orchbee_workbench_protocol::{SessionId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use policy::{Phase, Policy};
-use std::{
-    io,
-    time::{Duration, Instant},
-};
+use std::{io, time::Instant};
 use unicode_segmentation::UnicodeSegmentation;
 use worker::{Event, Update, Worker};
 
 const CONNECT_LIMIT: usize = 4;
-const FRESH_FOR: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Overview {
@@ -126,6 +122,19 @@ pub(crate) struct Connection {
     clock: LocalOperationClock,
 }
 impl Connection {
+    /// Uses the carrier's shared application-progress deadline, including pending probe expiry.
+    pub(crate) fn is_current(&self, now: Instant) -> bool {
+        self.origin.is_current(now)
+    }
+    /// Distinguishes replacement carriers even when a saved profile's logical choice is unchanged.
+    pub(crate) fn same_owner(&self, other: &Self) -> bool {
+        self.origin.shares_connection(&other.origin)
+    }
+    pub(crate) fn watch_changes(
+        &self,
+    ) -> io::Result<crate::local_client::subscription::ChangeSubscription> {
+        self.origin.watch_changes()
+    }
     pub(crate) fn from_origin(origin: LocalClientOrigin, clock: LocalOperationClock) -> Self {
         Self { origin, clock }
     }
@@ -142,7 +151,6 @@ impl Connection {
 struct Ready {
     overview: Overview,
     connection: Connection,
-    observed: Instant,
 }
 struct Entry {
     profile: Profile,
@@ -161,7 +169,7 @@ impl Entry {
             Phase::Online => self
                 .ready
                 .as_ref()
-                .filter(|r| now.saturating_duration_since(r.observed) <= FRESH_FOR)
+                .filter(|r| r.connection.is_current(now))
                 .map_or(Observation::Stale, |r| {
                     Observation::Online(r.overview.clone())
                 }),
@@ -182,6 +190,14 @@ impl Entry {
             Event::Failed { permanent, at } => {
                 self.ready = None;
                 self.policy.fail(permanent, at);
+                if let Some(worker) = &self.worker {
+                    // Retire cached origins before the worker releases its last tunnel owner.
+                    worker.cancel();
+                }
+            }
+            Event::Reset => {
+                self.ready = None;
+                self.policy.recovering();
             }
         }
     }
@@ -229,18 +245,17 @@ impl Discovery {
             if let Some(update) = entry.worker.as_ref().and_then(Worker::take) {
                 entry.accept(update);
             }
-            if matches!(entry.policy.phase, Phase::Attention | Phase::Reconnecting)
-                && let Some(worker) = &entry.worker
-            {
-                worker.cancel();
-            }
             if entry.worker.as_ref().is_some_and(Worker::finished) {
                 // A worker may publish between the first drain and the completion check.
                 let worker = entry.worker.take().expect("finished observer");
                 if let Some(update) = worker.take() {
                     entry.accept(update);
                 }
-                if matches!(entry.policy.phase, Phase::Connecting | Phase::Online) {
+                if matches!(
+                    entry.policy.phase,
+                    Phase::Connecting | Phase::Online | Phase::Reconnecting
+                ) && !worker.cancelled()
+                {
                     entry.ready = None;
                     entry.policy.fail(false, now);
                 }

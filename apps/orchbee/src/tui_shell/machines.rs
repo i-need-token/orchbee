@@ -19,12 +19,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Agent changes that start the next physical Agent read early instead of awaiting its interval.
-const AGENT_EVENTS: &[orchbee_workbench_protocol::SemanticEventKind] = &[
-    orchbee_workbench_protocol::SemanticEventKind::PaneAgentDetected,
-    orchbee_workbench_protocol::SemanticEventKind::PaneAgentStatusChanged,
-    orchbee_workbench_protocol::SemanticEventKind::PaneExited,
-];
 struct Attempt {
     profile: Option<Profile>,
     context: Option<ClientStartupTarget>,
@@ -116,8 +110,9 @@ impl Manager {
             queued: None,
             selection_scope: None,
             discovery: Discovery::default(),
-            agents: crate::machine_agents::Collector::watching(AGENT_EVENTS, wakeup),
-            spaces: crate::machine_spaces::Collector::default(),
+            // Host process titles have no publication source; canonical Agent facts also push.
+            agents: crate::machine_agents::Collector::new(wakeup.clone(), true),
+            spaces: crate::machine_spaces::Collector::new(wakeup, false),
             space_git: None,
         }
     }
@@ -241,6 +236,8 @@ impl Manager {
         let space_git = view.machines.space_settings().needs_git();
         if self.space_git != Some(space_git) {
             self.spaces.clear();
+            // External Git changes have no Server event source. Metadata-only views do not poll.
+            self.spaces.sample_external_sources(space_git);
             self.space_git = Some(space_git);
         }
         let space_sources = if view.machines.wants_spaces() {

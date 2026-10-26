@@ -22,15 +22,8 @@ fn mailbox_coalesces_and_failures_distinguish_transport_from_protocol() {
         io::ErrorKind::UnexpectedEof,
         io::ErrorKind::ConnectionReset,
     ] {
-        assert!(!permanent(
-            snapshot_error(SnapshotReadError::RequestNotSubmitted(kind.into())).kind()
-        ));
+        assert!(!permanent(kind));
     }
-    assert!(permanent(
-        snapshot_error(SnapshotReadError::RequestEncoding(
-            WorkbenchWireError::InvalidHeader
-        ))
-        .kind()
-    ));
+    assert!(permanent(io::ErrorKind::InvalidData));
     assert!(permanent(io::ErrorKind::PermissionDenied));
 }

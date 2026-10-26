@@ -30,6 +30,186 @@ fn bounded_pair() -> (LocalStream, LocalStream) {
     (peer, server)
 }
 
+#[cfg(windows)]
+#[test]
+fn idle_metadata_expiry_rearms_after_a_same_value_report_without_client_polling() {
+    use crate::{
+        local_terminal_service::LocalTerminalService,
+        workbench_service::{WorkbenchExecution, WorkbenchPolicy, WorkbenchService},
+        worker_registry::WorkerRegistry,
+    };
+    use orchbee_workbench_protocol::{
+        MetadataSource, MetadataTokenKey, MetadataTokenPatch, MetadataTokenValue,
+        WorkbenchResponse, WorkbenchSnapshotOutcome, WorkspaceMetadataAction,
+        WorkspaceMetadataOutcome, WorkspaceMetadataRequest, write_workbench_response,
+    };
+    let service = Arc::new(WorkbenchService::new(
+        WorkbenchPolicy {
+            read: true,
+            manage_navigation: true,
+            associate_directory: false,
+            create_terminal: false,
+            manage_terminal_lifecycle: false,
+        },
+        Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+            Mutex::new(WorkerRegistry::new()),
+        ))),
+    ));
+    let WorkbenchExecution::Response(WorkbenchResponse::Snapshot(snapshot)) =
+        service.execute(WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+        }))
+    else {
+        panic!("snapshot");
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = snapshot.outcome else {
+        panic!("available");
+    };
+    let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+    let report = |ttl| {
+        WorkbenchRequest::WorkspaceMetadata(WorkspaceMetadataRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
+            session_id: snapshot.session_id.clone(),
+            action: WorkspaceMetadataAction::Report {
+                workspace_id: workspace.clone(),
+                source: MetadataSource::parse("ttl-witness").unwrap(),
+                tokens: MetadataTokenPatch::new(
+                    [(
+                        MetadataTokenKey::parse("summary").unwrap(),
+                        Some(MetadataTokenValue::parse("same").unwrap()),
+                    )]
+                    .into(),
+                )
+                .unwrap(),
+                sequence: None,
+                ttl_milliseconds: Some(ttl),
+            },
+        })
+    };
+    let publisher = service.client_connection(NonZeroU64::new(2).unwrap());
+    assert!(
+        matches!(publisher.execute(report(10_000)), WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(result)) if matches!(result.outcome, WorkspaceMetadataOutcome::Reported { .. }))
+    );
+    let (mut peer, server) = bounded_pair();
+    peer.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    let reader_service = Arc::clone(&service);
+    let signal = Arc::new(SessionChangeSignal::default());
+    let observer = Arc::clone(&signal);
+    let task = thread::spawn(move || {
+        let connection = reader_service.client_connection(NonZeroU64::MIN);
+        connection.watch_changes(&observer);
+        run(
+            &server,
+            open(1, 1, StreamMode::Invalidations),
+            observer,
+            |_, request| {
+                let WorkbenchExecution::Response(response) =
+                    connection.execute(request.workbench().unwrap().clone())
+                else {
+                    panic!("read outcome");
+                };
+                let mut bytes = Vec::new();
+                write_workbench_response(&mut bytes, &response)
+                    .map_err(ApplicationConnectionError::Workbench)?;
+                Ok(bytes)
+            },
+            |_| {},
+            |_| {},
+            || connection.maintain_subscription_deadline(),
+        )
+    });
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame {
+            kind: StreamFrameKind::Snapshot,
+            ..
+        }
+    ));
+    let before = signal.revision();
+    // Values do not change, so the semantic journal intentionally does not publish a token
+    // event. The service's generic report notification must still rearm the earlier expiry.
+    assert!(
+        matches!(publisher.execute(report(500)), WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(result)) if matches!(result.outcome, WorkspaceMetadataOutcome::Reported { .. }))
+    );
+    assert!(signal.revision() > before);
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame {
+            kind: StreamFrameKind::Update,
+            ..
+        }
+    ));
+    // No more peer request, health probe, or metadata read occurs before this expiry update.
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame {
+            kind: StreamFrameKind::Update,
+            ..
+        }
+    ));
+    let WorkbenchExecution::Response(WorkbenchResponse::WorkspaceMetadata(result)) = publisher
+        .execute(WorkbenchRequest::WorkspaceMetadata(
+            WorkspaceMetadataRequest {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
+                session_id: snapshot.session_id,
+                action: WorkspaceMetadataAction::Read {
+                    workspace_ids: vec![workspace],
+                },
+            },
+        ))
+    else {
+        panic!("metadata");
+    };
+    assert!(
+        matches!(result.outcome, WorkspaceMetadataOutcome::Read { workspaces, .. } if workspaces[0].tokens.as_map().is_empty())
+    );
+    assert_eq!(publisher.maintain_subscription_deadline().unwrap(), None);
+    peer.shutdown(std::net::Shutdown::Both).unwrap();
+    let _closed = task.join().unwrap();
+}
+
+#[test]
+fn maintenance_failure_closes_instead_of_retrying_a_past_deadline() {
+    let (mut peer, server) = bounded_pair();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = Arc::clone(&calls);
+    let task = thread::spawn(move || {
+        run(
+            &server,
+            open(1, 1, StreamMode::State),
+            Arc::default(),
+            |_, _| Ok(vec![1]),
+            |_| {},
+            |_| {},
+            || {
+                if count.fetch_add(1, Ordering::AcqRel) == 0 {
+                    Ok(Some(Instant::now()))
+                } else {
+                    Err(io::ErrorKind::ConnectionAborted.into())
+                }
+            },
+        )
+    });
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::StreamFrame {
+            kind: StreamFrameKind::Snapshot,
+            ..
+        }
+    ));
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::Disconnect {
+            reason: MultiplexDisconnectReason::Unavailable
+        }
+    ));
+    assert!(task.join().unwrap().is_err());
+    assert_eq!(calls.load(Ordering::Acquire), 2);
+}
+
 #[test]
 fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
     let (mut peer, server) = bounded_pair();
@@ -59,6 +239,7 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
                 closed.send(lane).unwrap();
             },
             |_| {},
+            || Ok(None),
         )
     });
     write_multiplex_message(&mut peer, &open(1, 2, StreamMode::Request)).unwrap();
@@ -133,6 +314,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
             },
             |_| {},
             |_| {},
+            || Ok(None),
         )
     });
     captured.recv_timeout(Duration::from_secs(2)).unwrap();
@@ -153,6 +335,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
             },
             |_| {},
             |_| {},
+            || Ok(None),
         )
     });
     assert!(
@@ -179,6 +362,7 @@ fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
             |_, _| Ok(vec![1]),
             |_| {},
             |_| {},
+            || Ok(None),
         )
     });
     assert!(matches!(
@@ -263,6 +447,7 @@ fn an_active_event_cursor_rejects_competing_streams_and_one_shot_reads() {
             },
             |_| {},
             |_| {},
+            || Ok(None),
         )
     });
     assert!(matches!(

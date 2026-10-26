@@ -175,6 +175,15 @@ impl WorkspaceMetadata {
 }
 
 impl WorkbenchAuthority {
+    /// Earliest owned expiry, used by the admitted subscription dispatcher instead of read polling.
+    pub fn workspace_metadata_deadline(&self) -> Option<Instant> {
+        self.workspace_metadata
+            .resources
+            .values()
+            .flat_map(|resource| resource.tokens.values())
+            .filter_map(|token| token.expires_at)
+            .min()
+    }
     /// Expiry commits are observed even when subscribers are the only active readers.
     pub fn maintain_workspace_metadata(&mut self, now: Instant) -> Result<(), Failure> {
         if self.retired {

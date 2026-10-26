@@ -222,6 +222,7 @@ pub(super) fn run_network<Permit>(
     watch: impl FnOnce(&std::sync::Arc<orchbee_server::SessionChangeSignal>),
     mut cancel: impl FnMut(&WorkbenchRequest),
     close_lane: impl FnMut(MultiplexLaneId),
+    maintenance: impl FnMut() -> io::Result<Option<std::time::Instant>>,
 ) -> Result<(), ApplicationConnectionError> {
     let mut records = super::record_stream::ClientRecordStream::new(stream)
         .map_err(ApplicationConnectionError::Prefix)?;
@@ -287,6 +288,7 @@ pub(super) fn run_network<Permit>(
                 cancel(request);
             }
         },
+        maintenance,
     )
     .map_err(ApplicationConnectionError::Prefix)
 }

@@ -104,6 +104,7 @@ pub(super) fn run(
     ) -> Result<Vec<u8>, ApplicationConnectionError>,
     mut close_lane: impl FnMut(MultiplexLaneId),
     mut cancel: impl FnMut(&ApplicationRequest),
+    mut maintenance: impl FnMut() -> io::Result<Option<Instant>>,
 ) -> io::Result<()> {
     let inbox = Arc::new(Mutex::new(Inbox::default()));
     let budget = Arc::new(AtomicUsize::new(0));
@@ -141,6 +142,7 @@ pub(super) fn run(
             &mut cancel,
             &mut close_lane,
             &budget,
+            &mut maintenance,
         );
         if let Err(error) = &result {
             let reason = match error.kind() {
@@ -227,6 +229,7 @@ fn dispatch(
     cancel: &mut impl FnMut(&ApplicationRequest),
     close_lane: &mut impl FnMut(MultiplexLaneId),
     budget: &Arc<AtomicUsize>,
+    maintenance: &mut impl FnMut() -> io::Result<Option<Instant>>,
 ) -> io::Result<()> {
     let mut subscriptions = BTreeMap::new();
     let mut high_water = 0;
@@ -430,6 +433,9 @@ fn dispatch(
                 _ => return Err(io::ErrorKind::InvalidData.into()),
             }
         }
+        // Maintenance publishes expired metadata before evaluating subscriptions. Its lock is
+        // released before any write/wait, and reports wake this owner to recompute the deadline.
+        let expiry = maintenance()?;
         let observed = signal.revision();
         let mut retained = 0usize;
         for (stream_id, subscription) in &mut subscriptions {
@@ -507,7 +513,11 @@ fn dispatch(
             .any(|subscription| subscription.request.requires_sampling())
             .then_some(Duration::from_millis(100));
         if !subscriptions.values().any(|subscription| subscription.more) {
-            signal.wait(wake_revision, sampling);
+            let timeout = sampling
+                .into_iter()
+                .chain(expiry.map(|at| at.saturating_duration_since(Instant::now())))
+                .min();
+            signal.wait(wake_revision, timeout);
         }
     }
 }

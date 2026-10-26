@@ -103,6 +103,11 @@ impl LocalTerminalService {
             .map_err(|_| Failure::Unavailable)?
             .maintain_events()
     }
+    /// Subscription dispatchers wait for owned expiry, not a periodic metadata read.
+    pub(crate) fn maintain_event_deadline(&self) -> Result<Option<std::time::Instant>, Failure> {
+        let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
+        coordinator.maintain_event_deadline(std::time::Instant::now())
+    }
     pub(crate) fn event_source(
         &self,
         session: &SessionId,

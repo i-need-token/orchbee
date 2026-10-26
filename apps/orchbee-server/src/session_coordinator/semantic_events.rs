@@ -138,6 +138,19 @@ impl SessionCoordinator {
             .maintain_workspace_metadata(std::time::Instant::now())
             .map_err(|_| Failure::Unavailable)
     }
+    /// Commit due metadata expiry and return the next exact owner deadline under the Session gate.
+    pub(crate) fn maintain_event_deadline(
+        &mut self,
+        now: std::time::Instant,
+    ) -> Result<Option<std::time::Instant>, Failure> {
+        let Some(workbench) = self.workbench.as_mut() else {
+            return Ok(None);
+        };
+        workbench
+            .maintain_workspace_metadata(now)
+            .map_err(|_| Failure::Unavailable)?;
+        Ok(workbench.workspace_metadata_deadline())
+    }
     pub(crate) fn event_source(
         &mut self,
         session: &SessionId,

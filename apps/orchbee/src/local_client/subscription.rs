@@ -81,7 +81,28 @@ pub(crate) struct ChangeSubscription {
     stream: Subscription,
     ended: std::sync::atomic::AtomicBool,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ChangeEvent {
+    Published,
+    Reset,
+}
 impl ChangeSubscription {
+    /// A reset invalidates reads already in flight; a subsequent publication permits a fresh read.
+    pub(crate) fn poll(&self) -> io::Result<Option<ChangeEvent>> {
+        use std::sync::atomic::Ordering;
+        if self.ended.load(Ordering::Acquire) {
+            return Ok(None);
+        }
+        match self.stream.poll() {
+            Ok(Some(StreamEvent::Record(_))) => Ok(Some(ChangeEvent::Published)),
+            Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) => Ok(Some(ChangeEvent::Reset)),
+            Ok(None) => Ok(None),
+            Err(error) => {
+                self.ended.store(true, Ordering::Release);
+                Err(error)
+            }
+        }
+    }
     /// Wait for a committed invalidation or this domain owner's command wake.
     /// The subscription never consumes a semantic command or receipt.
     pub(crate) fn wait(&self, wake: &LocalStream) -> io::Result<bool> {
@@ -106,19 +127,12 @@ impl ChangeSubscription {
         }
     }
     pub(crate) fn changed(&self) -> io::Result<bool> {
-        use std::sync::atomic::Ordering;
-        if self.ended.load(Ordering::Acquire) {
-            return Ok(false);
-        }
         let mut changed = false;
         loop {
-            match self.stream.poll() {
+            match self.poll() {
                 Ok(Some(_)) => changed = true,
                 Ok(None) => return Ok(changed),
-                Err(error) => {
-                    self.ended.store(true, Ordering::Release);
-                    return Err(error);
-                }
+                Err(error) => return Err(error),
             }
         }
     }

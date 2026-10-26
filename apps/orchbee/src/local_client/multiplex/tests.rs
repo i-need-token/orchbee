@@ -192,6 +192,205 @@ fn state_coalescing_releases_the_connection_budget_and_overrun_is_typed() {
         ))
     ));
     budget.store(0, Ordering::Release);
+    let budget = Arc::new(AtomicUsize::new(health::RESERVED_BYTES));
+    let streams = Arc::new(AtomicUsize::new(health::RESERVED_STREAMS));
+    let admitted = (0..MAXIMUM_MULTIPLEX_STREAMS - health::RESERVED_STREAMS)
+        .map(|_| Reservation::acquire(&budget, &streams, 32).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        Reservation::acquire(&budget, &streams, 1)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::WouldBlock
+    );
+    drop(admitted);
+    assert_eq!(budget.load(Ordering::Acquire), health::RESERVED_BYTES);
+    assert_eq!(streams.load(Ordering::Acquire), health::RESERVED_STREAMS);
+    budget.store(MAXIMUM_MULTIPLEX_BYTES - 1, Ordering::Release);
+    assert_eq!(
+        Reservation::acquire(&budget, &streams, 2)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::WouldBlock
+    );
+    assert_eq!(
+        streams.load(Ordering::Acquire),
+        health::RESERVED_STREAMS,
+        "rejected bytes return the ordinary stream slot"
+    );
+}
+
+#[test]
+fn idle_probe_deadline_survives_unrelated_push_and_reconnect_does_not_replay_a_mutation() {
+    use orchbee_client_server_protocol::{
+        ClientMessage, ServerMessage, TerminalLaunchReadOutcome, TerminalLaunchReadResult,
+        decode_client_frame, encode_server_frame,
+    };
+    use orchbee_workbench_protocol::{ConfigurationAction, ConfigurationRequest, SessionId};
+    fn probe_response(open: &crate::local_client::tests::multiplex_peer::Open) -> Vec<u8> {
+        let ClientMessage::TerminalLaunchRead(request) =
+            decode_client_frame(&open.request).unwrap()
+        else {
+            panic!("bounded read probe expected");
+        };
+        encode_server_frame(&ServerMessage::TerminalLaunchReadResult(
+            TerminalLaunchReadResult::new(
+                request.request_id().clone(),
+                TerminalLaunchReadOutcome::NotFound,
+            ),
+        ))
+        .unwrap()
+    }
+    fn respond_probe(
+        peer: &mut LocalStream,
+        id: MultiplexStreamId,
+        record: Vec<u8>,
+    ) -> io::Result<()> {
+        write_multiplex_message(
+            peer,
+            &MultiplexMessage::StreamFrame {
+                stream_id: id,
+                sequence: NonZeroU64::MIN,
+                kind: StreamFrameKind::Result,
+                record,
+            },
+        )
+    }
+    let (done, finish) = mpsc::sync_channel(1);
+    let (recovered, recovery) = mpsc::sync_channel(1);
+    let server = FakeServer::start_connections(2, move |index, mut peer| {
+        admit(&mut peer, index as u64 + 1)?;
+        let watch = read_open(&mut peer)?;
+        assert_eq!(watch.mode, StreamMode::State);
+        frame(
+            &mut peer,
+            watch.id,
+            1,
+            StreamFrameKind::Snapshot,
+            index as u8 + 1,
+        )?;
+        if index == 1 {
+            // A replayed Reload would precede the next health probe and fail this decoder.
+            let probe = read_open(&mut peer)?;
+            respond_probe(&mut peer, probe.id, probe_response(&probe))?;
+            recovered.send(()).unwrap();
+            finish.recv_timeout(Duration::from_secs(2)).unwrap();
+            return Ok(());
+        }
+        let mutation = read_open(&mut peer)?;
+        let parsed = orchbee_workbench_protocol::read_workbench_request(&mut io::Cursor::new(
+            &mutation.request,
+        ))
+        .unwrap();
+        assert!(matches!(
+            parsed,
+            WorkbenchRequest::Configuration(ConfigurationRequest {
+                action: ConfigurationAction::Reload,
+                ..
+            })
+        ));
+        let first = read_open(&mut peer)?;
+        let old_reply = probe_response(&first);
+        respond_probe(&mut peer, first.id, old_reply.clone())?;
+        let pending = read_open(&mut peer)?;
+        assert!(pending.id.value() > first.id.value());
+        let _valid_pending = probe_response(&pending);
+        let started = Instant::now();
+        peer.set_read_timeout(Some(Duration::from_millis(20)))?;
+        let mut sequence = 1;
+        loop {
+            // Neither an already retired probe reply nor another active stream's progress
+            // may settle/extend the queued probe. Keep both flowing until the carrier closes.
+            if respond_probe(&mut peer, first.id, old_reply.clone()).is_err() {
+                break;
+            }
+            sequence += 1;
+            if frame(&mut peer, watch.id, sequence, StreamFrameKind::Update, 1).is_err() {
+                break;
+            }
+            match peer.read(&mut [0; 1]) {
+                Ok(0) => break,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                    ) => {}
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::ConnectionReset | io::ErrorKind::BrokenPipe
+                    ) =>
+                {
+                    break;
+                }
+                result => panic!("no further application request before probe expires: {result:?}"),
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(1),
+                "unrelated progress prolonged the probe"
+            );
+        }
+        assert!(started.elapsed() < Duration::from_secs(1));
+        Ok(())
+    })
+    .unwrap();
+    let mut client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let Some(crate::local_client::ClientTransport::Direct(transport)) = client.connection.take()
+    else {
+        panic!()
+    };
+    let owner = Connection::start_with_timing(
+        transport,
+        client.origin.clone(),
+        health::Timing {
+            idle: Duration::from_millis(60),
+            response: Duration::from_millis(180),
+        },
+    )
+    .unwrap();
+    client.origin.multiplex = Some(Arc::clone(&owner));
+    client.connection = Some(crate::local_client::ClientTransport::Lane(
+        crate::local_client::ClientLane::new(Arc::clone(&owner)).unwrap(),
+    ));
+    let watch = client
+        .origin()
+        .subscribe(&request(1), StreamMode::State)
+        .unwrap();
+    let mutation = client
+        .origin()
+        .subscribe(
+            &WorkbenchRequest::Configuration(ConfigurationRequest {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
+                session_id: SessionId::parse(&format!("{:032x}", 1)).unwrap(),
+                action: ConfigurationAction::Reload,
+            }),
+            StreamMode::Request,
+        )
+        .unwrap();
+    let mut reset = false;
+    loop {
+        match take(&watch).unwrap() {
+            StreamEvent::Disconnected => reset = true,
+            StreamEvent::Record(bytes) if bytes == [2] => break,
+            StreamEvent::Record(_) => {}
+            StreamEvent::Gap => panic!("transport deadline is a reset"),
+        }
+    }
+    assert!(
+        reset,
+        "fresh generation cannot erase the withdrawal barrier"
+    );
+    assert!(mutation.poll().is_err());
+    assert!(
+        mutation.cancel(),
+        "the old peer received Reload, so its result remains unknown"
+    );
+    recovery.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert!(owner.is_current(Instant::now()));
+    done.send(()).unwrap();
+    drop((watch, mutation, client, owner));
+    server.finish().unwrap();
 }
 
 #[test]

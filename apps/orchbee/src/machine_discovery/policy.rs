@@ -34,6 +34,11 @@ impl Policy {
         self.online_since.get_or_insert(now);
         self.phase = Phase::Online;
     }
+    /// Carrier recovery retains the existing worker; only terminal failures schedule a new one.
+    pub(super) fn recovering(&mut self) {
+        self.online_since = None;
+        self.phase = Phase::Reconnecting;
+    }
     pub(super) fn fail(&mut self, permanent: bool, now: Instant) {
         if self
             .online_since
