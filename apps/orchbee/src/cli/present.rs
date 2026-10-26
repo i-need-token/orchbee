@@ -226,9 +226,7 @@ fn terminal_table(
         .rows
         .iter()
         .enumerate()
-        .map(|(index, _row)| {
-            terminal_list_cells(&fallback[index], doc.details.get(index), text, locale)
-        })
+        .map(|(index, _row)| terminal_list_cells(&fallback[index], doc.details.get(index), locale))
         .collect();
     let mut widths: Vec<usize> = headers.iter().map(|header| display_width(header)).collect();
     for cells in &rows {
@@ -289,7 +287,6 @@ fn terminal_table(
 fn terminal_list_cells(
     fallback_handle: &str,
     details: Option<&super::results::TerminalListDetails>,
-    text: &CliLabels,
     locale: Locale,
 ) -> Vec<String> {
     let empty = super::results::TerminalListDetails::default();
