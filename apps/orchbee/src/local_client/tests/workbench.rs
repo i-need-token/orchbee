@@ -1,6 +1,4 @@
-#[cfg(windows)]
 mod client_view;
-#[cfg(windows)]
 mod layout;
 use super::*;
 mod creation_placement;
@@ -11,12 +9,10 @@ mod panel_split;
 mod tab_close;
 mod tab_move;
 mod tab_rename;
-#[cfg(any(target_os = "linux", windows))]
 mod workspace_close;
 mod workspace_group_close;
 mod workspace_setup;
 mod worktree_operation;
-#[cfg(windows)]
 mod worktree_query;
 use crate::local_client::{
     SystemMonotonicClock,
@@ -1523,7 +1519,6 @@ fn tab_create_wake_after_submission_retires_unknown_without_replay() -> TestResu
 
 mod panel_relocate;
 
-#[cfg(windows)]
 mod workspace_metadata;
 
 mod panel_agent;

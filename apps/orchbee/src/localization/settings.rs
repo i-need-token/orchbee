@@ -345,7 +345,7 @@ impl Locale {
                 UserLaunchCommand::SystemShell { .. } => "—",
             },
             Row::Login => match &profile.command {
-                UserLaunchCommand::SystemShell { login } if !cfg!(windows) => {
+                UserLaunchCommand::SystemShell { login } if draft.login_shell_supported => {
                     self.settings_toggle(*login)
                 }
                 UserLaunchCommand::SystemShell { .. }
@@ -528,9 +528,9 @@ impl Locale {
                     "Select the custom terminal theme to edit these colors.",
                     "选择自定义终端主题后可编辑这些颜色。",
                 ),
-                Row::Login if cfg!(windows) => self.setting(
-                    "Login shells are unavailable on Windows.",
-                    "Windows 不支持登录 Shell 选项。",
+                Row::Login if !draft.login_shell_supported => self.setting(
+                    "Login shells are not supported on this platform.",
+                    "此平台不支持登录 Shell 选项。",
                 ),
                 Row::Executable
                 | Row::Argument

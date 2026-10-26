@@ -165,7 +165,6 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
                     )
                 );
                 for y in content.y..content.bottom() {
-                    #[cfg(windows)]
                     assert_ne!(
                         map.hit_target_at(content.right() - 1, y),
                         Some(&HitTarget::MenuButton),
@@ -205,7 +204,6 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
 }
 
 #[test]
-#[cfg(windows)]
 fn scrollbar_thumb_focus_follows_the_shell_input_owner() {
     let (mut ui, _, _, _) = ready_ui();
     let key = install_projection(&mut ui, Some((1000, false, 24)), 0);

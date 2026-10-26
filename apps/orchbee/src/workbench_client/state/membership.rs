@@ -78,20 +78,17 @@ pub(in crate::workbench_client) struct PreparedMembershipCandidate {
 }
 
 impl PreparedMembershipCandidate {
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn context_location(
         &self,
     ) -> &crate::workbench_client::NativeContextLocation {
         self.candidate.location()
     }
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn menu_context_source(
         &self,
     ) -> Option<crate::workbench_client::workbench_projection::NativeMenuContextSource> {
         self.candidate
             .menu_context_source(self.candidate.location())
     }
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn menu_selected_tab_matches(
         &self,
         tab: &super::NativeSimpleTab,
@@ -228,7 +225,6 @@ pub(in crate::workbench_client) struct PreparedMembershipInstall<'a> {
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
-    #[cfg(windows)]
     duplicate_witness: Option<super::tab_duplication::DuplicateInstallWitness>,
     close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
     mutation_completion: MembershipMutationCompletion,
@@ -256,7 +252,6 @@ impl PreparedMembershipInstall<'_> {
             self.state
                 .before_close_set_member_install(consumption.target());
         }
-        #[cfg(windows)]
         let foreground_created = self
             .settled_create
             .as_ref()
@@ -268,9 +263,7 @@ impl PreparedMembershipInstall<'_> {
                     .iter()
                     .find(|tab| tab.tab_id() == committed.committed_key.tab_id())
             });
-        #[cfg(windows)]
         let clear_selection = foreground_created.is_some();
-        #[cfg(windows)]
         let activated_group = foreground_created
             .and_then(|tab| tab.group())
             .map(|group| group.group_id.clone());
@@ -279,16 +272,10 @@ impl PreparedMembershipInstall<'_> {
             .as_ref()
             .filter(|committed| committed.operation.preserves_selection())
             .filter(|committed| {
-                #[cfg(windows)]
                 {
                     !self
                         .state
                         .duplicate_owns_operation(committed.operation.key())
-                }
-                #[cfg(not(windows))]
-                {
-                    let _ = committed;
-                    true
                 }
             })
         {
@@ -342,19 +329,15 @@ impl PreparedMembershipInstall<'_> {
                 .map(|tab| tab.leaf_panel_ids().into_iter().collect())
                 .unwrap_or_default()
         };
-        #[cfg(windows)]
         let overlay_focus = self.state.focus_panel_id().cloned();
-        #[cfg(windows)]
         self.state.remember_tab_group();
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired.clone();
         self.state.phase = self.replacement_phase;
-        #[cfg(windows)]
         if clear_selection {
             self.state.clear_tab_selection();
         }
-        #[cfg(windows)]
         if let Some(group) = activated_group
             && self.state.group_collapsed(&group)
         {
@@ -367,7 +350,6 @@ impl PreparedMembershipInstall<'_> {
                 .navigation_memory
                 .remember_presentation(&self.state.cache, &selected, id);
         }
-        #[cfg(windows)]
         self.state.prune_plugin_overlays(overlay_focus.as_ref());
         self.state.prune_zoomed_tabs();
         self.state.prune_navigation_memory();
@@ -400,7 +382,6 @@ impl PreparedMembershipInstall<'_> {
             self.state.close.commit_consumption(consumption);
             self.state.installed_close_set_member(&target);
         }
-        #[cfg(windows)]
         if let Some(witness) = self.duplicate_witness {
             self.state.commit_duplicate_install(witness);
         }
@@ -455,7 +436,6 @@ impl WorkbenchClientState {
             })
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn prepare_retired_membership_install_inner(
         &mut self,
         prepared: PreparedMembershipCandidate,
@@ -842,15 +822,10 @@ impl WorkbenchClientState {
                     .find(|member| member.presentation_id() == presentation)
                     .ok_or(CarrierFailure::AuthorityDivergence)?
             } else if prepared.candidate.location() == self.cache.location() {
-                #[cfg(windows)]
                 {
                     self.focus_panel_id()
                         .and_then(|removed| self.overlay_return_presentation(tab, removed, panel))
                         .unwrap_or_else(|| self.selected_presentation(panel))
-                }
-                #[cfg(not(windows))]
-                {
-                    self.selected_presentation(panel)
                 }
             } else {
                 self.navigation_memory
@@ -907,7 +882,6 @@ impl WorkbenchClientState {
         } else {
             (ClientPhase::Empty, MembershipInstallDecision::Empty)
         };
-        #[cfg(windows)]
         let duplicate_witness = self.prepare_duplicate_install(
             committed_create.as_ref(),
             &prepared.candidate,
@@ -923,7 +897,6 @@ impl WorkbenchClientState {
             decision,
             refresh_generation: None,
             settled_create: committed_create,
-            #[cfg(windows)]
             duplicate_witness,
             close_consumption,
             mutation_completion: MembershipMutationCompletion::None,

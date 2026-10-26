@@ -140,7 +140,6 @@ fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
                     },
                     "{strip}"
                 );
-                #[cfg(windows)]
                 assert!(!strip.contains(locale.menu_title()), "{strip}");
                 if !repeats_location {
                     assert!(strip.contains("Editor"));
@@ -494,7 +493,6 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
             .panel(usize::from(layout == 1))
             .unwrap();
         assert_eq!(view.focus_panel_id(), Some(&panel_id));
-        #[cfg(windows)]
         assert_eq!(
             view.focused_member(),
             Some(crate::workbench_client::NativeMemberTarget {
@@ -646,7 +644,6 @@ fn narrow_split_titles_drop_controls_without_covering_terminal_content() {
     assert!(small_content, "the narrow pane keeps its terminal region");
 }
 
-#[cfg(windows)]
 #[test]
 fn passive_member_read_tracks_child_attachment_and_never_borrows_primary_frame() {
     use orchbee_workbench_protocol::*;

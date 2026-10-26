@@ -412,23 +412,6 @@ fn unavailable_backend_action_reports_no_effect_after_completed_prefix() {
 }
 
 #[test]
-#[cfg(not(windows))]
-fn admitted_backend_action_uses_its_session_disposition() {
-    let mut view = ClientView::new(120);
-    let mut dispatcher = InputDispatcher::default();
-    let mut input = RecordingTerminalInput {
-        action_disposition: Some(ClientActionDisposition::KeepNavigator),
-        ..RecordingTerminalInput::default()
-    };
-    dispatch(&mut dispatcher, &mut view, b"\x02w", &mut input);
-    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
-
-    input.action_disposition = Some(ClientActionDisposition::DismissNavigator);
-    dispatch(&mut dispatcher, &mut view, b"\x02n", &mut input);
-    assert_eq!(view.overlay(), None);
-    assert_eq!(view.notice(), None);
-}
-
 #[test]
 fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
     let mut view = ClientView::new(120);
@@ -466,28 +449,6 @@ fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
 }
 
 #[test]
-#[cfg(not(windows))]
-fn noncapturing_navigator_preview_preserves_ordinary_terminal_input() {
-    let mut view = ClientView::new(120);
-    let mut dispatcher = InputDispatcher::default();
-    let mut input = RecordingTerminalInput::default();
-    dispatch(&mut dispatcher, &mut view, b"\x02w", &mut input);
-    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
-
-    dispatch(
-        &mut dispatcher,
-        &mut view,
-        b"text\x03\x04\x1b[A",
-        &mut input,
-    );
-    assert!(
-        input
-            .recorded
-            .contains(&Recorded::Forward(b"text\x03\x04\x1b[A".to_vec()))
-    );
-    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
-}
-
 #[test]
 fn reports_an_unavailable_terminal_port_without_losing_exact_bytes() {
     let mut view = ClientView::new(120);
@@ -604,7 +565,6 @@ fn exits_only_after_the_completed_prefixed_exit_action() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     use orchbee_workbench_protocol::WorkbenchRequestId;

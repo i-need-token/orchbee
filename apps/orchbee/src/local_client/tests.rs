@@ -243,7 +243,6 @@ fn validates_the_cohort_before_connecting() -> TestResult {
     let directory = TestDirectory::new()?;
     #[cfg(unix)]
     let endpoint = directory.path.join("client.sock");
-    #[cfg(windows)]
     let endpoint = crate::tests::windows_endpoints::endpoint();
     let listener = UnixListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
@@ -1551,7 +1550,6 @@ fn wake_fault_is_distinct_from_readiness() -> TestResult {
     // report the peer's EOF as readable POLLIN.
     #[cfg(unix)]
     let (wake_read, wake_write) = nix::unistd::pipe()?;
-    #[cfg(windows)]
     let (wake_read, wake_write) = UnixStream::pair()?;
     drop(wake_write);
     let clock = client.operation_clock();
@@ -1793,11 +1791,9 @@ impl LocalClient {
             .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
-                #[cfg(windows)]
                 tunnel: None,
             },
             request_timeout,

@@ -199,7 +199,6 @@ impl Theme {
             ],
         })
     }
-    #[cfg(windows)]
     pub(crate) fn selected(
         name: orchbee_local_site_runtime::WindowsThemeName,
         level: ColorLevel,

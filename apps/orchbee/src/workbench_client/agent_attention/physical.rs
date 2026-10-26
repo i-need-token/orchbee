@@ -62,7 +62,6 @@ impl PhysicalAttentionState {
         changed
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn edited_completions(&self) -> Vec<(AgentLaunchBinding, WorkbenchRevision)> {
         self.entries
             .values()
@@ -71,7 +70,6 @@ impl PhysicalAttentionState {
             .collect()
     }
 
-    #[cfg(windows)]
     pub(super) fn completion_edited(&self, matches: impl Fn(&AgentLaunchBinding) -> bool) -> bool {
         self.readable
             && self

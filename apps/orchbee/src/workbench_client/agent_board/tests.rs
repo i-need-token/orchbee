@@ -112,7 +112,7 @@ fn summary(session: &str, attachments: Vec<AgentPresentationAttachment>) -> Agen
 }
 
 fn board_with(sessions: &[&str]) -> AgentBoard {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.rows = sessions
         .iter()
         .map(|id| AgentBoardRow::from_summary(summary(id, vec![])))
@@ -120,13 +120,12 @@ fn board_with(sessions: &[&str]) -> AgentBoard {
     board
 }
 
-#[cfg(windows)]
 #[test]
 fn one_started_completion_requests_exactly_one_refresh() {
     use crate::agent_start::{DeliveryDisposition, Report, ReservationState, Verdict};
     use orchbee_agent_observation_protocol::{AgentName, ObapRequestId};
 
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.set_origin(crate::local_client::tests::server::disconnected_origin());
     board.open();
     board.start.install_catalog(&["codex"]);
@@ -392,7 +391,7 @@ fn first_geometry_block_refuses_and_a_stale_episode_cannot_reopen() {
 
 #[test]
 fn covered_board_rejects_painted_row_and_control_activation() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), true)],
@@ -413,7 +412,7 @@ fn covered_board_rejects_painted_row_and_control_activation() {
 
 #[test]
 fn request_jump_refuses_a_row_without_navigable_attachment() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), false)],
@@ -428,7 +427,7 @@ fn request_jump_refuses_a_row_without_navigable_attachment() {
 
 #[test]
 fn request_jump_on_a_navigable_row_queues_the_intent() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), true)],
@@ -448,7 +447,7 @@ fn request_jump_on_a_navigable_row_queues_the_intent() {
 
 #[test]
 fn expire_jump_reports_budget_exhaustion() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.open();
     let deadline = Instant::now();
     board.jump = Some(BoardJump {
@@ -666,7 +665,7 @@ fn jump_plan_reattaches_a_dead_viewer_and_never_lands_on_it() {
 
 #[test]
 fn a_new_jump_supersedes_at_request_time_while_the_lane_credit_stays_held() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.rows = vec![
         AgentBoardRow::from_summary(summary("s-1", vec![attachment(&hex(9), true)])),
         AgentBoardRow::from_summary(summary("s-2", vec![attachment(&hex(10), true)])),
@@ -700,7 +699,7 @@ fn a_new_jump_supersedes_at_request_time_while_the_lane_credit_stays_held() {
 
 #[test]
 fn a_refused_enter_preserves_the_prior_jump() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.rows = vec![AgentBoardRow::from_summary(summary(
         "s-1",
         vec![attachment(&hex(9), false)],
@@ -720,7 +719,7 @@ fn a_refused_enter_preserves_the_prior_jump() {
 
 #[test]
 fn fail_jump_drops_the_stage_but_never_the_lane_credit() {
-    let mut board = AgentBoard::new(clock());
+    let mut board = AgentBoard::new(clock(), true);
     board.open();
     board.jump = Some(BoardJump {
         serial: 7,
@@ -742,7 +741,7 @@ fn fail_jump_drops_the_stage_but_never_the_lane_credit() {
 #[test]
 fn reopen_preserves_last_good_age_and_rides_out_the_residual_cooldown() {
     let elapsed = Arc::new(AtomicU64::new(0));
-    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()));
+    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()), true);
     board.open();
     board.rows = vec![AgentBoardRow::from_summary(summary("s-1", vec![]))];
     board.rows_from_complete = true;
@@ -888,7 +887,7 @@ fn presentation_index_resolves_only_live_panel_identities() {
 #[test]
 fn request_refresh_preserves_a_queued_jump_intent() {
     let elapsed = Arc::new(AtomicU64::new(0));
-    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()));
+    let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()), true);
     board.rows = vec![AgentBoardRow::from_summary(summary("s-1", vec![]))];
     board.open();
     // Enter queued a jump behind a busy round — `r` is consumed, never
@@ -910,7 +909,6 @@ fn request_refresh_preserves_a_queued_jump_intent() {
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod lane_outcomes {
     use super::*;
     use crate::local_client::tests::server::disconnected_origin;
@@ -918,10 +916,9 @@ mod lane_outcomes {
         AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
     };
 
-    #[cfg(windows)]
     #[test]
     fn client_path_catalog_waits_for_the_same_open_episodes_complete_empty_read() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.set_origin(crate::local_client::tests::server::disconnected_remote_origin());
         board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
         assert!(!board.drain_start());
@@ -984,7 +981,7 @@ mod lane_outcomes {
 
     #[test]
     fn list_outcome_replaces_rows_and_marks_incomplete() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.inflight = Some(BoardInflight::ListRound);
         let epoch = board.epoch;
@@ -1010,7 +1007,7 @@ mod lane_outcomes {
 
     #[test]
     fn stale_epoch_outcome_is_dropped_without_touching_rows() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.inflight = Some(BoardInflight::ListRound);
         board.apply_list_outcome(
@@ -1035,7 +1032,7 @@ mod lane_outcomes {
         // apply_list_outcome. This drives spawn → send → InFlight for
         // real instead of fabricating a Ready read state.
         let elapsed = Arc::new(AtomicU64::new(0));
-        let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()));
+        let mut board = AgentBoard::new(adjustable_operation_clock(elapsed.clone()), true);
         board.open();
         board.set_origin(disconnected_origin());
         let t0 = Instant::now();
@@ -1093,7 +1090,7 @@ mod lane_outcomes {
 
     #[test]
     fn a_refresh_repairs_selection_by_identity_not_the_old_index() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.inflight = Some(BoardInflight::ListRound);
         let epoch = board.epoch;
@@ -1135,7 +1132,7 @@ mod lane_outcomes {
 
     #[test]
     fn a_refresh_preserves_the_manual_top_row_independently_of_selection() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.viewport_rows = 2;
         board.inflight = Some(BoardInflight::ListRound);
@@ -1216,7 +1213,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_orders_candidates_and_starts_navigating() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 7,
@@ -1254,7 +1251,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_candidate_exhaustion_fails_gone() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 7,
@@ -1271,7 +1268,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_ended_lifecycle_refuses_before_navigation() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 7,
@@ -1295,7 +1292,7 @@ mod lane_outcomes {
 
     #[test]
     fn get_outcome_for_a_superseded_serial_is_dropped() {
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.jump = Some(BoardJump {
             serial: 8,
@@ -1331,7 +1328,7 @@ mod lane_outcomes {
         // the credit and the outcome's own verdict (Gone, not the
         // witness's Unavailable) reaches the user — and finished() then
         // has nothing left to fail.
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         let epoch = board.epoch;
         board.install_lane_t(AgentReadLane::for_test(vec![LaneOutcome::Get {
@@ -1360,7 +1357,7 @@ mod lane_outcomes {
         // landed on a channel whose thread was already gone. The drain
         // finds nothing matching; the thread's exit is the only witness,
         // and it releases the credit into the honest Unavailable verdict.
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.install_lane_t(AgentReadLane::for_test(vec![]));
         board.jump = Some(BoardJump {
@@ -1382,7 +1379,7 @@ mod lane_outcomes {
         // its own correlation — it must not release the live credit nor
         // fail the live jump. The finished() witness then releases the
         // still-held credit into Unavailable.
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         let epoch = board.epoch;
         board.install_lane_t(AgentReadLane::for_test(vec![LaneOutcome::Get {
@@ -1411,7 +1408,7 @@ mod lane_outcomes {
         // outstanding ListRound fails Unavailable — not Transport and
         // never silently InFlight — once the exit is witnessed, and the
         // cooldown starts from the witnessed failure.
-        let mut board = AgentBoard::new(clock());
+        let mut board = AgentBoard::new(clock(), true);
         board.open();
         board.install_lane_t(AgentReadLane::for_test(vec![]));
         board.inflight = Some(BoardInflight::ListRound);

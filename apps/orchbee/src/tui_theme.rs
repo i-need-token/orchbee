@@ -470,7 +470,6 @@ impl Theme {
 
     /// Group header content rests on a faint fill of the group's accent over the Tab strip. A
     /// current, selected or pointer surface replaces only that fill.
-    #[cfg(windows)]
     pub(crate) fn tab_group_header_style(
         &self,
         color: orchbee_workbench_protocol::TabGroupColor,
@@ -774,7 +773,6 @@ impl Theme {
     }
 
     /// Explicit user token styles remain data owned by the theme boundary.
-    #[cfg(windows)]
     pub(crate) fn sidebar_token_style(
         &self,
         role: Role,
@@ -824,7 +822,6 @@ impl Theme {
 
     /// Workspace selection spans metadata as well as its identity. Named palettes
     /// keep secondary text muted; host-relative text retains the paired foreground.
-    #[cfg(windows)]
     pub(crate) fn workspace_token_style(
         &self,
         role: Role,

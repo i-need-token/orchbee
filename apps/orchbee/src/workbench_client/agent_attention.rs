@@ -72,7 +72,6 @@ impl AgentAttention {
             .edit_completed(|binding| pane.matches(binding));
     }
 
-    #[cfg(windows)]
     pub(super) fn session_completion_edited(
         &self,
         session: &orchbee_agent_observation_protocol::AgentSessionId,
@@ -82,7 +81,6 @@ impl AgentAttention {
         self.state.completion_edited(session, generation, sequence)
     }
 
-    #[cfg(windows)]
     pub(super) fn edited_completions(
         &self,
     ) -> Vec<(
@@ -92,7 +90,6 @@ impl AgentAttention {
         self.physical.state.edited_completions()
     }
 
-    #[cfg(windows)]
     pub(super) fn completion_edited(&self, pane: &PaintedPane) -> bool {
         self.physical
             .state

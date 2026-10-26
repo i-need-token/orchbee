@@ -7,7 +7,6 @@ use crate::workbench_client::{
 use std::io;
 
 impl NativeUi {
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn copy_picker_identifier(&mut self, text: String) -> bool {
         if text.len() != 32 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return false;
@@ -43,18 +42,15 @@ impl NativeUi {
     pub(super) fn reconcile_effects(&mut self) {
         let projections = &self.projections;
         let state = self.state.as_ref();
-        #[cfg(windows)]
         let copy_mode = &self.copy_mode;
         self.effects.reconcile(|key, scope| {
             let Some(state) = state else {
                 return false;
             };
-            #[cfg(windows)]
             if scope == Scope::PickerIdentifier {
                 return state.focus_pane_ref().as_ref() == Some(key)
                     && !state.close_suppresses_attachment(key.pane().anchor());
             }
-            #[cfg(windows)]
             if scope == Scope::Diagnostic {
                 return state.focus_pane_ref().as_ref() == Some(key)
                     && state
@@ -81,7 +77,6 @@ impl NativeUi {
                     return false;
                 }
                 match scope {
-                    #[cfg(windows)]
                     Scope::Diagnostic | Scope::PickerIdentifier => false,
                     Scope::Program { attachment, epoch } => {
                         *projection.value.attachment() == attachment
@@ -109,7 +104,6 @@ impl NativeUi {
                                     orchbee_terminal_protocol::SelectionChangedState::Active { .. }
                                 )
                             }),
-                            #[cfg(windows)]
                             (Some(export), Some(episode)) => {
                                 copy_mode.effect_current(key, generation, export, episode)
                             }
@@ -169,7 +163,6 @@ impl NativeUi {
         let Some(completion) = self.effects.take_completion() else {
             return false;
         };
-        #[cfg(windows)]
         if let Scope::Selection {
             generation,
             export: Some(export),
@@ -189,6 +182,9 @@ impl NativeUi {
         let outcome = completion.outcome;
         let notice = match (kind, outcome) {
             (_, Outcome::Delivered | Outcome::Cancelled) => None,
+            (_, Outcome::Unsupported) => Some(ClientNotice::Unsupported(
+                crate::tui_capabilities::Capability::Clipboard,
+            )),
             (Kind::Clipboard, Outcome::Failed) => Some(ClientNotice::CopyFailed),
             (Kind::Clipboard, Outcome::Unknown) => Some(ClientNotice::CopyUnknown),
             (Kind::Bell, Outcome::Failed) => Some(ClientNotice::BellFailed),

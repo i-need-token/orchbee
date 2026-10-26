@@ -111,7 +111,6 @@ pub(super) fn render(
         locale,
         theme,
         None,
-        #[cfg(windows)]
         false,
     );
 }
@@ -126,10 +125,9 @@ pub(super) fn render_selected(
     locale: Locale,
     theme: &Theme,
     selected: Option<&orchbee_terminal_protocol::SelectionChangedState>,
-    #[cfg(windows)] copy_mode: bool,
+    copy_mode: bool,
 ) {
     let chrome = true;
-    #[cfg(windows)]
     let chrome = chrome && !copy_mode;
     render_content(
         frame,

@@ -34,7 +34,6 @@ pub(crate) struct SetupCaptureContext {
     pub(crate) remaining_bytes: usize,
 }
 
-#[cfg(windows)]
 #[derive(Clone, Copy)]
 pub(crate) struct WorktreeCaptureContext {
     pub(crate) token: super::WorktreeToken,
@@ -53,11 +52,8 @@ pub(crate) struct ConfirmationCaptureContext<Token> {
 #[derive(Clone)]
 pub(crate) enum NativeCaptureContext {
     Settings(crate::native_settings::SettingsInputContext),
-    #[cfg(windows)]
     ActionMenu(crate::action_menu::MenuInputContext),
-    #[cfg(windows)]
     Popup(super::super::independent_popup::PopupInputContext),
-    #[cfg(windows)]
     Worktree(WorktreeCaptureContext),
     Setup(SetupCaptureContext),
     Rename(RenameCaptureContext),
@@ -80,7 +76,6 @@ impl WorkbenchClientView<'_> {
             .with_tab_close(self.close_confirmation().is_some())
             .with_workspace_close(self.workspace_close_confirmation().is_some())
             .with_agent_board(self.agent_board().is_some());
-        #[cfg(windows)]
         let claims = claims
             .with_action_menu(self.action_menu_input_context().is_some())
             .with_popup(self.popup_capture_claim())
@@ -101,15 +96,12 @@ impl WorkbenchClientView<'_> {
             NativeCaptureOwner::Settings => self
                 .settings_input_context()
                 .map(NativeCaptureContext::Settings),
-            #[cfg(windows)]
             NativeCaptureOwner::ActionMenu => self
                 .action_menu_input_context()
                 .map(NativeCaptureContext::ActionMenu),
-            #[cfg(windows)]
             NativeCaptureOwner::Popup => {
                 self.popup_input_context().map(NativeCaptureContext::Popup)
             }
-            #[cfg(windows)]
             NativeCaptureOwner::Worktree => {
                 let view = self.worktree()?;
                 let token = view.token();

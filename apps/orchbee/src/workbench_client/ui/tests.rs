@@ -8,23 +8,18 @@ pub(in crate::workbench_client) mod membership;
 pub(in crate::workbench_client::ui) mod modal_pointer_roundtrip;
 pub(in crate::workbench_client) mod move_membership;
 pub(in crate::workbench_client::ui) mod panel_input;
-#[cfg(windows)]
 pub(in crate::workbench_client::ui) mod panel_reports;
 pub(in crate::workbench_client::ui) mod program_effect;
 pub(in crate::workbench_client) mod publication_hint;
-#[cfg(windows)]
 pub(in crate::workbench_client::ui) mod quick_workspace;
 pub(in crate::workbench_client::ui) mod rename_membership;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(in crate::workbench_client::ui) mod retired_membership;
 pub(in crate::workbench_client::ui) mod selection;
 pub(in crate::workbench_client::ui) mod startup_queue;
 pub(in crate::workbench_client::ui) mod viewport;
-#[cfg(windows)]
 pub(in crate::workbench_client::ui) mod window_title;
 pub(in crate::workbench_client) mod workspace_close;
 pub(in crate::workbench_client::ui) mod workspace_setup;
-#[cfg(windows)]
 pub(in crate::workbench_client::ui) mod worktree_launch;
 
 use super::*;

@@ -2,7 +2,6 @@ use super::*;
 use crate::workbench_client::state::RefreshDecision;
 use orchbee_workbench_protocol::{PanelNode, WorkbenchSnapshotOutcome};
 
-#[cfg(windows)]
 #[test]
 fn direct_agent_switch_detaches_unexpected_host_before_poll_frame_or_control() -> TestResult {
     let geometry = fixture_geometry()?;

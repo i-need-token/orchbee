@@ -105,7 +105,6 @@ fn navigation_receipt_requires_membership_and_order_together_and_preserves_conte
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_overlay_is_owned_by_the_admitted_operation_and_never_changes_the_canonical_cache() {
     for uncertain in [false, true] {

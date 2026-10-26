@@ -2,7 +2,6 @@ use super::Locale;
 use crate::workbench_client::CompletionReminder;
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn launch_failure_actions(self, settings: &str, copy: &str) -> String {
         match self {
             Self::EnUs => format!("Settings: {settings}\nCopy diagnostics: {copy}"),

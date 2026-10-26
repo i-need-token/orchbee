@@ -29,7 +29,6 @@ fn enter_prefix(view: &mut ClientView) {
     assert!(view.prefix_active());
 }
 
-#[cfg(windows)]
 #[test]
 fn checkpoint_recovery_precedes_the_persistent_configuration_warning() {
     let mut view = ClientView::new(120);
@@ -46,7 +45,6 @@ fn checkpoint_recovery_precedes_the_persistent_configuration_warning() {
     assert_eq!(view.notice(), None);
 }
 
-#[cfg(windows)]
 #[test]
 fn agent_focus_dismissal_clears_shell_capture_without_changing_pointer_or_sidebar() {
     let mut view = ClientView::new(120);
@@ -244,7 +242,6 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         (plain('r'), ClientAction::RequestWorkspaceRename, None),
         (plain('R'), ClientAction::RequestProjectRename, None),
         (plain('a'), ClientAction::RequestWorkspaceCreate, None),
-        #[cfg(windows)]
         (plain('N'), ClientAction::RequestQuickWorkspace, None),
         (plain('D'), ClientAction::RequestWorkspaceClose, None),
         (plain('t'), ClientAction::RequestControlTakeover, None),
@@ -698,7 +695,6 @@ fn exits_only_for_the_two_accepted_prefixed_keys() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn prefix_tab_toggles_sidebar_focus_without_activating_a_workspace() {
     let mut view = ClientView::new(120);

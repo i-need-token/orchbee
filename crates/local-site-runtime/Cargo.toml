@@ -9,6 +9,7 @@ publish = false
 nix = { workspace = true, features = ["fs", "user"] }
 
 [dependencies]
+toml.workspace = true
 orchbee-local-ipc = { path = "../local-ipc" }
 orchbee-workbench-protocol = { path = "../workbench-protocol" }
 serde.workspace = true
@@ -27,7 +28,6 @@ exacl = { version = "0.13.0", default-features = false }
 [target.'cfg(windows)'.dependencies]
 process-wrap.workspace = true
 windows.workspace = true
-toml.workspace = true
 # Syntax-preserving release-channel edits in the shared settings owner.
 toml_edit.workspace = true
 winsafe = { workspace = true, features = ["advapi"] }

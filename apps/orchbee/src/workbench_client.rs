@@ -1,13 +1,9 @@
-#[cfg(windows)]
 mod client_control;
 mod completion_reminders;
 pub(crate) use completion_reminders::Reminder as CompletionReminder;
-#[cfg(windows)]
 mod configuration;
 mod settings_lane;
-#[cfg(windows)]
 mod window_title;
-#[cfg(windows)]
 mod worktree_lane;
 #[cfg(test)]
 use crate::terminal_projection::TerminalProjection;
@@ -26,48 +22,34 @@ use std::{
 mod agent_attention;
 mod agent_board;
 mod agent_notifications;
-#[cfg(windows)]
 mod independent_popup;
-#[cfg(windows)]
 mod pane_graphics;
-#[cfg(windows)]
 mod panel_reports;
-#[cfg(windows)]
 pub(crate) use pane_graphics::{Canvas as PaneGraphicsCanvas, Draw as PaneGraphicsDraw};
-#[cfg(windows)]
 mod plugin_overlays;
-#[cfg(all(windows, test))]
+#[cfg(test)]
 pub(crate) use independent_popup::PopupInputContext;
-#[cfg(windows)]
 pub(crate) use independent_popup::{
     DrawnPopupClose, PopupView, resolve_geometry as popup_geometry,
 };
-#[cfg(all(windows, test))]
+#[cfg(test)]
 pub(crate) use panel_reports::PanelReport;
-#[cfg(windows)]
 pub(crate) use panel_reports::PanelReportView;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod agent_read_lane;
 mod connection;
 mod mailbox;
 mod primary_directory;
-#[cfg(windows)]
 mod startup_directory;
-#[cfg(windows)]
 mod startup_preference;
-#[cfg(windows)]
 pub(crate) use startup_directory::StartupDirectory;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
-#[cfg(windows)]
 pub(crate) use state::workspace_setup::SidebarNavigationProjection;
 pub(crate) use state::workspace_setup::WorkspaceOrganizationRequest;
 pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
-#[cfg(windows)]
 pub(crate) use state::worktree_launch::addressed::SidebarWorktreeTarget;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod status_recovery;
 mod terminal_clipboard;
 mod terminal_effects;
@@ -75,31 +57,25 @@ mod terminal_selection;
 mod terminal_tail;
 pub(crate) mod terminal_viewport;
 mod ui;
-#[cfg(windows)]
 pub(crate) use ui::NativeNoticeContext;
 pub(crate) use ui::settings::Notice as SettingsNotice;
-#[cfg(windows)]
 pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 mod wakeup;
 mod workbench_projection;
 pub(crate) use wakeup::UiWakeup;
 
-#[cfg(windows)]
 pub(crate) use workbench_projection::NativeContextTarget;
-#[cfg(any(windows, test))]
 pub(crate) use workbench_projection::NativeStartupTarget;
 pub(crate) use workbench_projection::{
     NativeContextLocation, NativeMemberTarget, NativePanel, NativePanelTree, NativePresentation,
 };
 
-#[cfg(windows)]
 pub(crate) use ui::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 
-#[cfg(windows)]
 pub(crate) use ui::RetainedFrameBank;
-#[cfg(all(windows, test))]
+#[cfg(test)]
 pub(crate) use ui::WorktreeCaptureContext;
 pub(crate) use ui::{
     AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
@@ -123,7 +99,6 @@ pub(crate) use ui::{
     AgentBoardInputContext, ConfirmationCaptureContext, NativeRenameInputContext,
     SetupCaptureContext,
 };
-#[cfg(windows)]
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -137,7 +112,6 @@ pub(crate) enum TerminalStatus {
 }
 
 /// Admission only: the existing Client still owns the accepted asynchronous handoff.
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ContextNavigationAdmission {
     Current,
@@ -163,31 +137,22 @@ enum ClientTask {
 }
 
 pub(crate) struct WorkbenchClient {
-    #[cfg(windows)]
     position_writer: Option<startup_preference::Writer>,
-    #[cfg(windows)]
     position_startup: Option<startup_preference::Startup>,
-    #[cfg(windows)]
     configuration: Option<configuration::Watcher>,
-    #[cfg(windows)]
     notifications: Option<crate::notifications::Subscription>,
-    #[cfg(windows)]
     window_title: Option<window_title::Subscription>,
-    #[cfg(windows)]
     client_control: Option<client_control::ClientControl>,
     backend: ClientBackend,
     task: Option<ClientTask>,
     shutdown: LocalClientShutdown,
     retirement_redraw_pending: bool,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     origin: Option<crate::local_client::LocalClientOrigin>,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     recovery_shutdown: Option<connection::RecoveryShutdown>,
 }
 
 impl WorkbenchClient {
     /// Reuse this Client for one physically verified, exact sidebar Agent destination.
-    #[cfg(windows)]
     pub(crate) fn navigate_agent(
         &mut self,
         target: &crate::machine_agents::Target,
@@ -199,7 +164,6 @@ impl WorkbenchClient {
             })
     }
 
-    #[cfg(windows)]
     pub(crate) fn navigate_context(
         &mut self,
         target: &NativeContextTarget,
@@ -232,21 +196,18 @@ impl WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn retained_frame_bank(&self) -> Option<RetainedFrameBank> {
         match &self.backend {
             ClientBackend::Native(native) => Some(native.retained_frame_bank()),
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn inherit_retained_frame_bank(&mut self, older: RetainedFrameBank) {
         if let Some(native) = self.backend.native_mut() {
             native.inherit_retained_frame_bank(older);
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn suspend_machine(&mut self) -> Option<bool> {
         let focus = self.backend.native_mut().and_then(|native| {
             let focus = native.host_focus();
@@ -264,7 +225,6 @@ impl WorkbenchClient {
         }
         focus
     }
-    #[cfg(windows)]
     pub(crate) fn resume_machine(&mut self, focus: Option<bool>) {
         if let Some(native) = self.backend.native_mut() {
             native.inherit_host_focus(focus);
@@ -283,7 +243,6 @@ impl WorkbenchClient {
         Self::start_with_context(client, geometry, None)
     }
 
-    #[cfg(windows)]
     pub(crate) fn start_target(
         client: LocalClient,
         target: NativeStartupTarget,
@@ -292,13 +251,15 @@ impl WorkbenchClient {
         Self::start_with_context(client, geometry, Some(target))
     }
 
-    #[cfg(windows)]
     pub(crate) fn start_local(
         client: LocalClient,
         geometry: Geometry,
         runtime: &std::path::Path,
         directory: StartupDirectory,
     ) -> io::Result<Self> {
+        if !crate::tui_capabilities::Capability::PositionStorage.available() {
+            return Self::start(client, geometry);
+        }
         let preferences = startup_preference::Preferences::load(runtime);
         let fallback = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let context = Some(NativeStartupTarget::LocalDirectory {
@@ -325,7 +286,6 @@ impl WorkbenchClient {
         Ok(workbench_client)
     }
 
-    #[cfg(windows)]
     pub(crate) fn finish_local_startup(&mut self) {
         if let Some(startup) = self.position_startup.take()
             && let Some(native) = self.backend.native_mut()
@@ -338,7 +298,6 @@ impl WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn machine_source(
         &self,
     ) -> Option<(
@@ -360,14 +319,12 @@ impl WorkbenchClient {
         let shutdown = client.shutdown_handle()?;
         let clock = client.operation_clock();
         let identity_seed = random_identity_seed()?;
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let origin = client.origin();
         let mailbox = Arc::new(mailbox::CommandMailbox::new(identity_seed, geometry));
         let worker_mailbox = Arc::clone(&mailbox);
         let task = thread::Builder::new()
             .name("orchbee-workbench-client".into())
             .spawn(move || connection::run_native(client, geometry, worker_mailbox, context))?;
-        #[cfg(windows)]
         let client_control = Some(client_control::ClientControl::new(
             origin.clone(),
             clock.clone(),
@@ -376,33 +333,23 @@ impl WorkbenchClient {
         // The Agent board's read lane reconnects on its own admitted
         // session so an OBAP ambiguity retires the lane, never the
         // primary carrier.
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         native.set_agent_board_origin(origin.clone());
         Ok(Self {
-            #[cfg(windows)]
             position_writer: None,
-            #[cfg(windows)]
             position_startup: None,
-            #[cfg(windows)]
             configuration: None,
-            #[cfg(windows)]
             notifications: None,
-            #[cfg(windows)]
             window_title: None,
-            #[cfg(windows)]
             client_control,
             backend: ClientBackend::Native(Box::new(native)),
             task: Some(ClientTask::Native(task)),
             shutdown,
             retirement_redraw_pending: false,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             origin: Some(origin),
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             recovery_shutdown: None,
         })
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn startup_draw_ready(&mut self) -> bool {
         self.tick();
         matches!(&self.backend, ClientBackend::Native(native) if native.startup_draw_ready())
@@ -445,7 +392,6 @@ impl WorkbenchClient {
         &mut self,
         client_capture: crate::tui_composition::ClientCaptureClaims,
     ) -> bool {
-        #[cfg(windows)]
         let position_failed = self
             .position_writer
             .as_ref()
@@ -453,7 +399,6 @@ impl WorkbenchClient {
         let changed = match &mut self.backend {
             ClientBackend::Native(native) => native.tick_with_client_capture(client_capture),
         };
-        #[cfg(windows)]
         let changed = if position_failed {
             if let Some(native) = self.backend.native_mut() {
                 native.report_position_notice(false);
@@ -474,7 +419,6 @@ impl WorkbenchClient {
     }
 
     // Only the shell's successful draw calls this, so an undrawn frame is never acknowledged.
-    #[cfg(windows)]
     pub(crate) fn configure_agent_notifications(
         &mut self,
         revision: u64,
@@ -485,7 +429,6 @@ impl WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
         if let Some(native) = self.backend.native_mut() {
             native.configure_panel_focus(focus_new_panel);
@@ -529,7 +472,6 @@ impl WorkbenchClient {
         false
     }
 
-    #[cfg(windows)]
     pub(crate) fn client_control_tick(
         &mut self,
         view: &mut crate::client_view::ClientView,
@@ -642,7 +584,6 @@ impl WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn observe_popup_surface(
         &mut self,
         area: ratatui::layout::Rect,
@@ -652,7 +593,6 @@ impl WorkbenchClient {
             native.popup_surface(area, pixels);
         }
     }
-    #[cfg(windows)]
     pub(crate) fn observe_client_viewport(
         &mut self,
         view: &crate::client_view::ClientView,
@@ -668,7 +608,6 @@ impl WorkbenchClient {
         match &mut self.backend {
             ClientBackend::Native(native) => {
                 native.after_draw();
-                #[cfg(windows)]
                 if let Some(control) = &mut self.client_control {
                     control.after_draw(native);
                 }
@@ -679,7 +618,6 @@ impl WorkbenchClient {
 
     pub(crate) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
         if let Some(native) = self.backend.native_mut() {
-            #[cfg(windows)]
             if let Some(writer) = self.position_writer.as_mut()
                 && let Some(draw) = receipt.position()
                 && native.view().accepts_position_draw(draw)
@@ -703,7 +641,6 @@ impl WorkbenchClient {
         }
         Ok(())
     }
-    #[cfg(windows)]
     pub(crate) fn graphics_covered(&mut self) {
         if let Some(native) = self.backend.native_mut() {
             native.after_graphics_draw(Vec::new());
@@ -719,11 +656,9 @@ impl WorkbenchClient {
             return;
         }
         let _closed = self.shutdown.close();
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if let Some(shutdown) = self.recovery_shutdown.take() {
             shutdown.close();
         }
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let mut retired_poll = None;
         let workspace_close_return;
         let takeover_return;
@@ -738,7 +673,6 @@ impl WorkbenchClient {
             Some(ClientTask::Native(task)) => match task.join() {
                 Ok(returned) => {
                     let mut returned = returned;
-                    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
                     {
                         retired_poll = returned.take_unavailable_poll();
                     }
@@ -784,7 +718,6 @@ impl WorkbenchClient {
         let queued_setup_return = native.setup_worker_loss();
         let queued_workspace_close_return = native.workspace_close_worker_loss();
         let queued_takeover_return = native.takeover_worker_loss();
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let clean_return = pending_create.is_none()
             && pending_move.is_none()
             && pending_panel.is_none()
@@ -805,7 +738,6 @@ impl WorkbenchClient {
             native.finalize_workspace_close_worker(queued_workspace_close_return);
         let takeover_accepted = native.finalize_takeover_worker(takeover_return);
         let queued_takeover_accepted = native.finalize_takeover_worker(queued_takeover_return);
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         native.finish_retired_peer_join(
             retired_poll,
             clean_return
@@ -857,7 +789,6 @@ impl WorkbenchClient {
 }
 
 impl TerminalInputPort for WorkbenchClient {
-    #[cfg(windows)]
     fn copy_picker_identifier(&mut self, text: String) -> bool {
         match &mut self.backend {
             ClientBackend::Native(native) => native.copy_picker_identifier(text),
@@ -879,7 +810,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn click_resize_control(
         &mut self,
         target: &crate::tui_layout::DrawnResize,
@@ -954,14 +884,12 @@ impl TerminalInputPort for WorkbenchClient {
             native.click_settings(token, row);
         }
     }
-    #[cfg(windows)]
     fn tab_create_action(
         &mut self,
         target: &crate::action_menu::DrawnTabCreate,
     ) -> Option<ClientAction> {
         self.backend.native_mut()?.tab_create_action(target)
     }
-    #[cfg(windows)]
     fn open_action_menu(
         &mut self,
         target: crate::action_menu::MenuTarget,
@@ -972,7 +900,6 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()
             .is_some_and(|native| native.open_action_menu(target, anchor, pointer_released))
     }
-    #[cfg(windows)]
     fn capture_action_menu_key_for(
         &mut self,
         expected: crate::action_menu::MenuInputContext,
@@ -982,7 +909,6 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()
             .is_some_and(|native| native.capture_action_menu_key_for(expected, event))
     }
-    #[cfg(windows)]
     fn hover_action_menu_row(
         &mut self,
         source: &crate::action_menu::MenuTarget,
@@ -993,7 +919,6 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()
             .is_some_and(|native| native.hover_action_menu_row(source, token, row))
     }
-    #[cfg(windows)]
     fn activate_action_menu_row(
         &mut self,
         source: &crate::action_menu::MenuTarget,
@@ -1004,7 +929,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.activate_action_menu_row(source, token, row);
         }
     }
-    #[cfg(windows)]
     fn activate_action_menu_control(
         &mut self,
         source: &crate::action_menu::MenuTarget,
@@ -1015,7 +939,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.activate_action_menu_control(source, token, control);
         }
     }
-    #[cfg(windows)]
     fn scroll_action_menu(
         &mut self,
         token: crate::action_menu::MenuToken,
@@ -1026,25 +949,21 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()?
             .scroll_action_menu(token, up, lines)
     }
-    #[cfg(windows)]
     fn cancel_action_menu(&mut self) {
         if let Some(native) = self.backend.native_mut() {
             native.cancel_action_menu();
         }
     }
-    #[cfg(windows)]
     fn take_action_menu_action(&mut self, pointer_released: bool) -> Option<ClientAction> {
         self.backend
             .native_mut()?
             .take_action_menu_action(pointer_released)
     }
-    #[cfg(windows)]
     fn observe_host_graphics(&mut self, facts: crate::terminal_graphics::Facts) {
         if let Some(native) = self.backend.native_mut() {
             native.observe_host_graphics(facts);
         }
     }
-    #[cfg(windows)]
     fn popup_input(
         &mut self,
         id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -1054,7 +973,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.popup_input(id, item);
         }
     }
-    #[cfg(windows)]
     fn popup_mouse(
         &mut self,
         id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -1065,7 +983,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.popup_mouse(id, content, event);
         }
     }
-    #[cfg(windows)]
     fn activate_drawn_popup_close(&mut self, target: &DrawnPopupClose) -> bool {
         self.backend
             .native_mut()
@@ -1078,31 +995,26 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
         self.backend
             .native_mut()
             .is_some_and(|ui| ui.edit_worktree(token, edit))
     }
-    #[cfg(windows)]
     fn dismiss_worktree(&mut self, token: WorktreeToken) {
         if let Some(ui) = self.backend.native_mut() {
             ui.dismiss_worktree(token);
         }
     }
-    #[cfg(windows)]
     fn submit_worktree(&mut self, token: WorktreeToken) {
         if let Some(ui) = self.backend.native_mut() {
             ui.submit_worktree(token);
         }
     }
-    #[cfg(windows)]
     fn choose_worktree(&mut self, token: WorktreeToken, index: usize) {
         if let Some(ui) = self.backend.native_mut() {
             ui.choose_worktree(token, index);
         }
     }
-    #[cfg(windows)]
     fn scroll_worktree(
         &mut self,
         token: WorktreeToken,
@@ -1113,7 +1025,6 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()
             .and_then(|ui| ui.scroll_worktree(token, up, lines))
     }
-    #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {
         if let Some(ui) = self.backend.native_mut() {
             ui.after_worktree_draw(None);
@@ -1282,7 +1193,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn observe_input_intent(&mut self) {
         if let Some(native) = self.backend.native_mut() {
             native.clear_settings_notice();
@@ -1312,14 +1222,12 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         match &self.backend {
             ClientBackend::Native(native) => native.navigator_catalog(),
         }
     }
 
-    #[cfg(windows)]
     fn activate_navigator(
         &mut self,
         row: &crate::client_view::navigator::Row,
@@ -1356,7 +1264,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn pointer_divider_ready(
         &mut self,
         target: &crate::tui_layout::DrawnDivider,
@@ -1371,7 +1278,6 @@ impl TerminalInputPort for WorkbenchClient {
             .divider_ready(native, target)
     }
 
-    #[cfg(windows)]
     fn divider_projection_current(
         &self,
         target: &crate::tui_layout::DrawnDivider,
@@ -1382,11 +1288,9 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
         self.backend.native_mut()?.sidebar_reorder_source()
     }
-    #[cfg(windows)]
     fn commit_sidebar_reorder(
         &mut self,
         source: &crate::tui_pointer::SidebarReorderSource,
@@ -1397,12 +1301,10 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.backend.native_mut()?.tab_drag_source()
     }
 
-    #[cfg(windows)]
     fn request_drawn_tab_rename(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
@@ -1413,7 +1315,6 @@ impl TerminalInputPort for WorkbenchClient {
             .request_drawn_tab_rename(source, tab)
     }
 
-    #[cfg(windows)]
     fn request_drawn_tab_close(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
@@ -1424,7 +1325,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn commit_tab_drag(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
@@ -1435,7 +1335,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn pointer_divider_resize(
         &mut self,
         target: &crate::tui_layout::DrawnDivider,
@@ -1448,7 +1347,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn pending_resize_projection(
         &mut self,
         viewport: ratatui::layout::Rect,
@@ -1463,7 +1361,6 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    #[cfg(windows)]
     fn pointer_link(
         &mut self,
         source: crate::terminal_link_activation::PaintedLinkSource,
@@ -1482,21 +1379,18 @@ impl TerminalInputPort for WorkbenchClient {
         consumed
     }
 
-    #[cfg(windows)]
     fn copy_mode_active(&self) -> bool {
         match &self.backend {
             ClientBackend::Native(native) => native.copy_mode_active(),
         }
     }
 
-    #[cfg(windows)]
     fn capture_copy_mode_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
         self.backend
             .native_mut()
             .is_some_and(|native| native.capture_copy_mode_key(event))
     }
 
-    #[cfg(windows)]
     fn click_copy_control(
         &mut self,
         token: crate::terminal_copy_mode::CopyModeToken,
@@ -1506,7 +1400,6 @@ impl TerminalInputPort for WorkbenchClient {
             native.click_copy_control(token, control);
         }
     }
-    #[cfg(windows)]
     fn copy_pointer_cell(
         &mut self,
         token: crate::terminal_copy_mode::CopySurfaceToken,
@@ -1517,7 +1410,6 @@ impl TerminalInputPort for WorkbenchClient {
             .native_mut()
             .is_some_and(|native| native.copy_pointer_cell(token, cell, start))
     }
-    #[cfg(windows)]
     fn scroll_copy_mode(
         &mut self,
         token: crate::terminal_copy_mode::CopyModeToken,
@@ -1529,14 +1421,12 @@ impl TerminalInputPort for WorkbenchClient {
             .and_then(|native| native.scroll_copy_mode(token, up, lines))
     }
 
-    #[cfg(windows)]
     fn capture_copy_mode_paste(&mut self, text: Option<&str>) -> bool {
         self.backend
             .native_mut()
             .is_some_and(|native| native.capture_copy_mode_paste(text))
     }
 
-    #[cfg(windows)]
     fn cancel_copy_mode(&mut self) -> bool {
         self.backend
             .native_mut()
@@ -1566,7 +1456,6 @@ impl TerminalInputPort for WorkbenchClient {
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
-        #[cfg(windows)]
         if let ClientAction::ResizePane { direction, fine } = action {
             let native = self.backend.native_mut()?;
             if let Some(control) = &mut self.client_control {
@@ -1574,7 +1463,6 @@ impl TerminalInputPort for WorkbenchClient {
             }
             return Some(ClientActionDisposition::KeepNavigator);
         }
-        #[cfg(windows)]
         if matches!(
             action,
             ClientAction::ExitResizeMode
@@ -1588,7 +1476,6 @@ impl TerminalInputPort for WorkbenchClient {
         {
             return Some(ClientActionDisposition::KeepNavigator);
         }
-        #[cfg(windows)]
         if let ClientAction::ConfiguredCommand(id) = &action {
             let native = self.backend.native_mut()?;
             if let Err(reason) = self
@@ -1604,7 +1491,6 @@ impl TerminalInputPort for WorkbenchClient {
             }
             return Some(ClientActionDisposition::KeepNavigator);
         }
-        #[cfg(windows)]
         if action == ClientAction::ReloadConfiguration {
             return self
                 .configuration
@@ -1612,11 +1498,9 @@ impl TerminalInputPort for WorkbenchClient {
                 .filter(|watcher| watcher.reload())
                 .map(|_| ClientActionDisposition::KeepNavigator);
         }
-        #[cfg(windows)]
         if let Some(control) = &mut self.client_control {
             control.interrupt();
         }
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if action == ClientAction::OpenWorkbenchNavigator
             && self.task.is_none()
             && self.start_status_recovery()
@@ -1640,19 +1524,15 @@ impl TerminalInputPort for WorkbenchClient {
 
 impl Drop for WorkbenchClient {
     fn drop(&mut self) {
-        #[cfg(windows)]
         if let Some(watcher) = &mut self.window_title {
             watcher.close();
         }
-        #[cfg(windows)]
         if let Some(listener) = &mut self.notifications {
             listener.close();
         }
-        #[cfg(windows)]
         if let Some(watcher) = &mut self.configuration {
             watcher.close();
         }
-        #[cfg(windows)]
         if let Some(control) = &mut self.client_control {
             control.close();
         }

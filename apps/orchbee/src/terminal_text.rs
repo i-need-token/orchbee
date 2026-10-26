@@ -241,7 +241,6 @@ pub(crate) fn display_width(text: &str) -> usize {
 
 /// The shortest unique trailing hexadecimal identity, shared by sidebar and menu choices.
 /// Callers supply validated 32-character IDs from the same visible-label collision group.
-#[cfg(windows)]
 pub(crate) fn unique_identity_suffix(id: &str, peers: &[&str]) -> String {
     let length = (8..=32)
         .step_by(4)

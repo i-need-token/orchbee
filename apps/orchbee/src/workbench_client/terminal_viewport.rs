@@ -294,13 +294,11 @@ impl TerminalViewport {
     }
 
     /// Fence the first read of a newly admitted entry with a saved content witness.
-    #[cfg(any(windows, test))]
     pub(super) fn resume_position(&mut self, position: ReadingPosition) {
         self.resume = Some(position);
     }
 
     /// Retain only already committed scrollback rows; live screen rows can still mutate.
-    #[cfg(any(windows, test))]
     pub(super) fn reading_position(&self) -> Option<ReadingPosition> {
         if self.recovery_pending() || self.resume.is_some() {
             return None;
@@ -327,12 +325,10 @@ impl TerminalViewport {
         })
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn resuming(&self) -> bool {
         self.resume.is_some()
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn returning_to_live(&self) -> bool {
         self.recovery_pending()
     }

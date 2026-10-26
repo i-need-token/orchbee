@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(windows)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[test]
@@ -156,6 +157,7 @@ fn private_shell_snapshot_is_complete_and_does_not_consume_other_arguments() {
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn companion_asset_location_reuses_precedence_without_opening_settings() {
     let path = windows_user_settings_path(|key| match key {
@@ -180,7 +182,9 @@ fn companion_asset_location_reuses_precedence_without_opening_settings() {
     );
 }
 
+#[cfg(windows)]
 struct Fixture(PathBuf);
+#[cfg(windows)]
 impl Fixture {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -202,6 +206,7 @@ impl Fixture {
         })
     }
 }
+#[cfg(windows)]
 impl Drop for Fixture {
     fn drop(&mut self) {
         if self.file().exists() {
@@ -253,6 +258,7 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
     assert_eq!((error.field, error.reason), ("file", "invalid-toml"));
 }
 
+#[cfg(windows)]
 #[test]
 fn file_bounds_missing_locations_and_no_creation_are_preserved() {
     let fixture = Fixture::new();
@@ -317,6 +323,7 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     let fixture = Fixture::new();

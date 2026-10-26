@@ -277,7 +277,6 @@ fn directory_actions_only_replace_a_live_empty_panel() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_owner() {
     use super::*;

@@ -308,7 +308,6 @@ fn full_refused_publication_hint_survives_until_queue_drains() {
             .expect("PollResult publication"),
         MutationResult::Applied
     );
-    #[cfg(windows)]
     {
         // A committed adjustment must keep waiting on the same retained demand.
         let mut requested = false;
@@ -1180,7 +1179,6 @@ pub(in crate::workbench_client) fn attach_split_peer(
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn remote_panel_focus_refuses_a_faulted_peer_instead_of_waiting_or_reattaching() {
     use crate::workbench_client::client_control::{ControlStep, StepProgress};

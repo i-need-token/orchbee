@@ -223,7 +223,6 @@ fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn covering_client_owner_uses_confirmed_appearance_until_settings_returns() {
     let mut ui = ready();

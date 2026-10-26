@@ -291,7 +291,6 @@ fn capture_board_frame(
     frame
 }
 
-#[cfg(windows)]
 #[test]
 fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
     let (mut ui, mailbox, clock) = fixture();
@@ -403,7 +402,6 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn narrow_zh_empty_board_suspends_start_without_publishing_a_start_target() {
     use crate::{localization::RecoveryVerb, tui_presentation::PresentationPhase};
@@ -453,7 +451,6 @@ fn narrow_zh_empty_board_suspends_start_without_publishing_a_start_target() {
     assert!(!ui.board.is_open(), "Esc closes the suspended Board");
 }
 
-#[cfg(windows)]
 #[test]
 fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_locales() {
     let (mut ui, mailbox, clock) = fixture();
@@ -489,7 +486,6 @@ fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_lo
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn empty_board_mouse_start_requires_the_current_exact_draw() {
     let (mut ui, mailbox, clock) = fixture();

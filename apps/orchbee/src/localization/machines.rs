@@ -1,6 +1,5 @@
 use super::Locale;
 impl Locale {
-    #[cfg(windows)]
     pub(crate) const fn sidebar_drop_zone(self, workspace: bool) -> &'static str {
         match (self, workspace) {
             (Self::EnUs, true) => "No project",
@@ -9,7 +8,6 @@ impl Locale {
             (Self::ZhCn, false) => "项目列表末尾",
         }
     }
-    #[cfg(windows)]
     pub(crate) fn sidebar_reorder_hint(
         self,
         destination: Option<(crate::tui_pointer::SidebarDropPlacement, &str)>,

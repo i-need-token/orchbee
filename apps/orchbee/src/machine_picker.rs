@@ -44,7 +44,6 @@ pub(crate) use navigation::{
     SidebarRow, SidebarSource, SidebarTarget, sidebar_binding_label,
 };
 pub(crate) use sidebar::SidebarWindow;
-#[cfg(windows)]
 pub(crate) use spaces::TabAgent;
 pub(crate) use spaces::most_urgent;
 
@@ -665,11 +664,9 @@ impl Picker {
     pub(crate) fn wants_agents(&self) -> bool {
         self.spaces.visible() || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
-    /// The Windows Tab strip shows unread Agents even while the Sidebar is hidden.
+    /// The shared Tab strip shows unread Agents even while the Sidebar is hidden.
     pub(crate) fn wants_agent_attention(&self) -> bool {
-        cfg!(windows)
-            || self.spaces.visible()
-            || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
+        true
     }
     pub(crate) fn observe_agents(
         &mut self,

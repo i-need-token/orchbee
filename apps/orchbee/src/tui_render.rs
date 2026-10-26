@@ -1,5 +1,3 @@
-#[cfg(not(windows))]
-use crate::terminal_text::sanitize_terminal_text;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -7,9 +5,8 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
-#[cfg(windows)]
 mod action_menu;
-#[cfg(all(windows, test))]
+#[cfg(test)]
 pub(crate) fn render_action_menu_for_test(
     frame: &mut Frame<'_>,
     content: Rect,
@@ -21,7 +18,6 @@ pub(crate) fn render_action_menu_for_test(
 ) -> ModalPresentation<crate::action_menu::MenuDraw> {
     action_menu::render(frame, content, menu, bindings, locale, theme, hits)
 }
-#[cfg(windows)]
 mod resize_mode;
 mod settings;
 
@@ -62,7 +58,6 @@ use crate::{
     },
 };
 
-#[cfg(windows)]
 use crate::tui_pointer::GlobalChromeAction;
 
 use crate::workbench_client::TerminalStatus;
@@ -86,41 +81,28 @@ pub(crate) fn render_agent_board_for_test(
         hits,
     )
 }
-#[cfg(windows)]
 mod agent_sidebar;
 mod contexts;
 pub(crate) mod controls;
-#[cfg(windows)]
 mod copy_mode;
-#[cfg(windows)]
 mod divider_resize;
 mod help;
 mod modal;
-#[cfg(windows)]
 mod navigator;
-#[cfg(windows)]
 mod onboarding;
-#[cfg(windows)]
 mod pane_graphics;
 mod pane_titles;
 mod panel_close;
-#[cfg(windows)]
 mod panel_reports;
 mod presentation_selector;
 mod recovery;
 mod selection;
-#[cfg(windows)]
 pub(crate) use agent_sidebar::render_width_preview;
-#[cfg(windows)]
 pub(crate) use divider_resize::render_divider_preview;
-#[cfg(windows)]
 pub(crate) use tabs::render_tab_drag_preview;
-#[cfg(windows)]
 mod sidebar_reorder;
-#[cfg(windows)]
 pub(crate) use sidebar_reorder::render_sidebar_reorder_preview;
 mod scrollbar;
-#[cfg(windows)]
 mod sidebar_text;
 mod status_line;
 mod tab_close;
@@ -132,12 +114,9 @@ mod terminal_failure;
 pub(crate) mod test_capture;
 mod viewport;
 mod workspace_close;
-#[cfg(windows)]
 mod workspace_creation;
 mod workspace_setup;
-#[cfg(windows)]
 mod workspace_sidebar;
-#[cfg(windows)]
 mod worktree_launch;
 
 #[cfg(test)]
@@ -198,7 +177,7 @@ pub(crate) fn render_shell(
 /// every painter reports the exact rect it drew, so a recorded region
 /// can never disagree with the frame on screen. The shell publishes the
 /// staged map only when the whole draw completes.
-#[cfg(any(not(windows), test))]
+#[cfg(test)]
 pub(crate) fn render_terminal_shell(
     frame: &mut Frame<'_>,
     view: &ClientView,
@@ -232,7 +211,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     }
     let area = frame.area();
     let client_claims = ClientCaptureClaims::default();
-    #[cfg(windows)]
     let client_claims = client_claims
         .with_machine(view.machines.open)
         .with_resize(view.resize_mode());
@@ -248,17 +226,13 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
 
     let sidebar_surface = resize.sidebar(view.sidebar_surface());
     let areas = project_shell_areas(area, sidebar_surface);
-    // Windows raises the whole Tab row, including the hidden sidebar's restore control.
-    #[cfg(windows)]
+    // The Tab row includes the hidden sidebar's restore control.
     let tab_row = Role::SurfaceStrip;
-    #[cfg(not(windows))]
-    let tab_row = Role::SurfaceChrome;
+
     frame
         .buffer_mut()
         .set_style(areas.tabs, theme.style(tab_row));
-    #[cfg(windows)]
     let mut areas = areas;
-    #[cfg(windows)]
     let chrome_action_state = controls::InteractionState::new(
         controls::FocusState::Unfocused,
         controls::PointerPresentation::Rest,
@@ -268,9 +242,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         controls::Availability::Enabled,
         controls::OperationState::Idle,
     );
-    #[cfg(windows)]
     let restore_label = locale.sidebar_restore_label();
-    #[cfg(windows)]
     let restore_button =
         if view.machines.available && areas.sidebar.is_none() && !areas.tabs.is_empty() {
             let action = controls::ActionSpec::new(
@@ -288,23 +260,19 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         };
 
     let tier = areas.tier;
-    #[cfg(windows)]
     if tier != ViewportTier::TooSmall {
         hits.record_action_menu_source(match workbench_client.as_ref() {
             Some(native) => native.action_menu_source(),
             _ => None,
         });
     }
-    #[cfg(windows)]
     let position_uncovered = matches!(workbench_client.as_ref(), Some(_)
         if tier != ViewportTier::TooSmall
             && capture_owner.is_none() && !view.prefix_active() && view.overlay().is_none()
             && !view.navigator_active() && !view.machines.sidebar_navigation_active() && !view.resize_pending
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
-    #[cfg(windows)]
     let graphics_uncovered = position_uncovered
         && !status_overlay_visible(view, workbench_client.as_ref(), capture_owner);
-    #[cfg(windows)]
     if !graphics_uncovered && let Some(native) = workbench_client.as_ref() {
         native.cover_graphics();
     }
@@ -315,12 +283,10 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     let mut workspace_prompt = None;
     let mut rename = None;
     let mut setup = None;
-    #[cfg(windows)]
     let mut worktree = None;
     let mut overlay_refused = false;
     let mut help_presented = false;
     let mut board_draw = None;
-    #[cfg(windows)]
     let mut graphics_draws = Vec::new();
     let sidebar_status;
     let mut sidebar_status_role = Role::StatusWarning;
@@ -389,20 +355,16 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     native,
                     &phase_status,
                     capture_owner.is_none(),
-                    #[cfg(windows)]
                     None,
                     theme,
                     hits,
-                    #[cfg(windows)]
                     graphics_uncovered,
-                    #[cfg(windows)]
                     &mut graphics_draws,
                 );
             }
         }
     }
 
-    #[cfg(windows)]
     if let Some(button) = restore_button {
         let target = InteractionTarget::GlobalChrome(GlobalChromeAction::RestoreSidebar);
         let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
@@ -429,7 +391,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         }
     }
 
-    #[cfg(windows)]
     if tier != ViewportTier::TooSmall && capture_owner == Some(CaptureOwner::Resize) {
         resize_mode::render(
             frame,
@@ -443,7 +404,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             hits,
         );
     }
-    #[cfg(windows)]
     if tier != ViewportTier::TooSmall
         && capture_owner == Some(CaptureOwner::Copy)
         && let Some(native) = workbench_client.as_ref()
@@ -468,7 +428,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     .map(|summary| locale.agent_sidebar_line(summary, summary.at.elapsed())),
                 _ => None,
             };
-            #[cfg(windows)]
             if view.machines.available {
                 let captured = capture_owner.is_some();
                 let mut covered_sidebar = HitMapBuilder::new();
@@ -509,8 +468,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             } else {
                 render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
             }
-            #[cfg(not(windows))]
-            render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
         }
 
         let overlay = match view
@@ -536,7 +493,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                 help_presented = presented.is_some();
                 Some(presented)
             }
-            #[cfg(windows)]
             Some(Overlay::WorkbenchNavigator) => Some(navigator::render(
                 frame,
                 overlay_area(&areas),
@@ -550,21 +506,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                 theme,
                 hits,
             )),
-            #[cfg(not(windows))]
-            Some(Overlay::WorkbenchNavigator) => Some(match workbench_client.as_ref() {
-                Some(native) => render_native_workbench_navigator(
-                    frame,
-                    overlay_area(&areas),
-                    text,
-                    locale,
-                    native,
-                    theme,
-                    hits,
-                ),
-                None => {
-                    render_unavailable_workbench_navigator(frame, overlay_area(&areas), text, theme)
-                }
-            }),
+
             Some(Overlay::BusinessSidebar) => Some(areas.sidebar.map(|sidebar| sidebar.area)),
             None => None,
         };
@@ -587,10 +529,8 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(board) = native.agent_board()
         {
-            #[cfg(windows)]
             let working_frame = view.machines.working_frame();
-            #[cfg(not(windows))]
-            let working_frame = 0;
+
             let draw = agent_board::render(
                 frame,
                 overlay_area(&areas),
@@ -656,7 +596,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.rename_draft()
         {
-            #[cfg(windows)]
             let inline_area = hits.tab_area(draft.tab_id()).map(|area| {
                 Rect::new(
                     area.x,
@@ -667,15 +606,12 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     1,
                 )
             });
-            #[cfg(windows)]
             let (area, token) = if let Some(area) = inline_area.filter(|area| area.width >= 8) {
                 tab_rename::render_inline(frame, locale, &draft, area, theme, hits)
             } else {
                 tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme, hits)
             };
-            #[cfg(not(windows))]
-            let (area, token) =
-                tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme, hits);
+
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
@@ -700,7 +636,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             rename = None;
             setup = Some(token);
         }
-        #[cfg(windows)]
         if native_top(NativeCaptureOwner::Worktree)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.worktree()
@@ -734,7 +669,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             if native_top(NativeCaptureOwner::Setup) {
                 setup = Some(ModalPresentation::NotPresented);
             }
-            #[cfg(windows)]
             if native_top(NativeCaptureOwner::Worktree) {
                 worktree = Some(ModalPresentation::NotPresented);
             }
@@ -759,7 +693,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             phase: crate::tui_presentation::PresentationPhase,
             verb: RecoveryVerb,
         },
-        #[cfg(windows)]
         Plain(&'static str),
     }
     let native_recovery = if let (Some(CaptureOwner::Native(owner)), Some(native)) =
@@ -804,7 +737,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     .setup_draft()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            #[cfg(windows)]
             NativeCaptureOwner::Worktree
                 if matches!(worktree.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
@@ -833,7 +765,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     };
     let native_recovery =
         native_recovery.map(|(phase, verb)| NativeRecoveryStatus::LocalReturn { phase, verb });
-    #[cfg(windows)]
     let native_recovery = if tier == ViewportTier::TooSmall
         && capture_owner == Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
         && matches!(workbench_client.as_ref(), Some(native) if native.popup().is_some())
@@ -909,13 +840,11 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     theme,
                 );
             }
-            #[cfg(windows)]
             NativeRecoveryStatus::Plain(notice) => {
                 recovery::render(frame, areas.status, notice, None, theme);
             }
         }
     }
-    #[cfg(windows)]
     if capture_owner == Some(CaptureOwner::Copy)
         && let Some(native) = workbench_client.as_ref()
         && let Some(copy) = native.copy_mode()
@@ -945,20 +874,14 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         .with_rename(rename)
         .with_setup(setup)
         .with_agent_board(board_draw);
-    #[cfg(windows)]
     let receipt = receipt.with_worktree(worktree);
     let receipt = receipt.with_attention(match workbench_client.as_ref() {
         Some(native)
             if capture_owner.is_none() && view.overlay().is_none() && {
-                #[cfg(windows)]
                 {
                     areas
                         .sidebar
                         .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay)
-                }
-                #[cfg(not(windows))]
-                {
-                    true
                 }
             } =>
         {
@@ -966,7 +889,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         }
         _ => None,
     });
-    #[cfg(windows)]
     if tier != ViewportTier::TooSmall
         && native_top(NativeCaptureOwner::Popup)
         && let Some(native) = workbench_client.as_ref()
@@ -992,7 +914,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             hits,
         );
     }
-    #[cfg(windows)]
     let receipt = if native_top(NativeCaptureOwner::ActionMenu)
         && let Some(native) = workbench_client.as_ref()
         && let Some(menu) = native.action_menu()
@@ -1131,7 +1052,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     } else {
         receipt
     };
-    #[cfg(windows)]
     let receipt = receipt.with_position(if position_uncovered {
         match workbench_client.as_ref() {
             Some(native) => native.position_draw(hits.painted_panes()),
@@ -1140,7 +1060,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     } else {
         None
     });
-    #[cfg(windows)]
     let receipt = receipt.with_graphics(if graphics_uncovered {
         graphics_draws
     } else {
@@ -1149,7 +1068,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     receipt
 }
 
-#[cfg(windows)]
 fn render_popup(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -1346,13 +1264,12 @@ fn render_native_workbench(
     native: &WorkbenchClientView<'_>,
     phase_status: &str,
     directory_guidance_admitted: bool,
-    #[cfg(windows)] global_action: Option<Rect>,
+    global_action: Option<Rect>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
-    #[cfg(windows)] graphics_uncovered: bool,
-    #[cfg(windows)] graphics_draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
+    graphics_uncovered: bool,
+    graphics_draws: &mut Vec<crate::workbench_client::PaneGraphicsDraw>,
 ) {
-    #[cfg(windows)]
     if let Some(preview) = native
         .workspace_creation_preview()
         .filter(|preview| preview.replaces_content())
@@ -1368,7 +1285,6 @@ fn render_native_workbench(
         .into_iter()
         .next();
     let pane_focused = !native.capture_claims().exclusive_any();
-    #[cfg(windows)]
     let pane_focused = pane_focused
         && !client_view.navigator_active()
         && !client_view.machines.sidebar_navigation_active()
@@ -1397,7 +1313,6 @@ fn render_native_workbench(
         native.zoom_active(),
     );
     let mut tabs_area = areas.tabs;
-    #[cfg(windows)]
     if areas.tier == ViewportTier::Compact
         && let Some(sidebar) = areas
             .sidebar
@@ -1435,23 +1350,18 @@ fn render_native_workbench(
         frame,
         tabs_area,
         native,
-        #[cfg(windows)]
         &client_view.machines,
-        #[cfg(not(windows))]
-        native_location_label(native, locale).as_deref(),
         locale,
         theme,
         hits,
     );
     if let Some(selector) = &strip_selector {
-        #[cfg(windows)]
         frame
             .buffer_mut()
             .set_style(selector.area, theme.style(Role::SurfaceStrip));
         selector.paint(frame, STRIP_CONTROL_SURFACE, theme, hits);
     }
     if let Some((area, count)) = strip_count {
-        #[cfg(windows)]
         frame
             .buffer_mut()
             .set_style(area, theme.style(Role::SurfaceStrip));
@@ -1516,7 +1426,6 @@ fn render_native_workbench(
             // incarnation — a press resolves it bit for bit, so it can
             // never migrate onto a re-minted record of the same panel.
             if let Some(panel) = tab.panel(leaf.panel_index) {
-                #[cfg(windows)]
                 if native
                     .retained_pane_frame(panel.panel_id(), leaf.content.width, leaf.content.height)
                     .is_some()
@@ -1524,11 +1433,9 @@ fn render_native_workbench(
                     // A retained image has no live terminal input or scrollbar authority.
                     continue;
                 }
-                #[cfg(windows)]
                 if graphics_uncovered {
                     render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);
                 }
-                #[cfg(windows)]
                 let link_source = native.painted_link_source(panel.panel_id());
                 let target = native
                     .pane_ref_for_panel(panel.panel_id())
@@ -1563,7 +1470,6 @@ fn render_native_workbench(
                     theme,
                     hits,
                 );
-                #[cfg(windows)]
                 if let Some(source) = link_source {
                     let content = native
                         .pane_live_view(panel.panel_id())
@@ -1572,7 +1478,6 @@ fn render_native_workbench(
                 }
             }
         }
-        #[cfg(windows)]
         let drawn_dividers = if input_enabled {
             native.divider_source().map_or_else(Vec::new, |source| {
                 projection
@@ -1586,7 +1491,6 @@ fn render_native_workbench(
         } else {
             Vec::new()
         };
-        #[cfg(windows)]
         render_dividers(
             frame,
             &projection.dividers,
@@ -1595,8 +1499,7 @@ fn render_native_workbench(
             &drawn_dividers,
             hits,
         );
-        #[cfg(not(windows))]
-        render_dividers(frame, &projection.dividers, panel_area, theme);
+
         if pane_focused
             && let Some(leaf) = projection
                 .leaves
@@ -1613,7 +1516,6 @@ fn render_native_workbench(
                     tab,
                     focused: pane_focused && tab.active_panel() == Some(leaf.panel_index),
                     zoomed_panes: (pane_frame == PaneFrame::Zoomed).then_some(tab.panel_count()),
-                    #[cfg(windows)]
                     working_frame: client_view.machines.working_frame(),
                     text,
                     locale,
@@ -1624,7 +1526,6 @@ fn render_native_workbench(
             );
         }
         // Titles and their selectors on a divider line take pointer precedence over the divider.
-        #[cfg(windows)]
         for target in drawn_dividers {
             hits.record_divider(target);
         }
@@ -1653,10 +1554,8 @@ fn render_native_workbench(
                 native
                     .focus_panel_id()
                     .and_then(|panel| native.pane_selection(panel)),
-                #[cfg(windows)]
                 native.copy_mode().is_some(),
             );
-            #[cfg(windows)]
             if input_enabled && let Some(copy) = native.copy_mode() {
                 copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
@@ -1672,7 +1571,6 @@ fn render_native_workbench(
                         content: content_area,
                     },
                 );
-                #[cfg(windows)]
                 if let Some(source) = native
                     .focus_panel_id()
                     .and_then(|panel| native.painted_link_source(panel))
@@ -1682,7 +1580,6 @@ fn render_native_workbench(
             }
         } else if let Some(terminal) = terminal {
             let show_cursor = cursor_visible;
-            #[cfg(windows)]
             let show_cursor = show_cursor && native.copy_mode().is_none();
             let tail = native
                 .focus_panel_id()
@@ -1715,10 +1612,7 @@ fn render_native_workbench(
                     crop,
                     show_cursor,
                     history_key.as_deref(),
-                    #[cfg(windows)]
                     global_action,
-                    #[cfg(not(windows))]
-                    None,
                     locale,
                     theme,
                 );
@@ -1736,7 +1630,6 @@ fn render_native_workbench(
                     .and_then(|panel| native.pane_selection(panel)),
                 theme.style(Role::SurfaceSelection),
             );
-            #[cfg(windows)]
             if input_enabled && let Some(copy) = native.copy_mode() {
                 copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
@@ -1754,7 +1647,6 @@ fn render_native_workbench(
                         content: painted,
                     },
                 );
-                #[cfg(windows)]
                 if let Some(source) = native
                     .focus_panel_id()
                     .and_then(|panel| native.painted_link_source(panel))
@@ -1793,7 +1685,6 @@ fn render_native_workbench(
                 native.workspace_directory_unconfigured(),
             );
             if let Some(guidance) = directory_guidance {
-                #[cfg(windows)]
                 let content_area = crate::tui_layout::guidance_area(content_area, global_action);
                 workspace_setup::render_directory_guidance(
                     frame,
@@ -1820,7 +1711,6 @@ fn render_native_workbench(
                 );
             }
         }
-        #[cfg(windows)]
         if let Some(panel) =
             active_tab.and_then(|tab| tab.active_panel().and_then(|i| tab.panel(i)))
             && graphics_uncovered
@@ -1844,7 +1734,6 @@ fn render_native_workbench(
     }
 }
 
-#[cfg(windows)]
 fn render_panel_graphics(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -1900,8 +1789,8 @@ fn render_tab_strip(
     frame: &mut Frame<'_>,
     tabs_area: Rect,
     native: &WorkbenchClientView<'_>,
-    #[cfg(windows)] machines: &crate::machine_picker::Picker,
-    #[cfg(not(windows))] location: Option<&str>,
+    machines: &crate::machine_picker::Picker,
+
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -1910,100 +1799,17 @@ fn render_tab_strip(
     if tabs_area.is_empty() {
         return;
     }
-    #[cfg(windows)]
     let strip = tabs_area;
-    #[cfg(not(windows))]
-    let (strip, title_area, title) = {
-        let location = location.filter(|location| {
-            !native
-                .active_position()
-                .and_then(|position| position.checked_sub(1))
-                .and_then(|index| native.tab(index))
-                .is_some_and(|tab| {
-                    sanitize_terminal_text(tab.display_label(locale).as_ref()).as_ref() == *location
-                })
-        });
-        let title = location.map_or_else(String::new, |location| {
-            format!(
-                "{} ",
-                truncate_display(
-                    location,
-                    usize::from(tabs_area.width / 2).saturating_sub(1),
-                    theme.glyphs.ellipsis
-                )
-            )
-        });
-        let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
-        if title_width > 0 && title_width < tabs_area.width {
-            (
-                Rect::new(
-                    tabs_area.x,
-                    tabs_area.y,
-                    tabs_area.width - title_width - 1,
-                    tabs_area.height,
-                ),
-                Some(Rect::new(
-                    tabs_area.right() - title_width,
-                    tabs_area.y,
-                    title_width,
-                    tabs_area.height,
-                )),
-                title,
-            )
-        } else {
-            (tabs_area, None, title)
-        }
-    };
-    #[cfg(windows)]
+
     let tab_source = native.tab_create_target();
-    #[cfg(windows)]
     let create_target = tab_source.clone().filter(|_| strip.width >= 7);
-    #[cfg(windows)]
     let create_width = if create_target.is_some() { 4 } else { 0 };
-    #[cfg(not(windows))]
-    let create_width = 0;
+
     let tab_area = Rect::new(strip.x, strip.y, strip.width - create_width, strip.height);
-    #[cfg(windows)]
     frame
         .buffer_mut()
         .set_style(strip, theme.style(Role::SurfaceStrip));
-    #[cfg(not(windows))]
-    tabs::render_compact(
-        frame,
-        tab_area,
-        native.tab_count(),
-        native.active_position(),
-        |index| native_tab(native, index, locale, text.pinned_tab),
-        theme,
-        tabs::CompactInteractions::new(
-            hits,
-            &mut |hits, index, rect| {
-                let Some(tab) = native.tab(index) else {
-                    return ProjectedPointer::Rest;
-                };
-                let target = InteractionTarget::Tab(tab.tab_id().clone());
-                hits.projected_pointer(
-                    HitLayer::Foreground,
-                    rect,
-                    rect,
-                    &target,
-                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
-                )
-            },
-            &mut |hits, index, rect| {
-                if let Some(tab) = native.tab(index) {
-                    hits.record_interaction(
-                        HitLayer::Foreground,
-                        rect,
-                        rect,
-                        InteractionTarget::Tab(tab.tab_id().clone()),
-                        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
-                    );
-                }
-            },
-        ),
-    );
-    #[cfg(windows)]
+
     let create_offset = {
         let selected = native.selected_tab_ids();
         let displayed = (0..native.tab_count())
@@ -2092,7 +1898,6 @@ fn render_tab_strip(
             ),
         )
     };
-    #[cfg(windows)]
     if let Some(target) = create_target {
         let offset = create_offset.min(strip.width - 3);
         let offered = Rect::new(strip.x + offset, strip.y, 3, 1);
@@ -2121,15 +1926,6 @@ fn render_tab_strip(
             }
         }
     }
-    #[cfg(not(windows))]
-    if let Some(title_area) = title_area {
-        frame.render_widget(
-            Paragraph::new(title)
-                .alignment(Alignment::Right)
-                .style(theme.style(Role::TextSecondary)),
-            title_area,
-        );
-    }
 }
 
 /// Paints one projected leaf: its own pane's latest frame when the pane's
@@ -2152,8 +1948,7 @@ fn render_leaf(
     hits: &mut HitMapBuilder,
 ) {
     // Only the Windows copy-mode surface consumes input ownership and pointer targets here.
-    #[cfg(not(windows))]
-    let _ = (input_enabled, hits);
+
     let panel_index = leaf.panel_index;
     let active = tab.active_panel() == Some(panel_index);
     let panel = tab.panel(panel_index);
@@ -2179,7 +1974,6 @@ fn render_leaf(
     if let Some(surface) = viewport {
         // A non-Live core owns the leaf: its validated window or its mode
         // indicator paints instead of the live frame path.
-        #[cfg(windows)]
         let copy_active = active && native.copy_mode().is_some();
         viewport::render_selected(
             frame,
@@ -2190,12 +1984,10 @@ fn render_leaf(
             locale,
             theme,
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
-            #[cfg(windows)]
             copy_active,
         );
     } else if let Some(terminal) = terminal {
         let show_cursor = cursor_visible && active;
-        #[cfg(windows)]
         let show_cursor = show_cursor && native.copy_mode().is_none();
         let tail = panel.and_then(|panel| native.pane_tail_window(panel.panel_id()));
         let crop =
@@ -2266,7 +2058,6 @@ fn render_leaf(
             content,
         );
     }
-    #[cfg(windows)]
     if active
         && input_enabled
         && let Some(copy) = native.copy_mode()
@@ -2281,8 +2072,8 @@ fn render_dividers(
     dividers: &[Rect],
     panel: Rect,
     theme: &Theme,
-    #[cfg(windows)] targets: &[crate::tui_layout::DrawnDivider],
-    #[cfg(windows)] hits: &HitMapBuilder,
+    targets: &[crate::tui_layout::DrawnDivider],
+    hits: &HitMapBuilder,
 ) {
     let mut cells = std::collections::BTreeSet::new();
     for divider in dividers {
@@ -2335,7 +2126,6 @@ fn render_dividers(
             }
         };
         let boundary_cell = boundary.contains(&(x, y));
-        #[cfg(windows)]
         let pointer = targets
             .iter()
             .filter(|target| target.divider.contains((x, y).into()))
@@ -2347,7 +2137,6 @@ fn render_dividers(
             })
             .unwrap_or(ProjectedPointer::Rest);
         // A hovered or dragged divider takes the focus color, leaving the canvas untouched.
-        #[cfg(windows)]
         let style = if pointer == ProjectedPointer::Rest {
             theme.style(if boundary_cell {
                 Role::FrameUnfocused
@@ -2357,12 +2146,7 @@ fn render_dividers(
         } else {
             theme.style(Role::FrameFocused).add_modifier(Modifier::BOLD)
         };
-        #[cfg(not(windows))]
-        let style = theme.style(if boundary_cell {
-            Role::FrameUnfocused
-        } else {
-            Role::FrameDivider
-        });
+
         frame
             .buffer_mut()
             .set_string(x, y, glyph.to_string(), style);
@@ -2370,10 +2154,7 @@ fn render_dividers(
 }
 
 /// The Tab strip's surface under its controls.
-#[cfg(windows)]
 const STRIP_CONTROL_SURFACE: controls::ControlSurface = controls::ControlSurface::Strip;
-#[cfg(not(windows))]
-const STRIP_CONTROL_SURFACE: controls::ControlSurface = controls::ControlSurface::Canvas;
 
 fn native_tab<'a>(
     native: &WorkbenchClientView<'a>,
@@ -2393,25 +2174,6 @@ fn native_tab<'a>(
     })
 }
 
-#[cfg(not(windows))]
-fn native_location_label(native: &WorkbenchClientView<'_>, locale: Locale) -> Option<String> {
-    native
-        .active_context_position()
-        .and_then(|position| position.checked_sub(1))
-        .and_then(|index| native.context_at(index))
-        .map(|context| {
-            contexts::context_label(contexts::ContextDisplay {
-                position: context.position(),
-                active: context.active(),
-                project_label: context.project_label(),
-                workspace_label: context
-                    .workspace_label()
-                    .map(|label| locale.workspace_display_label(label)),
-                no_workspace_label: locale.shell().no_workspace,
-            })
-        })
-}
-
 fn status_overlay_visible(
     view: &ClientView,
     workbench_client: Option<&WorkbenchClientView<'_>>,
@@ -2422,7 +2184,6 @@ fn status_overlay_visible(
         || view.notice().is_some()
         || view.pointer_released()
         || capture_owner.is_some();
-    #[cfg(windows)]
     let visible = visible
         || view.navigator_active()
         || view.machines.sidebar_navigation_active()
@@ -2448,7 +2209,6 @@ fn status_overlay_visible(
                 || native.close_status().is_some()
                 || native.workspace_close_status().is_some()
                 || native.close_set_status().is_some();
-            #[cfg(windows)]
             let visible = visible || native.duplicate_progress().is_some();
             visible
         })
@@ -2558,153 +2318,6 @@ fn render_sidebar(
         ),
         sidebar.area,
     );
-}
-
-#[cfg(not(windows))]
-fn render_unavailable_workbench_navigator(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    text: ShellText,
-    theme: &Theme,
-) -> Option<Rect> {
-    let area = place_overlay(area, 68, 9)?;
-    frame.render_widget(Clear, area);
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(""),
-            Line::styled(text.backend_status, theme.style(Role::StatusWarning)),
-            Line::from(""),
-            Line::styled(text.navigator_detail, theme.style(Role::TextPrimary)),
-            Line::from(""),
-            Line::styled(text.overlay_input_hint, theme.style(Role::HintLabel)),
-        ])
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .block(overlay_block(text.navigator_title, area.width, theme)),
-        area,
-    );
-    Some(area)
-}
-
-#[cfg(not(windows))]
-fn render_native_workbench_navigator(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    text: ShellText,
-    locale: Locale,
-    native: &WorkbenchClientView<'_>,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) -> Option<Rect> {
-    let area = place_overlay(area, 88, 12)?;
-    frame.render_widget(Clear, area);
-    let block = overlay_block(text.navigator_title, area.width, theme);
-    let content = block.inner(area);
-    frame.render_widget(block, area);
-
-    let refresh = native.refresh_status();
-    let (rows, refresh_area) = if refresh.is_some() {
-        let [rows, status] =
-            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(content);
-        (rows, Some(status))
-    } else {
-        (content, None)
-    };
-    let [contexts_area, tabs_area] =
-        Layout::horizontal([Constraint::Percentage(50), Constraint::Min(0)]).areas(rows);
-    let context_at = |index: usize| {
-        native
-            .context_at(index)
-            .map(|context| contexts::ContextDisplay {
-                position: context.position(),
-                active: context.active(),
-                project_label: context.project_label(),
-                workspace_label: context
-                    .workspace_label()
-                    .map(|label| locale.workspace_display_label(label)),
-                no_workspace_label: text.no_workspace,
-            })
-    };
-    contexts::render_navigator(
-        frame,
-        contexts_area,
-        native.context_count(),
-        native.active_context_position(),
-        None,
-        context_at,
-        theme,
-        hits,
-        &mut |hits, index, rect| {
-            let Some(context) = native.context_at(index) else {
-                return ProjectedPointer::Rest;
-            };
-            let target = InteractionTarget::Context(context.location().clone());
-            hits.projected_pointer(
-                HitLayer::Overlay,
-                rect,
-                rect,
-                &target,
-                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
-            )
-        },
-        &mut |hits, index, rect| {
-            if let Some(context) = native.context_at(index) {
-                hits.record_interaction(
-                    HitLayer::Overlay,
-                    rect,
-                    rect,
-                    InteractionTarget::Context(context.location().clone()),
-                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
-                );
-            }
-        },
-    );
-    tabs::render_navigator(
-        frame,
-        tabs_area,
-        native.tab_count(),
-        native.active_position(),
-        None,
-        |index| native_tab(native, index, locale, text.pinned_tab),
-        theme,
-        hits,
-        &mut |hits, index, rect| {
-            let Some(tab) = native.tab(index) else {
-                return ProjectedPointer::Rest;
-            };
-            let target = InteractionTarget::Tab(tab.tab_id().clone());
-            hits.projected_pointer(
-                HitLayer::Overlay,
-                rect,
-                rect,
-                &target,
-                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
-            )
-        },
-        &mut |hits, index, rect| {
-            if let Some(tab) = native.tab(index) {
-                hits.record_interaction(
-                    HitLayer::Overlay,
-                    rect,
-                    rect,
-                    InteractionTarget::Tab(tab.tab_id().clone()),
-                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
-                );
-            }
-        },
-    );
-    if let (Some(refresh), Some(status_area)) = (refresh, refresh_area) {
-        let style = match refresh {
-            NativeRefreshStatus::Refreshing => theme.style(Role::TextSecondary),
-            NativeRefreshStatus::Success(_) => theme.style(Role::StatusSuccess),
-            NativeRefreshStatus::Failure(_) => theme.style(Role::StatusError),
-        };
-        frame.render_widget(
-            Paragraph::new(locale.native_refresh_status(refresh)).style(style),
-            status_area,
-        );
-    }
-    Some(area)
 }
 
 /// Style only the already-drawn shared and outer boundaries around one leaf.

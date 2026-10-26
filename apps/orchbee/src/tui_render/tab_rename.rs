@@ -182,7 +182,6 @@ pub(super) fn render(
 }
 
 /// Same draft, input owner, and shown token as the full editor, anchored to its tab.
-#[cfg(windows)]
 pub(super) fn render_inline(
     frame: &mut Frame<'_>,
     locale: Locale,

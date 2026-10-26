@@ -47,7 +47,6 @@ pub(in crate::workbench_client) struct RenameDraftView<'a> {
 }
 
 impl<'a> RenameDraftView<'a> {
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn tab_id(
         &self,
     ) -> &'a orchbee_workbench_protocol::WorkbenchTabId {

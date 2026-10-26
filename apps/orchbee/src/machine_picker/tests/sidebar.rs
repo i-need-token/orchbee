@@ -341,7 +341,7 @@ fn hidden_sidebar_demands_only_the_attention_the_tab_strip_shows() {
     };
     picker.observe_agent_sidebar(false);
     assert!(!picker.wants_agents());
-    assert_eq!(picker.wants_agent_attention(), cfg!(windows));
+    assert!(picker.wants_agent_attention());
     picker.observe_agent_sidebar(true);
     assert!(picker.wants_agents());
 }

@@ -1,6 +1,5 @@
 //! Typed projection and painting for the shell status line.
 
-#[cfg(windows)]
 use crate::client_view::PrefixDesc;
 use crate::{
     client_view::{
@@ -30,13 +29,9 @@ use super::controls::{KeyHint, measure_key_hints, render_key_hints};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum InputIndicator {
     Prefix,
-    #[cfg(windows)]
     Navigator,
-    #[cfg(windows)]
     Sidebar,
-    #[cfg(windows)]
     Resize,
-    #[cfg(windows)]
     ResizePending,
 }
 
@@ -51,7 +46,6 @@ enum StatusAction {
     ShowHelp,
     Exit,
     CreateTab,
-    #[cfg(windows)]
     CreateWorkspace,
     Refresh,
     CheckAgain,
@@ -463,19 +457,15 @@ fn input_indicator(
     view: &ClientView,
     capture_owner: Option<CaptureOwner>,
 ) -> Option<InputIndicator> {
-    #[cfg(windows)]
     if capture_owner == Some(CaptureOwner::Resize) {
         return Some(InputIndicator::Resize);
     }
-    #[cfg(windows)]
     if capture_owner.is_none() && view.navigator_active() {
         return Some(InputIndicator::Navigator);
     }
-    #[cfg(windows)]
     if capture_owner.is_none() && view.machines.sidebar_navigation_active() {
         return Some(InputIndicator::Sidebar);
     }
-    #[cfg(windows)]
     if capture_owner.is_none() && view.resize_pending {
         return Some(InputIndicator::ResizePending);
     }
@@ -499,19 +489,16 @@ fn indicator_projection(
             )),
             role: Role::AccentFocus,
         },
-        #[cfg(windows)]
         InputIndicator::Navigator => Indicator {
             label: copy.navigator,
             key: None,
             role: Role::AccentFocus,
         },
-        #[cfg(windows)]
         InputIndicator::Sidebar => Indicator {
             label: copy.sidebar,
             key: None,
             role: Role::AccentFocus,
         },
-        #[cfg(windows)]
         InputIndicator::Resize => Indicator {
             label: if view.resize_pending {
                 copy.resize_pending
@@ -525,7 +512,6 @@ fn indicator_projection(
                 Role::AccentFocus
             },
         },
-        #[cfg(windows)]
         InputIndicator::ResizePending => Indicator {
             label: copy.resize_pending,
             key: None,
@@ -551,7 +537,6 @@ fn status_hints(
         Some(InputIndicator::Prefix) => {
             return prefix_mode_hints(view, locale, glyphs);
         }
-        #[cfg(windows)]
         Some(InputIndicator::Navigator) => {
             use crate::client_view::navigator::Command;
             let nav = locale.navigator();
@@ -566,7 +551,6 @@ fn status_hints(
             })
             .collect();
         }
-        #[cfg(windows)]
         Some(InputIndicator::Sidebar) => {
             use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
             let mut commands = vec![SidebarCommand::Exit];
@@ -587,9 +571,7 @@ fn status_hints(
                 })
                 .collect();
         }
-        #[cfg(windows)]
         Some(InputIndicator::Resize) => return resize_hints(view, locale, glyphs),
-        #[cfg(windows)]
         Some(InputIndicator::ResizePending) => return Vec::new(),
         None => {}
     }
@@ -671,7 +653,6 @@ fn prefix_mode_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) 
         copy.help,
         glyphs,
     ));
-    #[cfg(windows)]
     hints.extend(prefix_action_hint(
         view,
         PrefixAction::Client(ClientAction::OpenActionMenu),
@@ -752,7 +733,6 @@ fn prefix_action_keys(
         .collect()
 }
 
-#[cfg(windows)]
 fn resize_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) -> Vec<OwnedHint> {
     let copy = locale.status();
     let rows = view.resize_help_rows_with_glyphs(glyphs);
@@ -823,7 +803,6 @@ fn action_hint(
             PrefixAction::Client(ClientAction::CreateTab),
             copy.create_tab,
         ),
-        #[cfg(windows)]
         StatusAction::CreateWorkspace => (
             PrefixAction::Client(ClientAction::CreateTab),
             copy.create_workspace,
@@ -883,7 +862,6 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
         }
         return actions;
     }
-    #[cfg(windows)]
     if native.worktree_notice().is_some() {
         return Vec::new();
     }
@@ -896,7 +874,6 @@ fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> 
             Vec::new()
         };
     }
-    #[cfg(windows)]
     if native.notice().is_none()
         && native.retirement().is_none()
         && native.setup_status().is_none()
@@ -963,7 +940,6 @@ fn native_phase_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
         {
             Vec::new()
         }
-        #[cfg(windows)]
         NativeDisplayPhase::Empty if native.no_current_workspace() => {
             vec![StatusAction::CreateWorkspace]
         }

@@ -428,7 +428,6 @@ impl Harness {
         )
     }
 
-    #[cfg(windows)]
     pub(super) fn start_at(
         steps: Vec<WireKind>,
         initial_geometry: Geometry,
@@ -871,7 +870,6 @@ impl UiDriver {
         self.admit_switch_target(index, Some((panel, presentation)), None)
     }
 
-    #[cfg(windows)]
     pub(super) fn admit_fenced_presentation(
         &mut self,
         index: usize,
@@ -1481,7 +1479,6 @@ impl UiDriver {
                 }
                 Ok(UiEvent::PaneFailed)
             }
-            #[cfg(windows)]
             WorkerEvent::WorktreePrepared { .. } => {
                 Err(test_error("requires the actual NativeUi consumer"))
             }

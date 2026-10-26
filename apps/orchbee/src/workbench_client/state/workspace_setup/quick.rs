@@ -8,7 +8,6 @@ use orchbee_workbench_protocol::{
 use std::time::Instant;
 
 /// One accepted launch's local return; neither status nor a later visit can rearm it.
-#[cfg(any(windows, test))]
 pub(super) enum ProjectQuickEntry {
     Preparing(NativeSetupToken),
     Submitted(u64),
@@ -18,7 +17,6 @@ pub(super) enum ProjectQuickEntry {
     },
 }
 
-#[cfg(any(windows, test))]
 impl WorkbenchClientState {
     pub(in crate::workbench_client) fn cancel_project_quick_entry(&mut self) {
         self.setup.project_quick_entry = None;
@@ -135,6 +133,7 @@ impl QuickProject {
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct QuickWorkspaceFields {
     base: WorkbenchDirectoryPath,
+    environment: Vec<(String, std::ffi::OsString)>,
     name: LineEditor,
     directory: LineEditor,
     project: QuickProject,
@@ -190,6 +189,7 @@ impl QuickWorkspaceFields {
             directory: LineEditor::new(cwd.as_str().to_owned(), LengthLimit::Bytes(4096)),
             directories: vec![cwd.clone()],
             base: cwd,
+            environment: Vec::new(),
             project,
             automatic_name: true,
             locale,
@@ -286,19 +286,18 @@ impl QuickWorkspaceFields {
         }
     }
     fn normalized_path(&self) -> Option<String> {
-        #[cfg(windows)]
         {
             orchbee_local_site_runtime::normalize_windows_user_path(
                 self.directory(),
-                |name| std::env::var_os(name),
+                |name| {
+                    self.environment
+                        .iter()
+                        .find(|(key, _)| key == name)
+                        .map(|(_, value)| value.clone())
+                },
                 || Ok(std::path::PathBuf::from(self.base.as_str())),
             )
             .ok()
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = &self.base;
-            None
         }
     }
 }
@@ -408,7 +407,6 @@ impl WorkbenchClientState {
         self.setup.status = None;
         self.setup.presentation = crate::tui_presentation::PresentationPhase::Pending;
         self.setup.preparation = Some(preparation.clone());
-        #[cfg(any(windows, test))]
         {
             self.setup.project_quick_entry = Some(ProjectQuickEntry::Preparing(token));
         }
@@ -455,6 +453,7 @@ impl WorkbenchClientState {
         preparation: &QuickPreparation,
         cwd: Option<WorkbenchDirectoryPath>,
         locale: Locale,
+        environment: Vec<(String, std::ffi::OsString)>,
     ) {
         if self.cache != preparation.baseline
             || !self.setup_authority_available()
@@ -482,6 +481,7 @@ impl WorkbenchClientState {
             ),
             None => QuickWorkspaceFields::new(&self.cache, cwd, locale),
         };
+        fields.environment = environment;
         // Current directory first, then recent selections, then other known Workspaces.
         // Choices are frozen with the draft and bounded independently of navigation size.
         let locations = self.navigation_memory.recent_locations().chain(
@@ -531,7 +531,6 @@ impl WorkbenchClientState {
             _ => None,
         };
         self.setup.last_token = next;
-        #[cfg(any(windows, test))]
         if matches!(self.setup.project_quick_entry, Some(ProjectQuickEntry::Preparing(token)) if token == preparation.token)
         {
             self.setup.project_quick_entry =

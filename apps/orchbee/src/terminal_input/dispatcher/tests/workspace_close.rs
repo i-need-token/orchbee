@@ -162,7 +162,6 @@ fn split_close_mouse_press_and_release_use_the_same_painted_control() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn newer_machine_owner_cannot_hide_or_reuse_cancelled_confirmation_cleanup() {
     for retire_with_new_press in [false, true] {

@@ -160,6 +160,7 @@ pub(crate) enum Reconciliation {
 }
 #[derive(Clone, Copy)]
 pub(crate) struct DraftView<'a> {
+    pub(crate) login_shell_supported: bool,
     pub(crate) token: Token,
     pub(crate) values: &'a UserPreferencesValues,
     pub(crate) basis_values: &'a UserPreferencesValues,
@@ -435,7 +436,8 @@ impl DraftView<'_> {
             }
             Row::Profile => catalog.profiles.len() > 1,
             Row::Login => {
-                !cfg!(windows) && matches!(profile.command, UserLaunchCommand::SystemShell { .. })
+                self.login_shell_supported
+                    && matches!(profile.command, UserLaunchCommand::SystemShell { .. })
             }
             Row::Executable => arguments.is_some(),
             Row::Argument | Row::ArgumentValue | Row::DeleteArgument => {
@@ -469,6 +471,7 @@ impl View<'_> {
     }
 }
 struct Draft {
+    login_shell_supported: bool,
     token: Token,
     basis: Basis,
     effective: Basis,
@@ -575,6 +578,7 @@ impl Draft {
     }
     fn project(&self) -> DraftView<'_> {
         DraftView {
+            login_shell_supported: self.login_shell_supported,
             token: self.token,
             values: &self.values,
             basis_values: &self.basis.values,
@@ -627,12 +631,19 @@ enum State {
 }
 #[derive(Default)]
 pub(crate) struct Editor {
+    login_shell_supported: bool,
     next: u64,
     state: State,
     presentation: PresentationPhase,
     surface_presented: bool,
 }
 impl Editor {
+    pub(crate) fn new(login_shell_supported: bool) -> Self {
+        Self {
+            login_shell_supported,
+            ..Self::default()
+        }
+    }
     fn allocate(&mut self) -> Option<Token> {
         self.next = self.next.checked_add(1)?;
         Some(Token(self.next))
@@ -665,6 +676,7 @@ impl Editor {
             return false;
         };
         self.state = State::Draft(Box::new(Draft {
+            login_shell_supported: self.login_shell_supported,
             token,
             values: basis.values.clone(),
             effective: basis.clone(),

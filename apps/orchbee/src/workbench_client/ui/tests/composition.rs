@@ -1,7 +1,6 @@
 //! Root-compositor evidence: one painted owner and one exact draw settlement per frame.
 
 use super::super::*;
-#[cfg(windows)]
 use crate::tui_theme::Role;
 use crate::{
     client_view::{
@@ -15,7 +14,6 @@ use crate::{
     workbench_client::{AgentBoardEpisodeToken, NativeDrawReceipt},
 };
 use orchbee_workbench_protocol::UserPreferencesValues;
-#[cfg(windows)]
 use ratatui::layout::Rect;
 use ratatui::{Terminal, backend::TestBackend};
 
@@ -131,7 +129,6 @@ fn open_loaded_settings(ui: &mut NativeUi) {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() {
     use crate::{client_view::ClientAction, tui_layout::SidebarWidth};
@@ -279,7 +276,6 @@ fn panel_close_confirmation_outranks_and_is_painted_instead_of_the_board() {
     assert!(!board.interactive());
 }
 
-#[cfg(windows)]
 #[test]
 fn machine_capture_suppresses_native_proof_hits_and_remembered_sidebar_focus() {
     let (mut ui, _, _, _) = super::move_membership::ready_ui();

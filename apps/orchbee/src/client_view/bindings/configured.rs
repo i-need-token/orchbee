@@ -2,10 +2,8 @@
 use super::{
     Binding, KeyCode, KeyEvent, KeySet, PREFIX_CHORD, PREFIX_GROUPS, PrefixDesc, PrefixMember,
 };
-#[cfg(windows)]
 use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand};
 use crate::action_projection::{ActionMetadata, binding_metadata};
-#[cfg(windows)]
 use orchbee_local_site_runtime::WindowsDefaultActionBindings;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,7 +24,6 @@ pub(crate) struct Entry {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Bindings {
-    #[cfg(windows)]
     commands: Vec<orchbee_local_site_runtime::WindowsCustomCommandEntry>,
     pub(crate) prefix: Binding,
     pub(crate) entries: Vec<Entry>,
@@ -45,7 +42,6 @@ impl Default for Bindings {
                 })
             })
             .collect::<Vec<_>>();
-        #[cfg(windows)]
         let entries = {
             let mut entries = entries;
             for name in [
@@ -69,7 +65,6 @@ impl Default for Bindings {
             entries
         };
         Self {
-            #[cfg(windows)]
             commands: Vec::new(),
             prefix: PREFIX_CHORD,
             entries,
@@ -89,6 +84,12 @@ impl Bindings {
             .iter()
             .filter(|entry| entry.enabled)
             .filter_map(|entry| {
+                if let super::PrefixAction::Client(action) = &entry.member.action
+                    && crate::tui_capabilities::Capability::for_action(action)
+                        .is_some_and(|capability| !capability.available())
+                {
+                    return None;
+                }
                 let metadata = binding_metadata(&entry.member.action)?;
                 Some(DiscoveryEntry {
                     action: entry.member.action.clone(),
@@ -100,7 +101,6 @@ impl Bindings {
             .collect()
     }
 
-    #[cfg(windows)]
     pub(crate) fn default_windows_key_action_bindings() -> Vec<WindowsDefaultActionBindings> {
         let defaults = Self::default();
         orchbee_local_site_runtime::WindowsKeySettings::registered_actions()
@@ -121,7 +121,6 @@ impl Bindings {
             .collect()
     }
 
-    #[cfg(windows)]
     pub(crate) fn configured_description(&self, desc: PrefixDesc) -> Option<&str> {
         let PrefixDesc::ConfiguredCommand(index) = desc else {
             return None;
@@ -143,7 +142,6 @@ impl Bindings {
                 entry.enabled && entry.prefix == prefix && entry.member.keys.matches(event)
             })
             .map(|entry| &entry.member);
-        #[cfg(windows)]
         let exact = exact.or_else(|| {
             self.entries
                 .iter()
@@ -199,7 +197,6 @@ impl Bindings {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn configured(settings: &orchbee_local_site_runtime::WindowsKeySettings) -> Self {
         let prefix = chord(&settings.prefix);
         let mut user = Vec::new();
@@ -327,7 +324,6 @@ impl Bindings {
     }
 }
 
-#[cfg(windows)]
 fn configuration_trigger(entry: &Entry) -> String {
     let chord = match entry.member.keys {
         KeySet::CharRange(first, last) => format!("{first}..{last}"),
@@ -340,7 +336,6 @@ fn configuration_trigger(entry: &Entry) -> String {
     }
 }
 
-#[cfg(windows)]
 fn configuration_chord(binding: Binding) -> String {
     let mut parts = Vec::new();
     if binding.mods.ctrl {
@@ -384,7 +379,6 @@ fn configuration_chord(binding: Binding) -> String {
     parts.join("+")
 }
 
-#[cfg(windows)]
 fn shifted_agent_digit(member: &PrefixMember, event: KeyEvent) -> bool {
     if member.action != PrefixAction::SelectAgentDigit {
         return false;
@@ -414,7 +408,6 @@ fn shifted_agent_digit(member: &PrefixMember, event: KeyEvent) -> bool {
     })
 }
 
-#[cfg(windows)]
 fn chord(value: &orchbee_local_site_runtime::WindowsKeyChord) -> Binding {
     let code = match value.key.as_str() {
         "esc" => KeyCode::Esc,
@@ -445,7 +438,6 @@ fn chord(value: &orchbee_local_site_runtime::WindowsKeyChord) -> Binding {
     )
 }
 
-#[cfg(windows)]
 fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     use ClientAction as A;
     use PrefixDesc as D;
@@ -540,5 +532,5 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     (PrefixAction::Client(action), desc, ShellCommand::None)
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;

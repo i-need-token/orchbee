@@ -30,21 +30,15 @@ impl Locale {
     pub(crate) const fn menu_search_alias(self, alias: ActionSearchAlias) -> &'static str {
         use ActionSearchAlias as A;
         match (self, alias) {
-            #[cfg(windows)]
             (Self::EnUs, A::Actions) => "actions",
-            #[cfg(windows)]
             (Self::ZhCn, A::Actions) => "动作",
-            #[cfg(windows)]
             (Self::EnUs, A::Commands) => "commands",
-            #[cfg(windows)]
             (Self::ZhCn, A::Commands) => "命令",
             (Self::EnUs, A::Preferences) => "preferences",
             (Self::ZhCn, A::Preferences) => "偏好设置",
             (Self::EnUs, A::Workspace) => "workspace",
             (Self::ZhCn, A::Workspace) => "工作区",
-            #[cfg(windows)]
             (Self::EnUs, A::Worktree) => "worktree",
-            #[cfg(windows)]
             (Self::ZhCn, A::Worktree) => "工作树",
             (Self::EnUs, A::Project) => "project",
             (Self::ZhCn, A::Project) => "项目",
@@ -54,13 +48,9 @@ impl Locale {
             (Self::ZhCn, A::Pane) => "面板",
             (Self::EnUs, A::Split) => "split",
             (Self::ZhCn, A::Split) => "分屏",
-            #[cfg(windows)]
             (Self::EnUs, A::Resize) => "resize",
-            #[cfg(windows)]
             (Self::ZhCn, A::Resize) => "调整大小",
-            #[cfg(windows)]
             (Self::EnUs, A::Copy) => "copy",
-            #[cfg(windows)]
             (Self::ZhCn, A::Copy) => "复制",
             (Self::EnUs, A::Close) => "close",
             (Self::ZhCn, A::Close) => "关闭",

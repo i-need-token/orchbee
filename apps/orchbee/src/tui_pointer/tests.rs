@@ -3,7 +3,6 @@
 //! each test drives `PointerState::event`/`tick` like the dispatcher does.
 use super::*;
 
-#[cfg(windows)]
 #[test]
 fn covered_sidebar_retains_menu_placement_geometry_without_input_authority() {
     let target = crate::machine_picker::SidebarTarget::Project {
@@ -26,26 +25,19 @@ fn covered_sidebar_retains_menu_placement_geometry_without_input_authority() {
         }
     }
 }
-#[cfg(windows)]
 mod divider;
 mod interaction;
 mod modal;
-#[cfg(windows)]
 mod navigator;
-#[cfg(windows)]
 mod quick_create;
 mod scrollbar;
-#[cfg(windows)]
 mod sidebar_width;
-#[cfg(windows)]
 mod tab_groups;
 
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;
-#[cfg(windows)]
 use orchbee_workbench_protocol::WorkbenchRequestId;
 
-#[cfg(windows)]
 use crate::terminal_input::PointerLinkAdmission;
 use crate::terminal_input::{
     PointerPane, PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
@@ -57,7 +49,6 @@ use crate::client_view::{
     ClientActionDisposition, KeyCode, KeyEvent, Modifiers, Overlay, PrefixInput,
 };
 
-#[cfg(windows)]
 fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
     assert!(count > 0);
     let mut view = ClientView::new(120);
@@ -93,7 +84,6 @@ fn sidebar_fixture(count: u64) -> (ClientView, FrameHitMap) {
     (view, hits)
 }
 
-#[cfg(windows)]
 fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
     let mut hits = HitMapBuilder::new();
@@ -112,7 +102,6 @@ fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
     hits.finish()
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
@@ -213,7 +202,6 @@ fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
     assert!(view.machines.request.is_none());
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
     let (mut view, map) = sidebar_fixture(40);
@@ -272,7 +260,6 @@ fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
     assert_eq!(stable, after);
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_chrome_occludes_panes_but_a_capturing_overlay_occludes_sidebar() {
     let (mut view, map) = sidebar_fixture(1);
@@ -334,21 +321,6 @@ fn pane_ref(anchor: u64, tab: u128, panel: u128, incarnation: u32) -> PaneRef {
     PaneRef::new(pane_key(anchor, tab, panel), incarnation)
 }
 
-fn context_location(value: u128) -> NativeContextLocation {
-    {
-        let fixture_context_id =
-            orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&format!("{value:032x}"))
-                .unwrap();
-        NativeContextLocation::Workspace {
-            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
-                fixture_context_id.as_str(),
-            )
-            .unwrap(),
-            terminal_context_id: fixture_context_id,
-        }
-    }
-}
-
 fn event(action: MouseAction, button: MouseButton, column: u16, row: u16) -> MouseEvent {
     MouseEvent {
         action,
@@ -387,9 +359,7 @@ struct RecordingPort {
     non_live: Vec<PaneKey>,
     selection_admitted: bool,
     selections: Vec<(PaneRef, PointerSelectionIntent)>,
-    #[cfg(windows)]
     link_admission: Option<PointerLinkAdmission>,
-    #[cfg(windows)]
     links: Vec<(
         crate::terminal_link_activation::PaintedLinkSource,
         PointerSelectionCell,
@@ -437,7 +407,6 @@ impl TerminalInputPort for RecordingPort {
         }
     }
 
-    #[cfg(windows)]
     fn pointer_link(
         &mut self,
         source: crate::terminal_link_activation::PaintedLinkSource,
@@ -547,7 +516,6 @@ fn active_probe(tab_index: usize, panel_index: usize, tabs: usize, panels: usize
     }
 }
 
-#[cfg(windows)]
 fn painted_link_source(
     pane: PaneRef,
     columns: u16,
@@ -590,7 +558,6 @@ fn painted_link_source(
     }
 }
 
-#[cfg(windows)]
 fn publish_link_map(
     pointer: &mut PointerState,
     source: &crate::terminal_link_activation::PaintedLinkSource,
@@ -609,7 +576,6 @@ fn publish_link_map(
     pointer.publish(hits.finish());
 }
 
-#[cfg(windows)]
 fn link_fixture() -> (
     PointerState,
     ClientView,
@@ -630,7 +596,6 @@ fn link_fixture() -> (
     (pointer, ClientView::new(120), port, source, content)
 }
 
-#[cfg(windows)]
 fn notification_shielded_link_map(
     source: &crate::terminal_link_activation::PaintedLinkSource,
     content: Rect,
@@ -652,7 +617,6 @@ fn notification_shielded_link_map(
     hits.finish()
 }
 
-#[cfg(windows)]
 #[test]
 fn notification_card_shields_its_painted_cells_and_releases_them_with_the_next_frame() {
     let content = Rect::new(4, 3, 10, 5);
@@ -689,7 +653,6 @@ fn notification_card_shields_its_painted_cells_and_releases_them_with_the_next_f
     ));
 }
 
-#[cfg(windows)]
 #[test]
 fn notification_card_shields_a_covered_sidebar_control_until_the_card_expires() {
     let button = Rect::new(2, 4, 8, 2);
@@ -745,7 +708,6 @@ fn notification_card_shields_a_covered_sidebar_control_until_the_card_expires() 
     assert!(released.interaction_at(cell.0, cell.1).is_some());
 }
 
-#[cfg(windows)]
 #[test]
 fn notification_frame_cancels_a_pressed_link_and_its_release_stays_swallowed() {
     let (mut pointer, mut view, mut port, source, content) = link_fixture();
@@ -793,7 +755,6 @@ fn notification_frame_cancels_a_pressed_link_and_its_release_stays_swallowed() {
     assert!(port.forwarded.is_empty() && port.actions.is_empty() && port.selections.is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn exact_ctrl_left_click_submits_the_same_painted_cell_without_pane_input() {
     let (mut pointer, mut view, mut port, source, content) = link_fixture();
@@ -824,7 +785,6 @@ fn exact_ctrl_left_click_submits_the_same_painted_cell_without_pane_input() {
     assert!(port.forwarded.is_empty() && port.actions.is_empty() && port.selections.is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn ctrl_left_without_a_painted_link_source_still_owns_and_swallows_release() {
     let content = Rect::new(4, 3, 10, 5);
@@ -869,7 +829,6 @@ fn ctrl_left_without_a_painted_link_source_still_owns_and_swallows_release() {
     assert!(port.forwarded.is_empty() && port.actions.is_empty() && port.selections.is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn link_owner_cancels_on_movement_modifiers_and_painted_source_drift() {
     for case in 0..7 {
@@ -948,7 +907,6 @@ fn link_owner_cancels_on_movement_modifiers_and_painted_source_drift() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn modal_capture_cancels_a_link_once_without_a_redraw_loop() {
     let (mut pointer, mut view, mut port, _source, content) = link_fixture();
@@ -981,7 +939,6 @@ fn modal_capture_cancels_a_link_once_without_a_redraw_loop() {
     assert!(!pointer.tick(&mut view, &mut port, now(), None));
 }
 
-#[cfg(windows)]
 #[test]
 fn ctrl_added_after_an_existing_pointer_owner_never_steals_that_gesture() {
     let content = Rect::new(4, 3, 10, 5);
@@ -1110,7 +1067,7 @@ fn overlay_swallows_inside_click_and_backdrop_dismisses() {
     builder.record(
         HitLayer::Overlay,
         Rect::new(4, 3, 20, 1),
-        HitTarget::Context(context_location(7)),
+        HitTarget::Tab(tab_id(7)),
     );
     builder.record(
         HitLayer::Foreground,
@@ -1128,7 +1085,7 @@ fn overlay_swallows_inside_click_and_backdrop_dismisses() {
     assert!(matches!(map.hit(10, 0), HitResolution::OverlayBackdrop));
     assert!(matches!(
         map.hit(10, 3),
-        HitResolution::Region(HitTarget::Context(_))
+        HitResolution::Region(HitTarget::Tab(_))
     ));
     // Without an active overlay the same cell is ordinary foreground.
     let mut plain = HitMapBuilder::new();
@@ -1248,9 +1205,7 @@ fn pointer_released_capture_gates_every_event() {
             .event(&mut view, &mut port, now(), press(2, 0))
             .handled()
     );
-    #[cfg(not(windows))]
-    assert_eq!(port.actions, vec![ClientAction::SelectTab(1)]);
-    #[cfg(windows)]
+
     assert!(
         port.actions.is_empty(),
         "native tab presses require a painted source and a complete click"
@@ -2301,52 +2256,6 @@ fn map_invalidation_drops_events_until_next_draw() {
 }
 
 #[test]
-fn context_row_click_selects_by_stable_location() {
-    let mut pointer = PointerState::default();
-    pointer.set_capture(true);
-    let mut view = ClientView::new(120);
-    let location = context_location(9);
-    let mut port = RecordingPort {
-        probe: PointerProbe {
-            contexts: vec![context_location(8), location.clone()],
-            ..PointerProbe::default()
-        },
-        ..RecordingPort::default()
-    };
-    pointer.publish({
-        let mut builder = HitMapBuilder::new();
-        builder.mark_overlay_active();
-        builder.record(
-            HitLayer::OverlaySurface,
-            Rect::new(4, 2, 30, 8),
-            HitTarget::OverlaySurface,
-        );
-        builder.record(
-            HitLayer::Overlay,
-            Rect::new(4, 3, 30, 1),
-            HitTarget::Context(location),
-        );
-        builder.finish()
-    });
-    for modifiers in [Modifiers::NONE.with_shift(), Modifiers::CTRL.with_shift()] {
-        let mut input = press(10, 3);
-        input.mods = modifiers;
-        assert_eq!(
-            pointer.event(&mut view, &mut port, now(), input),
-            PointerOutcome::Ignored
-        );
-        assert!(port.actions.is_empty());
-    }
-    assert!(
-        pointer
-            .event(&mut view, &mut port, now(), press(10, 3))
-            .handled()
-    );
-    // The recorded location resolved to navigation index 1.
-    assert_eq!(port.actions, vec![ClientAction::SelectContextAt(1)]);
-}
-
-#[test]
 fn captured_input_swallows_pointer_without_gestures() {
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
@@ -2957,12 +2866,10 @@ fn unbound_panel_focus_requires_exact_empty_member_and_never_forwards_input() {
     }
 }
 
-#[cfg(windows)]
 fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
     workspace_fixture_with_legacy(count, false)
 }
 
-#[cfg(windows)]
 fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, FrameHitMap) {
     use crate::{
         machine_discovery::Context,
@@ -3027,7 +2934,6 @@ fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, Frame
         .unwrap();
     (view, hits.finish())
 }
-#[cfg(windows)]
 #[test]
 fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
@@ -3107,7 +3013,6 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
         assert!(port.actions.is_empty() && port.bytes().is_empty());
     }
 }
-#[cfg(windows)]
 #[test]
 fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navigation() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
@@ -3170,7 +3075,6 @@ fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navig
     assert!(view.machines.request.is_none());
     assert!(port.actions.is_empty() && port.bytes().is_empty());
 }
-#[cfg(windows)]
 #[test]
 fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remaining_packets() {
     let (mut view, map) = workspace_fixture(40);
@@ -3275,7 +3179,6 @@ fn selection_survives_output_repaint_and_structural_edges_cancel_exactly_once() 
             },
         )]
     );
-    #[cfg(windows)]
     {
         assert!(!pointer.retire_covered_chrome_gesture());
         assert!(matches!(pointer.gesture, Gesture::Selection(_)));
@@ -3856,10 +3759,8 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
     }
 }
 
-#[cfg(windows)]
 struct PopupPointerPort(Vec<(WorkbenchRequestId, Rect, MouseEvent)>);
 
-#[cfg(windows)]
 impl TerminalInputPort for PopupPointerPort {
     fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         panic!("popup mouse leaked");
@@ -3870,7 +3771,6 @@ impl TerminalInputPort for PopupPointerPort {
     }
 }
 
-#[cfg(windows)]
 fn popup_close_target(id: &WorkbenchRequestId) -> crate::workbench_client::DrawnPopupClose {
     crate::workbench_client::PopupView {
         id,
@@ -3883,7 +3783,6 @@ fn popup_close_target(id: &WorkbenchRequestId) -> crate::workbench_client::Drawn
     .close_target()
 }
 
-#[cfg(windows)]
 fn popup_close_map(
     target: crate::workbench_client::DrawnPopupClose,
     rect: Rect,
@@ -3906,7 +3805,6 @@ fn popup_close_map(
     hits.finish()
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometry() {
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
@@ -3978,7 +3876,6 @@ fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometr
     assert_eq!(port.0.len(), 3);
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_close_arms_then_activates_once_on_matching_release() {
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 41)).unwrap();
@@ -4031,7 +3928,6 @@ fn popup_close_arms_then_activates_once_on_matching_release() {
     assert!(port.0.is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_close_changed_authority_cleans_up_without_rearming_or_retargeting() {
     let first_id = WorkbenchRequestId::parse(&format!("{:032x}", 51)).unwrap();
@@ -4102,7 +3998,6 @@ fn popup_close_changed_authority_cleans_up_without_rearming_or_retargeting() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn disabled_or_untyped_popup_close_is_swallow_only() {
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 61)).unwrap();

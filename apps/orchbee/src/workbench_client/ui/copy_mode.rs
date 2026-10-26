@@ -887,11 +887,13 @@ impl NativeUi {
             Outcome::Delivered => {
                 self.cancel_copy_mode();
             }
-            Outcome::Failed | Outcome::Unknown => {
+            Outcome::Failed | Outcome::Unknown | Outcome::Unsupported => {
                 if let Some(mode) = self.copy_mode.mode_mut() {
                     mode.clipboard_not_delivered(export);
                 }
-                self.copy_notice(if outcome == Outcome::Unknown {
+                self.copy_notice(if outcome == Outcome::Unsupported {
+                    ClientNotice::Unsupported(crate::tui_capabilities::Capability::Clipboard)
+                } else if outcome == Outcome::Unknown {
                     ClientNotice::CopyUnknown
                 } else {
                     ClientNotice::CopyFailed

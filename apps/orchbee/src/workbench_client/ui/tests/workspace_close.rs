@@ -532,7 +532,6 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                 open_confirmation(&mut ui, None);
                 let token = ui.view().workspace_close_confirmation().unwrap().token();
                 assert!(ui.modal_owns_input());
-                #[cfg(windows)]
                 {
                     assert!(ui.control_dialog());
                     assert!(ui.view().position_draw(std::iter::empty()).is_none());

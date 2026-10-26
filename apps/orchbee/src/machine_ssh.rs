@@ -1,13 +1,7 @@
 //! Shared Windows SSH command policy and installed-Client admission, without catalog or UI ownership.
 use base64::Engine as _;
-use orchbee_local_site_runtime::{WindowsCommandFailure, run_windows_command};
 use serde_json::Value;
-use std::{
-    io,
-    path::{Path, PathBuf},
-    process::Command,
-    time::Instant,
-};
+use std::{io, path::Path, process::Command, time::Instant};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum AdmissionError {
@@ -125,8 +119,8 @@ pub(crate) fn probe(
     deadline: Instant,
     interrupted: impl FnMut() -> io::Result<bool>,
 ) -> io::Result<Client> {
-    let ssh = executable()?;
-    let result = run_windows_command(
+    let ssh = platform::executable()?;
+    let result = platform::execute(
         command(
             &ssh,
             &draft.target,
@@ -134,15 +128,15 @@ pub(crate) fn probe(
         ),
         Some(deadline),
         interrupted,
-    );
+    )?;
     match result.failure {
-        Some(WindowsCommandFailure::Cancelled) => return Err(io::ErrorKind::Interrupted.into()),
-        Some(WindowsCommandFailure::Timeout) => return Err(io::ErrorKind::TimedOut.into()),
-        Some(WindowsCommandFailure::PhysicalUnknown) => {
+        Some(Failure::Cancelled) => return Err(io::ErrorKind::Interrupted.into()),
+        Some(Failure::Timeout) => return Err(io::ErrorKind::TimedOut.into()),
+        Some(Failure::PhysicalUnknown) => {
             return Err(io::ErrorKind::PermissionDenied.into());
         }
-        Some(WindowsCommandFailure::SpawnUnavailable) => return Err(io::ErrorKind::NotFound.into()),
-        Some(WindowsCommandFailure::ExitFailure) => {
+        Some(Failure::SpawnUnavailable) => return Err(io::ErrorKind::NotFound.into()),
+        Some(Failure::ExitFailure) => {
             return Err(probe_exit_kind(result.exit_code, &result.stderr).into());
         }
         Some(_) => return Err(io::Error::other("SSH Client probe failed")),
@@ -188,15 +182,18 @@ fn probe_exit_kind(code: Option<i32>, stderr: &[u8]) -> io::ErrorKind {
     }
 }
 
-/// The OS OpenSSH client, retaining the user's authentication/configuration owner.
-pub(crate) fn executable() -> io::Result<PathBuf> {
-    let path = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
-        .join("OpenSSH/ssh.exe");
-    if !path.is_file() {
-        return Err(io::ErrorKind::NotFound.into());
-    }
-    Ok(path)
-}
+#[cfg(windows)]
+#[path = "machine_ssh/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "machine_ssh/unix.rs"]
+mod platform;
+#[cfg(windows)]
+pub(crate) use platform::executable;
+
+use orchbee_local_site_runtime::{
+    WindowsCommandFailure as Failure, WindowsCommandOutput as Output,
+};
 
 #[cfg(test)]
 mod tests;

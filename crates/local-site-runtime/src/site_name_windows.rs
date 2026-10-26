@@ -1,14 +1,20 @@
 //! Stable local selection identity; it conveys no runtime or controller authority.
+#[cfg(windows)]
 use crate::windows_permissions as permissions;
+#[cfg(windows)]
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::io;
+#[cfg(windows)]
 use std::{
-    io::{self, Read, Write},
+    io::{Read, Write},
     path::Path,
 };
 
 pub(crate) const NAMED_PREFIX: &str = "orchbee-session-";
+#[cfg(windows)]
 const FILE_NAME: &str = "session-name.json";
+#[cfg(windows)]
 const MAXIMUM_BYTES: u64 = 256;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -48,6 +54,7 @@ impl WindowsSiteName {
     }
 }
 
+#[cfg(windows)]
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Record {
@@ -55,6 +62,7 @@ struct Record {
     name: String,
 }
 
+#[cfg(windows)]
 pub(crate) fn read(runtime: &Path) -> io::Result<WindowsSiteName> {
     let file = permissions::open_file(&runtime.join(FILE_NAME), false, false)?;
     let mut bytes = Vec::new();
@@ -71,6 +79,7 @@ pub(crate) fn read(runtime: &Path) -> io::Result<WindowsSiteName> {
     Ok(name)
 }
 
+#[cfg(windows)]
 pub(crate) fn validate_scope(runtime: &Path, name: &WindowsSiteName) -> io::Result<()> {
     let scope = name.scope_for_user(&orchbee_local_ipc::current_user_sid()?);
     if runtime.file_name().and_then(|value| value.to_str()) != Some(scope.as_str()) {
@@ -79,6 +88,7 @@ pub(crate) fn validate_scope(runtime: &Path, name: &WindowsSiteName) -> io::Resu
     Ok(())
 }
 
+#[cfg(windows)]
 pub(crate) fn register(runtime: &Path, name: &WindowsSiteName) -> io::Result<()> {
     validate_scope(runtime, name)?;
     if name.as_str() == "default" {

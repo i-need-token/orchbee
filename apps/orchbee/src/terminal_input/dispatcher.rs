@@ -22,12 +22,10 @@ use super::{
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
 };
 
-#[cfg(windows)]
 mod navigator;
 
 #[derive(Default)]
 pub(crate) struct InputDispatcher {
-    #[cfg(windows)]
     navigator: navigator::Capture,
     graphics: crate::terminal_graphics::Probe,
     pointer_admission: crate::terminal_pointer_admission::Probe,
@@ -35,14 +33,11 @@ pub(crate) struct InputDispatcher {
     pointer_capture: PointerCaptureRequest,
     /// A real button-free report is independent of optional DECRQM support on
     /// the admitted Windows console endpoint. It grants presentation only.
-    #[cfg(windows)]
     native_motion_observed: bool,
     /// A failed level switch may have emitted a prefix. Runtime must exit and
     /// lifecycle cleanup must settle it; input never retries that transition.
     pointer_transition_failed: bool,
-    #[cfg(windows)]
     graphics_replies: Vec<crate::terminal_graphics::Reply>,
-    #[cfg(windows)]
     graphics_reply_overflow: bool,
     decoder: ModalDecoder,
     keys: LegacyDecoder,
@@ -58,30 +53,19 @@ pub(crate) struct InputDispatcher {
     confirm_packet: bool,
     /// A visible Client control owns the rest of its decision packet.
     pointer_packet: bool,
-    #[cfg(windows)]
     machine_packet: bool,
-    #[cfg(windows)]
     sidebar_packet: bool,
-    #[cfg(windows)]
     sidebar_owned: bool,
-    #[cfg(windows)]
     sidebar_cancel_capture: bool,
-    #[cfg(windows)]
     popup_packet: bool,
-    #[cfg(windows)]
     copy_packet: bool,
-    #[cfg(windows)]
     copy_owned: bool,
     settings_packet: bool,
     settings_cancel_capture: bool,
-    #[cfg(windows)]
     menu_packet: bool,
     /// A cancelled menu was still the painted input surface. Capture reads until a fresh frame.
-    #[cfg(windows)]
     menu_cancel_capture: bool,
-    #[cfg(windows)]
     menu_release: Option<super::MouseButton>,
-    #[cfg(windows)]
     popup_owned: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
     /// Pointer ownership: capture flag, last-drawn hit map, gesture
     /// lifecycle, and the bounded wheel stream.
@@ -99,7 +83,6 @@ pub(crate) struct InputDispatcher {
 enum ModalEpoch {
     Rename(NativeRenameDraftToken),
     Setup(NativeSetupToken),
-    #[cfg(windows)]
     Worktree(crate::workbench_client::WorktreeToken),
 }
 
@@ -160,16 +143,13 @@ impl InputDispatcher {
         port: &(impl TerminalInputPort + ?Sized),
     ) -> Option<CaptureOwner> {
         let client = ClientCaptureClaims::default();
-        #[cfg(windows)]
         let client = client
             .with_machine(_view.machines.open)
             .with_resize(_view.resize_mode());
-        #[cfg(windows)]
         let native = port
             .native_capture_claims()
             .with_copy(port.copy_mode_active());
-        #[cfg(not(windows))]
-        let native = port.native_capture_claims();
+
         project_capture(client, native)
     }
 
@@ -202,7 +182,6 @@ impl InputDispatcher {
                     _ => 0,
                 }
             }
-            #[cfg(windows)]
             ModalEpoch::Worktree(token) => {
                 match port.native_capture_context(NativeCaptureOwner::Worktree) {
                     Some(NativeCaptureContext::Worktree(context)) if context.token == token => {
@@ -220,14 +199,12 @@ impl InputDispatcher {
         self.keys.capture_pending();
         self.pointer.invalidate_map_with_port(port);
     }
-    #[cfg(windows)]
     fn settle_action_menu_closed(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.menu_packet = true;
         self.menu_cancel_capture = true;
         self.keys.capture_pending();
         self.pointer.invalidate_map_with_port(port);
     }
-    #[cfg(windows)]
     pub(crate) fn complete_action_menu<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
@@ -252,7 +229,6 @@ impl InputDispatcher {
         match reply {
             HostReply::Graphics(reply) => {
                 self.graphics.reply(reply, now);
-                #[cfg(windows)]
                 if matches!(reply, crate::terminal_graphics::Reply::Kitty { .. }) {
                     if self.graphics_replies.len() < 128 {
                         self.graphics_replies.push(reply);
@@ -281,7 +257,6 @@ impl InputDispatcher {
         }
         Ok(())
     }
-    #[cfg(windows)]
     pub(crate) fn take_graphics_replies(&mut self) -> (Vec<crate::terminal_graphics::Reply>, bool) {
         (
             std::mem::take(&mut self.graphics_replies),
@@ -333,9 +308,7 @@ impl InputDispatcher {
     fn pointer_observability(&self, request: PointerCaptureRequest) -> MotionObservability {
         match request {
             PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
-            #[cfg(windows)]
             PointerCaptureRequest::MenuMotion => MotionObservability::AnyMotion,
-            #[cfg(windows)]
             PointerCaptureRequest::ButtonOnly if self.native_motion_observed => {
                 MotionObservability::AnyMotion
             }
@@ -363,7 +336,6 @@ impl InputDispatcher {
             return Ok(());
         }
         let request = self.admitted_pointer_capture();
-        #[cfg(windows)]
         let request = if request == PointerCaptureRequest::ButtonOnly
             && Self::projected_capture(view, port)
                 == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
@@ -372,8 +344,7 @@ impl InputDispatcher {
         } else {
             request
         };
-        #[cfg(not(windows))]
-        let _ = (view, port);
+
         if self.pointer_capture == request {
             return Ok(());
         }
@@ -386,7 +357,6 @@ impl InputDispatcher {
             .set_motion_observability(self.pointer_observability(request));
         Ok(())
     }
-    #[cfg(windows)]
     pub(crate) fn machine_surface_changed(&mut self) {
         self.keys.capture_pending();
         self.pointer.invalidate_map();
@@ -422,7 +392,6 @@ impl InputDispatcher {
         request: PointerCaptureRequest,
     ) {
         let enabled = request != PointerCaptureRequest::Release;
-        #[cfg(windows)]
         if !enabled {
             let closing = port
                 .native_capture_claims()
@@ -475,7 +444,6 @@ impl InputDispatcher {
     ) -> Option<crate::client_view::help::HelpDrawSource> {
         let help = map.help_draw_source().copied();
         self.settings_cancel_capture = false;
-        #[cfg(windows)]
         {
             if self.navigator.owned {
                 self.navigator.unpresented = map.navigator_paint().is_none();
@@ -499,7 +467,6 @@ impl InputDispatcher {
     /// surface that owns it is still available.
     pub(crate) fn cancel_pointer(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.pointer.cancel_selection(port);
-        #[cfg(windows)]
         {
             self.pointer.cancel_divider();
             self.pointer.cancel_sidebar_width();
@@ -508,7 +475,6 @@ impl InputDispatcher {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn sidebar_reorder_preview(
         &self,
     ) -> Option<crate::tui_pointer::SidebarReorderPreview> {
@@ -524,17 +490,14 @@ impl InputDispatcher {
     }
 
     /// Immutable preview supplied by the gesture owner for one paint pass.
-    #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
         self.pointer.divider_preview()
     }
 
-    #[cfg(windows)]
     pub(crate) fn tab_drag_preview(&self) -> Option<crate::tui_pointer::TabDragPreview> {
         self.pointer.tab_drag_preview()
     }
 
-    #[cfg(windows)]
     pub(crate) fn sidebar_width_preview(&self) -> Option<&crate::tui_layout::SidebarWidthDrag> {
         self.pointer.sidebar_width_preview()
     }
@@ -548,7 +511,6 @@ impl InputDispatcher {
         port: &mut Port,
     ) -> bool {
         let current = Self::projected_capture(view, port);
-        #[cfg(windows)]
         let popup = if current == Some(CaptureOwner::Native(NativeCaptureOwner::Popup)) {
             match port.native_capture_context(NativeCaptureOwner::Popup) {
                 Some(crate::workbench_client::NativeCaptureContext::Popup(context)) => {
@@ -559,27 +521,15 @@ impl InputDispatcher {
         } else {
             None
         };
-        #[cfg(windows)]
         let popup_changed = popup != self.popup_owned;
-        #[cfg(windows)]
         {
             self.popup_owned = popup;
         }
-        if current == self.capture_owner && {
-            #[cfg(windows)]
-            {
-                !popup_changed
-            }
-            #[cfg(not(windows))]
-            {
-                true
-            }
-        } {
+        if current == self.capture_owner && { { !popup_changed } } {
             return false;
         }
 
         let previous = std::mem::replace(&mut self.capture_owner, current);
-        #[cfg(windows)]
         if current.is_some() && self.pointer.retire_covered_chrome_gesture() {
             self.pointer_packet = true;
         }
@@ -588,19 +538,16 @@ impl InputDispatcher {
         {
             self.settle_settings_closed(port);
         }
-        #[cfg(windows)]
         if previous == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
             && current != previous
         {
             self.settle_action_menu_closed(port);
         }
-        #[cfg(windows)]
         if previous == Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
             && (current != previous || popup_changed)
         {
             self.popup_packet = true;
         }
-        #[cfg(windows)]
         if previous == Some(CaptureOwner::Machine) && current != previous {
             self.machine_packet = true;
         }
@@ -657,12 +604,8 @@ impl InputDispatcher {
         self.pointer_admission.tick(now);
         self.synchronize_pointer_admission(view, port, mode)?;
         let appearance_changed = if self.host_appearance.timeout(now).is_some() {
-            #[cfg(windows)]
-            let fallback = crate::terminal_host_appearance::from_windows_apps_use_light_theme(
-                orchbee_local_site_runtime::read_windows_apps_use_light_theme(),
-            );
-            #[cfg(not(windows))]
-            let fallback = crate::terminal_host_appearance::HostAppearance::Unknown;
+            let fallback = crate::terminal_host_appearance::system_fallback();
+
             let appearance = self
                 .host_appearance
                 .settle_fallback(fallback)
@@ -676,7 +619,6 @@ impl InputDispatcher {
         // is already visible to the pure projector here, but it has not yet
         // acquired the host paste lease.
         let owned_input = self.decoder.owns_input() || self.capture_owner.is_some();
-        #[cfg(windows)]
         let owned_input =
             owned_input || view.navigator_active() || view.machines.sidebar_navigation_active();
         // An idle read is a packet boundary too: a `Released` guard left
@@ -694,7 +636,6 @@ impl InputDispatcher {
         self.confirm_packet = false;
         self.pointer_packet = false;
         self.settings_packet = self.settings_cancel_capture;
-        #[cfg(windows)]
         {
             self.machine_packet = false;
             self.sidebar_packet = self.sidebar_cancel_capture;
@@ -717,7 +658,6 @@ impl InputDispatcher {
         changed |= self.pointer.tick(view, port, now, pointer_owner);
         changed |= self.reconcile(view, port, now);
         let capturing = self.decoder.owns_input() || Self::projected_capture(view, port).is_some();
-        #[cfg(windows)]
         let capturing =
             capturing || view.navigator_active() || view.machines.sidebar_navigation_active();
         if !capturing {
@@ -747,7 +687,6 @@ impl InputDispatcher {
         let mut only_idle_motion = true;
         // Ready bytes resolve pending frames before idle timeouts, and a newly
         // available reversal precedes draining the previous list burst.
-        #[cfg(windows)]
         if let Some(outcome) =
             self.complete_action_menu(view, port, now, &mut after_layout, mode)?
         {
@@ -782,7 +721,6 @@ impl InputDispatcher {
             // provenance: it stays captured even when it completes in a
             // later read, while genuinely later input decodes normally.
             let owned = self.confirm_packet || self.settings_packet || self.pointer_packet;
-            #[cfg(windows)]
             let owned = owned
                 || self.navigator.packet
                 || self.machine_packet
@@ -818,7 +756,6 @@ impl InputDispatcher {
         // The final pointer report may retire an input owner without a
         // following byte. Settle that edge before a frame can be published.
         redraw |= self.reconcile(view, port, now);
-        #[cfg(windows)]
         if let Some(outcome) =
             self.complete_action_menu(view, port, now, &mut after_layout, mode)?
         {
@@ -845,7 +782,6 @@ impl InputDispatcher {
 
         let ProjectedCaptureItem { owner, item, now } = projected;
 
-        #[cfg(windows)]
         if owner == CaptureOwner::Machine {
             let mut regions_changed = false;
             match item.kind {
@@ -908,7 +844,6 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
 
-        #[cfg(windows)]
         if owner == CaptureOwner::Copy {
             if !self.copy_packet {
                 match &item.kind {
@@ -953,7 +888,6 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
 
-        #[cfg(windows)]
         if owner == CaptureOwner::Resize {
             if let DecodedKind::Mouse(event) = item.kind {
                 if after_layout(view, port)? {
@@ -984,9 +918,7 @@ impl InputDispatcher {
         }
 
         let native_owner = match owner {
-            #[cfg(windows)]
             CaptureOwner::Machine => unreachable!("the machine capture returned above"),
-            #[cfg(windows)]
             CaptureOwner::Copy | CaptureOwner::Resize => {
                 unreachable!("the client capture returned above")
             }
@@ -1053,7 +985,6 @@ impl InputDispatcher {
                     }
                 }
             }
-            #[cfg(windows)]
             (NativeCaptureOwner::ActionMenu, Some(NativeCaptureContext::ActionMenu(expected))) => {
                 match item.kind {
                     DecodedKind::Key(event) => {
@@ -1133,7 +1064,6 @@ impl InputDispatcher {
                     }
                 }
             }
-            #[cfg(windows)]
             (NativeCaptureOwner::Popup, Some(NativeCaptureContext::Popup(expected))) => {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.pointer.external_capture_event(*event);
@@ -1179,7 +1109,6 @@ impl InputDispatcher {
                     self.pointer.invalidate_map_with_port(port);
                 }
             }
-            #[cfg(windows)]
             (NativeCaptureOwner::Worktree, Some(NativeCaptureContext::Worktree(_)))
             | (NativeCaptureOwner::Setup, Some(NativeCaptureContext::Setup(_)))
             | (NativeCaptureOwner::Rename, Some(NativeCaptureContext::Rename(_))) => {
@@ -1188,9 +1117,7 @@ impl InputDispatcher {
                 // context disappeared between byte reconciliation and dispatch;
                 // consume it without selecting a lower owner.
             }
-            #[cfg(not(windows))]
-            (NativeCaptureOwner::Setup, Some(NativeCaptureContext::Setup(_)))
-            | (NativeCaptureOwner::Rename, Some(NativeCaptureContext::Rename(_))) => {}
+
             (NativeCaptureOwner::PanelClose, Some(NativeCaptureContext::PanelClose(expected))) => {
                 if let DecodedKind::Mouse(event) = &item.kind {
                     self.capture_confirmation_mouse(port, *event);
@@ -1317,7 +1244,6 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Focus(focused) = item.kind {
-            #[cfg(windows)]
             // Preserve the active-drag edge before focus teardown installs its
             // cleanup tombstone; that edge owns the rest of this host packet.
             let tab_drag_cancelled = !focused
@@ -1329,7 +1255,6 @@ impl InputDispatcher {
                 self.pointer.cancel_modal_press();
                 self.pointer.cancel_scrollbar();
             }
-            #[cfg(windows)]
             if !focused {
                 self.menu_release = None;
                 self.navigator.release = None;
@@ -1344,7 +1269,6 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Mouse(event) = item.kind {
-            #[cfg(windows)]
             if self.pointer_capture != PointerCaptureRequest::Release
                 && !self.pointer_transition_failed
                 && event.action == super::MouseAction::Motion
@@ -1363,7 +1287,6 @@ impl InputDispatcher {
                     // one gesture. Settle both before a newer surface can
                     // reinterpret the same physical release.
                     self.modal_release = None;
-                    #[cfg(windows)]
                     {
                         self.menu_release = None;
                     }
@@ -1376,7 +1299,6 @@ impl InputDispatcher {
                     // A fresh press proves the old release can no longer
                     // arrive. It remains eligible for the current owner.
                     self.modal_release = None;
-                    #[cfg(windows)]
                     {
                         self.menu_release = None;
                     }
@@ -1386,7 +1308,6 @@ impl InputDispatcher {
             match self.pointer.cancelled_ui_event(event) {
                 PointerOutcome::InteractionEnded => {
                     self.modal_release = None;
-                    #[cfg(windows)]
                     {
                         // A generic menu interaction and the legacy packet
                         // release latch describe the same physical button.
@@ -1397,13 +1318,11 @@ impl InputDispatcher {
                     self.keys.capture_pending();
                     return Ok(DispatchOutcome::Continue);
                 }
-                #[cfg(windows)]
                 PointerOutcome::ChromeGestureEnded => {
                     self.pointer_packet = true;
                     self.keys.capture_pending();
                     return Ok(DispatchOutcome::Continue);
                 }
-                #[cfg(windows)]
                 PointerOutcome::TabGestureEnded | PointerOutcome::SidebarReorderEnded => {
                     self.menu_packet = true;
                     self.keys.capture_pending();
@@ -1427,7 +1346,6 @@ impl InputDispatcher {
             self.pointer.cancel_modal_press();
             self.pointer.cancel_scrollbar();
         }
-        #[cfg(windows)]
         if let DecodedKind::Mouse(event) = item.kind
             && event.action == super::MouseAction::Press
             && !matches!(
@@ -1446,7 +1364,6 @@ impl InputDispatcher {
             // new debt for this press below.
             self.menu_release = None;
         }
-        #[cfg(windows)]
         if let DecodedKind::Mouse(event) = item.kind
             && event.action == super::MouseAction::Release
             && Self::projected_capture(view, port)
@@ -1501,7 +1418,6 @@ impl InputDispatcher {
             debug_assert!(captured, "an active Help release remains Help-owned");
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if self.capture_navigator_release(&item) {
             return Ok(DispatchOutcome::Continue);
         }
@@ -1512,7 +1428,6 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         let exclusive_packet = self.confirm_packet || self.settings_packet;
-        #[cfg(windows)]
         let exclusive_packet = exclusive_packet
             || self.machine_packet
             || self.popup_packet
@@ -1585,7 +1500,6 @@ impl InputDispatcher {
                 mode,
             );
         }
-        #[cfg(windows)]
         if view.machines.direct_selection_pending()
             && let DecodedKind::Key(event) = item.kind
             && crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event)
@@ -1598,7 +1512,6 @@ impl InputDispatcher {
             self.pointer.invalidate_map_with_port(port);
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if match &item.kind {
             DecodedKind::Key(event) => event.kind != KeyKind::Release,
             DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => true,
@@ -1616,7 +1529,6 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if self.navigator.packet || view.navigator_active() {
             self.flush_pending(view, port);
             if !self.navigator.packet {
@@ -1636,7 +1548,6 @@ impl InputDispatcher {
             }
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if (self.pointer.tab_drag_captured() || self.pointer.sidebar_reorder_captured())
             && !matches!(item.kind, DecodedKind::Mouse(_))
         {
@@ -1651,7 +1562,6 @@ impl InputDispatcher {
             self.keys.capture_pending();
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if matches!(item.kind, DecodedKind::Key(event) if event.kind != KeyKind::Release
             && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
         {
@@ -1668,7 +1578,6 @@ impl InputDispatcher {
                 return Ok(DispatchOutcome::Continue);
             }
         }
-        #[cfg(windows)]
         if self.sidebar_packet
             || (view.machines.sidebar_navigation_active()
                 && !matches!(item.kind, DecodedKind::Mouse(_)))
@@ -1851,7 +1760,6 @@ impl InputDispatcher {
                                         after_layout(view, port)?;
                                     }
                                 }
-                                #[cfg(windows)]
                                 InteractionTarget::GlobalChrome(action) => {
                                     if Self::projected_capture(view, port).is_none() {
                                         let action = match action {
@@ -1881,41 +1789,11 @@ impl InputDispatcher {
                                         }
                                     }
                                 }
-                                #[cfg(not(windows))]
-                                InteractionTarget::Tab(tab) => {
-                                    let probe = port.pointer_probe();
-                                    if let Some(index) = probe.tab_index(&tab)
-                                        && let Ok(position) =
-                                            u8::try_from(probe.tabs[index].position)
-                                        && let Some(disposition) = port
-                                            .apply_client_action(ClientAction::SelectTab(position))
-                                    {
-                                        view.commit_pointer(disposition);
-                                        if disposition.changes_layout() {
-                                            after_layout(view, port)?;
-                                        }
-                                    }
-                                }
-                                #[cfg(not(windows))]
-                                InteractionTarget::Context(location) => {
-                                    let probe = port.pointer_probe();
-                                    if let Some(index) = probe.context_index(&location)
-                                        && let Some(disposition) = port.apply_client_action(
-                                            ClientAction::SelectContextAt(index),
-                                        )
-                                    {
-                                        view.commit_pointer(disposition);
-                                        if disposition.changes_layout() {
-                                            after_layout(view, port)?;
-                                        }
-                                    }
-                                }
-                                #[cfg(windows)]
+
                                 InteractionTarget::TabCloseRequest { source, tab } => {
                                     self.menu_packet = true;
                                     port.request_drawn_tab_close(&source, &tab);
                                 }
-                                #[cfg(windows)]
                                 InteractionTarget::TabCreate(target) => {
                                     // Creation can replace the input target. A stale
                                     // exact witness still owns this physical packet.
@@ -1933,7 +1811,6 @@ impl InputDispatcher {
                                         );
                                     }
                                 }
-                                #[cfg(windows)]
                                 InteractionTarget::Sidebar(drawn) => {
                                     use crate::machine_picker::SidebarActivation;
 
@@ -1981,7 +1858,6 @@ impl InputDispatcher {
                                         after_layout(view, port)?;
                                     }
                                 }
-                                #[cfg(windows)]
                                 InteractionTarget::SidebarFixed(drawn) => {
                                     use crate::machine_picker::SidebarFixedActivation;
 
@@ -2043,7 +1919,6 @@ impl InputDispatcher {
                             // even when the Client viewport class stays unchanged.
                             self.pointer.invalidate_map_with_port(port);
                         }
-                        #[cfg(windows)]
                         if matches!(
                             outcome,
                             PointerOutcome::TabGestureEnded | PointerOutcome::SidebarReorderEnded
@@ -2052,12 +1927,10 @@ impl InputDispatcher {
                             self.keys.capture_pending();
                             self.pointer.invalidate_map_with_port(port);
                         }
-                        #[cfg(windows)]
                         if outcome == PointerOutcome::ChromeGestureEnded {
                             self.pointer_packet = true;
                             self.keys.capture_pending();
                         }
-                        #[cfg(windows)]
                         if let PointerOutcome::MenuRequested {
                             target,
                             anchor,
@@ -2083,7 +1956,6 @@ impl InputDispatcher {
                         if outcome == PointerOutcome::RegionsChanged {
                             self.pointer.stale_map();
                         }
-                        #[cfg(windows)]
                         if outcome == PointerOutcome::SidebarWidthEnded {
                             self.capture_sidebar_redraw(port);
                         }
@@ -2147,7 +2019,6 @@ impl InputDispatcher {
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         let action = transition.action();
-        #[cfg(windows)]
         if action == Some(ClientAction::DismissOnboarding) {
             view.commit(transition, ClientActionDisposition::KeepNavigator);
             if view.onboarding.dismiss().is_err() {
@@ -2156,28 +2027,21 @@ impl InputDispatcher {
             self.pointer.invalidate_map_with_port(port);
             return Ok(DispatchOutcome::Continue);
         }
-        #[cfg(windows)]
         if action != Some(ClientAction::OpenActionMenu) && !transition.prefix_active() {
             // A prefix has not chosen an action yet. Preserve the active drag
             // until the decision, so menu admission can observe its owner.
             self.pointer.cancel_divider();
             self.pointer.cancel_sidebar_width();
         }
-        #[cfg(windows)]
         let requests_copy = action == Some(ClientAction::EnterCopyMode);
-        #[cfg(not(windows))]
-        let requests_copy = false;
-        #[cfg(windows)]
+
         let requests_navigator = action == Some(ClientAction::OpenWorkbenchNavigator);
-        #[cfg(not(windows))]
-        let requests_navigator = false;
-        #[cfg(windows)]
+
         let board_action_handoff = matches!(
             action.as_ref(),
             Some(ClientAction::OpenActionMenu | ClientAction::FocusBusinessSidebar)
         ) && Self::projected_capture(view, port)
             == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard));
-        #[cfg(windows)]
         if action == Some(ClientAction::EnterCopyMode) {
             self.cancel_pointer(port);
             self.copy_packet = true;
@@ -2206,7 +2070,6 @@ impl InputDispatcher {
                     | ClientAction::RequestSidebarWorkspaceDelete(_)
             )
         );
-        #[cfg(windows)]
         let requests_modal = requests_modal
             || matches!(
                 action,
@@ -2225,7 +2088,6 @@ impl InputDispatcher {
             self.cancel_pointer(port);
         }
         let applied = action.clone().and_then(|action| {
-            #[cfg(windows)]
             if action == ClientAction::FocusBusinessSidebar {
                 return if board_action_handoff {
                     port.apply_client_action(action)
@@ -2233,7 +2095,6 @@ impl InputDispatcher {
                     Some(ClientActionDisposition::KeepNavigator)
                 };
             }
-            #[cfg(windows)]
             if action == ClientAction::OpenActionMenu {
                 let disposition = if board_action_handoff {
                     port.apply_client_action(action.clone())?
@@ -2262,17 +2123,19 @@ impl InputDispatcher {
             transition,
             applied.unwrap_or(ClientActionDisposition::KeepNavigator),
         );
-        #[cfg(windows)]
         if action == Some(ClientAction::FocusBusinessSidebar) {
             self.sidebar_packet = true;
             self.keys.capture_pending();
             self.cancel_pointer(port);
             self.pointer.invalidate_map_with_port(port);
         }
-        #[cfg(windows)]
         if view.machines.available {
             match action {
-                Some(ClientAction::OpenMachines) => view.machines.show(),
+                Some(ClientAction::OpenMachines)
+                    if crate::tui_capabilities::Capability::SavedMachines.available() =>
+                {
+                    view.machines.show()
+                }
                 Some(ClientAction::PreviousAgent | ClientAction::NextAgent) => view
                     .machines
                     .navigate_agent(action == Some(ClientAction::PreviousAgent), now),
@@ -2313,7 +2176,6 @@ impl InputDispatcher {
         self.reconcile(view, port, now);
         let capture_admitted =
             self.epoch.is_some() || Self::projected_capture(view, port).is_some();
-        #[cfg(windows)]
         let capture_admitted = capture_admitted
             || view.navigator_active()
             || view.machines.sidebar_navigation_active();
@@ -2368,7 +2230,6 @@ impl InputDispatcher {
         forward_edit_or_report(view, &bytes, editing, port);
     }
 
-    #[cfg(windows)]
     fn capture_sidebar_redraw(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
         self.sidebar_packet = true;
         self.sidebar_cancel_capture = true;
@@ -2416,7 +2277,6 @@ impl InputDispatcher {
             }
             PointerOutcome::Handled | PointerOutcome::IdleMotion { .. } => {}
             PointerOutcome::Ignored => unreachable!("ignored Help input returned above"),
-            #[cfg(windows)]
             PointerOutcome::TabGestureEnded
             | PointerOutcome::SidebarReorderEnded
             | PointerOutcome::SidebarWidthEnded
@@ -2440,11 +2300,9 @@ impl InputDispatcher {
         let projected = Self::projected_capture(view, port);
         let native_owner = match projected {
             Some(CaptureOwner::Native(owner)) => Some(owner),
-            #[cfg(windows)]
             Some(CaptureOwner::Machine | CaptureOwner::Copy | CaptureOwner::Resize) => None,
             None => None,
         };
-        #[cfg(windows)]
         let higher_exclusive = matches!(
             projected,
             Some(CaptureOwner::Machine | CaptureOwner::Native(_))
@@ -2454,7 +2312,6 @@ impl InputDispatcher {
             Some(NativeCaptureContext::Setup(context)) => Some(*context),
             _ => None,
         };
-        #[cfg(windows)]
         let worktree = match context.as_ref() {
             Some(NativeCaptureContext::Worktree(context)) => Some(*context),
             _ => None,
@@ -2462,31 +2319,23 @@ impl InputDispatcher {
         let current = match context.as_ref() {
             Some(NativeCaptureContext::Setup(context)) => Some(ModalEpoch::Setup(context.token)),
             Some(NativeCaptureContext::Rename(context)) => Some(ModalEpoch::Rename(context.token)),
-            #[cfg(windows)]
             Some(NativeCaptureContext::Worktree(context)) => {
                 Some(ModalEpoch::Worktree(context.token))
             }
             _ => None,
         };
-        #[cfg(windows)]
         if higher_exclusive {
             view.exit_resize_mode();
             port.cancel_copy_mode();
         }
-        #[cfg(windows)]
         let capture_retains_sidebar =
             projected == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu));
-        #[cfg(windows)]
         let capture_blocks_sidebar = projected.is_some() && !capture_retains_sidebar;
-        #[cfg(windows)]
         if capture_blocks_sidebar {
             view.machines.leave_sidebar_navigation();
         }
-        #[cfg(windows)]
         let navigator_changed = self.reconcile_navigator(view, port, projected.is_some());
-        #[cfg(not(windows))]
-        let navigator_changed = false;
-        #[cfg(windows)]
+
         let sidebar_changed = {
             let owned = view.machines.sidebar_navigation_active();
             let changed = owned != self.sidebar_owned;
@@ -2501,8 +2350,7 @@ impl InputDispatcher {
             }
             changed
         };
-        #[cfg(not(windows))]
-        let sidebar_changed = false;
+
         let choice_keys = setup.is_some_and(|context| {
             matches!(
                 context.stage,
@@ -2512,13 +2360,11 @@ impl InputDispatcher {
                     | NativeSetupStage::QuickName
             )
         });
-        #[cfg(windows)]
         let choice_keys = choice_keys
             || worktree.is_some_and(|context| {
                 context.stage == crate::workbench_client::WorktreeStage::Checkout
             });
         self.decoder.choice_keys(choice_keys);
-        #[cfg(windows)]
         {
             if higher_exclusive {
                 port.cancel_copy_mode();
@@ -2551,7 +2397,6 @@ impl InputDispatcher {
         } else {
             ModalCapacity::Scalars512
         };
-        #[cfg(windows)]
         let capacity = if matches!(current, Some(ModalEpoch::Worktree(_))) {
             ModalCapacity::Bytes1024
         } else {
@@ -2560,7 +2405,6 @@ impl InputDispatcher {
         if let Some(token) = current
             && self.decoder.start_with_capacity(capacity)
         {
-            #[cfg(windows)]
             view.exit_resize_mode();
             self.epoch = Some(token);
         }
@@ -2610,7 +2454,6 @@ impl InputDispatcher {
                                 _ => None,
                             }
                         }
-                        #[cfg(windows)]
                         Some(ModalEpoch::Worktree(_)) => {
                             match port.native_capture_context(NativeCaptureOwner::Worktree) {
                                 Some(crate::workbench_client::NativeCaptureContext::Worktree(
@@ -2628,7 +2471,6 @@ impl InputDispatcher {
                 continue;
             };
             if let ModalInputEvent::Mouse(event) = event {
-                #[cfg(windows)]
                 self.pointer.external_capture_event(event);
                 let decision = self.pointer.modal_event(port, event);
                 self.capture_modal_release(event);
@@ -2658,7 +2500,6 @@ impl InputDispatcher {
                                 _ => None,
                             }
                         }
-                        #[cfg(windows)]
                         ModalEpoch::Worktree(_) => {
                             match port.native_capture_context(NativeCaptureOwner::Worktree) {
                                 Some(crate::workbench_client::NativeCaptureContext::Worktree(
@@ -2676,7 +2517,6 @@ impl InputDispatcher {
                 self.pointer.cancel_modal_press();
             }
             let token = match epoch {
-                #[cfg(windows)]
                 ModalEpoch::Worktree(token) => {
                     self.apply_worktree_event(port, token, event);
                     continue;
@@ -2720,7 +2560,6 @@ impl InputDispatcher {
         }
     }
 
-    #[cfg(windows)]
     fn apply_worktree_event(
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),

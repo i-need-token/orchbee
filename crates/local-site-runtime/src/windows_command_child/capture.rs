@@ -1,7 +1,7 @@
 //! Bounded, nonblocking capture on the retained Windows Job owner thread.
 use super::WindowsCommandChild;
+use crate::{WindowsCommandFailure, WindowsCommandOutput};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
-use serde::Serialize;
 use std::{
     io::{self, Read, Write},
     process::{Command, Stdio},
@@ -11,26 +11,6 @@ use std::{
 
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum WindowsCommandFailure {
-    ExitFailure,
-    SpawnUnavailable,
-    SpawnFailed,
-    Io,
-    Cancelled,
-    Timeout,
-    PhysicalUnknown,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WindowsCommandOutput {
-    pub exit_code: Option<i32>,
-    pub failure: Option<WindowsCommandFailure>,
-    pub stdout: Vec<u8>,
-    pub stderr: Vec<u8>,
-    pub stdout_truncated: bool,
-    pub stderr_truncated: bool,
-}
 impl WindowsCommandOutput {
     fn empty() -> Self {
         Self {

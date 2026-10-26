@@ -322,5 +322,5 @@ impl<'a> WorkbenchClientView<'a> {
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;

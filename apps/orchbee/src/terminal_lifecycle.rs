@@ -31,7 +31,6 @@ fn write_bell(output: &mut impl io::Write) -> io::Result<()> {
     output.write_all(b"\x07")?;
     output.flush()
 }
-#[cfg(windows)]
 pub(crate) mod graphics;
 
 struct FocusReporting(bool);
@@ -87,7 +86,6 @@ impl crossterm::Command for BracketedPaste {
 pub(crate) enum PointerTrackingLevel {
     ButtonOnly,
     AnyMotion,
-    #[cfg(windows)]
     MenuMotion,
 }
 
@@ -113,7 +111,6 @@ impl crossterm::Command for PointerCapture {
         let sequence = match (self.enabled, self.level) {
             (true, PointerTrackingLevel::ButtonOnly) => "\x1b[?1003l\x1b[?1002h\x1b[?1006h",
             (true, PointerTrackingLevel::AnyMotion) => "\x1b[?1002l\x1b[?1003h\x1b[?1006h",
-            #[cfg(windows)]
             (true, PointerTrackingLevel::MenuMotion) => "\x1b[?1002h\x1b[?1003h\x1b[?1006h",
             (false, _) => "\x1b[?1003l\x1b[?1006l\x1b[?1002l",
         };
@@ -143,16 +140,13 @@ impl crossterm::Command for PointerTrackingTransition {
             (PointerTrackingLevel::AnyMotion, PointerTrackingLevel::ButtonOnly) => {
                 "\x1b[?1003l\x1b[?1002h"
             }
-            #[cfg(windows)]
             (PointerTrackingLevel::MenuMotion, PointerTrackingLevel::ButtonOnly) => {
                 "\x1b[?1003l\x1b[?1002h"
             }
-            #[cfg(windows)]
             (
                 PointerTrackingLevel::ButtonOnly | PointerTrackingLevel::AnyMotion,
                 PointerTrackingLevel::MenuMotion,
             ) => "\x1b[?1002h\x1b[?1003h",
-            #[cfg(windows)]
             (PointerTrackingLevel::MenuMotion, PointerTrackingLevel::AnyMotion) => {
                 "\x1b[?1002l\x1b[?1003h"
             }
@@ -183,7 +177,6 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn ring_bell(&self) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
-    #[cfg(windows)]
     fn cleanup_graphics(&self, _sequence: &str) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
@@ -202,18 +195,15 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
     ) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
-    #[cfg(windows)]
     fn notify_terminal(
         &self,
         _message: &orchbee_workbench_protocol::Notification,
     ) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
-    #[cfg(windows)]
     fn set_window_title(&self, _title: &str) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
-    #[cfg(windows)]
     fn restore_window_title(&self) -> io::Result<()> {
         Ok(())
     }
@@ -242,9 +232,7 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RestorationStep {
-    #[cfg(windows)]
     CleanupGraphics,
-    #[cfg(windows)]
     RestoreWindowTitle,
     DisableBracketedPaste,
     DisablePointerCapture,
@@ -258,9 +246,7 @@ enum RestorationStep {
 impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            #[cfg(windows)]
             Self::CleanupGraphics => formatter.write_str("clean up owned graphics"),
-            #[cfg(windows)]
             Self::RestoreWindowTitle => formatter.write_str("restore window title"),
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
             Self::DisableFocusReporting => formatter.write_str("disable focus reporting"),
@@ -352,7 +338,6 @@ impl ModeLease {
 
 #[derive(Debug)]
 pub(crate) struct SynchronizedUpdateLease {
-    #[cfg(windows)]
     graphics: graphics::ImageLease,
     frame_output_blocked: AtomicBool,
     obligation: ModeLease,
@@ -361,7 +346,6 @@ pub(crate) struct SynchronizedUpdateLease {
 impl SynchronizedUpdateLease {
     pub(crate) const fn new() -> Self {
         Self {
-            #[cfg(windows)]
             graphics: graphics::ImageLease::new(),
             frame_output_blocked: AtomicBool::new(false),
             obligation: ModeLease::new(),
@@ -371,7 +355,6 @@ impl SynchronizedUpdateLease {
     pub(crate) fn open_frame(&self) {
         self.obligation.mark_operation_started();
     }
-    #[cfg(windows)]
     pub(crate) fn graphics(&self) -> &graphics::ImageLease {
         &self.graphics
     }
@@ -395,7 +378,6 @@ impl SynchronizedUpdateLease {
 
 #[derive(Debug)]
 struct TerminalModeState {
-    #[cfg(windows)]
     window_title: ModeLease,
     bracketed_paste: ModeLease,
     pointer_capture: ModeLease,
@@ -409,7 +391,6 @@ struct TerminalModeState {
 impl TerminalModeState {
     fn new() -> Self {
         Self {
-            #[cfg(windows)]
             window_title: ModeLease::new(),
             bracketed_paste: ModeLease::new(),
             pointer_capture: ModeLease::new(),
@@ -567,7 +548,6 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         self.control.query_host_appearance(query)
     }
 
-    #[cfg(windows)]
     pub(crate) fn notify_terminal(
         &mut self,
         message: &orchbee_workbench_protocol::Notification,
@@ -577,7 +557,6 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         }
         self.control.notify_terminal(message)
     }
-    #[cfg(windows)]
     pub(crate) fn set_window_title(&mut self, title: &str) -> io::Result<()> {
         if self.state.synchronized_update.frame_output_blocked() {
             return Err(io::ErrorKind::BrokenPipe.into());
@@ -746,7 +725,6 @@ fn restore_modes<C: TerminalModes>(
 ) -> Result<(), TerminalRestoreError> {
     let mut failures = Vec::with_capacity(5);
     state.synchronized_update.block_frame_output();
-    #[cfg(windows)]
     restore_mode(
         &state.synchronized_update.graphics.obligation,
         RestorationStep::CleanupGraphics,
@@ -764,7 +742,6 @@ fn restore_modes<C: TerminalModes>(
         || control.end_synchronized_update(),
         &mut failures,
     );
-    #[cfg(windows)]
     restore_mode(
         &state.window_title,
         RestorationStep::RestoreWindowTitle,

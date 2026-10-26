@@ -6,16 +6,20 @@
 
 use std::{
     ffi::OsStr,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::Path,
     sync::atomic::{AtomicBool, Ordering},
     thread,
     time::{Duration, Instant},
 };
 
-use process_wrap::std::{ChildWrapper, CommandWrap, CreationFlags, JobObject, KillOnJobClose};
-use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+#[cfg(windows)]
+#[path = "catalog/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "catalog/unix.rs"]
+mod platform;
 
+#[cfg(windows)]
 const POLL: Duration = Duration::from_millis(10);
 const TEARDOWN: Duration = Duration::from_millis(600);
 
@@ -24,16 +28,6 @@ pub(super) enum Query {
     Found,
     Missing,
     Unavailable,
-}
-
-/// The Job's kill-on-close policy is the final process-tree ownership guard.
-/// Normal paths additionally request termination and confirm Job exit.
-struct OwnedJob(Box<dyn ChildWrapper>);
-
-impl Drop for OwnedJob {
-    fn drop(&mut self) {
-        let _ = self.0.start_kill();
-    }
 }
 
 pub(super) fn client_path_candidates(
@@ -45,7 +39,7 @@ pub(super) fn client_path_candidates(
     if stopped(cancelled, deadline) {
         return false;
     }
-    let Ok(system) = winsafe::GetSystemDirectory().map(PathBuf::from) else {
+    let Ok(system) = platform::directory() else {
         return false;
     };
     let executable = system.join("where.exe");
@@ -126,73 +120,18 @@ pub(super) fn query(
     run_deadline: Instant,
     slot_deadline: Instant,
 ) -> Query {
-    if stopped(cancelled, run_deadline) {
-        return Query::Unavailable;
-    }
-    let Some(root) = system.parent() else {
-        return Query::Unavailable;
-    };
-    let mut command = Command::new(executable);
-    command
-        .current_dir(system)
-        .env_clear()
-        .env("SystemRoot", root)
-        .env("PATH", path.unwrap_or_else(|| OsStr::new("")))
-        .env("PATHEXT", ".EXE;.COM;.CMD;.BAT;.PS1")
-        // `$PATH:` excludes the helper's working directory. `/Q` makes the
-        // output bound exactly zero; only the documented exit code is read.
-        .arg("/Q")
-        .arg(format!("$PATH:{name}"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    let mut wrapped = CommandWrap::from(command);
-    wrapped
-        .wrap(CreationFlags(CREATE_NO_WINDOW))
-        .wrap(KillOnJobClose)
-        .wrap(JobObject);
-    if stopped(cancelled, run_deadline) {
-        return Query::Unavailable;
-    }
-    let mut child = match wrapped.spawn() {
-        Ok(child) => OwnedJob(child),
-        Err(_) => return Query::Unavailable,
-    };
-    drop(wrapped);
-
-    loop {
-        if stopped(cancelled, run_deadline) {
-            break;
-        }
-        match child.0.try_wait() {
-            Ok(Some(status)) => {
-                return match status.code() {
-                    Some(0) => Query::Found,
-                    Some(1) => Query::Missing,
-                    _ => Query::Unavailable,
-                };
-            }
-            Ok(None) => {
-                thread::sleep(POLL.min(run_deadline.saturating_duration_since(Instant::now())))
-            }
-            Err(_) => break,
-        }
-    }
-
-    let _ = child.0.start_kill();
-    let teardown_deadline = slot_deadline.min(
-        Instant::now()
-            .checked_add(TEARDOWN)
-            .unwrap_or(slot_deadline),
-    );
-    loop {
-        match child.0.try_wait() {
-            Ok(Some(_)) => return Query::Unavailable,
-            Ok(None) if Instant::now() < teardown_deadline => {
-                thread::sleep(POLL.min(teardown_deadline.saturating_duration_since(Instant::now())))
-            }
-            _ => return Query::Unavailable,
-        }
+    match platform::query(
+        executable,
+        system,
+        path,
+        name,
+        cancelled,
+        run_deadline,
+        slot_deadline,
+    ) {
+        Ok(true) => Query::Found,
+        Ok(false) => Query::Missing,
+        Err(()) => Query::Unavailable,
     }
 }
 

@@ -1063,7 +1063,6 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
         let view = workbench_client.view();
         matches!(view.refresh_status(), Some(NativeRefreshStatus::Success(_)))
     }));
-    #[cfg(windows)]
     {
         // Reconcile the completed refresh, then publish the actual navigator draw.
         input(&mut dispatcher, &mut workbench_client, &mut view, b"", now);

@@ -50,5 +50,5 @@ fn storage(error: io::Error) -> Error {
         Error::Storage
     }
 }
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;

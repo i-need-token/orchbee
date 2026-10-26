@@ -794,7 +794,6 @@ fn style_colors(theme: &Theme) -> Vec<(Role, Option<Color>, Option<Color>)> {
         .collect()
 }
 
-#[cfg(windows)]
 #[test]
 fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
     use orchbee_local_site_runtime::WindowsSidebarTokenStyle;
@@ -848,7 +847,6 @@ fn explicit_sidebar_styles_preserve_absence_and_clear_false_modifiers() {
     assert!(explicit.sub_modifier.contains(Modifier::BOLD));
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_navigation_pairs_text_without_recoloring_status_or_explicit_tokens() {
     use orchbee_local_site_runtime::WindowsSidebarTokenStyle;

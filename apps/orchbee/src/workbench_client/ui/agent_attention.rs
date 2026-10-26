@@ -4,7 +4,6 @@ use crate::workbench_client::agent_attention::{NativeAgentAttentionDraw, Painted
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 impl WorkbenchClientView<'_> {
-    #[cfg(windows)]
     pub(crate) fn edited_completions(
         &self,
     ) -> Vec<(
@@ -16,7 +15,6 @@ impl WorkbenchClientView<'_> {
             .map_or_else(Vec::new, |attention| attention.edited_completions())
     }
 
-    #[cfg(windows)]
     pub(crate) fn panel_completion_edited(&self, panel: &WorkbenchPanelId) -> bool {
         let Some(pane) = self
             .pane_ref_for_panel(panel)
@@ -74,16 +72,7 @@ impl WorkbenchClientView<'_> {
             && self.rename_draft().is_none()
             && self.setup_draft().is_none()
             && self.agent_board().is_none()
-            && {
-                #[cfg(windows)]
-                {
-                    self.worktree().is_none()
-                }
-                #[cfg(not(windows))]
-                {
-                    true
-                }
-            }
+            && { { self.worktree().is_none() } }
     }
 
     fn painted_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {
@@ -262,5 +251,5 @@ impl NativeUi {
 }
 
 // These integration fixtures use Windows client control and legacy notification adapters.
-#[cfg(all(test, windows))]
+#[cfg(test)]
 pub(super) mod tests;

@@ -165,7 +165,6 @@ fn settings_owns_its_hints_without_repeating_them_in_global_status() {
             );
             super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
             let mut shell = ClientView::new(width);
-            #[cfg(windows)]
             {
                 shell.machines.available = true;
             }
@@ -183,7 +182,6 @@ fn settings_owns_its_hints_without_repeating_them_in_global_status() {
                         &theme,
                         &mut hits,
                     );
-                    #[cfg(windows)]
                     shell.machines.render(frame, locale, &theme, &mut hits);
                 })
                 .unwrap();

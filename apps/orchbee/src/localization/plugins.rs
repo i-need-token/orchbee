@@ -252,6 +252,8 @@ impl Locale {
                 "Plugin catalog is being modified; retry after the other operation finishes."
             }
             (Self::ZhCn, Error::Busy) => "插件目录正在修改；请在另一项操作结束后重试。",
+            (Self::EnUs, Error::Unsupported) => "Plugin storage is not supported on this platform.",
+            (Self::ZhCn, Error::Unsupported) => "此平台尚不支持插件存储。",
             (Self::EnUs, Error::StorageUnavailable) => {
                 "Plugin storage could not be safely read or updated."
             }

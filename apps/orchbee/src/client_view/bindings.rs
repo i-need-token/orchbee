@@ -19,7 +19,6 @@ pub(crate) const PREFIX_CHORD: Binding = Binding::new(KeyCode::Char('b'), Modifi
 pub(crate) enum PrefixAction {
     Client(ClientAction),
     SelectTabDigit,
-    #[cfg(windows)]
     SelectAgentDigit,
     SidebarToggle,
     NavigatorToggle,
@@ -62,65 +61,37 @@ pub(crate) struct PrefixMember {
 /// and status hints. Global shortcut discovery uses action metadata instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
-    #[cfg(windows)]
     DismissOnboarding,
-    #[cfg(windows)]
     ActionMenu,
     Settings,
-    #[cfg(windows)]
     ConfiguredCommand(u8),
-    #[cfg(windows)]
     ResizeMode,
-    #[cfg(windows)]
     ResizeLeft,
-    #[cfg(windows)]
     ResizeRight,
-    #[cfg(windows)]
     ResizeUp,
-    #[cfg(windows)]
     ResizeDown,
-    #[cfg(windows)]
     ResizeCoarse,
-    #[cfg(windows)]
     ResizeFine,
-    #[cfg(windows)]
     ResizeExit,
-    #[cfg(windows)]
     CopyMode,
-    #[cfg(windows)]
     CopyMove,
-    #[cfg(windows)]
     CopyWord,
-    #[cfg(windows)]
     CopyParagraph,
-    #[cfg(windows)]
     CopyPage,
-    #[cfg(windows)]
     CopyEnds,
-    #[cfg(windows)]
     CopySearch,
-    #[cfg(windows)]
     CopyRepeatSearch,
-    #[cfg(windows)]
     CopyReverseSearch,
-    #[cfg(windows)]
     CopySelection,
-    #[cfg(windows)]
     CopySubmit,
-    #[cfg(windows)]
     CopyExit,
-    #[cfg(windows)]
     Machines,
-    #[cfg(windows)]
     AgentCycle,
-    #[cfg(windows)]
     AgentIndex,
     ReloadConfiguration,
     WorkspaceCreate,
     QuickWorkspaceCreate,
-    #[cfg(windows)]
     WorktreeCreate,
-    #[cfg(windows)]
     WorktreeOpen,
     WorkspaceClose,
     ControlTakeover,
@@ -141,7 +112,6 @@ pub(crate) enum PrefixDesc {
     ClosePanel,
     MovePanel,
     SidebarToggle,
-    #[cfg(windows)]
     SidebarFocus,
     NavigatorToggle,
     BoardToggle,
@@ -180,7 +150,6 @@ use super::PanelDirection;
 /// Every prefix-layer binding group, in help order. The first member label of
 /// each group joins with `" / "` into the help chord column.
 pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(key(KeyCode::F(1)), ClientAction::DismissOnboarding)],
         desc: PrefixDesc::DismissOnboarding,
@@ -189,27 +158,22 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         members: &[member(key(KeyCode::F(4)), ClientAction::OpenSettings)],
         desc: PrefixDesc::Settings,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(key(KeyCode::F(2)), ClientAction::OpenActionMenu)],
         desc: PrefixDesc::ActionMenu,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('w'), ClientAction::RequestWorktreeCreate)],
         desc: PrefixDesc::WorktreeCreate,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('o'), ClientAction::RequestWorktreeOpen)],
         desc: PrefixDesc::WorktreeOpen,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('u'), ClientAction::EnterCopyMode)],
         desc: PrefixDesc::CopyMode,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(
             KeySet::One(Binding::new(
@@ -220,17 +184,14 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         )],
         desc: PrefixDesc::ResizeMode,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('n'), ClientAction::RequestQuickWorkspace)],
         desc: PrefixDesc::QuickWorkspaceCreate,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(shift_key('d'), ClientAction::RequestWorkspaceClose)],
         desc: PrefixDesc::WorkspaceClose,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(
             key(KeyCode::Char('t')),
@@ -238,12 +199,10 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         )],
         desc: PrefixDesc::ControlTakeover,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(key(KeyCode::Char('M')), ClientAction::OpenMachines)],
         desc: PrefixDesc::Machines,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[
             member(key(KeyCode::Char('{')), ClientAction::PreviousAgent),
@@ -406,7 +365,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         }],
         desc: PrefixDesc::SidebarToggle,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[
             member(key(KeyCode::Tab), ClientAction::FocusBusinessSidebar),
@@ -474,7 +432,6 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
         members: &[member(key(KeyCode::Esc), ClientAction::DismissPrefix)],
         desc: PrefixDesc::DismissPrefix,
     },
-    #[cfg(windows)]
     PrefixGroup {
         members: &[member(
             key(KeyCode::F(5)),

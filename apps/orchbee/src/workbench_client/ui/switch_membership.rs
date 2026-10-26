@@ -86,15 +86,12 @@ impl NativeUi {
         {
             match state.prepare_switch_candidate(&marker, outcome) {
                 Ok(prepared) => {
-                    #[cfg(windows)]
                     if !self.menu_switch_candidate_valid(marker.anchor().generation(), &prepared) {
                         self.fail_action_menu();
                         None
                     } else {
                         Some(prepared)
                     }
-                    #[cfg(not(windows))]
-                    Some(prepared)
                 }
                 Err(failure) => {
                     self.retire(failure);
@@ -189,7 +186,6 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
-                #[cfg(windows)]
                 {
                     self.menu_navigation_prepared(
                         super::action_menus::NavigationKey::Tab(marker.anchor().generation()),

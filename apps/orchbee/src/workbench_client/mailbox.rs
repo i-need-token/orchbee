@@ -40,7 +40,6 @@ const UI_REPLY_DEPOSIT_SAMPLE_BOUND: Duration = Duration::from_secs(5);
 
 mod tab_close;
 mod workspace_setup;
-#[cfg(windows)]
 mod worktree_launch;
 use super::state::workspace_setup::{SetupOperation, SetupResult};
 use workspace_setup::SetupFlight;
@@ -55,7 +54,6 @@ use tab_rename::RenameFlight;
 pub(super) use tab_rename::{RenameMarker, RenameSettlement};
 mod tab_close_reconciliation;
 use tab_close::CloseFlight;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) use tab_close::RetiredMailboxSeed;
 pub(super) use tab_close::{CloseAdmissionError, CloseMarker};
 use tab_close_reconciliation::CloseReconciliationFlight;
@@ -165,7 +163,6 @@ pub(super) struct RefreshMarker {
 enum RefreshPurpose {
     Snapshot,
     Quick(Box<super::state::workspace_setup::quick::QuickPreparation>),
-    #[cfg(windows)]
     Worktree(Box<super::state::worktree_launch::Preparation>),
     WorkspaceClose(Box<super::state::workspace_close::WorkspaceCloseOperation>),
     Takeover(Box<super::state::control_takeover::TakeoverOperation>),
@@ -202,7 +199,6 @@ impl RefreshMarker {
         }
     }
 
-    #[cfg(windows)]
     pub(super) fn worktree_preparation(
         &self,
     ) -> Option<&super::state::worktree_launch::Preparation> {
@@ -711,7 +707,6 @@ pub(super) enum WorkerEvent {
         evidence: super::state::workspace_close::WorkspaceCloseEvidence,
         outcome: Box<WorkbenchSnapshotOutcome>,
     },
-    #[cfg(windows)]
     WorktreePrepared {
         preparation: Box<super::state::worktree_launch::Preparation>,
         source: Option<orchbee_workbench_protocol::WorktreeSource>,
@@ -947,7 +942,6 @@ impl WorkerEvent {
                 UiCorrelation::Panel(operation.request_id().clone()),
                 UiReplyKind::Panel,
             ),
-            #[cfg(windows)]
             Self::WorktreePrepared { preparation, .. } => (
                 UiCorrelation::Refresh(preparation.generation),
                 UiReplyKind::Refresh,
@@ -1949,7 +1943,6 @@ impl CommandMailbox {
 
     /// Selected duplication waits for the preceding lease, reply and causal poll settlement.
     /// The idle observation and identity allocation share this one admission mutex.
-    #[cfg(windows)]
     pub(super) fn try_enqueue_settled_duplicate_for<Canonical, BuildError>(
         &self,
         canonical: &mut Canonical,
@@ -2574,7 +2567,6 @@ impl CommandMailbox {
         }
         let refresh_generation = match &event {
             WorkerEvent::RefreshSnapshotResult { generation, .. } => Some(*generation),
-            #[cfg(windows)]
             WorkerEvent::WorktreePrepared { preparation, .. } => Some(preparation.generation),
             WorkerEvent::QuickWorkspacePrepared { preparation, .. } => Some(preparation.generation),
             WorkerEvent::WorkspaceCloseResult { evidence, .. } => {

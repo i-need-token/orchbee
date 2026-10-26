@@ -900,10 +900,7 @@ fn render_checkouts<'a>(
 /// Git reports Windows checkouts with forward slashes; display uses the native separator the
 /// user sees elsewhere. Identities and submitted values keep the reported text.
 fn native_path(path: &str) -> String {
-    #[cfg(windows)]
     return path.replace('/', "\\");
-    #[cfg(not(windows))]
-    path.to_owned()
 }
 
 fn path_text(path: &str, budget: usize, marker: &str) -> String {

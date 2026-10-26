@@ -25,7 +25,6 @@ pub(in crate::workbench_client) use reconciliation::{
 };
 pub(in crate::workbench_client) use set::CloseSetCapture;
 pub(crate) use set::CloseSetStatus;
-#[cfg(any(windows, test))]
 pub(in crate::workbench_client) use set::{CloseSetKind, close_set_targets};
 
 const MAXIMUM_CLOSE_RECORDS: usize = 256;

@@ -141,7 +141,6 @@ pub(super) struct SetupParent {
     quick: Option<super::quick::QuickWorkspaceFields>,
 }
 pub(crate) struct NativeSetupDraftView<'a> {
-    #[cfg(windows)]
     foreground_preparation: bool,
     pub(super) draft: &'a SetupDraft,
     presentation: PresentationPhase,
@@ -186,7 +185,6 @@ impl<'a> NativeSetupProjectView<'a> {
     }
 }
 impl<'a> NativeSetupDraftView<'a> {
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn background(&self) -> bool {
         (self.draft.stage == NativeSetupStage::PreparingWorkspace && !self.foreground_preparation)
             || self.draft.quick.is_some() && self.draft.continuation.is_some()
@@ -508,7 +506,6 @@ impl WorkbenchClientState {
                 .as_ref()
                 .is_none_or(|fields| fields.target_current(self)))
         .then_some(NativeSetupDraftView {
-            #[cfg(windows)]
             foreground_preparation: self
                 .setup
                 .preparation
@@ -543,7 +540,6 @@ impl WorkbenchClientState {
         }
     }
     pub(in crate::workbench_client) fn cancel_setup_on_retirement(&mut self) {
-        #[cfg(any(windows, test))]
         self.cancel_project_quick_entry();
         self.setup.draft = None;
         self.setup.preparation = None;

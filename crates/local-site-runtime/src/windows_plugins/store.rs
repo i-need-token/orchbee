@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fs::File,
     io::{self, Read},
-    path::{Path, PathBuf, Prefix},
+    path::{Path, PathBuf},
 };
 
 const REGISTRY_LIMIT: usize = 1024 * 1024;
@@ -80,6 +80,7 @@ impl PluginRegistry {
     pub fn from_environment(
         env: impl Fn(&str) -> Option<std::ffi::OsString>,
     ) -> Result<Self, Error> {
+        platform::require()?;
         let path = windows_user_settings_path(env)
             .map_err(|_| Error::InvalidPath)?
             .ok_or(Error::InvalidPath)?;
@@ -87,6 +88,7 @@ impl PluginRegistry {
     }
     /// The root is an absolute, private catalog directory, not a linked plugin source.
     pub fn at(root: PathBuf) -> Result<Self, Error> {
+        platform::require()?;
         if !root.is_absolute()
             || root.components().any(|c| {
                 matches!(
@@ -228,18 +230,7 @@ impl PluginRegistry {
 }
 
 fn fixed_local_volume(path: &Path) -> bool {
-    let Some(prefix) = path.components().next() else {
-        return false;
-    };
-    let drive = match prefix {
-        std::path::Component::Prefix(prefix) => match prefix.kind() {
-            Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => letter,
-            _ => return false,
-        },
-        _ => return false,
-    };
-    let root = format!("{}:\\", char::from(drive));
-    winsafe::GetDriveType(Some(&root)) == winsafe::co::DRIVE::FIXED
+    platform::fixed_local_volume(path)
 }
 
 fn registered_fingerprint(revision: u64, plugins: &[PluginRegistryEntry]) -> Result<String, Error> {
@@ -382,3 +373,10 @@ fn component(id: &str) -> String {
     }
     name
 }
+
+#[cfg(windows)]
+#[path = "store/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "store/unix.rs"]
+mod platform;

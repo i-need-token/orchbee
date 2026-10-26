@@ -163,5 +163,5 @@ impl NativeUi {
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests;

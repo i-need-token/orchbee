@@ -262,16 +262,7 @@ impl WorkbenchClientState {
     }
 
     fn close_set_marks(&self) -> Vec<WorkbenchTabId> {
-        #[cfg(windows)]
-        {
-            self.selected_tab_ids()
-        }
-        #[cfg(not(windows))]
-        {
-            self.active()
-                .map(|tab| vec![tab.key().anchor().tab_id().clone()])
-                .unwrap_or_default()
-        }
+        { self.selected_tab_ids() }
     }
 
     /// Freeze an explicit background target without navigating or impersonating active focus.

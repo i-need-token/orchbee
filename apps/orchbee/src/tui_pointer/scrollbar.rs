@@ -86,7 +86,6 @@ impl PointerState {
         source: ScrollbarSnapshot,
     ) -> PointerOutcome {
         let modal = view.overlay().is_some();
-        #[cfg(windows)]
         let modal = modal || view.resize_mode();
         if event.action != MouseAction::Press
             || event.button != MouseButton::Left

@@ -14,7 +14,6 @@ pub(super) enum ModalCapacity {
     #[default]
     Scalars512,
     Bytes4096,
-    #[cfg(windows)]
     Bytes1024,
 }
 
@@ -23,7 +22,6 @@ impl ModalCapacity {
         remaining.min(match self {
             Self::Scalars512 => 512,
             Self::Bytes4096 => 4096,
-            #[cfg(windows)]
             Self::Bytes1024 => 1024,
         })
     }
@@ -32,7 +30,6 @@ impl ModalCapacity {
         match self {
             Self::Scalars512 => 1,
             Self::Bytes4096 => character.len_utf8(),
-            #[cfg(windows)]
             Self::Bytes1024 => character.len_utf8(),
         }
     }

@@ -8,11 +8,8 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeCaptureOwner {
     Settings,
-    #[cfg(windows)]
     ActionMenu,
-    #[cfg(windows)]
     Popup,
-    #[cfg(windows)]
     Worktree,
     Setup,
     Rename,
@@ -24,12 +21,9 @@ pub(crate) enum NativeCaptureOwner {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CaptureOwner {
-    #[cfg(windows)]
     Machine,
     Native(NativeCaptureOwner),
-    #[cfg(windows)]
     Copy,
-    #[cfg(windows)]
     Resize,
 }
 
@@ -41,11 +35,8 @@ pub(crate) enum CaptureOwner {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeCaptureClaims {
     settings: bool,
-    #[cfg(windows)]
     action_menu: bool,
-    #[cfg(windows)]
     popup: bool,
-    #[cfg(windows)]
     worktree: bool,
     setup: bool,
     rename: bool,
@@ -53,7 +44,6 @@ pub(crate) struct NativeCaptureClaims {
     tab_close: bool,
     workspace_close: bool,
     agent_board: bool,
-    #[cfg(windows)]
     copy: bool,
 }
 
@@ -63,19 +53,16 @@ impl NativeCaptureClaims {
         self
     }
 
-    #[cfg(windows)]
     pub(crate) const fn with_action_menu(mut self, captured: bool) -> Self {
         self.action_menu = captured;
         self
     }
 
-    #[cfg(windows)]
     pub(crate) const fn with_popup(mut self, captured: bool) -> Self {
         self.popup = captured;
         self
     }
 
-    #[cfg(windows)]
     pub(crate) const fn with_worktree(mut self, captured: bool) -> Self {
         self.worktree = captured;
         self
@@ -111,7 +98,6 @@ impl NativeCaptureClaims {
         self
     }
 
-    #[cfg(windows)]
     pub(crate) const fn with_copy(mut self, captured: bool) -> Self {
         self.copy = captured;
         self
@@ -120,11 +106,8 @@ impl NativeCaptureClaims {
     pub(crate) const fn contains(self, owner: NativeCaptureOwner) -> bool {
         match owner {
             NativeCaptureOwner::Settings => self.settings,
-            #[cfg(windows)]
             NativeCaptureOwner::ActionMenu => self.action_menu,
-            #[cfg(windows)]
             NativeCaptureOwner::Popup => self.popup,
-            #[cfg(windows)]
             NativeCaptureOwner::Worktree => self.worktree,
             NativeCaptureOwner::Setup => self.setup,
             NativeCaptureOwner::Rename => self.rename,
@@ -143,20 +126,16 @@ impl NativeCaptureClaims {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ClientCaptureClaims {
-    #[cfg(windows)]
     machine: bool,
-    #[cfg(windows)]
     resize: bool,
 }
 
 impl ClientCaptureClaims {
-    #[cfg(windows)]
     pub(crate) const fn with_machine(mut self, captured: bool) -> Self {
         self.machine = captured;
         self
     }
 
-    #[cfg(windows)]
     pub(crate) const fn with_resize(mut self, captured: bool) -> Self {
         self.resize = captured;
         self
@@ -173,15 +152,12 @@ pub(crate) const fn project_native_capture(
     if claims.settings {
         Some(NativeCaptureOwner::Settings)
     } else {
-        #[cfg(windows)]
         if claims.action_menu {
             return Some(NativeCaptureOwner::ActionMenu);
         }
-        #[cfg(windows)]
         if claims.popup {
             return Some(NativeCaptureOwner::Popup);
         }
-        #[cfg(windows)]
         if claims.worktree {
             return Some(NativeCaptureOwner::Worktree);
         }
@@ -209,18 +185,15 @@ pub(crate) const fn project_capture(
     client: ClientCaptureClaims,
     native: NativeCaptureClaims,
 ) -> Option<CaptureOwner> {
-    #[cfg(windows)]
     if client.machine {
         return Some(CaptureOwner::Machine);
     }
     if let Some(owner) = project_native_capture(native) {
         return Some(CaptureOwner::Native(owner));
     }
-    #[cfg(windows)]
     if native.copy {
         return Some(CaptureOwner::Copy);
     }
-    #[cfg(windows)]
     if client.resize {
         return Some(CaptureOwner::Resize);
     }
@@ -233,10 +206,8 @@ pub(crate) const fn project_capture(
 pub(crate) const fn client_chrome_overlay_allowed(owner: Option<CaptureOwner>) -> bool {
     match owner {
         None => true,
-        #[cfg(windows)]
         Some(CaptureOwner::Copy | CaptureOwner::Resize) => true,
         Some(CaptureOwner::Native(_)) => false,
-        #[cfg(windows)]
         Some(CaptureOwner::Machine) => false,
     }
 }
@@ -275,7 +246,6 @@ mod tests {
         assert!(!client_chrome_overlay_allowed(Some(CaptureOwner::Native(
             NativeCaptureOwner::Settings
         ))));
-        #[cfg(windows)]
         {
             assert!(client_chrome_overlay_allowed(Some(CaptureOwner::Copy)));
             assert!(client_chrome_overlay_allowed(Some(CaptureOwner::Resize)));
@@ -283,7 +253,6 @@ mod tests {
         }
     }
 
-    #[cfg(windows)]
     #[test]
     fn machine_legitimately_covers_a_retained_native_capture() {
         let client = ClientCaptureClaims::default().with_machine(true);
@@ -297,7 +266,6 @@ mod tests {
         );
     }
 
-    #[cfg(windows)]
     #[test]
     fn windows_native_order_matches_the_compositor() {
         let claims = NativeCaptureClaims::default()
@@ -316,7 +284,6 @@ mod tests {
         );
     }
 
-    #[cfg(windows)]
     #[test]
     fn lower_client_modes_follow_native_exclusives_in_one_total_order() {
         let copy = NativeCaptureClaims::default().with_copy(true);

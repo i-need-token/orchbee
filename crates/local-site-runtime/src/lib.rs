@@ -7,9 +7,7 @@ mod user_preferences;
 pub use user_preferences::{
     UserPreferencesScope, UserPreferencesStore, UserTerminalColors, UserTerminalLaunchDefaults,
 };
-#[cfg(windows)]
 mod windows_plugins;
-#[cfg(windows)]
 pub use windows_plugins::{
     PluginActionDefinition, PluginGithubSource, PluginManagedSource, PluginManifest,
     PluginPaneDefinition, PluginPanePlacement, PluginPlatform, PluginPopupSize,
@@ -26,20 +24,20 @@ pub use windows_host_appearance::read_windows_apps_use_light_theme;
 mod private_cache_windows;
 #[cfg(windows)]
 pub use private_cache_windows::WindowsPrivateCache;
+#[cfg(not(windows))]
+mod private_cache_unix;
+#[cfg(not(windows))]
+pub use private_cache_unix::WindowsPrivateCache;
 #[cfg(windows)]
 mod windows_frame_directory;
 #[cfg(windows)]
 pub use windows_frame_directory::{WINDOWS_FRAME_MAXIMUM_BYTES, WindowsPrivateFrameDirectory};
-#[cfg(windows)]
 mod windows_user_path;
-#[cfg(windows)]
 pub use windows_user_path::{
     WINDOWS_USER_PATH_LIMIT, WindowsUserPathError, WindowsUserPathOperand,
     normalize_windows_user_path,
 };
-#[cfg(windows)]
 mod windows_user_settings;
-#[cfg(windows)]
 pub use windows_user_settings::{
     DEFAULT_WINDOW_TITLE, MAXIMUM_AGENT_SIDEBAR_PROFILE_BYTES, MAXIMUM_AGENT_SOUND_OVERRIDES,
     MAXIMUM_NOTIFICATION_DELAY_SECONDS, MAXIMUM_NOTIFICATION_PROFILE_BYTES,
@@ -48,26 +46,28 @@ pub use windows_user_settings::{
     WindowsAgentSidebarTokenKind, WindowsAgentSoundSetting, WindowsCommandSize,
     WindowsCustomCommand, WindowsCustomCommandAction, WindowsCustomCommandEntry,
     WindowsDefaultActionBindings, WindowsDirectoryPolicy, WindowsKeyChord, WindowsKeyOverride,
-    WindowsKeySettings, WindowsKeyTrigger, WindowsKeysResetOutcome, WindowsKeysResetReport,
-    WindowsNotificationDelivery, WindowsNotificationSettings, WindowsSettingsDiagnostic,
-    WindowsSettingsDiagnosticDisposition, WindowsSettingsDiagnostics, WindowsSettingsError,
-    WindowsShellMode, WindowsShellSettings, WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings,
-    WindowsSpaceSidebarToken, WindowsSpaceSidebarTokenKind, WindowsThemeName, WindowsUpdateChannel,
-    WindowsUserConfigOption, WindowsUserSettings, WindowsUserSettingsLoad,
-    WindowsWindowTitleTemplate, default_windows_user_settings_toml,
-    default_windows_user_settings_toml_with_actions, read_windows_user_settings,
-    read_windows_user_settings_at, reset_windows_keybindings, set_windows_update_channel,
-    trigger_label, windows_user_settings_path,
+    WindowsKeySettings, WindowsKeyTrigger, WindowsNotificationDelivery,
+    WindowsNotificationSettings, WindowsSettingsDiagnostic, WindowsSettingsDiagnosticDisposition,
+    WindowsSettingsDiagnostics, WindowsSettingsError, WindowsShellMode, WindowsShellSettings,
+    WindowsSidebarTokenStyle, WindowsSpaceSidebarSettings, WindowsSpaceSidebarToken,
+    WindowsSpaceSidebarTokenKind, WindowsThemeName, WindowsUpdateChannel, WindowsUserConfigOption,
+    WindowsUserSettings, WindowsUserSettingsLoad, WindowsWindowTitleTemplate,
+    default_windows_user_settings_toml, default_windows_user_settings_toml_with_actions,
+    read_windows_user_settings, read_windows_user_settings_at, trigger_label,
+    windows_user_settings_path,
 };
 #[cfg(windows)]
+pub use windows_user_settings::{
+    WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings,
+    set_windows_update_channel,
+};
 mod windows_directory;
-#[cfg(windows)]
 pub use windows_directory::{
     windows_interactive_powershell_initialization, windows_reported_directory,
 };
-#[cfg(windows)]
+mod command_outcome;
+pub use command_outcome::{WindowsCommandFailure, WindowsCommandOutput};
 mod windows_command;
-#[cfg(windows)]
 pub use windows_command::{windows_encoded_command, windows_raw_command_encoded};
 #[cfg(windows)]
 mod activation_record_windows;
@@ -99,14 +99,12 @@ mod rendezvous_types;
 mod retained_child;
 #[cfg(windows)]
 mod session_store_windows;
-#[cfg(windows)]
 mod site_name_windows;
 #[cfg(windows)]
 pub use named_site_catalog_windows::{
     WindowsNamedSiteCatalog, WindowsNamedSiteDeleteFailure, WindowsNamedSiteDeleteOutcome,
     WindowsNamedSiteDeleteReason, WindowsNamedSiteEntry,
 };
-#[cfg(windows)]
 pub use site_name_windows::WindowsSiteName;
 #[cfg(windows)]
 mod windows_permissions;
@@ -161,8 +159,8 @@ pub fn spawn_retained(
 mod windows_command_child;
 #[cfg(windows)]
 pub use windows_command_child::{
-    WindowsCommandChild, WindowsCommandFailure, WindowsCommandOutput, WindowsCommandSpawnFailure,
-    resolve_windows_program, run_windows_command, run_windows_command_exchange,
+    WindowsCommandChild, WindowsCommandSpawnFailure, resolve_windows_program, run_windows_command,
+    run_windows_command_exchange,
 };
 mod default_interactive_launch;
 pub use default_interactive_launch::{

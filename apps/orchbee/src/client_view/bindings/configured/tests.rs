@@ -43,7 +43,6 @@ fn effective_action_labels_apply_glyph_fallback_to_all_complete_overridden_chord
     assert_eq!(bindings.action_labels(action), ["Ctrl+a ←", "Ctrl+→"]);
 }
 
-#[cfg(windows)]
 #[test]
 fn default_config_action_rows_match_resolved_bindings_after_round_trip() {
     use std::fmt::Write as _;

@@ -142,7 +142,7 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod storage_tests {
     use super::*;
     struct Root(PathBuf);

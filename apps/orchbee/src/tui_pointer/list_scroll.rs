@@ -9,18 +9,13 @@ use crate::client_view::help::HelpDrawSource;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
     Setup(crate::workbench_client::NativeSetupToken),
-    #[cfg(windows)]
     Worktree(crate::workbench_client::WorktreeToken),
-    #[cfg(windows)]
     Copy(crate::terminal_copy_mode::CopyModeToken),
     AgentBoard(crate::workbench_client::AgentBoardToken),
     Help(crate::client_view::help::HelpDrawSource),
     Settings(crate::native_settings::Token),
-    #[cfg(windows)]
     Menu(crate::action_menu::MenuToken),
-    #[cfg(windows)]
     Navigator(crate::client_view::navigator::Row),
-    #[cfg(windows)]
     MachinePicker(crate::machine_picker::DrawnPickerList),
 }
 
@@ -67,7 +62,6 @@ impl PointerState {
         if matches!(target, Target::Help(HelpDrawSource::Refused { .. })) {
             return false;
         }
-        #[cfg(windows)]
         if matches!(target, Target::Copy(_))
             && !self.map.as_ref().is_some_and(|map| {
                 matches!(
@@ -126,23 +120,19 @@ impl PointerState {
             usize::from(pending.area.height)
         };
         let lines = pending.lines.min(capacity);
-        #[cfg(windows)]
         let lines = if matches!(pending.target, Target::Worktree(_)) {
             pending.lines.min(capacity / 2)
         } else {
             lines
         };
-        #[cfg(windows)]
         let previous_focus = view.navigator.focus.clone();
         let next = match &pending.target {
             Target::Setup(token) => port
                 .scroll_setup_projects(*token, pending.up, lines)
                 .map(Target::Setup),
-            #[cfg(windows)]
             Target::Worktree(token) => port
                 .scroll_worktree(*token, pending.up, lines)
                 .map(Target::Worktree),
-            #[cfg(windows)]
             Target::Copy(token) => port
                 .scroll_copy_mode(*token, pending.up, lines)
                 .map(Target::Copy),
@@ -161,16 +151,13 @@ impl PointerState {
             Target::Settings(token) => port
                 .scroll_settings(*token, pending.up, lines)
                 .map(Target::Settings),
-            #[cfg(windows)]
             Target::Menu(token) => port
                 .scroll_action_menu(*token, pending.up, lines)
                 .map(Target::Menu),
-            #[cfg(windows)]
             Target::Navigator(row) => view
                 .navigator
                 .scroll(row, pending.up, lines)
                 .map(Target::Navigator),
-            #[cfg(windows)]
             Target::MachinePicker(target) => view
                 .machines
                 .scroll_drawn_picker(target, pending.up, lines)
@@ -180,7 +167,6 @@ impl PointerState {
             return false;
         };
         let changed = next != pending.target;
-        #[cfg(windows)]
         let changed = changed
             || matches!(pending.target, Target::Navigator(_))
                 && previous_focus != view.navigator.focus;

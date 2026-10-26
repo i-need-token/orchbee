@@ -1,32 +1,22 @@
-#[cfg(windows)]
 mod action_menus;
 mod agent_attention;
-#[cfg(windows)]
 mod launch_profiles;
-#[cfg(windows)]
 mod pane_graphics;
 pub(in crate::workbench_client) mod settings;
-#[cfg(windows)]
 mod sidebar_reorder;
-#[cfg(windows)]
 mod tab_duplication;
-#[cfg(windows)]
 mod tab_groups;
 
 /// Display context for one local notice; it retains no executable text or launch authority.
-#[cfg(windows)]
 pub(crate) enum NativeNoticeContext {
     /// A missing name is the localized built-in System default label.
     LaunchProfile(Option<String>),
     ConfiguredCommand(String),
 }
-#[cfg(all(windows, test))]
+#[cfg(test)]
 pub(in crate::workbench_client) use agent_attention::tests::focused_physical_agent_fixture;
-#[cfg(windows)]
 mod agent_focus;
-#[cfg(windows)]
 mod client_control;
-#[cfg(windows)]
 mod client_layout;
 use super::terminal_viewport::ViewportWindow;
 use super::{
@@ -68,21 +58,17 @@ mod close_reconciliation;
 mod control_takeover;
 mod membership;
 mod move_membership;
-#[cfg(windows)]
 mod navigator;
 mod panel;
 mod panel_close;
 mod presentations;
 pub(crate) use presentations::DrawnPresentationTarget;
-#[cfg(windows)]
 mod history_positions;
 mod retained_frames;
 /// Volatile Client view data carried across a targeted context surface replacement.
-#[cfg(any(windows, test))]
 #[derive(Clone, Default)]
 pub(crate) struct RetainedFrameBank {
     frames: retained_frames::RetainedFrames,
-    #[cfg(windows)]
     history: history_positions::Bank,
 }
 
@@ -91,19 +77,16 @@ impl From<retained_frames::RetainedFrames> for RetainedFrameBank {
     fn from(frames: retained_frames::RetainedFrames) -> Self {
         Self {
             frames,
-            #[cfg(windows)]
             history: history_positions::Bank::default(),
         }
     }
 }
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod retired_membership;
 mod tab_close;
 #[cfg(test)]
 pub(in crate::workbench_client) mod tests;
 mod workspace_close;
 mod workspace_setup;
-#[cfg(windows)]
 mod worktree_launch;
 pub(crate) use workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
@@ -113,18 +96,15 @@ pub(crate) use workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
     NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
-#[cfg(windows)]
 pub(crate) use workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
-#[cfg(windows)]
 pub(crate) use worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
-#[cfg(windows)]
 mod copy_mode;
 mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
-#[cfg(all(windows, test))]
+#[cfg(test)]
 pub(crate) use input_capture::WorktreeCaptureContext;
 pub(crate) use input_capture::{CaptureReadiness, NativeCaptureContext};
 #[cfg(test)]
@@ -139,9 +119,7 @@ pub(crate) use tab_close::{
 pub(crate) use tab_rename::NativeRenameInputContext;
 pub(crate) use tab_rename::{NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit};
 mod create_membership;
-#[cfg(windows)]
 mod direct_navigation;
-#[cfg(windows)]
 mod startup_preference;
 mod switch_membership;
 
@@ -153,7 +131,6 @@ pub(crate) use super::agent_board::{
     AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, JumpFailure, NativeAgentBoardView,
     PresentationPlacement,
 };
-#[cfg(windows)]
 pub(crate) use super::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -191,8 +168,8 @@ pub(crate) enum NativeDisplayProvenance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchClientNotice {
+    Unsupported(crate::tui_capabilities::Capability),
     Settings(settings::Notice),
-    #[cfg(windows)]
     MenuUnavailable,
     LocalBusy,
     NoTabAtPosition(u8),
@@ -211,7 +188,6 @@ pub(crate) enum WorkbenchClientNotice {
     ConfirmationCancelled,
     DraftCancelled,
     ModalOwnsInput,
-    #[cfg(windows)]
     AgentStart(super::agent_board::AgentStartPhase),
     HistoryRecovering,
     HistoryUnavailable,
@@ -228,47 +204,31 @@ pub(crate) enum WorkbenchClientNotice {
     CopyUnknown,
     BellFailed,
     BellUnknown,
-    #[cfg(windows)]
     PositionChanged,
-    #[cfg(windows)]
     PositionChangedEmpty,
-    #[cfg(windows)]
     PositionLocationChanged,
-    #[cfg(windows)]
     PositionLocationChangedEmpty,
-    #[cfg(windows)]
     PositionUnavailable,
-    #[cfg(windows)]
     PopupUnavailable,
-    #[cfg(windows)]
     CommandAccepted,
-    #[cfg(windows)]
     CommandFailed,
-    #[cfg(windows)]
     CommandUnknown,
-    #[cfg(windows)]
     CommandRefused(orchbee_workbench_protocol::ConfiguredCommandFailure),
-    #[cfg(windows)]
     LaunchProfileSelected,
-    #[cfg(windows)]
     LaunchProfileUnavailable,
-    #[cfg(windows)]
     LinkOpened,
-    #[cfg(windows)]
     LinkHandled,
-    #[cfg(windows)]
     LinkNoLink,
-    #[cfg(windows)]
     LinkBusy,
-    #[cfg(windows)]
     LinkFailed,
-    #[cfg(windows)]
     LinkUnknown,
 }
 
-#[cfg(windows)]
 const fn link_notice(notice: crate::terminal_link_activation::Notice) -> WorkbenchClientNotice {
     match notice {
+        crate::terminal_link_activation::Notice::Unsupported => {
+            WorkbenchClientNotice::Unsupported(crate::tui_capabilities::Capability::Browser)
+        }
         crate::terminal_link_activation::Notice::Opened => WorkbenchClientNotice::LinkOpened,
         crate::terminal_link_activation::Notice::Handled => WorkbenchClientNotice::LinkHandled,
         crate::terminal_link_activation::Notice::NoLink => WorkbenchClientNotice::LinkNoLink,
@@ -402,7 +362,6 @@ pub(crate) struct WorkbenchClientView<'a> {
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
     settings: Option<&'a settings::Coordinator>,
     completion_reminder: Option<&'a super::completion_reminders::Reminder>,
-    #[cfg(windows)]
     menu: Option<&'a action_menus::Coordinator>,
     state: Option<ClientStateView<'a>>,
     panes: &'a [KeyedProjection],
@@ -410,27 +369,18 @@ pub(crate) struct WorkbenchClientView<'a> {
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: NativeProjectionStatus,
     retirement: Option<NativeDisplayRetirement>,
-    #[cfg(windows)]
     retirement_requested: bool,
     board: Option<NativeAgentBoardView<'a>>,
-    #[cfg(windows)]
     worktree: Option<&'a crate::workbench_client::state::worktree_launch::Launcher>,
     board_summary: Option<&'a AgentBoardSummary>,
-    #[cfg(windows)]
     copy_mode: Option<&'a copy_mode::Coordinator>,
     attention: Option<&'a super::agent_attention::AgentAttention>,
-    #[cfg(windows)]
     reports: Option<&'a super::panel_reports::PanelReports>,
-    #[cfg(windows)]
     graphics: Option<&'a super::pane_graphics::Driver>,
-    #[cfg(windows)]
     graphics_surface: Option<crate::tui_graphics::Surface>,
-    #[cfg(windows)]
     popup_failed: bool,
     command_notice: Option<WorkbenchClientNotice>,
-    #[cfg(windows)]
     notice_context: Option<&'a NativeNoticeContext>,
-    #[cfg(windows)]
     popup: Option<&'a super::independent_popup::Driver>,
 }
 
@@ -499,13 +449,11 @@ impl<'a> WorkbenchClientView<'a> {
         self.resize
             .map_or(canonical, |resize| resize.sidebar(canonical))
     }
-    #[cfg(windows)]
     pub(crate) fn selected_tab_ids(&self) -> Vec<orchbee_workbench_protocol::WorkbenchTabId> {
         self.state
             .as_ref()
             .map_or_else(Vec::new, ClientStateView::selected_tab_ids)
     }
-    #[cfg(windows)]
     pub(crate) fn group_collapsed(
         &self,
         id: &orchbee_workbench_protocol::WorkbenchTabGroupId,
@@ -519,7 +467,6 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn divider_source(&self) -> Option<crate::tui_layout::DividerSource> {
         self.state.as_ref()?.divider_source()
     }
-    #[cfg(windows)]
     pub(super) fn window_title_context(&self) -> orchbee_workbench_protocol::WindowTitleContext {
         let workspace = self
             .active_context_position()
@@ -557,7 +504,6 @@ impl<'a> WorkbenchClientView<'a> {
         orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, title)
     }
 
-    #[cfg(windows)]
     pub(crate) fn panel_report(&self, panel: &super::NativePanel) -> super::PanelReportView<'_> {
         if self.retirement.is_some() {
             return super::PanelReportView::Unavailable;
@@ -571,7 +517,6 @@ impl<'a> WorkbenchClientView<'a> {
             .as_ref()
             .map_or(0, ClientStateView::context_count)
     }
-    #[cfg(windows)]
     pub(crate) fn navigation_site(&self) -> Option<&orchbee_workbench_protocol::SiteId> {
         self.state.as_ref().map(ClientStateView::navigation_site)
     }
@@ -714,7 +659,6 @@ impl<'a> WorkbenchClientView<'a> {
     }
 
     pub(crate) fn notice(&self) -> Option<WorkbenchClientNotice> {
-        #[cfg(windows)]
         if self.popup_failed {
             return Some(WorkbenchClientNotice::PopupUnavailable);
         }
@@ -743,7 +687,6 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::ConfirmationCancelled => WorkbenchClientNotice::ConfirmationCancelled,
             ClientNotice::DraftCancelled => WorkbenchClientNotice::DraftCancelled,
             ClientNotice::ModalOwnsInput => WorkbenchClientNotice::ModalOwnsInput,
-            #[cfg(windows)]
             ClientNotice::AgentStart(phase) => WorkbenchClientNotice::AgentStart(phase),
             ClientNotice::HistoryRecovering => WorkbenchClientNotice::HistoryRecovering,
             ClientNotice::HistoryUnavailable => WorkbenchClientNotice::HistoryUnavailable,
@@ -756,27 +699,22 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::CopyModeSearchLimit => WorkbenchClientNotice::CopyModeSearchLimit,
             ClientNotice::CopyModeNoSelection => WorkbenchClientNotice::CopyModeNoSelection,
             ClientNotice::SelectionEvicted => WorkbenchClientNotice::SelectionEvicted,
+            ClientNotice::Unsupported(capability) => WorkbenchClientNotice::Unsupported(capability),
             ClientNotice::CopyFailed => WorkbenchClientNotice::CopyFailed,
             ClientNotice::CopyUnknown => WorkbenchClientNotice::CopyUnknown,
             ClientNotice::BellFailed => WorkbenchClientNotice::BellFailed,
             ClientNotice::BellUnknown => WorkbenchClientNotice::BellUnknown,
-            #[cfg(windows)]
             ClientNotice::PositionChanged => WorkbenchClientNotice::PositionChanged,
-            #[cfg(windows)]
             ClientNotice::PositionChangedEmpty => WorkbenchClientNotice::PositionChangedEmpty,
-            #[cfg(windows)]
             ClientNotice::PositionLocationChanged => WorkbenchClientNotice::PositionLocationChanged,
-            #[cfg(windows)]
             ClientNotice::PositionLocationChangedEmpty => {
                 WorkbenchClientNotice::PositionLocationChangedEmpty
             }
-            #[cfg(windows)]
             ClientNotice::PositionUnavailable => WorkbenchClientNotice::PositionUnavailable,
         })
     }
 
     /// Only the matching notice may use this retained operation context.
-    #[cfg(windows)]
     pub(crate) fn notice_context(&self) -> Option<&NativeNoticeContext> {
         match (self.notice()?, self.notice_context?) {
             (
@@ -944,7 +882,6 @@ impl<'a> WorkbenchClientView<'a> {
     /// Capture the exact canonical member and terminal row surface this view
     /// would paint for one panel. Loading indicators and unbound panes expose
     /// no link source.
-    #[cfg(windows)]
     pub(crate) fn painted_content_source(
         &self,
         panel_id: &WorkbenchPanelId,
@@ -953,7 +890,6 @@ impl<'a> WorkbenchClientView<'a> {
     }
 
     /// Copy owns a local view of the complete admitted grid, independent of the live crop.
-    #[cfg(windows)]
     pub(crate) fn copy_content_source(
         &self,
         panel_id: &WorkbenchPanelId,
@@ -961,7 +897,6 @@ impl<'a> WorkbenchClientView<'a> {
         self.content_source(panel_id, false)
     }
 
-    #[cfg(windows)]
     fn content_source(
         &self,
         panel_id: &WorkbenchPanelId,
@@ -1052,7 +987,6 @@ impl<'a> WorkbenchClientView<'a> {
         })
     }
 
-    #[cfg(windows)]
     pub(crate) fn painted_link_source(
         &self,
         panel_id: &WorkbenchPanelId,
@@ -1084,7 +1018,6 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
         self.focus
     }
-    #[cfg(windows)]
     pub(crate) fn focused_member(&self) -> Option<super::NativeMemberTarget> {
         if self.retirement.is_some() {
             return None;
@@ -1125,7 +1058,6 @@ impl<'a> WorkbenchClientView<'a> {
         self.board_summary.copied()
     }
 
-    #[cfg(windows)]
     pub(crate) fn copy_mode(&self) -> Option<crate::terminal_copy_mode::CopyModeView<'a>> {
         self.copy_mode.and_then(copy_mode::Coordinator::view)
     }
@@ -1134,11 +1066,9 @@ impl<'a> WorkbenchClientView<'a> {
 #[cfg(test)]
 impl<'a> WorkbenchClientView<'a> {
     /// Empty, unobstructed Native surface for consumers whose test owns no Client state.
-    #[cfg(windows)]
     pub(crate) fn notification_test_view() -> Self {
         Self {
             worktree: None,
-            #[cfg(windows)]
             menu: None,
             settings: None,
             completion_reminder: None,
@@ -1174,9 +1104,7 @@ impl<'a> WorkbenchClientView<'a> {
         projection_status: NativeProjectionStatus,
     ) -> Self {
         Self {
-            #[cfg(windows)]
             worktree: None,
-            #[cfg(windows)]
             menu: None,
             settings: None,
             completion_reminder: None,
@@ -1187,25 +1115,17 @@ impl<'a> WorkbenchClientView<'a> {
             focus: state.focus_panel_id(),
             projection_status,
             retirement: None,
-            #[cfg(windows)]
             retirement_requested: false,
             board: None,
             board_summary: None,
-            #[cfg(windows)]
             copy_mode: None,
             attention: None,
-            #[cfg(windows)]
             reports: None,
-            #[cfg(windows)]
             graphics: None,
-            #[cfg(windows)]
             graphics_surface: None,
-            #[cfg(windows)]
             popup_failed: false,
             command_notice: None,
-            #[cfg(windows)]
             notice_context: None,
-            #[cfg(windows)]
             popup: None,
         }
     }
@@ -1284,36 +1204,25 @@ pub(super) struct NativeUi {
     setup_notice_timer: crate::transient_notice::NoticeTimer<NativeSetupStatus>,
     focus_new_panel: bool,
     settings: settings::Coordinator,
-    #[cfg(windows)]
     launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
     notification_base: (u64, orchbee_local_site_runtime::NativeNotificationSettings),
-    #[cfg(windows)]
     menus: action_menus::Coordinator,
     mailbox: Option<Arc<CommandMailbox>>,
     clock: LocalOperationClock,
     outer_focused: Option<bool>,
     state: Option<WorkbenchClientState>,
     board: super::agent_board::AgentBoard,
-    #[cfg(windows)]
     worktrees: worktree_launch::Coordinator,
     attention: super::agent_attention::AgentAttention,
-    #[cfg(windows)]
     reports: super::panel_reports::PanelReports,
-    #[cfg(windows)]
     graphics: super::pane_graphics::Driver,
-    #[cfg(windows)]
     overlays: super::plugin_overlays::Driver,
-    #[cfg(windows)]
     links: crate::terminal_link_activation::Driver,
-    #[cfg(windows)]
     copy_mode: copy_mode::Coordinator,
-    #[cfg(windows)]
     popup: super::independent_popup::Driver,
-    #[cfg(windows)]
     command_notice: Option<(WorkbenchClientNotice, std::time::Instant)>,
-    #[cfg(windows)]
     notice_context: Option<NativeNoticeContext>,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
@@ -1322,7 +1231,6 @@ pub(super) struct NativeUi {
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
     navigation_draw: navigation_draw::NavigationDraw,
-    #[cfg(windows)]
     history_positions: history_positions::Coordinator,
     effects: super::terminal_effects::Queue,
     terminal_effect: Option<super::terminal_effects::Job>,
@@ -1335,27 +1243,19 @@ pub(super) struct NativeUi {
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<NativeDisplayRetirement>,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retirement_poll_serial: Option<u64>,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retired_peer: Option<super::state::retired_membership::RetiredMembershipOrigin>,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
 mod scrollbar;
 
-#[cfg(windows)]
 mod client_presentation;
-#[cfg(windows)]
 mod client_viewport;
 mod completion_reminders;
-#[cfg(windows)]
 mod independent_popup;
 mod input_capture;
-#[cfg(windows)]
 mod link_activation;
 mod navigation_draw;
 mod terminal_tail;
@@ -1376,7 +1276,6 @@ impl NativeUi {
             .filter(|_| self.ordinary_poll_serial.is_none());
         // The sequence owns admission while its lease settles; an expired ordinary poll
         // must not busy-spin. Keep independent close and summary deadlines below.
-        #[cfg(windows)]
         let ordinary = ordinary.filter(|_| {
             !self
                 .state
@@ -1399,19 +1298,15 @@ impl NativeUi {
             .map(|at| at.saturating_duration_since(self.clock.now()))
     }
 
-    #[cfg(windows)]
     pub(super) fn host_focus(&self) -> Option<bool> {
         self.outer_focused
     }
-    #[cfg(windows)]
     pub(super) fn outer_title_focused(&self) -> bool {
         self.outer_focused.unwrap_or(false)
     }
-    #[cfg(windows)]
     pub(super) fn configuration_clock(&self) -> LocalOperationClock {
         self.clock.clone()
     }
-    #[cfg(windows)]
     pub(super) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
         self.focus_new_panel = focus_new_panel;
     }
@@ -1419,16 +1314,16 @@ impl NativeUi {
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
         Self {
             mailbox: Some(mailbox),
-            board: super::agent_board::AgentBoard::new(clock.clone()),
-            #[cfg(windows)]
+            board: super::agent_board::AgentBoard::new(
+                clock.clone(),
+                crate::tui_capabilities::Capability::AgentLaunch.available(),
+            ),
             worktrees: worktree_launch::Coordinator::default(),
-            #[cfg(windows)]
             menus: action_menus::Coordinator::default(),
-            settings: settings::Coordinator::default(),
+            settings: settings::Coordinator::new(crate::tui_capabilities::login_shell_supported()),
             notice_timer: Default::default(),
             setup_notice_timer: Default::default(),
             focus_new_panel: true,
-            #[cfg(windows)]
             launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
             completion_reminders: super::completion_reminders::State::default(),
@@ -1437,21 +1332,13 @@ impl NativeUi {
                 orchbee_local_site_runtime::NativeNotificationSettings::default(),
             ),
             attention: super::agent_attention::AgentAttention::new(clock.clone()),
-            #[cfg(windows)]
             reports: super::panel_reports::PanelReports::new(clock.clone()),
-            #[cfg(windows)]
             graphics: super::pane_graphics::Driver::new(clock.clone()),
-            #[cfg(windows)]
             overlays: super::plugin_overlays::Driver::new(clock.clone()),
-            #[cfg(windows)]
             links: crate::terminal_link_activation::Driver::new(clock.clone()),
-            #[cfg(windows)]
             copy_mode: copy_mode::Coordinator::new(clock.clone()),
-            #[cfg(windows)]
             popup: super::independent_popup::Driver::new(clock.clone()),
-            #[cfg(windows)]
             command_notice: None,
-            #[cfg(windows)]
             notice_context: None,
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
@@ -1460,14 +1347,11 @@ impl NativeUi {
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
             navigation_draw: navigation_draw::NavigationDraw::default(),
-            #[cfg(windows)]
             history_positions: history_positions::Coordinator::default(),
             effects: super::terminal_effects::Queue::default(),
             terminal_effect: None,
-            #[cfg(windows)]
             clipboard: super::terminal_clipboard::Writer::default(),
-            #[cfg(not(windows))]
-            clipboard: super::terminal_clipboard::Writer,
+
             pending_draws: Vec::new(),
             poll_cursor: 0,
             ordinary_poll_serial: None,
@@ -1476,13 +1360,9 @@ impl NativeUi {
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retired_mailbox_seed: None,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retirement_poll_serial: None,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retired_peer: None,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retired_peer_attempt: None,
         }
     }
@@ -1492,7 +1372,6 @@ impl NativeUi {
             .settings
             .notice(self.clock.now())
             .map(WorkbenchClientNotice::Settings);
-        #[cfg(windows)]
         let command_notice = command_notice
             .or_else(|| self.links.notice().map(link_notice))
             .or_else(|| {
@@ -1526,33 +1405,23 @@ impl NativeUi {
             focus,
             projection_status: focus_status,
             retirement: self.retirement,
-            #[cfg(windows)]
             retirement_requested: self.retirement_failure.is_some(),
             board: self.agent_board_view(),
             board_summary: self.board.summary(),
-            #[cfg(windows)]
             copy_mode: Some(&self.copy_mode),
             attention: Some(&self.attention),
-            #[cfg(windows)]
             reports: state
                 .filter(|s| self.reports.matches(s))
                 .map(|_| &self.reports),
-            #[cfg(windows)]
             graphics: state
                 .filter(|_| self.retirement.is_none())
                 .map(|_| &self.graphics),
-            #[cfg(windows)]
             graphics_surface: None,
-            #[cfg(windows)]
             popup_failed: self.popup.failed(),
             command_notice,
-            #[cfg(windows)]
             notice_context: self.notice_context.as_ref(),
-            #[cfg(windows)]
             popup: Some(&self.popup),
-            #[cfg(windows)]
             worktree: Some(&self.worktrees.launcher),
-            #[cfg(windows)]
             menu: Some(&self.menus),
             settings: Some(&self.settings),
             completion_reminder: self
@@ -1563,20 +1432,16 @@ impl NativeUi {
         }
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn retained_frame_bank(&self) -> RetainedFrameBank {
         RetainedFrameBank {
             frames: self.retained_frames.clone(),
-            #[cfg(windows)]
             history: self.history_positions.bank.clone(),
         }
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn inherit_retained_frame_bank(&mut self, older: RetainedFrameBank) {
         if let Some(state) = &self.state {
             self.retained_frames.inherit_older(older.frames, state);
-            #[cfg(windows)]
             {
                 self.history_positions
                     .bank
@@ -1648,7 +1513,6 @@ impl NativeUi {
     }
 
     pub(super) fn release_mailbox(&mut self) {
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if let Some(mailbox) = &self.mailbox {
             self.retired_mailbox_seed = Some(mailbox.retired_seed());
         }
@@ -1726,7 +1590,6 @@ impl NativeUi {
             .unwrap_or(failure);
         self.retirement_failure = Some(failure);
         self.retained_frames.clear();
-        #[cfg(windows)]
         {
             self.history_positions = history_positions::Coordinator::default();
         }
@@ -1751,17 +1614,14 @@ impl NativeUi {
         &mut self,
         client_capture: crate::tui_composition::ClientCaptureClaims,
     ) -> bool {
-        #[cfg(windows)]
         let duplicate_changed = self
             .state
             .as_mut()
             .is_some_and(|state| state.observe_duplicate_sequence(self.clock.now()));
-        #[cfg(not(windows))]
-        let duplicate_changed = false;
+
         if let Some(state) = &self.state {
             self.retained_frames.prune(state);
         }
-        #[cfg(windows)]
         let command_notice_changed = if self
             .command_notice
             .is_some_and(|(_, until)| self.clock.now() >= until)
@@ -1771,8 +1631,7 @@ impl NativeUi {
         } else {
             false
         };
-        #[cfg(not(windows))]
-        let command_notice_changed = false;
+
         let effect_changed = self.settle_effect_delivery();
         if self.retirement_failure.is_some() {
             return command_notice_changed || duplicate_changed;
@@ -1816,7 +1675,6 @@ impl NativeUi {
                 .as_mut()
                 .is_some_and(|state| state.settle_stale_close_confirmations());
             self.reconcile_ordinary_poll(&mailbox);
-            #[cfg(windows)]
             {
                 changed |= self.drive_duplicate_sequence(&mailbox);
             }
@@ -1844,7 +1702,6 @@ impl NativeUi {
                         crate::tui_composition::NativeCaptureOwner::AgentBoard,
                     ));
             changed |= self.drive_agent_board(allow_agent_board_jump);
-            #[cfg(windows)]
             {
                 if let Some(state) = self.state.as_mut()
                     && self.overlays.tick(state)
@@ -1868,14 +1725,12 @@ impl NativeUi {
             changed |= self.drive_settings();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
-            #[cfg(windows)]
             {
                 changed |= self.drive_history_positions();
             }
             changed |= self.drive_terminal_tails(&mailbox);
             changed |= self.tick_viewports(&mailbox);
             self.admit_selections(&mailbox);
-            #[cfg(windows)]
             {
                 changed |= self.tick_copy_mode();
             }
@@ -1892,7 +1747,6 @@ impl NativeUi {
     pub(super) fn after_draw(&mut self) {
         // The shell calls this only after Backend::flush closed the frame.
         self.remember_navigation_draw();
-        #[cfg(windows)]
         self.remember_history_positions();
         if let Some(state) = &self.state {
             self.retained_frames.after_draw(state, &self.projections);
@@ -1955,7 +1809,6 @@ impl NativeUi {
     }
     pub(super) fn inherit_host_focus(&mut self, focused: Option<bool>) {
         if self.outer_focused != focused {
-            #[cfg(windows)]
             if let Some(state) = &mut self.state {
                 state.cancel_duplicate_sequence();
             }
@@ -1965,7 +1818,6 @@ impl NativeUi {
     }
 
     fn observe_focus_geometry(&mut self, geometry: Geometry) {
-        #[cfg(windows)]
         self.observe_action_menu_geometry(geometry);
         if self
             .state
@@ -1975,7 +1827,6 @@ impl NativeUi {
             self.invalidate_close_display();
             self.invalidate_rename_display();
             self.invalidate_setup_display();
-            #[cfg(windows)]
             {
                 self.after_worktree_draw(None);
             }
@@ -2183,17 +2034,9 @@ impl NativeUi {
 
     /// Whether an armed retired-membership recovery attempt currently owns the
     /// mailbox: ordinary scheduled admissions stay suppressed until the
-    /// candidate installs or the attempt settles. The attempt record exists
-    /// only on Linux; other platforms have no recovery path.
+    /// candidate installs or the attempt settles.
     fn retired_membership_attempt_active(&self) -> bool {
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-        {
-            self.retired_peer_attempt.is_some()
-        }
-        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-        {
-            false
-        }
+        self.retired_peer_attempt.is_some()
     }
 
     pub(super) fn forward(&mut self, input: &[u8]) -> bool {
@@ -2477,7 +2320,6 @@ impl NativeUi {
         {
             return false;
         }
-        #[cfg(windows)]
         if self.copy_mode.active() {
             return false;
         }
@@ -2713,16 +2555,7 @@ impl NativeUi {
         let view = self.view();
         let mut probe = PointerProbe {
             input_captured: input_captured
-                || {
-                    #[cfg(windows)]
-                    {
-                        self.worktree_input_context().is_some() || self.action_menu_active()
-                    }
-                    #[cfg(not(windows))]
-                    {
-                        false
-                    }
-                }
+                || { { self.worktree_input_context().is_some() || self.action_menu_active() } }
                 || view.close_confirmation().is_some()
                 || view.workspace_close_confirmation().is_some(),
             ..PointerProbe::default()
@@ -2793,13 +2626,7 @@ impl NativeUi {
                 position: tab.position(),
             })
             .collect();
-        #[cfg(any(not(windows), test))]
-        {
-            probe.contexts = (0..view.context_count())
-                .filter_map(|index| view.context_at(index))
-                .map(|context| context.location().clone())
-                .collect();
-        }
+
         probe.frame = view
             .projection()
             .and_then(|projection| projection.frame())
@@ -2818,16 +2645,21 @@ impl NativeUi {
     }
 
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> ClientActionDisposition {
-        #[cfg(windows)]
+        if let Some(capability) = crate::tui_capabilities::Capability::for_action(&action)
+            && let Err(crate::tui_capabilities::Unsupported(capability)) = capability.require()
+        {
+            self.command_notice = Some((
+                WorkbenchClientNotice::Unsupported(capability),
+                self.clock.now() + std::time::Duration::from_secs(5),
+            ));
+            return ClientActionDisposition::KeepNavigator;
+        }
         self.remember_history_positions();
-        #[cfg(windows)]
         let resume_handoff = self.take_action_menu_resume_handoff(&action);
-        #[cfg(windows)]
         if let Some(state) = self.state.as_mut() {
             // New intent wins even when its admission is refused.
             state.cancel_project_quick_entry();
         }
-        #[cfg(windows)]
         self.cancel_action_menu();
         if self.retirement_failure.is_some() {
             return ClientActionDisposition::KeepNavigator;
@@ -2860,18 +2692,14 @@ impl NativeUi {
             return ClientActionDisposition::KeepNavigator;
         }
         match action {
-            #[cfg(windows)]
             ClientAction::OpenActionMenu => ClientActionDisposition::KeepNavigator,
             ClientAction::OpenSettings => self.request_settings(),
-            #[cfg(windows)]
             ClientAction::OpenMachines
             | ClientAction::ConfiguredCommand(_)
             | ClientAction::PreviousAgent
             | ClientAction::NextAgent
             | ClientAction::FocusAgent(_) => ClientActionDisposition::KeepNavigator,
-            #[cfg(windows)]
             ClientAction::RequestWorktreeCreate => self.request_worktree(WorktreeMode::Create),
-            #[cfg(windows)]
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {
                 if self.request_quick_workspace() {
@@ -2954,7 +2782,6 @@ impl NativeUi {
                 self.request_setup_draft(intent);
                 ClientActionDisposition::KeepNavigator
             }
-            #[cfg(windows)]
             ClientAction::TabMenu { action, tab_id } => match (action, resume_handoff) {
                 (
                     crate::action_menu::MenuAction::ResumeTabClose,
@@ -2970,7 +2797,6 @@ impl NativeUi {
                 ) => ClientActionDisposition::KeepNavigator,
                 (action, _) => self.apply_tab_menu(action, tab_id.as_ref()),
             },
-            #[cfg(windows)]
             ClientAction::ToggleTabGroup(group) => self.toggle_tab_group(&group),
             ClientAction::RequestRenameTab => {
                 if self.request_rename_draft().is_some() {
@@ -2988,7 +2814,6 @@ impl NativeUi {
                 self.request_sidebar_workspace_delete(&request)
             }
             ClientAction::RequestControlTakeover => self.request_takeover(),
-            #[cfg(windows)]
             ClientAction::EnterResizeMode => {
                 let _consumed = self.history_key(&crate::client_view::KeyEvent::press(
                     crate::client_view::KeyCode::Esc,
@@ -2996,7 +2821,6 @@ impl NativeUi {
                 ));
                 ClientActionDisposition::KeepNavigator
             }
-            #[cfg(windows)]
             ClientAction::ResizePane { .. } | ClientAction::ExitResizeMode => {
                 ClientActionDisposition::KeepNavigator
             }
@@ -3007,13 +2831,10 @@ impl NativeUi {
             ClientAction::MoveNextTab => self.move_tab(WorkbenchTabMoveDirection::Next),
             ClientAction::SelectPreviousContext => self.select_context(false),
             ClientAction::SelectNextContext => self.select_context(true),
-            #[cfg(any(not(windows), test))]
-            ClientAction::SelectContextAt(index) => self.select_context_at(index),
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
             ClientAction::EnterHistory => self.enter_history(),
-            #[cfg(windows)]
             ClientAction::EnterCopyMode => self.enter_copy_mode(),
             ClientAction::PreviousPresentation => self.cycle_presentation(false),
             ClientAction::NextPresentation => self.cycle_presentation(true),
@@ -3029,7 +2850,6 @@ impl NativeUi {
             }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleAgentBoard => self.toggle_agent_board(),
-            #[cfg(windows)]
             ClientAction::FocusBusinessSidebar | ClientAction::DismissOnboarding => {
                 ClientActionDisposition::KeepNavigator
             }
@@ -3132,7 +2952,6 @@ impl NativeUi {
         launch: Option<orchbee_workbench_protocol::LaunchSelection>,
         description: Option<super::state::LaunchDescription>,
     ) -> ClientActionDisposition {
-        #[cfg(windows)]
         if self.view().no_current_workspace() {
             if placement.is_some() {
                 if let Some(state) = self.state.as_mut() {
@@ -3146,7 +2965,6 @@ impl NativeUi {
                 ClientActionDisposition::KeepNavigator
             };
         }
-        #[cfg(windows)]
         if let Some(state) = &mut self.state {
             state.cancel_duplicate_sequence();
         }
@@ -3192,9 +3010,7 @@ impl NativeUi {
     }
 
     fn select_tab(&mut self, action: ClientAction) -> ClientActionDisposition {
-        #[cfg(windows)]
         self.remember_history_positions();
-        #[cfg(windows)]
         if let Some(state) = &mut self.state {
             state.clear_tab_selection();
         }
@@ -3206,7 +3022,6 @@ impl NativeUi {
     }
 
     fn select_tab_generation(&mut self, action: ClientAction) -> Option<u64> {
-        #[cfg(windows)]
         if let Some(state) = &mut self.state {
             state.cancel_duplicate_sequence();
         }
@@ -3247,7 +3062,6 @@ impl NativeUi {
         }
     }
 
-    #[cfg(windows)]
     pub(super) fn navigate_context(
         &mut self,
         target: &super::NativeContextTarget,
@@ -3754,7 +3568,6 @@ impl NativeUi {
             WorkerEvent::PanelResult { operation, outcome } => {
                 return self.apply_panel_event(mailbox, wait_key, operation, outcome);
             }
-            #[cfg(windows)]
             WorkerEvent::WorktreePrepared {
                 preparation,
                 source,
@@ -3807,7 +3620,6 @@ impl NativeUi {
         let mut install_projection = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
-                #[cfg(windows)]
                 WorkerEvent::WorktreePrepared { .. } => return Err(CarrierFailure::Protocol),
                 WorkerEvent::QuickWorkspacePrepared { .. }
                 | WorkerEvent::WorkspaceSetupResult { .. }
@@ -3872,14 +3684,12 @@ impl NativeUi {
                     {
                         return Err(CarrierFailure::Protocol);
                     }
-                    #[cfg(windows)]
                     if state.duplicate_owns_operation(&operation) {
                         state.clear_notice();
                     } else {
                         state.set_notice(notice);
                     }
-                    #[cfg(not(windows))]
-                    state.set_notice(notice);
+
                     if matches!(
                         state.controller_mode(),
                         Some(ControllerMode::Controlling(_))
@@ -3989,7 +3799,6 @@ impl NativeUi {
         generation: u64,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if self.retired_peer_attempt.is_some() {
             return self.apply_retired_membership_result(mailbox, wait_key, generation, outcome);
         }
@@ -4010,17 +3819,14 @@ impl NativeUi {
         // Projection and append-only validation are bounded but intentionally run outside the
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.
         let prepared = state.prepare_refresh(generation, outcome);
-        #[cfg(windows)]
         let prepared = self.fence_worktree_context_candidate(
             prepared,
             index_snapshot.as_ref(),
             generation,
             state.cache().revision(),
         );
-        #[cfg(windows)]
         let prepared =
             self.fence_menu_context_candidate(prepared, generation, state.cache().revision());
-        #[cfg(windows)]
         let menu_membership = matches!(prepared, super::state::PreparedRefresh::Membership { .. });
         let recovery_deadlines = state
             .workspace_close_deadlines()
@@ -4136,7 +3942,6 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
-                #[cfg(windows)]
                 {
                     self.menu_navigation_prepared(
                         action_menus::NavigationKey::Context(generation),
@@ -4151,10 +3956,8 @@ impl NativeUi {
                     }
                 }
                 if rebuild_index && let Some(snapshot) = &index_snapshot {
-                    #[cfg(windows)]
                     self.observe_worktree_entry_snapshot(snapshot);
                     self.agent_index = super::agent_board::PresentationIndex::rebuild(snapshot);
-                    #[cfg(windows)]
                     if let Some(state) = self.state.as_mut() {
                         state.observe_overlay_snapshot(snapshot);
                     }
@@ -4470,7 +4273,6 @@ impl NativeUi {
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
         // Existing polls/replies still drain. Do not put a fresh ordinary Poll ahead of
         // an already Ready next member while the preceding lease is finishing.
-        #[cfg(windows)]
         if self
             .state
             .as_ref()
@@ -4557,9 +4359,7 @@ impl NativeUi {
     /// Drops every projection and staged draw — used on epoch teardown, where
     /// all panes retire together, and on retirement.
     fn clear_projections(&mut self) {
-        #[cfg(windows)]
         self.history_positions.projections_cleared();
-        #[cfg(windows)]
         self.copy_mode.cancel();
         self.effects.close();
         self.terminal_effect.take();
@@ -4574,7 +4374,6 @@ impl NativeUi {
     /// events (`CleanupSettled`, `SetupWithoutAttachment`) and pane-local
     /// disposal land here, leaving sibling panes untouched.
     fn clear_pane_projection(&mut self, key: &PaneRef) {
-        #[cfg(windows)]
         if self.copy_mode.key() == Some(key) {
             self.cancel_copy_mode();
         }
@@ -4597,11 +4396,9 @@ impl NativeUi {
 
     fn retire(&mut self, failure: CarrierFailure) {
         self.retained_frames.clear();
-        #[cfg(windows)]
         {
             self.history_positions = history_positions::Coordinator::default();
         }
-        #[cfg(windows)]
         {
             self.cancel_copy_mode();
             self.fail_action_menu();
@@ -4610,26 +4407,18 @@ impl NativeUi {
         self.terminal_effect.take();
         self.clipboard.close();
         self.settle_effect_delivery();
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }
         self.board.close();
-        #[cfg(windows)]
         self.reports.close();
-        #[cfg(windows)]
         self.graphics.close();
-        #[cfg(windows)]
         self.overlays.close();
-        #[cfg(windows)]
         self.links.close();
-        #[cfg(windows)]
         self.copy_mode.close();
-        #[cfg(windows)]
         self.popup.shutdown();
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
-            #[cfg(windows)]
             state.stop_duplicate_sequence(super::state::DuplicateStop::Recovery);
             state.cancel_panel_close_confirmation();
             state.cancel_workspace_close();
@@ -4664,7 +4453,6 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> ClientNoti
     }
 }
 
-#[cfg(windows)]
 fn build_create(
     state: &mut WorkbenchClientState,
     generation: u64,

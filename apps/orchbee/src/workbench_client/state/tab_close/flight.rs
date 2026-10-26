@@ -304,7 +304,6 @@ impl CloseState {
 }
 
 impl WorkbenchClientState {
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::workbench_client) fn close_recovery_available(&self) -> bool {
         self.close.pending.is_none()
             && self
@@ -314,7 +313,6 @@ impl WorkbenchClientState {
                 .any(|record| record.operation.is_some() || record.uncertain)
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::workbench_client) fn begin_close_status_recovery(&mut self) -> bool {
         if !matches!(self.phase, ClientPhase::Retired(_)) || !self.close_recovery_available() {
             return false;

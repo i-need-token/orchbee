@@ -30,7 +30,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         return Err(StartupFailure::AlreadyInSession);
     }
     let deadline = Instant::now() + Duration::from_secs(20);
-    #[cfg(windows)]
     let startup_cwd = std::env::current_dir().ok();
     let inherited = InheritedTerminal::admit().map_err(|_| StartupFailure::Terminal)?;
     // A temporary zero-cell report is not drawable yet but is not a fault
@@ -61,13 +60,16 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let started =
         local_activation::activate_local_site(deadline).map_err(|failure| failure.failure)?;
     #[cfg(windows)]
+    let allow_startup_directory = !matches!(
+        started.restore_notice,
+        Some(orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty)
+    );
+    #[cfg(not(windows))]
+    let allow_startup_directory = false;
     let directory = crate::workbench_client::StartupDirectory::new(
         startup_cwd.as_deref(),
         locale,
-        !matches!(
-            started.restore_notice,
-            Some(orchbee_local_site_runtime::WindowsCheckpointRestoreNotice::Empty)
-        ),
+        allow_startup_directory && crate::tui_capabilities::Capability::DirectoryInput.available(),
     );
     #[cfg(windows)]
     let notice = started.restore_notice.map(|notice| match notice {
@@ -82,7 +84,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let notice = None;
     let mut client = started.client;
     client.set_submission_deadline(Some(deadline));
-    #[cfg(windows)]
     let mut workbench_client = WorkbenchClient::start_local(
         client,
         geometry,
@@ -90,9 +91,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         directory.clone(),
     )
     .map_err(|_| StartupFailure::TerminalUnavailable)?;
-    #[cfg(not(windows))]
-    let mut workbench_client = WorkbenchClient::start(client, geometry)
-        .map_err(|_| StartupFailure::TerminalUnavailable)?;
     let ready = (|| {
         loop {
             local_activation::check_deadline(deadline).map_err(|failure| failure.failure)?;
@@ -108,7 +106,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
         }
         Ok(())
     })();
-    #[cfg(windows)]
     if ready.is_err()
         && let Some(note) = directory
             .failure_note(locale)
@@ -120,7 +117,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
             .map_err(|_| StartupFailure::Interface)?;
     }
     ready?;
-    #[cfg(windows)]
     workbench_client.finish_local_startup();
     drop(progress);
     tui_shell::run_prepared(

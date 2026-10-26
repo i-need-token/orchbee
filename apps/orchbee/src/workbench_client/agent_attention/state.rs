@@ -75,7 +75,6 @@ impl AttentionState {
         changed
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn completion_edited(
         &self,
         session: &AgentSessionId,

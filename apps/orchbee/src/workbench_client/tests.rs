@@ -1,11 +1,9 @@
 use super::state::CarrierFailure;
 mod close_interaction;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod close_recovery;
 mod close_retirement;
 mod move_refinements;
 mod rename_interaction;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod retired_membership;
 mod retirement_redraw;
 use super::*;
@@ -526,7 +524,6 @@ fn workbench_client_with_identity(
     geometry: Geometry,
 ) -> Result<(WorkbenchClient, Arc<mailbox::CommandMailbox>), Box<dyn std::error::Error>> {
     let shutdown = client.shutdown_handle()?;
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let origin = client.origin();
     let clock = client.operation_clock();
     let mailbox = Arc::new(mailbox::CommandMailbox::new(
@@ -539,17 +536,11 @@ fn workbench_client_with_identity(
         .spawn(move || connection::run_native(client, geometry, worker_mailbox, None))?;
     Ok((
         WorkbenchClient {
-            #[cfg(windows)]
             position_writer: None,
-            #[cfg(windows)]
             position_startup: None,
-            #[cfg(windows)]
             configuration: None,
-            #[cfg(windows)]
             notifications: None,
-            #[cfg(windows)]
             window_title: None,
-            #[cfg(windows)]
             client_control: None,
             backend: ClientBackend::Native(Box::new(ui::NativeUi::new(
                 Arc::clone(&mailbox),
@@ -558,9 +549,7 @@ fn workbench_client_with_identity(
             task: Some(ClientTask::Native(task)),
             shutdown,
             retirement_redraw_pending: false,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             origin: Some(origin),
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             recovery_shutdown: None,
         },
         mailbox,
@@ -653,7 +642,6 @@ fn assert_ready_prefix_client(
             "missing prefix hint {hint:?}\n{rendered}"
         );
     }
-    #[cfg(windows)]
     assert!(
         rendered.contains("F2 actions"),
         "missing action hint\n{rendered}"
@@ -794,8 +782,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     assert_ready_prefix_client(&workbench_client, &ready, 1, TerminalStatus::Controlling);
 
     // The Windows navigator captures prefix actions; dispatch from the terminal surface.
-    #[cfg(not(windows))]
-    open_navigator(&mut client_view);
+
     let mut input_dispatcher = InputDispatcher::default();
     let outcome = dispatch_input(
         &mut input_dispatcher,
@@ -1044,8 +1031,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         ));
         poll_seen.recv_timeout(Duration::from_secs(1))?;
         let mut view = ClientView::new(120);
-        #[cfg(not(windows))]
-        open_navigator(&mut view);
+
         let mut input_dispatcher = InputDispatcher::default();
         dispatch_input(
             &mut input_dispatcher,
@@ -2125,10 +2111,7 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
                 rendered.contains("initial_workspace · Ready · view only"),
                 "{rendered}"
             );
-            #[cfg(windows)]
             assert!(rendered.contains("Ctrl+b t take control"), "{rendered}");
-            #[cfg(not(windows))]
-            assert!(!rendered.contains("Ctrl+b t"), "{rendered}");
         }
         let prefixed = render_prefix_client(&workbench_client, &client_view)?;
         assert_ready_prefix_client(&workbench_client, &prefixed, 1, expected);
@@ -2155,7 +2138,6 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
 fn workspace_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestResult {
     let (sent, received) = mpsc::sync_channel(1);

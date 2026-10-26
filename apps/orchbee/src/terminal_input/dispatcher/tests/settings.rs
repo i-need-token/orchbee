@@ -511,7 +511,6 @@ fn settings_footer_click_and_prefix_binding_open_the_same_editor_and_capture_the
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn machine_cover_keeps_retained_settings_recovery_and_owns_its_close_packet_tail() {
     let mut port = Port::ready();

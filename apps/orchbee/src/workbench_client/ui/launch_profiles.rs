@@ -4,6 +4,7 @@ use crate::client_view::ClientActionDisposition;
 use orchbee_workbench_protocol::{LaunchSelection, UserLaunchCommand, UserLaunchProfile};
 use std::time::Duration;
 
+mod system_shell;
 #[cfg(test)]
 mod tests;
 
@@ -26,10 +27,7 @@ impl Coordinator {
                 arguments,
             } => (executable.clone(), arguments.clone()),
             UserLaunchCommand::SystemShell { login: false } if self.local_system_shell => {
-                let launch = orchbee_local_site_runtime::resolve_default_interactive_launch(
-                    &orchbee_local_site_runtime::WindowsShellSettings::default(),
-                )
-                .map_err(|_| ())?;
+                let launch = system_shell::resolve().map_err(|_| ())?;
                 (launch.executable, launch.arguments)
             }
             UserLaunchCommand::SystemShell { .. } => return Err(()),

@@ -19,34 +19,26 @@ mod context_selection;
 pub(super) mod control_takeover;
 mod field_window;
 pub(super) use crate::terminal_text::line_editor;
-#[cfg(windows)]
 mod tab_groups;
-#[cfg(windows)]
 pub(super) use tab_groups::TabSelectionChange;
 pub(super) mod workspace_close;
 pub(super) mod workspace_setup;
-#[cfg(windows)]
 pub(super) mod worktree_launch;
 pub(crate) use context_selection::NativeContextView;
 pub(crate) use field_window::NativeFieldWindow;
 mod create_membership;
-#[cfg(windows)]
 mod tab_duplication;
-#[cfg(windows)]
 pub(crate) use tab_duplication::{DuplicateProgress, DuplicateStop};
 mod membership;
 mod move_tab;
 mod navigation_memory;
 mod panel;
 mod panel_close;
-#[cfg(windows)]
 mod plugin_overlays;
 mod presentations;
 mod recovery_fence;
 pub(super) mod rename_draft;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) mod retired_membership;
-#[cfg(windows)]
 pub(super) use plugin_overlays::{OverlayJob, OverlayResult};
 mod switch_membership;
 mod tab_close;
@@ -82,7 +74,6 @@ pub(super) use tab_close::{
 };
 #[cfg(test)]
 pub(super) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};
-#[cfg(any(windows, test))]
 pub(super) use tab_close::{CloseSetKind, close_set_targets};
 
 pub(super) const OPERATION_TOTAL: Duration = Duration::from_secs(50);
@@ -511,6 +502,7 @@ pub(super) enum ClientPhaseKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ClientNotice {
+    Unsupported(crate::tui_capabilities::Capability),
     LocalBusy,
     NoTabAtPosition(u8),
     CreateNotCreated,
@@ -530,7 +522,6 @@ pub(super) enum ClientNotice {
     /// A modal surface or armed confirmation owns the input layer — the
     /// Agent board refused to open rather than fight for capture.
     ModalOwnsInput,
-    #[cfg(windows)]
     AgentStart(super::agent_board::AgentStartPhase),
     /// The viewport lost its facts/anchor and is returning to live —
     /// shown while the recovery demand pair is in flight.
@@ -552,15 +543,10 @@ pub(super) enum ClientNotice {
     CopyUnknown,
     BellFailed,
     BellUnknown,
-    #[cfg(windows)]
     PositionChanged,
-    #[cfg(windows)]
     PositionChangedEmpty,
-    #[cfg(windows)]
     PositionLocationChanged,
-    #[cfg(windows)]
     PositionLocationChangedEmpty,
-    #[cfg(windows)]
     PositionUnavailable,
 }
 
@@ -571,7 +557,6 @@ impl ClientNotice {
             | Self::DuplicateOutcomeUnknown
             | Self::CopyUnknown
             | Self::BellUnknown => false,
-            #[cfg(windows)]
             Self::AgentStart(phase) => matches!(
                 phase,
                 super::agent_board::AgentStartPhase::Started
@@ -1178,13 +1163,11 @@ pub(super) struct WorkbenchClientState {
     panel_close: PanelCloseState,
     rename: rename_draft::RenameDraftState,
     setup: workspace_setup::SetupState,
-    #[cfg(windows)]
     tab_groups: tab_groups::GroupView,
     workspace_close: workspace_close::WorkspaceCloseState,
     takeover: control_takeover::TakeoverState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
-    #[cfg(windows)]
     duplicate_sequence: Option<tab_duplication::DuplicateSequence>,
     /// Volatile per-Tab Client-local zoom flags (`Ctrl+B z`): a flag lives
     /// while its Tab is known alive with more than one leaf — the current
@@ -1194,7 +1177,6 @@ pub(super) struct WorkbenchClientState {
     /// Never wired, shared between Clients, or persisted; bounded by the
     /// same navigation retention the context snapshots already obey.
     zoomed_tabs: std::collections::BTreeSet<WorkbenchTabId>,
-    #[cfg(windows)]
     plugin_overlays: Vec<plugin_overlays::Overlay>,
 }
 
@@ -1330,16 +1312,13 @@ impl WorkbenchClientState {
             panel_close: PanelCloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
             setup: workspace_setup::SetupState::default(),
-            #[cfg(windows)]
             tab_groups: tab_groups::GroupView::default(),
             workspace_close: workspace_close::WorkspaceCloseState::default(),
             takeover: control_takeover::TakeoverState::default(),
             pending_membership: None,
             settled_create: None,
-            #[cfg(windows)]
             duplicate_sequence: None,
             zoomed_tabs: std::collections::BTreeSet::new(),
-            #[cfg(windows)]
             plugin_overlays: Vec::new(),
         }
     }
@@ -1681,7 +1660,6 @@ impl WorkbenchClientState {
         self.notice = None;
     }
 
-    #[cfg(windows)]
     pub(super) fn navigator_catalog(&self) -> crate::client_view::navigator::Catalog {
         use crate::client_view::navigator::{Catalog, Source};
         Catalog {
@@ -1729,7 +1707,6 @@ impl WorkbenchClientState {
         leaves: &[(WorkbenchPanelId, usize, Geometry)],
         sampled_at: Instant,
     ) -> bool {
-        #[cfg(windows)]
         if self
             .focus_panel_id()
             .is_some_and(|id| !leaves.iter().any(|(panel, _, _)| panel == id))
@@ -1890,7 +1867,6 @@ impl WorkbenchClientState {
     /// detach proof cites, so a re-incarnated record is never dropped by a
     /// stale proof.
     pub(super) fn settle_pane_detached(&mut self, key: &PaneRef) -> bool {
-        #[cfg(windows)]
         if self.focus_pane_ref().as_ref() == Some(key) {
             self.cancel_duplicate_sequence();
         }
@@ -2016,7 +1992,6 @@ impl WorkbenchClientState {
     /// No automatic re-acquire — NotController and definite failures never
     /// silently retry.
     pub(super) fn settle_pane_fault(&mut self, key: &PaneRef, fault: PaneFault) -> bool {
-        #[cfg(windows)]
         if self.focus_pane_ref().as_ref() == Some(key) {
             self.cancel_duplicate_sequence();
         }
@@ -2658,7 +2633,6 @@ impl WorkbenchClientState {
                 return false;
             }
             self.phase = ClientPhase::Empty;
-            #[cfg(windows)]
             self.duplicate_precommit_failed(operation);
             self.notice = Some(ClientNotice::CreateNotCreated);
             return true;
@@ -2686,7 +2660,6 @@ impl WorkbenchClientState {
             }
         }
         self.phase = ClientPhase::Ready(old_ready);
-        #[cfg(windows)]
         self.duplicate_precommit_failed(operation);
         self.notice = Some(ClientNotice::CreateNotCreated);
         true
@@ -2724,7 +2697,6 @@ impl WorkbenchClientState {
             self.launch_descriptions
                 .insert(committed.expectation.presentation_id().clone(), description);
         }
-        #[cfg(windows)]
         self.duplicate_commit_fact(&committed);
         self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
         true
@@ -2896,7 +2868,6 @@ impl WorkbenchClientState {
     /// Clears one pane's attachment facts after a canonical disposal path (the
     /// record itself stays — it still owns the pane's leaf geometry and fault).
     fn clear_pane_attachment(&mut self, pane: &PaneKey) {
-        #[cfg(windows)]
         if self.desired.as_ref() == Some(pane) {
             self.cancel_duplicate_sequence();
         }
@@ -3265,7 +3236,6 @@ impl WorkbenchClientState {
                     .then_some(index)
             }
             None => {
-                #[cfg(windows)]
                 if let Some(index) = self.overlay_return_index(tab, previous.panel_id()) {
                     return Some(index);
                 }
@@ -3330,12 +3300,10 @@ impl WorkbenchClientState {
                     })
             })
             .collect();
-        #[cfg(windows)]
         let overlay_focus = self.focus_panel_id().cloned();
         self.phase = phase;
         self.provenance = provenance;
         self.cache = candidate;
-        #[cfg(windows)]
         self.prune_plugin_overlays(overlay_focus.as_ref());
         self.prune_zoomed_tabs();
         self.prune_navigation_memory();
@@ -3531,7 +3499,6 @@ impl WorkbenchClientState {
     /// touching any attachment. Queued input/resize commands keep their frozen
     /// `PaneRef` tags and remain valid — the membership set does not change.
     pub(super) fn move_panel_focus_local(&mut self, pane: PaneKey) -> bool {
-        #[cfg(windows)]
         self.cancel_duplicate_sequence();
         if self.plan_panel_focus_local_at(pane.panel()).as_ref() != Some(&pane) {
             return false;
@@ -3591,7 +3558,6 @@ impl WorkbenchClientState {
             return false;
         }
         let tab_id = tab.tab_id().clone();
-        #[cfg(windows)]
         for overlay in &mut self.plugin_overlays {
             if overlay.tab == tab_id {
                 overlay.owns_zoom = false;
@@ -3620,7 +3586,6 @@ impl WorkbenchClientState {
             .and_then(|index| self.cache.tabs().get(index))
             .and_then(|tab| tab.panel_tree().split_ratio(split, first, second))
     }
-    #[cfg(windows)]
     pub(super) fn split_revision(&self) -> WorkbenchRevision {
         self.cache.revision()
     }
@@ -3799,7 +3764,6 @@ impl WorkbenchClientState {
             return false;
         };
         if matches!(&self.phase, ClientPhase::Creating(_)) {
-            #[cfg(windows)]
             self.duplicate_commit_fact(&committed);
             self.phase = ClientPhase::CreateCommittedNeedDetach(committed);
             true
@@ -3810,7 +3774,6 @@ impl WorkbenchClientState {
 
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
         self.close.halt_set();
-        #[cfg(windows)]
         self.stop_duplicate_sequence(DuplicateStop::Recovery);
         self.retire_close_reconciliations();
         self.cancel_close_confirmation();
@@ -4033,7 +3996,6 @@ pub(super) struct WorkbenchClientView<'a> {
 }
 
 impl<'a> WorkbenchClientView<'a> {
-    #[cfg(windows)]
     pub(super) fn action_menu_source(&self) -> crate::action_menu::DrawnMenuSource {
         crate::action_menu::DrawnMenuSource {
             site: self.state.cache.site_id().clone(),
@@ -4052,12 +4014,10 @@ impl<'a> WorkbenchClientView<'a> {
         })
     }
 
-    #[cfg(windows)]
     pub(super) fn site_id(&self) -> &SiteId {
         self.state.cache.site_id()
     }
 
-    #[cfg(windows)]
     pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
         self.state.cache.terminal_context_id()
     }

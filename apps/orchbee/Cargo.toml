@@ -7,6 +7,8 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+serde.workspace = true
+base64.workspace = true
 getrandom.workspace = true
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 
@@ -44,9 +46,7 @@ clipboard-win = { version = "5.4.1", default-features = false, features = ["std"
 orchbee-windows-console-host = { path = "../../crates/windows-console-host" }
 # Original console-title capture/restoration through safe UTF-16 Windows wrappers.
 win32console.workspace = true
-base64.workspace = true
 # Closed Windows remote CLI relay envelopes; reuse the workspace-pinned serde.
-serde.workspace = true
 serde_core = { version = "1.0.229", default-features = false, features = ["std"] }
 # Complete, bounded provider-owned TOML configuration inspection.
 toml.workspace = true
@@ -71,7 +71,6 @@ sha2.workspace = true
 
 [dev-dependencies]
 # Shared GUI/TUI close-target corpus; reuse the already admitted workspace serde.
-serde.workspace = true
 jsonschema.workspace = true
 
 [target.'cfg(unix)'.dev-dependencies]

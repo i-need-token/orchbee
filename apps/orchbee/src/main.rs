@@ -1,125 +1,72 @@
-#![cfg_attr(
-    target_os = "macos",
-    expect(
-        dead_code,
-        reason = "the Apple Silicon development package routes the shared CLI/TUI subset while platform-specific CLI paths remain unexposed"
-    )
-)]
-
 //! Native Client composition and invocation dispatch for CLI operations and retained-terminal
 //! TUI sessions. Feature owners define command and interaction semantics; Server and Worker
 //! retain shared Workbench authority and physical terminal execution.
 
-#[cfg(windows)]
 mod action_menu;
-#[cfg(any(unix, windows))]
 mod action_projection;
 #[cfg(windows)]
 mod agent_configuration_windows;
 mod agent_doctor;
 mod agent_integrations;
-#[cfg(windows)]
 mod agent_projection;
 mod agent_provider;
-#[cfg(windows)]
 mod agent_start;
 mod cli;
 mod client_view;
 mod help;
 mod invocation;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod local_activation;
-#[cfg(any(unix, windows))]
 mod local_client;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod local_startup;
 mod localization;
-#[cfg(windows)]
 mod machine_agents;
-#[cfg(windows)]
 mod machine_discovery;
-#[cfg(windows)]
 mod machine_observation;
-#[cfg(windows)]
 mod machine_picker;
-#[cfg(windows)]
 mod machine_spaces;
-#[cfg(windows)]
 mod machine_ssh;
-#[cfg(windows)]
 mod machine_tunnel;
-#[cfg(windows)]
 mod machines;
 mod native_settings;
 mod notifications;
-#[cfg(windows)]
 mod onboarding;
 mod presentation;
-#[cfg(any(unix, windows))]
 mod startup_wait;
-#[cfg(windows)]
 mod terminal_buffer_text;
-#[cfg(windows)]
 mod terminal_content;
-#[cfg(windows)]
 mod terminal_copy;
-#[cfg(windows)]
 mod terminal_copy_mode;
-#[cfg(windows)]
 mod terminal_copy_query;
-#[cfg(any(unix, windows))]
 mod terminal_device;
 mod terminal_graphics;
-#[cfg(any(unix, windows))]
 mod terminal_host_appearance;
-#[cfg(any(unix, windows))]
 mod terminal_input;
-#[cfg(any(unix, windows))]
 mod terminal_lifecycle;
-#[cfg(windows)]
 mod terminal_link_activation;
-#[cfg(windows)]
 mod terminal_links;
-#[cfg(any(unix, windows))]
 mod terminal_live_view;
-#[cfg(any(unix, windows))]
 mod terminal_pointer_admission;
-#[cfg(any(unix, windows))]
 mod terminal_projection;
-#[cfg(any(unix, windows))]
 mod terminal_scrollbar;
-#[cfg(any(unix, windows))]
 mod terminal_text;
-#[cfg(windows)]
 mod terminal_title;
-#[cfg(any(unix, windows))]
 mod termination_signal;
 mod transient_notice;
-#[cfg(any(unix, windows))]
 mod tui_backend;
-#[cfg(any(unix, windows))]
+mod tui_capabilities;
 mod tui_composition;
-#[cfg(windows)]
 mod tui_graphics;
-#[cfg(any(unix, windows))]
 mod tui_layout;
-#[cfg(any(unix, windows))]
 mod tui_pointer;
-#[cfg(any(unix, windows))]
 mod tui_presentation;
-#[cfg(any(unix, windows))]
 mod tui_render;
-#[cfg(any(unix, windows))]
 mod tui_shell;
-#[cfg(any(unix, windows))]
 mod tui_theme;
 #[cfg(windows)]
 mod windows_console_input;
 #[cfg(windows)]
 mod windows_signal;
-#[cfg(any(unix, windows))]
 mod workbench_client;
-#[cfg(windows)]
 mod worktree_destination;
 
 use std::{

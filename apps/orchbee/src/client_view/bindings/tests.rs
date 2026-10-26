@@ -40,7 +40,6 @@ fn every_existing_prefix_key_resolves_to_its_action() {
         PrefixAction::Client(ClientAction::RequestProjectRename)
     );
 }
-#[cfg(windows)]
 #[test]
 fn worktree_prefixes_resolve_through_the_same_registry_as_help() {
     for (key, action, description) in [
@@ -74,7 +73,6 @@ fn digit_range_resolves_as_one_member() {
     assert!(match_prefix(press(KeyCode::Char('0'))).is_none());
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_focus_is_an_explicit_prefix_action_distinct_from_visibility() {
     assert_eq!(

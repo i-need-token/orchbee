@@ -34,7 +34,6 @@ impl Locale {
         }
     }
     /// Localized progress for the Client-local Workspace creation projection.
-    #[cfg(windows)]
     pub(crate) const fn workspace_creation_progress(
         self,
         phase: crate::workbench_client::WorkspaceCreationPhase,

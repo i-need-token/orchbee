@@ -11,9 +11,7 @@ use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 
 mod capture;
 mod program;
-pub use capture::{
-    WindowsCommandFailure, WindowsCommandOutput, run_windows_command, run_windows_command_exchange,
-};
+pub use capture::{run_windows_command, run_windows_command_exchange};
 pub use program::resolve_windows_program;
 
 enum Settlement {

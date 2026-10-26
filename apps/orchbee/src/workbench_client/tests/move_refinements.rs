@@ -19,10 +19,8 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     let phase = Arc::new(AtomicU8::new(0));
     // Windows preserves reading positions through a view that samples settings
     // and reminder notices before Move captures its budget and attempts the lock.
-    #[cfg(windows)]
     let safe_samples = 4;
-    #[cfg(not(windows))]
-    let safe_samples = 2;
+
     let mut client = connect_with_ui_sample_expiry_clock(
         server.endpoint(),
         "test-cohort",

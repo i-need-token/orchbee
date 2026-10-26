@@ -91,7 +91,6 @@ pub(crate) enum MotionObservability {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum InteractionTarget {
     Help(crate::client_view::help::DrawnHelpControl),
-    #[cfg(windows)]
     GlobalChrome(super::GlobalChromeAction),
     SettingsRow {
         token: crate::native_settings::Token,
@@ -101,13 +100,11 @@ pub(crate) enum InteractionTarget {
         token: crate::native_settings::Token,
         control: crate::native_settings::Control,
     },
-    #[cfg(windows)]
     ActionMenuRow {
         source: crate::action_menu::MenuTarget,
         token: crate::action_menu::MenuToken,
         row: usize,
     },
-    #[cfg(windows)]
     ActionMenuControl {
         source: crate::action_menu::MenuTarget,
         token: crate::action_menu::MenuToken,
@@ -116,28 +113,17 @@ pub(crate) enum InteractionTarget {
     AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
     AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
     Presentation(crate::workbench_client::DrawnPresentationTarget),
-    #[cfg(not(windows))]
-    Tab(orchbee_workbench_protocol::WorkbenchTabId),
-    #[cfg(not(windows))]
-    Context(crate::workbench_client::NativeContextLocation),
-    #[cfg(windows)]
+
     Sidebar(crate::machine_picker::DrawnSidebarTarget),
-    #[cfg(windows)]
     SidebarFixed(crate::machine_picker::DrawnSidebarFixedTarget),
-    #[cfg(windows)]
     MachinePicker(crate::machine_picker::DrawnPickerTarget),
-    #[cfg(windows)]
     NavigatorRow(crate::client_view::navigator::Row),
-    #[cfg(windows)]
     NavigatorClose(crate::client_view::navigator::DrawSource),
-    #[cfg(windows)]
     TabCreate(crate::action_menu::DrawnTabCreate),
-    #[cfg(windows)]
     TabCloseRequest {
         source: crate::action_menu::DrawnTabCreate,
         tab: orchbee_workbench_protocol::WorkbenchTabId,
     },
-    #[cfg(windows)]
     PopupClose(crate::workbench_client::DrawnPopupClose),
     #[cfg(test)]
     Fixture(HitTarget),
@@ -159,7 +145,6 @@ impl InteractionTarget {
         matches!(self, Self::AgentBoardRow(_) | Self::AgentBoardControl(_))
     }
 
-    #[cfg(windows)]
     pub(super) const fn is_action_menu(&self) -> bool {
         matches!(
             self,
@@ -167,17 +152,14 @@ impl InteractionTarget {
         )
     }
 
-    #[cfg(windows)]
     pub(super) const fn is_navigator(&self) -> bool {
         matches!(self, Self::NavigatorRow(_) | Self::NavigatorClose(_))
     }
 
-    #[cfg(windows)]
     pub(super) const fn is_machine_picker(&self) -> bool {
         matches!(self, Self::MachinePicker(_))
     }
 
-    #[cfg(windows)]
     pub(super) const fn is_popup(&self) -> bool {
         matches!(self, Self::PopupClose(_))
     }
@@ -186,11 +168,7 @@ impl InteractionTarget {
         if matches!(self, Self::Presentation(_)) {
             return true;
         }
-        #[cfg(not(windows))]
-        if matches!(self, Self::Tab(_) | Self::Context(_)) {
-            return true;
-        }
-        #[cfg(windows)]
+
         if matches!(
             self,
             Self::GlobalChrome(_)
@@ -214,7 +192,6 @@ impl InteractionTarget {
                 page: target.source().page(),
                 action: target.control(),
             },
-            #[cfg(windows)]
             Self::GlobalChrome(action) => match action {
                 super::GlobalChromeAction::Onboarding(action) => HitTarget::Onboarding(*action),
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
@@ -230,21 +207,15 @@ impl InteractionTarget {
             Self::AgentBoardRow(target) => HitTarget::AgentBoardRow(target.clone()),
             Self::AgentBoardControl(target) => HitTarget::AgentBoardControl(target.clone()),
             Self::Presentation(target) => HitTarget::Presentation(target.clone()),
-            #[cfg(not(windows))]
-            Self::Tab(tab) => HitTarget::Tab(tab.clone()),
-            #[cfg(not(windows))]
-            Self::Context(location) => HitTarget::Context(location.clone()),
-            #[cfg(windows)]
+
             Self::ActionMenuRow { token, row, .. } => HitTarget::ActionMenuRow {
                 token: *token,
                 row: *row,
             },
-            #[cfg(windows)]
             Self::ActionMenuControl { token, control, .. } => HitTarget::ActionMenuControl {
                 token: *token,
                 back: *control == crate::action_menu::MenuControl::Back,
             },
-            #[cfg(windows)]
             Self::Sidebar(target) => {
                 use crate::machine_picker::{SidebarPart, SidebarTarget};
                 match target.part() {
@@ -274,7 +245,6 @@ impl InteractionTarget {
                     SidebarPart::Close => HitTarget::SidebarClose(target.target().clone()),
                 }
             }
-            #[cfg(windows)]
             Self::SidebarFixed(target) => {
                 use crate::machine_picker::SidebarFixedAction;
                 match target.action() {
@@ -284,20 +254,14 @@ impl InteractionTarget {
                     SidebarFixedAction::Browse => HitTarget::OpenMachineWorkspaces,
                 }
             }
-            #[cfg(windows)]
             Self::MachinePicker(target) => HitTarget::MachinePicker(target.clone()),
-            #[cfg(windows)]
             Self::NavigatorRow(row) => HitTarget::NavigatorRow(row.clone()),
-            #[cfg(windows)]
             Self::NavigatorClose(source) => HitTarget::NavigatorClose(source.episode()),
-            #[cfg(windows)]
             Self::TabCreate(target) => HitTarget::TabCreate(target.clone()),
-            #[cfg(windows)]
             Self::TabCloseRequest { source, tab } => HitTarget::TabCloseRequest {
                 source: source.clone(),
                 tab: tab.clone(),
             },
-            #[cfg(windows)]
             Self::PopupClose(target) => HitTarget::PopupClose(target.clone()),
             #[cfg(test)]
             Self::Fixture(target) => target.clone(),
@@ -313,7 +277,6 @@ pub(super) struct PaintedInteraction {
 }
 
 impl PaintedInteraction {
-    #[cfg(windows)]
     pub(super) const fn target(&self) -> &InteractionTarget {
         &self.target
     }
@@ -415,12 +378,10 @@ pub(crate) struct PointerProjection {
     hovered: Option<Fingerprint>,
     pressed: Option<Fingerprint>,
     modal: super::modal::Projection,
-    #[cfg(windows)]
     chrome: super::chrome::Projection,
 }
 
 impl PointerProjection {
-    #[cfg(windows)]
     pub(super) fn with_specialized_owner(mut self, pressed: Option<Fingerprint>) -> Self {
         self.pressed = pressed;
         self.hovered = None;
@@ -433,7 +394,6 @@ impl PointerProjection {
             hovered: None,
             pressed: None,
             modal: super::modal::Projection::empty(),
-            #[cfg(windows)]
             chrome: super::chrome::Projection::empty(),
         }
     }
@@ -458,18 +418,15 @@ impl PointerProjection {
         self.modal.project(fingerprint)
     }
 
-    #[cfg(windows)]
     pub(super) fn with_chrome(mut self, chrome: super::chrome::Projection) -> Self {
         self.chrome = chrome;
         self
     }
 
-    #[cfg(windows)]
     pub(super) const fn chrome(&self) -> &super::chrome::Projection {
         &self.chrome
     }
 
-    #[cfg(windows)]
     pub(super) fn project_chrome(
         &self,
         fingerprint: &super::chrome::Fingerprint,
@@ -569,7 +526,6 @@ pub(super) struct State {
 }
 
 impl State {
-    #[cfg(windows)]
     pub(super) fn hovered_target(&self) -> Option<&InteractionTarget> {
         self.hovered.as_ref().map(|fingerprint| &fingerprint.target)
     }
@@ -588,7 +544,6 @@ impl State {
                 .filter(|arm| arm.active() && !arm.backdrop)
                 .map(|arm| arm.fingerprint.clone()),
             modal: super::modal::Projection::empty(),
-            #[cfg(windows)]
             chrome: super::chrome::Projection::empty(),
         }
     }

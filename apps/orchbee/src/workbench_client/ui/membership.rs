@@ -14,7 +14,6 @@ impl NativeUi {
         cleanup: MembershipCleanup,
         detached: AttachmentKey,
     ) -> bool {
-        #[cfg(windows)]
         let menu_generation = match cleanup.result() {
             MembershipResultKey::Refresh(generation) => {
                 Some(super::action_menus::NavigationKey::Context(*generation))
@@ -163,7 +162,6 @@ impl NativeUi {
         });
         match result {
             Ok(MutationResult::Applied) => {
-                #[cfg(windows)]
                 if !expired && let Some(generation) = menu_generation {
                     self.menu_navigation_installed(generation);
                 }

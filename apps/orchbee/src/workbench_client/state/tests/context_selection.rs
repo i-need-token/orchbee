@@ -105,7 +105,6 @@ fn exact_context_member_refuses_missing_or_rebound_child_before_cleanup_and_pres
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_ordinary_memory() {
     use crate::workbench_client::NativeMemberTarget;

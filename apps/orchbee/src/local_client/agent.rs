@@ -39,7 +39,6 @@ impl LocalClient {
 
     /// Names mutations share the same one-shot exchange. A lost reply is
     /// ambiguous and retires the session; this method never replays it.
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn submit_agent_names_before_cancellable(
         &mut self,
         request: AgentNamesRequest,
@@ -57,7 +56,6 @@ impl LocalClient {
 
     /// One correlated launch exchange; mutations are never replayed after
     /// an ambiguous transport outcome.
-    #[cfg(windows)]
     pub(crate) fn submit_agent_launch_before_cancellable(
         &mut self,
         request: AgentLaunchRequest,

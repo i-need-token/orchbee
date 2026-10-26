@@ -904,7 +904,6 @@ fn generic_release_ownership_distinguishes_active_intent_from_cleanup_debt() {
     assert_eq!(pointer.modal_release_ownership(), ReleaseOwnership::None,);
 }
 
-#[cfg(windows)]
 #[test]
 fn compositor_cover_retirement_preserves_generic_interaction_ownership() {
     let target = close();

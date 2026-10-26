@@ -16,7 +16,6 @@ use super::super::agent_board::{
     AgentBoardRowTarget, AgentBoardToken, JumpStage, JumpStep, NativeAgentBoardView,
     board_key_action, plan_jump_step,
 };
-#[cfg(windows)]
 use super::super::agent_board::{AgentStartKeyAction, agent_start_key_action};
 use super::{
     ActionBuildError, Arc, CarrierFailure, ClientAction, ClientActionDisposition, ClientNotice,
@@ -29,27 +28,18 @@ use crate::workbench_client::workbench_projection::NativeContextLocation;
 use std::time::Instant;
 
 impl NativeUi {
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::workbench_client) fn set_agent_board_origin(
         &mut self,
         origin: crate::local_client::LocalClientOrigin,
     ) {
-        #[cfg(windows)]
         self.launch_profiles.set_origin(&origin);
         self.attention.set_origin(origin.clone());
-        #[cfg(windows)]
         self.reports.set_origin(origin.clone());
-        #[cfg(windows)]
         self.graphics.set_origin(origin.clone());
-        #[cfg(windows)]
         self.overlays.set_origin(origin.clone());
-        #[cfg(windows)]
         self.links.set_origin(origin.clone());
-        #[cfg(windows)]
         self.copy_mode.set_origin(origin.clone());
-        #[cfg(windows)]
         self.popup.set_origin(origin.clone());
-        #[cfg(windows)]
         self.worktrees.set_origin(origin.clone());
         self.settings.set_origin(origin.clone());
         self.board.set_origin(origin);
@@ -74,10 +64,8 @@ impl NativeUi {
             }
             return ClientActionDisposition::KeepNavigator;
         }
-        #[cfg(windows)]
         self.board.open_with_start_catalog(std::env::var_os("PATH"));
-        #[cfg(not(windows))]
-        self.board.open();
+
         self.enqueue_board_snapshot_refresh();
         ClientActionDisposition::DismissNavigator
     }
@@ -89,7 +77,6 @@ impl NativeUi {
         if self.settings_active() {
             return true;
         }
-        #[cfg(windows)]
         if self.worktree_input_context().is_some() {
             return true;
         }
@@ -118,18 +105,14 @@ impl NativeUi {
     pub(in crate::workbench_client) fn release_agent_lane(&mut self) {
         self.board.release_lane();
         self.settings.close();
-        #[cfg(windows)]
         if !self.worktrees.close() {
             self.worktrees
                 .launcher
                 .entry_notice(super::WorktreeNotice::Unknown);
         }
         self.attention.close();
-        #[cfg(windows)]
         self.reports.close();
-        #[cfg(windows)]
         self.graphics.close();
-        #[cfg(windows)]
         self.copy_mode.close();
     }
 
@@ -156,7 +139,6 @@ impl NativeUi {
         if !context.interactive() {
             return true;
         }
-        #[cfg(windows)]
         if self.board.start_form_active() {
             match agent_start_key_action(*event, self.board.start_running()) {
                 Some(AgentStartKeyAction::Start) => {
@@ -219,7 +201,6 @@ impl NativeUi {
         &mut self,
         target: &AgentBoardControlTarget,
     ) -> bool {
-        #[cfg(windows)]
         if target.control() == super::super::agent_board::AgentBoardControl::Start {
             let Some(panel) = self
                 .state
@@ -237,7 +218,6 @@ impl NativeUi {
         self.board.control_drawn(target)
     }
 
-    #[cfg(windows)]
     fn accepted_agent_start(&mut self) {
         self.board.close();
         if let Some(phase) = self.board.start_phase()
@@ -256,7 +236,6 @@ impl NativeUi {
     pub(super) fn agent_board_view(&self) -> Option<NativeAgentBoardView<'_>> {
         self.board.is_open().then(|| {
             let view = NativeAgentBoardView::new(&self.board, &self.agent_index);
-            #[cfg(windows)]
             let view = view.with_attention(&self.attention);
             view
         })
@@ -380,7 +359,6 @@ impl NativeUi {
                 })
         });
         changed |= self.board.drive_intent(now);
-        #[cfg(windows)]
         {
             let before = self.board.start_phase();
             changed |= self.board.drain_start();

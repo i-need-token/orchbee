@@ -46,12 +46,14 @@ pub(super) struct DrawSource {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CatalogStatus {
+    Unsupported,
     Loading,
     Ready,
     Unavailable,
 }
 
 enum Catalog {
+    Unsupported,
     Unloaded,
     Loading,
     Ready,
@@ -93,6 +95,7 @@ struct Operation {
 }
 
 pub(super) struct State {
+    launch_supported: bool,
     catalog: Catalog,
     catalog_revision: u64,
     catalog_task: Option<CatalogTask>,
@@ -116,8 +119,9 @@ pub(super) struct State {
 }
 
 impl State {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(launch_supported: bool) -> Self {
         Self {
+            launch_supported,
             catalog: Catalog::Unloaded,
             catalog_revision: 0,
             catalog_task: None,
@@ -157,6 +161,10 @@ impl State {
         }
         if !self.retiring_catalog_tasks.is_empty() {
             return false;
+        }
+        if !self.launch_supported {
+            self.catalog = Catalog::Unsupported;
+            return true;
         }
         self.catalog_revision = self.catalog_revision.wrapping_add(1);
         if self.origin.as_ref().is_none_or(|origin| !origin.is_local()) {
@@ -225,6 +233,7 @@ impl State {
             Catalog::Unloaded | Catalog::Loading => CatalogStatus::Loading,
             Catalog::Ready => CatalogStatus::Ready,
             Catalog::Unavailable => CatalogStatus::Unavailable,
+            Catalog::Unsupported => CatalogStatus::Unsupported,
         }
     }
 
@@ -312,7 +321,8 @@ impl State {
     }
 
     pub(super) fn can_start(&self) -> bool {
-        self.draft_editable()
+        self.launch_supported
+            && self.draft_editable()
             && self.selected_provider().is_some()
             && AgentName::parse(&self.name).is_ok()
             && self.origin.is_some()

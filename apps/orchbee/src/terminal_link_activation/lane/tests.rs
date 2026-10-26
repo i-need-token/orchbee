@@ -4,8 +4,8 @@ use std::{
 };
 
 use super::{
-    Admission, BrowserPort, Driver, EffectHandoff, Notice, browser_url, settle_browser,
-    settle_effect,
+    Admission, BrowserError, BrowserPort, Driver, EffectHandoff, Notice, browser_url,
+    settle_browser, settle_effect,
 };
 use crate::{
     terminal_link_activation::{Activation, PaintedLinkSource, PaintedRows, SnapshotMember},
@@ -19,9 +19,13 @@ struct RecordingBrowser {
 }
 
 impl BrowserPort for RecordingBrowser {
-    fn open(&mut self, url: &str) -> Result<(), ()> {
+    fn open(&mut self, url: &str) -> Result<(), BrowserError> {
         self.opened.push(url.to_owned());
-        if self.fail { Err(()) } else { Ok(()) }
+        if self.fail {
+            Err(BrowserError::Failed)
+        } else {
+            Ok(())
+        }
     }
 }
 

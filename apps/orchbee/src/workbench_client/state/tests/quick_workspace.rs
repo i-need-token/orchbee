@@ -179,6 +179,7 @@ fn finish_targeted(state: &mut WorkbenchClientState, preparation: &QuickPreparat
         preparation,
         Some(WorkbenchDirectoryPath::parse("C:/source").unwrap()),
         Locale::EnUs,
+        Vec::new(),
     );
 }
 
@@ -527,7 +528,6 @@ fn project_quick_return_retires_mismatched_identity_even_if_restored_before_read
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_return() {
     use crate::client_view::{ClientAction, ClientActionDisposition, ClientView, Overlay};
@@ -854,7 +854,12 @@ fn default_names_avoid_global_collisions_and_reserve_suffix_space_without_editin
                     .unwrap()
             };
             settle_preparation_read(&mut state, &preparation, &snapshot);
-            state.finish_quick_preparation(&preparation, Some(cwd.clone()), Locale::EnUs);
+            state.finish_quick_preparation(
+                &preparation,
+                Some(cwd.clone()),
+                Locale::EnUs,
+                Vec::new(),
+            );
             let operation = targeted_plan(&mut state);
             let WorkbenchAction::WorkspaceLaunch { label, .. } = operation.command.action else {
                 panic!("launch")

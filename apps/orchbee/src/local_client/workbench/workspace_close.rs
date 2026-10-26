@@ -12,9 +12,7 @@ use std::{fmt, io, time::Instant};
 mod idle_tests;
 mod read;
 mod resume;
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) use read::WorkbenchWorkspaceCloseReadError;
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) use resume::WorkbenchWorkspaceCloseResumeSubmission;
 
 #[derive(Debug)]

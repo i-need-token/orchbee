@@ -1,4 +1,3 @@
-#[cfg(windows)]
 mod agent_startup;
 mod commands;
 mod context_selection;
@@ -6,13 +5,10 @@ mod control_takeover;
 mod location_labels;
 mod panel;
 mod presentations;
-#[cfg(windows)]
 mod quick_workspace;
 mod setup;
 pub(in crate::workbench_client::connection::native) mod source_root;
-#[cfg(windows)]
 mod startup_directory;
-#[cfg(windows)]
 mod startup_preference;
 mod switch_membership;
 mod tab_move;

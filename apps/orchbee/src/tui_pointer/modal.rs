@@ -10,12 +10,10 @@ use ratatui::layout::Rect;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum ControlTarget {
-    #[cfg(windows)]
     Copy(
         crate::terminal_copy_mode::CopyModeToken,
         crate::terminal_copy_mode::CopyControl,
     ),
-    #[cfg(windows)]
     Resize(super::ResizeControl),
     TabClose(crate::workbench_client::NativeCloseConfirmationToken, bool),
     PanelClose(
@@ -24,7 +22,6 @@ enum ControlTarget {
     ),
     Rename(crate::workbench_client::NativeRenameDraftToken, bool),
     Setup(crate::workbench_client::NativeSetupToken, ModalControl),
-    #[cfg(windows)]
     Worktree(crate::workbench_client::WorktreeToken, ModalControl),
     Close(crate::workbench_client::WorkspaceCloseToken, bool),
 }
@@ -32,15 +29,12 @@ enum ControlTarget {
 impl ControlTarget {
     fn from_hit(target: &HitTarget) -> Option<Self> {
         Some(match target {
-            #[cfg(windows)]
             HitTarget::CopyControl { token, control } => Self::Copy(*token, *control),
-            #[cfg(windows)]
             HitTarget::Resize(control) => Self::Resize(control.clone()),
             HitTarget::TabClose { token, confirm } => Self::TabClose(*token, *confirm),
             HitTarget::PanelClose { token, confirm } => Self::PanelClose(*token, *confirm),
             HitTarget::Rename { token, submit } => Self::Rename(*token, *submit),
             HitTarget::Setup { token, control } => Self::Setup(*token, *control),
-            #[cfg(windows)]
             HitTarget::Worktree { token, control } => Self::Worktree(*token, *control),
             HitTarget::WorkspaceClose { token, confirm } => Self::Close(*token, *confirm),
             _ => return None,
@@ -51,7 +45,6 @@ impl ControlTarget {
         if matches!(self, Self::Setup(_, ModalControl::Surface)) {
             return false;
         }
-        #[cfg(windows)]
         if matches!(self, Self::Worktree(_, ModalControl::Surface)) {
             return false;
         }
@@ -59,12 +52,10 @@ impl ControlTarget {
     }
 }
 
-#[cfg(windows)]
 fn accepts_copy(target: &ControlTarget) -> bool {
     matches!(target, ControlTarget::Copy(..))
 }
 
-#[cfg(windows)]
 fn accepts_resize(target: &ControlTarget) -> bool {
     matches!(target, ControlTarget::Resize(_))
 }
@@ -80,7 +71,6 @@ fn accepts_modal(target: &ControlTarget) -> bool {
     match target {
         ControlTarget::Rename(..) => true,
         ControlTarget::Setup(_, control) => *control != ModalControl::Surface,
-        #[cfg(windows)]
         ControlTarget::Worktree(_, control) => *control != ModalControl::Surface,
         _ => false,
     }
@@ -521,14 +511,12 @@ impl PointerState {
         for press in [&self.close_press, &self.modal_press].into_iter().flatten() {
             ownership = ownership.merge(press.release_ownership());
         }
-        #[cfg(windows)]
         if self.copy_drag.is_some() {
             ownership = ownership.merge(ReleaseOwnership::Active);
         }
         ownership
     }
 
-    #[cfg(windows)]
     pub(super) fn copy_control_event(
         &mut self,
         view: &mut crate::client_view::ClientView,
@@ -565,7 +553,6 @@ impl PointerState {
         self.stale_map();
         true
     }
-    #[cfg(windows)]
     pub(crate) fn resize_event(
         &mut self,
         view: &mut crate::client_view::ClientView,
@@ -658,7 +645,6 @@ impl PointerState {
 
     /// Revokes pending effects while retaining ownership of their late releases.
     pub(crate) fn cancel_modal_press(&mut self) {
-        #[cfg(windows)]
         self.cancel_copy_drag();
         for press in [&mut self.close_press, &mut self.modal_press]
             .into_iter()
@@ -760,7 +746,6 @@ impl PointerState {
                 ModalControl::Cancel => port.cancel_setup_draft(token),
                 ModalControl::Surface | ModalControl::Refresh => {}
             },
-            #[cfg(windows)]
             Some(ControlTarget::Worktree(token, control)) => match control {
                 ModalControl::NextField => {
                     port.edit_worktree(token, crate::workbench_client::WorktreeEdit::NextField);

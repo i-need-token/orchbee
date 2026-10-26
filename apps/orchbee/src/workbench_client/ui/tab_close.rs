@@ -1,5 +1,4 @@
 use super::{NativePanelCloseConfirmationToken, NativeUi, WorkbenchClientView};
-#[cfg(windows)]
 use crate::workbench_client::state::TabCloseResumePermit;
 use crate::workbench_client::state::{CloseConfirmationView, CloseStatusView};
 use crate::{
@@ -44,15 +43,12 @@ impl<T> ModalPresentation<T> {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
     settings: Option<ModalPresentation<crate::native_settings::SettingsDraw>>,
-    #[cfg(windows)]
     menu: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
-    #[cfg(windows)]
     position: Option<crate::workbench_client::startup_preference::Draw>,
     prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
     status: Option<NativeCloseStatusToken>,
     rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
     setup: Option<ModalPresentation<super::NativeSetupToken>>,
-    #[cfg(windows)]
     worktree: Option<ModalPresentation<super::WorktreeToken>>,
     panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
     workspace_prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
@@ -61,7 +57,6 @@ pub(crate) struct NativeDrawReceipt {
     /// `None` revokes current proof because the board was absent or covered.
     agent_board: Option<super::AgentBoardDraw>,
     attention: Option<crate::workbench_client::agent_attention::NativeAgentAttentionDraw>,
-    #[cfg(windows)]
     graphics: Vec<crate::workbench_client::PaneGraphicsDraw>,
 }
 
@@ -73,7 +68,6 @@ impl NativeDrawReceipt {
         self.settings = draw;
         self
     }
-    #[cfg(windows)]
     pub(crate) fn with_menu(
         mut self,
         draw: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
@@ -81,11 +75,9 @@ impl NativeDrawReceipt {
         self.menu = draw;
         self
     }
-    #[cfg(windows)]
     pub(crate) fn position(&self) -> Option<&crate::workbench_client::startup_preference::Draw> {
         self.position.as_ref()
     }
-    #[cfg(windows)]
     pub(crate) fn with_position(
         mut self,
         position: Option<crate::workbench_client::startup_preference::Draw>,
@@ -93,11 +85,9 @@ impl NativeDrawReceipt {
         self.position = position;
         self
     }
-    #[cfg(windows)]
     pub(crate) fn graphics_draws(&self) -> &[crate::workbench_client::PaneGraphicsDraw] {
         &self.graphics
     }
-    #[cfg(windows)]
     pub(crate) fn with_graphics(
         mut self,
         graphics: Vec<crate::workbench_client::PaneGraphicsDraw>,
@@ -116,7 +106,6 @@ impl NativeDrawReceipt {
         self.agent_board = agent_board;
         self
     }
-    #[cfg(windows)]
     pub(crate) const fn with_worktree(
         mut self,
         worktree: Option<ModalPresentation<super::WorktreeToken>>,
@@ -137,22 +126,18 @@ impl NativeDrawReceipt {
         status: Option<NativeCloseStatusToken>,
     ) -> Self {
         Self {
-            #[cfg(windows)]
             position: None,
             prompt,
             status,
             rename: None,
             setup: None,
-            #[cfg(windows)]
             worktree: None,
-            #[cfg(windows)]
             menu: None,
             settings: None,
             panel_prompt: None,
             workspace_prompt: None,
             agent_board: None,
             attention: None,
-            #[cfg(windows)]
             graphics: Vec::new(),
         }
     }
@@ -346,7 +331,6 @@ impl NativeUi {
     )> {
         self.state.as_ref()?.uncertain_close_identity()
     }
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::workbench_client) fn begin_status_recovery(
         &mut self,
     ) -> Option<(
@@ -481,7 +465,6 @@ impl NativeUi {
         }
     }
 
-    #[cfg(windows)]
     pub(super) fn request_tab_close_resume(
         &mut self,
         tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
@@ -499,7 +482,6 @@ impl NativeUi {
         }
     }
 
-    #[cfg(windows)]
     pub(super) fn request_tab_close_resume_with_permit(
         &mut self,
         tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
@@ -606,11 +588,9 @@ impl NativeUi {
     }
 
     pub(in crate::workbench_client) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
-        #[cfg(windows)]
         self.after_action_menu_draw(receipt.menu);
         self.after_settings_draw(receipt.settings);
         self.attention.after_draw();
-        #[cfg(windows)]
         self.after_graphics_draw(receipt.graphics);
         if let Some(state) = &mut self.state {
             state.acknowledge_close_draw(
@@ -625,7 +605,6 @@ impl NativeUi {
         self.after_workspace_close_draw(receipt.workspace_prompt);
         self.after_rename_draw(receipt.rename);
         self.after_setup_draw(receipt.setup);
-        #[cfg(windows)]
         self.after_worktree_draw(receipt.worktree);
         self.after_agent_board_draw(receipt.agent_board);
         if let Some(draw) = receipt.attention {

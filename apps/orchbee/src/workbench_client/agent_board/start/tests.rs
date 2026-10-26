@@ -43,7 +43,7 @@ fn report(
 
 #[test]
 fn draft_is_bounded_and_every_visible_change_invalidates_the_draw_source() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.install_catalog(&["codex", "amp"]);
     let first = state.draw_source();
     assert!(state.edit(KeyEvent::press(
@@ -66,7 +66,7 @@ fn draft_is_bounded_and_every_visible_change_invalidates_the_draw_source() {
 
 #[test]
 fn completion_requires_the_exact_generation_and_panel() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     let target = panel(1);
     state.operation = Some(operation(7, target.clone(), Phase::Starting));
     assert!(!state.apply_completion(6, &target, Phase::Started));
@@ -175,7 +175,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
 
 #[test]
 fn completion_waits_for_channel_authority_and_reports_started_once() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     let target = panel(1);
     state.operation = Some(operation(7, target.clone(), Phase::Starting));
     let (sender, outcomes) = mpsc::sync_channel(1);
@@ -221,7 +221,7 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
 #[test]
 fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
     for phase in [Phase::Starting, Phase::Cancelling] {
-        let mut state = State::new();
+        let mut state = State::new(true);
         state.operation = Some(operation(7, panel(1), phase));
         let (sender, outcomes) = mpsc::sync_channel(1);
         drop(sender);
@@ -249,7 +249,7 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
 
 #[test]
 fn catalog_result_survives_empty_then_sender_exit() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.catalog = Catalog::Loading;
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
@@ -276,7 +276,7 @@ fn catalog_result_survives_empty_then_sender_exit() {
 
 #[test]
 fn disconnected_catalog_worker_settles_unavailable() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.catalog = Catalog::Loading;
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
@@ -298,7 +298,7 @@ fn disconnected_catalog_worker_settles_unavailable() {
 
 #[test]
 fn detection_selects_no_undetected_default_and_lists_detected_providers_first() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.catalog = Catalog::Loading;
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(3);
@@ -345,7 +345,7 @@ fn detection_selects_no_undetected_default_and_lists_detected_providers_first() 
 
 #[test]
 fn only_explicit_cancel_moves_an_accepted_operation_to_cancelling() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     let target = panel(1);
     state.operation = Some(operation(3, target, Phase::Starting));
     state.opened(2);
@@ -366,14 +366,14 @@ fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
         Phase::Unknown,
         Phase::Unconfirmed,
     ] {
-        let mut state = State::new();
+        let mut state = State::new(true);
         state.operation = Some(operation(3, target.clone(), phase));
         state.opened(2);
         assert_eq!(state.phase(2), Some(phase));
         assert!(!state.draft_editable());
     }
     for phase in [Phase::Started, Phase::Failed, Phase::Cancelled] {
-        let mut state = State::new();
+        let mut state = State::new(true);
         state.operation = Some(operation(3, target.clone(), phase));
         state.opened(2);
         assert_eq!(state.phase(2), None);
@@ -383,7 +383,7 @@ fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
 
 #[test]
 fn remote_origin_never_publishes_the_local_process_path_as_target_availability() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.set_origin(crate::local_client::tests::server::disconnected_remote_origin());
     state.ensure_catalog(std::env::var_os("PATH"));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
@@ -441,7 +441,7 @@ fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
 
 #[test]
 fn automatic_names_follow_provider_until_edited_and_advance_after_an_attempt() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.install_catalog(&["claude-code", "codex"]);
     assert_eq!(state.name(), "claude-1");
     state.select_provider(1);
@@ -456,6 +456,7 @@ fn automatic_names_follow_provider_until_edited_and_advance_after_an_attempt() {
     assert_eq!(state.name(), "claude-2");
 }
 
+#[cfg(windows)]
 #[test]
 fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
     use std::{fs, path::PathBuf, time::SystemTime};
@@ -517,7 +518,7 @@ fn accepted_command_timeout_is_unconfirmed_and_cannot_be_replayed() {
         Some(0),
     );
     assert_eq!(report_phase(&result), Phase::Unconfirmed);
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.operation = Some(operation(1, panel(1), Phase::Unconfirmed));
     state.opened(2);
     assert_eq!(state.phase(2), Some(Phase::Unconfirmed));
@@ -526,7 +527,7 @@ fn accepted_command_timeout_is_unconfirmed_and_cannot_be_replayed() {
 
 #[test]
 fn canonical_attention_progress_is_cancellable_without_replacing_the_operation() {
-    let mut state = State::new();
+    let mut state = State::new(true);
     state.operation = Some(operation(1, panel(1), Phase::Starting));
     let (_sender, outcomes) = mpsc::sync_channel(1);
     let (_reader, wake) = LocalStream::pair().unwrap();

@@ -442,8 +442,6 @@ fn shortcut_lines(
     theme: &Theme,
     include_legend: bool,
 ) -> Option<Vec<Line<'static>>> {
-    #[cfg(not(windows))]
-    let _ = include_legend;
     let mut matching = entries
         .iter()
         .filter(|entry| crate::localization::shortcut_filter_matches(query, &entry.search_text))
@@ -520,7 +518,6 @@ fn shortcut_lines(
             }));
         }
     }
-    #[cfg(windows)]
     if include_legend && query.trim().is_empty() {
         lines.push(Line::styled(
             locale.sidebar_marker_label("legend"),

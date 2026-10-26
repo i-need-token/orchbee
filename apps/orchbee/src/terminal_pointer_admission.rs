@@ -4,7 +4,6 @@
 //! endpoint therefore gets at most one probe: after any settlement, a late
 //! reply can be consumed by the input decoder but can never reopen admission.
 
-#[cfg(windows)]
 use std::io;
 use std::{
     fmt,
@@ -26,12 +25,10 @@ impl Query {
 }
 
 impl crossterm::Command for Query {
-    #[cfg(windows)]
     fn execute_winapi(&self) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
 
-    #[cfg(windows)]
     fn is_ansi_code_supported(&self) -> bool {
         true
     }

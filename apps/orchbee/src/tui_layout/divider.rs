@@ -1,14 +1,11 @@
 //! Reversible divider geometry pinned to one successfully painted canonical source.
-#[cfg(any(windows, test))]
 use super::{SplitArea, divide_panes};
-#[cfg(any(windows, test))]
 use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
-#[cfg(any(windows, test))]
 use ratatui::layout::Rect;
 
 /// Selected canonical identity; drawing it grants no terminal input authority.
@@ -23,7 +20,6 @@ pub(crate) struct DividerSource {
 
 /// A resize toolbar refers to one focused layout and its painted viewport.
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg(windows)]
 pub(crate) struct DrawnResize {
     pub(crate) source: DividerSource,
     pub(crate) viewport: Rect,
@@ -32,7 +28,6 @@ pub(crate) struct DrawnResize {
 
 /// Exact painted split and viewport, revalidated before every gesture step.
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg(any(windows, test))]
 pub(crate) struct DrawnDivider {
     pub(crate) source: DividerSource,
     pub(crate) viewport: Rect,
@@ -45,7 +40,6 @@ pub(crate) struct DrawnDivider {
     pub(crate) divider: Rect,
 }
 
-#[cfg(any(windows, test))]
 impl DrawnDivider {
     /// Captures only geometry that the ordinary pane projector actually exposes.
     pub(crate) fn new(
@@ -74,7 +68,6 @@ impl DrawnDivider {
 
 /// Local preview; the original source and ratio remain immutable until it is dropped.
 #[derive(Clone, Debug)]
-#[cfg(any(windows, test))]
 pub(crate) struct DividerDrag {
     pub(crate) target: DrawnDivider,
     /// Last successfully painted geometry of this same local draft, never a new origin.
@@ -84,7 +77,6 @@ pub(crate) struct DividerDrag {
     pub(crate) preview: Rect,
 }
 
-#[cfg(any(windows, test))]
 impl DividerDrag {
     /// Begins only inside the exact painted divider.
     pub(crate) fn begin(target: DrawnDivider, column: u16, row: u16) -> Option<Self> {

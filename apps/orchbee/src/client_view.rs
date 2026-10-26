@@ -5,22 +5,17 @@ pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 =
     crate::tui_layout::SidebarWidth::DEFAULT.docked_host_columns();
 
 mod bindings;
-#[cfg(windows)]
 mod copy;
 pub(crate) mod help;
 mod keys;
-#[cfg(windows)]
 pub(crate) mod navigator;
-#[cfg(windows)]
 mod resize;
 
 pub(crate) use bindings::{Bindings, DiscoveryEntry, PrefixAction, PrefixDesc};
-#[cfg(windows)]
 pub(crate) use copy::{
     CopyHintLabel, CopyModeKey, CopySearchCommand, decide as copy_mode_key,
     footer_bindings as copy_footer_bindings, search_command as copy_search_command,
 };
-#[cfg(windows)]
 pub(crate) use keys::format_configuration_binding;
 pub(crate) use keys::{
     Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, LabelStyle, Modifiers, format_binding,
@@ -63,9 +58,7 @@ pub(crate) enum BackendAction {
     ReloadConfiguration,
     CreateWorkspace,
     QuickCreateWorkspace,
-    #[cfg(windows)]
     CreateWorktree,
-    #[cfg(windows)]
     OpenWorktree,
     CloseWorkspace,
     ConfigureWorkspaceDirectory,
@@ -90,27 +83,18 @@ pub(crate) enum BackendAction {
 // Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
-    #[cfg(windows)]
     DismissOnboarding,
-    #[cfg(windows)]
     TabMenu {
         action: crate::action_menu::MenuAction,
         tab_id: Option<orchbee_workbench_protocol::WorkbenchTabId>,
     },
-    #[cfg(windows)]
     ToggleTabGroup(orchbee_workbench_protocol::WorkbenchTabGroupId),
-    #[cfg(windows)]
     OpenActionMenu,
     OpenSettings,
-    #[cfg(windows)]
     ConfiguredCommand(String),
-    #[cfg(windows)]
     EnterResizeMode,
-    #[cfg(windows)]
     EnterCopyMode,
-    #[cfg(windows)]
     ExitResizeMode,
-    #[cfg(windows)]
     ResizePane {
         direction: PanelDirection,
         fine: bool,
@@ -120,9 +104,7 @@ pub(crate) enum ClientAction {
     RequestQuickWorkspace,
     RequestWorkspaceAtDirectory(Option<Box<crate::workbench_client::ProjectQuickWorkspaceRequest>>),
     RequestProjectQuickWorkspace(Box<crate::workbench_client::ProjectQuickWorkspaceRequest>),
-    #[cfg(windows)]
     RequestWorktreeCreate,
-    #[cfg(windows)]
     RequestWorktreeOpen,
     RequestWorkspaceClose,
     RequestWorkspaceCloseAt(orchbee_workbench_protocol::WorkbenchWorkspaceId),
@@ -142,19 +124,14 @@ pub(crate) enum ClientAction {
     MovePreviousTab,
     MoveNextTab,
     ToggleBusinessSidebar,
-    #[cfg(windows)]
     FocusBusinessSidebar,
     OpenShortcutHelp,
     CloseShortcutHelp,
     PageShortcutHelp,
     OpenWorkbenchNavigator,
-    #[cfg(windows)]
     OpenMachines,
-    #[cfg(windows)]
     PreviousAgent,
-    #[cfg(windows)]
     NextAgent,
-    #[cfg(windows)]
     FocusAgent(u8),
     CloseWorkbenchNavigator,
     /// `Ctrl+B g` — toggles the Client-owned Agent board overlay.
@@ -165,9 +142,6 @@ pub(crate) enum ClientAction {
     SelectTab(u8),
     SelectPreviousContext,
     SelectNextContext,
-    /// Pointer gesture: select the navigation entry at this 0-based index.
-    #[cfg(any(not(windows), test))]
-    SelectContextAt(usize),
     PreviousPresentation,
     NextPresentation,
     MovePanelFocus(PanelDirection),
@@ -194,23 +168,14 @@ pub(crate) enum ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
-    #[cfg(windows)]
     OnboardingSaveFailed,
-    #[cfg(windows)]
     WorkspaceNavigationUnavailable,
-    #[cfg(windows)]
     NavigatorChanged,
-    #[cfg(windows)]
     NavigatorTooSmall,
-    #[cfg(windows)]
     ResizeBusy,
-    #[cfg(windows)]
     ResizeFailed,
-    #[cfg(windows)]
     ResizeUnknown,
-    #[cfg(windows)]
     ResizeNoSplit,
-    #[cfg(windows)]
     ResizeLimit,
     CheckpointRecovered,
     CheckpointEmpty,
@@ -220,7 +185,9 @@ pub(crate) enum Notice {
     ConfigurationFailed,
     ConfigurationUnknown,
     WindowTitleUnavailable,
+    WindowTitleUnsupported,
     NotificationUnavailable,
+    NotificationUnsupported,
     BackendUnavailable(BackendAction),
     TerminalInputUnavailable,
     UnknownPrefix,
@@ -265,7 +232,6 @@ pub(crate) enum ClientActionDisposition {
     LayoutChanged,
     /// Native admission redirected the no-Workspace landing to one fresh
     /// Workspace launch. Preserve its shell entry intent across control ticks.
-    #[cfg(windows)]
     WorkspaceCreationStarted,
 }
 
@@ -273,7 +239,6 @@ impl ClientActionDisposition {
     pub(crate) fn changes_layout(self) -> bool {
         match self {
             Self::LayoutChanged => true,
-            #[cfg(windows)]
             Self::WorkspaceCreationStarted => true,
             Self::KeepNavigator | Self::DismissNavigator => false,
         }
@@ -289,7 +254,6 @@ pub(crate) struct ClientTransition {
 }
 
 impl ClientTransition {
-    #[cfg(windows)]
     pub(crate) const fn prefix_active(&self) -> bool {
         self.next.prefix_active
     }
@@ -310,30 +274,23 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
-            #[cfg(windows)]
             Self::OpenActionMenu | Self::FocusBusinessSidebar | Self::DismissOnboarding => None,
             Self::OpenSettings => None,
-            #[cfg(windows)]
             Self::EnterResizeMode
             | Self::EnterCopyMode
             | Self::ExitResizeMode
             | Self::ResizePane { .. } => None,
-            #[cfg(windows)]
             Self::ConfiguredCommand(_) => None,
-            #[cfg(windows)]
             Self::OpenMachines | Self::PreviousAgent | Self::NextAgent | Self::FocusAgent(_) => {
                 None
             }
-            #[cfg(windows)]
             Self::TabMenu { .. } | Self::ToggleTabGroup(_) => None,
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestQuickWorkspace
             | Self::RequestWorkspaceAtDirectory(_)
             | Self::RequestProjectQuickWorkspace(_) => Some(BackendAction::QuickCreateWorkspace),
-            #[cfg(windows)]
             Self::RequestWorktreeCreate => Some(BackendAction::CreateWorktree),
-            #[cfg(windows)]
             Self::RequestWorktreeOpen => Some(BackendAction::OpenWorktree),
             Self::RequestWorkspaceClose => Some(BackendAction::CloseWorkspace),
             Self::RequestControlTakeover => None,
@@ -362,8 +319,6 @@ impl ClientAction {
             | Self::MovePanelFocus(_)
             | Self::FocusPanel(_)
             | Self::ToggleZoom => None,
-            #[cfg(any(not(windows), test))]
-            Self::SelectContextAt(_) => None,
             Self::SplitPanel(_) => Some(BackendAction::SplitPanel),
             Self::ClosePanel => Some(BackendAction::ClosePanel),
             Self::MovePanel(_) => Some(BackendAction::MovePanel),
@@ -395,13 +350,10 @@ pub(crate) enum SidebarSurface {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
-    #[cfg(windows)]
     pub(crate) onboarding: crate::onboarding::State,
     pub(crate) user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
-    #[cfg(windows)]
     pub(crate) machines: crate::machine_picker::Picker,
     bindings: std::sync::Arc<Bindings>,
-    #[cfg(windows)]
     theme_name: Option<orchbee_local_site_runtime::WindowsThemeName>,
     theme: Option<crate::tui_theme::Theme>,
     host_appearance: crate::terminal_host_appearance::HostAppearance,
@@ -409,28 +361,20 @@ pub(crate) struct ClientView {
     color_level: crate::tui_theme::ColorLevel,
     no_color: bool,
     pub(crate) notifications: crate::notifications::State,
-    #[cfg(windows)]
     pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
     notice: Option<Notice>,
     notice_timer: crate::transient_notice::NoticeTimer<Notice>,
-    #[cfg(windows)]
     configuration_warning: bool,
     overlay: Option<Overlay>,
     // Some(false) still tracks a launch opened without a compact sidebar;
     // None means a newer intent has retired that launch's return permission.
-    #[cfg(windows)]
     project_quick_entry_eligible: Option<bool>,
-    #[cfg(windows)]
     pub(crate) navigator: navigator::Navigator,
     prefix_active: bool,
-    #[cfg(windows)]
     resize_mode: bool,
-    #[cfg(windows)]
     pub(crate) resize_pointer_fine: bool,
     /// Read-only projection of the Client-owned copy episode, used only for discovery.
-    #[cfg(windows)]
     copy_mode_active: bool,
-    #[cfg(windows)]
     pub(crate) resize_pending: bool,
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
@@ -449,10 +393,8 @@ impl ClientView {
     pub(crate) fn new(width: u16) -> Self {
         Self {
             user_preferences: None,
-            #[cfg(windows)]
             machines: crate::machine_picker::Picker::default(),
             bindings: std::sync::Arc::new(Bindings::default()),
-            #[cfg(windows)]
             theme_name: None,
             theme: None,
             host_appearance: crate::terminal_host_appearance::HostAppearance::Unknown,
@@ -460,27 +402,18 @@ impl ClientView {
             color_level: crate::tui_theme::ColorLevel::Ansi16,
             no_color: false,
             notifications: crate::notifications::State::default(),
-            #[cfg(windows)]
             window_title: None,
-            #[cfg(windows)]
             onboarding: crate::onboarding::State::default(),
             notice: None,
             notice_timer: Default::default(),
-            #[cfg(windows)]
             configuration_warning: false,
             overlay: None,
-            #[cfg(windows)]
             project_quick_entry_eligible: None,
-            #[cfg(windows)]
             navigator: navigator::Navigator::default(),
             prefix_active: false,
-            #[cfg(windows)]
             resize_mode: false,
-            #[cfg(windows)]
             resize_pointer_fine: false,
-            #[cfg(windows)]
             copy_mode_active: false,
-            #[cfg(windows)]
             resize_pending: false,
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
@@ -502,7 +435,6 @@ impl ClientView {
         if self.notice.is_some() {
             return self.notice;
         }
-        #[cfg(windows)]
         if self.configuration_warning {
             return Some(Notice::ConfigurationWarning);
         }
@@ -531,17 +463,14 @@ impl ClientView {
                 .with_terminal_preferences(values)
                 .with_outer_host_colors(values.application_theme, self.host_colors),
             );
-            #[cfg(windows)]
             return;
         }
-        #[cfg(windows)]
         if let Some(name) = self.theme_name {
             self.configure_theme(name);
         }
     }
 
     /// Resolve once from the original palette so reload cannot accumulate quantization loss.
-    #[cfg(windows)]
     pub(crate) fn configure_theme(&mut self, name: orchbee_local_site_runtime::WindowsThemeName) {
         self.theme_name = Some(name);
         if self.user_preferences.is_none() {
@@ -592,7 +521,6 @@ impl ClientView {
             return values.application_theme
                 == orchbee_workbench_protocol::ApplicationAppearance::System;
         }
-        #[cfg(windows)]
         if let Some(name) = self.theme_name {
             self.configure_theme(name);
         }
@@ -730,12 +658,10 @@ impl ClientView {
         None
     }
 
-    #[cfg(windows)]
     pub(crate) fn navigator_active(&self) -> bool {
         self.overlay == Some(Overlay::WorkbenchNavigator)
     }
 
-    #[cfg(windows)]
     pub(crate) fn close_navigator(&mut self, notice: Option<Notice>) {
         if self.navigator_active() {
             self.replace_overlay(None);
@@ -745,7 +671,6 @@ impl ClientView {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn close_navigator_for_source(&mut self, source: &navigator::DrawSource) -> bool {
         if !self.navigator_active() || !self.navigator.accepts_source(source) {
             return false;
@@ -764,22 +689,13 @@ impl ClientView {
 
     /// Whether pane resize mode currently owns ordinary Client input.
     pub(crate) const fn resize_mode(&self) -> bool {
-        #[cfg(windows)]
-        {
-            self.resize_mode
-        }
-        #[cfg(not(windows))]
-        {
-            false
-        }
+        { self.resize_mode }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn copy_mode_active(&self) -> bool {
         self.copy_mode_active
     }
 
-    #[cfg(windows)]
     pub(crate) fn settle_copy_mode(&mut self, active: bool) {
         if self.copy_mode_active && !active && self.overlay == Some(Overlay::ShortcutHelp) {
             self.replace_overlay(None);
@@ -787,12 +703,10 @@ impl ClientView {
         self.copy_mode_active = active;
     }
 
-    #[cfg(windows)]
     pub(crate) fn copy_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         copy::help_rows()
     }
 
-    #[cfg(windows)]
     pub(crate) fn copy_help_key(&mut self, key: KeyEvent) -> bool {
         if !self.copy_mode_active {
             return false;
@@ -810,7 +724,6 @@ impl ClientView {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn clear_resize_notice(&mut self) {
         if matches!(
             self.notice,
@@ -826,7 +739,6 @@ impl ClientView {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn exit_resize_mode(&mut self) {
         self.resize_pointer_fine = false;
         if self.resize_mode {
@@ -837,12 +749,11 @@ impl ClientView {
         }
     }
 
-    #[cfg(all(windows, test))]
+    #[cfg(test)]
     pub(crate) fn resize_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         self.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode)
     }
 
-    #[cfg(windows)]
     pub(crate) fn resize_help_rows_with_glyphs(
         &self,
         glyphs: KeyLabelGlyphs,
@@ -916,13 +827,10 @@ impl ClientView {
     }
 
     pub(crate) fn sidebar_surface(&self) -> SidebarSurface {
-        #[cfg(windows)]
         let width = self.machines.sidebar_width();
-        #[cfg(not(windows))]
-        let width = crate::tui_layout::SidebarWidth::DEFAULT;
+
         match self.viewport {
             ViewportClass::Wide if self.wide_sidebar_visible => SidebarSurface::Docked(width),
-            #[cfg(windows)]
             ViewportClass::Narrow
                 if self.overlay == Some(Overlay::ShortcutHelp)
                     && self.machines.sidebar_navigation_active() =>
@@ -937,7 +845,6 @@ impl ClientView {
     }
 
     /// Consumes the original sidebar intent before applying an exact Ready return.
-    #[cfg(windows)]
     pub(crate) fn complete_project_quick_entry(&mut self) -> bool {
         let eligible = self.project_quick_entry_eligible.take();
         if eligible != Some(true)
@@ -955,12 +862,10 @@ impl ClientView {
         true
     }
 
-    #[cfg(windows)]
     pub(crate) fn project_quick_entry_pending(&self) -> bool {
         self.project_quick_entry_eligible.is_some()
     }
 
-    #[cfg(windows)]
     fn arm_project_quick_entry(&mut self) {
         self.project_quick_entry_eligible = Some(
             self.viewport == ViewportClass::Narrow
@@ -972,7 +877,6 @@ impl ClientView {
 
     /// Row/disclosure presses acquire Picker focus without a ClientAction.
     /// Settle that newer intent before Ready, even if navigation exits later.
-    #[cfg(windows)]
     pub(crate) fn settle_project_quick_entry_intent(&mut self) {
         if self.machines.sidebar_navigation_active() {
             self.project_quick_entry_eligible = None;
@@ -1015,16 +919,13 @@ impl ClientView {
     /// An outside click on an open overlay dismisses it without producing a
     /// semantic action — the gesture is consumed, never forwarded beneath.
     pub(crate) fn dismiss_overlay(&mut self) {
-        #[cfg(windows)]
         {
             self.project_quick_entry_eligible = None;
         }
-        #[cfg(windows)]
         if self.navigator_active() {
             self.close_navigator(None);
             return;
         }
-        #[cfg(windows)]
         if self.overlay == Some(Overlay::ShortcutHelp)
             && self.viewport == ViewportClass::Narrow
             && self.machines.sidebar_navigation_active()
@@ -1033,23 +934,19 @@ impl ClientView {
             return;
         }
         self.replace_overlay(None);
-        #[cfg(windows)]
         if self.sidebar_surface() == SidebarSurface::Hidden {
             self.machines.leave_sidebar_navigation();
         }
     }
 
     pub(crate) fn dismiss_focus_modes(&mut self) {
-        #[cfg(windows)]
         self.machines.leave_sidebar_navigation();
         self.dismiss_overlay();
         self.prefix_active = false;
-        #[cfg(windows)]
         self.exit_resize_mode();
     }
 
     /// Help covers the tree without creating another navigation mode.
-    #[cfg(windows)]
     pub(crate) fn sidebar_help_key(&mut self, event: KeyEvent) -> bool {
         if self.overlay != Some(Overlay::ShortcutHelp) {
             return false;
@@ -1079,7 +976,6 @@ impl ClientView {
     /// intents carry no `ClientTransition`; this is the same disposition
     /// effect `commit` applies for keyboard-issued actions.
     pub(crate) fn commit_pointer(&mut self, disposition: ClientActionDisposition) {
-        #[cfg(windows)]
         {
             self.project_quick_entry_eligible = None;
             if disposition == ClientActionDisposition::WorkspaceCreationStarted {
@@ -1097,7 +993,6 @@ impl ClientView {
         self.notice = Some(notice);
     }
 
-    #[cfg(windows)]
     pub(crate) fn configuration_warning(&mut self, present: bool) {
         self.configuration_warning = present;
         if !present && self.notice == Some(Notice::ConfigurationWarning) {
@@ -1108,31 +1003,34 @@ impl ClientView {
     pub(crate) fn startup_notice(&mut self, notice: Notice) {
         self.notice = Some(notice);
     }
-    #[cfg(windows)]
     pub(crate) fn workspace_navigation_unavailable(&mut self) {
         self.notice = Some(Notice::WorkspaceNavigationUnavailable);
     }
-    #[cfg(windows)]
     pub(crate) fn clear_workspace_navigation_notice(&mut self) {
         if self.notice == Some(Notice::WorkspaceNavigationUnavailable) {
             self.notice = None;
         }
     }
 
-    #[cfg(windows)]
-    pub(crate) fn notification_unavailable(&mut self) {
-        self.notice.get_or_insert(Notice::NotificationUnavailable);
+    pub(crate) fn notification_unavailable(&mut self, unsupported: bool) {
+        self.notice.get_or_insert(if unsupported {
+            Notice::NotificationUnsupported
+        } else {
+            Notice::NotificationUnavailable
+        });
     }
-    #[cfg(windows)]
-    pub(crate) fn window_title_unavailable(&mut self) {
-        self.notice.get_or_insert(Notice::WindowTitleUnavailable);
+    pub(crate) fn window_title_unavailable(&mut self, unsupported: bool) {
+        self.notice.get_or_insert(if unsupported {
+            Notice::WindowTitleUnsupported
+        } else {
+            Notice::WindowTitleUnavailable
+        });
     }
 
     pub(crate) fn bindings(&self) -> &Bindings {
         &self.bindings
     }
 
-    #[cfg(windows)]
     pub(crate) fn configure_keys(&mut self, keys: &orchbee_local_site_runtime::WindowsKeySettings) {
         self.exit_resize_mode();
         self.bindings = std::sync::Arc::new(Bindings::configured(keys));
@@ -1217,7 +1115,6 @@ impl ClientView {
                         layout_changed: false,
                     };
                 }
-                #[cfg(windows)]
                 if next.copy_help_key(event) {
                     return ClientTransition {
                         next,
@@ -1226,7 +1123,6 @@ impl ClientView {
                         layout_changed: false,
                     };
                 }
-                #[cfg(windows)]
                 if self.resize_mode
                     && matches!(resize::decide(event), Some(resize::ResizeKey::Help))
                 {
@@ -1238,7 +1134,6 @@ impl ClientView {
                         layout_changed: false,
                     };
                 }
-                #[cfg(windows)]
                 if next.machines.sidebar_navigation_active() && next.sidebar_help_key(event) {
                     return ClientTransition {
                         next,
@@ -1277,7 +1172,6 @@ impl ClientView {
                 layout_changed: false,
             };
         }
-        #[cfg(windows)]
         if self.resize_mode {
             let key = match input {
                 PrefixInput::Key(key) => resize::decide(key),
@@ -1402,7 +1296,6 @@ impl ClientView {
     }
 
     fn apply_action_decision(&mut self, action: ClientAction) -> (ClientAction, ShellCommand) {
-        #[cfg(windows)]
         {
             self.project_quick_entry_eligible = None;
             if matches!(
@@ -1419,13 +1312,11 @@ impl ClientView {
             }
         }
         match action {
-            #[cfg(windows)]
             ClientAction::EnterCopyMode => {
                 self.dismiss_focus_modes();
                 self.request_help_page(0);
                 (action, ShellCommand::None)
             }
-            #[cfg(windows)]
             ClientAction::EnterResizeMode => {
                 self.machines.leave_sidebar_navigation();
                 self.resize_mode = true;
@@ -1435,7 +1326,6 @@ impl ClientView {
                 (action, ShellCommand::None)
             }
             ClientAction::ToggleBusinessSidebar => {
-                #[cfg(windows)]
                 self.machines.leave_sidebar_navigation();
                 self.toggle_sidebar();
                 (action, ShellCommand::None)
@@ -1444,7 +1334,6 @@ impl ClientView {
                 self.dismiss_focus_modes();
                 (action, ShellCommand::None)
             }
-            #[cfg(windows)]
             ClientAction::FocusBusinessSidebar => {
                 let was_active = self.machines.sidebar_navigation_active();
                 self.dismiss_focus_modes();
@@ -1462,11 +1351,9 @@ impl ClientView {
             ClientAction::OpenWorkbenchNavigator => {
                 if self.overlay == Some(Overlay::WorkbenchNavigator) {
                     self.replace_overlay(None);
-                    #[cfg(windows)]
                     self.navigator.close();
                     (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
                 } else {
-                    #[cfg(windows)]
                     {
                         self.dismiss_focus_modes();
                         self.prefix_active = false;
@@ -1504,7 +1391,6 @@ impl ClientView {
         disposition: ClientActionDisposition,
     ) {
         let mut next = transition.next;
-        #[cfg(windows)]
         if transition.action == Some(ClientAction::CreateTab)
             && disposition == ClientActionDisposition::WorkspaceCreationStarted
         {
@@ -1514,7 +1400,6 @@ impl ClientView {
             && next.overlay == Some(Overlay::WorkbenchNavigator)
         {
             next.replace_overlay(None);
-            #[cfg(windows)]
             next.navigator.close();
         }
         *self = next;
@@ -1531,7 +1416,6 @@ impl ClientView {
         self.decide_member(input, member.as_ref())
     }
 
-    #[cfg(windows)]
     pub(crate) fn decide_navigator_prefix(&self, input: PrefixInput) -> ClientTransition {
         debug_assert!(self.navigator_active() && self.navigator.prefix);
         let mut next = self.clone();
@@ -1587,7 +1471,6 @@ impl ClientView {
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
         match &member.action {
-            #[cfg(windows)]
             PrefixAction::Client(ClientAction::DismissOnboarding)
                 if !self.onboarding.visible || self.overlay.is_some() =>
             {
@@ -1597,7 +1480,6 @@ impl ClientView {
                 let (action, _) = self.apply_action_decision(action.clone());
                 (action, member.shell)
             }
-            #[cfg(windows)]
             PrefixAction::SelectAgentDigit => {
                 // The binding owns its digit even when Shift changes the input symbol.
                 let bindings::KeySet::One(Binding {

@@ -46,7 +46,6 @@ fn workbench_binding_identities_match_the_owning_catalog_contracts() {
             expected
         );
     }
-    #[cfg(windows)]
     assert_eq!(
         binding_metadata(&PrefixAction::Client(ClientAction::FocusBusinessSidebar))
             .unwrap()
@@ -56,7 +55,6 @@ fn workbench_binding_identities_match_the_owning_catalog_contracts() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn direction_is_typed_input_and_does_not_mint_resize_identity() {
     let left = PrefixAction::Client(ClientAction::ResizePane {
@@ -73,7 +71,6 @@ fn direction_is_typed_input_and_does_not_mint_resize_identity() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn configured_command_identity_preserves_the_opaque_id() {
     let id = "user.action/日本語/$opaque".to_owned();
@@ -87,7 +84,6 @@ fn configured_command_identity_preserves_the_opaque_id() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn menu_and_binding_presenters_share_common_action_identity() {
     let cases = [
@@ -226,7 +222,6 @@ fn menu_and_binding_presenters_share_common_action_identity() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn dynamic_menu_input_keeps_one_semantic_identity() {
     use orchbee_workbench_protocol::TabGroupColor;
@@ -264,7 +259,6 @@ fn dynamic_menu_input_keeps_one_semantic_identity() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_roles() {
     for action in crate::action_menu::WORKSPACE_ACTIONS
@@ -300,7 +294,6 @@ fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_ro
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn menu_binding_projection_requires_the_same_typed_target_semantics() {
     use crate::action_menu::MenuTarget;
@@ -395,7 +388,6 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn native_only_tab_operations_do_not_claim_narrower_gui_contracts() {
     assert_eq!(

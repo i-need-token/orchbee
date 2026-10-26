@@ -1,18 +1,13 @@
-#[cfg(windows)]
 pub(crate) mod agent_manifests;
 mod agent_view;
-#[cfg(windows)]
 pub(crate) mod client_view;
 mod close_operation;
 pub(crate) mod configuration;
 mod configured_command;
-#[cfg(windows)]
 pub(crate) mod creation;
-#[cfg(windows)]
 mod events;
 pub(crate) mod metadata_exchange;
 pub(crate) mod notification;
-#[cfg(windows)]
 mod pane_graphics;
 pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
@@ -20,7 +15,6 @@ mod plugins;
 mod settings;
 mod terminal_editor;
 mod window_title;
-#[cfg(windows)]
 mod workspace_git;
 pub(crate) mod workspace_metadata;
 use orchbee_local_ipc::LocalIo as BorrowedFd;
@@ -45,7 +39,6 @@ pub(crate) mod panel_input;
 pub(crate) mod panel_placement;
 pub(crate) mod panel_relocate;
 pub(crate) mod panel_split;
-#[cfg(windows)]
 pub(crate) mod split_ratio;
 mod tab_close;
 mod tab_move;
@@ -54,9 +47,7 @@ mod workspace_group_close;
 pub(crate) mod workspace_launch;
 pub(crate) mod workspace_setup;
 mod worktree_operation;
-#[cfg(windows)]
 pub(crate) mod worktree_query;
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub(crate) use tab_close::{
     WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
@@ -71,7 +62,6 @@ pub(crate) use workspace_close::{
     WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseRequest,
     WorkbenchWorkspaceCloseSubmission,
 };
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) use workspace_close::{
     WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
     WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseReadError,
@@ -87,7 +77,6 @@ impl LocalClient {
         self.submit_workbench_snapshot_read_with_deadline(request, Some(deadline), None)
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn submit_workbench_snapshot_read_before_cancellable(
         &mut self,
         request: SnapshotReadIntent,

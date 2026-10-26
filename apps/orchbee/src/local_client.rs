@@ -45,16 +45,16 @@ pub(crate) struct LocalClient {
 pub(crate) struct LocalClientOrigin {
     endpoint: PathBuf,
     cohort: String,
+    local: bool,
     #[cfg(windows)]
     tunnel: Option<Arc<crate::machine_tunnel::Tunnel>>,
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 impl LocalClientOrigin {
-    /// Direct Windows IPC stays on this device; remote origins retain their tunnel on reconnect.
-    #[cfg(windows)]
+    /// Locality belongs to the logical origin; OS transport ownership is separate.
     pub(crate) fn is_local(&self) -> bool {
-        self.tunnel.is_none()
+        self.local
     }
 
     pub(crate) fn reconnect_before(
@@ -90,6 +90,7 @@ impl LocalClient {
     /// Retains the transport through all future origin-derived lanes.
     #[cfg(windows)]
     pub(crate) fn with_tunnel(mut self, tunnel: Arc<crate::machine_tunnel::Tunnel>) -> Self {
+        self.origin.local = false;
         self.origin.tunnel = Some(tunnel);
         self
     }
@@ -122,6 +123,7 @@ impl LocalClient {
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
+                local: true,
                 #[cfg(windows)]
                 tunnel: None,
             },

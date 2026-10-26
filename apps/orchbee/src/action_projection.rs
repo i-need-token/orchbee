@@ -4,7 +4,6 @@
 //! module only projects the stable identity and discovery metadata that help and menus must agree
 //! on. Availability is supplied by the owning UI snapshot; it is never inferred here.
 
-#[cfg(windows)]
 use crate::action_menu::MenuAction;
 use crate::client_view::{ClientAction, PanelDirection, PrefixAction};
 
@@ -12,7 +11,6 @@ use crate::client_view::{ClientAction, PanelDirection, PrefixAction};
 pub(crate) enum ActionIdentity<'a> {
     BuiltIn(&'a str),
     /// The configured identifier is already the user's durable identity. Keep it opaque.
-    #[cfg(windows)]
     ConfiguredCommand(&'a str),
 }
 
@@ -21,7 +19,6 @@ impl<'a> ActionIdentity<'a> {
     pub(crate) const fn stable_id(self) -> &'a str {
         match self {
             Self::BuiltIn(id) => id,
-            #[cfg(windows)]
             Self::ConfiguredCommand(id) => id,
         }
     }
@@ -43,21 +40,16 @@ pub(crate) enum ActionCategory {
 /// Reviewed semantic aliases. Localization supplies the actual searchable words.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionSearchAlias {
-    #[cfg(windows)]
     Actions,
-    #[cfg(windows)]
     Commands,
     Preferences,
     Workspace,
-    #[cfg(windows)]
     Worktree,
     Project,
     Tab,
     Pane,
     Split,
-    #[cfg(windows)]
     Resize,
-    #[cfg(windows)]
     Copy,
     Close,
     Rename,
@@ -105,7 +97,6 @@ impl<'a> ActionMetadata<'a> {
     }
 }
 
-#[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionAvailability<R> {
     Enabled,
@@ -113,7 +104,6 @@ pub(crate) enum ActionAvailability<R> {
     Hidden,
 }
 
-#[cfg(any(windows, test))]
 impl<R> ActionAvailability<R> {
     pub(crate) fn from_disabled_reason(reason: Option<R>) -> Self {
         reason.map_or(Self::Enabled, Self::Disabled)
@@ -128,19 +118,15 @@ impl<R> ActionAvailability<R> {
     }
 }
 
-#[cfg(windows)]
 const ACTIONS: &[ActionSearchAlias] = &[ActionSearchAlias::Actions, ActionSearchAlias::Commands];
 const PREFERENCES: &[ActionSearchAlias] = &[ActionSearchAlias::Preferences];
 const WORKSPACE: &[ActionSearchAlias] = &[ActionSearchAlias::Workspace];
-#[cfg(windows)]
 const WORKTREE: &[ActionSearchAlias] = &[ActionSearchAlias::Worktree];
 const PROJECT: &[ActionSearchAlias] = &[ActionSearchAlias::Project];
 const TAB: &[ActionSearchAlias] = &[ActionSearchAlias::Tab];
 const PANE: &[ActionSearchAlias] = &[ActionSearchAlias::Pane];
 const SPLIT: &[ActionSearchAlias] = &[ActionSearchAlias::Pane, ActionSearchAlias::Split];
-#[cfg(windows)]
 const RESIZE: &[ActionSearchAlias] = &[ActionSearchAlias::Pane, ActionSearchAlias::Resize];
-#[cfg(windows)]
 const COPY: &[ActionSearchAlias] = &[ActionSearchAlias::Copy];
 const CLOSE_TAB: &[ActionSearchAlias] = &[ActionSearchAlias::Tab, ActionSearchAlias::Close];
 const RENAME_TAB: &[ActionSearchAlias] = &[ActionSearchAlias::Tab, ActionSearchAlias::Rename];
@@ -174,25 +160,20 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::OpenSettings) => {
             built_in("workbench.settings.open", C::Application, PREFERENCES)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::OpenActionMenu) => {
             built_in("orchbee.native.action-menu.open", C::Application, ACTIONS)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::ConfiguredCommand(id)) => ActionMetadata {
             identity: ActionIdentity::ConfiguredCommand(id),
             category: C::Application,
             search_aliases: COMMANDS,
         },
-        #[cfg(windows)]
         PrefixAction::Client(A::EnterResizeMode) => {
             built_in("orchbee.native.pane.resize-mode.enter", C::Pane, RESIZE)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::ResizePane { .. }) => {
             built_in("workbench.panel.active.resize", C::Pane, RESIZE)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::EnterCopyMode) => {
             built_in("orchbee.native.copy-mode.enter", C::Input, COPY)
         }
@@ -201,7 +182,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Application,
             PREFERENCES,
         ),
-        #[cfg(windows)]
         PrefixAction::Client(A::DismissOnboarding) => {
             built_in("orchbee.native.onboarding.dismiss", C::Application, HELP)
         }
@@ -218,11 +198,9 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Workspace,
             WORKSPACE,
         ),
-        #[cfg(windows)]
         PrefixAction::Client(A::RequestWorktreeCreate) => {
             built_in("orchbee.native.worktree.create", C::Workspace, WORKTREE)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::RequestWorktreeOpen) => {
             built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
         }
@@ -296,15 +274,12 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
         PrefixAction::Client(A::Exit) => {
             built_in("orchbee.native.window.detach", C::Client, DETACH)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::FocusBusinessSidebar) => {
             built_in("workbench.focus.sidebar", C::Navigation, SIDEBAR)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::OpenMachines) => {
             built_in("orchbee.native.machines.open", C::Navigation, NONE)
         }
-        #[cfg(windows)]
         PrefixAction::Client(A::PreviousAgent | A::NextAgent) => built_in(
             "orchbee.native.agent.select",
             C::Agent,
@@ -315,7 +290,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Navigation,
             SELECT_TAB,
         ),
-        #[cfg(windows)]
         PrefixAction::SelectAgentDigit => built_in(
             "orchbee.native.agent.focus",
             C::Agent,
@@ -339,7 +313,6 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
     Some(metadata)
 }
 
-#[cfg(windows)]
 const COMMANDS: &[ActionSearchAlias] = &[ActionSearchAlias::Commands];
 
 const fn panel_focus(direction: PanelDirection) -> ActionMetadata<'static> {
@@ -380,7 +353,6 @@ const fn move_panel(direction: PanelDirection) -> ActionMetadata<'static> {
 ///
 /// Stable metadata identity is deliberately insufficient here: a prefix action aimed at the
 /// current Tab, Workspace, or Pane must not be advertised for an exact background menu target.
-#[cfg(windows)]
 pub(crate) fn menu_binding_action(
     target: &crate::action_menu::MenuTarget,
     action: crate::action_menu::MenuAction,
@@ -424,14 +396,12 @@ pub(crate) fn menu_binding_action(
     Some(action)
 }
 
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct MenuActionMetadata {
     pub(crate) action: ActionMetadata<'static>,
     pub(crate) tone: ActionTone,
 }
 
-#[cfg(windows)]
 impl MenuActionMetadata {
     pub(crate) fn starts_section(self, input: MenuAction) -> bool {
         use MenuAction as A;
@@ -454,7 +424,6 @@ impl MenuActionMetadata {
 
 /// Projects menu discovery metadata. Dynamic color and group indices remain typed `MenuAction`
 /// input and therefore do not mint per-row action identities.
-#[cfg(windows)]
 pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
     use ActionCategory as C;
     use MenuAction as A;

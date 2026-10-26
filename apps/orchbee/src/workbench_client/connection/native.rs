@@ -51,22 +51,18 @@ use std::{
 mod close_reconciliation;
 mod membership;
 mod panel;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod status_recovery;
 mod switch_membership;
 mod tab_close;
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(in crate::workbench_client) use status_recovery::{RecoveryShutdown, run_status_recovery};
 mod control_takeover;
 mod quick_workspace;
 mod source_directory;
-#[cfg(windows)]
 mod startup_directory;
 mod tab_move;
 mod tab_rename;
 mod workspace_close;
 mod workspace_setup;
-#[cfg(windows)]
 mod worktree_launch;
 
 type Result<Value> = std::result::Result<Value, CarrierFailure>;
@@ -116,7 +112,6 @@ pub(super) fn run_at(
     .with_setup(executor.pending_setup.take())
     .with_workspace_close(executor.pending_workspace_close.take())
     .with_takeover(executor.pending_takeover.take());
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
     returned
 }
@@ -144,9 +139,7 @@ impl Drop for WorkerExit {
 struct NativeExecutor {
     initial_context: Option<NativeStartupTarget>,
     status_only: bool,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     membership_recovery: bool,
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     unavailable_poll: Option<crate::workbench_client::state::retired_membership::UnavailablePoll>,
     client: LocalClient,
     clock: LocalOperationClock,
@@ -332,9 +325,7 @@ impl NativeExecutor {
             client,
             initial_context: None,
             status_only: false,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             membership_recovery: false,
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             unavailable_poll: None,
             clock,
             mailbox,
@@ -389,8 +380,6 @@ impl NativeExecutor {
         initial_geometry: Geometry,
         startup_deadline: Instant,
     ) -> Result<Option<BootstrapTarget>> {
-        #[cfg(not(windows))]
-        let _ = initial_geometry;
         self.ensure_before(startup_deadline)?;
         let snapshot_request = self
             .mailbox
@@ -401,14 +390,9 @@ impl NativeExecutor {
         else {
             return Err(CarrierFailure::Transport);
         };
-        #[cfg(windows)]
         let (snapshot, created) =
             self.directory_startup(snapshot, initial_geometry, startup_deadline)?;
-        #[cfg(not(windows))]
-        let created: Option<(
-            crate::workbench_client::workbench_projection::NativeContextTabs,
-            crate::workbench_client::NativeMemberTarget,
-        )> = None;
+
         #[allow(unused_mut)]
         let mut selection = None;
         let cache = if let Some((cache, member)) = created {
@@ -429,7 +413,6 @@ impl NativeExecutor {
             project_preferred_workspace(&snapshot)
         }
         .map_err(|_error| CarrierFailure::AuthorityDivergence)?;
-        #[cfg(windows)]
         if let Some(NativeStartupTarget::Agent(target)) = &self.initial_context {
             // This read shares the startup deadline and precedes any attachment.
             crate::machine_agents::verify(
@@ -461,7 +444,6 @@ impl NativeExecutor {
         snapshot: &orchbee_workbench_protocol::Snapshot,
         selection: &mut Option<crate::workbench_client::NativeMemberTarget>,
     ) -> Result<Option<crate::workbench_client::workbench_projection::NativeContextTabs>> {
-        #[cfg(windows)]
         if let Some(NativeStartupTarget::LocalDirectory {
             position, fallback, ..
         }) = &self.initial_context
@@ -481,8 +463,7 @@ impl NativeExecutor {
             fallback.store(changed, std::sync::atomic::Ordering::Release);
             return Ok(Some(cache));
         }
-        #[cfg(not(windows))]
-        let _unused = (snapshot, selection);
+
         Ok(None)
     }
 
@@ -561,7 +542,6 @@ impl NativeExecutor {
             // No poll or projection was admitted for this unexpected physical terminal.
             return self.cleanup_after_setup_failure(owner, &target);
         }
-        #[cfg(windows)]
         if matches!(owner, SetupOwner::Startup { .. })
             && let Some(NativeStartupTarget::Agent(expected)) = &self.initial_context
             && (host_epoch.as_str() != expected.physical.host_epoch.as_str()
@@ -861,7 +841,6 @@ impl NativeExecutor {
     fn run_ready_queue(&mut self) -> Result<()> {
         loop {
             let mut lease = self.mailbox.recv().map_err(closed)?;
-            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             if self.membership_recovery && !matches!(lease.record(), QueuedCommand::Refresh(_)) {
                 return Err(CarrierFailure::Protocol);
             }
@@ -1417,7 +1396,6 @@ impl NativeExecutor {
             return Ok(());
         };
         let current = self.pane_admitted(lease, &key)?;
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if current
             && matches!(
                 outcome,
@@ -1433,8 +1411,6 @@ impl NativeExecutor {
                 },
             );
         }
-        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-        let _request_id = request_id;
         let record = match outcome {
             TerminalViewerOutcome::Empty {} => None,
             TerminalViewerOutcome::Record(record) => Some(record),
@@ -1808,7 +1784,6 @@ impl NativeExecutor {
         lease: &CommandLease,
         marker: crate::workbench_client::mailbox::RefreshMarker,
     ) -> Result<()> {
-        #[cfg(windows)]
         if let Some(preparation) = marker.worktree_preparation().cloned() {
             return self.run_worktree_preparation(lease, &marker, preparation);
         }
@@ -1867,10 +1842,7 @@ impl NativeExecutor {
         marker: &crate::workbench_client::mailbox::RefreshMarker,
         wait: &crate::workbench_client::mailbox::UiWaitKey,
     ) -> Result<()> {
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let bounded_recovery = self.membership_recovery;
-        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-        let bounded_recovery = false;
         let reply = if bounded_recovery || marker.context_deadlines().is_some() {
             self.mailbox
                 .await_ui_reply_before(wait, marker.deadline(), &self.clock)
@@ -1884,7 +1856,6 @@ impl NativeExecutor {
         let UiReply::Refresh(settlement) = reply else {
             return Err(CarrierFailure::Protocol);
         };
-        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if self.membership_recovery {
             if matches!(
                 settlement.decision(),

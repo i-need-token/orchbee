@@ -18,7 +18,6 @@ struct StatusContent<'a> {
     recovery: bool,
 }
 
-#[cfg(windows)]
 #[test]
 fn workspace_and_tab_creation_hints_retain_the_same_effective_action_binding_and_localized_scope() {
     let mut view = ClientView::new(120);
@@ -151,7 +150,6 @@ fn row(terminal: &Terminal<TestBackend>, width: u16) -> String {
 fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width() {
     let theme = Theme::rgb_test_dark();
     let mut expected = vec!["Esc cancel", "? help"];
-    #[cfg(windows)]
     expected.push("F2 actions");
     expected.extend(["c create Tab", r"\ / - split", "g Agent board", "q detach"]);
 
@@ -213,7 +211,6 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
         ] {
             assert!(text.contains(label), "{label:?} missing in {text:?}");
         }
-        #[cfg(windows)]
         assert!(
             text.contains(copy.actions),
             "{} missing in {text:?}",
@@ -222,7 +219,6 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_prefix() {
     let theme = Theme::rgb_test_dark();
@@ -239,7 +235,6 @@ fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_
     assert!(!text.contains("Ctrl+a ←"), "{text}");
 }
 
-#[cfg(windows)]
 fn configured_arrow_help() -> orchbee_local_site_runtime::WindowsKeySettings {
     use orchbee_local_site_runtime::{
         WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
@@ -265,7 +260,6 @@ fn configured_arrow_help() -> orchbee_local_site_runtime::WindowsKeySettings {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn configured_effective_hint_uses_ascii_glyphs_and_semantic_key_styles() {
     let width = 80;
@@ -302,7 +296,6 @@ fn configured_effective_hint_uses_ascii_glyphs_and_semantic_key_styles() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn a_hint_that_does_not_fit_is_dropped_as_a_whole() {
     let width = 24;

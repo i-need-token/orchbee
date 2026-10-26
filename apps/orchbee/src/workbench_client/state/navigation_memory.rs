@@ -96,7 +96,6 @@ impl NavigationMemory {
             .as_ref()
     }
 
-    #[cfg(windows)]
     pub(super) fn overlay_focus(
         &self,
         location: &NativeContextLocation,
@@ -109,7 +108,6 @@ impl NavigationMemory {
             .get(tab)
     }
 
-    #[cfg(windows)]
     pub(super) fn restore_overlay_focus(
         &mut self,
         location: &NativeContextLocation,

@@ -133,7 +133,7 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
             if let UserLaunchCommand::SystemShell { login } =
                 &mut values.launch_profiles.profiles[draft.profile].command
             {
-                if cfg!(windows) {
+                if !draft.login_shell_supported {
                     draft.invalid = true;
                 } else {
                     *login = !*login;

@@ -8,7 +8,6 @@
 use super::super::tests::move_membership::ready_ui;
 use super::super::tests::publication_hint::ready_split_ui;
 use super::super::*;
-#[cfg(windows)]
 mod chrome;
 mod scrollbar;
 use crate::client_view::{ClientKey, ClientView, KeyCode, KeyEvent, Modifiers};
@@ -1019,9 +1018,7 @@ fn unfocused_program_mouse_tracking_and_alternate_screen_do_not_enter_history() 
     }
 }
 
-#[cfg(windows)]
 #[test]
-#[cfg(windows)]
 fn client_viewport_reads_installed_live_history_and_pending_without_commands() {
     use orchbee_workbench_protocol::*;
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();

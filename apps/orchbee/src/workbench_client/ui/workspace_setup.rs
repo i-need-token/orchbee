@@ -7,7 +7,6 @@ pub(crate) use crate::workbench_client::state::workspace_setup::{
 use crate::workbench_client::state::workspace_setup::{
     NativeSetupIntent, SetupOperation, SetupResult, SetupWorkerEvidence,
 };
-#[cfg(windows)]
 pub(crate) use crate::workbench_client::state::workspace_setup::{
     WorkspaceCreationPhase, WorkspaceCreationPreview,
 };
@@ -40,7 +39,6 @@ impl NativeSetupInputContext {
 }
 impl<'a> WorkbenchClientView<'a> {
     /// Creation feedback never exposes a retired or ambiguous operation as a live target.
-    #[cfg(windows)]
     pub(crate) fn workspace_creation_preview(&self) -> Option<WorkspaceCreationPreview<'a>> {
         if self.retirement_requested || self.retirement.is_some() {
             return None;
@@ -57,13 +55,11 @@ impl<'a> WorkbenchClientView<'a> {
     }
     pub(crate) fn setup_capture_claim(&self) -> bool {
         let draft = self.setup_draft();
-        #[cfg(windows)]
         let draft = draft.filter(|draft| !draft.background());
         draft.is_some()
     }
     pub(crate) fn setup_input_context(&self) -> Option<NativeSetupInputContext> {
         let draft = self.setup_draft()?;
-        #[cfg(windows)]
         if draft.background() {
             return None;
         }
@@ -90,15 +86,10 @@ impl NativeUi {
     /// The foreground creation projection has no live terminal target. Keep
     /// this admission fact independent of modal capture so navigation remains usable.
     pub(super) fn workspace_creation_replaces_content(&self) -> bool {
-        #[cfg(windows)]
         {
             self.view()
                 .workspace_creation_preview()
                 .is_some_and(WorkspaceCreationPreview::replaces_content)
-        }
-        #[cfg(not(windows))]
-        {
-            false
         }
     }
 
@@ -171,14 +162,12 @@ impl NativeUi {
         }
         true
     }
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn cancel_project_quick_terminal_entry(&mut self) {
         if let Some(state) = self.state.as_mut() {
             state.cancel_project_quick_entry();
         }
     }
 
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn take_project_quick_terminal_entry(&mut self) -> bool {
         // A newer native surface retires the return even if it closes before
         // attachment becomes Ready. The operation's own receipt is not a modal.
@@ -273,6 +262,10 @@ impl NativeUi {
                 &preparation,
                 cwd,
                 crate::localization::select_locale(|name| std::env::var_os(name)),
+                ["USERPROFILE", "HOMEDRIVE", "HOMEPATH", "HOME"]
+                    .into_iter()
+                    .filter_map(|name| std::env::var_os(name).map(|value| (name.to_owned(), value)))
+                    .collect(),
             );
         }
         if let Some((token, _)) = self

@@ -159,7 +159,6 @@ fn settle_accepted_selection(
     mailbox.finish_lease(lease).unwrap();
 }
 
-#[cfg(windows)]
 #[test]
 fn direct_context_admission_guards_exact_identity_and_busy_current_before_round_trip() {
     use crate::workbench_client::{ContextNavigationAdmission as Admission, NativeContextTarget};
@@ -244,7 +243,6 @@ fn context_ui_requires_exact_cleanup_and_installs_empty_without_burning_a_tab_ge
             continue;
         }
         assert_eq!(ui.view().active_context_position(), Some(2));
-        #[cfg(windows)]
         assert_eq!(ui.view().window_title_context().workspace, "Workspace");
         assert_eq!(
             ui.view().context_at(1).unwrap().workspace_label(),

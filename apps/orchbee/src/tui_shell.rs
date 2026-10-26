@@ -1,6 +1,4 @@
-#[cfg(windows)]
 mod divider;
-#[cfg(windows)]
 mod machines;
 mod measurement;
 
@@ -22,8 +20,6 @@ use ratatui::{Terminal, TerminalOptions, Viewport, backend::Backend, layout::Rec
 #[cfg(unix)]
 use std::os::fd::AsFd;
 
-#[cfg(not(windows))]
-use crate::tui_render::render_terminal_shell;
 use crate::{
     client_view::ClientView,
     localization::Locale,
@@ -48,7 +44,6 @@ fn pointer_tracking_level(request: PointerCaptureRequest) -> Option<PointerTrack
         PointerCaptureRequest::Release => None,
         PointerCaptureRequest::ButtonOnly => Some(PointerTrackingLevel::ButtonOnly),
         PointerCaptureRequest::AnyMotion => Some(PointerTrackingLevel::AnyMotion),
-        #[cfg(windows)]
         PointerCaptureRequest::MenuMotion => Some(PointerTrackingLevel::MenuMotion),
     }
 }
@@ -308,9 +303,7 @@ fn run_prepared_surface(
         measurement::Recorder::open(std::env::var_os("ORCHBEE_TUI_MEASUREMENTS"), locale)
             .map_err(TuiFailure::Runtime)?;
     let measurements = measurement_recorder.measurements();
-    #[cfg(not(windows))]
-    let _ = server_configuration;
-    #[cfg(windows)]
+
     let mut terminal_input = terminal_input;
     let mut initial_view = ClientView::new(dimensions.columns);
     if let Some(notice) = notice {
@@ -339,36 +332,39 @@ fn run_prepared_surface(
             multiplexed,
         ));
     }
-    #[cfg(windows)]
     {
-        initial_view.onboarding = crate::onboarding::State::load();
-        initial_view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
-        let load =
-            orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name));
-        if let Err(error) = &load
-            && !server_configuration
-        {
-            return Err(TuiFailure::Runtime(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                error.to_string(),
-            )));
-        }
-        if let Ok(load) = load {
-            if !load.diagnostics.is_empty() {
-                initial_view.configuration_warning(true);
+        if crate::tui_capabilities::Capability::ConfigurationFile.available() {
+            initial_view.onboarding = crate::onboarding::State::load();
+            initial_view
+                .configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
+            let load = orchbee_local_site_runtime::read_windows_user_settings(|name| {
+                std::env::var_os(name)
+            });
+            if let Err(error) = &load
+                && !server_configuration
+            {
+                return Err(TuiFailure::Runtime(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    error.to_string(),
+                )));
             }
-            let settings = load.settings;
-            initial_view.configure_theme(settings.theme);
-            initial_view.configure_keys(&settings.keys);
-            terminal_input.configure_panel_focus(settings.focus_new_panel);
-            terminal_input.configure_agent_notifications(0, &settings.notifications);
-            initial_view.notifications.configure(settings.notifications);
-            initial_view
-                .machines
-                .configure_agent_sidebar(settings.agent_sidebar);
-            initial_view
-                .machines
-                .configure_space_sidebar(settings.space_sidebar);
+            if let Ok(load) = load {
+                if !load.diagnostics.is_empty() {
+                    initial_view.configuration_warning(true);
+                }
+                let settings = load.settings;
+                initial_view.configure_theme(settings.theme);
+                initial_view.configure_keys(&settings.keys);
+                terminal_input.configure_panel_focus(settings.focus_new_panel);
+                terminal_input.configure_agent_notifications(0, &settings.notifications);
+                initial_view.notifications.configure(settings.notifications);
+                initial_view
+                    .machines
+                    .configure_agent_sidebar(settings.agent_sidebar);
+                initial_view
+                    .machines
+                    .configure_space_sidebar(settings.space_sidebar);
+            }
         }
     }
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
@@ -386,11 +382,12 @@ fn run_prepared_surface(
         ),
     );
     let backend = FixedViewportBackend::new(output, dimensions, modes.synchronized_update_lease());
-    #[cfg(windows)]
     let backend = {
         let mut backend = backend;
         let mut nonce = [0; 4];
-        if getrandom::fill(&mut nonce).is_ok() {
+        if crate::tui_capabilities::Capability::Graphics.available()
+            && getrandom::fill(&mut nonce).is_ok()
+        {
             backend.enable_graphics_probe(u32::from_ne_bytes(nonce).max(1));
         }
         backend
@@ -415,12 +412,10 @@ fn run_prepared_surface(
         }))
         .map_err(TuiFailure::Runtime)?;
 
-    #[cfg(windows)]
     modes
         .set_focus_reporting(true)
         .map_err(TuiFailure::Runtime)?;
 
-    #[cfg(windows)]
     let mut system_notifications = crate::notifications::system::SystemNotifications::default();
     let mut surface = SurfaceSlot::Owned(terminal_input);
     let run_result = run_surface_loop(
@@ -436,7 +431,6 @@ fn run_prepared_surface(
                 ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
                 ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
                 ModeRequest::AppearanceQuery(query) => modes.query_host_appearance(query),
-                #[cfg(windows)]
                 ModeRequest::Notification(effect) => {
                     use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
                     let result = match effect.delivery {
@@ -447,12 +441,16 @@ fn run_prepared_surface(
                     crate::notifications::sound(effect.message.sound);
                     result
                 }
-                #[cfg(windows)]
-                ModeRequest::WindowTitle(title) => modes.set_window_title(
-                    title
-                        .as_ref()
-                        .map_or("Orchbee", orchbee_workbench_protocol::WindowTitle::as_str),
-                ),
+                ModeRequest::WindowTitle(title) => crate::tui_capabilities::Capability::WindowTitle
+                    .require()
+                    .map_err(io::Error::from)
+                    .and_then(|()| {
+                        modes.set_window_title(
+                            title
+                                .as_ref()
+                                .map_or("Orchbee", orchbee_workbench_protocol::WindowTitle::as_str),
+                        )
+                    }),
                 ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
                 ModeRequest::PointerCapture(request) => {
                     modes.set_pointer_capture_level(pointer_tracking_level(request))
@@ -481,7 +479,6 @@ fn run_prepared_surface(
         // output first; mode restoration still sends its own control bytes.
         modes.discard_frame_output();
     }
-    #[cfg(windows)]
     drop(system_notifications);
     drop(terminal);
     drop(surface);
@@ -619,7 +616,6 @@ impl SurfaceSlot<'_> {
             Self::Borrowed(surface) => *surface,
         }
     }
-    #[cfg(windows)]
     fn replace(&mut self, next: Box<dyn TerminalSurface>) -> Box<dyn TerminalSurface> {
         match self {
             Self::Owned(surface) => {
@@ -652,7 +648,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     let result = (|| {
         let (inputs, mode) = input_runtime;
         let measurements = inputs.measurements();
-        #[cfg(windows)]
         let mut machines = matches!(surface, SurfaceSlot::Owned(_))
             .then(|| machines::Manager::new(&mut view, wakeup.clone()));
         let terminal_input = surface.active();
@@ -707,7 +702,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 ),
             )?;
         }
-        #[cfg(windows)]
         update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
         let mut pointer_projection_redraw = draw_measured_surface(
             terminal,
@@ -768,7 +762,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             redraw |= terminal_input.tick_with_client_capture(client_capture_claims(&view));
             let now = inputs.sample_time();
             redraw |= view.expire_notice(now);
-            #[cfg(windows)]
             {
                 let board_animates = match terminal_input.view() {
                     Some(native) => native.agent_board().is_some_and(|board| {
@@ -793,13 +786,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         mode(request).map_err(LoopFailure::Input)
                     })?;
             }
-            #[cfg(windows)]
             let menu_measurement = dispatcher.graphics_facts().measurement;
-            #[cfg(windows)]
             let menu_resize = dispatcher.resize_projection();
-            #[cfg(windows)]
             let menu_resize_allowed = dispatcher.resize_presentation_allowed();
-            #[cfg(windows)]
             if let Some(outcome) = dispatcher.complete_action_menu(
                 &mut view,
                 terminal_input,
@@ -907,7 +896,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 dispatcher.invalidate_hit_map(terminal_input);
                 redraw = true;
             }
-            #[cfg(windows)]
             if let Some(machines) = &mut machines {
                 let change = machines.tick(surface, &mut view, dimensions, now, &mut |old| {
                     dispatcher.invalidate_hit_map(old);
@@ -916,8 +904,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 if change.switched {
                     surface.active().set_ui_wakeup(Some(wakeup.clone()));
                     dispatcher.machine_surface_changed();
-                    if mode(ModeRequest::WindowTitle(None)).is_err() {
-                        view.window_title_unavailable();
+                    if let Err(error) = mode(ModeRequest::WindowTitle(None)) {
+                        view.window_title_unavailable(error.kind() == io::ErrorKind::Unsupported);
                     }
 
                     // This new surface has not participated in the old surface's controller tick.
@@ -942,15 +930,13 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             }
             let terminal_input = surface.active();
             terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-            #[cfg(windows)]
             {
                 redraw |= update_graphics_surface(terminal, &mut dispatcher, now);
             }
-            #[cfg(windows)]
             if let Some(snapshot) = view.window_title.take()
-                && mode(ModeRequest::WindowTitle(snapshot.title)).is_err()
+                && let Err(error) = mode(ModeRequest::WindowTitle(snapshot.title))
             {
-                view.window_title_unavailable();
+                view.window_title_unavailable(error.kind() == io::ErrorKind::Unsupported);
                 redraw = true;
             }
             if redraw {
@@ -967,11 +953,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     wakeup.signal();
                 }
             }
-            #[cfg(windows)]
             if let Some(effect) = view.notifications.take_effect()
-                && mode(ModeRequest::Notification(effect)).is_err()
+                && let Err(error) = mode(ModeRequest::Notification(effect))
             {
-                view.notification_unavailable();
+                view.notification_unavailable(error.kind() == io::ErrorKind::Unsupported);
                 pointer_projection_redraw = draw_measured_surface(
                     terminal,
                     &mut view,
@@ -993,21 +978,15 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         exit,
         locale: view.effective_locale(chrome.locale),
         return_command: {
-            #[cfg(windows)]
             if let crate::machine_picker::Choice::Remote(id) = &view.machines.current {
                 format!("orchbee --machine {}", id.as_str())
             } else {
-                "orchbee".to_owned()
-            }
-            #[cfg(not(windows))]
-            {
                 "orchbee".to_owned()
             }
         },
     })
 }
 
-#[cfg(windows)]
 fn update_graphics_surface<B: Backend + ResizableBackend>(
     terminal: &Terminal<B>,
     dispatcher: &mut InputDispatcher,
@@ -1059,7 +1038,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         theme: &theme,
         locale,
     };
-    #[cfg(windows)]
     surface.observe_client_viewport(view, terminal.get_frame().area());
     let capture_owner = {
         let native_claims = match surface.view() {
@@ -1080,7 +1058,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     let mut notification_painted = false;
     let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
-    #[cfg(windows)]
     let preview = if capture_owner.is_none() {
         dispatcher
             .divider_preview()
@@ -1093,9 +1070,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     } else {
         None
     };
-    #[cfg(windows)]
     let graphics = terminal.backend().graphics_surface();
-    #[cfg(windows)]
     let resize = divider::project(
         view,
         surface,
@@ -1103,14 +1078,11 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         &dispatcher.resize_projection(),
         dispatcher.resize_presentation_allowed(),
     );
-    #[cfg(windows)]
     let mut preview_painted = false;
-    #[cfg(windows)]
     let tab_drag = capture_owner
         .is_none()
         .then(|| dispatcher.tab_drag_preview())
         .flatten();
-    #[cfg(windows)]
     let sidebar_reorder = capture_owner
         .is_none()
         .then(|| dispatcher.sidebar_reorder_preview())
@@ -1119,7 +1091,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         measurement.buffer_started();
     }
     let drawn = terminal.draw(|frame| {
-        #[cfg(windows)]
         {
             (receipt, preview_painted) = divider::render(
                 frame,
@@ -1134,17 +1105,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
                 &mut hits,
             );
         }
-        #[cfg(not(windows))]
-        {
-            receipt = render_terminal_shell(
-                frame,
-                view,
-                chrome.locale,
-                surface.view(),
-                chrome.theme,
-                &mut hits,
-            );
-        }
+
         let notifications_presentable =
             crate::tui_layout::project_shell_areas(frame.area(), view.sidebar_surface()).tier
                 != crate::tui_layout::ViewportTier::TooSmall;
@@ -1153,7 +1114,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
                 crate::notifications::render(frame, &view.notifications, chrome.theme, &mut hits)
                     .is_some();
         }
-        #[cfg(windows)]
         render_machine_surface(
             frame,
             view,
@@ -1162,7 +1122,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
             preview_painted,
             &mut hits,
         );
-        #[cfg(windows)]
         if let Some(preview) = sidebar_reorder
             .as_ref()
             .and_then(|preview| hits.resolve_sidebar_reorder_preview(preview))
@@ -1174,11 +1133,9 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
                 chrome.theme,
             );
         }
-        #[cfg(windows)]
         if let Some(preview) = &tab_drag {
             crate::tui_render::render_tab_drag_preview(frame, preview, chrome.locale, chrome.theme);
         }
-        #[cfg(windows)]
         if let Some(graphics) = &graphics {
             graphics.finish_frame(
                 receipt.graphics_draws(),
@@ -1209,7 +1166,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     let help_draw = dispatcher.publish_hit_map_with_help(hits.finish());
     view.settle_help_draw(help_draw);
     let pointer_projection_redraw = dispatcher.take_pointer_projection_redraw();
-    #[cfg(windows)]
     if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.
         surface.graphics_covered();
@@ -1218,7 +1174,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     }
     if notification_painted {
         receipt = receipt.with_attention(None);
-        #[cfg(windows)]
         {
             receipt = receipt.with_graphics(Vec::new()).with_position(None);
         }
@@ -1231,7 +1186,6 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     Ok(pointer_projection_redraw)
 }
 
-#[cfg(windows)]
 fn render_machine_surface(
     frame: &mut ratatui::Frame<'_>,
     view: &mut ClientView,
@@ -1248,7 +1202,6 @@ fn render_machine_surface(
     }
 }
 
-#[cfg(windows)]
 fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimensions) -> bool {
     let owned = view.machines.sidebar_navigation_active();
     let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
@@ -1257,7 +1210,6 @@ fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimen
     owned && !view.machines.sidebar_navigation_active()
 }
 
-#[cfg(windows)]
 fn popup_surface_area(
     dimensions: WindowDimensions,
     view: &ClientView,
@@ -1291,14 +1243,12 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         .unwrap_or(*dimensions);
     let changed = next != *dimensions;
     if changed {
-        #[cfg(windows)]
         {
             view.machines.cancel_sidebar_scroll();
         }
         terminal_input.invalidate_close_display();
         terminal_input.invalidate_rename_display();
         terminal_input.invalidate_setup_display();
-        #[cfg(windows)]
         terminal_input.invalidate_worktree_display();
         terminal.backend_mut().set_window_dimensions(next);
         terminal
@@ -1307,7 +1257,6 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         view.resize(next.columns);
         *dimensions = next;
     }
-    #[cfg(windows)]
     let changed = synchronize_sidebar_visibility(view, *dimensions) || changed;
     let resize = if changed {
         // Pixel-only host changes also retire a released presentation lease, even when
@@ -1328,7 +1277,6 @@ fn observe_surface_geometry(
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     resize: (&crate::tui_layout::ResizeProjection, bool),
 ) -> io::Result<()> {
-    #[cfg(windows)]
     let resize = divider::project(
         view,
         terminal_input,
@@ -1336,8 +1284,7 @@ fn observe_surface_geometry(
         resize.0,
         resize.1,
     );
-    #[cfg(not(windows))]
-    let resize = resize.0;
+
     let mut client_view = terminal_input.view();
     if let Some(native) = client_view.as_mut() {
         native.set_resize_projection(&resize);
@@ -1351,7 +1298,6 @@ fn observe_surface_geometry(
             )
             .tier
                 != crate::tui_layout::ViewportTier::TooSmall;
-            #[cfg(windows)]
             let (panel_count, zoomed) = (
                 native
                     .active_position()
@@ -1364,7 +1310,6 @@ fn observe_surface_geometry(
             if presentable {
                 terminal_input.observe_panes(&panes);
             }
-            #[cfg(windows)]
             {
                 let area = popup_surface_area(*dimensions, view, panel_count, zoomed);
                 let pixels = (
@@ -1575,14 +1520,12 @@ pub(crate) fn pane_geometries(
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
-    #[cfg(windows)]
     fn navigate_agent(
         &mut self,
         _target: &crate::machine_agents::Target,
     ) -> crate::workbench_client::ContextNavigationAdmission {
         crate::workbench_client::ContextNavigationAdmission::Unavailable
     }
-    #[cfg(windows)]
     fn navigate_context(
         &mut self,
         _target: &crate::workbench_client::NativeContextTarget,
@@ -1595,12 +1538,9 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     }
     /// The attached Site published an Agent change; Client-owned Agent reads start early.
     fn expedite_agent_reads(&mut self) {}
-    #[cfg(windows)]
     fn observe_client_viewport(&mut self, _view: &ClientView, _viewport: Rect) {}
-    #[cfg(windows)]
     fn popup_surface(&mut self, _area: Rect, _pixels: (u16, u16)) {}
 
-    #[cfg(windows)]
     fn machine_source(
         &self,
     ) -> Option<(
@@ -1609,26 +1549,20 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     )> {
         None
     }
-    #[cfg(windows)]
     fn suspend_machine(&mut self) -> Option<bool> {
         None
     }
-    #[cfg(windows)]
     fn resume_machine(&mut self, _focus: Option<bool>) {}
 
-    #[cfg(windows)]
     fn retained_frame_bank(&self) -> Option<crate::workbench_client::RetainedFrameBank> {
         None
     }
 
-    #[cfg(windows)]
     fn reusable_machine(&self) -> bool {
         true
     }
 
-    #[cfg(windows)]
     fn configure_panel_focus(&mut self, _focus_new_panel: bool) {}
-    #[cfg(windows)]
     fn configure_agent_notifications(
         &mut self,
         _revision: u64,
@@ -1663,7 +1597,6 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         Ok(())
     }
     fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {}
-    #[cfg(windows)]
     fn graphics_covered(&mut self) {}
     fn observe_panes(
         &mut self,
@@ -1680,14 +1613,12 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::workbench_client::WorkbenchClient {
-    #[cfg(windows)]
     fn navigate_agent(
         &mut self,
         target: &crate::machine_agents::Target,
     ) -> crate::workbench_client::ContextNavigationAdmission {
         self.navigate_agent(target)
     }
-    #[cfg(windows)]
     fn navigate_context(
         &mut self,
         target: &crate::workbench_client::NativeContextTarget,
@@ -1703,15 +1634,12 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn expedite_agent_reads(&mut self) {
         self.expedite_agent_reads();
     }
-    #[cfg(windows)]
     fn observe_client_viewport(&mut self, view: &ClientView, viewport: Rect) {
         self.observe_client_viewport(view, viewport);
     }
-    #[cfg(windows)]
     fn configure_panel_focus(&mut self, focus_new_panel: bool) {
         self.configure_panel_focus(focus_new_panel);
     }
-    #[cfg(windows)]
     fn configure_agent_notifications(
         &mut self,
         revision: u64,
@@ -1720,12 +1648,10 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
         self.configure_agent_notifications(revision, settings);
     }
 
-    #[cfg(windows)]
     fn popup_surface(&mut self, area: Rect, pixels: (u16, u16)) {
         self.observe_popup_surface(area, pixels);
     }
 
-    #[cfg(windows)]
     fn machine_source(
         &self,
     ) -> Option<(
@@ -1734,19 +1660,15 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     )> {
         self.machine_source()
     }
-    #[cfg(windows)]
     fn suspend_machine(&mut self) -> Option<bool> {
         self.suspend_machine()
     }
-    #[cfg(windows)]
     fn resume_machine(&mut self, focus: Option<bool>) {
         self.resume_machine(focus);
     }
-    #[cfg(windows)]
     fn retained_frame_bank(&self) -> Option<crate::workbench_client::RetainedFrameBank> {
         self.retained_frame_bank()
     }
-    #[cfg(windows)]
     fn reusable_machine(&self) -> bool {
         // A canonical placeholder is a usable workspace, despite having no
         // attached terminal. Preserve it when revisiting the cached machine.
@@ -1774,15 +1696,7 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     ) -> bool {
         let changed = self.shared_preferences_tick(view)
             | self.automatic_notifications_tick(view, view.effective_locale(locale));
-        #[cfg(windows)]
-        {
-            changed | self.client_control_tick(view, viewport, view.effective_locale(locale))
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = (viewport, locale);
-            changed
-        }
+        { changed | self.client_control_tick(view, viewport, view.effective_locale(locale)) }
     }
     fn tick(&mut self) -> bool {
         self.tick()
@@ -1818,7 +1732,6 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     fn after_close_draw(&mut self, receipt: crate::workbench_client::NativeDrawReceipt) {
         self.after_close_draw(receipt)
     }
-    #[cfg(windows)]
     fn graphics_covered(&mut self) {
         self.graphics_covered();
     }
@@ -1833,7 +1746,6 @@ const fn to_area(dimensions: WindowDimensions) -> Rect {
 
 fn client_capture_claims(_view: &ClientView) -> crate::tui_composition::ClientCaptureClaims {
     let claims = crate::tui_composition::ClientCaptureClaims::default();
-    #[cfg(windows)]
     let claims = claims
         .with_machine(_view.machines.open)
         .with_resize(_view.resize_mode());

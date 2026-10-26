@@ -48,7 +48,6 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
     assert!(text.contains("Close request was not applied"));
 }
 
-#[cfg(windows)]
 #[test]
 fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -119,7 +118,6 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn sidebar_status_keeps_canonical_whole_hints_and_drops_oversized_facts() {
     use crate::{
@@ -225,7 +223,6 @@ fn sidebar_status_keeps_canonical_whole_hints_and_drops_oversized_facts() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
     use crate::{
@@ -504,7 +501,6 @@ fn without_cell_padding(value: &str) -> String {
     value.replace(' ', "")
 }
 
-#[cfg(windows)]
 #[test]
 fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
     use crate::{
@@ -595,7 +591,6 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn too_small_root_compositor_paints_only_the_notice_and_status() {
     use crate::{
@@ -1146,7 +1141,6 @@ use ratatui::layout::Rect;
 
 use crate::workbench_client::NativeViewportSurface;
 
-#[cfg(windows)]
 #[test]
 fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
     for width in [40, 80, 120] {
@@ -1568,7 +1562,6 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
     assert_eq!(clipped[1], "A ");
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
     use crate::{
@@ -1764,7 +1757,6 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     use crate::{
@@ -1889,7 +1881,6 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets() {
     use crate::{tui_pointer::HitMapBuilder, workbench_client::PopupView};
@@ -1930,7 +1921,6 @@ fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets(
     assert!((0..5).all(|x| (0..3).all(|y| map.hit_target_at(x, y).is_none())));
 }
 
-#[cfg(windows)]
 #[test]
 fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_frame() {
     use std::time::Instant;
@@ -2070,7 +2060,6 @@ fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_
     assert_projection(&pressed);
 }
 
-#[cfg(windows)]
 #[test]
 fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feedback() {
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {

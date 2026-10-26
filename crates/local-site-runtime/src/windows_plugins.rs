@@ -17,6 +17,7 @@ pub use store::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PluginRegistryError {
+    Unsupported,
     InvalidManifest,
     InvalidIdentifier,
     InvalidPath,

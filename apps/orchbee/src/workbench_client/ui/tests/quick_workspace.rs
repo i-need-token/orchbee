@@ -146,7 +146,6 @@ fn rendered_area(buffer: &ratatui::buffer::Buffer, area: ratatui::layout::Rect) 
         .join("\n")
 }
 
-#[cfg(windows)]
 fn after_last_workspace_close() -> (
     NativeUi,
     Arc<CommandMailbox>,
@@ -213,7 +212,6 @@ fn after_last_workspace_close() -> (
     (ui, mailbox, clock, snapshot, operation.generation)
 }
 
-#[cfg(windows)]
 #[test]
 fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_newer_focus_wins() {
     use super::super::tests::workspace_setup::{launched, place};

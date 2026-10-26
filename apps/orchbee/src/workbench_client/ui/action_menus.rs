@@ -116,6 +116,14 @@ fn action_availability(
     resume_permit: Option<&TabCloseResumePermit>,
 ) -> ActionAvailability<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
+    if action
+        .client_action()
+        .as_ref()
+        .and_then(crate::tui_capabilities::Capability::for_action)
+        .is_some_and(|capability| !capability.available())
+    {
+        return ActionAvailability::Hidden;
+    }
     if action == MenuAction::MoveToNewWindow {
         return ActionAvailability::Hidden;
     }

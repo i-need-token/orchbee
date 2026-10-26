@@ -49,6 +49,12 @@ pub(super) struct Coordinator {
     notice: Option<(Notice, Option<Instant>)>,
 }
 impl Coordinator {
+    pub(super) fn new(login_shell_supported: bool) -> Self {
+        Self {
+            editor: Editor::new(login_shell_supported),
+            ..Self::default()
+        }
+    }
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
         self.origin = Some(origin);
     }
@@ -142,7 +148,6 @@ impl NativeUi {
     pub(super) fn request_settings(&mut self) -> ClientActionDisposition {
         self.settings.clear_notice();
         let busy = self.modal_owns_input();
-        #[cfg(windows)]
         let busy = busy
             || self.retirement_failure.is_some()
             || self.copy_mode_active()

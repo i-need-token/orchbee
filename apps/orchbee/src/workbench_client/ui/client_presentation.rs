@@ -16,7 +16,6 @@ fn panel<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode
     }
 }
 impl NativeUi {
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn configured_command_source(
         &self,
     ) -> Option<(

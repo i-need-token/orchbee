@@ -285,7 +285,6 @@ pub(super) fn text_row(text: &Text<'_>, inner: Rect, index: usize) -> Rect {
     Rect::new(inner.x, y, inner.width, u16::from(y < inner.bottom()))
 }
 
-#[cfg(windows)]
 pub(super) fn mode_bar(
     viewport: ratatui::layout::Rect,
     sidebar: crate::client_view::SidebarSurface,

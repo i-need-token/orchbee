@@ -52,7 +52,6 @@ impl FakeServer {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
-        #[cfg(windows)]
         let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
@@ -82,7 +81,6 @@ impl FakeServer {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
-        #[cfg(windows)]
         let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
@@ -180,7 +178,6 @@ impl FakeServer {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
-        #[cfg(windows)]
         let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
@@ -294,21 +291,20 @@ pub(crate) fn adjustable_operation_clock(
 /// A lane-admission origin whose endpoint never answers — enough to
 /// spawn a real agent-board lane (real pipe + thread) in tests without
 /// standing up a live OBAP socket.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
     super::super::LocalClientOrigin {
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
         cohort: "agent-board-tests".to_owned(),
+        local: true,
         #[cfg(windows)]
         tunnel: None,
     }
 }
 
 /// A typed remote origin without an SSH process, pipe or running writer.
-#[cfg(windows)]
 pub(crate) fn disconnected_remote_origin() -> super::super::LocalClientOrigin {
     let mut origin = disconnected_origin();
-    origin.tunnel = Some(crate::machine_tunnel::Tunnel::disconnected_for_test());
+    origin.local = false;
     origin
 }
 

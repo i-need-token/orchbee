@@ -81,7 +81,6 @@ impl RetainedFrames {
     /// Merge pixels captured by an older surface. Entries already captured by
     /// this surface are replayed last, so a fresh frame always wins an exact
     /// identity collision. All images remain subject to the shared LRU bounds.
-    #[cfg(any(windows, test))]
     pub(super) fn inherit_older(&mut self, older: Self, state: &WorkbenchClientState) {
         self.prune(state);
         let newer = std::mem::take(&mut self.entries);
@@ -104,7 +103,6 @@ impl RetainedFrames {
     }
 
     /// A verified physical replacement cannot reuse pixels from an earlier Host incarnation.
-    #[cfg(windows)]
     pub(super) fn fence_selection(
         &mut self,
         context: &crate::workbench_client::NativeContextTarget,

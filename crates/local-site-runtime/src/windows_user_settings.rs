@@ -1,6 +1,7 @@
 //! Shared Windows user settings: fatal source boundaries, field-local admission, and explicit repair.
 mod agent_sidebar;
 mod diagnostics;
+mod source;
 use diagnostics::{DiagnosticsCollector, unknown_field};
 mod sidebar_tokens;
 mod space_sidebar;
@@ -24,6 +25,8 @@ pub use notifications::{
     MAXIMUM_NOTIFICATION_PROFILE_BYTES, WindowsAgentSoundSetting, WindowsNotificationDelivery,
     WindowsNotificationSettings,
 };
+#[cfg(windows)]
+#[cfg(windows)]
 mod reset_keys;
 mod shell;
 mod theme;
@@ -41,18 +44,23 @@ pub use reference::{
     WINDOWS_USER_CONFIG_OPTIONS, WindowsDefaultActionBindings, WindowsUserConfigOption,
     default_windows_user_settings_toml, default_windows_user_settings_toml_with_actions,
 };
+#[cfg(windows)]
+#[cfg(windows)]
 pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
 pub use shell::{WindowsShellMode, WindowsShellSettings};
 use std::{
     ffi::OsString,
-    fs::File,
     io::Read,
     path::{Path, PathBuf},
 };
 pub use window_title::{DEFAULT_WINDOW_TITLE, WindowsWindowTitleTemplate};
 
 const LIMIT: u64 = 64 * 1024;
+#[cfg(windows)]
+#[cfg(windows)]
 mod channel;
+#[cfg(windows)]
+#[cfg(windows)]
 pub use channel::set_windows_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsUserSettings {
@@ -172,6 +180,7 @@ pub enum WindowsDirectoryPolicy {
 fn location(
     env: &impl Fn(&str) -> Option<OsString>,
 ) -> Result<Option<(PathBuf, bool)>, WindowsSettingsError> {
+    source::require()?;
     let (value, field, explicit) = if let Some(value) = env("ORCHBEE_CONFIG_FILE") {
         (value, "ORCHBEE_CONFIG_FILE", true)
     } else if let Some(value) = env("APPDATA") {
@@ -236,6 +245,7 @@ fn read_file_at(
     explicit: bool,
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
+    source::require()?;
     let Some(path) = path else {
         if explicit {
             return Err(WindowsSettingsError::new("file", "invalid-path"));
@@ -243,7 +253,7 @@ fn read_file_at(
         return Ok(WindowsUserSettingsLoad::default());
     };
     let path = path.to_owned();
-    let file = match File::open(&path) {
+    let file = match source::open(&path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && !explicit => {
             return Ok(WindowsUserSettingsLoad {
@@ -660,9 +670,16 @@ fn normalize(
         return Err(WindowsSettingsError::new(field, "invalid-path"));
     }
     normalize_windows_user_path(value, env, || {
-        file.parent()
-            .map(Path::to_owned)
-            .ok_or_else(|| std::io::ErrorKind::NotFound.into())
+        let file = file.to_str().ok_or(std::io::ErrorKind::InvalidData)?;
+        let end = file
+            .rfind(['/', '\\'])
+            .ok_or(std::io::ErrorKind::NotFound)?;
+        let parent = if end > 0 && file.as_bytes().get(end - 1) == Some(&b':') {
+            &file[..=end]
+        } else {
+            &file[..end]
+        };
+        Ok(PathBuf::from(parent))
     })
     .map_err(|_| WindowsSettingsError::new(field, "invalid-path"))
 }

@@ -15,8 +15,9 @@ use crate::{
     local_client::{LocalClientOrigin, LocalOperationClock},
     machine_observation,
     terminal_link_activation::{
-        Activation, Guard, PaintedLinkSource, ReadAttachment, context, plugin,
-        windows::SystemBrowser,
+        Activation, Guard, PaintedLinkSource, ReadAttachment,
+        browser::{Error as BrowserError, SystemBrowser},
+        context, plugin,
     },
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
@@ -41,6 +42,7 @@ pub(crate) enum Notice {
     NoLink,
     Failed,
     Unknown,
+    Unsupported,
 }
 
 #[derive(Clone)]
@@ -286,11 +288,11 @@ impl Guard for LaneGuard<'_> {
 /// One-shot external browser submission boundary, replaced by a recording port in tests.
 trait BrowserPort {
     /// Submit the URL once and report whether the platform accepted that request.
-    fn open(&mut self, url: &str) -> Result<(), ()>;
+    fn open(&mut self, url: &str) -> Result<(), BrowserError>;
 }
 
 impl BrowserPort for SystemBrowser {
-    fn open(&mut self, url: &str) -> Result<(), ()> {
+    fn open(&mut self, url: &str) -> Result<(), BrowserError> {
         SystemBrowser::open(self, url)
     }
 }
@@ -474,13 +476,11 @@ fn settle_effect(handoff: EffectHandoff, url: &str, browser: &mut impl BrowserPo
         EffectHandoff::Plugin(Ok(Activation::NoLink | Activation::NoHandler) | Err(_)) => {
             Notice::Failed
         }
-        EffectHandoff::NoHandler if browser_url(url) => {
-            if browser.open(url).is_ok() {
-                Notice::Opened
-            } else {
-                Notice::Failed
-            }
-        }
+        EffectHandoff::NoHandler if browser_url(url) => match browser.open(url) {
+            Ok(()) => Notice::Opened,
+            Err(BrowserError::Unsupported) => Notice::Unsupported,
+            Err(BrowserError::Failed) => Notice::Failed,
+        },
         EffectHandoff::NoHandler => Notice::Failed,
     }
 }

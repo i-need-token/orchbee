@@ -9,9 +9,7 @@ use orchbee_workbench_protocol::{
     Workspace,
 };
 use std::sync::atomic::AtomicU64;
-#[cfg(windows)]
 mod responsive;
-#[cfg(windows)]
 mod sidebar;
 fn project() -> Project {
     Project {
@@ -344,7 +342,6 @@ fn newer_refused_focus_intent_keeps_current_context_when_a_launch_result_arrives
         Some(NativeSetupStatus::WorkspaceCreated)
     );
     assert!(ui.view().setup_draft().is_none());
-    #[cfg(windows)]
     assert!(!ui.take_project_quick_terminal_entry());
     mailbox.finish_lease(lease).unwrap();
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -465,7 +462,6 @@ fn setup_capture_claim_tracks_presence_while_context_requires_a_live_frame() {
     assert!(ui.setup_input_context().is_none());
 }
 
-#[cfg(windows)]
 #[test]
 fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them() {
     use crate::client_view::ClientView;

@@ -22,7 +22,6 @@ impl NativeUi {
             .is_some_and(Driver::viewport_blocked)
     }
 
-    #[cfg(windows)]
     pub(super) fn semantic_copy_selection(
         &mut self,
         mailbox: &Arc<CommandMailbox>,
@@ -350,7 +349,6 @@ impl NativeUi {
             if let Some(state) = self.state.as_mut() {
                 state.set_notice(ClientNotice::SelectionEvicted);
             }
-            #[cfg(windows)]
             {
                 let key = self.projections[index].key.clone();
                 self.copy_selection_evicted(&key);
@@ -364,7 +362,6 @@ impl NativeUi {
             Failure::Invalid => self.retire(CarrierFailure::Protocol),
             Failure::IdentityExhausted => self.retire(CarrierFailure::IdentityExhausted),
             Failure::Rejected => {
-                #[cfg(windows)]
                 self.copy_selection_failed();
                 if let Some(state) = self.state.as_mut() {
                     state.set_notice(ClientNotice::CopyFailed);
@@ -391,10 +388,8 @@ impl NativeUi {
             completed.push((projection.key.clone(), frame.route.generation, copy));
         }
         for (key, generation, copy) in completed {
-            #[cfg(windows)]
             let accepted = self.copy_export_ready(&key, generation, copy.0, copy.1);
-            #[cfg(not(windows))]
-            let accepted = self.effects.enqueue_selection(key, generation, copy.1);
+
             if !accepted && let Some(state) = self.state.as_mut() {
                 state.set_notice(ClientNotice::CopyFailed);
             }

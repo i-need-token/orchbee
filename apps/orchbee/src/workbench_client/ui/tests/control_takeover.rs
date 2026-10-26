@@ -230,10 +230,7 @@ fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
                 }),
                 "{locale:?}: {status}"
             );
-            #[cfg(windows)]
             assert!(readable.contains("Ctrlbt"), "{locale:?}: {status}");
-            #[cfg(not(windows))]
-            assert!(!readable.contains("Ctrlbt"), "{locale:?}: {status}");
         }
     }
 }

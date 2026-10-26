@@ -8,12 +8,10 @@ use orchbee_workbench_protocol::{
 pub(crate) enum ResizeProjection {
     #[default]
     Canonical,
-    #[cfg(windows)]
     Divider {
         source: super::DrawnDivider,
         ratio: ClientSplitRatio,
     },
-    #[cfg(windows)]
     Sidebar {
         source: super::DrawnSidebarWidth,
         width: super::SidebarWidth,
@@ -21,7 +19,6 @@ pub(crate) enum ResizeProjection {
 }
 
 impl ResizeProjection {
-    #[cfg(windows)]
     pub(crate) fn divider(&self) -> Option<super::DrawnDivider> {
         let Self::Divider { source, ratio } = self else {
             return None;
@@ -32,7 +29,6 @@ impl ResizeProjection {
         Some(drawn)
     }
 
-    #[cfg(windows)]
     pub(crate) fn sidebar_target(&self) -> Option<super::DrawnSidebarWidth> {
         match self {
             Self::Sidebar { source, width } => Some(source.with_width(*width)),
@@ -42,7 +38,6 @@ impl ResizeProjection {
 
     pub(crate) fn sidebar(&self, canonical: SidebarSurface) -> SidebarSurface {
         match self {
-            #[cfg(windows)]
             Self::Sidebar { source, width } => source.with_width(*width).surface,
             _ => canonical,
         }
@@ -57,7 +52,6 @@ impl ResizeProjection {
         canonical: ClientSplitRatio,
     ) -> ClientSplitRatio {
         match self {
-            #[cfg(windows)]
             Self::Divider { source, ratio }
                 if &source.source.tab == _tab
                     && &source.split == _split

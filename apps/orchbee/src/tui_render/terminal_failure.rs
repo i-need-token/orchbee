@@ -21,7 +21,6 @@ pub(super) fn render(
     theme: &Theme,
 ) {
     let mut lines = Vec::new();
-    #[cfg(windows)]
     {
         use crate::client_view::PrefixDesc;
         let binding = |desc| view.bindings().labels(desc).join(" / ");
@@ -34,8 +33,7 @@ pub(super) fn render(
                 .map(|line| Line::styled(line.to_owned(), theme.style(Role::AccentFocus))),
         );
     }
-    #[cfg(not(windows))]
-    let _ = view;
+
     lines.extend(
         locale
             .terminal_launch_failure(failure)

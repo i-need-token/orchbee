@@ -31,7 +31,6 @@ use crate::{
 mod colors;
 
 pub(crate) trait ResizableBackend: Backend {
-    #[cfg(windows)]
     fn graphics_surface(&self) -> Option<crate::tui_graphics::Surface> {
         None
     }
@@ -42,7 +41,6 @@ pub(crate) trait ResizableBackend: Backend {
 }
 
 pub(crate) struct FixedViewportBackend<W: Write> {
-    #[cfg(windows)]
     graphics: Option<crate::tui_graphics::Surface>,
     graphics_probe_id: Option<u32>,
     base_cells: Buffer,
@@ -61,7 +59,6 @@ impl<W: Write> FixedViewportBackend<W> {
         synchronized_update: Arc<SynchronizedUpdateLease>,
     ) -> Self {
         Self {
-            #[cfg(windows)]
             graphics: None,
             graphics_probe_id: None,
             base_cells: Buffer::empty(Rect::new(0, 0, dimensions.columns, dimensions.rows)),
@@ -73,7 +70,6 @@ impl<W: Write> FixedViewportBackend<W> {
             writer,
         }
     }
-    #[cfg(windows)]
     pub(crate) fn enable_graphics_probe(&mut self, id: u32) {
         self.graphics_probe_id = (id != 0).then_some(id);
         self.graphics = self
@@ -164,7 +160,6 @@ impl<W: Write> Write for RestorationGatedWriter<W> {
 }
 
 impl<W: Write> ResizableBackend for FixedViewportBackend<W> {
-    #[cfg(windows)]
     fn graphics_surface(&self) -> Option<crate::tui_graphics::Surface> {
         self.graphics.clone()
     }
@@ -293,7 +288,6 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
 
     fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
         self.erase_cursor()?;
-        #[cfg(windows)]
         if clear_type == ClearType::All
             && let Some(graphics) = &self.graphics
         {
@@ -342,7 +336,6 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
 
     fn flush(&mut self) -> io::Result<()> {
         let mut first_error = None;
-        #[cfg(windows)]
         let deleted = match &self.graphics {
             Some(graphics) => match graphics.write_frame(&mut self.writer, self.cursor_position) {
                 Ok(deleted) => deleted,
@@ -374,7 +367,6 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
             first_error = Some(error);
         }
         if first_error.is_none() {
-            #[cfg(windows)]
             if let Some(graphics) = &self.graphics {
                 graphics.flushed(&deleted);
             }

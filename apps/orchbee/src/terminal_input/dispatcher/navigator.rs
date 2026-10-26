@@ -191,7 +191,6 @@ impl InputDispatcher {
                 | PointerOutcome::Handled
                 | PointerOutcome::IdleMotion { .. }
                 | PointerOutcome::RegionsChanged => {}
-                #[cfg(windows)]
                 PointerOutcome::TabGestureEnded
                 | PointerOutcome::SidebarReorderEnded
                 | PointerOutcome::SidebarWidthEnded

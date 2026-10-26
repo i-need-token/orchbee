@@ -8,7 +8,6 @@ use crate::{
     terminal_text::sanitize_terminal_text,
 };
 
-#[cfg(windows)]
 use crate::client_view::{LabelStyle, PrefixDesc, format_binding_with_glyphs};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -53,7 +52,6 @@ impl ShortcutHelpEntry {
 }
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn sidebar_marker_label(self, marker: &str) -> &'static str {
         match (self, marker) {
             (Self::EnUs, "workspace") => "Workspace",
@@ -121,7 +119,6 @@ impl Locale {
                 },
             );
         }
-        #[cfg(windows)]
         self.append_contextual_entries(view, glyphs, &mut entries);
         entries.sort_by_key(|entry| entry.group.order());
         entries
@@ -225,7 +222,6 @@ impl Locale {
         {
             return self.shortcut_close_label().to_owned();
         }
-        #[cfg(windows)]
         if let Some(description) = view.bindings().configured_description(binding.description) {
             return sanitize_terminal_text(description).into_owned();
         }
@@ -249,7 +245,6 @@ impl Locale {
             return self.shortcut_local_action_title(&binding.action);
         }
 
-        #[cfg(windows)]
         if let Some(action) = shared_menu_action(binding) {
             return self.menu_action(&action).to_owned();
         }
@@ -282,7 +277,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     fn append_contextual_entries(
         self,
         view: &ClientView,
@@ -414,7 +408,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     fn merge_context_entry(
         self,
         entries: &mut Vec<ShortcutHelpEntry>,
@@ -454,7 +447,6 @@ impl Locale {
             _ => {}
         }
 
-        #[cfg(windows)]
         if matches!(
             action,
             PrefixAction::Client(A::RequestWorkspaceCreate | A::RequestQuickWorkspace)
@@ -465,7 +457,6 @@ impl Locale {
         }
 
         let title = match action {
-            #[cfg(windows)]
             PrefixAction::Client(A::DismissOnboarding) => {
                 Some(self.onboarding_label(crate::onboarding::Action::Dismiss))
             }
@@ -477,22 +468,18 @@ impl Locale {
                 Self::EnUs => "Reload settings",
                 Self::ZhCn => "重新加载设置",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::OpenActionMenu) => Some(match self {
                 Self::EnUs => "Open action menu",
                 Self::ZhCn => "打开操作菜单",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::EnterResizeMode | A::ResizePane { .. }) => Some(match self {
                 Self::EnUs => "Resize panel",
                 Self::ZhCn => "调整面板大小",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::EnterCopyMode) => Some(match self {
                 Self::EnUs => "Copy text",
                 Self::ZhCn => "复制文本",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::ConfiguredCommand(_)) => Some(match self {
                 Self::EnUs => "Run configured command",
                 Self::ZhCn => "运行已配置的命令",
@@ -515,12 +502,10 @@ impl Locale {
                 Self::EnUs => "Set Workspace directory",
                 Self::ZhCn => "设置工作区目录",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::RequestWorktreeCreate) => Some(match self {
                 Self::EnUs => "New Worktree",
                 Self::ZhCn => "新建工作树",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::RequestWorktreeOpen) => Some(match self {
                 Self::EnUs => "Open Worktree",
                 Self::ZhCn => "打开工作树",
@@ -597,21 +582,17 @@ impl Locale {
                 Self::EnUs => "Enable typing in this panel",
                 Self::ZhCn => "获取此面板的输入权限",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::FocusBusinessSidebar) => {
                 Some((self.shell().prefix_desc)(PrefixDesc::SidebarFocus))
             }
-            #[cfg(windows)]
             PrefixAction::Client(A::OpenMachines) => Some(match self {
                 Self::EnUs => "Search machines, Workspaces and Agents",
                 Self::ZhCn => "搜索机器、工作区和智能体",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::PreviousAgent) => Some(match self {
                 Self::EnUs => "Select previous Agent",
                 Self::ZhCn => "选择上一个智能体",
             }),
-            #[cfg(windows)]
             PrefixAction::Client(A::NextAgent) => Some(match self {
                 Self::EnUs => "Select next Agent",
                 Self::ZhCn => "选择下一个智能体",
@@ -652,7 +633,6 @@ impl Locale {
                 Self::EnUs => "Select Tab by number",
                 Self::ZhCn => "按编号选择标签页",
             }),
-            #[cfg(windows)]
             PrefixAction::SelectAgentDigit => Some(match self {
                 Self::EnUs => "Select Agent by number",
                 Self::ZhCn => "按编号选择智能体",
@@ -693,21 +673,15 @@ impl Locale {
     fn shortcut_search_alias(self, alias: ActionSearchAlias) -> &'static str {
         use ActionSearchAlias as A;
         match (self, alias) {
-            #[cfg(windows)]
             (Self::EnUs, A::Actions) => "actions",
-            #[cfg(windows)]
             (Self::ZhCn, A::Actions) => "动作",
-            #[cfg(windows)]
             (Self::EnUs, A::Commands) => "commands",
-            #[cfg(windows)]
             (Self::ZhCn, A::Commands) => "命令",
             (Self::EnUs, A::Preferences) => "preferences",
             (Self::ZhCn, A::Preferences) => "偏好设置",
             (Self::EnUs, A::Workspace) => "workspace",
             (Self::ZhCn, A::Workspace) => "工作区",
-            #[cfg(windows)]
             (Self::EnUs, A::Worktree) => "worktree",
-            #[cfg(windows)]
             (Self::ZhCn, A::Worktree) => "工作树",
             (Self::EnUs, A::Project) => "project",
             (Self::ZhCn, A::Project) => "项目",
@@ -717,13 +691,9 @@ impl Locale {
             (Self::ZhCn, A::Pane) => "面板",
             (Self::EnUs, A::Split) => "split",
             (Self::ZhCn, A::Split) => "分屏",
-            #[cfg(windows)]
             (Self::EnUs, A::Resize) => "resize",
-            #[cfg(windows)]
             (Self::ZhCn, A::Resize) => "调整大小",
-            #[cfg(windows)]
             (Self::EnUs, A::Copy) => "copy",
-            #[cfg(windows)]
             (Self::ZhCn, A::Copy) => "复制",
             (Self::EnUs, A::Close) => "close",
             (Self::ZhCn, A::Close) => "关闭",
@@ -768,7 +738,6 @@ pub(crate) fn shortcut_filter_matches(query: &str, target: &str) -> bool {
 
 fn common_action(action: &PrefixAction) -> bool {
     use ClientAction as A;
-    #[cfg(windows)]
     if matches!(action, PrefixAction::Client(A::FocusBusinessSidebar)) {
         return true;
     }
@@ -829,7 +798,6 @@ fn help_group(metadata: ActionMetadata<'_>) -> ShortcutHelpGroup {
 fn identity_key(identity: ActionIdentity<'_>) -> String {
     match identity {
         ActionIdentity::BuiltIn(id) => id.to_owned(),
-        #[cfg(windows)]
         ActionIdentity::ConfiguredCommand(id) => format!("command:{id}"),
     }
 }
@@ -847,7 +815,6 @@ fn help_identity(action: &PrefixAction, identity: ActionIdentity<'_>) -> String 
     }
 }
 
-#[cfg(windows)]
 fn semantic_identity(action: PrefixAction) -> String {
     crate::action_projection::binding_metadata(&action)
         .map(|metadata| help_identity(&action, metadata.identity))
@@ -876,7 +843,6 @@ fn requires_session(action: &PrefixAction) -> bool {
     )
 }
 
-#[cfg(windows)]
 fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu::MenuAction> {
     use crate::{
         action_menu::{
@@ -950,7 +916,6 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(!workspace.is_empty(), "workspace creation is discoverable");
         assert!(workspace.iter().any(|entry| entry.key.contains("Ctrl+b a")));
-        #[cfg(windows)]
         {
             assert_eq!(
                 workspace.len(),
@@ -987,7 +952,6 @@ mod tests {
             .expect("localized Project rename keeps its owning binding");
         assert_eq!(rename_workspace.identity, rename_workspace_zh.identity);
         assert_eq!(rename_project.identity, rename_project_zh.identity);
-        #[cfg(windows)]
         {
             assert_eq!(
                 rename_workspace.title,
@@ -1022,7 +986,6 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(workspace_zh.len(), 1);
         assert!(workspace_zh[0].key.contains("Ctrl+b a"));
-        #[cfg(windows)]
         {
             assert!(workspace_zh[0].key.contains("Ctrl+b Shift+N"));
             assert_eq!(
@@ -1040,7 +1003,6 @@ mod tests {
             .find(|entry| entry.key.contains("Ctrl+b c"))
             .expect("localized Tab creation keeps its semantic name");
         assert_eq!(create_tab_zh.title, "新建标签页");
-        #[cfg(windows)]
         {
             assert_eq!(
                 create_tab.title,
@@ -1100,7 +1062,6 @@ mod tests {
         assert!(entries.iter().any(|entry| entry.key == "Ctrl+b Shift+R"));
     }
 
-    #[cfg(windows)]
     #[test]
     fn multiple_bindings_merge_when_their_semantic_identity_matches() {
         use orchbee_local_site_runtime::{
@@ -1166,7 +1127,6 @@ mod tests {
         assert_eq!(workspace[0].identity, "workbench.workspace.create");
     }
 
-    #[cfg(windows)]
     #[test]
     fn active_local_modes_contribute_their_owner_bindings_without_exit_keys() {
         fn press(
@@ -1253,7 +1213,6 @@ mod tests {
         }));
     }
 
-    #[cfg(windows)]
     #[test]
     fn shared_machine_action_uses_the_action_menu_name() {
         let view = view_with_help();

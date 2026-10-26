@@ -2,7 +2,6 @@ use super::super::{ClientAction, ClientActionDisposition, NativeDisplayPhase, Na
 use super::*;
 use crate::workbench_client::state::ControllerMode;
 
-#[cfg(windows)]
 #[test]
 fn retained_renderer_has_no_cursor_selection_graphics_input_or_ack() {
     use crate::{

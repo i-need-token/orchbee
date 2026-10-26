@@ -2,7 +2,6 @@
 //! status, freshness, and resolved Workbench location — plus the hit
 //! regions that let pointer presses re-resolve by stable identity.
 
-#[cfg(windows)]
 use ratatui::text::Span;
 use ratatui::{
     Frame,
@@ -11,7 +10,6 @@ use ratatui::{
     widgets::{Clear, Paragraph, Wrap},
 };
 
-#[cfg(windows)]
 use crate::workbench_client::{AgentStartCatalogStatus, AgentStartPhase};
 use crate::{
     localization::{Locale, ShellText},
@@ -37,7 +35,6 @@ const BOARD_CHROME_ROWS: u16 = 3;
 const BOARD_WIDTH: u16 = 92;
 const BOARD_MAX_HEIGHT: u16 = 24;
 const EMPTY_GUIDANCE_HEIGHT: u16 = 10;
-#[cfg(windows)]
 const START_NAME_VALUE_COLUMNS: usize = 32;
 
 /// Paints the open board inside `area` and records its hit regions in the
@@ -54,13 +51,10 @@ pub(super) fn render(
 ) -> AgentBoardDraw {
     let rows = board.rows();
     let read = board.read();
-    let has_empty_guidance =
-        cfg!(windows) && rows.is_empty() && matches!(read, AgentBoardRead::Ready { .. });
-    #[cfg(windows)]
+    let has_empty_guidance = rows.is_empty() && matches!(read, AgentBoardRead::Ready { .. });
     let start_mode =
         rows.is_empty() && matches!(read, AgentBoardRead::Ready { complete: true, .. });
-    #[cfg(not(windows))]
-    let start_mode = false;
+
     let wanted = if start_mode {
         BOARD_MAX_HEIGHT
     } else if has_empty_guidance {
@@ -107,9 +101,7 @@ pub(super) fn render(
     let close_key = format_key(board.close_binding());
     let jump_key = format_key(board.jump_binding());
     let refresh_key = format_key(board.refresh_binding());
-    #[cfg(windows)]
     let start_accept_key = format_key(board.start_accept_binding());
-    #[cfg(windows)]
     let start_provider_key = {
         let bindings = board.start_provider_bindings();
         crate::client_view::join_key_labels(
@@ -118,11 +110,8 @@ pub(super) fn render(
             "/",
         )
     };
-    #[cfg(windows)]
     let start_edit_key = format_key(board.start_edit_binding());
-    #[cfg(windows)]
     let start_cancel_key = format_key(board.start_cancel_binding());
-    #[cfg(windows)]
     let hints = if start_mode {
         let mut hints = vec![super::controls::KeyHint::new(
             &close_key,
@@ -149,13 +138,7 @@ pub(super) fn render(
             super::controls::KeyHint::new(&navigation_key, text.board.select_hint),
         ]
     };
-    #[cfg(not(windows))]
-    let hints = vec![
-        super::controls::KeyHint::new(&close_key, text.board.close_hint),
-        super::controls::KeyHint::new(&jump_key, text.board.jump_hint),
-        super::controls::KeyHint::new(&refresh_key, text.board.refresh_hint),
-        super::controls::KeyHint::new(&navigation_key, text.board.select_hint),
-    ];
+
     if super::controls::measure_overlay_hints(&hints, theme).is_none()
         || super::controls::measure_overlay_hints(&hints[..1], theme)
             .is_none_or(|width| width > usize::from(hint_row.width))
@@ -169,7 +152,6 @@ pub(super) fn render(
     let Some(draw) = board.actual_draw(viewport_rows) else {
         return AgentBoardDraw::NotPresented(board.episode());
     };
-    #[cfg(windows)]
     let start_layout = if start_mode {
         let Some(layout) = StartFormLayout::resolve(frame.area(), body, text, board, theme) else {
             return AgentBoardDraw::NotPresented(board.episode());
@@ -187,7 +169,6 @@ pub(super) fn render(
             matches!(board.read(), AgentBoardRead::InFlight),
         )
     };
-    #[cfg(windows)]
     let (primary_label, primary_enabled, primary_pending) = if start_mode {
         let cancelling = board.start_phase() == Some(AgentStartPhase::Cancelling);
         if board.start_running() {
@@ -198,8 +179,7 @@ pub(super) fn render(
     } else {
         default_primary
     };
-    #[cfg(not(windows))]
-    let (primary_label, primary_enabled, primary_pending) = default_primary;
+
     let primary = super::controls::ActionSpec::new(
         primary_label,
         super::controls::ActionKind::Primary,
@@ -231,25 +211,9 @@ pub(super) fn render(
         )),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    #[cfg(windows)]
     if let Some(layout) = start_layout.as_ref() {
         render_start_form(frame, text, board, &draw, layout, theme, hits);
     } else if rows.is_empty() {
-        render_empty_state(frame, body, text, locale, read, theme);
-    } else {
-        render_rows(
-            frame,
-            body,
-            text,
-            locale,
-            board,
-            &draw,
-            (theme, working_frame),
-            hits,
-        );
-    }
-    #[cfg(not(windows))]
-    if rows.is_empty() {
         render_empty_state(frame, body, text, locale, read, theme);
     } else {
         render_rows(
@@ -285,7 +249,6 @@ pub(super) fn render(
             Role::TextSecondary,
         )
     };
-    #[cfg(windows)]
     let (status, status_role) = if start_mode || board.start_phase().is_some() {
         start_status(text, board, theme)
     } else {
@@ -305,14 +268,12 @@ pub(super) fn render(
         hint_rect.is_some(),
         "preflighted exit hint remains paintable"
     );
-    #[cfg(windows)]
     if start_mode {
         render_start_footer_actions(frame, action_row, text, board, &draw, theme, hits);
     } else {
         render_footer_actions(frame, action_row, text, board, &draw, theme, hits);
     }
-    #[cfg(not(windows))]
-    render_footer_actions(frame, action_row, text, board, &draw, theme, hits);
+
     AgentBoardDraw::Presented(draw)
 }
 
@@ -392,7 +353,6 @@ fn pointer_presentation(pointer: ProjectedPointer) -> super::controls::PointerPr
     }
 }
 
-#[cfg(windows)]
 struct StartFormLayout {
     empty: Rect,
     explanation: Rect,
@@ -401,7 +361,6 @@ struct StartFormLayout {
     providers: Vec<(usize, Rect, String)>,
 }
 
-#[cfg(windows)]
 impl StartFormLayout {
     fn resolve(
         bounds: Rect,
@@ -464,7 +423,6 @@ impl StartFormLayout {
     }
 }
 
-#[cfg(windows)]
 fn provider_choice_rect(bounds: Rect, area: Rect, label: &str, theme: &Theme) -> Option<Rect> {
     let width = display_width(label)
         .checked_add(display_width(theme.glyphs.status_bullet))?
@@ -477,7 +435,6 @@ fn provider_choice_rect(bounds: Rect, area: Rect, label: &str, theme: &Theme) ->
     (bounds.intersection(rect) == rect).then_some(rect)
 }
 
-#[cfg(windows)]
 #[allow(clippy::too_many_arguments)]
 fn render_start_form(
     frame: &mut Frame<'_>,
@@ -513,6 +470,9 @@ fn render_start_form(
             AgentStartCatalogStatus::Loading => text.board.start_checking.to_owned(),
             AgentStartCatalogStatus::Unavailable => text.board.start_catalog_unavailable.to_owned(),
             AgentStartCatalogStatus::Ready => text.board.start_none_found.to_owned(),
+            AgentStartCatalogStatus::Unsupported => {
+                text.board.start_platform_unsupported.to_owned()
+            }
         }
     } else {
         let pending = match board.start_catalog_status() {
@@ -521,6 +481,9 @@ fn render_start_form(
                 format!(" · {}", text.board.start_catalog_unavailable)
             }
             AgentStartCatalogStatus::Ready => String::new(),
+            AgentStartCatalogStatus::Unsupported => {
+                format!(" · {}", text.board.start_platform_unsupported)
+            }
         };
         format!(
             "{}: {}{pending}",
@@ -568,7 +531,6 @@ fn render_start_form(
     }
 }
 
-#[cfg(windows)]
 fn render_provider_choice(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -635,7 +597,6 @@ fn render_provider_choice(
     )
 }
 
-#[cfg(windows)]
 fn render_start_name(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -679,7 +640,6 @@ fn render_start_name(
     }
 }
 
-#[cfg(windows)]
 fn start_status(
     text: ShellText,
     board: &NativeAgentBoardView<'_>,
@@ -717,7 +677,6 @@ fn start_status(
     )
 }
 
-#[cfg(windows)]
 fn render_start_footer_actions(
     frame: &mut Frame<'_>,
     row: Rect,

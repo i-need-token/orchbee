@@ -451,7 +451,6 @@ fn close_set_cutoff_halts_new_work_but_a_later_closed_receipt_keeps_truth_withou
     assert!(!state.close_set_ready());
 }
 
-#[cfg(windows)]
 #[test]
 fn close_set_same_tick_local_drift_before_owned_membership_install_cannot_be_laundered() {
     let now = Instant::now();
@@ -584,7 +583,6 @@ fn close_set_targeted_resume_rejects_same_key_rebind_at_plan_and_final_admission
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn close_set_background_resume_draw_uses_its_exact_record_when_active_record_competes() {
     use crate::workbench_client::ui::NativeProjectionStatus;

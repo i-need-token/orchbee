@@ -1,4 +1,5 @@
 use super::*;
+use crate::WindowsCommandFailure;
 use std::{
     io::{Read, Write},
     os::windows::process::ExitStatusExt,

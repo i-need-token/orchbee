@@ -26,7 +26,6 @@ pub(crate) enum ActionKind {
     /// A secondary or cancelling action.
     Secondary,
     /// A quiet auxiliary action within navigation chrome.
-    #[cfg(any(windows, test))]
     Auxiliary,
 }
 
@@ -35,7 +34,6 @@ impl ActionKind {
         match self {
             Self::Primary => Role::AccentAction,
             Self::Secondary => Role::TextPrimary,
-            #[cfg(any(windows, test))]
             Self::Auxiliary => Role::TextSecondary,
         }
     }

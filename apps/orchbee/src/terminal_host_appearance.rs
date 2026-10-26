@@ -11,6 +11,20 @@ const OSC_DRAIN_LIMIT: usize = OSC_FRAME_LIMIT + 2;
 const OSC_DRAIN_IDLE: Duration = Duration::from_millis(50);
 const OSC_DRAIN_WINDOW: Duration = Duration::from_secs(1);
 
+/// Uses only an implemented host appearance adapter after the terminal probe expires.
+pub(crate) fn system_fallback() -> HostAppearance {
+    #[cfg(windows)]
+    {
+        from_windows_apps_use_light_theme(
+            orchbee_local_site_runtime::read_windows_apps_use_light_theme(),
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        HostAppearance::Unknown
+    }
+}
+
 /// The outer host's observed background polarity, independent of the System theme fallback.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum HostAppearance {

@@ -253,7 +253,6 @@ impl Picker {
         )
     }
     /// The attached machine's Agents in one Tab, summarized like a collapsed Workspace row.
-    #[cfg(windows)]
     pub(crate) fn tab_agent(
         &self,
         tab: &orchbee_workbench_protocol::WorkbenchTabId,
@@ -414,7 +413,6 @@ impl Row {
 }
 
 /// One Tab's Agent cue: the most urgent sidebar state and whether any Agent is unread.
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct TabAgent {
     pub(crate) state: MetadataState,

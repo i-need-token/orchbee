@@ -17,6 +17,7 @@ const FAILED: u8 = 3;
 const UNKNOWN: u8 = 4;
 const CANCELLED: u8 = 5;
 const CANCEL_REQUESTED: u8 = 6;
+const UNSUPPORTED: u8 = 7;
 const CAPACITY: usize = 8;
 const BYTE_CAPACITY: usize = orchbee_terminal_protocol::MAXIMUM_SELECTION_EXPORT_BYTES;
 
@@ -31,9 +32,7 @@ pub(super) enum Kind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Scope {
-    #[cfg(windows)]
     Diagnostic,
-    #[cfg(windows)]
     PickerIdentifier,
     Selection {
         generation: NonZeroU64,
@@ -74,6 +73,7 @@ fn valid_program_text(text: &str) -> bool {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Outcome {
+    Unsupported,
     Delivered,
     Failed,
     Unknown,
@@ -97,6 +97,7 @@ impl Receipt {
             FAILED => Some(Outcome::Failed),
             UNKNOWN => Some(Outcome::Unknown),
             CANCELLED => Some(Outcome::Cancelled),
+            UNSUPPORTED => Some(Outcome::Unsupported),
             _ => None,
         }
     }
@@ -127,6 +128,7 @@ impl Job {
     }
     pub(super) fn settle(&self, outcome: Outcome) {
         let state = match outcome {
+            Outcome::Unsupported => UNSUPPORTED,
             Outcome::Delivered => DELIVERED,
             Outcome::Failed => FAILED,
             Outcome::Unknown => UNKNOWN,
@@ -190,12 +192,10 @@ pub(super) struct Queue {
     bytes: usize,
 }
 impl Queue {
-    #[cfg(windows)]
     pub(super) fn enqueue_identifier(&mut self, key: PaneRef, text: String) -> bool {
         self.enqueue(key, Scope::PickerIdentifier, Payload::Clipboard(text))
     }
 
-    #[cfg(windows)]
     pub(super) fn enqueue_diagnostic(&mut self, key: PaneRef, text: String) -> bool {
         self.enqueue(key, Scope::Diagnostic, Payload::Clipboard(text))
     }

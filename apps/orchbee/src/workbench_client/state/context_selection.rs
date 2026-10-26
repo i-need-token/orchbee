@@ -94,7 +94,6 @@ impl WorkbenchClientState {
         next: bool,
         deadlines: OperationDeadlines,
     ) -> bool {
-        #[cfg(windows)]
         self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
             return false;
@@ -156,7 +155,6 @@ impl WorkbenchClientState {
         deadlines: OperationDeadlines,
         member: Option<NativeMemberSelection>,
     ) -> bool {
-        #[cfg(windows)]
         self.cancel_duplicate_sequence();
         if generation == 0 || !self.context_selection_available() {
             return false;
@@ -395,7 +393,6 @@ impl<'a> WorkbenchClientView<'a> {
         ) && self.state.cache.tabs().is_empty()
     }
 
-    #[cfg(windows)]
     pub(in crate::workbench_client) fn navigation_site(&self) -> &SiteId {
         self.state.cache.site_id()
     }

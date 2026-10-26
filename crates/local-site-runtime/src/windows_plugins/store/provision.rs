@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 mod cleanup;
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]

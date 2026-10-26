@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(windows)]
 use std::{
     fs,
     path::PathBuf,
@@ -32,7 +33,9 @@ fn plugin_manifest_boundaries_and_platform_inheritance() {
         Err(PluginRegistryError::LimitExceeded)
     );
 }
+#[cfg(windows)]
 struct Root(PathBuf);
+#[cfg(windows)]
 impl Root {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -57,6 +60,7 @@ impl Root {
         PluginRegistry::at(self.0.join("registry")).unwrap()
     }
 }
+#[cfg(windows)]
 impl Drop for Root {
     fn drop(&mut self) {
         assert!(self.0.starts_with(std::env::temp_dir()));
@@ -70,6 +74,7 @@ impl Drop for Root {
         fs::remove_dir_all(&self.0).unwrap();
     }
 }
+#[cfg(windows)]
 #[test]
 fn plugin_catalog_transitions_preserve_sources_and_user_dirs() {
     let root = Root::new();
@@ -149,6 +154,7 @@ fn plugin_catalog_transitions_preserve_sources_and_user_dirs() {
     );
 }
 
+#[cfg(windows)]
 #[test]
 fn registered_catalog_does_not_refresh_linked_manifests() {
     let root = Root::new();
@@ -182,6 +188,7 @@ fn registered_catalog_does_not_refresh_linked_manifests() {
     assert_ne!(published.fingerprint, before.fingerprint);
 }
 
+#[cfg(windows)]
 #[test]
 fn registered_catalog_refuses_non_disk_roots_before_reading() {
     let registry = PluginRegistry::at(PathBuf::from(r"\\server\share\plugins")).unwrap();
@@ -190,6 +197,7 @@ fn registered_catalog_refuses_non_disk_roots_before_reading() {
         PluginRegistryError::InvalidPath
     );
 }
+#[cfg(windows)]
 #[test]
 fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
     let root = Root::new();
@@ -236,6 +244,7 @@ fn plugin_catalog_lock_and_corruption_never_overwrite_previous_state() {
         PluginRegistryError::InvalidRegistry
     );
 }
+#[cfg(windows)]
 #[test]
 fn plugin_catalog_user_paths_are_stable_distinct_and_windows_safe() {
     let root = Root::new();

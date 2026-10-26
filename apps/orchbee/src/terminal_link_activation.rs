@@ -6,11 +6,11 @@
 //! contribute only admission and cancellation adapters; no terminal-control
 //! capability enters here.
 
+mod browser;
 pub(crate) mod context;
 mod lane;
 pub(crate) mod plugin;
 mod reader;
-mod windows;
 
 #[cfg(test)]
 pub(crate) use crate::terminal_content::PaintedRows;

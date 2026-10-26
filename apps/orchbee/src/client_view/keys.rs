@@ -204,7 +204,6 @@ pub(crate) enum KeyLabelGlyphs {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LetterPresentation {
     EffectiveGesture,
-    #[cfg(any(windows, test))]
     ConfigurationReport,
 }
 
@@ -230,7 +229,6 @@ pub(crate) fn format_binding_with_glyphs(
 /// Renders the stable, platform-independent key vocabulary used by the public
 /// Windows configuration report. Interactive labels remain free to describe
 /// the effective gesture with explicit Shift and lowercase unshifted letters.
-#[cfg(any(windows, test))]
 pub(crate) fn format_configuration_binding(binding: &Binding) -> String {
     format_binding_with_presentation(
         binding,
@@ -260,7 +258,6 @@ fn format_binding_with_presentation(
         KeyCode::Char(c) => {
             let uppercase = match letters {
                 LetterPresentation::EffectiveGesture => mods.shift,
-                #[cfg(any(windows, test))]
                 LetterPresentation::ConfigurationReport => mods != Modifiers::NONE,
             };
             if uppercase && c.is_ascii_alphabetic() {

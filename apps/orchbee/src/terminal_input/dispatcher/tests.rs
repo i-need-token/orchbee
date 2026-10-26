@@ -29,23 +29,15 @@ fn appearance_query_is_issued_once_without_waiting_for_a_reply() {
     );
 }
 
-#[cfg(windows)]
 mod action_menu;
-#[cfg(windows)]
 mod configured;
-#[cfg(windows)]
 mod copy;
-#[cfg(windows)]
 mod divider;
-#[cfg(windows)]
 mod navigator;
-#[cfg(windows)]
 mod settings;
-#[cfg(windows)]
 mod sidebar_width;
 mod workspace_close;
 mod workspace_setup;
-#[cfg(windows)]
 mod worktree_launch;
 
 #[test]
@@ -127,7 +119,6 @@ fn confirmation_enter_accepts_legacy_cr_alias_and_named_unmodified_key_only() {
     assert_eq!(client_key(&paste), ClientKey::Other);
 }
 
-#[cfg(windows)]
 #[test]
 fn physical_reply_queue_is_bounded_preserves_prefix_and_excludes_literal_paste() {
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -1555,7 +1546,6 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
 struct BoardPort {
     calls: Rc<RefCell<Vec<Call>>>,
     owned: Rc<std::cell::Cell<bool>>,
-    #[cfg(windows)]
     action_menu: crate::action_menu::ActionMenu,
 }
 
@@ -1564,7 +1554,6 @@ impl BoardPort {
         Self {
             calls,
             owned,
-            #[cfg(windows)]
             action_menu: crate::action_menu::ActionMenu::default(),
         }
     }
@@ -1574,7 +1563,6 @@ impl TerminalInputPort for BoardPort {
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
         let claims = crate::tui_composition::NativeCaptureClaims::default()
             .with_agent_board(self.owned.get());
-        #[cfg(windows)]
         let claims = claims.with_action_menu(self.action_menu.input_context().is_some());
         claims
     }
@@ -1583,7 +1571,6 @@ impl TerminalInputPort for BoardPort {
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
     ) -> Option<crate::workbench_client::NativeCaptureContext> {
-        #[cfg(windows)]
         if owner == crate::tui_composition::NativeCaptureOwner::ActionMenu {
             return self
                 .action_menu
@@ -1613,14 +1600,12 @@ impl TerminalInputPort for BoardPort {
             self.owned.set(!self.owned.get());
         } else {
             self.owned.set(false);
-            #[cfg(windows)]
             self.action_menu.cancel();
         }
         self.calls.borrow_mut().push(Call::Action(action));
         Some(ClientActionDisposition::KeepNavigator)
     }
 
-    #[cfg(windows)]
     fn open_action_menu(
         &mut self,
         target: crate::action_menu::MenuTarget,
@@ -1635,7 +1620,6 @@ impl TerminalInputPort for BoardPort {
         )
     }
 
-    #[cfg(windows)]
     fn cancel_action_menu(&mut self) {
         self.action_menu.cancel();
     }
@@ -1818,7 +1802,6 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -2083,7 +2066,6 @@ fn agent_board_consumes_literal_prefix_and_global_actions_use_the_action_owner()
     assert!(forwarded_bytes(&calls).is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn board_prefix_focus_sidebar_releases_native_capture_before_focusing_sidebar() {
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -2119,7 +2101,6 @@ fn board_prefix_focus_sidebar_releases_native_capture_before_focusing_sidebar() 
     assert!(forwarded_bytes(&calls).is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn board_prefix_opens_action_menu_after_native_capture_release() {
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -2344,7 +2325,6 @@ fn focus_metadata_preserves_input_order_and_an_armed_prefix() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
     for invalid in [false, true] {
@@ -2402,7 +2382,6 @@ fn machine_picker_owns_closing_packet_and_split_paste_across_surface_switch() {
     }
 }
 
-#[cfg(windows)]
 #[derive(Default)]
 struct ModalLinkPort {
     probe: crate::terminal_input::PointerProbe,
@@ -2411,7 +2390,6 @@ struct ModalLinkPort {
     forwarded: Vec<Vec<u8>>,
 }
 
-#[cfg(windows)]
 impl TerminalInputPort for ModalLinkPort {
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.push(bytes.to_vec());
@@ -2441,7 +2419,6 @@ impl TerminalInputPort for ModalLinkPort {
     }
 }
 
-#[cfg(windows)]
 fn dispatcher_link_source(
     pane: crate::workbench_client::state::PaneRef,
 ) -> crate::terminal_link_activation::PaintedLinkSource {
@@ -2482,7 +2459,6 @@ fn dispatcher_link_source(
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() {
     use crate::terminal_input::{PointerFrameFacts, PointerPane, PointerProbe, PointerTab};
@@ -2577,7 +2553,6 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
     assert!(port.forwarded.is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_captured() {
     for (shortcut, action) in [
@@ -2655,7 +2630,6 @@ fn terminal_paste_retires_prefix_before_the_next_typed_key() {
     assert!(forwarded_bytes(&calls).ends_with(b"x"));
 }
 
-#[cfg(windows)]
 #[test]
 fn delivered_console_motion_survives_an_unavailable_vt_query_without_rearming_capture() {
     let calls = Rc::new(RefCell::new(Vec::new()));

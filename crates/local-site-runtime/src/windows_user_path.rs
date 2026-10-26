@@ -1,7 +1,7 @@
 //! Windows path syntax is admitted without process context; the execution owner resolves relative operands without filesystem probes.
 use std::{
     ffi::OsString,
-    path::{Component, Path, PathBuf, Prefix},
+    path::{Path, PathBuf},
 };
 
 /// Maximum UTF-8 bytes in an operand or its resolved absolute path.
@@ -37,14 +37,10 @@ impl WindowsUserPathOperand {
         if value.is_empty() || value.len() > WINDOWS_USER_PATH_LIMIT || value.contains('\0') {
             return Err(WindowsUserPathError::Input);
         }
-        let path = Path::new(value);
-        let kind = if drive_absolute(path) {
+        let kind = if drive_root(value).is_some() {
             OperandKind::Absolute
         } else {
-            if path.has_root()
-                || matches!(path.components().next(), Some(Component::Prefix(_)))
-                || value.contains(':')
-            {
+            if value.starts_with(['/', '\\']) || value.contains(':') {
                 return Err(WindowsUserPathError::Input);
             }
             if value == "~" {
@@ -82,28 +78,25 @@ impl WindowsUserPathOperand {
         let absolute = match self.kind {
             OperandKind::Absolute => return Ok(self.value.clone()),
             OperandKind::Home { suffix_start } => {
-                // Split separators so a second slash cannot replace the selected home root.
-                let mut home = home(&mut environment)?;
-                for component in self.value[suffix_start..]
-                    .split(['/', '\\'])
-                    .filter(|part| !part.is_empty())
-                {
-                    home.push(component);
-                }
-                home
+                let home = home(&mut environment)?;
+                format!(
+                    "{}\\{}",
+                    home.to_str().ok_or(WindowsUserPathError::Input)?,
+                    &self.value[suffix_start..]
+                )
             }
             OperandKind::CurrentDirectory => {
                 let current =
                     cwd().map_err(|_| WindowsUserPathError::Context("current-directory"))?;
                 checked_context(&current, "current-directory")?;
-                current.join(&self.value)
+                format!(
+                    "{}\\{}",
+                    current.to_str().ok_or(WindowsUserPathError::Input)?,
+                    self.value
+                )
             }
         };
-        checked_value(
-            lexical(&absolute)
-                .to_str()
-                .ok_or(WindowsUserPathError::Input)?,
-        )
+        checked_value(&lexical(&absolute)?)
     }
 }
 
@@ -119,18 +112,18 @@ pub fn normalize_windows_user_path(
     WindowsUserPathOperand::parse(value)?.resolve(environment, cwd)
 }
 
-fn drive_absolute(path: &Path) -> bool {
-    path.is_absolute()
-        && matches!(
-            path.components().next(),
-            Some(Component::Prefix(prefix))
-                if matches!(prefix.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_))
-        )
+// Parse the wire grammar, never the host's `std::path` grammar. Unix clients must
+// retain exactly the same Windows operand admission and normalization semantics.
+fn drive_root(value: &str) -> Option<usize> {
+    let offset = if value.starts_with(r"\\?\") { 4 } else { 0 };
+    let bytes = value.as_bytes().get(offset..)?;
+    matches!(bytes, [letter, b':', b'/' | b'\\', ..] if letter.is_ascii_alphabetic())
+        .then_some(offset + 3)
 }
 
 fn checked_context(path: &Path, name: &'static str) -> Result<(), WindowsUserPathError> {
     let value = path.to_str().ok_or(WindowsUserPathError::Context(name))?;
-    if !drive_absolute(path) || checked_value(value).is_err() {
+    if drive_root(value).is_none() || checked_value(value).is_err() {
         return Err(WindowsUserPathError::Context(name));
     }
     Ok(())
@@ -180,33 +173,29 @@ fn home(
 
 /// Resolve `.` and `..` without touching the filesystem; the prefix and root
 /// are kept, so `..` can never climb above the drive root.
-fn lexical(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    let mut depth = 0_usize;
-    for component in path.components() {
+fn lexical(value: &str) -> Result<String, WindowsUserPathError> {
+    let root = drive_root(value).ok_or(WindowsUserPathError::Input)?;
+    let mut components = Vec::new();
+    for component in value[root..].split(['/', '\\']) {
         match component {
-            Component::Prefix(_) | Component::RootDir => normalized.push(component.as_os_str()),
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if depth > 0 {
-                    normalized.pop();
-                    depth -= 1;
-                }
+            "" | "." => {}
+            ".." => {
+                components.pop();
             }
-            Component::Normal(part) => {
-                normalized.push(part);
-                depth += 1;
-            }
+            part => components.push(part),
         }
     }
-    normalized
+    let mut normalized = value[..root - 1].to_owned();
+    normalized.push('\\');
+    normalized.push_str(&components.join("\\"));
+    Ok(normalized)
 }
 
 fn checked_value(value: &str) -> Result<String, WindowsUserPathError> {
     if value.is_empty()
         || value.len() > WINDOWS_USER_PATH_LIMIT
         || value.contains('\0')
-        || !drive_absolute(Path::new(value))
+        || drive_root(value).is_none()
     {
         return Err(WindowsUserPathError::Input);
     }

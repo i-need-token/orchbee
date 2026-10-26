@@ -10,9 +10,7 @@ use std::collections::{HashMap, HashSet};
 mod closed;
 mod created;
 pub(super) use created::validate_created_tab;
-#[cfg(windows)]
 mod menu_source;
-#[cfg(windows)]
 pub(super) use menu_source::NativeMenuContextSource;
 mod presentations;
 pub(super) mod renamed;
@@ -59,9 +57,7 @@ pub(crate) struct NativeContextTarget {
 #[derive(Clone, Debug)]
 pub(crate) enum NativeStartupTarget {
     Context(NativeContextTarget),
-    #[cfg(windows)]
     Agent(Box<crate::machine_agents::Target>),
-    #[cfg(windows)]
     LocalDirectory {
         position: Option<super::startup_preference::Position>,
         fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -72,9 +68,7 @@ impl PartialEq for NativeStartupTarget {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Context(left), Self::Context(right)) => left == right,
-            #[cfg(windows)]
             (Self::Agent(left), Self::Agent(right)) => left == right,
-            #[cfg(windows)]
             (
                 Self::LocalDirectory {
                     position: left,
@@ -91,7 +85,6 @@ impl PartialEq for NativeStartupTarget {
                     && left_directory == right_directory
                     && std::sync::Arc::ptr_eq(left_notice, right_notice)
             }
-            #[cfg(windows)]
             _ => false,
         }
     }
@@ -106,9 +99,7 @@ impl NativeStartupTarget {
     pub(super) fn context(&self) -> Option<&NativeContextTarget> {
         match self {
             Self::Context(context) => Some(context),
-            #[cfg(windows)]
             Self::Agent(target) => Some(&target.context),
-            #[cfg(windows)]
             Self::LocalDirectory { .. } => None,
         }
     }
@@ -155,7 +146,6 @@ impl NativeContextTabs {
         self.canonical_context
             .and_then(|index| self.canonical.terminal_contexts.get(index))
     }
-    #[cfg(windows)]
     pub(super) fn shared_canonical_snapshot(&self) -> std::sync::Arc<Snapshot> {
         std::sync::Arc::clone(&self.canonical)
     }

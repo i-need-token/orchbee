@@ -16,7 +16,6 @@ pub(crate) struct NativeRenameDraftToken(RenameDraftToken);
 
 pub(crate) struct NativeRenameDraftView<'a>(RenameDraftView<'a>, Option<&'a str>);
 impl<'a> NativeRenameDraftView<'a> {
-    #[cfg(windows)]
     pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.0.tab_id()
     }

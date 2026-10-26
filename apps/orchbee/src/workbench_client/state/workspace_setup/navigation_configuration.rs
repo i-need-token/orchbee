@@ -9,14 +9,12 @@ use orchbee_workbench_protocol::{
 
 /// The active Client's canonical topology and its one admitted, reversible sidebar move.
 /// Metadata observations and terminal selection remain with their existing owners.
-#[cfg(windows)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SidebarNavigationProjection {
     pub(crate) snapshot: std::sync::Arc<orchbee_workbench_protocol::Snapshot>,
     pub(crate) pending: Option<NavigationConfiguration>,
 }
 
-#[cfg(windows)]
 impl super::super::WorkbenchClientView<'_> {
     pub(in crate::workbench_client) fn sidebar_navigation(&self) -> SidebarNavigationProjection {
         let state = self.state;

@@ -4,14 +4,11 @@ mod organization;
 pub(in crate::workbench_client) use organization::OrganizationChoice;
 pub(crate) use organization::WorkspaceOrganizationRequest;
 mod navigation_configuration;
-#[cfg(windows)]
 pub(crate) use navigation_configuration::SidebarNavigationProjection;
 mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
-#[cfg(windows)]
 mod preview;
 mod projection;
-#[cfg(windows)]
 pub(crate) use preview::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 pub(in crate::workbench_client) mod quick;
 use super::recovery_fence::RecoveryFence;
@@ -53,7 +50,6 @@ pub(super) struct SetupState {
     pending: Option<SetupOperation>,
     known: Option<SetupKnownCommit>,
     settled: Option<SetupKnownCommit>,
-    #[cfg(any(windows, test))]
     project_quick_entry: Option<quick::ProjectQuickEntry>,
     not_applied: Option<SetupOperation>,
     retained_label: Option<labels::RetainedLabel>,
@@ -416,7 +412,6 @@ impl WorkbenchClientState {
         })
     }
     pub(in crate::workbench_client) fn begin_setup(&mut self, operation: SetupOperation) {
-        #[cfg(any(windows, test))]
         {
             self.setup.project_quick_entry = operation
                 .quick
@@ -470,7 +465,6 @@ impl WorkbenchClientState {
                 if self.setup.pending.as_ref() != Some(&operation) {
                     return false;
                 }
-                #[cfg(any(windows, test))]
                 self.cancel_project_quick_entry();
                 self.setup.status = Some(operation.status(
                     NativeLocationLabelStatus::OutcomeUnknown,
@@ -491,7 +485,6 @@ impl WorkbenchClientState {
         if self.setup.pending.as_ref() != Some(operation) {
             return false;
         }
-        #[cfg(any(windows, test))]
         self.cancel_project_quick_entry();
         self.setup.not_applied = self.setup.pending.take();
         self.setup.deadlines = None;
@@ -531,7 +524,6 @@ impl WorkbenchClientState {
 
     fn setup_refresh_target(&self, known: &SetupKnownCommit) -> NativeContextLocation {
         if matches!(known.commit, WorkbenchSetupCommit::WorkspaceLaunched(_)) {
-            #[cfg(any(windows, test))]
             if matches!(
                 self.setup.project_quick_entry,
                 Some(quick::ProjectQuickEntry::Submitted(generation))
@@ -643,7 +635,6 @@ impl WorkbenchClientState {
     pub(super) fn complete_setup_refresh(&mut self, prepared: PreparedSetupCompletion) {
         let PreparedSetupCompletion { known, status } = prepared;
         debug_assert_eq!(self.setup.known.as_ref(), Some(&known));
-        #[cfg(any(windows, test))]
         if matches!(
             self.setup.project_quick_entry,
             Some(quick::ProjectQuickEntry::Submitted(generation))

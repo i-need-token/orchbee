@@ -3,12 +3,10 @@ mod divider;
 mod resize;
 mod sidebar;
 pub(crate) use divider::DividerSource;
-#[cfg(windows)]
 pub(crate) use divider::{DividerDrag, DrawnDivider, DrawnResize};
 use ratatui::layout::{Constraint, Layout, Rect};
 pub(crate) use resize::ResizeProjection;
 pub(crate) use sidebar::SidebarWidth;
-#[cfg(windows)]
 pub(crate) use sidebar::{DrawnSidebarWidth, SidebarWidthChange, SidebarWidthDrag};
 
 use orchbee_workbench_protocol::{
@@ -122,7 +120,6 @@ pub(crate) struct ShellAreas {
 
 /// Authored guidance yields rows occupied by a global chrome action without
 /// changing terminal geometry.
-#[cfg(windows)]
 pub(crate) fn guidance_area(content: Rect, global_action: Option<Rect>) -> Rect {
     let Some(action) = global_action.filter(|action| !content.intersection(*action).is_empty())
     else {

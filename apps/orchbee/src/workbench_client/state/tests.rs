@@ -18,16 +18,13 @@ mod move_tab;
 mod navigation_memory;
 mod pane_identity_compatibility;
 mod panel;
-#[cfg(windows)]
 mod plugin_overlays;
 mod presentations;
-#[cfg(windows)]
 mod quick_workspace;
 mod rename_draft;
 mod reorder;
 mod reorder_history;
 mod retirement_handoff;
-#[cfg(windows)]
 mod startup_preference;
 mod switch_membership;
 mod tab_close;

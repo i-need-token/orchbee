@@ -40,14 +40,11 @@ const MAXIMUM_LIST_PAGES: usize = 6;
 mod attention;
 pub(super) use attention::AttentionRound;
 
-#[cfg(windows)]
 mod pane_graphics;
-#[cfg(windows)]
 mod panel_reports;
 mod physical_attention;
 
 pub(super) enum LaneCommand {
-    #[cfg(windows)]
     Graphics {
         epoch: u64,
         job: super::pane_graphics::Job,
@@ -57,7 +54,6 @@ pub(super) enum LaneCommand {
         epoch: u64,
         deadline: Instant,
     },
-    #[cfg(windows)]
     PanelReports {
         epoch: u64,
         scope: super::panel_reports::Scope,
@@ -82,7 +78,6 @@ pub(super) enum LaneCommand {
 }
 
 pub(super) enum LaneOutcome {
-    #[cfg(windows)]
     Graphics {
         epoch: u64,
         result: Result<super::pane_graphics::Round, LaneFailure>,
@@ -91,7 +86,6 @@ pub(super) enum LaneOutcome {
         epoch: u64,
         result: Result<super::agent_attention::PhysicalRound, LaneFailure>,
     },
-    #[cfg(windows)]
     PanelReports {
         epoch: u64,
         result: Result<super::panel_reports::Round, LaneFailure>,
@@ -259,7 +253,6 @@ fn run(
             break;
         }
         let outcome = match command {
-            #[cfg(windows)]
             LaneCommand::Graphics {
                 epoch,
                 job,
@@ -287,7 +280,6 @@ fn run(
                     &shutdown,
                 ),
             },
-            #[cfg(windows)]
             LaneCommand::PanelReports {
                 epoch,
                 scope,

@@ -38,13 +38,9 @@ use crate::terminal_input::{
     PointerSelectionIntent, TerminalInputPort, encode_cursor_arrows, encode_pane_report,
     forward_or_report, route_pane_pointer,
 };
-#[cfg(any(not(windows), test))]
-use crate::workbench_client::NativeContextLocation;
 use crate::workbench_client::state::PaneRef;
 
-#[cfg(windows)]
 mod chrome;
-#[cfg(windows)]
 mod copy_mode;
 mod interaction;
 pub(crate) use interaction::{
@@ -56,18 +52,13 @@ mod modal;
 pub(crate) use list_scroll::Target as ListScrollTarget;
 pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
-#[cfg(windows)]
 mod tabs;
-#[cfg(windows)]
 pub(crate) use tabs::{TabDragPreview, TabDragSource, TabDragTab};
-#[cfg(windows)]
 mod sidebar_reorder;
-#[cfg(windows)]
 pub(crate) use sidebar_reorder::{
     Placement as SidebarDropPlacement, SidebarReorderDraw, SidebarReorderPaint,
     SidebarReorderPreview, SidebarReorderSource,
 };
-#[cfg(windows)]
 mod sidebar_width;
 
 /// Longest a queued pane press waits for its focus switch to install.
@@ -103,9 +94,7 @@ pub(crate) enum HitLayer {
     /// control — the click is swallowed without falling through.
     OverlaySurface,
     /// Sidebar controls remain above panes when height undocks the sidebar.
-    #[cfg(windows)]
     Chrome,
-    #[cfg(windows)]
     ChromeSurface,
     /// Chrome and pane regions painted under any overlay: tab-strip
     /// tokens, pane leafs.
@@ -117,22 +106,17 @@ pub(crate) enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
-    #[cfg(windows)]
     Onboarding(crate::onboarding::Action),
-    #[cfg(windows)]
     OnboardingSurface,
-    #[cfg(windows)]
     CopyControl {
         token: crate::terminal_copy_mode::CopyModeToken,
         control: crate::terminal_copy_mode::CopyControl,
     },
-    #[cfg(windows)]
     CopySurface {
         token: crate::terminal_copy_mode::CopySurfaceToken,
         area: Rect,
         origin: crate::terminal_copy_mode::CopyModeCursor,
     },
-    #[cfg(windows)]
     Resize(ResizeControl),
     Help {
         page: usize,
@@ -159,16 +143,12 @@ pub(crate) enum HitTarget {
         token: crate::workbench_client::NativeSetupToken,
         control: ModalControl,
     },
-    #[cfg(windows)]
     Worktree {
         token: crate::workbench_client::WorktreeToken,
         control: ModalControl,
     },
-    #[cfg(windows)]
     NavigatorRow(crate::client_view::navigator::Row),
-    #[cfg(windows)]
     NavigatorClose(u64),
-    #[cfg(windows)]
     MachinePicker(crate::machine_picker::DrawnPickerTarget),
     SettingsRow {
         token: crate::native_settings::Token,
@@ -180,56 +160,40 @@ pub(crate) enum HitTarget {
     },
     ListScroll(ListScrollTarget),
     AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
-    #[cfg(windows)]
     SettingsButton,
-    #[cfg(windows)]
     NewWorkspaceButton,
-    #[cfg(windows)]
     CreateMenu(Option<crate::machine_picker::SidebarTarget>),
-    #[cfg(windows)]
     TabCreate(crate::action_menu::DrawnTabCreate),
-    #[cfg(windows)]
     ActionMenuRow {
         token: crate::action_menu::MenuToken,
         row: usize,
     },
-    #[cfg(windows)]
     ActionMenuControl {
         token: crate::action_menu::MenuToken,
         back: bool,
     },
-    #[cfg(windows)]
     #[cfg(test)]
     MenuButton,
     /// A visible divider with its exact canonical and geometric source.
-    #[cfg(windows)]
     Divider(crate::tui_layout::DrawnDivider),
-    #[cfg(windows)]
     SidebarResize(crate::tui_layout::DrawnSidebarWidth),
-    #[cfg(windows)]
     SidebarRestoreButton,
-    #[cfg(windows)]
     Popup {
         id: orchbee_workbench_protocol::WorkbenchRequestId,
         content: Rect,
     },
-    #[cfg(windows)]
     PopupClose(crate::workbench_client::DrawnPopupClose),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
-    #[cfg(windows)]
     TabCloseRequest {
         source: crate::action_menu::DrawnTabCreate,
         tab: WorkbenchTabId,
     },
-    #[cfg(windows)]
     TabGroup {
         tab: WorkbenchTabId,
         group: orchbee_workbench_protocol::WorkbenchTabGroupId,
     },
     /// A non-Windows navigator context row; Windows uses NavigatorRow proofs.
-    #[cfg(any(not(windows), test))]
-    Context(NativeContextLocation),
     /// A painted pane leaf. `pane` is the exact incarnation the painter
     /// drew — anchor generation, stable panel, incarnation — so a press
     /// can never migrate onto a re-minted record of the same logical
@@ -259,38 +223,28 @@ pub(crate) enum HitTarget {
     /// An Agent board row from one exact successfully presented Board view.
     /// Press-time selection validates this complete witness with the owner.
     AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
-    #[cfg(windows)]
     MachineProjectRow {
         target: crate::machine_picker::SidebarTarget,
         window: crate::machine_picker::SidebarWindow,
     },
-    #[cfg(windows)]
     SidebarDisclosure(crate::machine_picker::SidebarTarget),
-    #[cfg(windows)]
     SidebarMenu(crate::machine_picker::SidebarTarget),
-    #[cfg(windows)]
     SidebarClose(crate::machine_picker::SidebarTarget),
-    #[cfg(windows)]
     MachineWorkspaceRow {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,
     },
-    #[cfg(windows)]
     MachineWorkspaceSurface(crate::machine_picker::SidebarWindow),
-    #[cfg(windows)]
     OpenMachineWorkspaces,
-    #[cfg(windows)]
     MachineAgentRow {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,
     },
-    #[cfg(windows)]
     SearchButton,
 }
 
 /// Stable Client-owned actions painted in the root chrome. Their live
 /// availability is still revalidated by the dispatcher on release.
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum GlobalChromeAction {
     Onboarding(crate::onboarding::Action),
@@ -309,7 +263,6 @@ pub(crate) enum ModalControl {
     Surface,
 }
 
-#[cfg(windows)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ResizeControl {
     Adjust {
@@ -322,7 +275,6 @@ pub(crate) enum ResizeControl {
     Exit,
 }
 
-#[cfg(windows)]
 impl HitTarget {
     fn sidebar_target(&self) -> Option<crate::machine_picker::SidebarTarget> {
         use crate::machine_picker::SidebarTarget;
@@ -384,7 +336,6 @@ fn contains(rect: Rect, column: u16, row: u16) -> bool {
 /// drop rather than misroute.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct FrameHitMap {
-    #[cfg(windows)]
     sidebar_reorder: Option<SidebarReorderPaint>,
     overlay_active: bool,
     backdrop_dismissal: Option<HitTarget>,
@@ -392,16 +343,11 @@ pub(crate) struct FrameHitMap {
     projection_revision: u64,
     modal_projection: modal::Projection,
     modal_controls: Vec<modal::Fingerprint>,
-    #[cfg(windows)]
     chrome_projection: chrome::Projection,
-    #[cfg(windows)]
     chrome_controls: Vec<chrome::Fingerprint>,
     help_draw_source: Option<crate::client_view::help::HelpDrawSource>,
-    #[cfg(windows)]
     link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
-    #[cfg(windows)]
     menu_source: Option<crate::action_menu::DrawnMenuSource>,
-    #[cfg(windows)]
     navigator: Option<crate::client_view::navigator::Paint>,
 }
 
@@ -410,7 +356,6 @@ impl FrameHitMap {
         self.help_draw_source.as_ref()
     }
 
-    #[cfg(windows)]
     pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
         self.navigator.as_ref()
     }
@@ -442,9 +387,7 @@ impl FrameHitMap {
         for layer in [
             HitLayer::Notification,
             HitLayer::Status,
-            #[cfg(windows)]
             HitLayer::Chrome,
-            #[cfg(windows)]
             HitLayer::ChromeSurface,
             HitLayer::Foreground,
         ] {
@@ -515,7 +458,6 @@ impl FrameHitMap {
         self.modal_fingerprint_for_region(region)
     }
 
-    #[cfg(windows)]
     fn chrome_fingerprint_at(&self, column: u16, row: u16) -> Option<chrome::Fingerprint> {
         let HitRegionResolution::Region(region) = self.hit_region(column, row) else {
             return None;
@@ -638,7 +580,6 @@ impl FrameHitMap {
         interaction::ExposureSignature(patches)
     }
 
-    #[cfg(windows)]
     fn link_source(
         &self,
         pane: &PaneRef,
@@ -669,31 +610,26 @@ impl FrameHitMap {
 pub(crate) struct HitMapBuilder {
     map: FrameHitMap,
     projection: PointerProjection,
-    #[cfg(windows)]
     covered_sidebar_rows: Vec<Rect>,
 }
 
 impl HitMapBuilder {
-    #[cfg(windows)]
     pub(crate) fn tab_area(&self, tab: &WorkbenchTabId) -> Option<Rect> {
         self.map.regions.iter().find_map(|region| {
             (region.target == HitTarget::Tab(tab.clone())).then_some(region.rect)
         })
     }
-    #[cfg(windows)]
     pub(crate) fn resolve_sidebar_reorder_preview(
         &self,
         preview: &SidebarReorderPreview,
     ) -> Option<SidebarReorderDraw> {
         preview.resolve(&self.map)
     }
-    #[cfg(windows)]
     pub(crate) fn record_sidebar_reorder_paint(&mut self, paint: SidebarReorderPaint) {
         self.map.sidebar_reorder = Some(paint);
     }
 
     /// A mode toolbar replaces ordinary chrome in exactly the cells it paints.
-    #[cfg(windows)]
     pub(crate) fn cover_chrome(&mut self, area: Rect) {
         self.map
             .regions
@@ -702,7 +638,6 @@ impl HitMapBuilder {
     /// A modal replaces all earlier overlay controls in this frame.
     pub(crate) fn start_modal(&mut self) {
         self.map.backdrop_dismissal = None;
-        #[cfg(windows)]
         {
             self.map.navigator = None;
         }
@@ -714,7 +649,6 @@ impl HitMapBuilder {
     }
     pub(crate) fn start_settings(&mut self) {
         self.map.backdrop_dismissal = None;
-        #[cfg(windows)]
         {
             self.map.navigator = None;
         }
@@ -724,14 +658,12 @@ impl HitMapBuilder {
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
     }
-    #[cfg(windows)]
     pub(crate) fn record_action_menu_source(
         &mut self,
         source: Option<crate::action_menu::DrawnMenuSource>,
     ) {
         self.map.menu_source = source;
     }
-    #[cfg(windows)]
     pub(crate) fn context_menu_anchor_rect(&self, column: u16, row: u16) -> Option<Rect> {
         self.map
             .regions
@@ -750,7 +682,6 @@ impl HitMapBuilder {
             .max_by_key(|rect| rect.height)
     }
     /// Covered chrome supplies placement geometry only, never activation authority.
-    #[cfg(windows)]
     pub(crate) fn record_covered_sidebar_geometry(&mut self, painted: Self) {
         self.covered_sidebar_rows = painted
             .map
@@ -760,7 +691,6 @@ impl HitMapBuilder {
             .map(|region| region.rect)
             .collect();
     }
-    #[cfg(windows)]
     pub(crate) fn start_action_menu(&mut self) {
         self.map.backdrop_dismissal = None;
         self.map.navigator = None;
@@ -773,7 +703,6 @@ impl HitMapBuilder {
     pub(crate) const fn new() -> Self {
         Self {
             map: FrameHitMap {
-                #[cfg(windows)]
                 sidebar_reorder: None,
                 overlay_active: false,
                 backdrop_dismissal: None,
@@ -781,20 +710,14 @@ impl HitMapBuilder {
                 projection_revision: 0,
                 modal_projection: modal::Projection::empty(),
                 modal_controls: Vec::new(),
-                #[cfg(windows)]
                 chrome_projection: chrome::Projection::empty(),
-                #[cfg(windows)]
                 chrome_controls: Vec::new(),
                 help_draw_source: None,
-                #[cfg(windows)]
                 link_sources: Vec::new(),
-                #[cfg(windows)]
                 menu_source: None,
-                #[cfg(windows)]
                 navigator: None,
             },
             projection: PointerProjection::empty(),
-            #[cfg(windows)]
             covered_sidebar_rows: Vec::new(),
         }
     }
@@ -805,7 +728,6 @@ impl HitMapBuilder {
         let mut builder = Self::new();
         builder.map.projection_revision = projection.revision();
         builder.map.modal_projection = projection.modal().clone();
-        #[cfg(windows)]
         {
             builder.map.chrome_projection = projection.chrome().clone();
         }
@@ -826,7 +748,6 @@ impl HitMapBuilder {
         self.map.overlay_active = true;
     }
 
-    #[cfg(windows)]
     pub(crate) fn start_navigator(
         &mut self,
         source: Option<crate::client_view::navigator::DrawSource>,
@@ -850,7 +771,6 @@ impl HitMapBuilder {
     }
 
     /// Only the row painter can publish a complete row's activation proof.
-    #[cfg(windows)]
     pub(crate) fn record_navigator_row(
         &mut self,
         rect: Rect,
@@ -944,7 +864,6 @@ impl HitMapBuilder {
 
     /// Projects the pointer axis for one exact canonical divider. Drag
     /// ownership remains with the divider gesture state machine.
-    #[cfg(windows)]
     pub(crate) fn projected_divider_pointer(
         &self,
         target: &crate::tui_layout::DrawnDivider,
@@ -954,7 +873,6 @@ impl HitMapBuilder {
     }
 
     /// Records the exact divider after its complete cells were painted.
-    #[cfg(windows)]
     pub(crate) fn record_divider(&mut self, target: crate::tui_layout::DrawnDivider) {
         let fingerprint = chrome::Fingerprint::divider(&target);
         self.map.regions.push(HitRegion {
@@ -969,7 +887,6 @@ impl HitMapBuilder {
     /// Projects one exact tab or group token from the same workbench source
     /// snapshot that painted the strip. Selection and drag effects remain in
     /// the specialized tab gesture owner.
-    #[cfg(windows)]
     pub(crate) fn projected_tab_pointer(
         &self,
         source: &crate::action_menu::DrawnTabCreate,
@@ -984,7 +901,6 @@ impl HitMapBuilder {
 
     /// Records a successfully painted exact tab/group token. Other targets
     /// are rejected instead of gaining a broad specialized projection path.
-    #[cfg(windows)]
     pub(crate) fn record_tab_target(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,
@@ -1094,7 +1010,6 @@ impl HitMapBuilder {
 
     /// Record the link source from the same terminal paint and pane geometry
     /// as the foreground hit region. It publishes atomically with this map.
-    #[cfg(windows)]
     pub(crate) fn record_link_source(
         &mut self,
         rect: Rect,
@@ -1126,12 +1041,10 @@ impl HitMapBuilder {
     }
 
     /// Only a matching exposed divider can paint a local preview above the current frame.
-    #[cfg(windows)]
     pub(crate) fn exposes_divider(&self, target: &crate::tui_layout::DrawnDivider) -> bool {
         self.map.exposes_divider(target)
     }
 
-    #[cfg(windows)]
     pub(crate) fn exposes_sidebar_width(
         &self,
         target: &crate::tui_layout::DrawnSidebarWidth,
@@ -1140,7 +1053,6 @@ impl HitMapBuilder {
     }
 }
 
-#[cfg(windows)]
 impl FrameHitMap {
     fn exposes_sidebar_width(&self, target: &crate::tui_layout::DrawnSidebarWidth) -> bool {
         let edge = target.edge();
@@ -1249,7 +1161,6 @@ struct SelectionGesture {
 /// Ctrl+Left owns one exact painted pane cell through its matching release.
 /// Cancellation is sticky so a later release is swallowed rather than
 /// leaking into a pane after map, modifier, or membership drift.
-#[cfg(windows)]
 struct LinkGesture {
     source: Option<crate::terminal_link_activation::PaintedLinkSource>,
     viewport: Rect,
@@ -1259,7 +1170,6 @@ struct LinkGesture {
     cancelled: bool,
 }
 
-#[cfg(windows)]
 impl LinkGesture {
     fn alive(&self, probe: &PointerProbe) -> bool {
         self.source.as_ref().is_some_and(|source| {
@@ -1326,7 +1236,6 @@ fn plain_primary_press(event: MouseEvent) -> bool {
         && event.mods == crate::client_view::Modifiers::NONE
 }
 
-#[cfg(windows)]
 fn link_press(event: MouseEvent) -> bool {
     event.action == MouseAction::Press
         && event.button == MouseButton::Left
@@ -1439,21 +1348,15 @@ impl PaneGesture {
 enum Gesture {
     #[default]
     Idle,
-    #[cfg(windows)]
     Tab(tabs::TabDrag),
-    #[cfg(windows)]
     SidebarReorder(sidebar_reorder::SidebarReorder),
-    #[cfg(windows)]
     TabCancelled,
     Pending(PendingFocus),
     Pane(PaneGesture),
     Selection(SelectionGesture),
     Scrollbar(scrollbar::ScrollbarDrag),
-    #[cfg(windows)]
     Divider(crate::tui_layout::DividerDrag),
-    #[cfg(windows)]
     SidebarWidth(crate::tui_layout::SidebarWidthDrag),
-    #[cfg(windows)]
     Link(LinkGesture),
 }
 
@@ -1461,7 +1364,6 @@ enum Gesture {
 /// gesture loses focus, capture, or painted authority. Domain payload and
 /// geometry are deliberately absent: the debt may only consume the matching
 /// primary release once and can never replay the retired effect.
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CancelledChromeRelease {
     SidebarReorder,
@@ -1473,13 +1375,9 @@ enum CancelledChromeRelease {
 /// to `after_layout` work and map invalidation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PointerOutcome {
-    #[cfg(windows)]
     SidebarReorderEnded,
-    #[cfg(windows)]
     TabGestureEnded,
-    #[cfg(windows)]
     SidebarWidthEnded,
-    #[cfg(windows)]
     MenuRequested {
         target: crate::action_menu::MenuTarget,
         anchor: (u16, u16),
@@ -1495,11 +1393,12 @@ pub(crate) enum PointerOutcome {
     /// Its physical release packet remains Client-owned, but no target is re-hit.
     InteractionEnded,
     /// A cancelled specialized chrome press consumed its matching release.
-    #[cfg(windows)]
     ChromeGestureEnded,
     /// A button-free movement changed, or did not change, transient pointer
     /// presentation without any feature or pane effect.
-    IdleMotion { changed: bool },
+    IdleMotion {
+        changed: bool,
+    },
     /// Not ours or swallowed — the packet moves on untouched.
     Ignored,
     /// Consumed without changing structural regions: pane-bound bytes, a
@@ -1543,20 +1442,15 @@ pub(crate) struct PointerState {
     map: Option<FrameHitMap>,
     interactions: interaction::State,
     modal_projection: modal::ProjectionState,
-    #[cfg(windows)]
     chrome_projection: chrome::ProjectionState,
     gesture: Gesture,
-    #[cfg(windows)]
     cancelled_chrome_release: Option<CancelledChromeRelease>,
     click: Option<SelectionClick>,
-    #[cfg(windows)]
     tab_click: Option<tabs::TabClick>,
     close_press: Option<modal::PaintedPress>,
     modal_press: Option<modal::PaintedPress>,
     list_scroll: Option<list_scroll::Pending>,
-    #[cfg(windows)]
     copy_drag: Option<copy_mode::Drag>,
-    #[cfg(windows)]
     popup_gesture: Option<(
         orchbee_workbench_protocol::WorkbenchRequestId,
         Rect,
@@ -1572,7 +1466,6 @@ impl PointerState {
             .interactions
             .projection()
             .with_modal(self.modal_projection());
-        #[cfg(windows)]
         let projection =
             self.sidebar_reorder_projection(projection.with_chrome(self.chrome_projection()));
         projection
@@ -1589,7 +1482,6 @@ impl PointerState {
             self.interactions.clear_transport();
             self.cancel_modal_press();
             self.clear_modal_transport();
-            #[cfg(windows)]
             self.clear_chrome_transport();
         }
     }
@@ -1601,9 +1493,7 @@ impl PointerState {
             self.interactions.clear_transport();
             self.cancel_modal_press();
             self.clear_modal_transport();
-            #[cfg(windows)]
             self.clear_chrome_transport();
-            #[cfg(windows)]
             {
                 self.cancel_divider();
                 self.cancel_sidebar_width();
@@ -1617,10 +1507,8 @@ impl PointerState {
     pub(crate) fn take_projection_redraw(&mut self) -> bool {
         let interaction = self.interactions.take_redraw_after_publish();
         let modal = self.take_modal_projection_redraw();
-        #[cfg(windows)]
         let chrome = self.chrome_projection.take_redraw_after_publish();
-        #[cfg(not(windows))]
-        let chrome = false;
+
         interaction || modal || chrome
     }
 
@@ -1680,7 +1568,6 @@ impl PointerState {
         PointerOutcome::Ignored
     }
 
-    #[cfg(windows)]
     pub(crate) fn navigator_event(&mut self, event: MouseEvent) -> PointerOutcome {
         if plain_primary_press(event) {
             self.cancel_list_scroll();
@@ -1695,7 +1582,6 @@ impl PointerState {
         PointerOutcome::Ignored
     }
 
-    #[cfg(windows)]
     pub(crate) fn machine_picker_event(&mut self, event: MouseEvent) -> PointerOutcome {
         if plain_primary_press(event) {
             self.cancel_list_scroll();
@@ -1717,7 +1603,6 @@ impl PointerState {
         if self.close_press.is_some() || self.modal_press.is_some() {
             return false;
         }
-        #[cfg(windows)]
         if self.popup_gesture.is_some() {
             return false;
         }
@@ -1767,7 +1652,6 @@ impl PointerState {
         }
     }
     /// A menu cannot take over a press, pending focus or queued wheel burst.
-    #[cfg(windows)]
     pub(crate) fn can_open_action_menu(&self) -> bool {
         matches!(self.gesture, Gesture::Idle | Gesture::TabCancelled)
             && self.wheel.pending == 0
@@ -1775,7 +1659,6 @@ impl PointerState {
     }
 
     /// Keyboard and pointer entries share one successfully painted row witness.
-    #[cfg(windows)]
     pub(crate) fn sidebar_menu_target(
         &self,
         view: &ClientView,
@@ -1818,7 +1701,6 @@ impl PointerState {
             target: Box::new(exact),
         })
     }
-    #[cfg(windows)]
     pub(crate) fn action_menu_event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         port: &mut Port,
@@ -1880,7 +1762,6 @@ impl PointerState {
         PointerOutcome::Ignored
     }
 
-    #[cfg(windows)]
     fn chrome_pressed_fingerprint(&self) -> Option<chrome::Fingerprint> {
         match &self.gesture {
             Gesture::Divider(drag) => Some(chrome::Fingerprint::divider(&drag.projected_target())),
@@ -1889,7 +1770,6 @@ impl PointerState {
         }
     }
 
-    #[cfg(windows)]
     fn suppress_chrome_hover(&self, pressed: bool) -> bool {
         pressed
             || !matches!(self.gesture, Gesture::Idle)
@@ -1898,14 +1778,12 @@ impl PointerState {
             || self.modal_release_ownership() != ReleaseOwnership::None
     }
 
-    #[cfg(windows)]
     fn chrome_projection(&self) -> chrome::Projection {
         let pressed = self.chrome_pressed_fingerprint();
         let suppress_hover = self.suppress_chrome_hover(pressed.is_some());
         self.chrome_projection.snapshot(pressed, suppress_hover)
     }
 
-    #[cfg(windows)]
     fn observe_chrome_motion(&mut self, event: MouseEvent) -> bool {
         if !self.capture || self.host_unfocused {
             return false;
@@ -1919,26 +1797,22 @@ impl PointerState {
         )
     }
 
-    #[cfg(windows)]
     fn publish_chrome_projection(&mut self, map: &FrameHitMap) -> bool {
         let pressed = self.chrome_pressed_fingerprint();
         let suppress_hover = self.suppress_chrome_hover(pressed.is_some());
         self.chrome_projection.publish(map, pressed, suppress_hover)
     }
 
-    #[cfg(windows)]
     fn invalidate_chrome_projection(&mut self) {
         self.chrome_projection.invalidate_map();
     }
 
-    #[cfg(windows)]
     fn clear_chrome_transport(&mut self) {
         self.chrome_projection.clear_transport();
     }
 
     /// Read-only geometry shared by drawing and physical-controller viewport observation.
     pub(crate) fn resize_projection(&self) -> crate::tui_layout::ResizeProjection {
-        #[cfg(windows)]
         match &self.gesture {
             Gesture::Divider(drag) => {
                 return crate::tui_layout::ResizeProjection::Divider {
@@ -1962,7 +1836,6 @@ impl PointerState {
     }
 
     /// Current reversible geometry; shared ratios remain authoritative until release commits.
-    #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
         match &self.gesture {
             Gesture::Divider(drag) => Some(drag),
@@ -1971,7 +1844,6 @@ impl PointerState {
     }
 
     /// Cancels unsubmitted resize only; a submitted adjustment belongs to ClientControl.
-    #[cfg(windows)]
     pub(crate) fn cancel_divider(&mut self) -> bool {
         if matches!(self.gesture, Gesture::Divider(_)) {
             self.gesture = Gesture::Idle;
@@ -1986,7 +1858,6 @@ impl PointerState {
     /// Retires only lower-shell Chrome gestures covered by a newly acquired
     /// compositor owner. Their exact late primary release remains cleanup-only;
     /// pane selection, generic interactions and modal controls keep ownership.
-    #[cfg(windows)]
     pub(crate) fn retire_covered_chrome_gesture(&mut self) -> bool {
         if matches!(&self.gesture, Gesture::Divider(_)) {
             return self.cancel_divider();
@@ -2006,7 +1877,6 @@ impl PointerState {
     /// Resolves only the primary-release cleanup retained by an accepted
     /// Windows chrome press. It runs before capture/focus guards so a report
     /// already queued by the host cannot leak after transport teardown.
-    #[cfg(windows)]
     fn cancelled_chrome_event(&mut self, event: MouseEvent) -> Option<PointerOutcome> {
         let pending = self.cancelled_chrome_release.is_some()
             || matches!(self.gesture, Gesture::TabCancelled);
@@ -2049,14 +1919,12 @@ impl PointerState {
             interaction::Event::Captured => return PointerOutcome::Handled,
             interaction::Event::Ignored | interaction::Event::Intent { .. } => {}
         }
-        #[cfg(windows)]
         if let Some(outcome) = self.cancelled_chrome_event(event) {
             return outcome;
         }
         PointerOutcome::Ignored
     }
 
-    #[cfg(windows)]
     pub(crate) fn popup_event(
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),
@@ -2129,7 +1997,6 @@ impl PointerState {
     /// An external modal surface consumed this decoded mouse event before
     /// ordinary pointer dispatch. A cancelled link press still owns its
     /// matching release, but the modal remains the only effect owner.
-    #[cfg(windows)]
     pub(crate) fn external_capture_event(&mut self, event: MouseEvent) {
         let Gesture::Link(link) = &mut self.gesture else {
             return;
@@ -2311,7 +2178,6 @@ impl PointerState {
             self.cancel_modal_press();
             self.interactions.clear_transport();
             self.clear_modal_transport();
-            #[cfg(windows)]
             self.clear_chrome_transport();
         }
         if self.capture == enabled {
@@ -2319,7 +2185,6 @@ impl PointerState {
         }
         self.capture = enabled;
         if !enabled {
-            #[cfg(windows)]
             {
                 self.cancel_divider();
                 self.cancel_sidebar_width();
@@ -2327,7 +2192,6 @@ impl PointerState {
                 self.tab_click = None;
                 self.cancel_sidebar_reorder();
             }
-            #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 // Keep a cancelled tombstone until the matching release so
                 // re-arming capture cannot reinterpret that release as a
@@ -2336,11 +2200,7 @@ impl PointerState {
             } else if !matches!(self.gesture, Gesture::TabCancelled) {
                 self.gesture = Gesture::Idle;
             }
-            #[cfg(not(windows))]
-            {
-                self.gesture = Gesture::Idle;
-            }
-            #[cfg(windows)]
+
             {
                 self.popup_gesture = None;
             }
@@ -2364,7 +2224,6 @@ impl PointerState {
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
     pub(crate) fn publish(&mut self, map: FrameHitMap) {
-        #[cfg(windows)]
         if self
             .copy_drag
             .as_ref()
@@ -2379,12 +2238,10 @@ impl PointerState {
         {
             self.cancel_list_scroll();
         }
-        #[cfg(windows)]
         if matches!(&self.gesture, Gesture::Tab(drag) if !drag.painted_in(&map)) {
             self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
         }
-        #[cfg(windows)]
         if matches!(&self.gesture, Gesture::SidebarReorder(drag) if !drag.painted_in(&map)) {
             self.cancel_sidebar_reorder();
         }
@@ -2401,7 +2258,6 @@ impl PointerState {
         {
             self.gesture = Gesture::Idle;
         }
-        #[cfg(windows)]
         let divider_lost = if let Gesture::Divider(drag) = &mut self.gesture {
             let painted = drag.projected_target();
             if map.exposes_divider(&painted) {
@@ -2413,11 +2269,9 @@ impl PointerState {
         } else {
             false
         };
-        #[cfg(windows)]
         if divider_lost {
             self.cancel_divider();
         }
-        #[cfg(windows)]
         let sidebar_lost = if let Gesture::SidebarWidth(drag) = &mut self.gesture {
             let painted = drag.projected_target();
             if map.exposes_sidebar_width(&painted) {
@@ -2429,11 +2283,9 @@ impl PointerState {
         } else {
             false
         };
-        #[cfg(windows)]
         if sidebar_lost {
             self.cancel_sidebar_width();
         }
-        #[cfg(windows)]
         if let Gesture::Link(link) = &mut self.gesture
             && !link.source_matches(&map)
         {
@@ -2443,17 +2295,14 @@ impl PointerState {
         }
         self.interactions.publish(&map);
         self.publish_modal_projection(&map);
-        #[cfg(windows)]
         self.publish_chrome_projection(&map);
         self.map = Some(map);
     }
 
-    #[cfg(windows)]
     pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
         self.map.as_ref()?.navigator_paint()
     }
 
-    #[cfg(windows)]
     pub(crate) fn navigator_backdrop_at(&self, column: u16, row: u16) -> bool {
         self.map.as_ref().is_some_and(|map| {
             map.navigator_paint().is_some()
@@ -2473,30 +2322,23 @@ impl PointerState {
         self.cancel_modal_press();
         self.interactions.invalidate_map();
         self.invalidate_modal_projection();
-        #[cfg(windows)]
         self.invalidate_chrome_projection();
         self.map = None;
-        #[cfg(windows)]
         {
             self.popup_gesture = None;
         }
-        #[cfg(windows)]
         {
             self.cancel_divider();
             self.cancel_sidebar_width();
             self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
         }
-        #[cfg(windows)]
         if let Gesture::Link(link) = &mut self.gesture {
             link.cancelled = true;
         } else if !matches!(self.gesture, Gesture::TabCancelled) {
             self.gesture = Gesture::Idle;
         }
-        #[cfg(not(windows))]
-        {
-            self.gesture = Gesture::Idle;
-        }
+
         self.wheel.clear();
     }
 
@@ -2521,7 +2363,6 @@ impl PointerState {
         self.cancel_modal_press();
         self.interactions.invalidate_map();
         self.invalidate_modal_projection();
-        #[cfg(windows)]
         self.invalidate_chrome_projection();
         self.map = None;
     }
@@ -2550,10 +2391,8 @@ impl PointerState {
             // A modal draft or an armed confirmation owns input: pointer
             // events are swallowed without producing gestures.
             self.interactions.clear_transport();
-            #[cfg(windows)]
             self.clear_chrome_transport();
             self.cancel_selection(port);
-            #[cfg(windows)]
             {
                 self.cancel_divider();
                 self.cancel_sidebar_width();
@@ -2564,7 +2403,6 @@ impl PointerState {
             if cancelled != PointerOutcome::Ignored {
                 return cancelled;
             }
-            #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 link.cancelled = true;
                 if event.action == MouseAction::Release
@@ -2578,7 +2416,6 @@ impl PointerState {
             }
             self.gesture = Gesture::Idle;
             self.wheel.clear();
-            #[cfg(windows)]
             view.machines.cancel_sidebar_scroll();
             return PointerOutcome::Ignored;
         }
@@ -2590,13 +2427,10 @@ impl PointerState {
                 event,
                 InteractionTarget::is_global_chrome,
             );
-        #[cfg(windows)]
         let hover_changed = hover_changed | self.observe_chrome_motion(event);
-        #[cfg(windows)]
         if self.sidebar_reorder_captured() {
             return self.sidebar_reorder_event(view, port, event);
         }
-        #[cfg(windows)]
         if self.begin_sidebar_reorder(view, port, now, event) {
             return PointerOutcome::Handled;
         }
@@ -2623,19 +2457,14 @@ impl PointerState {
             interaction::Event::Ignored => {}
         }
         let outcome = match self.gesture {
-            #[cfg(windows)]
             Gesture::Tab(_) | Gesture::TabCancelled => self.tab_event(view, port, now, event),
-            #[cfg(windows)]
             Gesture::SidebarReorder(_) => self.sidebar_reorder_event(view, port, event),
             Gesture::Pending(_) => self.pending_event(view, port, &probe, now, event),
             Gesture::Pane(_) => self.pane_event(view, port, &probe, event),
             Gesture::Selection(_) => self.selection_event(port, &probe, event),
             Gesture::Scrollbar(_) => self.scrollbar_event(port, &probe, event),
-            #[cfg(windows)]
             Gesture::Divider(_) => self.divider_event(view, port, event),
-            #[cfg(windows)]
             Gesture::SidebarWidth(_) => self.sidebar_width_event(view, event),
-            #[cfg(windows)]
             Gesture::Link(_) => self.link_event(port, &probe, event),
             Gesture::Idle => self.fresh_event(view, port, &probe, now, event),
         };
@@ -2659,7 +2488,6 @@ impl PointerState {
         _capture: Option<crate::tui_composition::CaptureOwner>,
     ) -> bool {
         let probe = port.pointer_probe();
-        #[cfg(windows)]
         if !self.capture
             || probe.input_captured
             || view
@@ -2671,7 +2499,6 @@ impl PointerState {
         if probe.input_captured {
             let gesture_changed = match &self.gesture {
                 Gesture::Idle => false,
-                #[cfg(windows)]
                 Gesture::Link(link) => !link.cancelled,
                 _ => true,
             };
@@ -2679,15 +2506,13 @@ impl PointerState {
             // Native capture blocks pane gestures, but a menu's own painted click remains
             // owned across idle and draw boundaries. The dispatcher supplies the current
             // composition winner; map publication still checks its exact fingerprint.
-            #[cfg(windows)]
             let menu_owns_interaction = matches!(
                 _capture,
                 Some(crate::tui_composition::CaptureOwner::Native(
                     crate::tui_composition::NativeCaptureOwner::ActionMenu
                 ))
             );
-            #[cfg(not(windows))]
-            let menu_owns_interaction = false;
+
             if !menu_owns_interaction {
                 self.interactions.clear_transport();
             }
@@ -2695,28 +2520,22 @@ impl PointerState {
                 || self.wheel.pending != 0
                 || interaction_revision != self.interactions.revision();
             self.cancel_selection(port);
-            #[cfg(windows)]
             {
                 self.cancel_divider();
                 self.cancel_sidebar_width();
                 self.cancel_tab_drag();
                 self.cancel_sidebar_reorder();
             }
-            #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 link.cancelled = true;
             } else if !matches!(self.gesture, Gesture::TabCancelled) {
                 self.gesture = Gesture::Idle;
             }
-            #[cfg(not(windows))]
-            {
-                self.gesture = Gesture::Idle;
-            }
+
             self.wheel.clear();
             return changed;
         }
         let mut changed = false;
-        #[cfg(windows)]
         if matches!(&self.gesture, Gesture::Tab(drag) if port.tab_drag_source().as_ref() != Some(&drag.source))
             || (self.tab_drag_captured()
                 && (view.overlay().is_some_and(|overlay| {
@@ -2726,12 +2545,10 @@ impl PointerState {
             changed |= self.cancel_tab_drag();
             self.cancel_sidebar_reorder();
         }
-        #[cfg(windows)]
         {
             changed |= self.tick_sidebar_reorder(view, port, now);
         }
         let modal = view.overlay().is_some();
-        #[cfg(windows)]
         let modal = modal || view.resize_mode();
         if let Gesture::Scrollbar(drag) = &self.gesture
             && (!drag.alive(&probe) || modal)
@@ -2739,14 +2556,12 @@ impl PointerState {
             self.gesture = Gesture::Idle;
             changed = true;
         }
-        #[cfg(windows)]
         if self
             .sidebar_width_preview()
             .is_some_and(|drag| !self.sidebar_width_source_alive(view, &drag.target))
         {
             changed |= self.cancel_sidebar_width();
         }
-        #[cfg(windows)]
         if self.divider_preview().is_some_and(|drag| {
             view.overlay().is_some()
                 || view.resize_mode()
@@ -2758,7 +2573,6 @@ impl PointerState {
         }) {
             changed |= self.cancel_divider();
         }
-        #[cfg(windows)]
         if let Some(drag) = self.divider_preview()
             && let Err(notice) = port.pointer_divider_ready(&drag.target)
         {
@@ -2768,7 +2582,6 @@ impl PointerState {
         if matches!(&self.gesture, Gesture::Selection(selection) if !selection.alive(&probe)) {
             changed |= self.cancel_selection(port);
         }
-        #[cfg(windows)]
         if view.machines.settle_sidebar_scroll() {
             // The window changed at cadence, not per report; old row geometry drops.
             self.stale_map();
@@ -2828,7 +2641,6 @@ impl PointerState {
         let Some(map) = self.map.as_ref() else {
             return PointerOutcome::Ignored;
         };
-        #[cfg(windows)]
         if event.action == MouseAction::Press
             && !matches!(
                 map.hit(event.column, event.row),
@@ -2837,7 +2649,6 @@ impl PointerState {
         {
             self.tab_click = None;
         }
-        #[cfg(windows)]
         if event.action == MouseAction::Press
             && event.mods == crate::client_view::Modifiers::NONE
             && !view.resize_mode()
@@ -2884,12 +2695,6 @@ impl PointerState {
                     if event.button == MouseButton::Right =>
                 {
                     Some(crate::action_menu::MenuTarget::TabCreate(target.clone()))
-                }
-                #[cfg(test)]
-                HitResolution::Region(HitTarget::Context(location))
-                    if event.button == MouseButton::Right =>
-                {
-                    Some(crate::action_menu::MenuTarget::Workspace(location.clone()))
                 }
                 HitResolution::Region(hit)
                     if hit.sidebar_target().is_some() && event.button == MouseButton::Right =>
@@ -2940,7 +2745,6 @@ impl PointerState {
                 };
             }
         }
-        #[cfg(windows)]
         if event.action == MouseAction::Press
             && event.button == MouseButton::Left
             && event.mods == crate::client_view::Modifiers::NONE
@@ -2952,7 +2756,6 @@ impl PointerState {
             view.machines.leave_sidebar_navigation();
         }
         match map.hit(event.column, event.row) {
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::SettingsButton | HitTarget::NewWorkspaceButton) => {
                 PointerOutcome::Ignored
             }
@@ -2964,12 +2767,10 @@ impl PointerState {
                 let (pane, content, source) = (pane.clone(), *content, *source);
                 self.begin_scrollbar(view, port, probe, event, pane, content, source)
             }
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::SidebarResize(target)) => {
                 let target = *target;
                 self.begin_sidebar_width(view, target, event)
             }
-            #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::CreateMenu(_)
                 | HitTarget::Onboarding(_)
@@ -2987,7 +2788,6 @@ impl PointerState {
                 | HitTarget::Presentation(_),
             ) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::SettingsRow { .. }) => PointerOutcome::Ignored,
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::Divider(target)) => {
                 if event.action != MouseAction::Press
                     || event.button != MouseButton::Left
@@ -3033,7 +2833,6 @@ impl PointerState {
                 }
                 PointerOutcome::Ignored
             }
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::Popup { .. } | HitTarget::PopupClose(_)) => {
                 PointerOutcome::Ignored
             }
@@ -3050,14 +2849,12 @@ impl PointerState {
                 | HitTarget::ListScroll(_)
                 | HitTarget::Help { .. },
             ) => PointerOutcome::Ignored,
-            #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::SidebarMenu(_)
                 | HitTarget::SidebarClose(_)
                 | HitTarget::ActionMenuControl { .. }
                 | HitTarget::TabCloseRequest { .. },
             ) => PointerOutcome::Ignored,
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::MachineProjectRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
@@ -3073,11 +2870,8 @@ impl PointerState {
                     _ => PointerOutcome::Ignored,
                 }
             }
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::SidebarDisclosure(_)) => PointerOutcome::Ignored,
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::OpenMachineWorkspaces) => PointerOutcome::Ignored,
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::MachineWorkspaceRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
@@ -3093,7 +2887,6 @@ impl PointerState {
                     _ => PointerOutcome::Ignored,
                 }
             }
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::MachineWorkspaceSurface(window)) => {
                 if event.action == MouseAction::Press
                     && event.mods == crate::client_view::Modifiers::NONE
@@ -3106,9 +2899,7 @@ impl PointerState {
                     PointerOutcome::Ignored
                 }
             }
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::SearchButton) => PointerOutcome::Ignored,
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::MachineAgentRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
@@ -3124,7 +2915,6 @@ impl PointerState {
                     _ => PointerOutcome::Ignored,
                 }
             }
-            #[cfg(windows)]
             HitResolution::Region(target @ HitTarget::TabGroup { .. }) => {
                 if event.action != MouseAction::Press
                     || event.button != MouseButton::Left
@@ -3149,7 +2939,6 @@ impl PointerState {
                 let Some(_index) = probe.tab_index(tab) else {
                     return PointerOutcome::Ignored;
                 };
-                #[cfg(windows)]
                 if event.mods == Modifiers::CTRL {
                     let disposition = port.apply_client_action(ClientAction::TabMenu {
                         action: crate::action_menu::MenuAction::SelectTab,
@@ -3163,7 +2952,6 @@ impl PointerState {
                 if event.mods != Modifiers::NONE {
                     return PointerOutcome::Ignored;
                 }
-                #[cfg(windows)]
                 {
                     if let Some(drag) = port.tab_drag_source().and_then(|source| {
                         tabs::TabDrag::begin(source, map, HitTarget::Tab(tab.clone()), event)
@@ -3174,31 +2962,6 @@ impl PointerState {
                     }
                     PointerOutcome::Handled
                 }
-                #[cfg(not(windows))]
-                {
-                    let Ok(position) = u8::try_from(probe.tabs[_index].position) else {
-                        return PointerOutcome::Ignored;
-                    };
-                    let disposition = port.apply_client_action(ClientAction::SelectTab(position));
-                    if let Some(disposition) = disposition {
-                        view.commit_pointer(disposition);
-                    }
-                    PointerOutcome::RegionsChanged
-                }
-            }
-            #[cfg(any(not(windows), test))]
-            HitResolution::Region(HitTarget::Context(location)) => {
-                if event.action != MouseAction::Press || event.button != MouseButton::Left {
-                    return PointerOutcome::Ignored;
-                }
-                let Some(index) = probe.context_index(location) else {
-                    return PointerOutcome::Ignored;
-                };
-                let disposition = port.apply_client_action(ClientAction::SelectContextAt(index));
-                if let Some(disposition) = disposition {
-                    view.commit_pointer(disposition);
-                }
-                PointerOutcome::RegionsChanged
             }
             HitResolution::Region(HitTarget::Unbound {
                 selected,
@@ -3224,7 +2987,6 @@ impl PointerState {
                 PointerOutcome::RegionsChanged
             }
             HitResolution::Region(HitTarget::Pane { pane, content }) => {
-                #[cfg(windows)]
                 if link_press(event) && contains(*content, event.column, event.row) {
                     let cell = PointerSelectionCell {
                         column: event.column - content.x,
@@ -3262,7 +3024,6 @@ impl PointerState {
         }
     }
 
-    #[cfg(windows)]
     fn divider_event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
@@ -3316,7 +3077,6 @@ impl PointerState {
         PointerOutcome::Handled
     }
 
-    #[cfg(windows)]
     fn link_event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         port: &mut Port,

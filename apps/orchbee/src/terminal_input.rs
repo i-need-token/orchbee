@@ -1,7 +1,5 @@
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView};
 use crate::tui_composition::{NativeCaptureClaims, NativeCaptureOwner};
-#[cfg(any(not(windows), test))]
-use crate::workbench_client::NativeContextLocation;
 use crate::workbench_client::{
     NativeCaptureContext, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit,
     NativeSetupToken,
@@ -10,13 +8,10 @@ use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
 use orchbee_workbench_protocol::WorkbenchTabId;
 
-#[cfg(windows)]
 use crate::workbench_client::{WorktreeEdit, WorktreeToken};
 
 mod decoder;
-#[cfg(windows)]
 pub(crate) use decoder::DecodedItem;
-#[cfg(any(windows, test))]
 pub(crate) use decoder::{DecodedKind, LegacyDecoder};
 mod dispatcher;
 mod modal;
@@ -50,7 +45,6 @@ pub(crate) enum PointerCaptureRequest {
     ButtonOnly,
     AnyMotion,
     /// A capturing menu requests idle motion while retaining the button-only fallback.
-    #[cfg(windows)]
     MenuMotion,
 }
 
@@ -66,9 +60,7 @@ pub(crate) enum ModeRequest {
     PointerAdmissionQuery(crate::terminal_pointer_admission::Query),
     /// One bounded OSC 10/11 host-default color query at terminal admission.
     AppearanceQuery(crate::terminal_host_appearance::Query),
-    #[cfg(windows)]
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
-    #[cfg(windows)]
     Notification(crate::notifications::Effect),
     /// Bracketed-paste lease for modal capture.
     BracketedPaste(bool),
@@ -127,7 +119,6 @@ pub(crate) enum PointerSelectionAdmission {
     Rejected,
 }
 
-#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PointerLinkAdmission {
     Admitted,
@@ -202,9 +193,6 @@ pub(crate) struct PointerProbe {
     pub(crate) selection_ready: bool,
     /// Tabs in painted order for stable-id → position resolution.
     pub(crate) tabs: Vec<PointerTab>,
-    /// Navigator rows in painted order for stable-id → index resolution.
-    #[cfg(any(not(windows), test))]
-    pub(crate) contexts: Vec<NativeContextLocation>,
     /// The focus pane's current interaction facts; `None` while no
     /// current frame exists for the focused incarnation.
     pub(crate) frame: Option<PointerFrameFacts>,
@@ -225,17 +213,9 @@ impl PointerProbe {
     pub(crate) fn tab_index(&self, id: &WorkbenchTabId) -> Option<usize> {
         self.tabs.iter().position(|tab| &tab.id == id)
     }
-
-    /// Resolves a recorded context location to its current 0-based
-    /// navigation index.
-    #[cfg(any(not(windows), test))]
-    pub(crate) fn context_index(&self, location: &NativeContextLocation) -> Option<usize> {
-        self.contexts.iter().position(|entry| entry == location)
-    }
 }
 
 pub(crate) trait TerminalInputPort {
-    #[cfg(windows)]
     fn copy_picker_identifier(&mut self, _text: String) -> bool {
         false
     }
@@ -250,7 +230,6 @@ pub(crate) trait TerminalInputPort {
         None
     }
 
-    #[cfg(windows)]
     fn click_resize_control(
         &mut self,
         _target: &crate::tui_layout::DrawnResize,
@@ -259,7 +238,6 @@ pub(crate) trait TerminalInputPort {
     ) {
     }
     /// Validate a completed tab-create click; the ordinary action path owns its effects.
-    #[cfg(windows)]
     fn tab_create_action(
         &mut self,
         _target: &crate::action_menu::DrawnTabCreate,
@@ -301,7 +279,6 @@ pub(crate) trait TerminalInputPort {
         _row: crate::native_settings::Row,
     ) {
     }
-    #[cfg(windows)]
     fn open_action_menu(
         &mut self,
         _target: crate::action_menu::MenuTarget,
@@ -310,7 +287,6 @@ pub(crate) trait TerminalInputPort {
     ) -> bool {
         false
     }
-    #[cfg(windows)]
     fn capture_action_menu_key_for(
         &mut self,
         _expected: crate::action_menu::MenuInputContext,
@@ -318,7 +294,6 @@ pub(crate) trait TerminalInputPort {
     ) -> bool {
         false
     }
-    #[cfg(windows)]
     fn hover_action_menu_row(
         &mut self,
         _source: &crate::action_menu::MenuTarget,
@@ -327,7 +302,6 @@ pub(crate) trait TerminalInputPort {
     ) -> bool {
         false
     }
-    #[cfg(windows)]
     fn activate_action_menu_row(
         &mut self,
         _source: &crate::action_menu::MenuTarget,
@@ -335,7 +309,6 @@ pub(crate) trait TerminalInputPort {
         _row: usize,
     ) {
     }
-    #[cfg(windows)]
     fn activate_action_menu_control(
         &mut self,
         _source: &crate::action_menu::MenuTarget,
@@ -343,7 +316,6 @@ pub(crate) trait TerminalInputPort {
         _control: crate::action_menu::MenuControl,
     ) {
     }
-    #[cfg(windows)]
     fn scroll_action_menu(
         &mut self,
         _token: crate::action_menu::MenuToken,
@@ -352,21 +324,17 @@ pub(crate) trait TerminalInputPort {
     ) -> Option<crate::action_menu::MenuToken> {
         None
     }
-    #[cfg(windows)]
     fn cancel_action_menu(&mut self) {}
-    #[cfg(windows)]
     fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<ClientAction> {
         None
     }
     fn observe_host_graphics(&mut self, _facts: crate::terminal_graphics::Facts) {}
-    #[cfg(windows)]
     fn popup_input(
         &mut self,
         _id: &orchbee_workbench_protocol::WorkbenchRequestId,
         _item: &DecodedItem,
     ) {
     }
-    #[cfg(windows)]
     fn popup_mouse(
         &mut self,
         _id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -374,7 +342,6 @@ pub(crate) trait TerminalInputPort {
         _event: MouseEvent,
     ) {
     }
-    #[cfg(windows)]
     fn activate_drawn_popup_close(
         &mut self,
         _target: &crate::workbench_client::DrawnPopupClose,
@@ -387,12 +354,10 @@ pub(crate) trait TerminalInputPort {
     /// Called only after terminal-bound editing input was admitted by `forward`.
     fn terminal_edited(&mut self) {}
 
-    #[cfg(windows)]
     fn navigator_catalog(&self) -> Option<crate::client_view::navigator::Catalog> {
         None
     }
 
-    #[cfg(windows)]
     fn activate_navigator(
         &mut self,
         _row: &crate::client_view::navigator::Row,
@@ -408,7 +373,6 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.
-    #[cfg(windows)]
     fn observe_input_intent(&mut self) {}
 
     /// The current pointer-resolution facts. Ports without a session
@@ -418,11 +382,9 @@ pub(crate) trait TerminalInputPort {
         PointerProbe::default()
     }
 
-    #[cfg(windows)]
     fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
         None
     }
-    #[cfg(windows)]
     fn commit_sidebar_reorder(
         &mut self,
         _source: &crate::tui_pointer::SidebarReorderSource,
@@ -430,12 +392,10 @@ pub(crate) trait TerminalInputPort {
     ) {
     }
 
-    #[cfg(windows)]
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         None
     }
 
-    #[cfg(windows)]
     fn request_drawn_tab_rename(
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,
@@ -444,7 +404,6 @@ pub(crate) trait TerminalInputPort {
         None
     }
 
-    #[cfg(windows)]
     fn request_drawn_tab_close(
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,
@@ -452,7 +411,6 @@ pub(crate) trait TerminalInputPort {
     ) {
     }
 
-    #[cfg(windows)]
     fn commit_tab_drag(
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,
@@ -461,7 +419,6 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// Revalidates the full painted source without taking input control or submitting work.
-    #[cfg(windows)]
     fn pointer_divider_ready(
         &mut self,
         _target: &crate::tui_layout::DrawnDivider,
@@ -470,7 +427,6 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// A read-only presentation check neither admits a mutation nor publishes busy feedback.
-    #[cfg(windows)]
     fn divider_projection_current(
         &self,
         _target: &crate::tui_layout::DrawnDivider,
@@ -480,7 +436,6 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// Hands off one changed release; the asynchronous local owner reports its eventual result.
-    #[cfg(windows)]
     fn pointer_divider_resize(
         &mut self,
         _target: &crate::tui_layout::DrawnDivider,
@@ -490,7 +445,6 @@ pub(crate) trait TerminalInputPort {
 
     /// The local acknowledgement owner may retain released geometry until canonical publication.
     /// A withdrawn presentation lease is retired independently of the submitted mutation.
-    #[cfg(windows)]
     fn pending_resize_projection(
         &mut self,
         _viewport: ratatui::layout::Rect,
@@ -513,7 +467,6 @@ pub(crate) trait TerminalInputPort {
 
     /// Admit one Ctrl+click from an exact successfully painted pane source.
     /// This read-only path never focuses the pane or acquires terminal control.
-    #[cfg(windows)]
     fn pointer_link(
         &mut self,
         _source: crate::terminal_link_activation::PaintedLinkSource,
@@ -533,19 +486,16 @@ pub(crate) trait TerminalInputPort {
         false
     }
 
-    #[cfg(windows)]
     fn copy_mode_active(&self) -> bool {
         false
     }
 
-    #[cfg(windows)]
     fn click_copy_control(
         &mut self,
         _token: crate::terminal_copy_mode::CopyModeToken,
         _control: crate::terminal_copy_mode::CopyControl,
     ) {
     }
-    #[cfg(windows)]
     fn copy_pointer_cell(
         &mut self,
         _token: crate::terminal_copy_mode::CopySurfaceToken,
@@ -554,7 +504,6 @@ pub(crate) trait TerminalInputPort {
     ) -> bool {
         false
     }
-    #[cfg(windows)]
     fn scroll_copy_mode(
         &mut self,
         _token: crate::terminal_copy_mode::CopyModeToken,
@@ -564,17 +513,14 @@ pub(crate) trait TerminalInputPort {
         None
     }
 
-    #[cfg(windows)]
     fn capture_copy_mode_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
         false
     }
 
-    #[cfg(windows)]
     fn capture_copy_mode_paste(&mut self, _text: Option<&str>) -> bool {
         false
     }
 
-    #[cfg(windows)]
     fn cancel_copy_mode(&mut self) -> bool {
         false
     }
@@ -703,19 +649,14 @@ pub(crate) trait TerminalInputPort {
 
     fn invalidate_rename_display(&mut self) {}
 
-    #[cfg(windows)]
     fn edit_worktree(&mut self, _token: WorktreeToken, _edit: WorktreeEdit<'_>) -> bool {
         false
     }
-    #[cfg(windows)]
     fn dismiss_worktree(&mut self, _token: WorktreeToken) {}
-    #[cfg(windows)]
     fn submit_worktree(&mut self, _token: WorktreeToken) {}
     /// Submit an exact checkout from the current successfully painted picker.
-    #[cfg(windows)]
     fn choose_worktree(&mut self, _token: WorktreeToken, _index: usize) {}
     /// Move the picker only while its painted token still matches.
-    #[cfg(windows)]
     fn scroll_worktree(
         &mut self,
         _token: WorktreeToken,
@@ -724,7 +665,6 @@ pub(crate) trait TerminalInputPort {
     ) -> Option<WorktreeToken> {
         None
     }
-    #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {}
 
     fn edit_setup_draft(&mut self, _token: NativeSetupToken, _edit: NativeSetupEdit<'_>) -> bool {

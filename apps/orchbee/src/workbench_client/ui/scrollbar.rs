@@ -72,7 +72,6 @@ impl NativeUi {
         if probe.input_captured || !probe.selection_ready || probe.focus.as_ref() != Some(key) {
             return false;
         }
-        #[cfg(windows)]
         if self.copy_mode.key().is_some() {
             return false;
         }

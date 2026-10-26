@@ -4,8 +4,7 @@ use super::{
     Frame, HitMapBuilder, Locale, NativeTabView, Rect, Role, ShellText, Theme, WorkbenchClientView,
     controls::ControlSurface, presentation_selector::PresentationSelector,
 };
-#[cfg(not(windows))]
-use crate::terminal_text::sanitize_terminal_text;
+
 use crate::{
     terminal_text::{display_width, truncate_display},
     tui_layout::LeafArea,
@@ -21,7 +20,6 @@ pub(super) struct PaneTitle<'a> {
     pub(super) focused: bool,
     /// A zoomed pane names how many panes the zoom hides behind it.
     pub(super) zoomed_panes: Option<usize>,
-    #[cfg(windows)]
     pub(super) working_frame: usize,
     pub(super) text: ShellText<'a>,
     pub(super) locale: Locale,
@@ -71,7 +69,6 @@ pub(super) fn paint(
     } else {
         name_style
     };
-    #[cfg(windows)]
     let (glyph, unread) = match (ended, panel) {
         (None, Some(panel)) => (
             super::panel_reports::agent_state(native.panel_report(panel)).map(|state| {
@@ -93,8 +90,7 @@ pub(super) fn paint(
         ),
         _ => (None, false),
     };
-    #[cfg(not(windows))]
-    let (glyph, unread): (Option<(&str, ratatui::style::Style)>, bool) = (None, false);
+
     let unread = unread.then(|| format!(" {}", theme.glyphs.status_bullet));
     let fixed = 2
         + glyph.map_or(0, |(glyph, _)| display_width(glyph) + 1)
@@ -155,7 +151,6 @@ fn name(
     selector: bool,
 ) -> String {
     let presentation = native.selected_presentation(panel);
-    #[cfg(windows)]
     let name = super::panel_reports::title(
         presentation.custom_label(),
         presentation.display_label(),
@@ -163,11 +158,7 @@ fn name(
         native.panel_report(panel),
         separator,
     );
-    #[cfg(not(windows))]
-    let name = {
-        let _ = (text, separator);
-        sanitize_terminal_text(presentation.display_label()).into_owned()
-    };
+
     if selector || panel.presentation_count() < 2 {
         return name;
     }

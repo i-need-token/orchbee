@@ -15,11 +15,8 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 use std::time::{Duration, Instant};
-#[cfg(windows)]
 mod subscription;
-#[cfg(windows)]
 pub(crate) mod system;
-#[cfg(windows)]
 pub(crate) mod terminal;
 use orchbee_local_site_runtime::{
     NativeNotificationDelivery as Delivery, NativeNotificationSettings,
@@ -29,7 +26,6 @@ pub(crate) struct Effect {
     pub delivery: Delivery,
     pub message: Notification,
 }
-#[cfg(windows)]
 pub(crate) use subscription::Subscription;
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Visible {
