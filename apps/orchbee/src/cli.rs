@@ -488,7 +488,7 @@ impl Failure {
     }
 }
 
-fn target_details(resource: crate::invocation::Resource, target: &str) -> Map<String, Value> {
+pub(crate) fn target_details(resource: crate::invocation::Resource, target: &str) -> Map<String, Value> {
     Map::from_iter([
         ("resource".to_owned(), json!(resource.as_str())),
         ("target".to_owned(), json!(target)),
