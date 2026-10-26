@@ -1,7 +1,6 @@
-//! Test-only child-process guard shared by the `cli_query` and
-//! `cli_mutation` integration tests. This directory is not a test target —
-//! Cargo only compiles top-level `tests/*.rs` files — it exists so both
-//! binaries share one bounded-output implementation.
+//! Bounded child output and private runtime fixtures for Unix CLI tests.
+//! The aggregate integration target shares one module; process-isolated targets
+//! retain their own module instance.
 
 use std::{
     fs,

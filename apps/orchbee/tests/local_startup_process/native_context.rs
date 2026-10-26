@@ -1,3 +1,4 @@
+use super::pty_client::FrameExpectation;
 use super::tui_observer::WorkbenchHeader;
 use super::workbench_peer::WorkbenchPeer;
 use super::*;
@@ -67,10 +68,7 @@ fn select_context(
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        header,
-        &required,
-        &forbidden,
-        &[],
+        FrameExpectation::native(header, &required, &forbidden, &[]),
         &mut [],
     );
 }
@@ -83,10 +81,12 @@ fn observe_independent_initial_workspace(client: &mut Client, revision: u64, act
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-        &["Workbench navigator", &refreshed, "  * 1 Workspace"],
-        &[],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            &["Workbench navigator", &refreshed, "  * 1 Workspace"],
+            &[],
+            &[],
+        ),
         &mut [active],
     );
     let checkpoint = client.checkpoint();
@@ -94,15 +94,17 @@ fn observe_independent_initial_workspace(client: &mut Client, revision: u64, act
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready ·", "INITIAL_WORKSPACE_PEER_BINDING"],
-        &[
-            "Workbench navigator",
-            CONFIGURED_LOCATION,
-            UNCONFIGURED_LOCATION,
-            EMPTY,
-        ],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready ·", "INITIAL_WORKSPACE_PEER_BINDING"],
+            &[
+                "Workbench navigator",
+                CONFIGURED_LOCATION,
+                UNCONFIGURED_LOCATION,
+                EMPTY,
+            ],
+            &[],
+        ),
         &mut [active],
     );
 }
@@ -288,10 +290,12 @@ fn native_initial_workspace_panel_split_refreshes_and_moves_focus_between_live_l
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + CLOSE_TIMEOUT,
-        WorkbenchHeader::empty(INITIAL_WORKSPACE_LOCATION),
-        &["No terminal tabs", "Ctrl+b c create Tab"],
-        &["Close Tab?", "Workbench navigator"],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty(INITIAL_WORKSPACE_LOCATION),
+            &["No terminal tabs", "Ctrl+b c create Tab"],
+            &["Close Tab?", "Workbench navigator"],
+            &[],
+        ),
         &mut [],
     );
     let closed = peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?;
@@ -465,10 +469,12 @@ fn native_initial_workspace_panel_close_collapses_the_split_and_releases_only_th
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready"],
-        &["Terminal 2 · Split peer", "Terminal disconnected"],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready"],
+            &["Terminal 2 · Split peer", "Terminal disconnected"],
+            &[],
+        ),
         &mut [],
     );
     client.send(
@@ -1026,10 +1032,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        WorkbenchHeader::active(CONFIGURED_LOCATION, 1, "1"),
-        &["Tab 1 · Ready · controlling"],
-        &[EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(CONFIGURED_LOCATION, 1, "1"),
+            &["Tab 1 · Ready · controlling"],
+            &[EMPTY],
+            &[],
+        ),
         &mut [],
     );
     client.send(shell_identity_command(&fixture, "workspace", "workspace-before", true).as_bytes());
@@ -1132,10 +1140,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        WorkbenchHeader::empty(CONFIGURED_LOCATION),
-        &[EMPTY, &directory_fact, CONFIGURED_EMPTY_ACTION],
-        &["Close Tab?", "Workbench navigator"],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty(CONFIGURED_LOCATION),
+            &[EMPTY, &directory_fact, CONFIGURED_EMPTY_ACTION],
+            &["Close Tab?", "Workbench navigator"],
+            &[],
+        ),
         &mut [&mut independent],
     );
     let closed = peer.snapshot(deadline)?;
@@ -1185,15 +1195,17 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        WorkbenchHeader::empty(UNCONFIGURED_LOCATION),
-        &[
-            EMPTY,
-            UNCONFIGURED_EMPTY_FACT,
-            UNCONFIGURED_EMPTY_ACTION,
-            "Tab not created",
-        ],
-        &[],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty(UNCONFIGURED_LOCATION),
+            &[
+                EMPTY,
+                UNCONFIGURED_EMPTY_FACT,
+                UNCONFIGURED_EMPTY_ACTION,
+                "Tab not created",
+            ],
+            &[],
+            &[],
+        ),
         &mut [],
     );
     assert_eq!(

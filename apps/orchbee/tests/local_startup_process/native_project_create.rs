@@ -7,6 +7,7 @@
 //! Server: both Projects commit, label targets go `ambiguous`, and typed ids
 //! stay exact.
 
+use super::pty_client::FrameExpectation;
 use super::{
     native_cli_query::{run_json, spawn_real_server, validate, validators},
     native_workspace_fixture::{
@@ -175,10 +176,12 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::empty(&workspace_header),
-        &[EMPTY, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION],
-        &[],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty(&workspace_header),
+            &[EMPTY, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION],
+            &[],
+            &[],
+        ),
         &mut [],
     );
 
@@ -250,15 +253,17 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::empty(&workspace_header),
-        &[
-            EMPTY,
-            &directory_fact,
-            DIRECTORY_READY_ACTION,
-            DIRECTORY_ACCEPTED,
-        ],
-        &[],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty(&workspace_header),
+            &[
+                EMPTY,
+                &directory_fact,
+                DIRECTORY_READY_ACTION,
+                DIRECTORY_ACCEPTED,
+            ],
+            &[],
+            &[],
+        ),
         &mut [],
     );
 

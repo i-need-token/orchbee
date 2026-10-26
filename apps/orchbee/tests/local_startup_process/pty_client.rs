@@ -51,11 +51,27 @@ fn initial_ready_mode(frame: &CompletedFrame) -> Option<ReadyMode> {
         .find(|mode| frame.text().contains(&mode.footer(1)))
 }
 
-struct FrameExpectation<'a> {
+pub(super) struct FrameExpectation<'a> {
     header: Option<WorkbenchHeader<'a>>,
     required: &'a [&'a str],
     forbidden: &'a [&'a str],
     exact_content_rows: &'a [&'a str],
+}
+
+impl<'a> FrameExpectation<'a> {
+    pub(super) fn native(
+        header: WorkbenchHeader<'a>,
+        required: &'a [&'a str],
+        forbidden: &'a [&'a str],
+        exact_content_rows: &'a [&'a str],
+    ) -> Self {
+        Self {
+            header: Some(header),
+            required,
+            forbidden,
+            exact_content_rows,
+        }
+    }
 }
 
 pub(super) struct Client {
@@ -263,7 +279,7 @@ impl Client {
         self.observe_after(0, deadline, "first Tab frame", |frame| {
             frame.has_active_tab(1, "1").then_some(())
         });
-        self.probe_status(deadline, &mut [], |frame| initial_ready_mode(frame))
+        self.probe_status(deadline, &mut [], initial_ready_mode)
     }
 
     pub(super) fn checkpoint(&mut self) -> usize {
@@ -299,23 +315,10 @@ impl Client {
         &mut self,
         checkpoint: usize,
         deadline: Instant,
-        header: WorkbenchHeader<'_>,
-        required: &[&str],
-        forbidden: &[&str],
-        exact_content_rows: &[&str],
+        expectation: FrameExpectation<'_>,
         pumped_peers: &mut [&mut Client],
     ) {
-        self.wait_frame_observation_after(
-            checkpoint,
-            deadline,
-            FrameExpectation {
-                header: Some(header),
-                required,
-                forbidden,
-                exact_content_rows,
-            },
-            pumped_peers,
-        );
+        self.wait_frame_observation_after(checkpoint, deadline, expectation, pumped_peers);
     }
 
     fn wait_frame_observation_after(

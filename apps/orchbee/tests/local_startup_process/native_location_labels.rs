@@ -1,4 +1,5 @@
 use super::native_workspace_fixture::*;
+use super::pty_client::FrameExpectation;
 use super::tui_observer::{ModalRow, WorkbenchHeader};
 use super::*;
 use orchbee_workbench_protocol::Snapshot;
@@ -113,15 +114,17 @@ fn wait_workspace(client: &mut Client, checkpoint: usize, header: &str, notice: 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(header, 1, "1"),
-        &required,
-        &[
-            "Rename Workspace",
-            "Rename Project",
-            "Workbench navigator",
-            EMPTY,
-        ],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(header, 1, "1"),
+            &required,
+            &[
+                "Rename Workspace",
+                "Rename Project",
+                "Workbench navigator",
+                EMPTY,
+            ],
+            &[],
+        ),
         &mut [],
     );
 }
@@ -149,10 +152,12 @@ fn observe_peer_refresh(
     peer.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(expected_header, 1, "1"),
-        &["Tab 1 · Ready ·", "LOCATION_SHELL_RETAINED"],
-        &["Workbench navigator", EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(expected_header, 1, "1"),
+            &["Tab 1 · Ready ·", "LOCATION_SHELL_RETAINED"],
+            &["Workbench navigator", EMPTY],
+            &[],
+        ),
         &mut [active],
     );
 }
@@ -186,19 +191,22 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     let mut observer = SnapshotObserver::connect(&fixture)?;
     let initial_workspace = observer.snapshot()?;
     assert!(initial_workspace.navigation.projects.is_empty());
-    for (target, notice) in [(
-        Target::Project,
-        "No current Project to rename · no command was sent",
-    )] {
+    {
+        let (target, notice) = (
+            Target::Project,
+            "No current Project to rename · no command was sent",
+        );
         let checkpoint = client.checkpoint();
         client.send(target.shortcut());
         client.wait_native_frame_text_after(
             checkpoint,
             Instant::now() + SWITCH_TIMEOUT,
-            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-            &[notice],
-            &[target.title()],
-            &[],
+            FrameExpectation::native(
+                WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+                &[notice],
+                &[target.title()],
+                &[],
+            ),
             &mut [],
         );
         assert_eq!(
@@ -228,10 +236,12 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready · controlling"],
-        &[EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready · controlling"],
+            &[EMPTY],
+            &[],
+        ),
         &mut [],
     );
     client.send(shell_identity_command(&fixture, "location", "location-before", true).as_bytes());
@@ -266,10 +276,12 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     peer.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready · view only", "LOCATION_SHELL_RETAINED"],
-        &[EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready · view only", "LOCATION_SHELL_RETAINED"],
+            &[EMPTY],
+            &[],
+        ),
         &mut [&mut client],
     );
 
@@ -317,10 +329,12 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         peer.wait_native_frame_text_after(
             peer_checkpoint,
             Instant::now() + OBSERVATION_TIMEOUT,
-            WorkbenchHeader::active(&renamed_header, 1, "1"),
-            &[],
-            &[],
-            &[],
+            FrameExpectation::native(
+                WorkbenchHeader::active(&renamed_header, 1, "1"),
+                &[],
+                &[],
+                &[],
+            ),
             &mut [&mut client],
         );
         finish_modal_handoff(

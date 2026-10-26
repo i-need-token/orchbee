@@ -34,10 +34,7 @@ use orchbee_workbench_protocol::{
 };
 use sha2::{Digest, Sha256};
 
-// The shared support module also carries helpers only other suites use.
-#[allow(dead_code)]
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 

@@ -1,3 +1,4 @@
+use super::pty_client::FrameExpectation;
 use super::tui_observer::{ModalRow, WorkbenchHeader};
 use super::*;
 use orchbee_workbench_protocol::{
@@ -98,10 +99,12 @@ pub(super) fn seed_empty_workspace(fixture: &Fixture, client: &mut Client) -> Te
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-        &[],
-        &["Workbench navigator"],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            &[],
+            &["Workbench navigator"],
+            &[],
+        ),
         &mut [],
     );
     let checkpoint = client.checkpoint();
@@ -254,10 +257,12 @@ pub(super) fn wait_empty(
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::empty(WORKSPACE_LOCATION),
-        &required,
-        &["Workbench navigator"],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty(WORKSPACE_LOCATION),
+            &required,
+            &["Workbench navigator"],
+            &[],
+        ),
         &mut [],
     );
 }

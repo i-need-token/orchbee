@@ -1,4 +1,5 @@
 use super::native_workspace_fixture::*;
+use super::pty_client::FrameExpectation;
 use super::tui_observer::WorkbenchHeader;
 use super::*;
 
@@ -131,10 +132,12 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready · controlling"],
-        &[EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready · controlling"],
+            &[EMPTY],
+            &[],
+        ),
         &mut [],
     );
     client.send(shell_identity_command(&fixture, "workspace", "setup-workspace", true).as_bytes());
@@ -183,10 +186,12 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready · controlling"],
-        &[WORKSPACE_LOCATION, EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready · controlling"],
+            &[WORKSPACE_LOCATION, EMPTY],
+            &[],
+        ),
         &mut [],
     );
     client.send(shell_identity_command(&fixture, "", "setup-after", false).as_bytes());
@@ -247,10 +252,12 @@ fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shel
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
-        &["Tab 1 · Ready · controlling"],
-        &[WORKSPACE_LOCATION, EMPTY],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active(INITIAL_WORKSPACE_LOCATION, 1, "1"),
+            &["Tab 1 · Ready · controlling"],
+            &[WORKSPACE_LOCATION, EMPTY],
+            &[],
+        ),
         &mut [],
     );
     assert_shell_survives(&fixture, &mut client, &initial_workspace, "cancel-after");

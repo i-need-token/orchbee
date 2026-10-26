@@ -1,9 +1,11 @@
 //! Integration and conformance tests through this crate's public boundaries.
 
-// Aggregate suites share each Windows fixture owner once; isolated targets retain their own owners.
+// Aggregate suites share each fixture owner once; isolated targets retain their own owners.
 #[cfg(windows)]
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
+#[cfg(target_os = "linux")]
+mod support;
 #[cfg(windows)]
 #[path = "support/terminal_metadata_peer.rs"]
 mod terminal_metadata_peer;

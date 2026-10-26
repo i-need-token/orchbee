@@ -1,3 +1,4 @@
+use super::pty_client::FrameExpectation;
 use super::tui_observer::WorkbenchHeader;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
@@ -92,10 +93,12 @@ fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseC
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        WorkbenchHeader::active("Workspace", 1, "1"),
-        &[copy.ready],
-        &[copy.title],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::active("Workspace", 1, "1"),
+            &[copy.ready],
+            &[copy.title],
+            &[],
+        ),
         &mut [],
     );
 }
@@ -202,10 +205,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        WorkbenchHeader::empty("Workspace"),
-        &required,
-        &[],
-        &[],
+        FrameExpectation::native(WorkbenchHeader::empty("Workspace"), &required, &[], &[]),
         &mut [peer],
     );
     // `w` toggles the navigator: leave it visibly closed so the next `w` requests a refresh.
@@ -214,10 +214,12 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        WorkbenchHeader::empty("Workspace"),
-        &["No terminal tabs", "Ctrl+b c create Tab"],
-        &["Workbench navigator"],
-        &[],
+        FrameExpectation::native(
+            WorkbenchHeader::empty("Workspace"),
+            &["No terminal tabs", "Ctrl+b c create Tab"],
+            &["Workbench navigator"],
+            &[],
+        ),
         &mut [peer],
     );
 }
