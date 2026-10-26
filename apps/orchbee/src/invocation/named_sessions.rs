@@ -1,7 +1,7 @@
 use super::{
-    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, SiteStopCommand,
-    UsageContext, UsageReason, check_scope, missing_command, missing_required, reject_extras_scope,
-    reject_filters, stop_command, unexpected_argument, usage_with,
+    ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request,
+    ServerStopCommand, UsageContext, UsageReason, check_scope, missing_command, missing_required,
+    reject_extras_scope, reject_filters, stop_command, unexpected_argument, usage_with,
 };
 use orchbee_local_runtime::SessionName;
 

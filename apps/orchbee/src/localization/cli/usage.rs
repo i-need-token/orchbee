@@ -310,10 +310,10 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::SshTarget) => {
                 "不含密码的 SSH 别名、[user@]host 或 ssh://[user@]host[:port]"
             }
-            (Self::EnUs, ExpectedValue::SiteName) => {
+            (Self::EnUs, ExpectedValue::SessionName) => {
                 "1–64 ASCII letters, digits, '.', '_' or '-'; excluding '.' and '..'"
             }
-            (Self::ZhCn, ExpectedValue::SiteName) => {
+            (Self::ZhCn, ExpectedValue::SessionName) => {
                 "1–64 个 ASCII 字母、数字、'.'、'_' 或 '-'；排除 '.' 和 '..'"
             }
             (Self::EnUs, ExpectedValue::MouseMode) => "'off' or 'on'",

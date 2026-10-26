@@ -5,8 +5,9 @@ use super::{
 };
 use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
 use orchbee_workbench_protocol::{
-    PanelAgentReport, PanelAgentRequest, PresentationBinding, ProtocolVersion, SiteId, TerminalId,
-    WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId, write_workbench_request,
+    PanelAgentReport, PanelAgentRequest, PresentationBinding, ProtocolVersion, SessionId,
+    TerminalId, WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId,
+    write_workbench_request,
 };
 
 #[derive(Default)]

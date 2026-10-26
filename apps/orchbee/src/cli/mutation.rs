@@ -639,7 +639,7 @@ mod linux {
             let resolved = (|| {
                 let project_id = resolve_project(&snapshot, project)?.project_id.clone();
                 Ok(Resolved {
-                    site_id: snapshot.site_id.clone(),
+                    session_id: snapshot.session_id.clone(),
                     expected_revision: snapshot.revision,
                     request_id: request_id()?,
                     action: WorkbenchAction::WorkspaceCreate {
@@ -650,7 +650,7 @@ mod linux {
             })()
             .map_err(|failure: Failure| failure.source(results::snapshot_source(&snapshot)))?;
             let source = command_source(
-                resolved.site_id.as_str(),
+                resolved.session_id.as_str(),
                 resolved.request_id.as_str(),
                 resolved.expected_revision,
             );

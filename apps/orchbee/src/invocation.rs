@@ -924,7 +924,7 @@ pub(crate) struct SelectedRequest {
     pub(crate) request: Request,
     pub(crate) availability: grammar::Availability,
     pub(crate) format: Option<OutputFormat>,
-    pub(crate) site: Option<orchbee_local_site_runtime::WindowsSiteName>,
+    pub(crate) session: Option<orchbee_local_runtime::SessionName>,
 }
 
 /// How a parse failure is allowed to answer on stdout.
@@ -1003,7 +1003,7 @@ pub(crate) enum ExpectedValue {
     MetadataPatchSize,
     MetadataSequence,
     MetadataTtl,
-    SiteName,
+    SessionName,
     RightClick,
     PanelLabel,
     OutputFilePath,
@@ -1255,7 +1255,7 @@ struct Options {
     panel_agent: panel_agent::Options,
     metadata: workspace_metadata::Options,
     panel_metadata: panel_metadata::Options,
-    site: Option<String>,
+    session: Option<String>,
     output: Option<String>,
     client: Option<String>,
     focus: bool,
@@ -1730,8 +1730,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             }
         }
     }
-    let mut site = options
-        .site
+    let mut session = options
+        .session
         .take()
         .map(|name| {
             orchbee_local_runtime::SessionName::parse(&name).map_err(|_| {
@@ -1760,7 +1760,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         });
     let format = options.format;
     let request = resolve(positionals, options)?;
-    if matches!(&request, Request::DefaultConfig) && site.is_some() {
+    if matches!(&request, Request::DefaultConfig) && session.is_some() {
         return Err(usage_with(
             UsageReason::UnexpectedOption {
                 context: UsageContext::Literal("orchbee --default-config"),
@@ -1786,7 +1786,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
     }
     Ok(SelectedRequest {
         request,
-        site,
+        session,
         availability,
         format,
     })
@@ -5345,7 +5345,7 @@ fn stop_command(
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
-) -> Result<SiteStopCommand, ParseFailure> {
+) -> Result<ServerStopCommand, ParseFailure> {
     check_scope(options, context, envelope)?;
     if !options.confirm {
         return Err(missing_required(context, "'--confirm'", envelope));

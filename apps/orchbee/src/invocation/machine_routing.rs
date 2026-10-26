@@ -91,7 +91,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     Ok(SelectedRequest {
         availability: super::grammar::Availability::Windows,
         format: Some(format),
-        site: None,
+        session: None,
         request: Request::MachineRoute(Route {
             selector,
             arguments,

@@ -112,7 +112,7 @@ fn main() -> ExitCode {
         )
         && !cfg!(windows)
         && (selected.availability == invocation::grammar::Availability::Windows
-            || selected.site.is_some())
+            || selected.session.is_some())
     {
         return emit(cli::unsupported_platform(selected.format, locale), locale);
     }

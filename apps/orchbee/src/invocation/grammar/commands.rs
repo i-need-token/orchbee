@@ -155,15 +155,15 @@ commands! {
     ApiSchema => ["api", "schema"], 1, Operand, Portable, true, false, false;
     ConfigCheck => ["config", "check"], 0, Operand, Portable, true, false, false;
     ConfigResetKeys => ["config", "reset-keys"], 0, Operand, Windows, true, false, false;
-    SiteStart => ["server", "start"], 0, Operand, Portable, true, false, false;
+    ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
     SessionList => ["session", "list"], 0, Operand, Windows, true, false, false;
     SessionAttach => ["session", "attach"], 1, Session, Windows, false, false, false;
     SessionStop => ["session", "stop"], 1, Session, Windows, true, false, false;
     SessionDelete => ["session", "delete"], 1, Session, Windows, true, false, false;
-    SiteDiagnose => ["server", "diagnose"], 0, Operand, Portable, true, false, false;
-    SiteUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
-    SiteConfig => ["server", "config"], 0, Operand, Portable, true, true, false;
-    SiteReloadConfig => ["server", "reload-config"], 0, Operand, Portable, true, true, false;
+    ServerDiagnose => ["server", "diagnose"], 0, Operand, Portable, true, false, false;
+    ServerUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
+    ServerConfig => ["server", "config"], 0, Operand, Portable, true, true, false;
+    ServerReloadConfig => ["server", "reload-config"], 0, Operand, Portable, true, true, false;
     TerminalTitleSet => ["terminal", "title", "set"], 1, Operand, Portable, true, true, false;
     TerminalTitleClear => ["terminal", "title", "clear"], 0, Operand, Portable, true, true, false;
     EventsSubscribe => ["events", "subscribe"], 0, Operand, Windows, true, false, false;
@@ -186,9 +186,9 @@ commands! {
     PluginConfigDir => ["plugin", "config-dir"], 1, Operand, Windows, true, false, false;
     PluginActionList => ["plugin", "action", "list"], 1, Operand, Windows, true, true, false;
     NotificationShow => ["notification", "show"], 1, Operand, Portable, true, true, false;
-    SiteAgentManifests => ["server", "agent-manifests"], 0, Operand, Portable, true, true, false;
-    SiteReloadAgentManifests => ["server", "reload-agent-manifests"], 0, Operand, Portable, true, true, false;
-    SiteAgentManifestsStatus => ["server", "agent-manifests-status"], 1, Operand, Portable, true, true, false;
-    SiteStop => ["server", "stop"], 0, Operand, Portable, true, true, false;
-    SiteStopStatus => ["server", "stop-status"], 1, Operand, Portable, true, true, false;
+    ServerAgentManifests => ["server", "agent-manifests"], 0, Operand, Portable, true, true, false;
+    ServerReloadAgentManifests => ["server", "reload-agent-manifests"], 0, Operand, Portable, true, true, false;
+    ServerAgentManifestsStatus => ["server", "agent-manifests-status"], 1, Operand, Portable, true, true, false;
+    ServerStop => ["server", "stop"], 0, Operand, Portable, true, true, false;
+    ServerStopStatus => ["server", "stop-status"], 1, Operand, Portable, true, true, false;
 }

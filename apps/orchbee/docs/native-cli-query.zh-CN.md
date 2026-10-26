@@ -2482,4 +2482,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=a18d7011b54237290506e101feb2358a3b28f387fb9e791e6f4ed267464c520b zh-cn-sha256=c670f9daac569112c3e55a07e42dc9b75d60d4f99ef1532f76e0a41114ef7799 -->
+<!-- documentation-pairing: english-sha256=a9a93c504c7ecf60f2d71c7b0fe78e9b999687d047a5e2f6173dc0215f87c2c5 zh-cn-sha256=f6aa2cb07bb765ed2bbbb23b4841c18e1abd64e01d639589b16a895ecdf021b4 -->

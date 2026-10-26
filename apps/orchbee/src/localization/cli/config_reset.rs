@@ -3,7 +3,7 @@ use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport};
 
 impl Locale {
     #[cfg(windows)]
-    pub(crate) fn cli_config_reset(self, report: &WindowsKeysResetReport) -> String {
+    pub(crate) fn cli_config_reset(self, report: &KeysResetReport) -> String {
         let path = report
             .path
             .as_deref()

@@ -229,7 +229,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::ApiSchema => &["orchbee.status"],
         CommandPath::ConfigCheck => &[],
         CommandPath::ConfigResetKeys => &[],
-        CommandPath::SiteStart => &[],
+        CommandPath::ServerStart => &[],
         CommandPath::SessionList => &[],
         CommandPath::SessionAttach => &["work"],
         CommandPath::SessionStop => &["work", "--confirm"],
