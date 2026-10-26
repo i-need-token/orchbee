@@ -83,7 +83,6 @@ pub(crate) fn encode_document(document: &Value) -> Result<Vec<u8>, TooLarge> {
 }
 
 /// One compact NDJSON record, completely prepared under the per-record bound.
-#[cfg(windows)]
 pub(crate) fn encode_record(document: &Value) -> Result<Vec<u8>, TooLarge> {
     let mut bounded = Bounded::new(LIMIT);
     serde_json::to_writer(&mut bounded, document).map_err(|_| TooLarge)?;

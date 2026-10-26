@@ -1,9 +1,7 @@
 use super::Locale;
-#[cfg(windows)]
 use orchbee_client_server_protocol::TerminalControlOutcome;
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_clear(
         self,
         terminal: &str,

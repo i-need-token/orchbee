@@ -5,6 +5,9 @@ use orchbee_local_runtime::read_user_settings;
 use serde_json::json;
 
 pub(crate) fn show(format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::ChannelPreference) {
+        return failure_output(failure, Some(format), locale);
+    }
     let settings = match read_user_settings(|name| std::env::var_os(name)) {
         Ok(settings) => settings,
         Err(error) => {

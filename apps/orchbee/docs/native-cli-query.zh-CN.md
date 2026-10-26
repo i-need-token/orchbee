@@ -28,6 +28,8 @@ Workbench 与终端列表补充信息共用有界 canonical／physical 读取、
 
 Agent 变更、解释与等待共用交换、取消结算和展示所有者。Agent 中断端口委托现有 Linux 或 Windows 信号生产者；持有的 Client Connection 仍在唯一一次 finish 仲裁前释放。Windows 等待保留连续历史与可选 Client 证据，Linux 等待保留规范状态采样及其既有输出字段。macOS 保留独立的有界规范列表所有者；不可用的读取能力在信号或 Session 副作用前拒绝。
 
+事件订阅／等待、精确终端清理、Agent 视图规格和离线频道报告共用既有协议、保留结果和渲染流程。不支持的 host 在信号注册、请求标识生成和偏好读取之前执行能力准入。事件清理仍先释放 relay，再由原控制台 guard 进行唯一一次最终仲裁；丢失清理或视图 mutation 的结果继续保留为不确定收据。
+
 ## 会话与后台服务
 
 一个 **Orchbee 会话（Session）** 是包含 Workspace、Tab、Panel、终端和 Agent 的独立工作环境。
@@ -2502,4 +2504,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=2f8deeed01bc47d7bd26f674d8ebbed11188e01daf113cd421c08086b67f8375 zh-cn-sha256=34fde30882601a5c23fe3603a729a3b58192a15af751e57f61f4f70cf6e6689e -->
+<!-- documentation-pairing: english-sha256=947276c18c5ecfecce5318275ea1baeb71ed49509f1f4d96e20bb83965f66baf zh-cn-sha256=e0add49cdd83b7b44c9cebcfa34c9215eeca6f272c0ac30acadf13b6f96ab9d5 -->

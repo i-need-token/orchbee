@@ -28,6 +28,8 @@ Terminal observation, control, attachment and Pane graphics share protocol, fram
 
 Agent changes, explanations and waits share exchange, cancellation settlement and presentation owners. The Agent interrupt port delegates to the existing Linux or Windows signal producer; the held Client Connection is still dropped before its single finish arbitration. Windows waits retain contiguous history and optional Client evidence, while Linux waits retain sampled canonical observations and their existing output fields. macOS keeps its separate bounded canonical list owner; unavailable read capabilities refuse before signal or Session effects.
 
+Event subscription/wait, exact-terminal clear, Agent view specification and offline channel reporting share their existing protocol, retained outcome and rendering workflows. Capability admission precedes signal registration, request identities and preference reads on unsupported hosts. Event cleanup still drops the relay before the original console guard performs its one final arbitration; a lost clear or view mutation keeps its unknown-outcome receipt.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

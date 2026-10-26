@@ -26,6 +26,10 @@ pub(super) enum Capability {
     NamedSessions,
     ReleaseUpdate,
     ServerStop,
+    TerminalClear,
+    AgentViewSpec,
+    ChannelPreference,
+    Events,
 }
 
 pub(super) struct Unsupported(Capability);
@@ -60,7 +64,11 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::ConfiguredCommands
         | Capability::NamedSessions
         | Capability::ReleaseUpdate
-        | Capability::ServerStop => Failure::new(FailureKind::ServiceUnavailable)
+        | Capability::ServerStop
+        | Capability::TerminalClear
+        | Capability::AgentViewSpec
+        | Capability::ChannelPreference
+        | Capability::Events => Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform")),
     })
 }

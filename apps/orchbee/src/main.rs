@@ -162,13 +162,6 @@ fn main() -> ExitCode {
                 cli::machines::run(&command, format, locale)
             }
             #[cfg(not(windows))]
-            Ok(
-                invocation::Request::TerminalClear { format, .. }
-                | invocation::Request::Events { format, .. }
-                | invocation::Request::ChannelShow { format, .. }
-                | invocation::Request::AgentView { format, .. },
-            ) => cli::unsupported_platform(Some(format), locale),
-            #[cfg(not(windows))]
             Ok(invocation::Request::MachineTunnel { .. }) => {
                 cli::unsupported_platform(None, locale)
             }
@@ -180,7 +173,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Skill) => cli::skill(locale),
             Ok(invocation::Request::DefaultConfig) => cli::default_config(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
-            #[cfg(windows)]
             Ok(invocation::Request::TerminalClear { target, format }) => {
                 cli::clear_terminal(&target, format, locale)
             }
@@ -249,11 +241,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::PaneGraphics { command, format }) => {
                 cli::pane_graphics::run(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::Events { command, format }) => {
                 cli::events::run(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::ChannelShow { format }) => cli::channel::show(format, locale),
             Ok(invocation::Request::Update { channel, format }) => {
                 cli::update::run(channel, 600_000, format, locale)
@@ -288,7 +278,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Client { command, format }) => {
                 cli::run_client_control(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::AgentView { action, format }) => {
                 cli::agent_view_spec::run(&action, format, locale)
             }

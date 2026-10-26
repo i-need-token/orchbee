@@ -1,13 +1,14 @@
 //! One retained semantic subscription. No reconnect, replay, PTY input or navigation effect.
 use super::{
-    Failure, FailureKind, Output, SourceFinalization, failure_output, output, query, results,
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish},
+    failure_output, output, query, results,
     terminal_stream::relay::Relay,
 };
 use crate::{
     invocation::{OutputFormat, Resource, events::Command},
     local_client::LocalClient,
     localization::Locale,
-    windows_signal::ControlInterrupt,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, SemanticEventCursor, SemanticEventData, SemanticEventFilter as Filter,
@@ -22,7 +23,10 @@ mod filters;
 mod text;
 
 pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Output {
-    let signal = match ControlInterrupt::arm() {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::Events) {
+        return failure_output(failure, Some(format), locale);
+    }
+    let signal = match ArmedSignals::arm_interrupts() {
         Ok(signal) => signal,
         Err(_) => {
             return failure_output(
@@ -61,9 +65,13 @@ pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Ou
         };
         failure_output(failure, Some(format), locale)
     });
-    if !signal.finish_clear() {
-        result.status = FailureKind::Cancelled.exit_code();
-        result.finalization = Some(SourceFinalization::new(signal));
+    match signal.finish() {
+        Ok(Finish::Clear) => {}
+        Ok(Finish::Cancelled { finalization }) => {
+            result.status = FailureKind::Cancelled.exit_code();
+            result.finalization = Some(finalization);
+        }
+        Err(_) => result.status = FailureKind::InternalFailure.exit_code(),
     }
     result
 }
@@ -72,11 +80,11 @@ fn execute(
     command: &Command,
     format: OutputFormat,
     locale: Locale,
-    signal: &ControlInterrupt,
+    signal: &ArmedSignals,
     mut relay: Option<&mut Relay>,
 ) -> Result<Output, Failure> {
     let (mut client, snapshot) =
-        query::stream_snapshot(Instant::now() + Duration::from_secs(5), Some(signal.wake()))?;
+        query::stream_snapshot(Instant::now() + Duration::from_secs(5), signal.poll_fd())?;
     let filters = filters::resolve(command, &snapshot)?;
     let subscription_id = query::request_id()?;
     let opened = exchange(
@@ -293,7 +301,7 @@ fn exchange(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     action: Action,
-    signal: &ControlInterrupt,
+    signal: &ArmedSignals,
 ) -> Result<SemanticEventsResult, Failure> {
     use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason as E;
     if signal.requested() {
@@ -308,7 +316,7 @@ fn exchange(
                 action,
             },
             Instant::now() + Duration::from_secs(3),
-            Some(signal.wake()),
+            signal.poll_fd(),
         )
         .map_err(|error| {
             Failure::new(if signal.requested() {
@@ -330,7 +338,7 @@ fn emit(
     reply: &SemanticEventsResult,
     snapshot: &Snapshot,
     format: OutputFormat,
-    signal: &ControlInterrupt,
+    signal: &ArmedSignals,
 ) -> Result<(), Failure> {
     let bytes = if format == OutputFormat::Json { output::encode_record(&json!({"schema":"orchbee.events.stream","version":1,"kind":kind,"source":source(snapshot),"result":public_reply(reply)?})) }
     else { output::encode_text(&text::record(kind, &reply.outcome, &text::clock(std::time::SystemTime::now()), locale)) }.map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;

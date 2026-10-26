@@ -4,7 +4,6 @@
 
 mod agent_interrupt;
 pub(crate) mod agent_manifests;
-#[cfg(windows)]
 pub(crate) mod agent_view_spec;
 mod console_interrupt;
 mod execution;
@@ -26,7 +25,6 @@ pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;
 mod client_control;
 pub(crate) mod configured_commands;
-#[cfg(windows)]
 pub(crate) mod events;
 pub(crate) mod pane_graphics;
 mod stdin_bytes;
@@ -49,14 +47,11 @@ pub(crate) mod workspace_creation;
 mod workspace_focus;
 pub(crate) use creation::run_parsed as run_creation;
 mod agent_request;
-#[cfg(windows)]
 pub(crate) mod channel;
 mod completion;
-#[cfg(windows)]
 mod terminal_clear;
 mod terminal_editor;
 mod terminal_list;
-#[cfg(windows)]
 pub(crate) use terminal_clear::run as clear_terminal;
 pub(crate) use terminal_editor::run as edit_terminal_scrollback;
 pub(crate) mod config;

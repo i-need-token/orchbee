@@ -1,7 +1,8 @@
 //! Existing-Session, exact-target, one-shot clear; submitted uncertainty is never replayed.
 use super::{
-    Failure, FailureKind, Output, failure_output, output, query, results,
-    source::{ArmedSignals, Finish, SignalWatch},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    failure_output, output, query, results,
 };
 use crate::{
     invocation::{OutputFormat, Target},
@@ -16,6 +17,9 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 
 pub(crate) fn run(target: &Target, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::TerminalClear) {
+        return failure_output(failure, Some(format), locale);
+    }
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,

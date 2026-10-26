@@ -1,8 +1,6 @@
 use super::Locale;
-#[cfg(windows)]
 use orchbee_workbench_protocol::{AgentViewFailure as F, AgentViewOutcome};
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_agent_view_exchange_failed(self) -> &'static str {
         match self {
             Self::EnUs => "Agent view exchange failed\n",
@@ -40,7 +38,6 @@ impl Locale {
             },
         )
     }
-    #[cfg(windows)]
     pub(crate) fn cli_agent_view(self, outcome: Option<&AgentViewOutcome>) -> String {
         match outcome {
             Some(AgentViewOutcome::Available { snapshot }) => match &snapshot.spec {

@@ -25,6 +25,10 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::NamedSessions
         | Capability::ReleaseUpdate
         | Capability::ServerStop
+        | Capability::TerminalClear
+        | Capability::AgentViewSpec
+        | Capability::ChannelPreference
+        | Capability::Events
         | Capability::AgentProjection
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation
