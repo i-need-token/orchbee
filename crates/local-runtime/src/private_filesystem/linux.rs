@@ -6,7 +6,7 @@ use nix::sys::statfs::{EXT4_SUPER_MAGIC, TMPFS_MAGIC, fstatfs};
 use std::{io, os::fd::AsFd};
 
 /// The managed development boundary claims only local POSIX-ACL filesystem semantics.
-pub(super) fn require_private(fd: &impl AsFd) -> io::Result<()> {
+pub(crate) fn require_private(fd: &impl AsFd) -> io::Result<()> {
     let filesystem = fstatfs(fd)?.filesystem_type();
     if filesystem != EXT4_SUPER_MAGIC && filesystem != TMPFS_MAGIC {
         return Err(io::Error::new(
@@ -30,4 +30,4 @@ pub(super) fn require_private(fd: &impl AsFd) -> io::Result<()> {
 }
 
 #[cfg(test)]
-pub(super) mod tests;
+pub(crate) mod tests;

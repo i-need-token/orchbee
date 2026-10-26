@@ -1,7 +1,6 @@
 //! Pure projection of the exact primary incarnation's already-installed viewport.
-use super::{
-    ClientProjectionStatus, KeyedProjection, ViewportSurface, WorkbenchClientUi, WorkbenchPanelId,
-};
+use super::super::terminal_viewport::ViewportSurface;
+use super::{ClientProjectionStatus, KeyedProjection, WorkbenchClientUi, WorkbenchPanelId};
 use orchbee_workbench_protocol::{
     ClientPanelViewport, ClientScrollMetrics, ClientViewControl, ClientViewControlReason as Reason,
     ClientViewIntent, ClientViewportMode, ClientViewportObservation as Observation,

@@ -9,7 +9,7 @@ use std::{fs, io, os::fd::AsFd, os::unix::fs::MetadataExt, path::Path};
 /// development boundary therefore admits only APFS objects without an
 /// extended ACL. The native ACL API is pathname-only, so the path is checked
 /// against the descriptor identity both before and after the lookup.
-pub(super) fn require_private(fd: &impl AsFd, path: &Path) -> io::Result<()> {
+pub(crate) fn require_private(fd: &impl AsFd, path: &Path) -> io::Result<()> {
     if fstatfs(fd.as_fd())?.filesystem_type_name() != "apfs" {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
