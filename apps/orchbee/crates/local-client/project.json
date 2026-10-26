@@ -1,0 +1,11 @@
+{
+	"$schema": "../../../../schemas/project-contract.schema.json",
+	"domain": "orchbee",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Application-private Client Connection transport for the Orchbee native application: bounded admission and protocol exchanges, multiplexed lanes and subscriptions, connection health, cancellation, and retained byte-carrier lifetime.",
+	"nonGoals": [
+		"Owning machine profiles, SSH process creation, runtime discovery, or feature observation policy.",
+		"Owning CLI grammar and output, TUI interaction, or Workbench presentation and command scheduling."
+	]
+}

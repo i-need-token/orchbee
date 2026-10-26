@@ -615,7 +615,7 @@ transport 失败和未知结果均为最终结果。Feedback 在接受前保持�
 | 声明                                 | 细化映射和证据                                                                                                                                                                                                                                                    |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 只有已知未改变的容量结果允许再次尝试 | Server viewer/control 的 ServerBusy 分支证明 Host effect 未发生；Client 仅匹配这个精确结果。Fake Server 分区检查 busy、拒绝、不可用和未知结果。                                                                                                                   |
-| 不重放任何可能已发生的副作用         | [LocalClient 测试](src/local_client/tests.rs) 检查单次 exchange 后的超时与 EOF 不会触发重提交；[native command 轨迹](src/workbench_client/connection/native/tests/commands.rs) 检查 busy input/resize/feedback，以及输入结果不明后的退役。                        |
+| 不重放任何可能已发生的副作用         | [LocalClient 测试](crates/local-client/src/local_client/tests.rs) 检查单次 exchange 后的超时与 EOF 不会触发重提交；[native command 轨迹](src/workbench_client/connection/native/tests/commands.rs) 检查 busy input/resize/feedback，以及输入结果不明后的退役。    |
 | 截止时间与身份不重置                 | 同一操作截止时间覆盖全部尝试；请求 ID 与 controller sequence 递增；有界 fake Server 轨迹覆盖到期和 busy Resize。                                                                                                                                                  |
 | 保留反馈与取消仍有界                 | [Mailbox 测试](src/workbench_client/mailbox/tests.rs) 检查八条记录的容量；[native 传输测试](src/workbench_client/connection/native/tests.rs) 检查精确的已绘制帧反馈；[Workbench Client 生命周期测试](src/workbench_client/tests.rs) 检查保留适配器释放时的 join。 |
 
@@ -934,4 +934,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=7796f8abc8ae5fab162afa11c5722bae1d0eaa205685a82cc628f4e853b2536f zh-cn-sha256=bbb5d7c089c4861a919c48c0e4ffce0d7152a67590d6a620a709d4295d936d4c -->
+<!-- documentation-pairing: english-sha256=6ae804ee17abe57aa6ee9060cb741ec4eff04b3ba611656764bd16cd67d8a30f zh-cn-sha256=8b50dfe19a26c40c1e11a90110e9e04eaa72c5d32c3a09097a2e76e837755990 -->

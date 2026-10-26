@@ -1,0 +1,23 @@
+[package]
+name = "orchbee-local-client"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+getrandom.workspace = true
+orchbee-agent-observation-protocol = { path = "../../../../crates/agent-observation-protocol" }
+orchbee-client-server-protocol = { path = "../../../../crates/client-server-protocol" }
+orchbee-local-client-protocol = { path = "../../../../crates/local-client-protocol" }
+orchbee-local-ipc = { path = "../../../../crates/local-ipc" }
+orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["fs"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

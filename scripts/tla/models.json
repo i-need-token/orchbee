@@ -134,7 +134,7 @@
         "apps/orchbee/src/terminal_projection*",
         "apps/orchbee/src/terminal_projection/**",
         "apps/orchbee/src/local_client*",
-        "apps/orchbee/src/local_client/**",
+        "apps/orchbee/crates/local-client/src/**",
         "crates/client-server-protocol/src/**",
         "crates/workbench-protocol/src/**",
         "apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
@@ -163,7 +163,8 @@
       "triggers": [
         "apps/orchbee/src/native_settings*",
         "apps/orchbee/src/native_settings/**",
-        "apps/orchbee/src/local_client/workbench/settings*",
+        "apps/orchbee/crates/local-client/src/local_client/workbench/settings*",
+        "apps/orchbee/crates/local-client/src/local_client/workbench/settings/**",
         "apps/orchbee/src/workbench_client/settings_lane*",
         "apps/orchbee/src/workbench_client/ui/settings*",
         "apps/orchbee-settings/**",
@@ -247,7 +248,8 @@
         "apps/orchbee-server/src/local_client_service/multiplex.rs",
         "apps/orchbee-server/src/local_client_service/application_connection.rs",
         "apps/orchbee-server/src/semantic_events/changes.rs",
-        "apps/orchbee/src/local_client/multiplex.rs",
+        "apps/orchbee/crates/local-client/src/local_client/multiplex.rs",
+        "apps/orchbee/crates/local-client/src/local_client/multiplex/**",
         "crates/workbench-protocol/src/multiplex.rs"
       ],
       "requiredCoverage": [

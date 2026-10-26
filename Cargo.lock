@@ -849,6 +849,7 @@ dependencies = [
  "orchbee-agent-observation-protocol",
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
+ "orchbee-local-client",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-worker-protocol",
@@ -892,6 +893,20 @@ version = "0.1.0"
 dependencies = [
  "jsonschema",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "orchbee-local-client"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "nix",
+ "orchbee-agent-observation-protocol",
+ "orchbee-client-server-protocol",
+ "orchbee-local-client-protocol",
+ "orchbee-local-ipc",
+ "orchbee-workbench-protocol",
  "serde_json",
 ]
 

@@ -6,6 +6,7 @@ members = [
 	"apps/orchbee-server",
 	"apps/orchbee-settings",
 	"apps/orchbee-worker",
+	"apps/*/crates/*",
 	"crates/agent-observation-protocol",
 	"crates/capability-node-protocol",
 	"crates/client-server-protocol",
