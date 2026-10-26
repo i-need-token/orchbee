@@ -59,10 +59,16 @@ pub(super) fn execute(service: &LocalTerminalService, viewer: &ViewerAttachment<
             },
             WorkerOutcome::ClearOutcomeUnknown => Outcome::OutcomeUnknown {},
             WorkerOutcome::Rejected(reason) => rejected(worker_rejection(reason)),
-            _ => Outcome::OutcomeUnknown {},
+            WorkerOutcome::Acquired
+            | WorkerOutcome::Released
+            | WorkerOutcome::InputAccepted
+            | WorkerOutcome::Resized(_)
+            | WorkerOutcome::Pasted { .. }
+            | WorkerOutcome::HostColorsAccepted => Outcome::OutcomeUnknown {},
         },
         Err(WorkerRequestError::Backpressure) => unavailable(Unavailable::ServerBusy),
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Outcome::OutcomeUnknown {},
+        // The carrier checks the operation kind; other transport failures mean no receipt.
         _ => unavailable(Unavailable::TerminalRuntimeUnavailable),
     }
 }

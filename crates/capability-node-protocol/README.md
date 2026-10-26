@@ -11,6 +11,14 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Terminal control result pairing
+
+`TerminalControlAction::admits` owns control action/result pairing. Every action may be rejected;
+only Clear admits `ClearOutcomeUnknown`. Resize requires an exact geometry echo, and Paste accepts
+at most twice its content length plus 12 encoded bytes. The action match is exhaustive, so adding
+an action requires declaring its admissible outcomes. The carrier separately validates request,
+viewer, and controller identities.
+
 ## Windows Worker handoff
 
 Frame version 1 adds fixed-size kinds 26 Request, 27 Result, 28 Hello, 29 Ready and 30 Owned.

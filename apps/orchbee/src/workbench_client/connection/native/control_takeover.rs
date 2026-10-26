@@ -114,7 +114,16 @@ impl NativeExecutor {
                     TerminalControlOutcome::OutcomeUnknown {} => {
                         return Err(CarrierFailure::OutcomeUnknown);
                     }
-                    _ => return Err(CarrierFailure::Transport),
+                    TerminalControlOutcome::Acquired { .. }
+                    | TerminalControlOutcome::InputAccepted {}
+                    | TerminalControlOutcome::Resized { .. }
+                    | TerminalControlOutcome::Pasted { .. }
+                    | TerminalControlOutcome::HostColorsAccepted {}
+                    | TerminalControlOutcome::Cleared { .. }
+                    | TerminalControlOutcome::Rejected { .. }
+                    | TerminalControlOutcome::Unavailable { .. } => {
+                        return Err(CarrierFailure::Transport);
+                    }
                 }
             }
             TerminalControlOutcome::Rejected { .. }
@@ -124,7 +133,11 @@ impl NativeExecutor {
             TerminalControlOutcome::OutcomeUnknown {} => {
                 return Err(CarrierFailure::OutcomeUnknown);
             }
-            _ => return Err(CarrierFailure::Protocol),
+            TerminalControlOutcome::InputAccepted {}
+            | TerminalControlOutcome::Resized { .. }
+            | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::HostColorsAccepted {}
+            | TerminalControlOutcome::Cleared { .. } => return Err(CarrierFailure::Protocol),
         }
         let evidence = self
             .pending_takeover

@@ -222,6 +222,7 @@ where
             rectangle: Missing,
             select_output: Missing,
         } => Ok(ViewerSelectionGestureAction::Cancel),
+        // Any missing or extra discriminant-specific field is an invalid wire shape.
         _ => Err(<D::Error as serde::de::Error>::custom(
             "selection gesture fields do not match its action",
         )),
@@ -405,6 +406,7 @@ impl TerminalViewerAction {
                 maximum_bytes,
                 ..
             } => Some((*row_count, *maximum_bytes)),
+            // Only row reads carry this pair of bounds; other fields validate separately.
             _ => None,
         };
         if bounds.is_some_and(|bounds| {

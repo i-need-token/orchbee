@@ -170,7 +170,7 @@ impl PluginJobAction {
                 }
                 Ok(())
             }
-            _ => Ok(()),
+            Self::Get { .. } | Self::Cancel { .. } => Ok(()),
         }
     }
 }
@@ -242,8 +242,10 @@ impl PluginCommandLog {
                 {
                     Ok(())
                 }
+                // A finished log must carry success, an exit failure, or a failure without exit.
                 _ => Err(ProtocolError::InvalidPayload),
             },
+            // An unfinished log cannot carry completion data or captured output.
             _ => Err(ProtocolError::InvalidPayload),
         }
     }
@@ -310,47 +312,51 @@ impl PluginJobResult {
                     log.validate()?;
                 }
             }
-            _ => {}
+            PluginJobOutcome::Cancellation { .. } | PluginJobOutcome::Refused(_) => {}
         }
         Ok(())
     }
     pub fn answers(&self, request: &PluginJobRequest) -> bool {
+        let refused = matches!(&self.outcome, PluginJobOutcome::Refused(_));
         self.operation_id == request.operation_id
             && self.worker_id == request.worker_id
             && self.worker_generation == request.worker_generation
             && self.validate().is_ok()
-            && match (&request.action, &self.outcome) {
-                (
-                    PluginJobAction::StartConfigured(_),
-                    PluginJobOutcome::ConfiguredStarted { job_id, .. },
-                ) => *job_id == request.operation_id,
-                (_, PluginJobOutcome::Refused(_)) => true,
-                (PluginJobAction::Start(intent), PluginJobOutcome::Started { log, .. }) => {
-                    log.plugin_id == intent.plugin_id
-                        && log.command_id == intent.command_id
-                        && log.command == intent.argv
+            && match &request.action {
+                PluginJobAction::StartConfigured(_) => {
+                    matches!(&self.outcome, PluginJobOutcome::ConfiguredStarted { job_id, .. }
+                        if *job_id == request.operation_id)
+                        || refused
                 }
-                (
-                    PluginJobAction::List {
-                        plugin_id,
-                        before,
-                        limit,
-                    },
-                    PluginJobOutcome::Logs { logs, .. },
-                ) => {
-                    logs.len() <= usize::from(*limit)
+                PluginJobAction::Start(intent) => {
+                    matches!(&self.outcome, PluginJobOutcome::Started { log, .. }
+                        if log.plugin_id == intent.plugin_id
+                            && log.command_id == intent.command_id
+                            && log.command == intent.argv)
+                        || refused
+                }
+                PluginJobAction::List {
+                    plugin_id,
+                    before,
+                    limit,
+                } => {
+                    matches!(&self.outcome, PluginJobOutcome::Logs { logs, .. }
+                    if logs.len() <= usize::from(*limit)
                         && logs.iter().all(|log| {
-                            plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
-                                && before.is_none_or(|v| log.sequence < v)
-                        })
+                        plugin_id.as_ref().is_none_or(|id| *id == log.plugin_id)
+                            && before.is_none_or(|v| log.sequence < v)
+                    })) || refused
                 }
-                (PluginJobAction::Get { job_id }, PluginJobOutcome::Logs { logs, next_before }) => {
-                    next_before.is_none()
-                        && logs.len() <= 1
-                        && logs.iter().all(|log| log.job_id == *job_id)
+                PluginJobAction::Get { job_id } => {
+                    matches!(&self.outcome, PluginJobOutcome::Logs { logs, next_before }
+                        if next_before.is_none()
+                            && logs.len() <= 1
+                            && logs.iter().all(|log| log.job_id == *job_id))
+                        || refused
                 }
-                (PluginJobAction::Cancel { .. }, PluginJobOutcome::Cancellation { .. }) => true,
-                _ => false,
+                PluginJobAction::Cancel { .. } => {
+                    matches!(&self.outcome, PluginJobOutcome::Cancellation { .. }) || refused
+                }
             }
     }
 }

@@ -528,7 +528,13 @@ pub(super) fn classify_control(outcome: ControlOutcome) -> Failure {
     Failure::new(match outcome {
         ControlOutcome::Unavailable { .. } => FailureKind::ServiceUnavailable,
         ControlOutcome::OutcomeUnknown {} => FailureKind::OutcomeUnknown,
-        _ => FailureKind::ProtocolInvalid,
+        ControlOutcome::Acquired { .. }
+        | ControlOutcome::InputAccepted {}
+        | ControlOutcome::Resized { .. }
+        | ControlOutcome::Pasted { .. }
+        | ControlOutcome::HostColorsAccepted {}
+        | ControlOutcome::Cleared { .. }
+        | ControlOutcome::Rejected { .. } => FailureKind::ProtocolInvalid,
     })
 }
 

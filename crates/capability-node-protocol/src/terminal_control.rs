@@ -104,6 +104,44 @@ pub enum TerminalControlAction {
         colors: HostDefaultColors,
     },
 }
+impl TerminalControlAction {
+    /// Admits only this action's result, including its geometry or encoded paste bound.
+    /// Any action may be rejected; only Clear admits an unknown clear outcome.
+    #[must_use]
+    pub fn admits(&self, outcome: &TerminalControlOutcome) -> bool {
+        let rejected = matches!(outcome, TerminalControlOutcome::Rejected(_));
+        match self {
+            Self::Acquire | Self::Takeover { .. } => {
+                matches!(outcome, TerminalControlOutcome::Acquired) || rejected
+            }
+            Self::Clear => {
+                matches!(
+                    outcome,
+                    TerminalControlOutcome::Cleared { .. }
+                        | TerminalControlOutcome::ClearOutcomeUnknown
+                ) || rejected
+            }
+            Self::Release => matches!(outcome, TerminalControlOutcome::Released) || rejected,
+            Self::Input { .. } => {
+                matches!(outcome, TerminalControlOutcome::InputAccepted) || rejected
+            }
+            Self::Resize { geometry, .. } => {
+                matches!(outcome, TerminalControlOutcome::Resized(actual) if geometry == actual)
+                    || rejected
+            }
+            Self::Paste { content, .. } => {
+                matches!(outcome, TerminalControlOutcome::Pasted { accepted_bytes }
+                    if content.as_bytes().len().checked_mul(2)
+                        .and_then(|bound| bound.checked_add(12))
+                        .is_some_and(|bound| usize::try_from(accepted_bytes.get()).is_ok_and(|value| value <= bound)))
+                    || rejected
+            }
+            Self::HostColors { .. } => {
+                matches!(outcome, TerminalControlOutcome::HostColorsAccepted) || rejected
+            }
+        }
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalControlRequest {
     pub request_id: OperationId,

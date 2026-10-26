@@ -191,36 +191,50 @@ impl TerminalLifecycleResult {
         {
             return Err(ProtocolError::InvalidPayload);
         }
-        match (request.action, outcome) {
-            (Action::Terminate, Outcome::TerminateAccepted)
-            | (Action::TerminateIfIdle, Outcome::TerminateAccepted)
-            | (
-                Action::TerminateIfIdle,
-                Outcome::HostFailure(LifecycleHostFailure::ConfirmationRequired),
-            )
-            | (Action::Force, Outcome::ForceAccepted)
-            | (Action::Dispose, Outcome::Disposed)
-            | (Action::Dispose, Outcome::HostFailure(LifecycleHostFailure::CleanupIncomplete))
-            | (Action::InventoryPage { .. }, Outcome::InventoryFailure(_))
-            | (Action::InspectInventoryPage { .. }, Outcome::InventoryFailure(_))
-            | (_, Outcome::Rejected(_))
-            | (_, Outcome::HostFailure(LifecycleHostFailure::HostRefused))
-            | (_, Outcome::OutcomeUnknown(_)) => {}
-            (_, Outcome::HostUnavailableBeforeHandoff) => {}
-            (
-                Action::InventoryPage { cursor } | Action::InspectInventoryPage { cursor },
-                Outcome::InventoryPage(page),
-            ) => {
-                validate_page(cursor, page)?;
-                if request.authorization.capability_version != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
-                    && page.target.is_some_and(|target| {
-                        target.close_activity != LifecycleCloseActivity::Unknown
-                    })
-                {
-                    return Err(ProtocolError::InvalidPayload);
-                }
+        let failed = matches!(
+            outcome,
+            Outcome::Rejected(_)
+                | Outcome::HostFailure(LifecycleHostFailure::HostRefused)
+                | Outcome::OutcomeUnknown(_)
+                | Outcome::HostUnavailableBeforeHandoff
+        );
+        let compatible = match request.action {
+            Action::Terminate => matches!(outcome, Outcome::TerminateAccepted) || failed,
+            Action::TerminateIfIdle => {
+                matches!(
+                    outcome,
+                    Outcome::TerminateAccepted
+                        | Outcome::HostFailure(LifecycleHostFailure::ConfirmationRequired)
+                ) || failed
             }
-            _ => return Err(ProtocolError::InvalidPayload),
+            Action::Force => matches!(outcome, Outcome::ForceAccepted) || failed,
+            Action::Dispose => {
+                matches!(
+                    outcome,
+                    Outcome::Disposed
+                        | Outcome::HostFailure(LifecycleHostFailure::CleanupIncomplete)
+                ) || failed
+            }
+            Action::InventoryPage { cursor } | Action::InspectInventoryPage { cursor } => {
+                if let Outcome::InventoryPage(page) = outcome {
+                    validate_page(cursor, page)?;
+                    if request.authorization.capability_version
+                        != TERMINAL_LIFECYCLE_CAPABILITY_VERSION
+                        && page.target.is_some_and(|target| {
+                            target.close_activity != LifecycleCloseActivity::Unknown
+                        })
+                    {
+                        return Err(ProtocolError::InvalidPayload);
+                    }
+                }
+                matches!(
+                    outcome,
+                    Outcome::InventoryPage(_) | Outcome::InventoryFailure(_)
+                ) || failed
+            }
+        };
+        if !compatible {
+            return Err(ProtocolError::InvalidPayload);
         }
         Ok(Self { request, outcome })
     }

@@ -14,10 +14,10 @@ use std::os::fd::AsFd;
 
 use orchbee_client_server_protocol::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, ServerMessage,
-    TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
-    TerminalLaunchReadRequest, TerminalLaunchReadResult, TerminalSendRequest, TerminalSendResult,
-    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
-    encode_client_frame, read_server_message,
+    TerminalControlRequest, TerminalControlResult, TerminalLaunchReadRequest,
+    TerminalLaunchReadResult, TerminalSendRequest, TerminalSendResult, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult, encode_client_frame,
+    read_server_message,
 };
 use orchbee_local_client_protocol::{ClientConnection, ConnectClientError};
 
@@ -338,31 +338,7 @@ impl LocalClient {
                 },
             );
         }
-        let compatible = match (&action, result.outcome()) {
-            (
-                _,
-                TerminalControlOutcome::Rejected { .. }
-                | TerminalControlOutcome::Unavailable { .. }
-                | TerminalControlOutcome::OutcomeUnknown {},
-            )
-            | (
-                TerminalControlAction::Acquire { .. } | TerminalControlAction::Takeover { .. },
-                TerminalControlOutcome::Acquired { .. },
-            )
-            | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {})
-            | (
-                TerminalControlAction::HostColors { .. },
-                TerminalControlOutcome::HostColorsAccepted {},
-            )
-            | (TerminalControlAction::Clear { .. }, TerminalControlOutcome::Cleared { .. })
-            | (TerminalControlAction::Paste { .. }, TerminalControlOutcome::Pasted { .. }) => true,
-            (
-                TerminalControlAction::Resize { geometry, .. },
-                TerminalControlOutcome::Resized { geometry: actual },
-            ) => geometry == actual,
-            _ => false,
-        };
-        if !compatible {
+        if !action.admits(result.outcome()) {
             return self.retire_with_unknown(
                 request_id,
                 OutcomeUnknownReason::InvalidResult(ProtocolError::InvalidPayload),

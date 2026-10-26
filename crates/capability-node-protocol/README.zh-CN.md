@@ -10,6 +10,13 @@ Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compat
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## 终端控制结果配对
+
+`TerminalControlAction::admits` 拥有控制动作与结果的配对规则。每个动作都可以被拒绝，
+仅 Clear 接受 `ClearOutcomeUnknown`。Resize 要求返回完全相同的几何信息，Paste 接受的
+编码字节数最多为内容长度的两倍加 12。动作匹配必须穷举，因此新增动作时必须声明允许的
+结果。carrier 另外校验请求、viewer 与 controller 标识。
+
 ## Windows Worker 交接
 
 帧版本 1 新增定长 kind 26 Request、27 Result、28 Hello、29 Ready 与 30 Owned。
@@ -669,4 +676,4 @@ Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端�
 空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
 cohort 一同升级／回滚；不支持混用版本绕过安全门禁。
 
-<!-- documentation-pairing: english-sha256=ca800b9f7c39a476cb8ec68671b486e2f5159c26faa7c855ce846a7e49657bdd zh-cn-sha256=6e5ad78be501a48edbfc573ecbda320856b861d728e4e0e5f3a16573146282ff -->
+<!-- documentation-pairing: english-sha256=03e536c9ee3a5e074e1476658edb8c44c2cc82544507c374a2f99c491675c409 zh-cn-sha256=7ae2f7ec155c795725bb6b0ee432f8e295143309bd16145aca032d9fb06af567 -->

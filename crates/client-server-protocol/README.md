@@ -16,6 +16,14 @@ The crate does not connect a transport, authenticate a Client, authorize a reque
 store request identity, execute a terminal effect, cancel work, reconcile an unknown outcome, or
 project Workbench state.
 
+## Terminal control result pairing
+
+`TerminalControlAction::admits` owns control action/result pairing. Each action admits its own
+success plus rejection, unavailability, or an unknown outcome; Resize also requires an exact
+geometry echo. The action match is exhaustive, so adding an action requires declaring its
+admissible outcomes. Callers validate request correlation and attachment/controller identities
+separately.
+
 ## Public API
 
 | API                                                                                                                                                 | Contract                                                                                                                                                                                               |

@@ -491,7 +491,7 @@ impl TerminalSendOutcome {
             } => {
                 return Err(ProtocolError::InvalidPayload);
             }
-            _ => {}
+            Self::Rejected { .. } | Self::Unavailable { .. } | Self::OutcomeUnknown { .. } => {}
         }
         if progress.records_accepted() > 0 && *self.cleanup() == SendCleanupStatus::NotNeeded {
             return Err(ProtocolError::InvalidPayload);

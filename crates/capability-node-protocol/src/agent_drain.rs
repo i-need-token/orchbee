@@ -153,15 +153,16 @@ fn validate_page(queue_tail: u64, entries: &[AgentDrainEntry]) -> Result<(), Pro
             return Err(ProtocolError::InvalidPayload);
         }
         match entry {
-            AgentDrainEntry::Event { payload, .. }
-                if payload.len() > MAXIMUM_SIGNAL_PAYLOAD_BYTES =>
-            {
-                return Err(ProtocolError::InvalidPayload);
+            AgentDrainEntry::Event { payload, .. } => {
+                if payload.len() > MAXIMUM_SIGNAL_PAYLOAD_BYTES {
+                    return Err(ProtocolError::InvalidPayload);
+                }
             }
-            AgentDrainEntry::Gap { low, high } if low.get() > *high => {
-                return Err(ProtocolError::InvalidPayload);
+            AgentDrainEntry::Gap { low, high } => {
+                if low.get() > *high {
+                    return Err(ProtocolError::InvalidPayload);
+                }
             }
-            _ => {}
         }
         bytes = bytes
             .checked_add(entry.encoded_bytes())

@@ -2979,7 +2979,16 @@ impl NativeExecutor {
         };
         match self.control_for_setup(owner, key, action, cutoff)? {
             Some(TerminalControlOutcome::OutcomeUnknown {}) => Err(CarrierFailure::OutcomeUnknown),
-            Some(_) => {
+            Some(
+                TerminalControlOutcome::Acquired { .. }
+                | TerminalControlOutcome::InputAccepted {}
+                | TerminalControlOutcome::Resized { .. }
+                | TerminalControlOutcome::Pasted { .. }
+                | TerminalControlOutcome::HostColorsAccepted {}
+                | TerminalControlOutcome::Cleared { .. }
+                | TerminalControlOutcome::Rejected { .. }
+                | TerminalControlOutcome::Unavailable { .. },
+            ) => {
                 self.attached_mut(key)?.reported_host_colors = Some(colors);
                 Ok(())
             }
@@ -3002,7 +3011,14 @@ impl NativeExecutor {
             TerminalControlOutcome::OutcomeUnknown {} => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
             }
-            _ => {
+            TerminalControlOutcome::Acquired { .. }
+            | TerminalControlOutcome::InputAccepted {}
+            | TerminalControlOutcome::Resized { .. }
+            | TerminalControlOutcome::Pasted { .. }
+            | TerminalControlOutcome::HostColorsAccepted {}
+            | TerminalControlOutcome::Cleared { .. }
+            | TerminalControlOutcome::Rejected { .. }
+            | TerminalControlOutcome::Unavailable { .. } => {
                 if let Ok(attached) = self.attached_mut(key) {
                     attached.reported_host_colors = Some(colors);
                 }

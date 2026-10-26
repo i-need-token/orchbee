@@ -147,7 +147,9 @@ fn apply(
         | Action::Resize { sequence, .. }
         | Action::Paste { sequence, .. }
         | Action::HostColors { sequence, .. } => *sequence,
-        _ => unreachable!("acquisition and release handled"),
+        Action::Acquire | Action::Takeover { .. } | Action::Release | Action::Clear => {
+            unreachable!("acquisition, release, and clear handled")
+        }
     };
     let grant = match host.controllers.borrow_mut().admit(
         request.viewer_id,
@@ -190,7 +192,11 @@ fn apply(
             }))?;
             (command.kind, command.payload, PayloadEncoding::RawBytes)
         }
-        _ => unreachable!("effect action matched"),
+        Action::Acquire
+        | Action::Takeover { .. }
+        | Action::Release
+        | Action::Clear
+        | Action::HostColors { .. } => unreachable!("effect action matched"),
     };
     let response = exchange(host, server, correlation, kind, &payload, encoding)?;
     let envelope = decode_transport_envelope(&response)?;
@@ -205,7 +211,13 @@ fn apply(
                 "invalid-phase" => Rejection::HostInputUnavailable,
                 _ => Rejection::HostRejected,
             },
-            _ => Rejection::HostRejected,
+            Action::Acquire
+            | Action::Takeover { .. }
+            | Action::Release
+            | Action::Clear
+            | Action::Input { .. }
+            | Action::Resize { .. }
+            | Action::HostColors { .. } => Rejection::HostRejected,
         };
         return Ok(Outcome::Rejected(rejection));
     }
@@ -260,7 +272,11 @@ fn apply(
                 )?,
             })
         }
-        _ => unreachable!("effect action matched"),
+        Action::Acquire
+        | Action::Takeover { .. }
+        | Action::Release
+        | Action::Clear
+        | Action::HostColors { .. } => unreachable!("effect action matched"),
     }
 }
 pub(crate) fn release_viewer(

@@ -101,7 +101,13 @@ fn execute(
         | TerminalControlOutcome::OutcomeUnknown {} => 8,
         TerminalControlOutcome::Rejected { .. } => 3,
         TerminalControlOutcome::Unavailable { .. } => 4,
-        _ => return Err(Failure::new(FailureKind::ProtocolInvalid).source(source)),
+        TerminalControlOutcome::Acquired { .. }
+        | TerminalControlOutcome::InputAccepted {}
+        | TerminalControlOutcome::Resized { .. }
+        | TerminalControlOutcome::Pasted { .. }
+        | TerminalControlOutcome::HostColorsAccepted {} => {
+            return Err(Failure::new(FailureKind::ProtocolInvalid).source(source));
+        }
     };
     let stdout = if format == OutputFormat::Json {
         output::encode_document(

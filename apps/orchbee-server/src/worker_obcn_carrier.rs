@@ -1341,9 +1341,6 @@ fn validate_response(
             WorkerOperationRequest::Control(expected),
             CapabilityNodeMessage::TerminalControlResult(actual),
         ) => {
-            use orchbee_capability_node_protocol::{
-                TerminalControlAction as Action, TerminalControlOutcome as Outcome,
-            };
             if actual.request_id != expected.request_id {
                 return Err(WorkerResponseFailure::MismatchedCorrelation);
             }
@@ -1352,25 +1349,7 @@ fn validate_response(
             {
                 return Err(WorkerResponseFailure::MismatchedTarget);
             }
-            let compatible = match (&expected.action, actual.outcome) {
-                (_, Outcome::Rejected(_))
-                | (Action::Acquire | Action::Takeover { .. }, Outcome::Acquired)
-                | (Action::Release, Outcome::Released)
-                | (Action::Input { .. }, Outcome::InputAccepted)
-                | (Action::HostColors { .. }, Outcome::HostColorsAccepted)
-                | (Action::Clear, Outcome::Cleared { .. } | Outcome::ClearOutcomeUnknown) => true,
-                (Action::Resize { geometry, .. }, Outcome::Resized(actual)) => *geometry == actual,
-                (Action::Paste { content, .. }, Outcome::Pasted { accepted_bytes }) => content
-                    .as_bytes()
-                    .len()
-                    .checked_mul(2)
-                    .and_then(|bound| bound.checked_add(12))
-                    .is_some_and(|bound| {
-                        usize::try_from(accepted_bytes.get()).is_ok_and(|v| v <= bound)
-                    }),
-                _ => false,
-            };
-            if !compatible {
+            if !expected.action.admits(&actual.outcome) {
                 return Err(WorkerResponseFailure::WrongResultKind);
             }
             Ok(WorkerOperationResult::Control(actual))

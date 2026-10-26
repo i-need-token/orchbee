@@ -307,6 +307,39 @@ impl<'de> Deserialize<'de> for TerminalControlAction {
 }
 
 impl TerminalControlAction {
+    /// Admits only this action's result, including an exact resize geometry echo.
+    /// Rejection, unavailability, and an unknown outcome apply to every action.
+    #[must_use]
+    pub fn admits(&self, outcome: &TerminalControlOutcome) -> bool {
+        let failed = matches!(
+            outcome,
+            TerminalControlOutcome::Rejected { .. }
+                | TerminalControlOutcome::Unavailable { .. }
+                | TerminalControlOutcome::OutcomeUnknown {}
+        );
+        match self {
+            Self::Acquire { .. } | Self::Takeover { .. } => {
+                matches!(outcome, TerminalControlOutcome::Acquired { .. }) || failed
+            }
+            Self::Clear { .. } => {
+                matches!(outcome, TerminalControlOutcome::Cleared { .. }) || failed
+            }
+            Self::Input { .. } => {
+                matches!(outcome, TerminalControlOutcome::InputAccepted {}) || failed
+            }
+            Self::Resize { geometry, .. } => {
+                matches!(outcome, TerminalControlOutcome::Resized { geometry: actual } if geometry == actual)
+                    || failed
+            }
+            Self::Paste { .. } => {
+                matches!(outcome, TerminalControlOutcome::Pasted { .. }) || failed
+            }
+            Self::HostColors { .. } => {
+                matches!(outcome, TerminalControlOutcome::HostColorsAccepted {}) || failed
+            }
+        }
+    }
+
     #[must_use]
     pub const fn attachment_id(&self) -> &ViewerId {
         match self {

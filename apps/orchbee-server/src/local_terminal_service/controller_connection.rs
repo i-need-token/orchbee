@@ -284,7 +284,10 @@ pub(super) fn execute<'service>(
                     }
                 }
             }
-            _ => {
+            WorkerOutcome::Acquired
+            | WorkerOutcome::Cleared { .. }
+            | WorkerOutcome::ClearOutcomeUnknown
+            | WorkerOutcome::Released => {
                 viewer.controller.take();
                 Outcome::OutcomeUnknown {}
             }
@@ -294,6 +297,7 @@ pub(super) fn execute<'service>(
             viewer.controller.take();
             Outcome::OutcomeUnknown {}
         }
+        // The carrier checks the operation kind; other transport failures retire the lease.
         _ => {
             viewer.controller.take();
             unavailable(Unavailable::TerminalRuntimeUnavailable)
@@ -430,13 +434,20 @@ fn acquire<'service>(
                 lease.armed = false;
                 rejected(worker_rejection(reason))
             }
-            _ => Outcome::OutcomeUnknown {},
+            WorkerOutcome::Cleared { .. }
+            | WorkerOutcome::ClearOutcomeUnknown
+            | WorkerOutcome::Released
+            | WorkerOutcome::InputAccepted
+            | WorkerOutcome::Resized(_)
+            | WorkerOutcome::Pasted { .. }
+            | WorkerOutcome::HostColorsAccepted => Outcome::OutcomeUnknown {},
         },
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Outcome::OutcomeUnknown {},
         Err(WorkerRequestError::Backpressure) => {
             lease.armed = false;
             unavailable(Unavailable::ServerBusy)
         }
+        // The carrier checks the operation kind; no other transport failure proves a grant.
         _ => {
             lease.armed = false;
             unavailable(Unavailable::TerminalRuntimeUnavailable)
