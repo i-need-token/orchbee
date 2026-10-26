@@ -65,6 +65,7 @@ mod tui_pointer;
 mod tui_presentation;
 mod tui_render;
 mod tui_shell;
+mod tui_shortcut_help;
 mod tui_theme;
 #[cfg(windows)]
 mod windows_console_input;

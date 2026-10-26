@@ -9,6 +9,8 @@ application to declare. It owns the layout projection only: colors, glyphs, and 
 to the theme surface, overlay contents belong to their surface renderers, and terminal cell drawing
 belongs to `terminal_cells`.
 
+Shortcut discovery belongs to `tui_shortcut_help`: it selects effective bindings and active modes, filters capability availability, and merges stable action identities before rendering. Localization owns semantic labels and groups, never a `ClientView` or its filtering policy. Shell hints receive the effective prefix and action labels selected by `Bindings::shell_bindings`; their placeholder substitution retains the original ordering and unbound text.
+
 The projection is pure. `tui_layout::project_shell_areas` computes every region from the current
 frame rectangle and the sidebar surface (including its preferred width) the view asks for; `tui_shell` computes the terminal
 geometry from the same two functions (`project_shell_areas` then `native_terminal_area`), so the drawn

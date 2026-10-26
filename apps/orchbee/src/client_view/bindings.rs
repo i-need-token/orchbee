@@ -57,71 +57,7 @@ pub(crate) struct PrefixMember {
     pub(crate) shell: ShellCommand,
 }
 
-/// Localization keys retained by input owners for mode-specific descriptions
-/// and status hints. Global shortcut discovery uses action metadata instead.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PrefixDesc {
-    DismissOnboarding,
-    ActionMenu,
-    Settings,
-    ConfiguredCommand(u8),
-    ResizeMode,
-    ResizeLeft,
-    ResizeRight,
-    ResizeUp,
-    ResizeDown,
-    ResizeCoarse,
-    ResizeFine,
-    ResizeExit,
-    CopyMode,
-    CopyMove,
-    CopyWord,
-    CopyParagraph,
-    CopyPage,
-    CopyEnds,
-    CopySearch,
-    CopyRepeatSearch,
-    CopyReverseSearch,
-    CopySelection,
-    CopySubmit,
-    CopyExit,
-    Machines,
-    AgentCycle,
-    AgentIndex,
-    ReloadConfiguration,
-    WorkspaceCreate,
-    QuickWorkspaceCreate,
-    WorktreeCreate,
-    WorktreeOpen,
-    WorkspaceClose,
-    ControlTakeover,
-    WorkspaceDirectory,
-    WorkspaceRename,
-    ProjectRename,
-    RenameTab,
-    CloseTab,
-    CreateTab,
-    MoveTab,
-    SelectTabWrap,
-    SelectContext,
-    SelectTabDigit,
-    PanelFocus,
-    PresentationSelect,
-    PanelZoom,
-    SplitPanel,
-    ClosePanel,
-    MovePanel,
-    SidebarToggle,
-    SidebarFocus,
-    NavigatorToggle,
-    BoardToggle,
-    ShowHelp,
-    HelpPage,
-    PointerCapture,
-    Exit,
-    LiteralPrefix,
-    DismissPrefix,
-}
+pub(crate) use crate::localization::PrefixDesc;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PrefixGroup {
@@ -464,6 +400,31 @@ pub(crate) fn match_prefix(event: KeyEvent) -> Option<&'static PrefixMember> {
         .iter()
         .flat_map(|group| group.members)
         .find(|member| member.keys.matches(event))
+}
+
+impl Bindings {
+    /// Select the same resolved labels as dispatch before localized chrome substitutes text.
+    pub(crate) fn shell_bindings(&self, unbound: &str) -> crate::localization::ShellBindings {
+        let label = |description| {
+            self.labels(description)
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| unbound.to_owned())
+        };
+        crate::localization::ShellBindings {
+            prefix: crate::terminal_events::keys::format_binding(
+                &self.prefix,
+                crate::terminal_events::keys::LabelStyle::for_host(),
+            ),
+            help: label(PrefixDesc::ShowHelp),
+            exit: label(PrefixDesc::Exit),
+            sidebar: label(PrefixDesc::SidebarToggle),
+            zoom: label(PrefixDesc::PanelZoom),
+            navigator: label(PrefixDesc::NavigatorToggle),
+            create_tab: label(PrefixDesc::CreateTab),
+            close_tab: label(PrefixDesc::CloseTab),
+        }
+    }
 }
 
 #[cfg(test)]

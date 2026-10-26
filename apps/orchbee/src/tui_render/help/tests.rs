@@ -319,7 +319,8 @@ fn bidi_filter_text_is_sanitized_for_display_while_raw_query_still_matches() {
 fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
     let mut view = ClientView::new(120);
     open_help(&mut view);
-    let mut entries = Locale::EnUs.shortcut_help_entries(
+    let mut entries = crate::tui_shortcut_help::entries(
+        crate::localization::Locale::EnUs,
         &view,
         true,
         crate::client_view::KeyLabelGlyphs::Unicode,

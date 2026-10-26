@@ -7,6 +7,8 @@
 拥有布局投影：颜色、字形与边框样式归主题层，浮层内容归各自 surface 渲染器，终端单元格绘制
 归 `terminal_cells`。
 
+快捷键发现归 `tui_shortcut_help` 所有：它选择有效绑定与当前模式、按能力筛选可用性，并在渲染前按稳定动作身份合并。localization 只拥有语义标签与分组，不接收 `ClientView`，也不决定筛选策略。shell 提示接收 `Bindings::shell_bindings` 选出的有效前缀与动作标签；占位符替换保留原有顺序及未绑定文案。
+
 投影是纯函数。`tui_layout::project_shell_areas` 根据当前帧矩形与视图请求的侧面板形态（含首选宽度）计算
 所有区域；`tui_shell` 用同一对函数（先 `project_shell_areas` 再 `native_terminal_area`）计算终端
 几何，因此绘制内容区与 wire 几何不可能分叉。渲染代码不修改业务状态、时钟或 I/O，布局值也
@@ -561,4 +563,4 @@ F1 包含当前上下文、未读变化、展开折叠及所有 Agent 状态的�
 
 侧栏图例将展开控件的符号标为“已展开”和“已折叠”。帮助首次成功绘制前使用八行的有界导航估计；绘制后按发布的容量翻页。
 
-<!-- documentation-pairing: english-sha256=55b4d0c9c17d32811445a9daa598e022ee8fa92375ad55fb06eafd620c9c50ae zh-cn-sha256=614def21a7e7a3d275c2a110fdb969eda36eb1c669b2f88e32c50f28965b56de -->
+<!-- documentation-pairing: english-sha256=0ae52b3006031a57a6c5d55e4cf81a8ebd1437f9a88d6b3a70796929ec95bfb5 zh-cn-sha256=bae571fcf4c171ecf5d427f8325d556eed1ad060558fd392d29569d43159a919 -->

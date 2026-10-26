@@ -24,8 +24,13 @@ fn binding(action: &'static str, key: &str, prefix: bool) -> KeyOverride {
 fn shortcut_entries(
     locale: crate::localization::Locale,
     view: &ClientView,
-) -> Vec<crate::localization::ShortcutHelpEntry> {
-    locale.shortcut_help_entries(view, true, crate::client_view::KeyLabelGlyphs::Unicode)
+) -> Vec<crate::tui_shortcut_help::ShortcutHelpEntry> {
+    crate::tui_shortcut_help::entries(
+        locale,
+        view,
+        true,
+        crate::client_view::KeyLabelGlyphs::Unicode,
+    )
 }
 
 fn run(

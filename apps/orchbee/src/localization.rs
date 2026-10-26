@@ -2,6 +2,9 @@
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
 mod action_menu;
+pub(crate) use action_menu::ActionSearchAlias;
+mod parameters;
+pub(crate) use parameters::{BackendAction, Notice, PanelDirection};
 mod agent_projection;
 mod control_takeover;
 mod directory_startup;
@@ -14,7 +17,7 @@ mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
 mod plugins;
 mod shortcut_help;
-pub(crate) use shortcut_help::{ShortcutHelpEntry, shortcut_filter_matches};
+pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel};
 mod capabilities;
 mod runtime_configuration;
 mod settings;
@@ -40,6 +43,7 @@ mod onboarding;
 #[cfg(any(unix, windows))]
 mod panel_close;
 mod prefix;
+pub(crate) use prefix::PrefixDesc;
 mod session_status;
 mod shell;
 mod startup;
@@ -53,7 +57,7 @@ mod workspace_close;
 #[cfg(any(unix, windows))]
 mod workspace_setup;
 mod worktree_launch;
-pub(crate) use shell::ShellText;
+pub(crate) use shell::{ShellBindings, ShellText};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Locale {

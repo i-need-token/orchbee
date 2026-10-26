@@ -854,7 +854,12 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
             rendered.replace(' ', "").contains(
                 &locale
                     .shell()
-                    .bound_hint(&view, &locale.native_close_status(&status))
+                    .bound_hint(
+                        &view
+                            .bindings()
+                            .shell_bindings(locale.shell().binding_unbound),
+                        &locale.native_close_status(&status)
+                    )
                     .replace(' ', "")
             )
         );

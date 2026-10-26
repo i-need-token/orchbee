@@ -1,11 +1,12 @@
 //! Shortcut-help geometry, semantic binding discovery, and exact draw authority.
 
+use crate::tui_shortcut_help::ShortcutHelpEntry;
 use crate::{
     client_view::{
         ClientView, KeyLabelGlyphs,
         help::{DrawnHelpControl, HelpControl, HelpDrawCandidate, HelpDrawSource},
     },
-    localization::{Locale, ShellText, ShortcutHelpEntry},
+    localization::{Locale, ShellText},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::place_overlay,
     tui_pointer::{
@@ -89,7 +90,7 @@ pub(super) fn render(
         candidate,
     } = context;
     let mut entries =
-        locale.shortcut_help_entries(view, session_available, key_label_glyphs(theme));
+        crate::tui_shortcut_help::entries(locale, view, session_available, key_label_glyphs(theme));
     if !view.help_expanded() && view.help_filter().trim().is_empty() {
         entries.retain(ShortcutHelpEntry::common);
     }
@@ -444,7 +445,9 @@ fn shortcut_lines(
 ) -> Option<Vec<Line<'static>>> {
     let mut matching = entries
         .iter()
-        .filter(|entry| crate::localization::shortcut_filter_matches(query, &entry.search_text))
+        .filter(|entry| {
+            crate::tui_shortcut_help::shortcut_filter_matches(query, &entry.search_text)
+        })
         .collect::<Vec<_>>();
     if !query.trim().is_empty() {
         // Title matches lead within their group; groups stay contiguous so each heading appears
@@ -452,7 +455,7 @@ fn shortcut_lines(
         matching.sort_by_key(|entry| {
             (
                 entry.group.order(),
-                !crate::localization::shortcut_filter_matches(query, &entry.title),
+                !crate::tui_shortcut_help::shortcut_filter_matches(query, &entry.title),
             )
         });
     }

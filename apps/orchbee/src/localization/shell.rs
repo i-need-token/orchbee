@@ -1,9 +1,10 @@
 //! Localized shell chrome, notices, and effective shortcut labels; does not dispatch actions.
 
 use super::Locale;
+use super::PrefixDesc;
 use super::agent_board::AgentBoardText;
 use super::prefix::{en_us_prefix_desc, zh_cn_prefix_desc};
-use crate::client_view::{BackendAction, LabelStyle, Notice, PrefixDesc, format_binding};
+use super::{BackendAction, Notice};
 
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 
@@ -113,6 +114,19 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     zoom_badge: "已放大 · Ctrl+B z 恢复",
 };
 
+/// Effective labels selected by the binding owner; text only substitutes these frozen strings.
+#[derive(Clone, Debug)]
+pub(crate) struct ShellBindings {
+    pub(crate) prefix: String,
+    pub(crate) help: String,
+    pub(crate) exit: String,
+    pub(crate) sidebar: String,
+    pub(crate) zoom: String,
+    pub(crate) navigator: String,
+    pub(crate) create_tab: String,
+    pub(crate) close_tab: String,
+}
+
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
 pub(crate) struct BoundShellText<'a> {
     base: ShellText<'a>,
@@ -135,7 +149,7 @@ impl BoundShellText<'_> {
 }
 
 impl<'a> ShellText<'a> {
-    pub(crate) fn bind(self, view: &crate::client_view::ClientView) -> BoundShellText<'a> {
+    pub(crate) fn bind(self, bindings: &ShellBindings) -> BoundShellText<'a> {
         let hints = [
             self.exit_hint,
             self.hint_short,
@@ -145,44 +159,35 @@ impl<'a> ShellText<'a> {
             self.sidebar_hint,
             self.zoom_badge,
         ]
-        .map(|hint| self.bound_hint(view, hint));
+        .map(|hint| self.bound_hint(bindings, hint));
         BoundShellText { base: self, hints }
     }
 
-    pub(crate) fn bound_hint(&self, view: &crate::client_view::ClientView, hint: &str) -> String {
-        let bindings = view.bindings();
+    pub(crate) fn bound_hint(&self, bindings: &ShellBindings, hint: &str) -> String {
         let mut result = hint.to_owned();
         // Substitute complete default chords before the standalone prefix. The replacement
         // values come from the same resolved entries dispatch uses, including disabled actions.
         let replacements = [
-            ("Ctrl+B ?", PrefixDesc::ShowHelp),
-            ("Ctrl+B q", PrefixDesc::Exit),
-            ("Ctrl+B b", PrefixDesc::SidebarToggle),
-            ("Ctrl+B z", PrefixDesc::PanelZoom),
-            ("Ctrl+B w", PrefixDesc::NavigatorToggle),
-            ("Ctrl+B c", PrefixDesc::CreateTab),
-            ("Ctrl+B x", PrefixDesc::CloseTab),
-            ("Ctrl+B then q", PrefixDesc::Exit),
-            ("Ctrl+B 后按 q", PrefixDesc::Exit),
-            ("Ctrl+B 后按 c", PrefixDesc::CreateTab),
-            ("Ctrl+B 后按 x", PrefixDesc::CloseTab),
-            ("Ctrl+B 后按 w", PrefixDesc::NavigatorToggle),
+            ("Ctrl+B ?", bindings.help.as_str()),
+            ("Ctrl+B q", bindings.exit.as_str()),
+            ("Ctrl+B b", bindings.sidebar.as_str()),
+            ("Ctrl+B z", bindings.zoom.as_str()),
+            ("Ctrl+B w", bindings.navigator.as_str()),
+            ("Ctrl+B c", bindings.create_tab.as_str()),
+            ("Ctrl+B x", bindings.close_tab.as_str()),
+            ("Ctrl+B then q", bindings.exit.as_str()),
+            ("Ctrl+B 后按 q", bindings.exit.as_str()),
+            ("Ctrl+B 后按 c", bindings.create_tab.as_str()),
+            ("Ctrl+B 后按 x", bindings.close_tab.as_str()),
+            ("Ctrl+B 后按 w", bindings.navigator.as_str()),
         ];
         // Placeholders prevent one configured chord from being rewritten by a later replacement.
         for (index, (old, _)) in replacements.iter().enumerate() {
             result = result.replace(old, &format!("\u{e000}{index}\u{e001}"));
         }
-        result = result.replace(
-            "Ctrl+B",
-            &format_binding(&bindings.prefix, LabelStyle::for_host()),
-        );
-        for (index, (_, desc)) in replacements.iter().enumerate() {
-            let actual = bindings
-                .labels(*desc)
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| self.binding_unbound.into());
-            result = result.replace(&format!("\u{e000}{index}\u{e001}"), &actual);
+        result = result.replace("Ctrl+B", &bindings.prefix);
+        for (index, (_, actual)) in replacements.iter().enumerate() {
+            result = result.replace(&format!("\u{e000}{index}\u{e001}"), actual);
         }
         result
     }

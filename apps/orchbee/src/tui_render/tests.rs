@@ -2122,8 +2122,12 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
     prefix(&mut view, plain('P'));
     commit(&mut view, plain('?'));
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let entries =
-            locale.shortcut_help_entries(&view, true, crate::client_view::KeyLabelGlyphs::Unicode);
+        let entries = crate::tui_shortcut_help::entries(
+            locale,
+            &view,
+            true,
+            crate::client_view::KeyLabelGlyphs::Unicode,
+        );
         assert!(entries.iter().any(|entry| {
             entry.title == locale.shortcut_scroll_label() && entry.key.contains("Page")
         }));

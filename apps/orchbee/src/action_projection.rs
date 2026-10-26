@@ -37,31 +37,7 @@ pub(crate) enum ActionCategory {
     Input,
 }
 
-/// Reviewed semantic aliases. Localization supplies the actual searchable words.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ActionSearchAlias {
-    Actions,
-    Commands,
-    Preferences,
-    Workspace,
-    Worktree,
-    Project,
-    Tab,
-    Pane,
-    Split,
-    Resize,
-    Copy,
-    Close,
-    Rename,
-    Move,
-    Select,
-    Sidebar,
-    Navigator,
-    Agent,
-    Help,
-    Mouse,
-    Detach,
-}
+pub(crate) use crate::localization::ActionSearchAlias;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ActionMetadata<'a> {

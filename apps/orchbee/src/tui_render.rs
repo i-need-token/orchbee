@@ -223,7 +223,8 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     };
     let capture_owner = project_capture(client_claims, native_claims);
     let native_top = |owner| capture_owner == Some(CaptureOwner::Native(owner));
-    let bound_text = locale.shell().bind(view);
+    let shell_text = locale.shell();
+    let bound_text = shell_text.bind(&view.bindings().shell_bindings(shell_text.binding_unbound));
     let text = bound_text.text();
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
 

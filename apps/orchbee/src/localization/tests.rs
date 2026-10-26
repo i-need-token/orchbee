@@ -390,8 +390,18 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
     let owner_entries = inventory
         .bindings()
         .discovery_entries(KeyLabelGlyphs::Unicode);
-    let english = Locale::EnUs.shortcut_help_entries(&inventory, true, KeyLabelGlyphs::Unicode);
-    let chinese = Locale::ZhCn.shortcut_help_entries(&inventory, true, KeyLabelGlyphs::Unicode);
+    let english = crate::tui_shortcut_help::entries(
+        crate::localization::Locale::EnUs,
+        &inventory,
+        true,
+        KeyLabelGlyphs::Unicode,
+    );
+    let chinese = crate::tui_shortcut_help::entries(
+        crate::localization::Locale::ZhCn,
+        &inventory,
+        true,
+        KeyLabelGlyphs::Unicode,
+    );
     for (code, expected, en_title, zh_title) in cases {
         let owned_key = owner_entries
             .iter()

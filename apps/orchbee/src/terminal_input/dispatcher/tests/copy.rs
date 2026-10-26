@@ -365,7 +365,8 @@ fn configured_entry_and_disabled_default_share_dispatch_and_discovery() {
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, input);
         assert_eq!(port.active, enters);
-        let entries = crate::localization::Locale::EnUs.shortcut_help_entries(
+        let entries = crate::tui_shortcut_help::entries(
+            crate::localization::Locale::EnUs,
             &view,
             true,
             crate::client_view::KeyLabelGlyphs::Unicode,

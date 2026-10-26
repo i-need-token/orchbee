@@ -1,9 +1,31 @@
-use super::Locale;
-use crate::{
-    action_menu::{MenuAction, MenuUnavailable},
-    action_projection::ActionSearchAlias,
-    client_view::PanelDirection,
-};
+use super::{Locale, PanelDirection};
+
+/// Reviewed semantic aliases. Localization supplies the actual searchable words.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ActionSearchAlias {
+    Actions,
+    Commands,
+    Preferences,
+    Workspace,
+    Worktree,
+    Project,
+    Tab,
+    Pane,
+    Split,
+    Resize,
+    Copy,
+    Close,
+    Rename,
+    Move,
+    Select,
+    Sidebar,
+    Navigator,
+    Agent,
+    Help,
+    Mouse,
+    Detach,
+}
+use crate::action_menu::{MenuAction, MenuUnavailable};
 
 impl Locale {
     pub(crate) const fn menu_search_label(self) -> &'static str {
