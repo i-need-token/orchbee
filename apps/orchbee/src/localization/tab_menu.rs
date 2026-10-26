@@ -49,7 +49,7 @@ impl Locale {
             (Self::EnUs, CreateGroup, Some(n)) => format!("New group for selected {n} Tabs…"),
             (Self::ZhCn, CreateGroup, Some(n)) => format!("为所选 {n} 个标签页新建分组…"),
             (Self::EnUs, JoinGroup, Some(n)) => format!("Move selected {n} Tabs to"),
-            (Self::ZhCn, JoinGroup(_), Some(n)) => format!("将所选 {n} 个标签页移入"),
+            (Self::ZhCn, JoinGroup, Some(n)) => format!("将所选 {n} 个标签页移入"),
             (Self::EnUs, RemoveFromGroup, Some(n)) => {
                 format!("Remove selected {n} Tabs from groups")
             }
