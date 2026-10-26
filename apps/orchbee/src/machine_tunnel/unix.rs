@@ -1,17 +1,14 @@
 //! Unix saved-machine tunnels have no process or endpoint implementation.
-use crate::local_client::cancellation::Cancellation;
+use super::StartedCarrier;
 use crate::{
-    local_client::LocalClient,
     machines::Profile,
     tui_capabilities::{Capability, Unsupported},
 };
-use std::{io, time::Instant};
+use std::io;
 
-pub(super) fn connect(
+pub(super) fn prepare(
     _profile: &Profile,
-    _admitted: crate::machine_ssh::Client,
-    _deadline: Instant,
-    _cancelled: Cancellation<'_>,
-) -> io::Result<LocalClient> {
+    _admitted: &crate::machine_ssh::Client,
+) -> io::Result<StartedCarrier> {
     Err(Unsupported(Capability::SavedMachines).into())
 }

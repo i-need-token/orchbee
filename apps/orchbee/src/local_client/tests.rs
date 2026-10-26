@@ -1800,8 +1800,7 @@ impl LocalClient {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
                 local: true,
-                #[cfg(windows)]
-                tunnel: None,
+                carrier: None,
             },
             request_timeout,
             clock,

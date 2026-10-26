@@ -92,12 +92,9 @@ impl Health {
         let request = RequestId::parse(&format!("{next:032x}")).map_err(io::Error::other)?;
         // No invented Session identity is needed. A valid generated target is safe even if it
         // happens to exist: TerminalLaunchRead never attaches, mutates, or dispatches Host RPC.
-        let target = crate::machines::ProfileId::generate().map_err(|_| io::ErrorKind::Other)?;
+        let target = probe_target()?;
         let request_frame = encode_client_frame(&ClientMessage::TerminalLaunchRead(
-            TerminalLaunchReadRequest::new(
-                request.clone(),
-                TerminalId::parse(target.as_str()).map_err(io::Error::other)?,
-            ),
+            TerminalLaunchReadRequest::new(request.clone(), target),
         ))
         .map_err(io::Error::other)?;
         commands.next = next;
@@ -181,4 +178,16 @@ impl Health {
             self.idle_at = now + self.timing.idle;
         }
     }
+}
+
+fn probe_target() -> io::Result<TerminalId> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).map_err(|_| io::ErrorKind::Other)?;
+    TerminalId::parse(
+        &bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+    )
+    .map_err(|_| io::ErrorKind::Other.into())
 }

@@ -122,9 +122,11 @@ must not advertise a Ready control destination or acknowledge visible drawing.
 The shared connection workflow admits the saved-machine capability before inspecting the
 profile or cancellation source. Unix refuses at that boundary without environment or process
 access. Windows retains enabled-profile checking, one bounded Client probe, and the cancellation
-check before passing the admitted Client facts to the carrier port. The port retains executable
-lookup, relay creation, native admission, its final cancellation check and guard transfer under
-the original deadline; it never repeats the probe.
+check before passing the admitted Client facts to the native carrier port for executable lookup
+and relay creation. The shared workflow immediately adopts the real stop flag and relay task into
+the Client's retained carrier guard, then performs native admission, the final cancellation check
+and guard attachment under the original deadline. It never repeats the probe; admission or
+cancellation failure stops and joins the retained relay.
 
 The persistent transport owner creates a private, same-user local pipe endpoint
 and a bounded SSH byte relay for each physical native Client connection. Logical lanes
@@ -135,7 +137,11 @@ admission and application frames pass unchanged through that stream. Neither end
 fabricates an accepted generation or bypasses Server cohort admission. Remote
 terminal input, layout, metadata and control keep their existing semantic owners.
 
-A transport guard retained by Client origins owns its listener, relay task and SSH Jobs.
+A concrete transport guard retained by Client origins owns the relay stop flag and join handle;
+the Windows adapter creates the listener, relay task and SSH Jobs. Derived lanes and reconnects
+retain the same guard without depending on saved-machine profiles. The actor's retained origin
+does not hold the connection actor itself, avoiding a reference/join cycle. Closing a logical
+lane releases its scope; connection shutdown signals actor stop and joins the task once.
 The observer promotes its initial admission before cloning any retained or published origin;
 secondary query/control lanes are logical scopes on that carrier. Buffers are bounded and
 backpressure pauses reads. The connection actor owns replacement admission after EOF and never
@@ -189,7 +195,10 @@ labels of 80 scalars each, and the context identities and labels used by workspa
 A successful snapshot means Online only while the shared connection's application-progress deadline
 remains current. A saved profile, running SSH process or SSH keepalive alone is insufficient.
 The [carrier contract](../../orchbee-server/README.md#multiplexed-client-delivery) owns the single
-five-second-idle/two-second-total read probe and its resource and correlation bounds. An expired
+five-second-idle/two-second-total read probe and its resource and correlation bounds. Transport
+privately generates a validated nonzero 32-digit lowercase hexadecimal TerminalId using fallible
+OS entropy solely for this read-only TerminalLaunchRead; it allocates no machine profile or Session
+identity. Probe failure withdraws freshness without proving that the Server has died. An expired
 progress deadline is Stale and cannot supply a reusable connection. Gap/Disconnected withdraw the
 summary and retain the same observer while the actor rebuilds its subscription; only a fresh
 snapshot restores Online.

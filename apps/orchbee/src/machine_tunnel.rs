@@ -4,19 +4,32 @@ mod windows;
 #[cfg(windows)]
 use windows as platform;
 #[cfg(windows)]
-pub(crate) use windows::{Tunnel, serve};
+pub(crate) use windows::serve;
 #[cfg(not(windows))]
 mod unix;
 #[cfg(not(windows))]
 use unix as platform;
 
 use crate::{
-    local_client::{LocalClient, cancellation::Cancellation},
+    local_client::{LocalClient, RetainedCarrier, cancellation::Cancellation},
     machine_ssh,
     machines::Profile,
     tui_capabilities::Capability,
 };
-use std::{io, time::Instant};
+use std::{
+    io,
+    path::PathBuf,
+    sync::{Arc, atomic::AtomicBool},
+    thread::JoinHandle,
+    time::Instant,
+};
+
+/// Native creation transfers these resources directly into the retained Client guard.
+struct StartedCarrier {
+    endpoint: PathBuf,
+    stop: Arc<AtomicBool>,
+    task: JoinHandle<io::Result<()>>,
+}
 
 /// Admit one saved-machine connection without changing its deadline or replaying its probe.
 pub(crate) fn connect(
@@ -33,7 +46,24 @@ pub(crate) fn connect(
     if cancelled.is_cancelled()? {
         return Err(io::ErrorKind::Interrupted.into());
     }
-    platform::connect(profile, admitted, deadline, cancelled)
+    let StartedCarrier {
+        endpoint,
+        stop,
+        task,
+    } = platform::prepare(profile, &admitted)?;
+    let guard = Arc::new(RetainedCarrier::new(stop, task));
+    // The invocation-owned wake is observed throughout this single admission.
+    let client = LocalClient::connect_before_cancellable(
+        &endpoint,
+        &admitted.cohort,
+        deadline,
+        cancelled.wake(),
+    )
+    .map_err(admission_error)?;
+    if cancelled.is_cancelled()? {
+        return Err(io::ErrorKind::Interrupted.into());
+    }
+    Ok(client.with_retained_carrier(guard))
 }
 
 pub(crate) fn admission_error(error: crate::local_client::LocalClientConnectError) -> io::Error {

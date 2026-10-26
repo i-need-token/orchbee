@@ -19,7 +19,12 @@ fn echo() -> io::Result<Command> {
 }
 #[test]
 fn binary_carrier_handles_backpressure_and_last_owner_retires_lanes() {
-    let (endpoint, guard) = start(echo).unwrap();
+    let StartedCarrier {
+        endpoint,
+        stop,
+        task,
+    } = start(echo).unwrap();
+    let guard = Arc::new(crate::local_client::RetainedCarrier::new(stop, task));
     let deadline = Instant::now() + Duration::from_secs(25);
     let mut stream = LocalStream::connect_before(&endpoint, deadline).unwrap();
     stream.set_nonblocking(true).unwrap();

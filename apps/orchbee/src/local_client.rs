@@ -4,6 +4,9 @@
 //! a delivered operation.
 
 pub(crate) mod cancellation;
+mod carrier;
+
+pub(crate) use carrier::RetainedCarrier;
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use std::path::PathBuf;
@@ -136,8 +139,7 @@ pub(crate) struct LocalClientOrigin {
     cohort: String,
     local: bool,
     multiplex: Option<Arc<multiplex::Connection>>,
-    #[cfg(windows)]
-    tunnel: Option<Arc<crate::machine_tunnel::Tunnel>>,
+    carrier: Option<Arc<RetainedCarrier>>,
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -218,10 +220,9 @@ impl LocalClient {
         Ok(self)
     }
     /// Retains the transport owner for lanes derived from this origin.
-    #[cfg(windows)]
-    pub(crate) fn with_tunnel(mut self, tunnel: Arc<crate::machine_tunnel::Tunnel>) -> Self {
+    pub(crate) fn with_retained_carrier(mut self, carrier: Arc<RetainedCarrier>) -> Self {
         self.origin.local = false;
-        self.origin.tunnel = Some(tunnel);
+        self.origin.carrier = Some(carrier);
         self
     }
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -255,8 +256,7 @@ impl LocalClient {
                 cohort: cohort.to_owned(),
                 local: true,
                 multiplex: None,
-                #[cfg(windows)]
-                tunnel: None,
+                carrier: None,
             },
             REQUEST_TOTAL_TIMEOUT,
             Box::new(SystemMonotonicClock),

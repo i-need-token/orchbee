@@ -6,9 +6,8 @@ mod relay;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
-use super::admission_error;
-use crate::local_client::cancellation::Cancellation;
-use crate::{local_client::LocalClient, machine_ssh, machines::Profile};
+use super::StartedCarrier;
+use crate::{machine_ssh, machines::Profile};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_runtime::{Cohort, ModeCheckedLocalSessionRendezvous, SessionScope};
 use std::{
@@ -18,32 +17,15 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    thread::{self, JoinHandle},
+    thread,
     time::{Duration, Instant},
 };
 
-/// Retained by every Client origin, including secondary lanes and reconnects.
-#[derive(Debug)]
-pub(crate) struct Tunnel {
-    stop: Arc<AtomicBool>,
-    task: Option<JoinHandle<io::Result<()>>>,
-}
-
-impl Drop for Tunnel {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Release);
-        if let Some(task) = self.task.take() {
-            let _settled = task.join();
-        }
-    }
-}
-/// An admitted remote Session carrier. Cancellation belongs to the connection's owner.
-pub(super) fn connect(
+/// Starts the native relay; the caller immediately adopts its lifetime before Client admission.
+pub(super) fn prepare(
     profile: &Profile,
-    admitted: machine_ssh::Client,
-    deadline: Instant,
-    cancelled: Cancellation<'_>,
-) -> io::Result<LocalClient> {
+    admitted: &machine_ssh::Client,
+) -> io::Result<StartedCarrier> {
     let ssh = machine_ssh::executable()?;
     let remote = program::command(
         &admitted.executable,
@@ -51,24 +33,12 @@ pub(super) fn connect(
         &admitted.cohort,
     );
     let target = profile.draft.target.clone();
-    let (endpoint, guard) = start(move || Ok(machine_ssh::command(&ssh, &target, &remote)))?;
-    // The invocation-owned wake is observed throughout this single admission.
-    let client = LocalClient::connect_before_cancellable(
-        &endpoint,
-        &admitted.cohort,
-        deadline,
-        cancelled.wake(),
-    )
-    .map_err(admission_error)?;
-    if cancelled.is_cancelled()? {
-        return Err(io::ErrorKind::Interrupted.into());
-    }
-    Ok(client.with_tunnel(guard))
+    start(move || Ok(machine_ssh::command(&ssh, &target, &remote)))
 }
 
 fn start(
     command: impl Fn() -> io::Result<std::process::Command> + Send + 'static,
-) -> io::Result<(PathBuf, Arc<Tunnel>)> {
+) -> io::Result<StartedCarrier> {
     let id = crate::machines::ProfileId::generate()
         .map_err(|_| io::Error::other("machine endpoint identity unavailable"))?;
     let endpoint = PathBuf::from(format!(r"\\.\pipe\orchbee-machine-{}", id.as_str()));
@@ -112,13 +82,11 @@ fn start(
             }
             failure.map_or(Ok(()), Err)
         })?;
-    Ok((
+    Ok(StartedCarrier {
         endpoint,
-        Arc::new(Tunnel {
-            stop,
-            task: Some(task),
-        }),
-    ))
+        stop,
+        task,
+    })
 }
 /// Private binary helper: only the selected existing same-user Session is admitted.
 pub(crate) fn serve(expected_cohort: &str) -> io::Result<()> {
