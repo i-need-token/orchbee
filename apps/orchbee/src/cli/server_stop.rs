@@ -5,7 +5,7 @@ use crate::{
     invocation::{OutputFormat, ServerStopCommand},
     localization::Locale,
 };
-use orchbee_local_client_protocol::StopId;
+use orchbee_local_client_protocol::{ConnectClientError, StopId};
 use serde_json::{Value, json};
 
 mod reply;
@@ -19,6 +19,12 @@ mod unix;
 use reply::{Answer, Observation, render};
 #[cfg(not(windows))]
 use unix as platform;
+
+/// Submission truth survives native exchange failure so the workflow never replays a mutation.
+struct ExchangeFailure {
+    failure: ConnectClientError,
+    submitted: bool,
+}
 
 /// Chooses one request identity and returns a bounded stop/status result without Session activation.
 pub(crate) fn run(command: &ServerStopCommand, format: OutputFormat, locale: Locale) -> Output {

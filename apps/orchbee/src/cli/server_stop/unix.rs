@@ -1,6 +1,21 @@
-//! Unsupported activation observation never probes the Session runtime.
+//! Unsupported stop exchange and activation observation never probe the Session runtime.
+use super::ExchangeFailure;
+use orchbee_local_client_protocol::{ConnectClientError, SessionStopRequest, SessionStopResult};
+use orchbee_local_ipc::LocalIo;
 use orchbee_local_runtime::{ActivationState, ModeCheckedLocalSessionRendezvous};
-use std::io;
+use std::{io, path::Path, time::Instant};
+
+pub(super) fn exchange_before(
+    _endpoint: &Path,
+    _request: SessionStopRequest,
+    _deadline: Instant,
+    _wake: Option<LocalIo<'_>>,
+) -> Result<SessionStopResult, ExchangeFailure> {
+    Err(ExchangeFailure {
+        failure: ConnectClientError::Io(io::ErrorKind::Unsupported.into()),
+        submitted: false,
+    })
+}
 
 pub(super) fn activation_state(
     _session: &ModeCheckedLocalSessionRendezvous,

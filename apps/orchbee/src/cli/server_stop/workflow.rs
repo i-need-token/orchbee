@@ -1,9 +1,11 @@
 //! One mutation exchange followed only by bounded, cancellable receipt/status reads.
-use super::{Answer, Locale, Observation, Output, OutputFormat, ServerStopCommand, StopId, render};
+use super::{
+    Answer, Locale, Observation, Output, OutputFormat, ServerStopCommand, StopId,
+    platform::exchange_before, render,
+};
 use crate::cli::console_interrupt::{ArmedSignals, Finish};
 use orchbee_local_client_protocol::{
     ClientHello, ConnectClientError, SessionStopRequest, SessionStopStatus, StopAction,
-    exchange_session_stop_before,
 };
 use orchbee_local_runtime::{
     ActivationState, Cohort, ModeCheckedLocalSessionRendezvous as Rendezvous, RendezvousError,
@@ -133,7 +135,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
         answer.wait = Some("timed-out");
         return;
     }
-    let result = exchange_session_stop_before(
+    let result = exchange_before(
         session.client_socket_path(),
         request.clone(),
         deadline.min(Instant::now() + Duration::from_secs(2)),
@@ -204,7 +206,7 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
             answer.wait = Some("timed-out");
             return;
         }
-        if let Ok(result) = exchange_session_stop_before(
+        if let Ok(result) = exchange_before(
             session.client_socket_path(),
             request.clone(),
             deadline.min(Instant::now() + Duration::from_secs(2)),
