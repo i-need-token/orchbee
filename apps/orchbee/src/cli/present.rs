@@ -931,13 +931,11 @@ pub(crate) fn render(
         #[cfg(windows)]
         Projection::AgentTerminalInspection {
             terminal,
-            management,
             semantic,
             client_view,
             ..
         } => {
             super::terminal_observation::render(out, terminal, locale)?;
-            out.push(&locale.cli_terminal_management(&management.state))?;
             super::panel_metadata_query::render_report(
                 out,
                 &serde_json::json!({"view":semantic.observation.view}),

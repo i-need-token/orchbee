@@ -24,16 +24,14 @@ impl AgentService {
         })
     }
 
-    pub(crate) fn execute_launch_guarded(
+    fn execute_launch_guarded(
         &self,
         request: AgentLaunchRequest,
         fold: impl FnOnce(&AgentLaunchRequest) -> Result<AgentLaunchOutcome, PreparedUnavailable>,
     ) -> AgentLaunchResult {
         let inspect = matches!(
             request,
-            AgentLaunchRequest::Inspect { .. }
-                | AgentLaunchRequest::Status { .. }
-                | AgentLaunchRequest::TerminalStatus { .. }
+            AgentLaunchRequest::Inspect { .. } | AgentLaunchRequest::Status { .. }
         );
         let allowed = if inspect {
             self.policy.read
@@ -59,9 +57,6 @@ impl AgentService {
         let result = AgentLaunchOutcomeEnvelope { outcome };
         let request_id = request.request_id().clone();
         match request {
-            AgentLaunchRequest::TerminalStatus { .. } => {
-                AgentLaunchResult::TerminalStatus { request_id, result }
-            }
             AgentLaunchRequest::Status { .. } => AgentLaunchResult::Status { request_id, result },
             AgentLaunchRequest::Reserve { .. } => AgentLaunchResult::Reserve { request_id, result },
             AgentLaunchRequest::Inspect { .. } => AgentLaunchResult::Inspect { request_id, result },
@@ -72,7 +67,7 @@ impl AgentService {
         }
     }
 
-    pub(crate) fn fold_launch(
+    fn fold_launch(
         &self,
         request: &AgentLaunchRequest,
     ) -> Result<AgentLaunchOutcome, PreparedUnavailable> {

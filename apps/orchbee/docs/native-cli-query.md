@@ -590,15 +590,14 @@ observations alone do not clear it. Hook arrival does not silently convert a ter
 canonical session alias.
 
 Terminal-target resolve/list use version 1, rename/clear use version 1, and mixed-target name
-collisions use failure version 1 with `conflictTarget`. Canonical receipts use the same version and target shape. Physical `agent get` includes
-`terminal-found` in its inspection with its exact target, actual frame/process/primary-panel report fields and a separate management source/state read; this terminal detail now remains under v1 `inspection`.
-Management is unmanaged or active with the restored provider; it does not assert current readiness.
-It contains no invented
+collisions use failure version 1 with `conflictTarget`. Canonical receipts use the same version and target shape. Windows `agent get` keeps `terminal-found` under v1 `inspection`, with its exact
+target, actual frame/process/primary-panel report fields and physical semantic observations.
+Startup management belongs to canonical Agent session inspection. Physical inspection contains no invented
 session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
 `attach` route through the exact physical binding and existing terminal owners. Physical
 `explain` returns v1 fresh screen diagnostics or v1 with active rule provenance; semantic `wait`/`prompt`, focus and `get --client`
 use their physical observation/Client contracts without inventing canonical sessions;
-terminal names and pending reservations do not survive a cold restart. Renaming preserves the current managed identity; clearing releases its current name.
+terminal names and pending reservations do not survive a cold restart. Renaming preserves the exact physical binding; clearing releases its current name.
 
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names` version 1 (with separate pending reservations), and

@@ -242,20 +242,6 @@ impl Names {
         self.reconcile_launches(bindings, now_ms, false);
         self.reconcile_managed(snapshot);
         let now = self.launches.now_ms;
-        if let AgentLaunchRequest::TerminalStatus { binding, .. } = request {
-            if !bindings
-                .iter()
-                .any(|candidate| launch_binding(candidate) == *binding)
-            {
-                return reject(Rejection::BindingChanged);
-            }
-            let management =
-                orchbee_agent_observation_protocol::AgentTerminalManagement::Unmanaged {};
-            return Outcome::TerminalStatus {
-                binding: binding.clone(),
-                management,
-            };
-        }
         if let AgentLaunchRequest::Status { session_id, .. } = request {
             return self.management(snapshot, session_id);
         }
@@ -333,9 +319,7 @@ impl Names {
             AgentLaunchRequest::Inspect { reservation_id, .. }
             | AgentLaunchRequest::Complete { reservation_id, .. }
             | AgentLaunchRequest::Cancel { reservation_id, .. } => reservation_id,
-            AgentLaunchRequest::Reserve { .. }
-            | AgentLaunchRequest::Status { .. }
-            | AgentLaunchRequest::TerminalStatus { .. } => {
+            AgentLaunchRequest::Reserve { .. } | AgentLaunchRequest::Status { .. } => {
                 unreachable!("handled above")
             }
         };

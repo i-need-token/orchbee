@@ -80,12 +80,6 @@
 		},
 		{
 			"$ref": "#/$defs/launchStatusResult"
-		},
-		{
-			"$ref": "#/$defs/launchTerminalStatusRequest"
-		},
-		{
-			"$ref": "#/$defs/launchTerminalStatusResult"
 		}
 	],
 	"$defs": {
@@ -2421,91 +2415,6 @@
 					}
 				}
 			]
-		},
-		"launchTerminalStatusRequest": {
-			"type": "object",
-			"required": ["kind", "requestId", "binding"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "agent.launch.terminal-status.request"
-				},
-				"requestId": {
-					"$ref": "#/$defs/obapRequestId"
-				},
-				"binding": {
-					"$ref": "#/$defs/launchBinding"
-				}
-			}
-		},
-		"launchTerminalStatusResult": {
-			"type": "object",
-			"required": ["kind", "requestId", "result"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "agent.launch.terminal-status.result"
-				},
-				"requestId": {
-					"$ref": "#/$defs/obapRequestId"
-				},
-				"result": {
-					"type": "object",
-					"required": ["outcome"],
-					"additionalProperties": false,
-					"properties": {
-						"outcome": {
-							"oneOf": [
-								{
-									"type": "object",
-									"required": ["kind", "binding", "management"],
-									"additionalProperties": false,
-									"properties": {
-										"kind": {
-											"const": "terminal-status"
-										},
-										"binding": {
-											"$ref": "#/$defs/launchBinding"
-										},
-										"management": {
-											"$ref": "#/$defs/agentTerminalManagement"
-										}
-									}
-								},
-								{
-									"type": "object",
-									"required": ["kind", "reason"],
-									"additionalProperties": false,
-									"properties": {
-										"kind": {
-											"const": "rejected"
-										},
-										"reason": {
-											"enum": [
-												"name-in-use",
-												"presentation-busy",
-												"capacity-exceeded",
-												"binding-changed",
-												"reservation-not-found",
-												"candidate-unavailable",
-												"candidate-ambiguous",
-												"already-named",
-												"not-ready",
-												"read-denied",
-												"manage-denied",
-												"session-not-found"
-											]
-										}
-									}
-								},
-								{
-									"$ref": "#/$defs/unavailableOutcome"
-								}
-							]
-						}
-					}
-				}
-			}
 		}
 	}
 }

@@ -462,7 +462,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
 
 #[cfg(windows)]
 #[test]
-fn unified_agent_get_physical_inspection_requires_current_management_and_semantics() {
+fn unified_agent_get_physical_inspection_requires_current_semantics() {
     use crate::{
         agent_projection::{
             read::Checkpoint,
@@ -470,9 +470,7 @@ fn unified_agent_get_physical_inspection_requires_current_management_and_semanti
         },
         cli::{agent_projection::Inspection, results::Projection},
     };
-    use orchbee_agent_observation_protocol::{
-        AgentLaunchBinding, AgentSafeInteger, AgentTerminalManagement,
-    };
+    use orchbee_agent_observation_protocol::{AgentLaunchBinding, AgentSafeInteger};
     use orchbee_workbench_protocol::{TerminalAgentObservation, WorkbenchRevision};
     use serde_json::json;
 
@@ -517,10 +515,6 @@ fn unified_agent_get_physical_inspection_requires_current_management_and_semanti
             client_view: None,
             binding,
             terminal,
-            management: crate::cli::results::TerminalManagementDoc {
-                source: json!({"kind":"agent-read","requestId":id}),
-                state: AgentTerminalManagement::Unmanaged {},
-            },
             semantic: crate::cli::query::terminal_agent::TerminalAgentRead {
                 source: json!({"siteId":id,"workbenchRevision":"12","reportRevision":"7","requestId":"22222222222222222222222222222222"}),
                 report_revision: WorkbenchRevision::new(7),
@@ -536,26 +530,20 @@ fn unified_agent_get_physical_inspection_requires_current_management_and_semanti
         "result":document
     });
     validator.validate(&document).unwrap();
-    for field in ["semantic", "management"] {
-        let mut invalid = document.clone();
-        invalid["result"]["inspection"]
-            .as_object_mut()
-            .unwrap()
-            .remove(field);
-        assert!(
-            !validator.is_valid(&invalid),
-            "current physical Get inspection requires {field}"
-        );
-    }
-    let mut obsolete = document;
-    obsolete["result"]["inspection"]
+    let mut invalid = document.clone();
+    invalid["result"]["inspection"]
         .as_object_mut()
         .unwrap()
         .remove("semantic");
+    assert!(
+        !validator.is_valid(&invalid),
+        "current physical Get inspection requires semantic detail"
+    );
+    let mut obsolete = document;
     obsolete["result"]["inspection"]["management"] = json!({"phase":"unmanaged"});
     assert!(
         !validator.is_valid(&obsolete),
-        "the legacy physical inspection without semantic detail is not a current projected inspection"
+        "physical inspection does not retain a constant management field"
     );
 }
 

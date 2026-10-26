@@ -124,10 +124,6 @@ fn validate_request(request: &AgentRequest) -> Result<(), AgentContractError> {
                 return Err(AgentContractError::InvalidDocument);
             }
         }
-        AgentRequest::Launch(AgentLaunchRequest::TerminalStatus { binding, .. }) => {
-            AgentHostEpoch::parse(binding.generation.as_str())
-                .map_err(|_| AgentContractError::InvalidDocument)?;
-        }
         AgentRequest::Launch(_) => {}
         // Selectors and names are already typed at construction; no further
         // request invariant exists beyond the schema.
@@ -399,14 +395,6 @@ fn validate_reservation(value: &AgentLaunchReservation) -> Result<(), AgentContr
 
 fn validate_launch_result(result: &AgentLaunchResult) -> Result<(), AgentContractError> {
     match result.outcome() {
-        AgentLaunchOutcome::TerminalStatus { binding, .. } => {
-            if !matches!(result, AgentLaunchResult::TerminalStatus { .. }) {
-                return Err(AgentContractError::InvalidDocument);
-            }
-            AgentHostEpoch::parse(binding.generation.as_str())
-                .map(|_| ())
-                .map_err(|_| AgentContractError::InvalidDocument)
-        }
         AgentLaunchOutcome::Status { management, .. } => {
             if !matches!(result, AgentLaunchResult::Status { .. }) {
                 return Err(AgentContractError::InvalidDocument);

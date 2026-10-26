@@ -118,7 +118,7 @@ pub(in crate::cli) mod terminal_agent_wait;
 #[cfg(windows)]
 pub(super) mod terminal_metadata;
 #[cfg(windows)]
-pub(in crate::cli) use agent_management::{read_agent_management, read_terminal_management};
+pub(in crate::cli) use agent_management::read_agent_management;
 #[cfg(windows)]
 mod agent_journal;
 #[cfg(windows)]

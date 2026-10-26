@@ -90,5 +90,3 @@ rendering. The Server owns the canonical runtime and the read policy; the CLI ow
 presentation.
 
 Launch Status uses read-only kinds 25/26, exact session identity and canonical revision. Its closed management phase is unmanaged, pending with the existing reservation and blocked flag, or active with original reservation/provider/physical binding. Result size remains 1,024 bytes; only the status operation accepts a status outcome. The [Rust binding contract](../../crates/agent-observation-protocol/README.md#managed-launch-status) and Server names owner define validation and lifecycle.
-
-TerminalStatus uses read-only request/result kinds 27/28 and the same request/small-result bounds. It requires the full fresh launch binding and returns that binding with unmanaged or active provider ownership. It carries no canonical session, revision, reservation or readiness claim; only TerminalStatus results admit this outcome. Physical membership mismatch is binding-changed. The Server Names owner retains restored management; clients correlate the exact binding and request.

@@ -43,7 +43,7 @@ pub use identity::{
 pub use launch::{
     AgentLaunchBinding, AgentLaunchOutcome, AgentLaunchOutcomeEnvelope, AgentLaunchRejectionReason,
     AgentLaunchRequest, AgentLaunchReservation, AgentLaunchResult, AgentManagement,
-    AgentTerminalManagement, LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS,
+    LAUNCH_SETTLE_MS, MAXIMUM_LAUNCH_TTL_MS,
 };
 pub use model::{
     AgentActivity, AgentAttentionKind, AgentAttentionRequest, AgentCapability,

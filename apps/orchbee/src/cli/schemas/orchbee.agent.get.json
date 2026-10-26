@@ -2772,40 +2772,6 @@
     "sessionId": {
       "$ref": "#/$defs/opaqueIdentity"
     },
-    "terminalManagementState": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "phase"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "phase": {
-              "const": "unmanaged"
-            }
-          }
-        },
-        {
-          "type": "object",
-          "required": [
-            "phase",
-            "providerId"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "phase": {
-              "const": "active"
-            },
-            "providerId": {
-              "type": "string",
-              "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
-              "maxLength": 64
-            }
-          }
-        }
-      ]
-    },
     "physical_terminalBinding": {
       "type": "object",
       "additionalProperties": false,
@@ -3184,7 +3150,6 @@
         "kind",
         "target",
         "terminal",
-        "management",
         "semantic",
         "clientView"
       ],
@@ -3202,22 +3167,6 @@
         },
         "terminal": {
           "$ref": "#/$defs/namedTerminal"
-        },
-        "management": {
-          "type": "object",
-          "required": [
-            "source",
-            "state"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "source": {
-              "$ref": "#/$defs/agentReadSource"
-            },
-            "state": {
-              "$ref": "#/$defs/terminalManagementState"
-            }
-          }
         },
         "semantic": {
           "$ref": "#/$defs/terminalSemantic"

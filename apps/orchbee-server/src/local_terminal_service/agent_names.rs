@@ -15,23 +15,6 @@ impl LocalTerminalService {
             .map_err(|_| io::Error::other("Site coordinator unavailable"))?
             .bind_agent_names(agents)
     }
-    pub(crate) fn execute_terminal_management(
-        &self,
-        agents: &AgentService,
-        request: orchbee_agent_observation_protocol::AgentLaunchRequest,
-    ) -> orchbee_agent_observation_protocol::AgentLaunchResult {
-        agents.execute_launch_guarded(request, |request| {
-            super::agent_drain_read::agent_drain_finish(
-                &self.workers,
-                &self.coordinator,
-                agents,
-                Instant::now() + AGENT_DRAIN_READ_WINDOW,
-                Duration::from_millis(25),
-                |_, _| agents.fold_launch(request),
-            )
-        })
-    }
-
     pub(crate) fn execute_agent_names(
         &self,
         agents: &AgentService,

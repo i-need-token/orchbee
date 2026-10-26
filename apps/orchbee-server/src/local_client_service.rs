@@ -326,20 +326,11 @@ fn handle_candidate_control(
                 .execute_prepared(request, || terminals.prepare_agent_drain_read(agents))
                 .map(orchbee_agent_observation_protocol::AgentResult::Read),
             orchbee_agent_observation_protocol::AgentRequest::Launch(request) => {
-                Ok(orchbee_agent_observation_protocol::AgentResult::Launch({
-                    #[cfg(windows)]
-                    if matches!(
-                        request,
-                        orchbee_agent_observation_protocol::AgentLaunchRequest::TerminalStatus { .. }
-                    ) {
-                        return Ok(orchbee_agent_observation_protocol::AgentResult::Launch(
-                            terminals.execute_terminal_management(agents, request),
-                        ));
-                    }
+                Ok(orchbee_agent_observation_protocol::AgentResult::Launch(
                     agents.execute_launch_prepared(request, || {
                         terminals.prepare_agent_drain_read(agents)
-                    })
-                }))
+                    }),
+                ))
             }
             orchbee_agent_observation_protocol::AgentRequest::Names(request) => {
                 Ok(orchbee_agent_observation_protocol::AgentResult::Names({

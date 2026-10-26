@@ -473,11 +473,11 @@ Windows 终端名称要求真实的上报、进程识别或保留 provider 身�
 后续 Hook 到达不会悄悄把终端别名转为 canonical 会话别名。
 
 终端目标 resolve/list 使用 version 1，rename/clear 使用 version 1，混合目标重名失败使用
-version 1 的 `conflictTarget`；规范回执使用相同版本和目标形状。Windows 物理 `agent get` 的 inspection 包含 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
-字段及独立的 management 来源／状态读取。状态为 unmanaged 或带恢复 provider 的 active，
-不代表当前就绪；当前这些终端详情保留在 v1 `inspection` 中。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
+version 1 的 `conflictTarget`；规范回执使用相同版本和目标形状。Windows `agent get` 在 v1
+`inspection` 中保留 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告字段及物理语义观察。
+启动管理信息属于规范 Agent 会话 inspection。物理 inspection 不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
 `send-keys`、`attach` 经精确物理绑定交给既有终端所有者。物理 `explain` 返回 v1 新鲜屏幕诊断或携带生效规则来源的 v1；
-语义 `wait`／`prompt`、focus 和 `get --client` 使用各自的物理观察／Client 契约，不伪造规范会话。所有终端名称和待完成预留均不在冷启动后恢复；改名保留当前托管身份，清名释放其当前名称。
+语义 `wait`／`prompt`、focus 和 `get --client` 使用各自的物理观察／Client 契约，不伪造规范会话。所有终端名称和待完成预留均不在冷启动后恢复；改名保留精确物理绑定，清名释放其当前名称。
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 1，独立列出预留，另两者为 version 1；接纳后的失败使用

@@ -71,7 +71,6 @@ impl State {
         let agent = view
             .agent
             .clone()
-            .or_else(|| view.session.as_ref().map(|s| s.agent.clone()))
             .ok_or_else(|| error(FailureKind::NotFound, "agent-not-running"))?;
         if fence.is_some_and(|f| f.value() > initial.report_revision.value()) {
             return Err(error(FailureKind::Rejected, "revision-ahead"));
@@ -112,11 +111,7 @@ impl State {
             view,
         } = read.observation.as_ref();
         if binding != &self.binding
-            || view
-                .agent
-                .as_ref()
-                .or(view.session.as_ref().map(|s| &s.agent))
-                .is_none_or(|a| a != &self.agent)
+            || view.agent.as_ref().is_none_or(|a| a != &self.agent)
             || changes
                 .iter()
                 .any(|c| c.agent.as_ref().is_some_and(|a| a != &self.agent))

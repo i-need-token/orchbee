@@ -70,7 +70,6 @@ pub(super) fn span(
     if view.foreground.provider != Some(expected) {
         return Err(error(FailureKind::Rejected, "agent-provider-mismatch"));
     }
-    query::read_terminal_management(client, &binding, deadline, signals.poll_fd())?;
     let (snapshot, before) = terminal_agent_wait::read_pinned(
         client,
         target,
@@ -136,7 +135,6 @@ fn provider(read: &TerminalAgentRead) -> Result<&'static str, Failure> {
     }
     view.agent
         .as_deref()
-        .or_else(|| view.session.as_ref().map(|s| s.agent.as_str()))
         .and_then(AgentReportProvider::lookup)
         .map(AgentReportProvider::native_provider_id)
         .ok_or_else(|| error(FailureKind::Rejected, "agent-provider-unsupported"))

@@ -338,7 +338,6 @@ enum Operation {
     NameAssign,
     NameRelease,
     LaunchStatus,
-    LaunchTerminalStatus,
     LaunchReserve,
     LaunchInspect,
     LaunchComplete,
@@ -349,9 +348,6 @@ enum Operation {
 fn operation_of_request(request: &AgentRequest) -> Operation {
     match request {
         AgentRequest::Changes(_) => Operation::Changes,
-        AgentRequest::Launch(AgentLaunchRequest::TerminalStatus { .. }) => {
-            Operation::LaunchTerminalStatus
-        }
         AgentRequest::Launch(AgentLaunchRequest::Status { .. }) => Operation::LaunchStatus,
         AgentRequest::Launch(AgentLaunchRequest::Reserve { .. }) => Operation::LaunchReserve,
         AgentRequest::Launch(AgentLaunchRequest::Inspect { .. }) => Operation::LaunchInspect,
@@ -368,9 +364,6 @@ fn operation_of_request(request: &AgentRequest) -> Operation {
 fn operation_of_result(result: &AgentResult) -> Operation {
     match result {
         AgentResult::Changes(_) => Operation::Changes,
-        AgentResult::Launch(AgentLaunchResult::TerminalStatus { .. }) => {
-            Operation::LaunchTerminalStatus
-        }
         AgentResult::Launch(AgentLaunchResult::Status { .. }) => Operation::LaunchStatus,
         AgentResult::Launch(AgentLaunchResult::Reserve { .. }) => Operation::LaunchReserve,
         AgentResult::Launch(AgentLaunchResult::Inspect { .. }) => Operation::LaunchInspect,

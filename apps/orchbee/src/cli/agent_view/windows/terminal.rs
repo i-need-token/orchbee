@@ -61,8 +61,6 @@ pub(super) fn read(
         fields["metadata"] = metadata.value(&panel_id);
         fields["reportedAgent"] = metadata.report_value(&panel_id);
     }
-    let management =
-        query::read_terminal_management(client, &binding, deadline, signals.poll_fd())?;
     let attention = selected
         .map(|selected| {
             super::terminal_attention::read(client, snapshot, selected, &binding, deadline, signals)
@@ -99,7 +97,6 @@ pub(super) fn read(
             client_view: attention.map(|attention| attention.corroborate(&semantic)),
             binding,
             terminal: fields,
-            management,
             semantic,
         },
     ))

@@ -55,27 +55,9 @@ pub enum AgentManagement {
     },
 }
 
-/// A restored physical Agent has startup ownership, but no retained canonical session or reservation.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(
-    tag = "phase",
-    rename_all = "kebab-case",
-    rename_all_fields = "camelCase",
-    deny_unknown_fields
-)]
-pub enum AgentTerminalManagement {
-    Unmanaged {},
-    Active { provider_id: AgentProviderId },
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum AgentLaunchRequest {
-    #[serde(rename = "agent.launch.terminal-status.request")]
-    TerminalStatus {
-        request_id: ObapRequestId,
-        binding: AgentLaunchBinding,
-    },
     #[serde(rename = "agent.launch.status.request")]
     Status {
         request_id: ObapRequestId,
@@ -113,8 +95,7 @@ impl AgentLaunchRequest {
     #[must_use]
     pub fn request_id(&self) -> &ObapRequestId {
         match self {
-            Self::TerminalStatus { request_id, .. }
-            | Self::Status { request_id, .. }
+            Self::Status { request_id, .. }
             | Self::Reserve { request_id, .. }
             | Self::Inspect { request_id, .. }
             | Self::Complete { request_id, .. }
@@ -148,10 +129,6 @@ pub enum AgentLaunchRejectionReason {
     deny_unknown_fields
 )]
 pub enum AgentLaunchOutcome {
-    TerminalStatus {
-        binding: AgentLaunchBinding,
-        management: AgentTerminalManagement,
-    },
     Status {
         session_id: AgentSessionId,
         revision: AgentSafeInteger,
@@ -190,11 +167,6 @@ pub struct AgentLaunchOutcomeEnvelope {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum AgentLaunchResult {
-    #[serde(rename = "agent.launch.terminal-status.result")]
-    TerminalStatus {
-        request_id: ObapRequestId,
-        result: AgentLaunchOutcomeEnvelope,
-    },
     #[serde(rename = "agent.launch.status.result")]
     Status {
         request_id: ObapRequestId,
@@ -226,8 +198,7 @@ impl AgentLaunchResult {
     #[must_use]
     pub fn request_id(&self) -> &ObapRequestId {
         match self {
-            Self::TerminalStatus { request_id, .. }
-            | Self::Status { request_id, .. }
+            Self::Status { request_id, .. }
             | Self::Reserve { request_id, .. }
             | Self::Inspect { request_id, .. }
             | Self::Complete { request_id, .. }
@@ -238,8 +209,7 @@ impl AgentLaunchResult {
     #[must_use]
     pub fn outcome(&self) -> &AgentLaunchOutcome {
         match self {
-            Self::TerminalStatus { result, .. }
-            | Self::Status { result, .. }
+            Self::Status { result, .. }
             | Self::Reserve { result, .. }
             | Self::Inspect { result, .. }
             | Self::Complete { result, .. }

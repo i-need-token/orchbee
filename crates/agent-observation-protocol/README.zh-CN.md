@@ -28,7 +28,7 @@
 ## 交付状态
 
 三个家族均已接通：原生 Agent 读取、`agent names/resolve/rename` 与 Windows `agent start` 通过 Server 的
-`application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–28。
+`application_session` 解复用和 `AgentService` 执行。已发布 schema 覆盖 kind 1–26。
 名称是由 Server 状态单元持有的运行时别名；协议只拥有有界 DTO 与校验。
 get/explain/wait 先在同一已接纳会话上解析名称，再按固定会话 ID 读取或轮询。CLI 拥有组合与预算。
 
@@ -75,8 +75,6 @@ Changes 使用请求/结果 kind 23/24 与惯用的关联 outcome 信封。省�
 ## 托管启动状态
 
 只读 launch Status 使用请求／结果 kind 25/26 及现有 16 KiB 请求／1,024 字节结果上限。status 结果携带精确 sessionId、规范 revision 和闭合的 management 阶段：unmanaged；含已验证预留及 blocked 布尔值的 pending；或含 reservationId、providerId 及精确启动绑定的 active。只有 Status 结果允许此 outcome。会话存在性与生命周期、已完成启动的保留及读取授权属于 Server 名称所有者。消费者必须关联 Session，并区分已完成启动与当前提示就绪。此原生增量扩展需要匹配的 cohort 二进制。
-
-TerminalStatus 使用只读请求／结果 kind 27/28，沿用请求和小结果上限。它要求完整的新物理启动绑定，返回该绑定及 unmanaged 或 active provider 归属，不携带 canonical 会话、修订、预留或就绪声明；只有 TerminalStatus 结果允许此 outcome。物理成员不符返回 binding-changed。Server Names 所有者持有恢复后的托管状态；客户端关联精确绑定及请求。
 
 ## 上报输入值
 

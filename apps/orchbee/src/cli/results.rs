@@ -1136,7 +1136,6 @@ pub(crate) enum Projection {
         client_view: Option<super::agent_view::windows::terminal_attention::Projection>,
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
-        management: TerminalManagementDoc,
         semantic: super::query::terminal_agent::TerminalAgentRead,
     },
     /// The typed `found` outcome carrying session plus explanation.
@@ -1210,12 +1209,6 @@ pub(crate) struct AgentManagementDoc {
     pub(crate) management: orchbee_agent_observation_protocol::AgentManagement,
 }
 
-#[cfg(windows)]
-#[derive(Debug)]
-pub(crate) struct TerminalManagementDoc {
-    pub(crate) source: Value,
-    pub(crate) state: orchbee_agent_observation_protocol::AgentTerminalManagement,
-}
 impl AgentManagementDoc {
     fn document(&self) -> Value {
         json!({"source":self.source,"revision":self.revision,"state":self.management})
@@ -1365,13 +1358,12 @@ impl Projection {
             Self::AgentTerminalInspection {
                 binding,
                 terminal,
-                management,
                 semantic,
                 client_view,
             } => {
                 let mut doc = json!({
                 "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
-                "terminal":terminal, "management":{"source":management.source,"state":management.state}, "semantic":semantic.document(),
+                "terminal":terminal, "semantic":semantic.document(),
                 });
                 doc["clientView"] = client_view
                     .as_ref()
