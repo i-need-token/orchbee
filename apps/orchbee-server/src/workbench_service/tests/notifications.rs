@@ -44,20 +44,21 @@ fn notification_admission_checks_grants_session_and_session_drop_reclaims_inbox(
         );
         let subscriber = service.client_connection(NonZeroU64::new(1).unwrap());
         let caller = service.client_connection(NonZeroU64::new(2).unwrap());
-        let run = |session: &WorkbenchClientConnection<'_>, session: SessionId, id: u64, action| {
-            let WorkbenchResponse::Notification(result) = response(session.execute(
-                WorkbenchRequest::Notification(NotificationRequest {
-                    protocol_version: ProtocolVersion,
-                    request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
-                    session_id: session,
-                    action,
-                }),
-            )) else {
-                panic!()
+        let run =
+            |connection: &WorkbenchClientConnection<'_>, session: SessionId, id: u64, action| {
+                let WorkbenchResponse::Notification(result) = response(connection.execute(
+                    WorkbenchRequest::Notification(NotificationRequest {
+                        protocol_version: ProtocolVersion,
+                        request_id: WorkbenchRequestId::parse(&format!("{id:032x}")).unwrap(),
+                        session_id: session,
+                        action,
+                    }),
+                )) else {
+                    panic!()
+                };
+                result.validate().unwrap();
+                result.outcome
             };
-            result.validate().unwrap();
-            result.outcome
-        };
         let listen = NotificationAction::Listen { accepting: true };
         assert_eq!(
             run(&subscriber, snapshot.session_id.clone(), 2, listen.clone()),

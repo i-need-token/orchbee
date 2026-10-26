@@ -8,11 +8,11 @@ use orchbee_workbench_protocol::{
 use std::num::NonZeroU64;
 
 fn execute(
-    session: &WorkbenchClientConnection<'_>,
+    connection: &WorkbenchClientConnection<'_>,
     session: &orchbee_workbench_protocol::SessionId,
     action: ClientViewAction,
 ) -> ClientViewOutcome {
-    let WorkbenchResponse::ClientView(result) = response(session.execute(
+    let WorkbenchResponse::ClientView(result) = response(connection.execute(
         WorkbenchRequest::ClientView(WorkbenchClientViewRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap(),
