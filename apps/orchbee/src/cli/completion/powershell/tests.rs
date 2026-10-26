@@ -104,7 +104,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         (
             "orchbee panel report-agent abc --state done --m",
             "--message",
-            false,
+            true,
         ),
         ("orchbee panel report-a", "report-agent-session", false),
         ("orchbee panel clear-a", "clear-agent-authority", true),

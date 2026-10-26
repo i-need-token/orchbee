@@ -12,6 +12,6 @@ pub(crate) fn resolve(
 pub(super) fn names(name: &str) -> Vec<String> {
     vec![name.to_owned()]
 }
-fn executable_file(path: &Path) -> bool {
-    path.is_file() && false
+fn executable_file(_path: &Path) -> bool {
+    false
 }

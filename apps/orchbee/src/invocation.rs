@@ -4747,8 +4747,8 @@ fn agent_session_id(
 
 /// `agent wait --until <condition>`: the repeatable canonical condition
 /// vocabulary — every value must be one of the fourteen names, a repeated
-/// value is a duplicate flag, and an absent flag means the canonical
-/// default seven in canonical order.
+/// value is a duplicate flag. Omission stays explicit for each execution owner
+/// to apply its existing default conditions.
 fn agent_until_option(
     options: &Options,
     context: UsageContext,

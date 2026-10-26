@@ -9,13 +9,11 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee -v ", "server", false),
     ("orchbee -V ", "server", false),
     ("orchbee -- -", "-v", false),
-    #[cfg(windows)]
     (
         "orchbee session attach audit --mouse off --h",
         "--help",
         true,
     ),
-    #[cfg(windows)]
     ("orchbee session attach audit --f", "--format", false),
     (
         "orchbee agent integration --provider codex --provider gemini e",
@@ -34,7 +32,6 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
         true,
     ),
     ("orchbee panel get '@panel:0x1' --fo", "--format", true),
-    #[cfg(windows)]
     (
         "orchbee --session work workspace create --label example --h",
         "--help",
@@ -42,7 +39,6 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     ),
     ("orchbee config im", "unsupported-import", false),
     ("orchbee help config im", "unsupported-import", false),
-    #[cfg(windows)]
     ("orchbee config check --dr", "--dry-run", false),
     ("orchbee panel gr", "graphics", true),
     ("orchbee panel graphics s", "set", true),
@@ -426,12 +422,12 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
         "attach",
         true,
     ),
-    ("orchbee --takeover --mouse=", "--mouse=off", true),
+    ("orchbee --takeover --mouse=", "--mouse=off", false),
     ("orchbee terminal attach target --m", "--mouse", true),
     (
         "orchbee terminal attach target --mouse=",
         "--mouse=off",
-        true,
+        false,
     ),
     (
         "orchbee terminal attach target --mouse off --m",
@@ -1322,9 +1318,7 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee tab move tab-1 --order ", "left", false),
     ("orchbee tab move tab-1 --order ", "next", true),
     ("orchbee agent get --n", "--name", true),
-    #[cfg(windows)]
     ("orchbee agent get @agent:c", "@agent:codex", true),
-    #[cfg(windows)]
     ("orchbee agent get --name alpha ", "@agent:codex", false),
     ("orchbee agent get alpha --cl", "--client", true),
     (
