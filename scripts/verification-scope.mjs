@@ -159,34 +159,7 @@ export function readVerificationGraph(root) {
 		}
 		delete entry.manifest;
 	}
-	const metadata = JSON.parse(
-		capture(root, 'cargo', [
-			'metadata',
-			'--format-version',
-			'1',
-			'--no-deps',
-			'--locked',
-			'--quiet',
-		]),
-	);
-	const members = metadata.packages.filter((entry) =>
-		metadata.workspace_members.includes(entry.id),
-	);
-	const byPath = new Map(
-		members.map((entry) => [path.resolve(path.dirname(entry.manifest_path)), entry]),
-	);
-	for (const entry of members) {
-		const owner = path.relative(root, path.dirname(entry.manifest_path)).replaceAll('\\', '/');
-		const dependencies = entry.dependencies
-			.filter((dependency) => dependency.path !== undefined)
-			.map((dependency) => {
-				const target = byPath.get(path.resolve(dependency.path));
-				if (!target)
-					throw new Error(`Unmapped local Cargo dependency ${entry.name}: ${dependency.path}`);
-				return path.relative(root, path.dirname(target.manifest_path)).replaceAll('\\', '/');
-			});
-		graph.push({ root: owner, name: entry.name, kind: 'cargo', dependencies });
-	}
+	graph.push(...readCargoVerificationGraph(root));
 	for (const [consumer, provider] of foreignDependencies) {
 		const owner = graph.find((entry) => entry.root === consumer);
 		if (!owner || !graph.some((entry) => entry.root === provider))
@@ -200,6 +173,56 @@ export function readVerificationGraph(root) {
 			.filter((entry) => entry.root.startsWith('packages/') || entry.root === 'apps/web')
 			.map((entry) => entry.root),
 	);
+	return graph;
+}
+
+export function readCargoVerificationGraph(root) {
+	const graph = [];
+	const metadata = JSON.parse(
+		capture(root, 'cargo', [
+			'metadata',
+			'--format-version',
+			'1',
+			'--all-features',
+			'--locked',
+			'--quiet',
+		]),
+	);
+	const members = metadata.packages.filter((entry) =>
+		metadata.workspace_members.includes(entry.id),
+	);
+	const byPath = new Map(
+		members.map((entry) => [path.resolve(path.dirname(entry.manifest_path)), entry]),
+	);
+	const byId = new Map(members.map((entry) => [entry.id, entry]));
+	const resolved = new Map((metadata.resolve?.nodes ?? []).map((entry) => [entry.id, entry.deps]));
+	for (const entry of members) {
+		const owner = path.relative(root, path.dirname(entry.manifest_path)).replaceAll('\\', '/');
+		for (const dependency of entry.dependencies) {
+			if (dependency.path !== undefined && !byPath.has(path.resolve(dependency.path)))
+				throw new Error(`Unmapped local Cargo dependency ${entry.name}: ${dependency.path}`);
+		}
+		const dependencies = new Set();
+		const visited = new Set();
+		function visit(id) {
+			if (visited.has(id)) return;
+			visited.add(id);
+			const node = resolved.get(id);
+			if (!node) throw new Error(`Missing resolved Cargo dependency node ${id}`);
+			for (const dependency of node) {
+				const target = byId.get(dependency.pkg);
+				if (target)
+					dependencies.add(
+						path.relative(root, path.dirname(target.manifest_path)).replaceAll('\\', '/'),
+					);
+				else visit(dependency.pkg);
+			}
+		}
+		// Follow actual package IDs through patched declarations and nonmember dependencies;
+		// each workspace boundary owns the next step of consumer closure.
+		visit(entry.id);
+		graph.push({ root: owner, name: entry.name, kind: 'cargo', dependencies: [...dependencies] });
+	}
 	return graph;
 }
 

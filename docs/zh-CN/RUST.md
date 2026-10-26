@@ -30,7 +30,8 @@ Cargo package 名使用 kebab-case。可执行文件名与安装后的进程名�
 workspace。它们不是共享 crate，不适用 `crates/*` 的使用方准入规则。在 `project.json` 的
 responsibility 中写明所属应用，并遵守下方必需的 crate 形态。只有所属应用和同级内部 crate
 可以通过显式 Cargo dependency 和窄 re-export 使用它们。内部 crate 可依赖共享库及同级内部
-crate，但不得依赖应用 target；依赖图保持无环。调用解析和进程组合保留在应用中。
+crate，但不得依赖应用 target；依赖图在普通、开发、构建、可选与 target 专属依赖之间保持无环。
+调用解析和进程组合保留在应用中。
 
 保留拆分前，在同一机器上使用相同命令、profile 和已预热的依赖图，对真实源码修改后的增量检查
 与测试编译进行比较。在已有审查记录中写明修改输入、耗时、已接受的收益/退化界限，以及保留或
@@ -81,6 +82,8 @@ crate，但不得依赖应用 target；依赖图保持无环。调用解析和�
 
 `pnpm lint:rust` 在 Clippy 前强制检查内部 crate 的身份、发布限制和应用归属，以及共享第三方
 依赖的 workspace 继承与默认 feature 关闭。
+归属检查使用锁定且开启全部 feature 的 Cargo metadata 中实际解析的 package ID，包含被 patch
+重定向的依赖和非 member 使用方，并显式拒绝内部依赖环。
 Runner 复用锁定的 Cargo metadata 获取 package identity、dependency kind、target 与有效 feature，
 并读取清单 key 来检查继承和未使用的 workspace 声明。第三方依赖检查不覆盖仓库 path dependency
 和非 member 的第三方清单。Version requirement 的原因以及所选 feature 是否保留行为仍须评审。
@@ -358,4 +361,4 @@ workspace 构建统一后的依赖 feature，不能证明独立交付的 package
 cohort。它绝不把 `target/` 下碰巧已有的文件视为 release input。Supported target、signing、
 install path、update cohort 与 rollback 仍由每个已接受的应用发布切片负责。
 
-<!-- documentation-pairing: english-sha256=fa4619d8d3724c0edd93c359fff318bf33b48261d1637d9ef8d78a07bac95824 zh-cn-sha256=ee37c3ae68ea75ef7ab35dc42e51b2222a484211d463a90e1759701f71a718d7 -->
+<!-- documentation-pairing: english-sha256=4d5566584e4551600bf619e836af78f74ff1e5b9dde6fa61826d4f3951ae3301 zh-cn-sha256=0d5909a0c21a7ce091b1722c2f5cb5fbe4b039c6b62b854b38138d560a29d612 -->

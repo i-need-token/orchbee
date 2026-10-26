@@ -78,10 +78,22 @@ if (!rustcVersion.startsWith(`rustc ${pinnedChannel} `)) {
 }
 
 const metadata = JSON.parse(
-	execFileSync('cargo', ['metadata', '--format-version', '1', '--no-deps', '--locked', '--quiet'], {
-		cwd: repositoryRoot,
-		encoding: 'utf8',
-	}),
+	execFileSync(
+		'cargo',
+		[
+			'metadata',
+			'--format-version',
+			'1',
+			...(task === 'lint' ? ['--all-features'] : ['--no-deps']),
+			'--locked',
+			'--quiet',
+		],
+		{
+			cwd: repositoryRoot,
+			encoding: 'utf8',
+			maxBuffer: 16 * 1024 ** 2,
+		},
+	),
 );
 
 if (!Array.isArray(metadata.packages)) {
@@ -92,7 +104,7 @@ if (task === 'lint') {
 	const workspacePackages = metadata.packages.filter((entry) =>
 		metadata.workspace_members.includes(entry.id),
 	);
-	enforceApplicationCratePolicy(workspacePackages);
+	enforceApplicationCratePolicy(workspacePackages, metadata);
 	enforceDependencyPolicy(workspacePackages);
 	enforceAuthoredUnsafePolicy(workspacePackages);
 	const legacyModules = workspacePackages
@@ -167,10 +179,13 @@ function legacySourceModules(directory) {
 	});
 }
 
-function enforceApplicationCratePolicy(workspacePackages) {
+function enforceApplicationCratePolicy(workspacePackages, metadata) {
 	const byRoot = new Map(
 		workspacePackages.map((entry) => [relativeSource(dirname(entry.manifest_path)), entry]),
 	);
+	const byId = new Map(metadata.packages.map((entry) => [entry.id, entry]));
+	const resolved = new Map((metadata.resolve?.nodes ?? []).map((entry) => [entry.id, entry.deps]));
+	const internalIds = new Set();
 	for (const [root, entry] of byRoot) {
 		const internal = /^(apps\/([a-z\d-]+))\/crates\/([a-z\d-]+)$/u.exec(root);
 		if (!internal && /^apps\/[^/]+\/crates(?:\/|$)/u.test(root))
@@ -178,6 +193,7 @@ function enforceApplicationCratePolicy(workspacePackages) {
 				`${root}/Cargo.toml: internal crates use apps/<app>/crates/<seam>; see docs/RUST.md#placement-and-workspace-ownership`,
 			);
 		if (!internal) continue;
+		internalIds.add(entry.id);
 		const [, application, name, seam] = internal;
 		const isSibling = (candidate) =>
 			/^(apps\/[a-z\d-]+)\/crates\/[a-z\d-]+$/u.exec(candidate)?.[1] === application;
@@ -190,21 +206,43 @@ function enforceApplicationCratePolicy(workspacePackages) {
 		if (entry.name !== `${name}-${seam}`) fail(`internal crate name must be ${name}-${seam}`);
 		if (!Array.isArray(entry.publish) || entry.publish.length !== 0)
 			fail('internal crates require publish = false');
-		for (const [consumerRoot, consumer] of byRoot) {
-			const consumes = consumer.dependencies.some(
-				(dependency) =>
-					dependency.path !== undefined && samePath(dependency.path, dirname(entry.manifest_path)),
-			);
-			if (consumes && consumerRoot !== application && !isSibling(consumerRoot))
+		if (!resolved.has(entry.id)) fail('missing resolved dependency node');
+		// Resolved IDs include Cargo patches and consumers outside the workspace.
+		for (const [consumerId, dependencies] of resolved) {
+			if (!dependencies.some((dependency) => dependency.pkg === entry.id)) continue;
+			const consumer = byId.get(consumerId);
+			if (!consumer) fail(`missing resolved consumer ${consumerId}`);
+			const consumerRoot = relativeSource(dirname(consumer.manifest_path));
+			if (
+				byRoot.get(consumerRoot)?.id !== consumerId ||
+				(consumerRoot !== application && !isSibling(consumerRoot))
+			)
 				fail(`internal crate cannot be consumed by ${consumerRoot}`);
 		}
-		for (const dependency of entry.dependencies) {
-			if (dependency.path === undefined) continue;
-			const provider = relativeSource(dependency.path);
-			if (provider.startsWith('apps/') && !isSibling(provider))
+		for (const dependency of resolved.get(entry.id)) {
+			const providerPackage = byId.get(dependency.pkg);
+			if (!providerPackage) fail(`missing resolved dependency ${dependency.pkg}`);
+			const provider = relativeSource(dirname(providerPackage.manifest_path));
+			if (
+				provider.startsWith('apps/') &&
+				(!isSibling(provider) || byRoot.get(provider)?.id !== dependency.pkg)
+			)
 				fail(`internal crate cannot depend on application target ${provider}`);
 		}
 	}
+	const complete = new Set();
+	function visit(id, active) {
+		if (active.has(id))
+			throw new Error(
+				`${relativeManifest(byId.get(id).manifest_path)}: cyclic application-internal dependency; see docs/RUST.md#placement-and-workspace-ownership`,
+			);
+		if (complete.has(id)) return;
+		const next = new Set([...active, id]);
+		for (const dependency of resolved.get(id))
+			if (internalIds.has(dependency.pkg)) visit(dependency.pkg, next);
+		complete.add(id);
+	}
+	for (const id of internalIds) visit(id, new Set());
 }
 
 function enforceDependencyPolicy(workspacePackages) {

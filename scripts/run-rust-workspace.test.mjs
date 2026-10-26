@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import { readCargoVerificationGraph, selectVerificationScope } from './verification-scope.mjs';
+
 const repositoryRoot = new URL('../', import.meta.url);
 const windowsBoundaries = [
 	{
@@ -213,14 +215,87 @@ test('application-internal Cargo boundaries allow their owner and siblings but r
 		writeFileSync(privateManifest, manifest('demo-io'));
 		writeFileSync(sibling, siblingManifest);
 		const outsider = join(root, 'fixture/Cargo.toml');
+		const outsiderManifest = readFileSync(outsider, 'utf8');
 		writeFileSync(
 			outsider,
-			readFileSync(outsider, 'utf8') +
-				'\n[dependencies]\ndemo-io = { path = "../apps/demo/crates/io" }\n',
+			outsiderManifest + '\n[dependencies]\ndemo-io = { path = "../apps/demo/crates/io" }\n',
 		);
 		const foreign = lintDependencyFixture(root);
 		assert.notEqual(foreign.status, 0);
 		assert.match(foreign.output, /internal crate cannot be consumed by fixture/u);
+		writeFileSync(outsider, outsiderManifest);
+		writeFileSync(
+			privateManifest,
+			manifest('demo-io', '[dev-dependencies]\ndemo-view = { path = "../view" }\n'),
+		);
+		const cyclic = lintDependencyFixture(root);
+		assert.notEqual(cyclic.status, 0);
+		assert.match(cyclic.output, /cyclic application-internal dependency/u);
+		writeFileSync(privateManifest, manifest('demo-io'));
+		writeFileSync(
+			rootManifest,
+			readFileSync(rootManifest, 'utf8').replace(
+				'[patch.crates-io]',
+				'[patch.crates-io]\ndemo-io = { path = "apps/demo/crates/io" }',
+			),
+		);
+		writeFileSync(
+			sibling,
+			siblingManifest.replace(
+				'demo-io = { path = "../io" }',
+				'demo-io = { version = "0.0.0", default-features = false }',
+			),
+		);
+		const patchedOwner = lintDependencyFixture(root);
+		assert.equal(patchedOwner.status, 0, patchedOwner.output);
+		const patchedGraph = readCargoVerificationGraph(root).filter((entry) =>
+			entry.root.startsWith('apps/'),
+		);
+		const selected = selectVerificationScope(patchedGraph, ['apps/demo/crates/io/src/lib.rs']);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		assert.deepEqual(selected.cargo, ['demo', 'demo-io', 'demo-view']);
+		writeFileSync(
+			outsider,
+			outsiderManifest +
+				'\n[dependencies]\ndemo-io = { version = "0.0.0", default-features = false }\n',
+		);
+		const patchedForeign = lintDependencyFixture(root);
+		assert.notEqual(patchedForeign.status, 0);
+		assert.match(patchedForeign.output, /internal crate cannot be consumed by fixture/u);
+		writeFileSync(
+			rootManifest,
+			readFileSync(rootManifest, 'utf8')
+				.replace(
+					'exclude = ["third-party/process-wrap"]',
+					'exclude = ["third-party/process-wrap", "vendor/carrier"]',
+				)
+				.replace(
+					'[patch.crates-io]',
+					'[patch.crates-io]\nrunner-carrier = { path = "vendor/carrier" }',
+				),
+		);
+		mkdirSync(join(root, 'vendor/carrier/src'), { recursive: true });
+		writeFileSync(
+			join(root, 'vendor/carrier/Cargo.toml'),
+			'[package]\nname = "runner-carrier"\nversion = "0.0.0"\nedition = "2024"\n[dependencies]\ndemo-io = { version = "0.0.0", default-features = false }\n',
+		);
+		writeFileSync(
+			join(root, 'vendor/carrier/src/lib.rs'),
+			'pub fn value() -> u8 { demo_io::value() }\n',
+		);
+		writeFileSync(
+			outsider,
+			outsiderManifest +
+				'\n[dependencies]\nrunner-carrier = { version = "0.0.0", default-features = false }\n',
+		);
+		const nonmember = lintDependencyFixture(root);
+		assert.notEqual(nonmember.status, 0);
+		assert.match(nonmember.output, /internal crate cannot be consumed by vendor\/carrier/u);
+		assert.ok(
+			readCargoVerificationGraph(root)
+				.find((entry) => entry.root === 'fixture')
+				.dependencies.includes('apps/demo/crates/io'),
+		);
 	});
 });
 

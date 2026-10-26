@@ -37,7 +37,8 @@ consumer-admission rule. Record the owning application in their `project.json` r
 keep the required crate shape below. Only that application and its sibling internal crates may
 consume them, through explicit Cargo dependencies and narrow re-exports. Internal crates may
 depend on shared libraries and sibling internal crates, never on the application target; the
-dependency graph stays acyclic. Keep invocation parsing and process composition in the application.
+dependency graph stays acyclic across normal, development, build, optional, and target-specific
+dependencies. Keep invocation parsing and process composition in the application.
 
 Before retaining an extraction, compare real source-edit incremental checks and test compilation
 on the same machine with the same commands, profile, and warmed dependency graph. Record the
@@ -96,6 +97,8 @@ real `crates/*` library when a second consumer appears.
 
 `pnpm lint:rust` enforces internal-crate identity, publishing restrictions, and application ownership,
 as well as shared third-party workspace inheritance and disabled default features before Clippy.
+The ownership check uses resolved package IDs from locked, all-feature Cargo metadata, including
+patched dependencies and nonmember consumers; it rejects internal dependency cycles explicitly.
 The runner reuses locked Cargo metadata for package identity, dependency kind,
 target, and effective features, and reads manifest keys to verify inheritance and unused workspace
 declarations. Repository path dependencies and nonmember third-party manifests are outside the
