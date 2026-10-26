@@ -15,10 +15,13 @@ The old Unix-only compact renderer and context-click route are retired; every pl
 same completed-frame hit geometry, release ownership and shared interaction rules.
 
 `agent_runtime` owns the shared Agent process interpretation, observation facts, send outcomes,
-request identity and cancellation wait. Native startup consumes its typed execution port; CLI
-adapters reuse these same facts. The current Windows execution adapter retains the existing
-bounded query/send bridge, while the Unix startup adapter refuses before connection, reservation,
-viewer or input admission. The pure startup workflow and its receipt reasoning remain compiled.
+request identity and cancellation wait. Its `startup/{snapshot,observation,processes,send,binding}`
+modules perform the typed Snapshot and OBAP reads, exact binding resolution, attached Host process
+reads with viewer cleanup, and single terminal submission consumed by native startup and CLI
+adapters. Callers retain discovery, selectors, presentation and signal ownership; operations use
+the original absolute deadline and wake. The OS startup adapter only admits Agent launch:
+Windows accepts, while Unix returns typed `Unsupported` before connection, reservation, viewer
+or input admission. The pure startup workflow and its receipt reasoning remain compiled.
 
 `local_client::cancellation` privately owns one-shot cancellation for observation jobs, event
 watches, saved-machine observers and selection attempts. Creation finishes before thread spawn;

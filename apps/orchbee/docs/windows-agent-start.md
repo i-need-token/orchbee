@@ -156,14 +156,28 @@ session lifecycle: detaching a still-live session keeps its name until end/remov
 
 ## Evidence and ownership
 
-`src/agent_start` owns the typed workflow and `src/cli/agent_start.rs` adapts its report to the CLI;
-the Server's
-[canonical model](../../orchbee-server/docs/agent-canonical-model.md) owns reservation state.
-The shared OBAP protocol owns wire validation. Tests exercise real Windows exe/ps1/cmd argument
-boundaries, parser and completion scope, competing reservations, exact expiry, stale bindings,
-canonical readiness, interrupted delivery and lost replies. The Windows CLI named-pipe tests
-retain receipts and prove no automatic replay. Real Session/Worker/Host validation checks the
-combined runtime separately. TLA model execution is not required for this Windows slice.
+`src/agent_start.rs` and `src/agent_start/` own the typed workflow and report, retaining
+`ReservationState` and `DeliveryDisposition` independently of the final verdict.
+`src/agent_runtime/startup/` owns the shared Snapshot/OBAP reads, exact binding resolution,
+process attach/read/detach and single prompt submission. These operations preserve the admitted
+Client, original absolute deadline and wake; process-read failures still reach one best-effort
+detach, and the Paste/optional Codex Right/Enter sequence is submitted once.
+
+`src/cli/agent_start.rs` retains CLI selection and signal finalization;
+`src/cli/agent_start/report.rs` projects domain facts into the existing CLI failure, status and
+JSON fields. Workbench consumes typed reservation, delivery and failure facts directly.
+The Server's [canonical model](../../orchbee-server/docs/agent-canonical-model.md) owns reservation
+state, and the shared OBAP protocol owns wire validation.
+
+Host envelope and process payload validation is covered in
+`src/agent_runtime/startup/processes/tests.rs`. `src/cli/agent_start/tests.rs` drives the existing
+receipt matrix through the production domain-to-CLI conversion; Workbench recovery precedence
+remains covered in `src/workbench_client/agent_board/start/tests.rs`. The existing tests also
+exercise real Windows exe/ps1/cmd argument boundaries, parser and completion scope, competing
+reservations, exact expiry, stale bindings, canonical readiness, interrupted delivery and lost
+replies. Windows CLI named-pipe tests retain receipts and prove no automatic replay.
+Real Session/Worker/Host validation checks the combined runtime separately. TLA model execution
+is not required for this Windows slice.
 
 ## Inspecting completed startup
 

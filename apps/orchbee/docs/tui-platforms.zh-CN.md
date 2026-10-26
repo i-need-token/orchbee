@@ -13,9 +13,11 @@ Server 仍逐项授权请求；编译可达不代表 Server 或 Host 实现了�
 释放所有权和共享交互规则。
 
 `agent_runtime` 拥有共享 Agent 进程解释、观察事实、发送结果、请求身份和取消等待。
-原生启动消费其类型化执行端口；CLI 适配器复用同一组事实。当前 Windows 执行适配器保留
-已有的有界 query／send 桥，Unix 启动适配器则在连接、预留、viewer 或输入准入前拒绝。
-纯启动工作流及其回执推理仍参与编译。
+其 `startup/{snapshot,observation,processes,send,binding}` 模块执行原生启动和 CLI 适配器
+共同消费的类型化 Snapshot 与 OBAP 读取、精确绑定解析、包含 viewer 清理的已附着 Host
+进程读取，以及单次终端提交。调用方保留发现、选择器、呈现和信号所有权；操作沿用原始
+绝对期限与 wake。OS 启动适配器只负责 Agent 启动准入：Windows 接受，Unix 则在连接、
+预留、viewer 或输入准入前返回类型化 `Unsupported`。纯启动工作流及其回执推理仍参与编译。
 
 `local_client::cancellation` 私有地负责观察任务、事件观察、已保存机器观察及选择尝试的
 单次取消。在线程启动前完成创建；创建失败走调用方既有的不可用结果。所有者先发布
@@ -105,4 +107,4 @@ OS、模拟器／版本、几何、locale、主题和能力，覆盖共享导航
 以及缺失适配的本地化拒绝。远程连接失败或 Windows 检查都不能证明 macOS 或 Linux 通过。
 [TUI 验证](../../../docs/zh-CN/tui/verification.md)管理证据类别。
 
-<!-- documentation-pairing: english-sha256=7406163c7e31b530e8be8d4ee659e7b833734e9c4af57135d501923cd85da398 zh-cn-sha256=081554cd0e7b6d2b2cdb9a1404ae1ab959f709938c059195e9d53e1650e0b026 -->
+<!-- documentation-pairing: english-sha256=8cbba678e99e9e8c1782a59f381296572431503312ccb2d1749896302337da6c zh-cn-sha256=3d36addbd5d8a6eeaf3d0acfb037e256526363816da7251ebd47ec2cface26cb -->

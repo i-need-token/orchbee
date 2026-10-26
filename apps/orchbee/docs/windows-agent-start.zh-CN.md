@@ -116,12 +116,23 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 证据与归属
 
-`src/agent_start` 拥有类型化流程，`src/cli/agent_start.rs` 把其报告适配为 CLI 输出；Server 的
-[canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md)拥有预留状态。
-共享 OBAP 协议拥有 wire 校验。测试覆盖真实 Windows exe/ps1/cmd 参数边界、解析与补全范围、
-竞争预留、精确到期、旧绑定、canonical 就绪、输入中断及响应丢失。Windows CLI 命名管道测试
-保留回执并证明没有自动重放。真实 Session/Worker/Host 验证单独检查组合运行时。
-本 Windows 切片不要求执行 TLA 模型。
+`src/agent_start.rs` 与 `src/agent_start/` 拥有类型化流程和报告，独立于最终结论保留
+`ReservationState` 与 `DeliveryDisposition`。`src/agent_runtime/startup/` 拥有共享的
+Snapshot／OBAP 读取、精确绑定解析、进程 attach/read/detach 和单次 prompt 提交。
+这些操作保留已准入的 Client、原始绝对期限与 wake；进程读取失败仍汇入一次尽力 detach，
+Paste／可选 Codex Right／Enter 序列只提交一次。
+
+`src/cli/agent_start.rs` 保留 CLI 选择和信号收束；`src/cli/agent_start/report.rs` 把领域事实
+投影到既有 CLI failure、status 和 JSON 字段。Workbench 直接消费类型化的预留、投递和
+失败事实。Server 的 [canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md)
+拥有预留状态，共享 OBAP 协议拥有 wire 校验。
+
+Host envelope 与进程 payload 校验证据位于 `src/agent_runtime/startup/processes/tests.rs`。
+`src/cli/agent_start/tests.rs` 让既有回执矩阵经过真实的领域到 CLI 转换；Workbench 恢复
+优先级仍由 `src/workbench_client/agent_board/start/tests.rs` 覆盖。既有测试还覆盖真实
+Windows exe/ps1/cmd 参数边界、解析与补全范围、竞争预留、精确到期、旧绑定、canonical
+就绪、输入中断及响应丢失。Windows CLI 命名管道测试保留回执并证明没有自动重放。
+真实 Session/Worker/Host 验证单独检查组合运行时。本 Windows 切片不要求执行 TLA 模型。
 
 ## 检查已完成启动
 
@@ -131,4 +142,4 @@ Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限
 
 原生表单在检测尚无结果时不预选提供商，也不生成自动名称。已发现的提供商排在手动选项之前；显式选择按提供商身份固定，不随目录更新改变。没有显式选择时，首个发现的提供商成为默认项；检测结束且未发现候选时选择首个手动提供商。启动反馈仅在看板状态行显示一次，结果未确认时引导用户查看终端。只有固定身份的规范关注观察才声明需要输入；进程存在本身不能证明就绪。
 
-<!-- documentation-pairing: english-sha256=15a0ac30ad71834cd50dcefdf85943ce688f2a2fcb0373bbb2cdeecb9d6fcc44 zh-cn-sha256=2e4a56ebe01917f6c09965f623d6fe6aff1229fda8d109598f6877478c815333 -->
+<!-- documentation-pairing: english-sha256=28bdb58a16c20dcf3c340d6b21815ec4cfe523fce88773c2d2feace91d3048c3 zh-cn-sha256=e8fd03fd2188b17f9a2e7d28413c08f286c9389f173408746a17ab65a88751cc -->
