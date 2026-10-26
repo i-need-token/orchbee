@@ -13,6 +13,7 @@ mod agent_provider;
 mod agent_runtime;
 mod agent_start;
 mod cli;
+mod cli_text;
 mod client_context;
 mod client_view;
 mod help;
@@ -344,7 +345,12 @@ fn emit_with(
     if write_stream(&mut *stdout, &out).is_err() {
         // The prepared document failed at the OS write: a localized diagnostic
         // on stderr is the only remaining channel; no second document follows.
-        let _ = write_stream(&mut *stderr, locale.cli_output_failed().as_bytes());
+        let _ = write_stream(
+            &mut *stderr,
+            crate::cli_text::CliText::new(locale)
+                .cli_output_failed()
+                .as_bytes(),
+        );
         failed = true;
     } else if write_stream(&mut *stderr, err.as_bytes()).is_err() {
         failed = true;
@@ -358,7 +364,7 @@ fn emit_with(
     {
         let _ = write_stream(
             &mut *stderr,
-            locale
+            crate::cli_text::CliText::new(locale)
                 .cli_failure(&cli::Failure::new(cli::FailureKind::InternalFailure))
                 .as_bytes(),
         );
