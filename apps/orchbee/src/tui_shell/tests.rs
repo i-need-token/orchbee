@@ -22,16 +22,11 @@ use crate::{
 };
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
-#[cfg(windows)]
 mod action_menu;
-#[cfg(windows)]
 mod divider;
 mod effects;
-#[cfg(windows)]
 mod graphics;
-#[cfg(windows)]
 mod machine_picker_capture;
-#[cfg(windows)]
 mod notification_too_small;
 mod rename;
 mod settings;
@@ -326,7 +321,6 @@ fn too_small_geometry_withholds_resize_instead_of_fabricating() -> io::Result<()
     Ok(())
 }
 
-#[cfg(windows)]
 #[test]
 fn too_small_native_popup_surface_is_empty_until_the_shell_can_paint_it() {
     for tiny in [dimensions(100, 4), dimensions(19, 24)] {
@@ -1102,10 +1096,8 @@ fn transient_zero_cells_repeat_only_the_last_valid_geometry() -> io::Result<()> 
     Ok(())
 }
 
-#[cfg(windows)]
 mod window_title;
 
-#[cfg(windows)]
 #[test]
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
     use crate::terminal_text::display_width;

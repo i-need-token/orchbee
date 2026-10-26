@@ -231,8 +231,6 @@ impl Locale {
         if let Some(description) = view.bindings().configured_description(binding.description) {
             return sanitize_terminal_text(description).into_owned();
         }
-        #[cfg(not(windows))]
-        let _ = (view, binding.description);
 
         if matches!(
             binding.action,
@@ -935,8 +933,6 @@ mod tests {
                 Locale::EnUs.menu_action(&crate::action_menu::MenuAction::NewWorkspace)
             );
         }
-        #[cfg(not(windows))]
-        assert_eq!(workspace.len(), 1);
 
         let entries_zh = Locale::ZhCn.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let rename_workspace = entries
@@ -975,13 +971,6 @@ mod tests {
                 rename_project_zh.title,
                 Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::RenameProject)
             );
-        }
-        #[cfg(not(windows))]
-        {
-            assert_eq!(rename_workspace.title, "Rename Workspace");
-            assert_eq!(rename_project.title, "Rename Project");
-            assert_eq!(rename_workspace_zh.title, "重命名工作区");
-            assert_eq!(rename_project_zh.title, "重命名项目");
         }
 
         assert!(!entries.iter().any(|entry| entry.key.contains("Unbound")));

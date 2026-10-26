@@ -2,7 +2,11 @@
 
 ## 范围与所有权
 
-Windows 上，`Ctrl+B U` 为准确的焦点 pane 进入键盘复制模式。`[keys] copy_mode`
+导航、选择及搜索在所有平台共享。剪贴板交付要求宿主剪贴板能力：不支持的宿主隐藏复制
+控件及提示；显式复制请求报告本地化的不支持结果并保留选择。参见
+[TUI 平台边界](tui-platforms.zh-CN.md)。
+
+`Ctrl+B U` 为准确的焦点 pane 进入键盘复制模式。`[keys] copy_mode`
 通过现有解析后的绑定注册表替换或禁用入口。大写入口不替换 `Ctrl+B [`、`Ctrl+B ]` 的上下文切换。
 
 `NativeUi` 拥有易失的 episode、pane incarnation 和集成。确定性 `terminal_copy_mode` 核心

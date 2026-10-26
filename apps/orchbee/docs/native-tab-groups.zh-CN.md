@@ -1,6 +1,6 @@
 # 原生 Tab 分组与能力覆盖
 
-Windows 原生 TUI 投影 canonical 分组身份、名称、颜色、成员及固定状态。紧凑标签栏绘制独立组标题，
+原生 TUI 投影 canonical 分组身份、名称、颜色、成员及固定状态。紧凑标签栏绘制独立组标题，
 其预留的展开单元格在悬停或折叠时显示箭头。Tab 菜单按 GUI 的创建／分组、复制／固定和关闭动作分段；
 选择与移动位于子菜单。组标题和新建 Tab 按钮各自拥有独立菜单。
 键盘菜单导航和已绘制指针目标调用相同 owner。
@@ -10,7 +10,7 @@ Windows 原生 TUI 投影 canonical 分组身份、名称、颜色、成员及�
 
 此表比较 Workbench 组合真正接入的路径，不把可复用 Tab Strip 的全部导出能力视为产品能力。
 GUI owner 为 `WorkbenchTabBar`、`useWorkbench`、`getWorkbenchTabCreationAvailability`、
-`WorkbenchProjectWorkspaceRuntime` 和 `TabModel`。原生列指 Windows TUI。这是一部分能力覆盖，
+`WorkbenchProjectWorkspaceRuntime` 和 `TabModel`。原生列指所有支持平台上的共享 TUI。这是一部分能力覆盖，
 不代表 GUI／TUI 已完全对等。
 
 | 核心操作                         | GUI 实际接入路径                                                                                 | 原生覆盖及剩余缺口                                                                                                                                        |

@@ -11,12 +11,12 @@ mod tests;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
 
 #[cfg(any(windows, test))]
-pub(super) use crate::agent_provider::provider;
+pub(crate) use crate::agent_provider::provider;
 
 pub(crate) struct Process<'a> {
     pub(crate) facts: &'a TerminalProcess,
     pub(crate) argv: Option<Vec<String>>,
-    pub(super) provider: Option<&'static str>,
+    pub(crate) provider: Option<&'static str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,7 +28,7 @@ pub(crate) enum Selection {
 }
 
 impl Selection {
-    pub(super) const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::AgentChain => "agent-chain",
             Self::Root => "root",

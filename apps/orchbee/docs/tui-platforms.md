@@ -1,0 +1,83 @@
+# TUI platform boundaries
+
+## Ownership and shared behavior
+
+The native Client uses one TUI implementation on Windows, Linux and macOS. `workbench_client`
+owns shared Workbench state, command admission and view projections. Input dispatch, navigation,
+action menus, settings drafts, Agent reads, retained terminal content, copy-mode search, pane
+layout and rendering compile on every supported platform. A Server still authorizes each request;
+compilation never asserts that a Server or Host implements a requested effect.
+
+`tui_capabilities` owns the immutable host capability snapshot used by the composition layer.
+The snapshot enters the Client view and native UI explicitly. Pure state and protocol modules
+have no operating-system gates and perform no environment, filesystem or process probes.
+The old Unix-only compact renderer and context-click route are retired; every platform uses the
+same completed-frame hit geometry, release ownership and shared interaction rules.
+
+`agent_runtime` owns the shared Agent process interpretation, observation facts, send outcomes,
+request identity and cancellation wait. Native startup consumes its typed execution port; CLI
+adapters reuse these same facts. The current Windows execution adapter retains the existing
+bounded query/send bridge, while the Unix startup adapter refuses before connection, reservation,
+viewer or input admission. The pure startup workflow and its receipt reasoning remain compiled.
+
+## Current adapters
+
+| Responsibility                                                                       | Windows                                      | Linux and macOS                                    |
+| ------------------------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------------- |
+| Inherited terminal admission, raw mode, output, signals and pointer capture          | Retained console adapter                     | Existing POSIX TTY adapter                         |
+| Workbench protocol, local selection, pane layout, menus, help and Agent observations | Shared Client implementation                 | Shared Client implementation                       |
+| Shared preference drafts and confirmed settings                                      | Shared preference protocol and store         | Shared preference protocol and existing Unix store |
+| Keyboard copy-mode navigation, selection and search                                  | Shared Client implementation                 | Shared Client implementation                       |
+| System clipboard writes                                                              | Hidden Win32 owner                           | Unsupported                                        |
+| Browser link activation and saved-machine SSH carriers                               | Windows shell and owned OpenSSH processes    | Unsupported                                        |
+| Saved-machine catalog, remembered position and first-run dismissal storage           | Private Windows cache                        | Unsupported                                        |
+| Local directory entry and Agent launch/provider probing                              | Existing Windows adapters                    | Unsupported                                        |
+| Legacy TOML configuration and plugin registry persistence                            | Existing Windows adapters                    | Unsupported                                        |
+| Host window title, terminal/system notification transport and terminal graphics      | Existing Windows adapters and host admission | Unsupported                                        |
+| Notification cards and ordinary terminal bell                                        | Shared TUI / admitted terminal               | Shared TUI / admitted terminal                     |
+| Login-shell preference                                                               | Unsupported by the Windows shell adapter     | Existing POSIX shell adapter                       |
+
+The optional-capability list does not gate the whole TUI. In particular, an absent saved-machine
+adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
+A local Client on Unix does not read the Windows catalog or invent an empty persisted catalog.
+Shared preferences keep their existing platform support independently of legacy Windows TOML.
+
+## Admission and unsupported outcomes
+
+Unsupported optional actions are absent from menus and shortcut discovery. Copy-mode navigation
+and search remain usable without a clipboard; the copy button and copy hint are absent. The UI
+revalidates capability at invocation, so a stale or explicitly entered operation reports an
+`en-US` or `zh-CN` unsupported-platform notice through the ordinary noncapturing notice owner.
+Settings receive the login-shell capability as draft input, including presentation and edits.
+
+Adapters independently refuse unsupported effects before opening files, launching processes or
+writing clipboard/window state. `io::ErrorKind::Unsupported`, the typed browser error, clipboard
+`Outcome::Unsupported`, and registry `PluginRegistryError::Unsupported` preserve a definite
+no-effect result. Missing support never becomes success or an unknown commit, never requests a
+replay, and never clears a copy selection as if clipboard delivery had succeeded. Existing accepted
+plugin ambiguity still cannot fall through to a browser launch.
+
+The shared runtime exposes settings/manifest types, command outcome types, Windows path syntax
+and literal command encoding on every platform. A Windows path is parsed with the Windows wire
+grammar rather than the host `std::path` grammar; the execution owner supplies frozen environment
+and current-directory inputs. This does not add Unix Windows-path filesystem access, named-Session
+registration, plugin installation, SSH, clipboard or browser implementations.
+
+## Verification ownership
+
+Pure state, rendering, input, capability refusal and receipt-settlement traces run on every
+supported platform. Real Win32, process and private-cache witnesses stay with their Windows
+adapter. The Client crate has no macOS-wide `dead_code` exemption. Unreachable implementations and
+companions are removed instead of keeping a test-only copy of a retired renderer.
+
+Run `cargo check -p orchbee --all-targets --all-features --locked` and
+`cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings` on each native
+platform, with `CARGO_BUILD_JOBS=6`. The owning repository gate remains
+[Verification](../../../docs/VERIFICATION.md): Windows uses `pnpm verify:rust-native`; Linux and
+macOS use the applicable host gate. A foreign-target compile is compile evidence only.
+
+When a native runner is unavailable, retain the exact revision, unexecuted commands and required
+manual handoff. Native host evidence records OS, emulator/version, geometry, locale, theme and
+capabilities while exercising shared navigation, menus, resizing and copy-mode search, as well as
+localized refusals of missing adapters. No remote connection failure or Windows check establishes
+macOS or Linux success. [TUI verification](../../../docs/tui/verification.md) owns the evidence classes.

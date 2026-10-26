@@ -6,6 +6,7 @@ mod relay;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+use super::admission_error;
 use crate::{local_client::LocalClient, machine_ssh, machines::Profile};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort, SiteScope};
@@ -71,32 +72,7 @@ pub(crate) fn connect(
     }
     Ok(client.with_tunnel(guard))
 }
-pub(crate) fn admission_error(error: crate::local_client::LocalClientConnectError) -> io::Error {
-    use crate::local_client::LocalClientConnectError;
-    use orchbee_local_client_protocol::ConnectClientError;
-    match error {
-        LocalClientConnectError::RequestIoConfiguration(error)
-        | LocalClientConnectError::Admission(
-            ConnectClientError::ConnectFailed(error)
-            | ConnectClientError::Io(error)
-            | ConnectClientError::CancellationSourceFault(error),
-        ) => error,
-        LocalClientConnectError::Admission(ConnectClientError::CancellationReady) => {
-            io::ErrorKind::Interrupted.into()
-        }
-        LocalClientConnectError::Admission(ConnectClientError::Rejected(
-            orchbee_local_client_protocol::RejectionReason::CapacityExceeded
-            | orchbee_local_client_protocol::RejectionReason::HandshakeTimeout
-            | orchbee_local_client_protocol::RejectionReason::Stopping,
-        )) => io::ErrorKind::ConnectionRefused.into(),
-        LocalClientConnectError::Admission(ConnectClientError::Rejected(_)) => {
-            io::ErrorKind::PermissionDenied.into()
-        }
-        LocalClientConnectError::Admission(
-            ConnectClientError::Protocol(_) | ConnectClientError::UnexpectedResponse,
-        ) => io::ErrorKind::InvalidData.into(),
-    }
-}
+
 fn start(
     command: impl Fn() -> io::Result<std::process::Command> + Send + 'static,
 ) -> io::Result<(PathBuf, Arc<Tunnel>)> {

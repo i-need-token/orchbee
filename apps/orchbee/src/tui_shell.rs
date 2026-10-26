@@ -1699,7 +1699,7 @@ impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     ) -> bool {
         let changed = self.shared_preferences_tick(view)
             | self.automatic_notifications_tick(view, view.effective_locale(locale));
-        { changed | self.client_control_tick(view, viewport, view.effective_locale(locale)) }
+        changed | self.client_control_tick(view, viewport, view.effective_locale(locale))
     }
     fn tick(&mut self) -> bool {
         self.tick()

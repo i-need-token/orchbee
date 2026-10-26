@@ -2565,7 +2565,7 @@ impl NativeUi {
         let view = self.view();
         let mut probe = PointerProbe {
             input_captured: input_captured
-                || { { self.worktree_input_context().is_some() || self.action_menu_active() } }
+                || (self.worktree_input_context().is_some() || self.action_menu_active())
                 || view.close_confirmation().is_some()
                 || view.workspace_close_confirmation().is_some(),
             ..PointerProbe::default()
@@ -2654,14 +2654,22 @@ impl NativeUi {
         probe
     }
 
+    fn admit_capability(&mut self, capability: crate::tui_capabilities::Capability) -> bool {
+        if self.capabilities.supports(capability) {
+            return true;
+        }
+        self.command_notice = self
+            .clock
+            .now()
+            .checked_add(std::time::Duration::from_secs(5))
+            .map(|until| (WorkbenchClientNotice::Unsupported(capability), until));
+        false
+    }
+
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> ClientActionDisposition {
         if let Some(capability) = crate::tui_capabilities::Capability::for_action(&action)
-            && let Err(crate::tui_capabilities::Unsupported(capability)) = capability.require()
+            && !self.admit_capability(capability)
         {
-            self.command_notice = Some((
-                WorkbenchClientNotice::Unsupported(capability),
-                self.clock.now() + std::time::Duration::from_secs(5),
-            ));
             return ClientActionDisposition::KeepNavigator;
         }
         self.remember_history_positions();

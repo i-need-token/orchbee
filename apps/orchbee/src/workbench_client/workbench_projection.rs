@@ -31,15 +31,11 @@ pub(super) struct NativeContextTabs {
     projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(windows, derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    windows,
-    serde(tag = "kind", content = "identity", deny_unknown_fields)
-)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "identity", deny_unknown_fields)]
 pub(crate) enum NativeContextLocation {
     /// No Workspace is open. This UI location has no terminal Context or persistent identity.
-    #[cfg_attr(windows, serde(skip))]
+    #[serde(skip)]
     NoWorkspace,
     Workspace {
         workspace_id: WorkbenchWorkspaceId,
@@ -104,9 +100,8 @@ impl NativeStartupTarget {
         }
     }
 }
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(windows, derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(windows, serde(deny_unknown_fields))]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeMemberTarget {
     pub(crate) tab: WorkbenchTabId,
     pub(crate) panel: WorkbenchPanelId,

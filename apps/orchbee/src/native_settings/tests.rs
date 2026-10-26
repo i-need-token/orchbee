@@ -1509,3 +1509,31 @@ impl Editor {
         self.presented(draw);
     }
 }
+
+#[test]
+fn login_shell_admission_uses_the_injected_capability_without_changing_other_draft_values() {
+    for supported in [false, true] {
+        let mut editor = Editor::new(supported);
+        let token = editor.open().unwrap();
+        assert!(editor.loaded(token, basis()));
+        draw(&mut editor);
+        editor.edit(Edit::Select(Row::LaunchProfiles));
+        editor.edit(Edit::Activate);
+        editor.edit(Edit::Select(Row::Login));
+        draw(&mut editor);
+        let View::Draft(before) = editor.view().unwrap() else {
+            panic!("draft")
+        };
+        assert_eq!(before.enabled(Row::Login), supported);
+        let mut expected = before.values.clone();
+        if supported {
+            expected.launch_profiles.profiles[0].command =
+                orchbee_workbench_protocol::UserLaunchCommand::SystemShell { login: true };
+        }
+        editor.edit(Edit::Adjust(true));
+        let View::Draft(after) = editor.view().unwrap() else {
+            panic!("draft")
+        };
+        assert_eq!(after.values, &expected);
+    }
+}

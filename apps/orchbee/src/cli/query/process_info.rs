@@ -2,17 +2,16 @@
 //! remain separate from snapshot routing and never grant input authority.
 
 use super::{
-    AttachmentId, BorrowedFd, Failure, FailureKind, HostEpoch, Instant, LocalClient, Projection,
-    Resource, Snapshot, Target, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
-    ViewerId, attach_viewer_cancellable, classify_viewer, classify_viewer_rejected,
-    obcs_request_id, rows_details, target_details, viewer_protocol_invalid, viewer_unavailable,
+    AttachmentId, BorrowedFd, Failure, FailureKind, HostEpoch, Instant, LocalClient, Snapshot,
+    Target, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId,
+    attach_viewer_cancellable, classify_viewer, classify_viewer_rejected, obcs_request_id,
+    rows_details, viewer_protocol_invalid, viewer_unavailable,
 };
 #[cfg(target_os = "linux")]
-use super::{NETWORK_BUDGET, deadline_after, snapshot_session_until};
+use super::{NETWORK_BUDGET, Projection, deadline_after, snapshot_session_until};
 #[cfg(target_os = "linux")]
 use crate::cli::caller_context::PanelTarget;
 use crate::cli::results;
-use crate::invocation::QueryCommand;
 use orchbee_terminal_protocol::{
     ConnectionControl, MessageRole, PayloadEncoding, ProcessInfoControl, TerminalProcessInfo,
     decode_connection_control, decode_process_info_control, decode_transport_envelope,
@@ -140,21 +139,7 @@ pub(super) fn read_attached(
     ))
 }
 
-pub(crate) fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<Target, Failure> {
-    let Projection::PanelGet(panel) =
-        results::project(&QueryCommand::PanelGet(target.clone()), snapshot)?
-    else {
-        return Err(Failure::new(FailureKind::InternalFailure));
-    };
-    panel
-        .primary_presentation
-        .terminal_id
-        .map(Target::Id)
-        .ok_or_else(|| {
-            Failure::new(FailureKind::NotFound)
-                .details(target_details(Resource::Panel, &panel.row.panel_id))
-        })
-}
+pub(crate) use crate::agent_runtime::startup::primary_terminal;
 
 fn decode(
     record: &[u8],

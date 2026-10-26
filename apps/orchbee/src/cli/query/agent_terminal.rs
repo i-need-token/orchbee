@@ -5,8 +5,8 @@
 use super::agent_target;
 use super::{
     AgentGetOutcome, AgentReadOperation, AgentReadRequest, AgentReadResult, AgentSessionId,
-    BorrowedFd, Failure, FailureKind, Instant, LocalClient, ObapRequestId, Resource, Snapshot,
-    Target, agent_protocol_invalid, agent_session_rejection, agent_unavailable_details,
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Resource, Snapshot, Target,
+    agent_protocol_invalid, agent_session_rejection, agent_unavailable_details,
     classify_agent_read, obap_request_id,
 };
 #[cfg(test)]
@@ -14,7 +14,7 @@ use super::{Projection, read_terminal_on_session, snapshot_session};
 #[cfg(windows)]
 use super::{named_terminal_target, read_terminal_processes};
 use crate::invocation::AgentTarget;
-use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSafeInteger, AgentSessionDetail};
+use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
 
 #[cfg(test)]
 pub(crate) fn read_agent_terminal(
@@ -45,11 +45,7 @@ pub(crate) fn agent_terminal_target(
     }
 }
 
-pub(crate) struct AgentObservationRead {
-    pub(crate) request_id: ObapRequestId,
-    pub(crate) revision: AgentSafeInteger,
-    pub(crate) session: Box<AgentSessionDetail>,
-}
+pub(crate) use crate::agent_runtime::AgentObservationRead;
 
 pub(crate) struct ResolvedAgentTerminal {
     pub(crate) terminal: Target,

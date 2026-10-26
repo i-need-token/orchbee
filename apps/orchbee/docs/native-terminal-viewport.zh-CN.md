@@ -21,10 +21,10 @@ demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以�
 使用相同协议；完整 ANSI 历史输出刷新后才发送 RowsApplied。适配器的 NDJSON 契约归
 [Windows 终端流](windows-terminal-streams.zh-CN.md)所有；TUI 通知文案仍由 TUI 拥有。
 
-Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定：Help 关闭时 PageUp
+快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定：Help 关闭时 PageUp
 进入保留历史，Help 打开时向前翻页；PageDown 在 Help 打开时向后翻页。这仅改变发现文案。
 历史可用性、Esc 返回实时终端、复制／导出及普通 Help 的非模态输入行为均保持不变。
-捕获输入的 [Workbench 导航器](native-context-selection.zh-CN.md#windows-捕获输入的导航器)
+捕获输入的 [Workbench 导航器](native-context-selection.zh-CN.md#捕获输入的导航器)
 拥有输入期间，将这些键用于本地行翻页。
 
 ## 较小的实时观察窗口

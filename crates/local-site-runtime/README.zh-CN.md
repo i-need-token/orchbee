@@ -3,6 +3,17 @@
 供 Client、Server 和 Worker 共用的私有原生运行时设施。本库负责相对目录描述符的运行时准入、
 锁与标记原语，以及不可变开发 cohort 校验。应用负责进程启动、服务状态和终端授权。
 
+## 共享类型与平台副作用
+
+设置和插件 schema、命令结果类型、命名会话语法、Windows 路径操作数与字面量命令编码
+在所有支持的平台可达。Windows 路径准入在 Unix 上也使用其显式语法；环境与 cwd 由
+执行所有者提供。OS 副作用保留在所属适配层。Windows 私有缓存、旧设置来源和插件注册表
+在打开路径或启动进程前拒绝不支持的 Unix 操作；私有缓存错误使用
+`io::ErrorKind::Unsupported`，设置错误使用稳定的 `platform` / `unsupported-platform`
+诊断，注册表使用 `PluginRegistryError::Unsupported`。
+既有跨平台 `UserPreferencesStore` 支持独立于这些旧设施。
+应用依据 [TUI 平台契约](../../apps/orchbee/docs/tui-platforms.zh-CN.md)决定操作可见性与本地化反馈。
+
 ## 共享用户偏好存储
 
 `UserPreferencesStore` 负责[共享契约](../../schemas/workbench/README.zh-CN.md#共享用户偏好)

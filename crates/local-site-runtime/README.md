@@ -4,6 +4,19 @@ Private native runtime facilities shared by the Client, Server, and Worker. This
 owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
 cohort verification. Applications own process launch, service state, and terminal authorization.
 
+## Shared types and platform effects
+
+Settings and plugin schemas, command outcome types, named-Session syntax, Windows path operands
+and literal command encoding are available on every supported platform. Windows path admission
+uses its explicit grammar even on Unix; environment and cwd are supplied by the execution owner.
+OS effects stay in their owning adapter. The Windows private cache, legacy settings source and
+plugin registry refuse unsupported Unix operations before opening a path or spawning a process;
+private-cache errors use `io::ErrorKind::Unsupported`, the settings error uses the stable
+`platform` / `unsupported-platform` diagnosis, and the registry uses `PluginRegistryError::Unsupported`.
+Existing cross-platform `UserPreferencesStore` support is independent of these legacy facilities.
+Applications decide action visibility and localized feedback through their
+[TUI platform contract](../../apps/orchbee/docs/tui-platforms.md).
+
 ## Shared user preference storage
 
 `UserPreferencesStore` owns the versioned, bounded device preference record described by the

@@ -64,11 +64,7 @@ fn ordinary_workspace_entry_launches_the_prepared_directory_without_a_review() {
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
         panic!("single Workspace launch")
     };
-    let expected = if cfg!(windows) {
-        "C:/项目 space"
-    } else {
-        "/tmp/项目 space"
-    };
+    let expected = "C:/项目 space";
     assert!(
         matches!(&marker.0.command.action, WorkbenchAction::WorkspaceLaunch { options, .. }
         if options.cwd.as_ref().unwrap().as_str() == expected)
@@ -847,5 +843,32 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
             assert!(mailbox.try_recv().unwrap().is_none());
             mailbox.close(CarrierFailure::WorkerExited);
         }
+    }
+}
+
+// The empty-location Create Tab fallback must refuse before it queues directory preparation.
+#[test]
+fn unsupported_directory_entry_never_queues_preparation_or_creates_a_draft() {
+    use crate::tui_capabilities::{Capabilities, Capability};
+    for action in [
+        ClientAction::RequestQuickWorkspace,
+        ClientAction::CreateTab,
+        ClientAction::RequestWorkspaceDirectory,
+    ] {
+        let (mut ui, mailbox, _, _) = no_workspace();
+        ui.capabilities = Capabilities::none();
+        assert_eq!(
+            ui.apply_client_action(action),
+            ClientActionDisposition::KeepNavigator
+        );
+        assert_eq!(
+            ui.view().notice(),
+            Some(WorkbenchClientNotice::Unsupported(
+                Capability::DirectoryInput
+            ))
+        );
+        assert!(ui.view().setup_draft().is_none());
+        assert!(ui.view().workspace_creation_preview().is_none());
+        assert!(mailbox.try_recv().unwrap().is_none());
     }
 }

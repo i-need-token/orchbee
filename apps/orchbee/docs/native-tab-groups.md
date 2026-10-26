@@ -1,6 +1,6 @@
 # Native Tab groups and capability coverage
 
-The Windows native TUI projects canonical group identities, names, colors, membership and pinned
+The native TUI projects canonical group identities, names, colors, membership and pinned
 state. The compact strip renders a separate group header whose reserved disclosure cell shows its
 arrow on hover or while collapsed.
 The Tab menu follows the GUI creation/grouping, duplication/pinning and close sections;
@@ -13,7 +13,7 @@ background Tab keeps the current Tab, Panel, Presentation, terminal binding and 
 This comparison concerns the admitted Workbench composition, not everything exported by the
 reusable Tab Strip. The GUI owners are `WorkbenchTabBar`, `useWorkbench`,
 `getWorkbenchTabCreationAvailability`, `WorkbenchProjectWorkspaceRuntime` and `TabModel`.
-Native entries refer to the Windows TUI. This is a capability slice, not complete GUI/TUI parity.
+Native entries refer to the shared TUI on all supported platforms. This is a capability slice, not complete GUI/TUI parity.
 
 | Core operation                                      | Admitted GUI path                                                                                                                        | Native coverage and remaining gap                                                                                                                                                                                                      |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

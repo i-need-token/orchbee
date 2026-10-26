@@ -2,7 +2,7 @@
 
 ## 归属与交互
 
-Windows 内置 `Ctrl+B t` 动作显式申请控制当前已连接的原生 pane。
+内置 `Ctrl+B t` 动作显式申请控制当前已连接的原生 pane。
 普通打字、点击、选择和 Viewer 轮询从不申请接管。Server 通过现有
 OBCS v1 Takeover 动作继续拥有控制 grant 的权威；Client 不选择或撤销其他
 Client 的身份。交接保留终端、程序与 Viewer 连接。

@@ -14,26 +14,7 @@ use crate::localization::Locale;
 
 pub(crate) const TERMINAL_SEND_ID: &str = "orchbee.terminal.send";
 
-/// Which stderr diagnostic a typed send answer carries. The send envelope on
-/// stdout always reports both axes verbatim; this only picks the localized
-/// guidance line — most importantly the cases where resending could type
-/// twice.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SendVerdict {
-    /// `accepted` + `confirmed`: nothing to warn about.
-    Quiet,
-    /// The input landed but detach never confirmed; resending could type twice.
-    AcceptedCleanupUnconfirmed,
-    /// A typed refusal; the input provably did not reach the Host queue.
-    Rejected,
-    /// A determinate stop after a confirmed prefix: the receipt names the
-    /// frontier and resending the whole sequence could type twice.
-    PartialAccepted,
-    /// Never submitted; no Host write was attempted.
-    Unavailable,
-    /// The exchange never settled; the input may already have landed.
-    OutcomeUnknown,
-}
+pub(crate) use crate::agent_runtime::SendVerdict;
 
 #[cfg(any(target_os = "linux", windows))]
 pub(super) fn run(

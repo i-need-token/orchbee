@@ -101,7 +101,7 @@ and the wire geometry agree without the caller knowing the tier. Hosts at least 
 default sidebar plus that minimum (90 columns) are wide and show the sidebar by default; narrower
 hosts open it only as an explicitly requested overlay.
 
-The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
+The sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
@@ -111,7 +111,7 @@ ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly und
 each Workspace, with independent lists expanded by default. Configuration still owns item row height, gap and token styles.
 
 Fallback chrome without projected navigation rows never invents a legacy Workspace row. When
-`sidebar_navigation_rows` is empty and no Workspace creation preview exists, the Windows sidebar
+`sidebar_navigation_rows` is empty and no Workspace creation preview exists, the sidebar
 omits Session, terminal-status, Business, Projects and Workspaces placeholders. New workspace,
 Search and Settings keep their complete existing targets and footer geometry. A creation preview
 retains its pending row.
@@ -260,15 +260,15 @@ within its current Project/ungrouped list. The existing row-menu binding retains
 and shares the same stable target proof as secondary click. These local bindings appear in sidebar
 help from the binding registry; the gesture does not add a separate shortcut system.
 
-At Full and Compact tiers, the Windows top strip contains Tabs, their close and creation controls,
+At Full and Compact tiers, the top strip contains Tabs, their close and creation controls,
 and a sidebar restore control when needed. It rests on `surface-strip`, one step lighter than the
 terminal in named themes, so a bare pane below it stays distinct. Each Tab leads with the state glyph
 of the Agent the current machine observation places in it and follows with an unread dot; a
 collapsed group carries its members' most urgent state. While the sidebar is hidden, the attached
 machine alone stays observed for this purpose. Summaries stay in the sidebar and Agent Board.
-Global actions are available through `Ctrl+B F2` and configured menu bindings. Non-Windows Clients
-retain their context breadcrumb because their sidebar does not project canonical navigation rows; a
-location equal to the active Tab label is omitted there.
+Global actions are available through `Ctrl+B F2` and configured menu bindings. Every platform
+projects the same canonical navigation rows; the retired context breadcrumb is not a separate
+platform layout.
 Active Tabs use padding, `surface-current` and bold identity without a marker; checked Tabs use
 `surface-selection` at the same width.
 Compact Tabs show their labels without ordinal prefixes; navigation lists retain keyboard positions.
@@ -318,7 +318,7 @@ hidden controls. A restored presentable frame can resume the retained help page.
 
 ## Quick creation controls
 
-On Windows the top strip reserves three cells for `+` after the last visible Tab,
+The top strip reserves three cells for `+` after the last visible Tab,
 including an empty canonical Workspace. The current Tab and create control share the strip;
 Presentation selectors belong to pane title lines, or to the strip's end for a bare pane. Controls
 disappear with the strip below Compact.
@@ -593,7 +593,7 @@ visible beside an overlay sidebar. This authored guidance uses a separate paint 
 canonical shell areas and terminal geometry remain unchanged. While an overlay sidebar is shown,
 the panes beneath it are covered: their cursor, graphics and attention cues stay hidden.
 
-The Windows [Workbench navigator](native-context-selection.md#windows-capturing-navigator)
+The [Workbench navigator](native-context-selection.md#capturing-navigator)
 uses the existing centered surface with two labeled columns and a window around local focus.
 The active marker continues to identify the selected terminal; the selection background shows
 the row Enter will open. Complete visible rows publish exact proofs with the successful frame.
@@ -642,7 +642,7 @@ projection itself is unchanged.
 Capturing surfaces replace the pane's focus emphasis with the unfocused frame and secondary title
 styles. Reference overlays preserve pane focus and use an unfocused frame. Sidebar section headings
 use primary bold text rather than focus color.
-On Windows the Machine picker and Worktree draft also suppress pane focus and
+The Machine picker and Worktree draft also suppress pane focus and
 the terminal cursor while they own input.
 The Session status colors only its glyph; its text uses the primary text role.
 Ready uses the existing success role, while other phases retain their warning
@@ -706,7 +706,7 @@ terminal appearance.
 
 ## Tab metadata annotations
 
-Pinned Tabs use the localized `Pinned` / `固定` annotation in the navigator; the Windows compact
+Pinned Tabs use the localized `Pinned` / `固定` annotation in the navigator; the compact
 strip separates them from other Tabs with one vertical rule. It paints separate tinted group headers
 with a disclosure cell and no member count; expanded members retain their ordinary Tab tokens, and a
 collapsed header identifies an active member. The navigator keeps every canonical

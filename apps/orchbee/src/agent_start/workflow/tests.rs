@@ -114,7 +114,7 @@ fn explicit_wake_reports_cancelled_without_overwriting_mutation_uncertainty() {
 
 #[test]
 fn typed_send_verdict_not_process_status_decides_delivery() {
-    use crate::cli::agent_start_runtime::SendVerdict;
+    use crate::agent_runtime::SendVerdict;
 
     for (verdict, expected) in [
         (SendVerdict::Quiet, DeliveryDisposition::Applied),

@@ -19,7 +19,6 @@ use orchbee_agent_observation_protocol::{
     AgentSafeInteger, AgentSemanticStatus, AgentSessionDetail, AgentSessionId, AgentWireError,
     ObapRequestId,
 };
-use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use serde_json::json;
 
 use super::{
@@ -807,39 +806,7 @@ fn wait_deadline_elapsed(error: &AgentExchangeError) -> bool {
     wait_io_error(error).is_some_and(is_deadline_elapsed)
 }
 
-/// The interruptible private backoff: poll the borrowed wake descriptor
-/// for up to `duration`; `true` means it reported readiness or an
-/// unrecoverable poll fault, and the owner's arbitration must run before
-/// any further step.
-pub(crate) fn wait_backoff(wake: Option<BorrowedFd<'_>>, duration: Duration) -> bool {
-    let Some(fd) = wake else {
-        if !duration.is_zero() {
-            std::thread::sleep(duration);
-        }
-        return false;
-    };
-    if duration.is_zero() {
-        return false;
-    }
-    let mut descriptors = [PollFd::new(fd, PollFlags::POLLIN)];
-    let rounded_milliseconds = duration.as_millis().saturating_add(u128::from(
-        !duration.subsec_nanos().is_multiple_of(1_000_000),
-    ));
-    let timeout = PollTimeout::try_from(rounded_milliseconds).unwrap_or(PollTimeout::MAX);
-    match poll(&mut descriptors, timeout) {
-        Ok(0) => false,
-        Ok(_) => descriptors[0]
-            .revents()
-            .unwrap_or_else(PollFlags::empty)
-            .intersects(
-                PollFlags::POLLIN | PollFlags::POLLHUP | PollFlags::POLLERR | PollFlags::POLLNVAL,
-            ),
-        Err(error) if error.kind() == std::io::ErrorKind::Interrupted => false,
-        // A descriptor-level poll fault is an internal condition: stop so
-        // the owner's arbitration can land it on `internal-failure`.
-        Err(_) => true,
-    }
-}
+pub(crate) use crate::agent_runtime::wait_backoff;
 
 /// The `revision-ahead` refusal details: the incoherent fence is a
 /// rejection, never a wait — `{stage:"agent-read", operation:"wait",

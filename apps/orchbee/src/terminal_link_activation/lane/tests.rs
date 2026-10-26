@@ -15,14 +15,14 @@ use crate::{
 #[derive(Default)]
 struct RecordingBrowser {
     opened: Vec<String>,
-    fail: bool,
+    failure: Option<BrowserError>,
 }
 
 impl BrowserPort for RecordingBrowser {
     fn open(&mut self, url: &str) -> Result<(), BrowserError> {
         self.opened.push(url.to_owned());
-        if self.fail {
-            Err(BrowserError::Failed)
+        if let Some(error) = self.failure {
+            Err(error)
         } else {
             Ok(())
         }
@@ -79,7 +79,7 @@ fn definite_no_handler_launches_the_browser_exactly_once() {
     assert_eq!(browser.opened, vec!["https://example.test".to_owned()]);
 
     let mut failing = RecordingBrowser {
-        fail: true,
+        failure: Some(BrowserError::Failed),
         ..RecordingBrowser::default()
     };
     assert_eq!(
@@ -91,6 +91,24 @@ fn definite_no_handler_launches_the_browser_exactly_once() {
         Notice::Failed
     );
     assert_eq!(failing.opened, vec!["https://example.test".to_owned()]);
+
+    let mut unavailable = RecordingBrowser {
+        failure: Some(BrowserError::Unsupported),
+        ..RecordingBrowser::default()
+    };
+    assert_eq!(
+        settle_effect(
+            EffectHandoff::NoHandler,
+            "https://example.test",
+            &mut unavailable
+        ),
+        Notice::Unsupported
+    );
+    assert_eq!(
+        unavailable.opened.len(),
+        1,
+        "unsupported capability settles without replay"
+    );
 
     let mut unsupported = RecordingBrowser::default();
     assert_eq!(

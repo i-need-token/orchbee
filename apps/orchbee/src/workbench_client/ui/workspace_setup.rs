@@ -216,6 +216,9 @@ impl NativeUi {
         request: Option<crate::workbench_client::ProjectQuickWorkspaceRequest>,
         review_directory: bool,
     ) -> bool {
+        if !self.admit_capability(crate::tui_capabilities::Capability::DirectoryInput) {
+            return false;
+        }
         if self.retirement_failure.is_some() {
             return false;
         }
@@ -296,6 +299,11 @@ impl NativeUi {
         &mut self,
         intent: NativeSetupIntent,
     ) -> Option<NativeSetupToken> {
+        if matches!(intent, NativeSetupIntent::ConfigureDirectory)
+            && !self.admit_capability(crate::tui_capabilities::Capability::DirectoryInput)
+        {
+            return None;
+        }
         if self.retirement_failure.is_some() {
             return None;
         }

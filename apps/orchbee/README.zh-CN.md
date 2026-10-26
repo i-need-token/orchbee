@@ -54,6 +54,10 @@ Windows `machine list|add|rename|remove|enable|disable` 管理已保存的 SSH �
 
 Windows `update` 与 `channel set` 共用完整 cohort 安装、显式发布源、独立版本发布和单独的用户 PATH 激活。详见 [Windows 版本安装](docs/windows-cli-configuration.zh-CN.md#windows-版本安装)。
 
+[TUI 平台边界](docs/tui-platforms.zh-CN.md)定义共享 Client 实现、可选 OS 适配、
+本地化不支持结果与原生平台证据。状态、输入、菜单和渲染在 Windows、Linux、macOS
+一起编译；可选 Windows 宿主副作用在相应平台适配实现前保持明确不可用。
+
 ## 命令面
 
 裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows、Linux 与 Apple Silicon

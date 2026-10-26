@@ -2,7 +2,12 @@
 
 ## Interaction
 
-Windows `Ctrl+B F2` and `[keys].menu` open the global action menu. These keyboard routes remain
+Host capability admission is independent of Server availability. Optional OS effects without an
+adapter are absent from menus; direct invocation rechecks the same capability and reports a
+localized unsupported outcome. Shared Workbench actions retain their own admission rules. See
+[TUI platform boundaries](tui-platforms.md).
+
+`Ctrl+B F2` and `[keys].menu` open the global action menu. These keyboard routes remain
 available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
 pane, tab or Workspace row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
@@ -303,7 +308,7 @@ The user wants to discover and execute existing actions without memorizing chord
 | Inputs          | Drawn stable target, exact context/member/incarnation, projected stable action identity and typed input, current action prerequisites, complete decoded input packet, configuration, monotonic deadline and successful menu draw receipt                                                                                                                                            |
 | Data            | One local episode, `Pending`/`Admitted`/`Suspended` presentation phase, independent whole-surface lease and exact row-window proof, `Recovery`/`Continuation`/`ActivationReady` input readiness, retained viewport and selection, owner-derived enabled/disabled/hidden availability, presentation token, frozen confirmed action, parent snapshot and optional exact target member |
 | Outputs         | Local capture and drawing; bounded navigation through existing membership owners; at most one action handed to the full ClientView/dispatcher path; localized cancellation or refusal                                                                                                                                                                                               |
-| Decisions       | Existing captures, including the Windows navigator, take priority. Help and sidebar remain unchanged underlays. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement                                                                                                              |
+| Decisions       | Existing captures, including the native navigator, take priority. Help and sidebar remain unchanged underlays. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement                                                                                                               |
 | Invariants      | No undrawn or stale activation, no focus on open/cancel, no action on a replacement target, no implicit retry, no input or decision-packet tail reaching a pane; ordinary Close keeps its confirmation; conditional Delete requires exact authority proof or a new reviewed decision                                                                                                |
 | Model           | Finite safety machine for capture, drawing, target invalidation, owned and foreign navigation, cancellation, prerequisites and one action transfer                                                                                                                                                                                                                                  |
 | Dependencies    | Existing native membership, terminal state, input decoder, hit map, layout, localization and action owners; additive conditional Delete wire actions remain Server-owned; no new dependency or persistent data                                                                                                                                                                      |
@@ -327,7 +332,7 @@ passthrough. The caller retains sidebar focus while the menu captures input and
 reconciles a removed row on dismissal. The menu keeps no second sidebar focus state.
 The global menu remains independently available.
 
-The [Windows navigator](native-context-selection.md#windows-capturing-navigator)
+The [native navigator](native-context-selection.md#capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 

@@ -7,7 +7,7 @@ use std::{
     process::{Command, Stdio},
     sync::atomic::AtomicBool,
     thread,
-    time::{Duration, Instant},
+    time::Instant,
 };
 use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 pub(super) fn directory() -> std::io::Result<PathBuf> {

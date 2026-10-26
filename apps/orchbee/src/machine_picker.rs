@@ -666,7 +666,7 @@ impl Picker {
     }
     /// The shared Tab strip shows unread Agents even while the Sidebar is hidden.
     pub(crate) fn wants_agent_attention(&self) -> bool {
-        true
+        self.available
     }
     pub(crate) fn observe_agents(
         &mut self,

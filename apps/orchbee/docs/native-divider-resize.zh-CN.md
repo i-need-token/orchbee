@@ -2,7 +2,7 @@
 
 ## 合同与所有者
 
-Windows Client 可用无修饰左键按住已绘制的 pane 分隔线。按住期间，每次已绘制的移动都会改变实际 pane 布局及物理控制者的终端尺寸。松手只把最终比例接受到共享布局一次。比例仍为 10%–90%，跨 Client 共享，并由现有 checkpoint 所有者保存。[原生键盘调整](native-keyboard-resize.zh-CN.md) 继续提供键盘入口。本能力遵循[鼠标输入](../../../docs/zh-CN/tui/mouse-input.md)，不增加协议、存储格式、输入接管或存活进程恢复。
+原生 Client 可用无修饰左键按住已绘制的 pane 分隔线。按住期间，每次已绘制的移动都会改变实际 pane 布局及物理控制者的终端尺寸。松手只把最终比例接受到共享布局一次。比例仍为 10%–90%，跨 Client 共享，并由现有 checkpoint 所有者保存。[原生键盘调整](native-keyboard-resize.zh-CN.md) 继续提供键盘入口。本能力遵循[鼠标输入](../../../docs/zh-CN/tui/mouse-input.md)，不增加协议、存储格式、输入接管或存活进程恢复。
 
 `PointerState` 拥有一个可撤销的 `DividerDrag`。`tui_layout` 拥有确定性几何及不可变的 `DrawnDivider`：Session、终端上下文、Tab、焦点 panel、Workbench revision、split、有序 slot、原比例、方向、split 区域、已绘制分隔线和 viewport。渲染器只在最后成功帧记录可见分隔线。缩放、折叠和没有框架的 split 不暴露调整目标。按下、移动、空闲和松手时的原生检查须与完整规范来源一致。拖动另存最后成功绘制的草稿目标；自身完成帧只推进该凭据，不改变按下原点，帧前多次移动仍使用上次成功凭据。规范焦点、revision、几何、捕获变化或命中图缺失／不匹配会取消草稿，绝不重新指向另一条分隔线。
 

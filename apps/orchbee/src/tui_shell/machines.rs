@@ -101,6 +101,12 @@ pub(super) struct Manager {
 impl Manager {
     pub(super) fn new(view: &mut ClientView, wakeup: crate::workbench_client::UiWakeup) -> Self {
         view.machines.available = true;
+        if !view
+            .capabilities
+            .supports(crate::tui_capabilities::Capability::SavedMachines)
+        {
+            view.machines.replace(&[]);
+        }
         Self {
             profiles: Vec::new(),
             catalog_ok: false,
@@ -164,7 +170,11 @@ impl Manager {
         self.template
             .notifications
             .configure(view.notifications.policy().clone());
-        if now >= self.refresh {
+        if now >= self.refresh
+            && view
+                .capabilities
+                .supports(crate::tui_capabilities::Capability::SavedMachines)
+        {
             self.refresh = now + Duration::from_secs(1);
             change = self.refresh_catalog(
                 Store::configured().and_then(|store| store.read()),
@@ -204,8 +214,7 @@ impl Manager {
         let every_machine = view.machines.wants_agents() || view.machines.wants_spaces();
         // The Windows Tab strip summarizes the attached machine's Agents without the Sidebar.
         let current = self.current.as_ref().map(|profile| profile.id.clone());
-        let attached =
-            |profile: Option<&Profile>| cfg!(windows) && current.as_ref() == profile.map(|p| &p.id);
+        let attached = |profile: Option<&Profile>| current.as_ref() == profile.map(|p| &p.id);
         if (every_machine || attached(None))
             && let Some(connection) = self.local_source(surface)
         {

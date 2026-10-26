@@ -2,7 +2,7 @@
 
 ## Scope and user outcome
 
-The Windows TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`). Proven idle Workspaces
+The native TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`). Proven idle Workspaces
 close directly; active or unproven program state opens confirmation, where unmodified `Enter`
 confirms and `Esc` cancels. The complete confirmation names the Workspace and explains
 that its terminals end for every Client while Git branches and checkouts remain. Project grouping,

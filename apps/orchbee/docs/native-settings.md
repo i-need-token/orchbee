@@ -2,8 +2,8 @@
 
 ## Interaction and scope
 
-`Ctrl+B F4` opens Settings on supported native TUI hosts. Windows also exposes
-its sidebar Settings row and global action menu. The capturing surface edits a
+`Ctrl+B F4`, the sidebar Settings row and the global action menu open Settings
+on supported native TUI hosts. The capturing surface edits a
 local draft while pane output continues. It covers every common preference in
 [the shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect),
 including launch profiles and new-terminal scrollback defaults. Host-owned fonts,

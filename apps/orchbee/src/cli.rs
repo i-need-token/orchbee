@@ -82,7 +82,7 @@ pub(crate) mod output;
 #[cfg(windows)]
 pub(crate) mod panel_relocation;
 pub(crate) mod present;
-pub(crate) mod processes;
+pub(crate) use crate::agent_runtime::processes;
 mod query;
 pub(crate) mod results;
 pub(crate) mod runtime_status;
@@ -94,14 +94,11 @@ pub(crate) mod send;
 /// family instead of becoming crate-wide implementation surfaces.
 #[cfg(windows)]
 pub(crate) mod agent_start_runtime {
-    pub(crate) use super::processes::{Selection, interpret};
     pub(crate) use super::query::{
-        obap_request_id, primary_terminal, read_agent_observation,
-        read_terminal_processes_cancellable, snapshot_from_origin, stream_snapshot, wait_backoff,
+        read_agent_observation, read_terminal_processes_cancellable, snapshot_from_origin,
+        stream_snapshot,
     };
-    pub(crate) use super::send::{
-        SendVerdict, submit_prompt_on_session_cancellable as submit_prompt_on_session,
-    };
+    pub(crate) use super::send::submit_prompt_on_session_cancellable as submit_prompt_on_session;
 }
 mod site;
 mod site_diagnose;

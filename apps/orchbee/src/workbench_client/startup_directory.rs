@@ -24,9 +24,14 @@ pub(super) struct Parameters {
 impl Parameters {
     fn from_path(path: &Path, locale: Locale) -> Option<Self> {
         let cwd = WorkbenchDirectoryPath::parse(path.to_str()?).ok()?;
-        let label = path
-            .file_name()
-            .and_then(|name| name.to_str())
+        // The directory is a wire value; a Windows drive root must not become a
+        // literal "C:" label when this pure projection is compiled on Unix.
+        let label = cwd
+            .as_str()
+            .trim_end_matches(['/', '\\'])
+            .rsplit(['/', '\\'])
+            .next()
+            .filter(|name| !name.is_empty() && !name.ends_with(':'))
             .unwrap_or(locale.cli_default_workspace_label());
         Some(Self {
             cwd,

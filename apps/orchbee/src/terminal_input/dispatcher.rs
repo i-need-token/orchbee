@@ -525,7 +525,7 @@ impl InputDispatcher {
         {
             self.popup_owned = popup;
         }
-        if current == self.capture_owner && { { !popup_changed } } {
+        if current == self.capture_owner && !popup_changed {
             return false;
         }
 
@@ -2132,7 +2132,9 @@ impl InputDispatcher {
         if view.machines.available {
             match action {
                 Some(ClientAction::OpenMachines)
-                    if crate::tui_capabilities::Capability::SavedMachines.available() =>
+                    if view
+                        .capabilities
+                        .supports(crate::tui_capabilities::Capability::SavedMachines) =>
                 {
                     view.machines.show()
                 }

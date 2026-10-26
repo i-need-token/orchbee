@@ -3140,10 +3140,7 @@ fn classify_agent_failure(reason: AgentExchangeFailure, operation: AgentReadOper
 /// The OBAP request identity minted per command: sixteen fresh bytes as
 /// canonical 32-lowercase-hex, never reused.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-pub(crate) fn obap_request_id() -> Result<ObapRequestId, Failure> {
-    ObapRequestId::parse(&fresh_request_id()?)
-        .map_err(|_| Failure::new(FailureKind::InternalFailure))
-}
+pub(crate) use crate::agent_runtime::startup::obap_request_id;
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn rejection_reason_text(

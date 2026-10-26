@@ -72,14 +72,7 @@ pub(in crate::workbench_client::ui) fn finish_preparation(
         clock,
         snapshot,
         cancelled,
-        Some(
-            WorkbenchDirectoryPath::parse(if cfg!(windows) {
-                "C:/项目 space"
-            } else {
-                "/tmp/项目 space"
-            })
-            .unwrap(),
-        ),
+        Some(WorkbenchDirectoryPath::parse("C:/项目 space").unwrap()),
     );
 }
 

@@ -60,6 +60,11 @@ Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profil
 
 Windows `update` and `channel set` share complete-cohort installation, explicit release sources, immutable publication and separate user PATH activation. See [Windows release installation](docs/windows-cli-configuration.md#windows-release-installation).
 
+The [TUI platform boundary](docs/tui-platforms.md) defines the shared Client implementation,
+optional OS adapters, localized unsupported outcomes and native-platform evidence. State, input,
+menus and rendering compile together on Windows, Linux and macOS; optional Windows host effects
+remain explicitly unavailable until their platform adapter exists.
+
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid

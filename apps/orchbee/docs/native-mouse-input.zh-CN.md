@@ -2,6 +2,10 @@
 
 ## 范围与归属
 
+共享指针分发、导航、拖拽及命中几何适用于所有支持平台。浏览器激活需要对应宿主适配器；
+缺少适配器时，在准入任何效果前报告本地化的不支持结果。参见
+[TUI 平台边界](tui-platforms.zh-CN.md)。
+
 本参考治理原生 Client 的指针行为：宿主捕获生命周期、最后一个已绘制帧的 hit map、各绘制
 区域接受的手势词表、向 pane 内程序的透传编码，以及备用屏幕的滚轮回退。它与
 `tui_pointer.rs`、`terminal_input/mouse.rs`、`terminal_input/decoder.rs`、
@@ -14,13 +18,13 @@
 mode-lease 机制。[原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)拥有未跟踪
 pane 的选择及其复制生命周期。
 
-Windows [分隔线调整](native-divider-resize.zh-CN.md) 拥有可撤销 split 预览及一次仅松手提交的共享比例修改。
+原生 [分隔线调整](native-divider-resize.zh-CN.md) 拥有可撤销 split 预览及一次仅松手提交的共享比例修改。
 
-Windows [Tab 排列](native-tab-groups.zh-CN.md#指针排列与菜单导航) 拥有按下／拖拽／释放、
+原生 [Tab 排列](native-tab-groups.zh-CN.md#指针排列与菜单导航) 拥有按下／拖拽／释放、
 所选成员、分组边界与静态反馈。InputDispatcher 对提交和取消均捕获释放输入包内的
 按键、粘贴及待解码片段。
 
-Windows [动作菜单](native-action-menus.zh-CN.md) 在普通聚焦之前消费属于 Client 的右键按下。
+原生 [动作菜单](native-action-menus.zh-CN.md) 在普通聚焦之前消费属于 Client 的右键按下。
 菜单捕获不能替换已有真实手势或 wheel 流。
 
 中键表面、pixel 格式报告、选择复制
@@ -82,7 +86,7 @@ menu 配对的数据包债务）会在同一个所有者前置步骤中结算。
 
 ## 侧栏导航输入边界
 
-Windows 上，`Ctrl+B Tab` 在侧栏键盘导航与终端输入之间切换，保留 `Ctrl+B Shift+B` 别名。进入导航时，在有效几何允许呈现时
+`Ctrl+B Tab` 在侧栏键盘导航与终端输入之间切换，保留 `Ctrl+B Shift+B` 别名。进入导航时，在有效几何允许呈现时
 显示侧栏。`Ctrl+B b` 保持切换显隐的含义。`Picker` 拥有可见树、展开状态、
 稳定行焦点及滚动窗口；活动终端上下文保持独立。`InputDispatcher` 拥有输入
 租约及包边界保护。不增加服务端、线协议或持久状态。
@@ -233,7 +237,7 @@ decoder、timer、布局与 owner transition 均无其它变化时，才可跳�
 Settings、动作菜单、侧边栏、Agent board、Help、Navigator、Machine Picker、Presentation
 选择器、Tab 创建及全局 Menu 和 Sidebar Restore 按钮都使用该中央协议。通用控件在匹配释放
 时激活。侧边栏 Menu/Create 保留专用菜单打开 owner，Agent-board 行只用 `SelectOnPress`
-进行临时导航。Windows Tab/group 排列、分隔线、滚动条、Copy 选择及 pane 输入保留专用
+进行临时导航。Tab/group 排列、分隔线、滚动条、Copy 选择及 pane 输入保留专用
 手势 owner。禁用目标保持可见并消费输入，不会穿透到包含它的行或 pane。
 
 Help 控件与滚动携带精确打开 episode 和成功呈现的页；完整拒绝只准入关闭控件。Help 仍不
@@ -247,24 +251,24 @@ Copy、Resize 与原生表单发布包含 availability 和精确几何的显式�
 背景时，保留 focus、current、checked、临时导航、状态及 operation 提示。已取消的 Tab 点击
 也会退休 pressed 呈现；移回不会重臂，之后跨阈值的拖动仍遵循专用排列契约。
 
-| 绘制表面                    | 层               | 目标                                                      | 接受的手势                                                                               |
-| --------------------------- | ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Navigator context 行        | `Overlay`        | Windows `NavigatorRow(Row)`；其它平台 `Context(location)` | 匹配主键释放选择精确绘制的 context                                                       |
-| Navigator tab 行            | `Overlay`        | Windows `NavigatorRow(Row)`；其它平台 `Tab(tab_id)`       | 匹配主键释放选择精确绘制的 Tab                                                           |
-| 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`                                          | 吞掉——绝不到达下层                                                                       |
-| 捕获型 overlay 之外         | —                | backdrop                                                  | 普通按钮按下关闭，滚轮无效。底层任何区域，包括未遮盖的 tab 构件或 pane，都看不到该事件。 |
-| 紧凑 tab-strip 标记         | `Foreground`     | 带显式交互元数据的 `Tab(tab_id)`                          | Windows 按下为点击／拖拽建立手势，释放时激活或一次提交；其它平台在匹配释放时选择         |
-| Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源                            | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择      |
-| 未绑定的 pane 叶            | `Foreground`     | `Pane{tab,panel}`                                         | Press 只聚焦；没有程序收到该事件                                                         |
-| Windows 可见 pane 分隔线    | `Foreground`     | `Divider(source)`                                         | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                  |
-| 其余一切（状态、空隙）      | —                | dead space                                                | 忽略                                                                                     |
+| 绘制表面                    | 层               | 目标                             | 接受的手势                                                                               |
+| --------------------------- | ---------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| Navigator context 行        | `Overlay`        | `NavigatorRow(Row)`              | 匹配主键释放选择精确绘制的 context                                                       |
+| Navigator tab 行            | `Overlay`        | `NavigatorRow(Row)`              | 匹配主键释放选择精确绘制的 Tab                                                           |
+| 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`                 | 吞掉——绝不到达下层                                                                       |
+| 捕获型 overlay 之外         | —                | backdrop                         | 普通按钮按下关闭，滚轮无效。底层任何区域，包括未遮盖的 tab 构件或 pane，都看不到该事件。 |
+| 紧凑 tab-strip 标记         | `Foreground`     | 带显式交互元数据的 `Tab(tab_id)` | 按下为点击／拖拽建立手势，释放时激活或一次提交                                           |
+| Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源   | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择      |
+| 未绑定的 pane 叶            | `Foreground`     | `Pane{tab,panel}`                | Press 只聚焦；没有程序收到该事件                                                         |
+| 可见 pane 分隔线            | `Foreground`     | `Divider(source)`                | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                  |
+| 其余一切（状态、空隙）      | —                | dead space                       | 忽略                                                                                     |
 
 pane 区域上的 press 按*被绘制的那个 Tab* 解析：当绘制时的 Tab 不再处于 active 的
 stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 panel。
 
-Windows 导航器为每个完整绘制行使用 `NavigatorRow(episode, source, target)` 凭据，关闭使用
+原生导航器为每个完整绘制行使用 `NavigatorRow(episode, source, target)` 凭据，关闭使用
 精确 `DrawSource`。只有该精确行上无修饰主键的匹配释放才可请求激活，
-键盘 Enter 还要求已绘焦点。[导航器契约](native-context-selection.zh-CN.md#windows-捕获输入的导航器)
+键盘 Enter 还要求已绘焦点。[导航器契约](native-context-selection.zh-CN.md#捕获输入的导航器)
 拥有准入与取消。背景按下仅关闭而不穿透，滚轮及现有 Shift 宿主绕过除外；滚轮仅滚动已绘制的列而不激活，行上的
 修饰键／右键按下不激活。已消费的行／背景决策在成功新帧后仍拥有对应释放事件，
 仅释放、宿主焦点丢失或新的非 Shift 合格按下可清除此归属，单纯绘制退休不可清除。
@@ -282,7 +286,7 @@ Client 所有。`Scrollbar` 手势保留准确窗格身份和绘制几何，在�
 | 状态        | 含义与出口                                                                                                                                                                                 |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Idle`      | 无指针 owner。命中区域上的 press 打开一个手势或直接应用导航。                                                                                                                              |
-| `Divider`   | Windows：一条精确已绘制 split 拥有可撤销预览线。松手交接一次有变化比例，取消则丢弃。提交由共用局部调整所有者拥有，不属于 pointer 手势。                                                    |
+| `Divider`   | 一条精确已绘制 split 拥有可撤销预览线。松手交接一次有变化比例，取消则丢弃。提交由共用局部调整所有者拥有，不属于 pointer 手势。                                                             |
 | `Pane`      | 已聚焦的上报 pane 拥有指针直至 release。motion 与 release 按 press 时绘制的视口原点编码为 pane-local——拖出区域的 drag 仍属于它。release 在手势中途绝不丢弃。                               |
 | `Selection` | 已聚焦且未跟踪鼠标的 pane 为其精确 attachment 和投影 generation 拥有一个 Host 选择手势。motion 在 pane 内合并；release 留在最新 motion 之后，并且只有 Host 接受的活动 end 才能请求复制。   |
 | `Pending`   | 落在未聚焦 pane 上的 press 触发了 `FocusPanel`；该 press 与随后的输入排队（FIFO，上界 16，motion 合并为最新 cell），直至切换就绪。溢出在任何新输入被接受之前取消并报告有界的输入丢弃说明。 |
@@ -383,7 +387,7 @@ action 或 Windows 拥有的浏览器进程。本次 button-event capture 切片
 Snapshot 与终端 Host 仍是成员 binding 与内容的规范来源，Windows 插件 registry 仍是 handler
 顺序的规范来源。输入包括一份精确已绘制来源与 cell、新鲜 Snapshot／viewer 记录、registry
 条目，以及插件或 shell 结果。事实缺失或畸形表示拒绝，绝不推断为“确定无 handler”。输出为
-`Opened`、`Handled`、`NoLink`、`Busy`、`Failed` 或 `Unknown`；只有插件提交和 Windows shell
+`Opened`、`Handled`、`NoLink`、`Busy`、`Unsupported`、`Failed` 或 `Unknown`；只有插件提交和 Windows shell
 启动属于外部效果。
 
 | 状态／事件                                              | 守卫                                     | 下一状态与命令                                                  |

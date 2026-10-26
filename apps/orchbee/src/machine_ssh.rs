@@ -39,9 +39,9 @@ pub(crate) fn client(value: &Value) -> Result<Client, AdmissionError> {
                 && s.as_bytes()
                     .get(2)
                     .is_some_and(|b| matches!(b, b'/' | b'\\'))
-                && Path::new(s)
-                    .file_name()
-                    .is_some_and(|n| n.eq_ignore_ascii_case("orchbee.exe"))
+                && s.rsplit(['/', '\\'])
+                    .next()
+                    .is_some_and(|name| name.eq_ignore_ascii_case("orchbee.exe"))
         })
         .ok_or(AdmissionError::Protocol)?;
     Ok(Client {

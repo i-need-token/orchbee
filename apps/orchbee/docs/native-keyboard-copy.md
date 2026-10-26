@@ -2,7 +2,12 @@
 
 ## Scope and ownership
 
-On Windows, `Ctrl+B U` enters keyboard copy mode for the exact focused pane. `[keys] copy_mode`
+Navigation, selection and search are shared across platforms. Clipboard delivery requires the
+host clipboard capability: unsupported hosts hide the Copy control and hint, and an explicit copy
+request reports a localized unsupported outcome while retaining the selection. See
+[TUI platform boundaries](tui-platforms.md).
+
+`Ctrl+B U` enters keyboard copy mode for the exact focused pane. `[keys] copy_mode`
 can replace or disable that entry through the existing resolved binding registry. The uppercase
 entry does not replace context switching with `Ctrl+B [` or `Ctrl+B ]`.
 

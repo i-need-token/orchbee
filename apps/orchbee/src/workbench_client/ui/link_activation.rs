@@ -22,6 +22,15 @@ impl NativeUi {
             self.report_link_notice(WorkbenchClientNotice::LinkFailed);
             return PointerLinkAdmission::Rejected;
         }
+        if !self
+            .capabilities
+            .supports(crate::tui_capabilities::Capability::Browser)
+        {
+            self.report_link_notice(WorkbenchClientNotice::Unsupported(
+                crate::tui_capabilities::Capability::Browser,
+            ));
+            return PointerLinkAdmission::Rejected;
+        }
         match self.links.admit(source, cell.column, cell.row) {
             crate::terminal_link_activation::Admission::Accepted => {
                 self.clear_synchronous_link_notice();

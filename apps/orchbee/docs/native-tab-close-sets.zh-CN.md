@@ -2,7 +2,7 @@
 
 ## 目标与确认
 
-Windows 标签页菜单可关闭所选集合、其他标签页或右侧标签页；分组菜单关闭完整 canonical 组，包含折叠成员。
+原生标签页菜单可关闭所选集合、其他标签页或右侧标签页；分组菜单关闭完整 canonical 组，包含折叠成员。
 `TabStripContextMenu` 与原生 owner 共用
 `packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json` 中的目标语料。
 菜单目标属于选中集合时，直接 Close 按规范顺序使用所选 ID；否则只使用该目标。

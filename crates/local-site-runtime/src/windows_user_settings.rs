@@ -26,7 +26,6 @@ pub use notifications::{
     WindowsNotificationSettings,
 };
 #[cfg(windows)]
-#[cfg(windows)]
 mod reset_keys;
 mod shell;
 mod theme;
@@ -45,7 +44,6 @@ pub use reference::{
     default_windows_user_settings_toml, default_windows_user_settings_toml_with_actions,
 };
 #[cfg(windows)]
-#[cfg(windows)]
 pub use reset_keys::{WindowsKeysResetOutcome, WindowsKeysResetReport, reset_windows_keybindings};
 pub use shell::{WindowsShellMode, WindowsShellSettings};
 use std::{
@@ -57,9 +55,7 @@ pub use window_title::{DEFAULT_WINDOW_TITLE, WindowsWindowTitleTemplate};
 
 const LIMIT: u64 = 64 * 1024;
 #[cfg(windows)]
-#[cfg(windows)]
 mod channel;
-#[cfg(windows)]
 #[cfg(windows)]
 pub use channel::set_windows_update_channel;
 #[derive(Clone, Debug, Eq, PartialEq)]

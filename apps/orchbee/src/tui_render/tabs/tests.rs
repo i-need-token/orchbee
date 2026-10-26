@@ -1,12 +1,6 @@
 use std::convert::Infallible;
 
-use ratatui::{
-    Terminal,
-    backend::TestBackend,
-    buffer::Buffer,
-    layout::Rect,
-    style::Style,
-};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, layout::Rect, style::Style};
 
 use super::{TabDisplay, render_navigator};
 

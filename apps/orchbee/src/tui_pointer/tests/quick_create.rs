@@ -1,6 +1,7 @@
 //! Creation gestures preserve the painted source and never forward terminal input.
 use super::*;
 use crate::action_menu::{DrawnMenuSource, DrawnTabCreate};
+use crate::workbench_client::NativeContextLocation;
 use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTerminalContextId};
 
 fn target() -> DrawnTabCreate {

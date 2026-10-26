@@ -697,7 +697,7 @@ impl ClientView {
 
     /// Whether pane resize mode currently owns ordinary Client input.
     pub(crate) const fn resize_mode(&self) -> bool {
-        { self.resize_mode }
+        self.resize_mode
     }
 
     pub(crate) const fn copy_mode_active(&self) -> bool {

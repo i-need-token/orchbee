@@ -26,23 +26,26 @@ impl NativeExecutor {
         if let Some(directory) = preparation.baseline.directory() {
             return Ok(Some(directory.path.clone()));
         }
-        Ok(launch_directory())
+        launch_directory().map_err(|_| super::CarrierFailure::Transport)
     }
 }
 
 #[cfg(windows)]
-fn launch_directory() -> Option<WorkbenchDirectoryPath> {
+fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
     // The Client never changes its process directory, so it remains the launch directory.
-    orchbee_local_site_runtime::normalize_windows_user_path(
+    Ok(orchbee_local_site_runtime::normalize_windows_user_path(
         ".",
         |name| std::env::var_os(name),
         std::env::current_dir,
     )
     .ok()
-    .and_then(|path| WorkbenchDirectoryPath::parse(&path).ok())
+    .and_then(|path| WorkbenchDirectoryPath::parse(&path).ok()))
 }
 
 #[cfg(not(windows))]
-fn launch_directory() -> Option<WorkbenchDirectoryPath> {
-    None
+fn launch_directory() -> std::io::Result<Option<WorkbenchDirectoryPath>> {
+    Err(
+        crate::tui_capabilities::Unsupported(crate::tui_capabilities::Capability::DirectoryInput)
+            .into(),
+    )
 }

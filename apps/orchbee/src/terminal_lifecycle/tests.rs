@@ -14,7 +14,6 @@ use super::{PointerTrackingLevel, RestorationStep, TerminalModeGuard, TerminalMo
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Operation {
     Bell,
-    #[cfg(windows)]
     CleanupGraphics,
     QueryGraphics,
     QueryPointerAdmission,
@@ -33,17 +32,13 @@ enum Operation {
     HideCursor,
     LeaveAlternate,
     ShowCursor,
-    #[cfg(windows)]
     SetTitle,
-    #[cfg(windows)]
     Notification,
-    #[cfg(windows)]
     RestoreTitle,
 }
 
 #[derive(Default)]
 struct FakeState {
-    #[cfg(windows)]
     graphics_cleanup: Vec<String>,
     failures_remaining: HashMap<Operation, usize>,
     operations: Vec<Operation>,
@@ -60,7 +55,6 @@ impl FakeTerminalModes {
             state: Arc::new(Mutex::new(FakeState {
                 failures_remaining: failures.into_iter().collect(),
                 operations: Vec::new(),
-                #[cfg(windows)]
                 graphics_cleanup: Vec::new(),
             })),
         }
@@ -93,7 +87,6 @@ impl TerminalModes for FakeTerminalModes {
     fn ring_bell(&self) -> io::Result<()> {
         self.perform(Operation::Bell)
     }
-    #[cfg(windows)]
     fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
         self.state
             .lock()
@@ -114,15 +107,12 @@ impl TerminalModes for FakeTerminalModes {
     fn query_host_appearance(&self, _: crate::terminal_host_appearance::Query) -> io::Result<()> {
         self.perform(Operation::QueryHostAppearance)
     }
-    #[cfg(windows)]
     fn notify_terminal(&self, _: &orchbee_workbench_protocol::Notification) -> io::Result<()> {
         self.perform(Operation::Notification)
     }
-    #[cfg(windows)]
     fn set_window_title(&self, _: &str) -> io::Result<()> {
         self.perform(Operation::SetTitle)
     }
-    #[cfg(windows)]
     fn restore_window_title(&self) -> io::Result<()> {
         self.perform(Operation::RestoreTitle)
     }
@@ -186,7 +176,6 @@ impl TerminalModes for FakeTerminalModes {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn menu_motion_keeps_button_fallback_and_returns_every_owned_mode() {
     use PointerTrackingLevel::{AnyMotion, ButtonOnly, MenuMotion};
@@ -222,7 +211,6 @@ fn menu_motion_keeps_button_fallback_and_returns_every_owned_mode() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn tracking_switches_only_inside_capture_and_release_clears_all_owned_modes() {
     use crossterm::Command;
@@ -311,7 +299,6 @@ fn tracking_switches_only_inside_capture_and_release_clears_all_owned_modes() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn failed_tracking_switch_is_not_retried_and_keeps_capture_cleanup_obligations() {
     use PointerTrackingLevel::{AnyMotion, ButtonOnly, MenuMotion};
@@ -980,7 +967,6 @@ struct OrderedWireModes {
 }
 
 impl TerminalModes for OrderedWireModes {
-    #[cfg(windows)]
     fn cleanup_graphics(&self, sequence: &str) -> io::Result<()> {
         self.wire.record(format!("graphics-cleanup:{sequence}"));
         Ok(())
@@ -1448,7 +1434,6 @@ fn failed_focus_restore_does_not_skip_other_terminal_modes() -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(windows)]
 #[test]
 fn window_title_failed_write_retains_restore_debt_and_no_write_after_restore() -> io::Result<()> {
     let control =
@@ -1471,7 +1456,6 @@ fn window_title_failed_write_retains_restore_debt_and_no_write_after_restore() -
     assert_eq!(control.operations(), ops);
     Ok(())
 }
-#[cfg(windows)]
 #[test]
 fn window_title_capture_preserves_unicode_and_rejects_ambiguous_truncation() {
     use super::captured_window_title;
@@ -1489,7 +1473,6 @@ fn window_title_capture_preserves_unicode_and_rejects_ambiguous_truncation() {
     assert!(captured_window_title(Ok("x\0not-padding".into())).is_err());
 }
 
-#[cfg(windows)]
 #[test]
 fn window_title_owner_panic_restores_exactly_once() -> io::Result<()> {
     let _lock = lock_panic_hook_tests()?;
@@ -1511,7 +1494,6 @@ fn window_title_owner_panic_restores_exactly_once() -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(windows)]
 #[test]
 fn notification_terminal_writer_is_fenced_after_restoration() -> io::Result<()> {
     let control = FakeTerminalModes::default();
@@ -1739,7 +1721,6 @@ fn bell_bytes_are_flushed_once_and_a_failed_flush_is_not_replayed() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn graphics_cleanup_precedes_mode_restore_and_retains_debt_after_failed_flush() {
     for failures in [0, 1, usize::MAX] {
@@ -1784,7 +1765,6 @@ fn graphics_cleanup_precedes_mode_restore_and_retains_debt_after_failed_flush() 
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn panic_cleans_partial_graphics_before_sync_and_discards_buffered_output() -> io::Result<()> {
     let _panic_hook_test = lock_panic_hook_tests()?;
@@ -1833,7 +1813,6 @@ fn panic_cleans_partial_graphics_before_sync_and_discards_buffered_output() -> i
     Ok(())
 }
 
-#[cfg(windows)]
 #[test]
 fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration() {
     use crate::{

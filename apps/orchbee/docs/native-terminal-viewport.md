@@ -23,11 +23,11 @@ and strict history-event sequence. CLI demand/row exchanges use the same protoco
 ANSI history output is flushed before RowsApplied. The adapter's NDJSON contract belongs to
 [Windows terminal streams](windows-terminal-streams.md); TUI notice copy remains TUI-owned.
 
-Windows shortcut Help describes the actual configured PageUp and PageDown bindings separately:
+Shortcut Help describes the actual configured PageUp and PageDown bindings separately:
 PageUp enters retained history with Help closed and pages backward with Help open; PageDown pages
 forward with Help open. This is discovery text only. History eligibility, Esc return to live,
 copy/export, and ordinary Help's nonmodal input behavior remain unchanged. The capturing
-[Workbench navigator](native-context-selection.md#windows-capturing-navigator) consumes these
+[Workbench navigator](native-context-selection.md#capturing-navigator) consumes these
 keys for local row paging while it owns input.
 
 ## Smaller live viewers

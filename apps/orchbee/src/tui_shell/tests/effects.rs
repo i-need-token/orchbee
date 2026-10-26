@@ -288,7 +288,6 @@ fn bell_is_outside_the_flushed_frame_and_failed_drawing_dispatches_nothing() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn machine_cover_settles_one_covered_native_receipt() {
     let events = Rc::new(RefCell::new(Vec::new()));

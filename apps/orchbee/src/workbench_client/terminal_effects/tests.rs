@@ -59,28 +59,35 @@ fn adapter_loss_is_definite_before_dispatch_and_unknown_after_dispatch_without_r
 
 #[test]
 fn keyboard_copy_completion_retains_exact_episode_export_and_pane_identity() {
-    let mut queue = Queue::default();
-    let episode = NonZeroU64::new(4).unwrap();
-    let generation = NonZeroU64::new(5).unwrap();
-    let export = NonZeroU64::new(6).unwrap();
-    assert!(queue.enqueue_copy_selection(pane(2), generation, export, episode, "exact".into(),));
-    let job = queue.dispatch().unwrap();
-    assert!(job.begin());
-    job.settle(Outcome::Delivered);
-    drop(job);
-    assert_eq!(
-        queue.take_completion(),
-        Some(Completion {
-            key: pane(2),
-            scope: Scope::Selection {
-                generation,
-                export: Some(export),
-                episode: Some(episode),
-            },
-            kind: Kind::Clipboard,
-            outcome: Outcome::Delivered,
-        })
-    );
+    for outcome in [Outcome::Delivered, Outcome::Unsupported] {
+        let mut queue = Queue::default();
+        let episode = NonZeroU64::new(4).unwrap();
+        let generation = NonZeroU64::new(5).unwrap();
+        let export = NonZeroU64::new(6).unwrap();
+        assert!(
+            queue.enqueue_copy_selection(pane(2), generation, export, episode, "exact".into(),)
+        );
+        let job = queue.dispatch().unwrap();
+        assert!(job.begin());
+        job.settle(outcome);
+        drop(job);
+        assert_eq!(
+            queue.take_completion(),
+            Some(Completion {
+                key: pane(2),
+                scope: Scope::Selection {
+                    generation,
+                    export: Some(export),
+                    episode: Some(episode),
+                },
+                kind: Kind::Clipboard,
+                outcome,
+            })
+        );
+
+        assert!(queue.dispatch().is_none());
+        assert_eq!(queue.bytes, 0);
+    }
 }
 
 #[test]

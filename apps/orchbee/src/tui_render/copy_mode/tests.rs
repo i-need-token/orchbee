@@ -43,6 +43,7 @@ fn status_preserves_mode_discovery_and_search_caret_across_supported_geometry_an
                                 locale,
                                 Some("failure"),
                                 &theme,
+                                true,
                             )
                         })
                         .unwrap();
@@ -82,6 +83,7 @@ fn status_preserves_mode_discovery_and_search_caret_across_supported_geometry_an
                             locale,
                             None,
                             &theme,
+                            true,
                         );
                     })
                     .unwrap();
@@ -163,6 +165,7 @@ fn a_rejected_search_paste_keeps_the_draft_caret_warning_and_exit_path() {
                             locale,
                             Some(&warning),
                             &theme,
+                            true,
                         )
                     })
                     .unwrap();
@@ -238,6 +241,7 @@ fn footer_drops_only_complete_owner_ordered_key_hints() {
                     locale,
                     None,
                     &theme,
+                    true,
                 )
             })
             .unwrap();
@@ -271,6 +275,7 @@ fn footer_drops_only_complete_owner_ordered_key_hints() {
                     Locale::EnUs,
                     None,
                     &theme,
+                    true,
                 )
             })
             .unwrap();
@@ -313,6 +318,7 @@ fn status_reserves_complete_notice_content_before_atomic_hints() {
                     locale,
                     Some(notice),
                     &theme,
+                    true,
                 )
             })
             .unwrap();
@@ -347,6 +353,7 @@ fn saturated_notice_and_search_draft_keep_a_blank_seam_before_atomic_hints() {
                     locale,
                     Some(&notice),
                     &theme,
+                    true,
                 )
             })
             .unwrap();
@@ -382,6 +389,7 @@ fn saturated_notice_and_search_draft_keep_a_blank_seam_before_atomic_hints() {
                     locale,
                     None,
                     &theme,
+                    true,
                 )
             })
             .unwrap();

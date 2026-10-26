@@ -141,4 +141,5 @@ fn run(receiver: mpsc::Receiver<Notification>, stop: Arc<AtomicBool>) {
     icon.borrow_mut().take();
 }
 #[cfg(test)]
+#[path = "tests.rs"]
 mod tests;

@@ -10,6 +10,7 @@ mod agent_doctor;
 mod agent_integrations;
 mod agent_projection;
 mod agent_provider;
+mod agent_runtime;
 mod agent_start;
 mod cli;
 mod client_view;

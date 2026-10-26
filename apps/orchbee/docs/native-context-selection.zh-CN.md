@@ -7,7 +7,7 @@
 [原生 Tab Session](workbench-client-runtime.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
 导航渲染及其正确性证据一起更新。
 
-`Ctrl+B [` 与 `Ctrl+B ]` 按规范显示顺序循环真实 Workspace，包括空 Workspace。排序及可空 Project 成员关系不改变位置身份。选择使用 Workspace／Context 对，恢复当前 Client 仍存活的 Tab／Panel 记忆，否则选择首个成员或 Empty。进入、离开 Empty 均不创建终端。显式 `c` 要求 Workspace 已准入的目录，不回退到 home。Windows 侧栏激活共用 Session 选择所有者；准确 会话／位置校验、Busy 优先级及最新未准入目标保留遵循[机器导航](machines.zh-CN.md#跨机器-workspace-导航)。Windows [目录启动](native-directory-startup.zh-CN.md) 仅在满足条件的空 Session 创建首个 Workspace。其他启动路径先读取、选择已有成员，再附着。
+`Ctrl+B [` 与 `Ctrl+B ]` 按规范显示顺序循环真实 Workspace，包括空 Workspace。排序及可空 Project 成员关系不改变位置身份。选择使用 Workspace／Context 对，恢复当前 Client 仍存活的 Tab／Panel 记忆，否则选择首个成员或 Empty。进入、离开 Empty 均不创建终端。显式 `c` 要求 Workspace 已准入的目录，不回退到 home。侧栏激活共用 Session 选择所有者；准确 会话／位置校验、Busy 优先级及最新未准入目标保留遵循[机器导航](machines.zh-CN.md#跨机器-workspace-导航)。Windows [目录启动](native-directory-startup.zh-CN.md) 仅在满足条件的空 Session 创建首个 Workspace。其他启动路径先读取、选择已有成员，再附着。
 
 `NativeContextLocation::NoWorkspace` 仅表示零 Workspace、零 Context 的 Workbench。它没有 Context 或 Workspace ID，不是导航行，也不持久化为保存位置。创建 Workspace 提供真实所有者；移除最后一个 Workspace 回到此空落点。每个现有 Workspace，包括未分组或空 Workspace，均保留规范 ID 及正常重命名、目录、分组、Close 规则。快照校验要求 Workspace／Context 一一对应；全部 1,024 个上下文名额均可供真实 Workspace 使用。
 
@@ -24,7 +24,7 @@ Panel 布局、远程访问和生产恢复不在范围内。
 [位置标签编辑](native-location-labels.zh-CN.md) 修改 canonical Project 或 Workspace 标签，
 并保留这里的有类型位置身份。
 
-## Windows 捕获输入的导航器
+## 捕获输入的导航器
 
 `Ctrl+B w`、其配置替代键或操作菜单打开捕获输入的导航器。现有入口刷新及已知结果恢复仍归
 Session 所有，且只请求一次。关闭不会取消已接受的工作。普通快捷键帮助仍不捕获输入。

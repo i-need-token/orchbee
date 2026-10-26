@@ -262,7 +262,7 @@ impl WorkbenchClientState {
     }
 
     fn close_set_marks(&self) -> Vec<WorkbenchTabId> {
-        { self.selected_tab_ids() }
+        self.selected_tab_ids()
     }
 
     /// Freeze an explicit background target without navigating or impersonating active focus.

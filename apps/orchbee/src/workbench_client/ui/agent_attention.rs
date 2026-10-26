@@ -72,7 +72,7 @@ impl WorkbenchClientView<'_> {
             && self.rename_draft().is_none()
             && self.setup_draft().is_none()
             && self.agent_board().is_none()
-            && { { self.worktree().is_none() } }
+            && self.worktree().is_none()
     }
 
     fn painted_attention_pane(&self, pane: &PaneRef) -> Option<PaintedPane> {

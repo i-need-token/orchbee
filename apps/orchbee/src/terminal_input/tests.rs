@@ -412,7 +412,6 @@ fn unavailable_backend_action_reports_no_effect_after_completed_prefix() {
 }
 
 #[test]
-#[test]
 fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
@@ -448,7 +447,6 @@ fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
     );
 }
 
-#[test]
 #[test]
 fn reports_an_unavailable_terminal_port_without_losing_exact_bytes() {
     let mut view = ClientView::new(120);

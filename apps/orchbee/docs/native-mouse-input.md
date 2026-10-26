@@ -2,6 +2,10 @@
 
 ## Scope and ownership
 
+Shared pointer dispatch, navigation, dragging and hit geometry apply on every supported platform.
+Browser activation requires its host adapter and otherwise reports a localized unsupported result
+before admitting any effect. See [TUI platform boundaries](tui-platforms.md).
+
 This reference governs the native Client's pointer behavior: host capture lifecycle, the
 last-drawn-frame hit map, the gesture vocabulary the painted regions accept, passthrough encoding
 to pane programs, and the alternate-screen wheel fallback. Maintain it with `tui_pointer.rs`,
@@ -14,13 +18,13 @@ satisfy; [native terminal environment](native-terminal-environment.md) owns the 
 machinery that arming and restoration ride on. [Native terminal selection and effects](native-terminal-selection-effects.md)
 owns untracked-pane selection and its copy lifecycle.
 
-Windows [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
+Native [divider resizing](native-divider-resize.md) owns reversible split previews and one release-only shared ratio submission.
 
-Windows [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navigation) owns
+Native [Tab arrangement](native-tab-groups.md#pointer-arrangement-and-menu-navigation) owns
 press/drag/release, selected membership, group boundaries and static feedback. InputDispatcher
 captures the release packet's keys, paste and pending fragments for both commit and cancellation.
 
-Windows [action menus](native-action-menus.md) consume Client-owned right presses before
+Native [action menus](native-action-menus.md) consume Client-owned right presses before
 ordinary focus. Menu capture cannot replace an existing genuine gesture or wheel stream.
 
 Middle-press surfaces,
@@ -93,7 +97,7 @@ An already-read packet resolves pending input frames before idle decoder timeout
 
 ## Sidebar navigation input boundary
 
-On Windows, `Ctrl+B Tab` switches between sidebar keyboard navigation and terminal input;
+`Ctrl+B Tab` switches between sidebar keyboard navigation and terminal input;
 `Ctrl+B Shift+B` remains an alias. Entering navigation
 reveals the sidebar when its effective geometry can present it. `Ctrl+B b` keeps
 its visibility-toggle meaning. `Picker` owns the visible tree, expansion, focused
@@ -295,7 +299,7 @@ Settings, action menus, sidebars, Agent board, Help, Navigator, Machine Picker, 
 selectors, Tab creation, and the global Menu and Sidebar Restore buttons use this central
 protocol. Generic controls activate on matching release. Sidebar Menu/Create retain their
 specialized menu-opening owner, and Agent-board rows use `SelectOnPress` only for provisional
-navigation. Windows Tab/group arrangement, dividers, scrollbars, Copy selection, and pane input
+navigation. Tab/group arrangement, dividers, scrollbars, Copy selection, and pane input
 retain their specialized gesture owners. Disabled targets stay visible and consuming without
 falling through to a containing row or pane.
 
@@ -314,26 +318,26 @@ operation cues while applying hover or pressed backgrounds. A cancelled Tab clic
 its pressed presentation; returning does not rearm it, while a later threshold-crossing drag
 retains the specialized arrangement contract.
 
-| Painted surface                   | Layer            | Target                                                     | Accepted gesture                                                                                                              |
-| --------------------------------- | ---------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Navigator context row             | `Overlay`        | Windows `NavigatorRow(Row)`; otherwise `Context(location)` | Matching primary release selects the exact painted context                                                                    |
-| Navigator tab row                 | `Overlay`        | Windows `NavigatorRow(Row)`; otherwise `Tab(tab_id)`       | Matching primary release selects the exact painted Tab                                                                        |
-| Overlay body off every control    | `OverlaySurface` | `OverlaySurface`                                           | Swallowed — never reaches the layers beneath                                                                                  |
-| Outside a capturing overlay       | —                | backdrop                                                   | Ordinary button press dismisses; wheel is inert. No region beneath, including uncovered tab chrome or a pane, sees the event. |
-| Compact tab-strip token           | `Foreground`     | `Tab(tab_id)` with explicit interaction metadata           | Windows press arms click/drag and release activates or commits once; other platforms use matching-release selection           |
-| Pane leaf viewport (content rect) | `Foreground`     | `Pane{tab,panel}` + painted source                         | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection      |
-| Unbound pane leaf                 | `Foreground`     | `Pane{tab,panel}`                                          | Press focuses only; no program receives it                                                                                    |
-| Visible Windows pane divider      | `Foreground`     | `Divider(source)`                                          | Plain left press starts preview; release applies once; Esc or Shift cancels                                                   |
-| Everything else (status, gaps)    | —                | dead space                                                 | Ignored                                                                                                                       |
+| Painted surface                   | Layer            | Target                                           | Accepted gesture                                                                                                              |
+| --------------------------------- | ---------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Navigator context row             | `Overlay`        | `NavigatorRow(Row)`                              | Matching primary release selects the exact painted context                                                                    |
+| Navigator tab row                 | `Overlay`        | `NavigatorRow(Row)`                              | Matching primary release selects the exact painted Tab                                                                        |
+| Overlay body off every control    | `OverlaySurface` | `OverlaySurface`                                 | Swallowed — never reaches the layers beneath                                                                                  |
+| Outside a capturing overlay       | —                | backdrop                                         | Ordinary button press dismisses; wheel is inert. No region beneath, including uncovered tab chrome or a pane, sees the event. |
+| Compact tab-strip token           | `Foreground`     | `Tab(tab_id)` with explicit interaction metadata | Press arms click/drag and release activates or commits once                                                                   |
+| Pane leaf viewport (content rect) | `Foreground`     | `Pane{tab,panel}` + painted source               | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection      |
+| Unbound pane leaf                 | `Foreground`     | `Pane{tab,panel}`                                | Press focuses only; no program receives it                                                                                    |
+| Visible pane divider              | `Foreground`     | `Divider(source)`                                | Plain left press starts preview; release applies once; Esc or Shift cancels                                                   |
+| Everything else (status, gaps)    | —                | dead space                                       | Ignored                                                                                                                       |
 
 A press on a pane region resolves against the _tab that was painted_: a stale-map edge where the
 painted Tab is no longer active degrades to a plain Tab selection rather than focusing an
 unreachable panel.
 
-The Windows navigator uses `NavigatorRow(episode, source, target)` proofs for every completely
+The native navigator uses `NavigatorRow(episode, source, target)` proofs for every completely
 painted row and an exact `DrawSource` for close. Only a matching plain primary release on that
 exact row can request activation; keyboard Enter additionally requires
-the painted focus. The [navigator contract](native-context-selection.md#windows-capturing-navigator)
+the painted focus. The [navigator contract](native-context-selection.md#capturing-navigator)
 owns admission and cancellation. Backdrop presses dismiss without click-through, except wheel
 and the existing Shift host bypass. Wheel scrolls only its painted column without activation; modified/right row presses do not activate. A consumed row/backdrop decision owns its matching release after a successful fresh
 frame; release, host focus loss or a new qualifying non-Shift press clears that ownership.
@@ -354,7 +358,7 @@ mouse reporting keep their existing precedence; no scrollbar event encodes termi
 | State       | Meaning and exits                                                                                                                                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Idle`      | No pointer owner. A press on a hit region opens a gesture or applies navigation directly.                                                                                                                                                                     |
-| `Divider`   | Windows: one exact painted split owns a reversible line preview. Release hands off one changed ratio; cancellation discards it. Submission belongs to the shared local resize owner, not the pointer gesture.                                                 |
+| `Divider`   | One exact painted split owns a reversible line preview. Release hands off one changed ratio; cancellation discards it. Submission belongs to the shared local resize owner, not the pointer gesture.                                                          |
 | `Pane`      | A focused reporting pane owns the pointer until release. Motion and release encode pane-local against the press's painted viewport origin — a drag that leaves the region still belongs to it. A release is never dropped mid-gesture.                        |
 | `Selection` | A focused untracked pane owns one Host selection gesture for its exact attachment and projection generation. Motion coalesces within the pane; release remains behind the latest motion and only a Host-accepted active end may request copy.                 |
 | `Pending`   | A press on an unfocused pane fired `FocusPanel`; the press and later input queue (FIFO, bound 16, motion merges to the newest cell) until the switch settles. Overflow cancels before any new input is accepted and reports the bounded dropped-input notice. |
@@ -476,7 +480,7 @@ outcome. The Workbench Snapshot and terminal Host remain canonical for member bi
 and the Windows plugin registry remains canonical for handler order. Inputs are one exact painted
 source and cell, fresh Snapshot/viewer records, registry entries, and plugin or shell outcomes.
 Missing or malformed facts are refusal, never an inferred no-handler result. Outputs are `Opened`,
-`Handled`, `NoLink`, `Busy`, `Failed`, or `Unknown`; only plugin submission and Windows shell launch
+`Handled`, `NoLink`, `Busy`, `Unsupported`, `Failed`, or `Unknown`; only plugin submission and Windows shell launch
 are external effects.
 
 | State / event                                                     | Guard                                                                | Next state and command                                                                       |

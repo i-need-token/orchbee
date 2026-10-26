@@ -2,7 +2,7 @@
 
 ## 范围与用户结果
 
-Windows TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace。已证实空闲的 Workspace 直接关闭；
+原生 TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace。已证实空闲的 Workspace 直接关闭；
 程序活动或状态未被证实则打开确认框，无修饰的 `Enter` 确认，`Esc` 取消。完整确认框显示 Workspace 名称，说明其终端会对所有 Client 结束，同时保留
 Git 分支和检出目录。Project 分组、共享目录及 worktree 关系均不会扩大关闭范围。
 未分组的 Workspace 是有效目标。历史兼容工作区没有规范 Workspace ID；其 Tab 需逐个关闭。

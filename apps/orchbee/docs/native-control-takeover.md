@@ -2,7 +2,7 @@
 
 ## Ownership and interaction
 
-On Windows, the built-in `Ctrl+B t` action explicitly requests control of the focused,
+The built-in `Ctrl+B t` action explicitly requests control of the focused,
 attached native pane. Ordinary typing, clicking, selection and Viewer polling never request
 takeover. The Server remains the authority for controller grants through the existing
 OBCS v1 Takeover action; the Client does not select or revoke another Client's identity.

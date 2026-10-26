@@ -2,7 +2,7 @@
 
 ## Targets and confirmation
 
-Windows Tab menus close the selected set, other Tabs or trailing Tabs; group menus close the
+Native Tab menus close the selected set, other Tabs or trailing Tabs; group menus close the
 complete canonical group, including collapsed members. `TabStripContextMenu` and the native owner
 share the target corpus in `packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json`.
 If the menu target is selected, direct Close uses the selected IDs in canonical order; otherwise it

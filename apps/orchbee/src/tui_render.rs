@@ -849,7 +849,16 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         && let Some(native) = workbench_client.as_ref()
         && let Some(copy) = native.copy_mode()
     {
-        copy_mode::render_status(frame, areas.status, copy, locale, notice, theme);
+        copy_mode::render_status(
+            frame,
+            areas.status,
+            copy,
+            locale,
+            notice,
+            theme,
+            view.capabilities
+                .supports(crate::tui_capabilities::Capability::Clipboard),
+        );
     }
     if tier != ViewportTier::TooSmall
         && client_chrome_overlay_allowed(capture_owner)

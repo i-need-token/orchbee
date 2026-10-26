@@ -24,7 +24,18 @@ impl Capability {
     pub(crate) const fn available(self) -> bool {
         // These capabilities currently have Windows adapters. The terminal, local transport,
         // shared Workbench operations and client-local interaction are separate capabilities.
-        cfg!(windows)
+        match self {
+            Self::Clipboard
+            | Self::Browser
+            | Self::SavedMachines
+            | Self::DirectoryInput
+            | Self::AgentLaunch
+            | Self::PositionStorage
+            | Self::ConfigurationFile
+            | Self::SystemNotification
+            | Self::WindowTitle
+            | Self::Graphics => cfg!(windows),
+        }
     }
 
     pub(crate) fn require(self) -> Result<(), Unsupported> {
@@ -40,7 +51,8 @@ impl Capability {
             | ClientAction::RequestWorkspaceAtDirectory(_)
             | ClientAction::RequestProjectQuickWorkspace(_)
             | ClientAction::RequestWorktreeCreate
-            | ClientAction::RequestWorktreeOpen => Some(Self::DirectoryInput),
+            | ClientAction::RequestWorktreeOpen
+            | ClientAction::RequestWorkspaceDirectory => Some(Self::DirectoryInput),
             _ => None,
         }
     }
@@ -71,6 +83,12 @@ pub(crate) struct Capabilities {
     pub(crate) login_shell: bool,
 }
 impl Capabilities {
+    pub(crate) const fn none() -> Self {
+        Self {
+            effects: 0,
+            login_shell: false,
+        }
+    }
     pub(crate) const fn all() -> Self {
         Self {
             effects: (1 << 10) - 1,
@@ -82,7 +100,7 @@ impl Capabilities {
             effects: if cfg!(windows) {
                 Self::all().effects
             } else {
-                0
+                Self::none().effects
             },
             login_shell: login_shell_supported(),
         }

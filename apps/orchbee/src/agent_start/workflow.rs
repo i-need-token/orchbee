@@ -2,7 +2,8 @@
 //! the single send, observation and best-effort name release.
 
 use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
-use crate::cli::{Failure, FailureKind, agent_start_runtime};
+use crate::agent_runtime::startup as agent_start_runtime;
+use crate::cli::{Failure, FailureKind};
 use crate::invocation::Target;
 use crate::local_client::{
     LocalClient,
@@ -39,6 +40,7 @@ struct Workflow<'a> {
     last_read_failure: Option<Value>,
 }
 
+#[cfg(windows)]
 pub(super) fn run_local(
     request: Request,
     started: Instant,

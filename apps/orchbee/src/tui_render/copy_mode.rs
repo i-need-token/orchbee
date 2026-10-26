@@ -111,19 +111,23 @@ pub(super) fn render_controls(
             hits,
         );
     } else {
-        if let Some(rect) = paint_action_control(
-            frame,
-            remaining,
-            locale.copy_action_label(),
-            ActionKind::Primary,
-            HitTarget::CopyControl {
-                token,
-                control: CopyControl::Copy,
-            },
-            ready,
-            theme,
-            hits,
-        ) {
+        if view
+            .capabilities
+            .supports(crate::tui_capabilities::Capability::Clipboard)
+            && let Some(rect) = paint_action_control(
+                frame,
+                remaining,
+                locale.copy_action_label(),
+                ActionKind::Primary,
+                HitTarget::CopyControl {
+                    token,
+                    control: CopyControl::Copy,
+                },
+                ready,
+                theme,
+                hits,
+            )
+        {
             remaining = after_control(rect, close.x);
         }
         if let Some(rect) = paint_boolean_control(
@@ -473,6 +477,7 @@ struct ResolvedFooterHint {
 
 fn resolved_footer_hints(
     searching: bool,
+    clipboard_supported: bool,
     locale: Locale,
     theme: &Theme,
 ) -> Vec<ResolvedFooterHint> {
@@ -484,6 +489,9 @@ fn resolved_footer_hints(
     let style = LabelStyle::for_host();
     copy_footer_bindings(searching)
         .iter()
+        .filter(|hint| {
+            clipboard_supported || hint.label() != crate::client_view::CopyHintLabel::Copy
+        })
         .map(|hint| {
             let labels = hint
                 .bindings()
@@ -523,6 +531,7 @@ pub(super) fn render_status(
     locale: Locale,
     notice: Option<&str>,
     theme: &Theme,
+    clipboard_supported: bool,
 ) {
     if area.is_empty() {
         return;
@@ -532,7 +541,7 @@ pub(super) fn render_status(
         .buffer_mut()
         .set_style(area, theme.style(Role::SurfaceChrome));
 
-    let resolved = resolved_footer_hints(mode.search.is_some(), locale, theme);
+    let resolved = resolved_footer_hints(mode.search.is_some(), clipboard_supported, locale, theme);
     let all_hints = key_hints(&resolved);
     let Some(exit_width) = super::controls::measure_key_hints(&all_hints[..1], theme) else {
         return;
