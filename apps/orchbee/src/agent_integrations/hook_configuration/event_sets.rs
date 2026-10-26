@@ -79,7 +79,7 @@ pub(in crate::agent_integrations) fn parse(
     };
     let mut entries = BTreeMap::new();
     let mut owned = BTreeMap::new();
-    let mut root = None;
+    let mut root: Option<PathBuf> = None;
     for (event, raw) in &object.0 {
         if !set.events().contains(&event.as_str()) && !set.extra_events().contains(&event.as_str())
         {

@@ -16,7 +16,7 @@ pub(in crate::agent_integrations) fn parse(
         .parse::<DocumentMut>()
         .map_err(|_| HookConfigurationScan::Malformed)?;
     let mut owned = Vec::new();
-    let mut root = None;
+    let mut root: Option<PathBuf> = None;
     let mut events = Vec::new();
     let tables: Vec<&dyn TableLike> = match value.get("hooks") {
         None => Vec::new(),
