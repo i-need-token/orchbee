@@ -40,13 +40,11 @@ mod agent_prompt;
 mod agent_start;
 mod agent_view;
 mod handles;
-#[cfg(windows)]
 mod panel_list;
 pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod creation;
 mod current_panel;
-#[cfg(windows)]
 mod current_presentation;
 mod launch_receipt;
 mod source_context;
@@ -65,7 +63,6 @@ mod completion;
 mod terminal_clear;
 #[cfg(windows)]
 mod terminal_editor;
-#[cfg(windows)]
 mod terminal_list;
 #[cfg(windows)]
 pub(crate) use terminal_clear::run as clear_terminal;
@@ -111,17 +108,11 @@ mod server_stop;
 mod terminal_observation;
 #[cfg(windows)]
 pub(crate) mod update;
-#[cfg(windows)]
 mod workbench_agents;
-#[cfg(windows)]
 mod workbench_metadata;
-#[cfg(windows)]
 pub(crate) mod workbench_query;
-#[cfg(windows)]
 mod workbench_terminals;
-#[cfg(windows)]
 mod workbench_viewports;
-#[cfg(windows)]
 mod workbench_worktrees;
 pub(crate) use server_stop::run as server_stop;
 mod workspace_group_close;
@@ -725,20 +716,22 @@ pub(crate) fn agent_integration(
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    if matches!(command, QueryCommand::TerminalList { .. }) {
+    if execution::admit(execution::Capability::WorkbenchInspection).is_ok()
+        && matches!(command, QueryCommand::TerminalList { .. })
+    {
         return terminal_list::run(command, format, locale);
     }
-    #[cfg(windows)]
-    if matches!(
-        command,
-        QueryCommand::WorkspaceList { .. }
-            | QueryCommand::WorkspaceGet(_)
-            | QueryCommand::TabList { .. }
-            | QueryCommand::TabGet(_)
-            | QueryCommand::PanelList { .. }
-            | QueryCommand::PanelGet(_)
-    ) {
+    if execution::admit(execution::Capability::WorkbenchInspection).is_ok()
+        && matches!(
+            command,
+            QueryCommand::WorkspaceList { .. }
+                | QueryCommand::WorkspaceGet(_)
+                | QueryCommand::TabList { .. }
+                | QueryCommand::TabGet(_)
+                | QueryCommand::PanelList { .. }
+                | QueryCommand::PanelGet(_)
+        )
+    {
         return workbench_query::run(&command, None, format, locale);
     }
     match &command {

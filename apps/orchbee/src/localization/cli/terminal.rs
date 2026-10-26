@@ -292,7 +292,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_terminal_observations_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Terminal observations: Panel / title / directory",
@@ -300,7 +299,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_scroll_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Client scroll: Panel / state / offset / maximum / rows",
@@ -308,7 +306,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_scroll_states(self) -> [&'static str; 7] {
         match self {
             Self::EnUs => [

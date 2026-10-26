@@ -16,6 +16,8 @@ Workspace-group closure, Worktree operations and source queries keep request pre
 
 Client navigation/swap, reusable layouts and direct terminal-member creation share selection, protocol exchanges, recovery and receipt presentation. Native document input and executable lookup stay behind their Windows ports, with unavailable commands rejected before preparation effects. The existing Linux Workbench mutation route remains admitted; sharing its receipt engine does not admit that route on macOS.
 
+Workbench and terminal-list enrichment share bounded canonical/physical reads, passive Client observations and their human renderers. Their Windows capability is checked before discovery. Existing Unix lists, current-Panel selection and process queries retain their original paths and outputs; optional Client-specific queries still refuse before signals or connection setup.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

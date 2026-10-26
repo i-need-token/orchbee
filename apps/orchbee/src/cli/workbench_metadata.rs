@@ -1,10 +1,10 @@
 //! Exact Workspace token batches and a final metadata revision fence on one connection.
 use super::{
     Failure, FailureKind,
+    console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
     results::Projection,
-    source::{ArmedSignals, SignalWatch},
 };
 use crate::{
     local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
@@ -30,7 +30,7 @@ fn exchange(
     snapshot: &Snapshot,
     ids: Vec<WorkbenchWorkspaceId>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<
     (
         WorkbenchRequestId,
@@ -100,7 +100,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     projection: &Projection,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Option<Document>, Failure> {
     let rows: Vec<_> = match projection {
         Projection::WorkspaceList(rows) => rows.iter().collect(),
@@ -140,7 +140,7 @@ impl Document {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<(), Failure> {
         let (id, revision, _) = exchange(client, snapshot, vec![], deadline, signals)?;
         if self.revision != revision {

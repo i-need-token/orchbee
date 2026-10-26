@@ -2,10 +2,10 @@
 use super::{
     Failure, FailureKind,
     agent_view::workflow as attention,
+    console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
     results::{self, AgentClientViewDoc, Projection},
-    source::{ArmedSignals, SignalWatch},
 };
 use crate::{invocation::QueryCommand, local_client::LocalClient, localization::Locale};
 use orchbee_agent_observation_protocol::{
@@ -89,7 +89,7 @@ impl Pages {
 fn list(
     client: &mut LocalClient,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Pages, Failure> {
     let mut pages = Pages::default();
     let mut cursor = None;
@@ -173,7 +173,7 @@ pub(super) fn read(
     selected: Option<&ClientViewRecord>,
     current: Option<&super::current_presentation::Resolved>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
     let rows = if let Some(member) = current {
         BTreeMap::from([(

@@ -1114,7 +1114,6 @@ fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<TerminalRow,
 
 #[derive(Debug)]
 pub(crate) enum Projection {
-    #[cfg(windows)]
     WorkbenchQuery(Box<super::workbench_query::Document>),
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
@@ -1336,7 +1335,6 @@ impl Projection {
     /// The `result` member of the machine envelope.
     pub(crate) fn result(&self) -> Value {
         match self {
-            #[cfg(windows)]
             Self::WorkbenchQuery(doc) => doc.result(),
             // Preserve source facts while using the same current public row shape.
             #[cfg(not(windows))]

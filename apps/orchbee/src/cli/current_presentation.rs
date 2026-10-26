@@ -1,5 +1,5 @@
 //! Passive Client-local member reads and exact canonical identity validation.
-use super::{Failure, FailureKind, client_control, query, results, source::ArmedSignals};
+use super::{Failure, FailureKind, client_control, console_interrupt::SignalWatch, query, results};
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
     ClientPresentationSelection, ClientViewControl, ClientViewControlStatus, ClientViewIntent,
@@ -21,7 +21,7 @@ pub(super) fn read(
     selected: &ClientViewRecord,
     panel_id: &WorkbenchPanelId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<ClientPresentationSelection, Failure> {
     read_with_receipt(client, snapshot, selected, panel_id, deadline, signals)
         .map(|read| read.member)
@@ -33,7 +33,7 @@ pub(super) fn read_with_receipt(
     selected: &ClientViewRecord,
     panel_id: &WorkbenchPanelId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Read, Failure> {
     signals.check_before(deadline)?;
     let command = ClientViewControl {

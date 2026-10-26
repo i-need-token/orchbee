@@ -6,9 +6,8 @@ use crate::cli::{
     Failure, FailureKind,
     caller_context::PanelTarget,
     client_control::{exchange::exchange, selection},
-    query, results,
-    source::{ArmedSignals, Finish, SignalWatch},
-    stage_details, workbench_query,
+    console_interrupt::{ArmedSignals, Finish},
+    query, results, stage_details, workbench_query,
 };
 use orchbee_workbench_protocol::{ClientViewAction, ClientViewOutcome};
 use serde_json::Value;

@@ -5,8 +5,7 @@ use crate::{
     localization::Locale,
 };
 
-#[cfg(windows)]
-mod windows;
+mod workflow;
 
 pub(super) fn run(
     command: &QueryCommand,
@@ -14,12 +13,9 @@ pub(super) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(command, target, format, locale)
-    }
-    #[cfg(not(windows))]
-    {
+    if super::execution::admit(super::execution::Capability::WorkbenchInspection).is_ok() {
+        workflow::run(command, target, format, locale)
+    } else {
         let explicit = match target {
             PanelQueryTarget::Panel(target) => Some(target),
             PanelQueryTarget::Current => None,

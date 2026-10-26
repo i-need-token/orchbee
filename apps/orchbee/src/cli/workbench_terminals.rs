@@ -1,10 +1,10 @@
 //! Panel runtime observations keep frame, process and Client view authority separate.
 use super::{
     Failure, FailureKind,
+    console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
     results::Projection,
-    source::{ArmedSignals, SignalWatch},
 };
 use crate::{invocation::Target, local_client::LocalClient, localization::Locale};
 use orchbee_workbench_protocol::Snapshot;
@@ -22,7 +22,7 @@ pub(super) fn read(
     projection: &Projection,
     current: Option<&super::current_presentation::Resolved>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Option<Document>, Failure> {
     let panels: Vec<_> = match projection {
         Projection::PanelList(panels) => panels.iter().collect(),

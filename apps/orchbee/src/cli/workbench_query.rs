@@ -1,11 +1,12 @@
 //! Read-only Workbench queries with Agent facts and optional exact-Client memory.
 use super::client_control::exchange as control;
 use super::{
-    Failure, FailureKind, Output, failure_output,
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    failure_output,
     output::{Bounded, TooLarge},
     query,
     results::{self, Projection},
-    source::{ArmedSignals, Finish, SignalWatch},
     success_output,
 };
 use crate::{
@@ -74,6 +75,10 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::WorkbenchInspection)
+    {
+        return failure_output(failure, Some(format), locale);
+    }
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -129,7 +134,7 @@ fn current(
     snapshot: &Snapshot,
     selected: &WorkbenchClientId,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
     allow_busy: bool,
 ) -> Result<ClientViewRecord, Failure> {
     signals.check_before(deadline)?;
@@ -223,7 +228,7 @@ fn execute(
     selected: Option<&WorkbenchClientId>,
     format: OutputFormat,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(Value, Document), Failure> {
     let admitted = query::stream_snapshot(deadline, signals.poll_fd());
     signals.check_before(deadline)?;
@@ -301,7 +306,7 @@ pub(super) fn collect(
     original: Option<ClientViewRecord>,
     current_member: Option<super::current_presentation::Resolved>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(Value, Document), Failure> {
     signals.check_before(deadline)?;
     let panel_read = matches!(

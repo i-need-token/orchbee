@@ -1,10 +1,10 @@
 //! Human Panel lists join the same Agent rows as agent list; JSON retains its detailed owner.
 use super::{
     Failure, FailureKind, agent_projection,
+    console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
     results::{self, PanelRow, Projection},
-    source::{ArmedSignals, SignalWatch},
 };
 use crate::{
     invocation::{QueryCommand, Target},
@@ -32,7 +32,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     panels: &[PanelRow],
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Document, Failure> {
     let Projection::PanelList(all) = results::project(
         &QueryCommand::PanelList {

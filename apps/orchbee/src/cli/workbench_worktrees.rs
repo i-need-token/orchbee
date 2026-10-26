@@ -1,10 +1,10 @@
 //! Workspace summaries compose the existing read-only Git owner without caching its facts.
 use super::{
     Failure, FailureKind,
+    console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},
     query,
     results::{Projection, WorkspaceRow},
-    source::{ArmedSignals, SignalWatch},
 };
 use crate::{
     local_client::{LocalClient, workbench::worktree_query::WorktreeQueryError},
@@ -128,7 +128,7 @@ pub(super) fn read(
     snapshot: &Snapshot,
     projection: &Projection,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Option<Document>, Failure> {
     let workspaces: Vec<_> = match projection {
         Projection::WorkspaceList(rows) => rows.iter().collect(),

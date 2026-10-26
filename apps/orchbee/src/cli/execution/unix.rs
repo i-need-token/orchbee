@@ -1,4 +1,5 @@
-//! Optional CLI execution is unavailable on Unix; no environment or native state is inspected.
+//! Unix refuses extended CLI capabilities before effects; Linux retains its existing Workbench mutations.
+//! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
 pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
@@ -10,6 +11,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::WorktreeOperation
         | Capability::ClientControl
         | Capability::Layout
+        | Capability::WorkbenchInspection
         | Capability::TerminalCreation => Err(Unsupported(capability)),
     }
 }

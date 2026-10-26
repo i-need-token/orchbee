@@ -41,7 +41,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_query_client_labels(self) -> [&'static str; 4] {
         match self {
             Self::EnUs => [
@@ -54,7 +53,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_workbench_agents_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Agent summary: resource / status / sessions",
@@ -62,7 +60,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_workspace_worktrees_heading(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace worktrees",
@@ -70,7 +67,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn cli_workspace_worktree_states(self) -> [&'static str; 4] {
         match self {
             Self::EnUs => [
@@ -83,7 +79,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_workbench_agent_status(self, status: Option<&str>) -> &'static str {
         match (self, status) {
             (Self::EnUs, Some("blocked")) => "needs attention",

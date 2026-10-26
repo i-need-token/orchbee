@@ -1,8 +1,9 @@
 //! Human-only terminal-list enrichment on one admitted Session and deadline.
 use super::{
-    Failure, FailureKind, Output, failure_output, query,
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    failure_output, query,
     results::{self, Projection, TerminalListDetails, TerminalListState},
-    source::{ArmedSignals, Finish, SignalWatch},
     success_output,
 };
 use crate::{
@@ -35,6 +36,10 @@ fn sampled_rows(rows: &[results::TerminalRow]) -> &[results::TerminalRow] {
 }
 
 pub(crate) fn run(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::WorkbenchInspection)
+    {
+        return failure_output(failure, Some(format), locale);
+    }
     if format == OutputFormat::Json {
         // Keep the established machine path byte-for-byte and avoid optional
         // observations for callers that asked for identity JSON only.

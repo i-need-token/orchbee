@@ -169,7 +169,6 @@ fn main() -> ExitCode {
                 | invocation::Request::TerminalLink { format, .. }
                 | invocation::Request::TerminalCopy { format, .. }
                 | invocation::Request::TerminalSelection { format, .. }
-                | invocation::Request::ClientQuery { format, .. }
                 | invocation::Request::Plugin { format, .. }
                 | invocation::Request::ConfiguredCommand { format, .. }
                 | invocation::Request::PaneGraphics { format, .. }
@@ -225,7 +224,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::TerminalObserve { command }) => {
                 cli::terminal_observe(&command, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::ClientQuery {
                 command,
                 client,

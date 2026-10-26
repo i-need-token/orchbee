@@ -1,5 +1,5 @@
 //! An exact Client supplies scroll facts; a fresh Host viewer cannot substitute for it.
-use super::{Failure, FailureKind, query, results::Projection, source::ArmedSignals};
+use super::{Failure, FailureKind, console_interrupt::SignalWatch, query, results::Projection};
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
     ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewOutcome,
@@ -83,7 +83,7 @@ pub(super) fn read(
     projection: &Projection,
     selected: Option<&ClientViewRecord>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Option<Document>, Failure> {
     let rows: Vec<_> = match projection {
         Projection::PanelList(rows) => rows.iter().collect(),
