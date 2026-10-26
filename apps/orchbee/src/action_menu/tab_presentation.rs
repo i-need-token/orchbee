@@ -1,18 +1,8 @@
 //! Read-only Tab menu facts. The captured action owner, never these labels, resolves targets.
 
 use orchbee_workbench_protocol::TabGroupColor;
-use std::num::NonZeroUsize;
 
-/// The scope behind a displayed row, independent of the current terminal or menu candidate.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TabMenuScope {
-    Addressed,
-    Selected(NonZeroUsize),
-    Group(NonZeroUsize),
-    Other(NonZeroUsize),
-    Trailing(NonZeroUsize),
-    Workspace,
-}
+pub(crate) use crate::localization::TabMenuScope;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct TabMenuPresentation {

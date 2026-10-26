@@ -25,7 +25,101 @@ pub(crate) enum ActionSearchAlias {
     Mouse,
     Detach,
 }
-use crate::action_menu::{MenuAction, MenuUnavailable};
+/// Textual action identity without an executable target, profile or captured command.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuLabel {
+    SplitPanel(PanelDirection),
+    Zoom,
+    Resize,
+    Copy,
+    Takeover,
+    ClosePane,
+    MovePanel(PanelDirection),
+    NewTab,
+    NewTabWithProfile,
+    TabCreation,
+    NewTabToRight,
+    NewTabInGroup,
+    NewTabInRecentGroup,
+    NewGroupWithTab,
+    DuplicateTab,
+    MoveTabPrevious,
+    MoveTabNext,
+    MoveTabFirst,
+    MoveTabLast,
+    SelectTab,
+    DeselectTab,
+    SelectTabRange,
+    SelectAllTabs,
+    ClearTabSelection,
+    PinTab,
+    UnpinTab,
+    ManageGroups,
+    TabTools,
+    GroupMenu,
+    MoveToNewWindow,
+    CreateGroup,
+    RenameGroup,
+    ChooseGroupColor,
+    GroupColor(orchbee_workbench_protocol::TabGroupColor),
+    JoinGroup,
+    RemoveFromGroup,
+    Ungroup,
+    CollapseGroup,
+    ExpandGroup,
+    MoveGroupPrevious,
+    MoveGroupNext,
+    RenameTab,
+    ResumeTabClose,
+    CloseSelectedTabs,
+    CloseOtherTabs,
+    CloseTrailingTabs,
+    CloseGroup,
+    QuickWorkspace,
+    WorkspaceAtDirectory,
+    WorkspaceDirectory,
+    RenameWorkspace,
+    RenameProject,
+    WorkspaceProjects,
+    WorkspaceWorktrees,
+    CreateWorkspaceProject,
+    LeaveWorkspaceProject,
+    JoinWorkspaceProject,
+    OpenWorktreeAt,
+    RemoveWorktree,
+    DeleteWorkspace,
+    DeleteProject,
+    CloseProjectWorkspaces,
+    CloseWorkspace,
+    NewWorkspace,
+    NewWorktree,
+    OpenWorktree,
+    Reload,
+    Settings,
+    Machines,
+    Help,
+    Sidebar,
+    Navigator,
+    AgentBoard,
+    ReleasePointer,
+    Detach,
+}
+
+/// Why the action owner has withheld a menu action; never inferred from translated text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuUnavailable {
+    DirectoryConfigured,
+    EmptyWorkspaceRequired,
+    WorkspaceRequired,
+    FocusedPanelRequired,
+    ProjectWorkspaceRequired,
+    OperationBusy,
+    PointerReleased,
+    NoMatchingTabs,
+    NoRecentGroup,
+    WorktreeChecking,
+    WorktreeUnavailable,
+}
 
 impl Locale {
     pub(crate) const fn menu_search_label(self) -> &'static str {
@@ -97,13 +191,6 @@ impl Locale {
         }
     }
 
-    /// Uses the same saved name or localized built-in label for every launch row.
-    pub(crate) fn launch_profile_name(
-        self,
-        profile: &orchbee_workbench_protocol::UserLaunchProfile,
-    ) -> String {
-        self.launch_profile_label(profile.name.as_deref())
-    }
     /// Saved names are user data; the missing built-in name is localized here.
     pub(crate) fn launch_profile_label(self, name: Option<&str>) -> String {
         crate::terminal_text::sanitize_terminal_text(name.unwrap_or(match self {
@@ -231,9 +318,9 @@ impl Locale {
             Self::ZhCn => "操作",
         }
     }
-    pub(crate) const fn menu_action(self, action: &MenuAction) -> &'static str {
-        use MenuAction::*;
-        match (self, action) {
+    pub(crate) fn menu_action(self, action: impl Into<MenuLabel>) -> &'static str {
+        use MenuLabel::*;
+        match (self, action.into()) {
             (Self::EnUs, TabCreation) => "New Tab options",
             (Self::ZhCn, TabCreation) => "新建标签页选项",
             (Self::EnUs, NewTabInRecentGroup) => "New Tab in recent group",
@@ -324,8 +411,8 @@ impl Locale {
             (Self::ZhCn, RenameGroup) => "重命名分组",
             (Self::EnUs, ChooseGroupColor) => "Group color…",
             (Self::ZhCn, ChooseGroupColor) => "分组颜色…",
-            (Self::EnUs, JoinGroup(_)) => "Move Tab to group",
-            (Self::ZhCn, JoinGroup(_)) => "将标签页移入分组",
+            (Self::EnUs, JoinGroup) => "Move Tab to group",
+            (Self::ZhCn, JoinGroup) => "将标签页移入分组",
             (Self::EnUs, RemoveFromGroup) => "Remove Tab from group",
             (Self::ZhCn, RemoveFromGroup) => "将标签页移出分组",
             (Self::EnUs, Ungroup) => "Ungroup, keep Tabs",
@@ -358,8 +445,8 @@ impl Locale {
             (Self::ZhCn, GroupColor(orchbee_workbench_protocol::TabGroupColor::Yellow)) => "黄色",
             (Self::EnUs, NewTab) => "New Tab",
             (Self::ZhCn, NewTab) => "新建标签页",
-            (Self::EnUs, NewTabWithProfile(_)) => "New Tab",
-            (Self::ZhCn, NewTabWithProfile(_)) => "新建标签页",
+            (Self::EnUs, NewTabWithProfile) => "New Tab",
+            (Self::ZhCn, NewTabWithProfile) => "新建标签页",
             (Self::EnUs, QuickWorkspace) => "New Workspace",
             (Self::ZhCn, QuickWorkspace) => "新建工作区",
             (Self::EnUs, WorkspaceAtDirectory) => "New Workspace in directory…",
@@ -372,10 +459,10 @@ impl Locale {
             (Self::ZhCn, CreateWorkspaceProject) => "新建项目…",
             (Self::EnUs, LeaveWorkspaceProject) => "Leave Project",
             (Self::ZhCn, LeaveWorkspaceProject) => "移出项目",
-            (Self::EnUs, JoinWorkspaceProject(_)) => "Move to Project",
-            (Self::ZhCn, JoinWorkspaceProject(_)) => "移入项目",
-            (Self::EnUs, OpenWorktreeAt(_)) => "Open Worktree",
-            (Self::ZhCn, OpenWorktreeAt(_)) => "打开工作树",
+            (Self::EnUs, JoinWorkspaceProject) => "Move to Project",
+            (Self::ZhCn, JoinWorkspaceProject) => "移入项目",
+            (Self::EnUs, OpenWorktreeAt) => "Open Worktree",
+            (Self::ZhCn, OpenWorktreeAt) => "打开工作树",
             (Self::EnUs, RemoveWorktree) => "Remove Worktree…",
             (Self::ZhCn, RemoveWorktree) => "移除工作树…",
             (Self::EnUs, DeleteWorkspace | DeleteProject) => "Delete",

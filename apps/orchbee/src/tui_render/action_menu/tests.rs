@@ -407,7 +407,9 @@ fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel()
                             .filter(|character| !character.is_whitespace())
                             .collect();
                         let system: String = locale
-                            .launch_profile_name(&UserLaunchProfiles::default().profiles[0])
+                            .launch_profile_label(
+                                UserLaunchProfiles::default().profiles[0].name.as_deref(),
+                            )
                             .chars()
                             .filter(|character| !character.is_whitespace())
                             .collect();

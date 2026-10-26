@@ -1036,7 +1036,10 @@ fn action_label(
         |scope| locale.menu_tab_action(action, scope),
     );
     if let MenuAction::NewTabWithProfile(profile) = action {
-        return format!("{text} {separator} {}", locale.launch_profile_name(profile));
+        return format!(
+            "{text} {separator} {}",
+            locale.launch_profile_label(profile.name.as_deref())
+        );
     }
     let text = if let Some(label) = label {
         if choice {

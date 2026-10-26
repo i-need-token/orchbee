@@ -139,19 +139,99 @@ pub(crate) enum MenuAction {
     Detach,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum MenuUnavailable {
-    DirectoryConfigured,
-    EmptyWorkspaceRequired,
-    WorkspaceRequired,
-    FocusedPanelRequired,
-    ProjectWorkspaceRequired,
-    OperationBusy,
-    PointerReleased,
-    NoMatchingTabs,
-    NoRecentGroup,
-    WorktreeChecking,
-    WorktreeUnavailable,
+pub(crate) use crate::localization::MenuUnavailable;
+
+impl From<&MenuAction> for crate::localization::MenuLabel {
+    fn from(action: &MenuAction) -> Self {
+        match action {
+            MenuAction::SplitPanel(value) => Self::SplitPanel(*value),
+            MenuAction::Zoom => Self::Zoom,
+            MenuAction::Resize => Self::Resize,
+            MenuAction::Copy => Self::Copy,
+            MenuAction::Takeover => Self::Takeover,
+            MenuAction::ClosePane => Self::ClosePane,
+            MenuAction::MovePanel(value) => Self::MovePanel(*value),
+            MenuAction::NewTab => Self::NewTab,
+            MenuAction::NewTabWithProfile(_) => Self::NewTabWithProfile,
+            MenuAction::TabCreation => Self::TabCreation,
+            MenuAction::NewTabToRight => Self::NewTabToRight,
+            MenuAction::NewTabInGroup => Self::NewTabInGroup,
+            MenuAction::NewTabInRecentGroup => Self::NewTabInRecentGroup,
+            MenuAction::NewGroupWithTab => Self::NewGroupWithTab,
+            MenuAction::DuplicateTab => Self::DuplicateTab,
+            MenuAction::MoveTabPrevious => Self::MoveTabPrevious,
+            MenuAction::MoveTabNext => Self::MoveTabNext,
+            MenuAction::MoveTabFirst => Self::MoveTabFirst,
+            MenuAction::MoveTabLast => Self::MoveTabLast,
+            MenuAction::SelectTab => Self::SelectTab,
+            MenuAction::DeselectTab => Self::DeselectTab,
+            MenuAction::SelectTabRange => Self::SelectTabRange,
+            MenuAction::SelectAllTabs => Self::SelectAllTabs,
+            MenuAction::ClearTabSelection => Self::ClearTabSelection,
+            MenuAction::PinTab => Self::PinTab,
+            MenuAction::UnpinTab => Self::UnpinTab,
+            MenuAction::ManageGroups => Self::ManageGroups,
+            MenuAction::TabTools => Self::TabTools,
+            MenuAction::GroupMenu => Self::GroupMenu,
+            MenuAction::MoveToNewWindow => Self::MoveToNewWindow,
+            MenuAction::CreateGroup => Self::CreateGroup,
+            MenuAction::RenameGroup => Self::RenameGroup,
+            MenuAction::ChooseGroupColor => Self::ChooseGroupColor,
+            MenuAction::GroupColor(value) => Self::GroupColor(*value),
+            MenuAction::JoinGroup(_) => Self::JoinGroup,
+            MenuAction::RemoveFromGroup => Self::RemoveFromGroup,
+            MenuAction::Ungroup => Self::Ungroup,
+            MenuAction::CollapseGroup => Self::CollapseGroup,
+            MenuAction::ExpandGroup => Self::ExpandGroup,
+            MenuAction::MoveGroupPrevious => Self::MoveGroupPrevious,
+            MenuAction::MoveGroupNext => Self::MoveGroupNext,
+            MenuAction::RenameTab => Self::RenameTab,
+            MenuAction::ResumeTabClose => Self::ResumeTabClose,
+            MenuAction::CloseSelectedTabs => Self::CloseSelectedTabs,
+            MenuAction::CloseOtherTabs => Self::CloseOtherTabs,
+            MenuAction::CloseTrailingTabs => Self::CloseTrailingTabs,
+            MenuAction::CloseGroup => Self::CloseGroup,
+            MenuAction::QuickWorkspace => Self::QuickWorkspace,
+            MenuAction::WorkspaceAtDirectory => Self::WorkspaceAtDirectory,
+            MenuAction::WorkspaceDirectory => Self::WorkspaceDirectory,
+            MenuAction::RenameWorkspace => Self::RenameWorkspace,
+            MenuAction::RenameProject => Self::RenameProject,
+            MenuAction::WorkspaceProjects => Self::WorkspaceProjects,
+            MenuAction::WorkspaceWorktrees => Self::WorkspaceWorktrees,
+            MenuAction::CreateWorkspaceProject => Self::CreateWorkspaceProject,
+            MenuAction::LeaveWorkspaceProject => Self::LeaveWorkspaceProject,
+            MenuAction::JoinWorkspaceProject(_) => Self::JoinWorkspaceProject,
+            MenuAction::OpenWorktreeAt(_) => Self::OpenWorktreeAt,
+            MenuAction::RemoveWorktree => Self::RemoveWorktree,
+            MenuAction::DeleteWorkspace => Self::DeleteWorkspace,
+            MenuAction::DeleteProject => Self::DeleteProject,
+            MenuAction::CloseProjectWorkspaces => Self::CloseProjectWorkspaces,
+            MenuAction::CloseWorkspace => Self::CloseWorkspace,
+            MenuAction::NewWorkspace => Self::NewWorkspace,
+            MenuAction::NewWorktree => Self::NewWorktree,
+            MenuAction::OpenWorktree => Self::OpenWorktree,
+            MenuAction::Reload => Self::Reload,
+            MenuAction::Settings => Self::Settings,
+            MenuAction::Machines => Self::Machines,
+            MenuAction::Help => Self::Help,
+            MenuAction::Sidebar => Self::Sidebar,
+            MenuAction::Navigator => Self::Navigator,
+            MenuAction::AgentBoard => Self::AgentBoard,
+            MenuAction::ReleasePointer => Self::ReleasePointer,
+            MenuAction::Detach => Self::Detach,
+        }
+    }
+}
+
+impl From<&MenuTarget> for crate::localization::TabMenuPath {
+    fn from(target: &MenuTarget) -> Self {
+        match target {
+            MenuTarget::TabGroups { colors, .. } => Self::Group { colors: *colors },
+            MenuTarget::TabGroupChoices(_) => Self::Choices,
+            MenuTarget::TabTools(_) => Self::Tools,
+            _ => Self::Other,
+        }
+    }
 }
 
 impl MenuAction {

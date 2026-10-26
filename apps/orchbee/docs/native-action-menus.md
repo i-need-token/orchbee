@@ -1,5 +1,7 @@
 # Native action menus
 
+Menu text consumes `MenuLabel`, captured scope counts and `TabMenuPath` descriptions. The action owner projects these without forwarding launch profiles, concrete target IDs, draw proofs or captured requests; only geometric direction and selected color are needed by the shared label vocabulary. Profile display passes its optional saved name, while the original executable profile remains with its action.
+
 ## Interaction
 
 Host capability admission is independent of Server availability. Optional OS effects without an

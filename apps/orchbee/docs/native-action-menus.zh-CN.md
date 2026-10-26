@@ -1,5 +1,7 @@
 # 原生动作菜单
 
+菜单文本接收 `MenuLabel`、已捕获的范围计数与 `TabMenuPath` 描述。动作所有者投影这些数据时，不转交启动配置、具体目标 ID、绘制证明或已捕获请求；共享标签词汇只需要几何方向与选定颜色。配置展示只传可选的已保存名称，原可执行配置仍由动作持有。
+
 ## 交互
 
 宿主能力准入独立于 Server 可用性。缺少适配器的可选 OS 效果不进入菜单；直接调用重新
@@ -365,4 +367,4 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 
 侧栏锚定菜单保留被覆盖行的完整矩形用于定位，同时抑制底层输入目标。空间允许时在行旁打开，否则在其上方或下方打开。工作树发现过程在检查中、可用和不可用结果间保留原因行，使靠边放置的重命名与删除操作保持位置。
 
-<!-- documentation-pairing: english-sha256=ef551cd9ff7df1aa8585f5f3ea3e143e5ea948256df9ae1b8bad4754c22f2190 zh-cn-sha256=347216ecb58e69ceebf2b40244a334e444410ebc6b87831eb36b5c2ec9d64bbf -->
+<!-- documentation-pairing: english-sha256=f00f251e8355607dad562527a4f2731cc13a966c8e69e0458e336c44701fa618 zh-cn-sha256=4da40db51e3dcdc0ea77349c952678297dd275651269cfe7d583f2df1b4fed66 -->
