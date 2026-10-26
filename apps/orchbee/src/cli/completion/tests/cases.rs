@@ -1,6 +1,6 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
-pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
+pub(crate) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee -", "-v", true),
     ("orchbee -", "-V", true),
     ("orchbee server -", "-v", false),
@@ -1393,3 +1393,22 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
         false,
     ),
 ];
+
+/// The native-shell fixtures use spaces and single-quoted literals, never evaluated expressions.
+pub(crate) fn literal_words(line: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut quoted = false;
+    for character in line.chars() {
+        if character == '\'' {
+            quoted = !quoted;
+        } else if character == ' ' && !quoted {
+            words.push(std::mem::take(&mut word));
+        } else {
+            word.push(character);
+        }
+    }
+    assert!(!quoted, "unterminated fixture: {line}");
+    words.push(word);
+    words
+}

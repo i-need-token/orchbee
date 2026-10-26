@@ -1,4 +1,5 @@
 use super::Locale;
+#[cfg(windows)]
 use orchbee_workbench_protocol::{AgentViewFailure as F, AgentViewOutcome};
 impl Locale {
     #[cfg(windows)]

@@ -27,7 +27,7 @@ fn real_elvish_completes_scoped_literal_words_without_runtime() {
     let cases = super::super::tests::cases::CASES;
     let mut words = cases
         .iter()
-        .map(|(line, _, _)| literal_fixture_words(line))
+        .map(|(line, _, _)| super::super::tests::cases::literal_words(line))
         .collect::<Vec<_>>();
     // Editor-provided words stay data even when they contain executable-looking text.
     words.push(vec![
@@ -92,25 +92,4 @@ fn real_elvish_completes_scoped_literal_words_without_runtime() {
             .expect("literal case")
             .contains(&"--arg".to_owned())
     );
-}
-
-// Fixture notation uses only whitespace and single-quoted literal words. This is
-// not a shell parser: reject anything beyond this deliberately small test notation.
-#[cfg(windows)]
-fn literal_fixture_words(line: &str) -> Vec<String> {
-    let mut words = Vec::new();
-    let mut word = String::new();
-    let mut quoted = false;
-    for character in line.chars() {
-        if character == '\'' {
-            quoted = !quoted;
-        } else if character == ' ' && !quoted {
-            words.push(std::mem::take(&mut word));
-        } else {
-            word.push(character);
-        }
-    }
-    assert!(!quoted, "unterminated fixture: {line}");
-    words.push(word);
-    words
 }
