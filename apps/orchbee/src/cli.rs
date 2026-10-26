@@ -85,6 +85,7 @@ pub(crate) mod agent_start_runtime {
 }
 mod server;
 mod server_diagnose;
+mod server_metadata;
 mod server_stop;
 mod terminal_observation;
 pub(crate) mod update;

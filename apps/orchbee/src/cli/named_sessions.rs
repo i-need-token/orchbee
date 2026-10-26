@@ -9,9 +9,7 @@ use crate::{
     localization::Locale,
     presentation::ProcessResult,
 };
-use orchbee_local_client_protocol::{
-    ConnectClientError, ServerMode, exchange_server_metadata_before,
-};
+use orchbee_local_client_protocol::{ConnectClientError, ServerMode};
 use orchbee_local_runtime::{
     ActivationState, ModeCheckedLocalSessionRendezvous as Rendezvous, NamedSessionDeleteFailure,
     NamedSessionDeleteOutcome, NamedSessionDeleteReason as Reason, NamedSessionEntry,
@@ -264,8 +262,7 @@ fn observe(
         }
         Err(_) => return Err(local_error(io::ErrorKind::InvalidData.into())),
     };
-    match exchange_server_metadata_before(session.client_socket_path(), deadline, signals.poll_fd())
-    {
+    match super::server_metadata::read(session.client_socket_path(), deadline, signals.poll_fd()) {
         Ok(metadata) => Ok((
             if metadata.mode() == ServerMode::ManagedStopping {
                 SessionState::Stopping

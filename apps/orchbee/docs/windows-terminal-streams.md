@@ -66,6 +66,8 @@ Geometry uses the existing 4096-per-axis, 262144-cell and 65535-pixel-product bo
 both be zero or both positive. Text bounds count UTF-8 bytes. The input schema documents the
 shape; the parser additionally enforces byte/product bounds. Modifier flags are Shift=1,
 Control=2, Alt=4, Super=8, Hyper=16, Meta=32; only defined bits are accepted.
+Shared input parsing owns these wire bits without requiring native event capture. Pane mouse
+reports project Shift, Control, Alt and Super; accepted Hyper and Meta bits remain inert.
 
 The serialized loop polls the Viewer and advances one history step between input records.
 Input receipts identify the record ordinal and acknowledged byte prefix; a failed later chunk

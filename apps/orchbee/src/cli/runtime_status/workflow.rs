@@ -9,9 +9,7 @@ use crate::cli::{
     console_interrupt::{ArmedSignals, Finish},
     query,
 };
-use orchbee_local_client_protocol::{
-    ConnectClientError, RejectionReason, exchange_server_metadata_before,
-};
+use orchbee_local_client_protocol::{ConnectClientError, RejectionReason};
 use orchbee_local_runtime::{
     self as runtime, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
@@ -94,7 +92,7 @@ fn collect(
         Some(session) => {
             let endpoint = session.client_socket_path();
             let server =
-                match exchange_server_metadata_before(endpoint, deadline, signals.poll_fd()) {
+                match crate::cli::server_metadata::read(endpoint, deadline, signals.poll_fd()) {
                     Ok(metadata) => Server::Observed(metadata),
                     Err(ConnectClientError::ConnectFailed(error))
                         if matches!(

@@ -1,5 +1,5 @@
 //! Raw nested members keep duplicate detection at every admitted template object.
-use serde_core::{
+use serde::{
     Deserialize, Deserializer,
     de::{self, MapAccess, Visitor},
 };
@@ -51,7 +51,7 @@ impl Object {
     pub(super) fn take(&mut self, name: &str) -> Result<Box<RawValue>, &'static str> {
         self.remove(name).ok_or("invalid-layout")
     }
-    pub(super) fn decode<T: serde_core::de::DeserializeOwned>(
+    pub(super) fn decode<T: serde::de::DeserializeOwned>(
         &mut self,
         name: &str,
     ) -> Result<T, &'static str> {

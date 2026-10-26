@@ -30,7 +30,6 @@ mod creation;
 pub(crate) mod program;
 pub(crate) mod workspace_creation;
 pub(crate) use workspace_creation::ParsedWorkspaceCreationCommand;
-#[cfg(windows)]
 pub(crate) use workspace_creation::WorkspaceCreationCommand;
 mod panel_relocation;
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
@@ -46,7 +45,6 @@ mod terminal_links;
 pub(crate) use crate::terminal_copy::{
     CopyMotion, CopySearchDirection, TerminalTextPoint, TerminalTextRange,
 };
-#[cfg(windows)]
 pub(crate) use terminal_copy::TerminalCopyAction;
 pub(crate) use terminal_copy::TerminalCopyCommand;
 pub(crate) use terminal_links::TerminalLinkCommand;
@@ -60,7 +58,6 @@ pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod output_cursor;
 pub(crate) use output_cursor::{OutputAfter, OutputCursor};
-#[cfg(windows)]
 pub(crate) use terminal_stream::AttachTarget;
 pub(crate) use terminal_stream::{
     TerminalAttachCommand, TerminalControlCommand, TerminalObserveCommand,

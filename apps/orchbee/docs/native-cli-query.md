@@ -32,6 +32,11 @@ Event subscription/wait, exact-terminal clear, Agent view specification and offl
 
 ## Sessions and background services
 
+Named-Session and runtime-status reports share a narrow native Server metadata exchange port.
+Windows delegates the original endpoint, absolute deadline and cancellation borrow unchanged;
+Unix reports unsupported without opening a connection. Their existing entry admission still
+precedes environment and signal effects.
+
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
 Panels, terminals and Agents. Its background service owns the shared state and processes;
 CLI and TUI Clients connect to it. Leaving a Client keeps those programs running.

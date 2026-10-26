@@ -96,7 +96,6 @@ impl crate::localization::Locale {
     }
 }
 
-#[cfg(windows)]
 fn stage(locale: crate::localization::Locale, value: &str) -> &str {
     use crate::localization::Locale;
     match (locale, value) {

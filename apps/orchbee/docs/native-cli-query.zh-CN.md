@@ -32,6 +32,10 @@ Agent 变更、解释、等待、命名及保留关闭操作共用交换、取�
 
 ## 会话与后台服务
 
+命名 Session 和运行状态报告共用窄原生 Server 元数据交换端口。Windows 原样传递既有
+端点、绝对期限和取消借用；Unix 报告 unsupported 且不打开连接。入口原有的能力准入
+仍先于环境和信号副作用。
+
 一个 **Orchbee 会话（Session）** 是包含 Workspace、Tab、Panel、终端和 Agent 的独立工作环境。
 后台服务拥有共享状态和进程，CLI 与 TUI Client 连接到它。退出 Client 后，其中的程序继续运行。
 首次使用默认会话，用 Workspace 组织日常工作；Windows 命名会话通过独立的运行时端点和
@@ -2515,4 +2519,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=25ac0a006e11b63d12b111acdc87ac65be48b019e41f2f781ab4ecf66ca404cb zh-cn-sha256=9ea218515ede791078278cb59571d927fa365b68c0c4def919c4cd10c11add62 -->
+<!-- documentation-pairing: english-sha256=556a2d19da420bb20e3752921e34c09fd74b6c868f2d3ffcc9f34178b97753dc zh-cn-sha256=e7ef921b4f855dd831da7fd505b897fae27f3b4bf655b7848af26eca0f04deb3 -->

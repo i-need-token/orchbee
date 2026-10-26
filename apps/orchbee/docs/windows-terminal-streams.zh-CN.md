@@ -61,6 +61,8 @@ PowerShell 字节读取器使用固定脚本、父进程非阻塞管道和有界
 几何沿用单轴 4096、262144 单元格和 65535 像素乘积上限；像素尺寸须同时为零或同时为正。
 文本限制按 UTF-8 字节计。输入 schema 定义形状，解析器额外检查字节／乘积界限。
 修饰键标记为 Shift=1、Control=2、Alt=4、Super=8、Hyper=16、Meta=32；只接受已定义位。
+共享输入解析拥有这些 wire 位，不依赖原生事件捕获。Pane 鼠标报告只投影 Shift、Control、
+Alt 和 Super；已接受的 Hyper 和 Meta 位继续不产生效果。
 
 串行循环在输入记录之间轮询 Viewer 并推进一次历史步骤。输入回执包含记录序号和已确认
 字节前缀；后续块失败不会重放前缀，也不声称剩余字节成功交付。只有对应操作已确认才
@@ -137,4 +139,4 @@ attach 仍是独立验收义务。流超时使用专门诊断；拒绝保留控�
 
 直接 attach 独立于主 TUI 键位配置，拥有固定 Ctrl+B/q 转义。扩展键盘、图形、像素输入及 Windows 视觉验收仍是独立验证义务。
 
-<!-- documentation-pairing: english-sha256=a5123ee22acb449d4ce543acaddb4ce2cda821e752dfe67857746cc542aa84d8 zh-cn-sha256=1fda65b986d1e73084eb21a087e9b7db4f2ba020bc028de6cd744db7fc7b2965 -->
+<!-- documentation-pairing: english-sha256=71e0440aa658c6005ad17c05441d7f8867365f5dee1acc1e9c338f4fdaef1ac6 zh-cn-sha256=2b2f957a3eb9e938bd39cebd215dbd54202a6fb3e42fb5f57e450e67371a8845 -->

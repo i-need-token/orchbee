@@ -1,8 +1,9 @@
 //! Bounded NDJSON commands and an invocation-owned cancellable native stdin reader.
 use crate::cli::stdin_bytes::{Poll as BytePoll, Reader as ByteReader};
+use crate::client_view::Modifiers;
 use base64::Engine;
 use orchbee_client_server_protocol::Geometry;
-use serde_core::{
+use serde::{
     Deserialize, Deserializer,
     de::{self, MapAccess, Visitor},
 };
@@ -12,6 +13,9 @@ use std::{io, process::Stdio};
 
 pub(super) const MAX_INPUT: usize = 256 * 1024;
 const MAX_LINE: usize = 2 * 1024 * 1024;
+// The stream wire format accepts SHIFT, CONTROL, ALT, SUPER, HYPER and META.
+// Pane input projects the first four; the last two remain accepted but inert.
+const SCROLL_MODIFIER_MASK: u16 = 0b0011_1111;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Direction {
@@ -39,6 +43,17 @@ pub(super) struct Scroll {
     pub(super) column: Option<u16>,
     pub(super) row: Option<u16>,
     pub(super) modifiers: u8,
+}
+
+impl Scroll {
+    pub(super) fn pane_modifiers(self) -> Modifiers {
+        Modifiers {
+            shift: self.modifiers & 0b0000_0001 != 0,
+            ctrl: self.modifiers & 0b0000_0010 != 0,
+            alt: self.modifiers & 0b0000_0100 != 0,
+            super_: self.modifiers & 0b0000_1000 != 0,
+        }
+    }
 }
 struct Fields(BTreeMap<String, Value>);
 impl<'de> Deserialize<'de> for Fields {
@@ -136,12 +151,7 @@ pub(super) fn parse(line: &[u8]) -> Result<Command, &'static str> {
             let column = fields.coordinate("column")?;
             let row = fields.coordinate("row")?;
             let modifiers = fields.number("modifiers", Some(0))?;
-            if lines == 0
-                || u8::try_from(modifiers)
-                    .ok()
-                    .and_then(crossterm::event::KeyModifiers::from_bits)
-                    .is_none()
-            {
+            if lines == 0 || modifiers & !SCROLL_MODIFIER_MASK != 0 {
                 return Err("invalid-scroll");
             }
             Command::Scroll(Scroll {
@@ -150,6 +160,7 @@ pub(super) fn parse(line: &[u8]) -> Result<Command, &'static str> {
                 source,
                 column,
                 row,
+                // Only the six admitted bits remain, so conversion cannot truncate.
                 modifiers: modifiers as u8,
             })
         }

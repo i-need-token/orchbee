@@ -9,14 +9,12 @@ use super::{
     history, input, json, query, relay,
 };
 use crate::{
-    client_view::Modifiers,
     invocation::TerminalControlCommand,
     terminal_input::{
         MouseAction, MouseButton, PaneEncode, PaneMouseEvent, encode_cursor_arrows,
         encode_pane_report,
     },
 };
-use crossterm::event::KeyModifiers;
 use orchbee_client_server_protocol::{
     ControlInput, ControllerId, Geometry, TerminalControlAction as ControlAction,
     TerminalControlOutcome as ControlOutcome, TerminalControlRequest,
@@ -481,7 +479,6 @@ fn scroll_effect(
             frame.interaction.application_cursor_keys(),
         ));
     }
-    let mods = KeyModifiers::from_bits(scroll.modifiers).expect("validated scroll flags");
     let event = PaneMouseEvent {
         action: MouseAction::Press,
         button: Some(if up {
@@ -489,12 +486,7 @@ fn scroll_effect(
         } else {
             MouseButton::WheelDown
         }),
-        mods: Modifiers {
-            shift: mods.contains(KeyModifiers::SHIFT),
-            alt: mods.contains(KeyModifiers::ALT),
-            ctrl: mods.contains(KeyModifiers::CONTROL),
-            super_: mods.contains(KeyModifiers::SUPER),
-        },
+        mods: scroll.pane_modifiers(),
         column: i32::from(scroll.column.unwrap_or(0)),
         row: i32::from(scroll.row.unwrap_or(0)),
     };
