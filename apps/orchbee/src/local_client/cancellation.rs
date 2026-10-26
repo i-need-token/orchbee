@@ -23,10 +23,12 @@ pub(crate) struct Cancellation<'a> {
 }
 
 impl<'a> Cancellation<'a> {
+    /// Borrows readiness without taking responsibility for signal consumption.
     pub(crate) const fn new(wake: Option<LocalIo<'a>>) -> Self {
         Self { wake }
     }
 
+    /// Returns the borrowed readiness source for a transport wait.
     pub(crate) const fn wake(self) -> Option<LocalIo<'a>> {
         self.wake
     }
@@ -57,6 +59,7 @@ pub(crate) struct OwnedCancellation {
 }
 
 impl OwnedCancellation {
+    /// Creates the platform wake before the cancellable task is spawned.
     pub(crate) fn new() -> io::Result<Self> {
         Ok(Self {
             state: AtomicU8::new(0),
@@ -64,16 +67,19 @@ impl OwnedCancellation {
         })
     }
 
+    /// Publishes one-shot cancellation and notifies the platform wake.
     pub(crate) fn cancel(&self) {
         if self.state.swap(1, Ordering::AcqRel) == 0 {
             self.signal.notify();
         }
     }
 
+    /// Reads the producer-owned state without consuming its readiness notification.
     pub(crate) fn is_cancelled(&self) -> bool {
         self.state.load(Ordering::Acquire) == 1
     }
 
+    /// Borrows a sticky signal view for existing Client operations.
     pub(crate) fn borrow(&self) -> Cancellation<'_> {
         Cancellation::new(Some(self.signal.wake(&self.state)))
     }
