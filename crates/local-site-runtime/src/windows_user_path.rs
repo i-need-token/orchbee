@@ -79,21 +79,25 @@ impl WindowsUserPathOperand {
             OperandKind::Absolute => return Ok(self.value.clone()),
             OperandKind::Home { suffix_start } => {
                 let home = home(&mut environment)?;
-                format!(
-                    "{}\\{}",
-                    home.to_str().ok_or(WindowsUserPathError::Input)?,
-                    &self.value[suffix_start..]
-                )
+                let mut absolute = home.to_str().ok_or(WindowsUserPathError::Input)?.to_owned();
+                // Each suffix component is appended separately, matching the Windows execution
+                // owner's home expansion even when the selected home has a verbatim prefix.
+                for component in self.value[suffix_start..]
+                    .split(['/', '\\'])
+                    .filter(|part| !part.is_empty())
+                {
+                    absolute = join_context(&absolute, component)?;
+                }
+                absolute
             }
             OperandKind::CurrentDirectory => {
                 let current =
                     cwd().map_err(|_| WindowsUserPathError::Context("current-directory"))?;
                 checked_context(&current, "current-directory")?;
-                format!(
-                    "{}\\{}",
+                join_context(
                     current.to_str().ok_or(WindowsUserPathError::Input)?,
-                    self.value
-                )
+                    &self.value,
+                )?
             }
         };
         checked_value(&lexical(&absolute)?)
@@ -115,10 +119,116 @@ pub fn normalize_windows_user_path(
 // Parse the wire grammar, never the host's `std::path` grammar. Unix clients must
 // retain exactly the same Windows operand admission and normalization semantics.
 fn drive_root(value: &str) -> Option<usize> {
-    let offset = if value.starts_with(r"\\?\") { 4 } else { 0 };
+    let verbatim = value.starts_with(r"\\?\");
+    let offset = if verbatim { 4 } else { 0 };
     let bytes = value.as_bytes().get(offset..)?;
-    matches!(bytes, [letter, b':', b'/' | b'\\', ..] if letter.is_ascii_alphabetic())
-        .then_some(offset + 3)
+    match bytes {
+        [letter, b':', b'/' | b'\\', ..] if letter.is_ascii_alphabetic() => Some(offset + 3),
+        // Windows gives a verbatim disk prefix an implicit root, including the bare prefix.
+        [letter, b':'] if verbatim && letter.is_ascii_alphabetic() => Some(offset + 2),
+        _ => None,
+    }
+}
+
+// A verbatim context treats '/' inside an existing component literally. Windows joins the
+// ordinary relative operand before lexical normalization, so '..' removes that whole component.
+fn join_context(context: &str, relative: &str) -> Result<String, WindowsUserPathError> {
+    drive_root(context).ok_or(WindowsUserPathError::Input)?;
+    Ok(push_path(context, relative))
+}
+
+fn disk_prefix(value: &str) -> bool {
+    matches!(value.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic())
+}
+
+fn network_prefix(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if !matches!(bytes, [b'/' | b'\\', b'/' | b'\\', ..]) {
+        return false;
+    }
+    let mut parts = value[2..].split(['/', '\\']);
+    parts.next().is_some_and(|part| !part.is_empty())
+        && parts.next().is_some_and(|part| !part.is_empty())
+}
+
+// The admitted grammar needs the Windows lexical push operation, not host PathBuf::push.
+// Keep its two stages distinct: a verbatim base supplies literal components, while an
+// appended operand supplies ordinary separators and parent traversal.
+fn push_path(context: &str, relative: &str) -> String {
+    if disk_prefix(relative) || network_prefix(relative) {
+        return relative.to_owned();
+    }
+    let rooted = relative.starts_with(['/', '\\']);
+    if context.starts_with(r"\\?\") && !relative.is_empty() {
+        let root = drive_root(context).expect("admitted verbatim disk context");
+        let mut parts: Vec<_> = if rooted {
+            Vec::new()
+        } else {
+            context[root..]
+                .split('\\')
+                .filter(|part| !part.is_empty())
+                .collect()
+        };
+        for part in relative.split(['/', '\\']) {
+            match part {
+                "" | "." => {}
+                ".." => {
+                    if parts
+                        .last()
+                        .is_some_and(|part| !matches!(*part, "." | ".."))
+                    {
+                        parts.pop();
+                    }
+                }
+                part => parts.push(part),
+            }
+        }
+        let mut result = context[..6].to_owned();
+        if rooted || root > 6 || !parts.is_empty() {
+            result.push('\\');
+        }
+        result.push_str(&parts.join("\\"));
+        return result;
+    }
+    if rooted {
+        let prefix = if disk_prefix(context) {
+            &context[..2]
+        } else {
+            ""
+        };
+        return format!("{prefix}{relative}");
+    }
+    let mut result = context.to_owned();
+    if !context.is_empty()
+        && !context.ends_with(['/', '\\'])
+        && !(context.len() == 2 && disk_prefix(context))
+    {
+        result.push('\\');
+    }
+    result.push_str(relative);
+    result
+}
+
+fn pop_path(value: &mut String) {
+    let verbatim = value.starts_with(r"\\?\");
+    let prefix = if verbatim {
+        6
+    } else if disk_prefix(value) {
+        2
+    } else {
+        0
+    };
+    let separator = |ch| ch == '\\' || (!verbatim && ch == '/');
+    let trimmed = value.trim_end_matches(separator);
+    if trimmed.len() <= prefix {
+        return;
+    }
+    let end = trimmed.rfind(separator).filter(|end| *end >= prefix);
+    value.truncate(match end {
+        Some(end) if end == prefix => end + 1,
+        Some(end) => end,
+        None => prefix,
+    });
 }
 
 fn checked_context(path: &Path, name: &'static str) -> Result<(), WindowsUserPathError> {
@@ -175,19 +285,30 @@ fn home(
 /// are kept, so `..` can never climb above the drive root.
 fn lexical(value: &str) -> Result<String, WindowsUserPathError> {
     let root = drive_root(value).ok_or(WindowsUserPathError::Input)?;
-    let mut components = Vec::new();
-    for component in value[root..].split(['/', '\\']) {
+    let verbatim = value.starts_with(r"\\?\");
+    let prefix = if verbatim { 6 } else { 2 };
+    let mut normalized = value[..prefix].to_owned();
+    if root > prefix {
+        normalized.push('\\');
+    }
+    let mut depth = 0_usize;
+    for component in value[root..].split(|ch| ch == '\\' || (!verbatim && ch == '/')) {
         match component {
             "" | "." => {}
             ".." => {
-                components.pop();
+                if depth > 0 {
+                    pop_path(&mut normalized);
+                    depth -= 1;
+                }
             }
-            part => components.push(part),
+            part => {
+                // Reconstruct one component at a time, preserving Windows' separate join
+                // and normalization stages even for verbatim contexts containing '/'.
+                normalized = push_path(&normalized, part);
+                depth += 1;
+            }
         }
     }
-    let mut normalized = value[..root - 1].to_owned();
-    normalized.push('\\');
-    normalized.push_str(&components.join("\\"));
     Ok(normalized)
 }
 

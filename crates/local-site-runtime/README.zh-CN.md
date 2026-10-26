@@ -84,6 +84,8 @@ nonce 生成、保留、重试和关闭；本设施不启动进程或清理线�
 
 `WindowsUserPathOperand::parse` 准入有界的盘符绝对路径、主目录相对路径或当前目录相对路径语法，不读取进程上下文，也不探测文件系统。不透明操作数保留原始写法；`resolve` 仅使用最终执行方提供的环境变量或当前目录。绝对路径字面值不需要这两类能力。所需主目录值无效时，不回退到低优先级主目录来源。`normalize_windows_user_path` 仍是已拥有执行上下文的调用方可用的组合入口。应用负责完成语法校验、路由，以及决定何时允许展开路径。
 
+可移植语法保留 Windows verbatim 盘符前缀及其隐式根目录。解析先将普通相对操作数拼接到提供的上下文，再做词法重建：遍历父目录时，既有 verbatim 上下文组件中的正斜杠仍属于该组件。主目录后缀逐组件追加。这些规则在每个宿主上保留既有 Windows 准入和规范化语义，不会在 Unix 上解析或探测真实 Windows 路径。
+
 ## Windows 命名运行时身份
 
 `WindowsSiteName` 验证区分大小写的精确名称：1–64 个 ASCII 字母、数字、点、下划线或连字符，
@@ -433,7 +435,7 @@ reader 准入要求标准 PSReadLine 模块／导出身份和已识别的定义�
 
 同一读取器拥有 `WindowsUpdateChannel`（`stable`/`preview`，默认 stable）及 default/file 来源。文件值非法时仅让该叶字段回退并进入警告记录；已记录的环境边界仍为致命错误。原生 `channel show` 离线读取有效偏好，不推断已安装的发布身份，也不执行更新器。
 
-共享有界设置读取器和纯 Windows 用户路径适配器（对解析后的相对与波浪号操作数做词法规范化，绝对字面量保持原样）服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。读取器不依赖 Workbench。
+共享有界设置读取器和纯 Windows 用户路径适配器（对解析后的相对与波浪号操作数做词法规范化，绝对字面量保持原样）服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。固定版本 `toml` 依赖在此文件边界解析。读取器不依赖 Workbench。
 
 纯函数 `windows_user_settings_path` 为伴随资源暴露相同配置文件位置，不打开文件或应用设置。它保留显式 `ORCHBEE_CONFIG_FILE` 优先于 `%APPDATA%/Orchbee/config.toml` 的规则；缺少根目录时仍返回缺失。Server 使用其父目录定位检测规则输入。
 
@@ -482,4 +484,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=8ad3767e4d2d41a386778add84d839b6579b7ae0363da2c7a4d8e65f62739178 zh-cn-sha256=53a0d6b5d205447988fbd870b3dec0b52f3687780fc2b7f59cebd6e0e51bd629 -->
+<!-- documentation-pairing: english-sha256=ce0c7abfef28e0be674ac98da837c3d92f1f49171f957d9e7fa5d22d8fda71e0 zh-cn-sha256=d397ae6243891ff2aa43fe23314271fa40a3a3123076c4258698b0a753952ff3 -->

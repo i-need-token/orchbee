@@ -2666,10 +2666,13 @@ impl NativeUi {
         false
     }
 
+    pub(super) fn admit_client_action(&mut self, action: &ClientAction) -> bool {
+        crate::tui_capabilities::Capability::for_action(action)
+            .is_none_or(|capability| self.admit_capability(capability))
+    }
+
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> ClientActionDisposition {
-        if let Some(capability) = crate::tui_capabilities::Capability::for_action(&action)
-            && !self.admit_capability(capability)
-        {
+        if !self.admit_client_action(&action) {
             return ClientActionDisposition::KeepNavigator;
         }
         self.remember_history_positions();

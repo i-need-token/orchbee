@@ -1460,6 +1460,11 @@ impl TerminalInputPort for WorkbenchClient {
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+        if let Some(native) = self.backend.native_mut()
+            && !native.admit_client_action(&action)
+        {
+            return Some(ClientActionDisposition::KeepNavigator);
+        }
         if let ClientAction::ResizePane { direction, fine } = action {
             let native = self.backend.native_mut()?;
             if let Some(control) = &mut self.client_control {

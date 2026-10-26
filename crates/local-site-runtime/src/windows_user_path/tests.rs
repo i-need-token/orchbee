@@ -5,6 +5,8 @@ fn syntax_admission_retains_raw_operands_without_execution_context() {
     for raw in [
         r"C:\literal $HOME %VAR%",
         r"\\?\C:\literal",
+        r"\\?\C:",
+        r"\\?\C:/literal",
         "~",
         r"~\remote",
         "~//remote",
@@ -102,6 +104,31 @@ fn resolved_relative_and_home_operands_are_normalized_lexically() {
             .resolve(|_| panic!("no environment"), || panic!("no cwd"))
             .unwrap(),
         r"C:\work\.\x\"
+    );
+    // Verbatim context components are joined before ordinary lexical reconstruction.
+    for (context, operand, expected) in [
+        (r"\\?\C:", ".", r"\\?\C:"),
+        (r"\\?\C:\work/base", r"..\next", r"\\?\C:\next"),
+        (r"\\?\C:\work/base\.", r"..\next", r"\\?\C:\work\base\next"),
+        (r"\\?\C:\work/base\..", r"..\next", r"\\?\C:\work\next"),
+    ] {
+        assert_eq!(
+            normalize_windows_user_path(
+                operand,
+                |_| panic!("relative path needs no environment"),
+                || Ok(PathBuf::from(context))
+            ),
+            Ok(expected.to_owned()),
+            "{context:?} + {operand:?}"
+        );
+    }
+    assert_eq!(
+        normalize_windows_user_path(
+            ".",
+            |_| panic!("relative path needs no environment"),
+            || Ok(PathBuf::from(r"C:\base\D:"))
+        ),
+        Err(WindowsUserPathError::Input)
     );
 }
 

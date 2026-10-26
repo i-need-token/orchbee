@@ -21,6 +21,7 @@ pub(crate) struct SystemNotifications {
 }
 impl SystemNotifications {
     pub(crate) fn submit(&mut self, message: Notification) -> io::Result<()> {
+        crate::tui_capabilities::Capability::SystemNotification.require()?;
         if self.sender.is_none() {
             let (sender, receiver) = mpsc::sync_channel(4);
             let stop = Arc::clone(&self.stop);

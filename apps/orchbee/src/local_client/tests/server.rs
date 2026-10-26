@@ -52,6 +52,7 @@ impl FakeServer {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
+        #[cfg(windows)]
         let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
@@ -81,6 +82,7 @@ impl FakeServer {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
+        #[cfg(windows)]
         let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
@@ -178,6 +180,7 @@ impl FakeServer {
         let directory = TestDirectory::new()?;
         #[cfg(unix)]
         let endpoint = directory.path.join("client.sock");
+        #[cfg(windows)]
         let endpoint = crate::tests::windows_endpoints::endpoint();
         let listener = UnixListener::bind(&endpoint)?;
         listener.set_nonblocking(true)?;
