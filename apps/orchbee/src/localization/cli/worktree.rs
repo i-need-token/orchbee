@@ -2,11 +2,9 @@
 
 use super::failure_target;
 use crate::cli::Failure;
-use crate::{
-    cli::escape::{escape, native_path},
-    invocation::CommandPath,
-    localization::Locale,
-};
+#[cfg(any(windows, test))]
+use crate::cli::escape::native_path;
+use crate::{cli::escape::escape, invocation::CommandPath, localization::Locale};
 use serde_json::Value;
 
 impl Locale {

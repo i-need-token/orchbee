@@ -1,7 +1,7 @@
 use super::Locale;
+#[cfg(windows)]
 use serde_json::Value;
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_workspace_preparation_failure(
         self,
         kind: crate::cli::FailureKind,

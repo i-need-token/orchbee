@@ -103,7 +103,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(super) fn cli_workbench_query_failure(self, reason: Option<&str>) -> &'static str {
         match (self, reason) {
             (Self::EnUs, Some("agent-capacity")) => {

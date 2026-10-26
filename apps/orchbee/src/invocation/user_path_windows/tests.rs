@@ -1,5 +1,8 @@
 use super::*;
 
+#[cfg(windows)]
+mod windows;
+
 fn resolve(value: &str, variables: &[(&str, &str)]) -> Result<WorkbenchDirectoryPath, PathFailure> {
     normalize(
         value,
@@ -127,14 +130,5 @@ fn bounds_and_ambiguous_roots_refuse_before_runtime_or_path_probing() {
     assert_eq!(
         normalize("new", |_| None, || Err(std::io::ErrorKind::NotFound.into())),
         Err(PathFailure::Context("current-directory"))
-    );
-    use std::os::windows::ffi::OsStringExt;
-    assert_eq!(
-        normalize(
-            "~",
-            |_| Some(OsString::from_wide(&[0xd800])),
-            || panic!("unused cwd")
-        ),
-        Err(PathFailure::Context("USERPROFILE"))
     );
 }

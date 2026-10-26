@@ -1,8 +1,7 @@
 //! Public terminal copy labels and bounded-command help in both locales.
-use crate::{
-    localization::Locale,
-    terminal_copy::{CopySearchResult, TerminalTextPoint},
-};
+use crate::localization::Locale;
+#[cfg(windows)]
+use crate::terminal_copy::{CopySearchResult, TerminalTextPoint};
 impl Locale {
     #[cfg(windows)]
     pub(crate) fn cli_terminal_copy_motion(

@@ -5,7 +5,7 @@ use super::{
     LaunchSelection, Options, OutputFormat, ParseFailure, Request, Resource, Target, UsageContext,
     UsageReason, WorkbenchLabel, WorkbenchTerminalGeometry, check_scope, client_control,
     geometry_option, label_option, launch_options_with_directory, profile_option,
-    reject_launch_profile_conflict, selection_envelope, target, usage_with, wait_timeout_option,
+    reject_launch_profile_conflict, target, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::WorkbenchClientId;
 

@@ -1,4 +1,5 @@
 use super::Locale;
+#[cfg(windows)]
 use crate::cli::escape::diagnostic_token;
 
 impl Locale {

@@ -27,11 +27,18 @@ pub(crate) fn run(
         },
         PanelRelocationDestination::NewTab {
             context: None,
-            label,
+            label: Some(label),
         } => PanelMoveDestination::NewTab {
             label: label.clone(),
         },
-        _ => return super::unsupported_platform(Some(format), locale),
+        PanelRelocationDestination::Tab { ratio: Some(_), .. }
+        | PanelRelocationDestination::NewTab {
+            context: Some(_), ..
+        }
+        | PanelRelocationDestination::NewTab { label: None, .. }
+        | PanelRelocationDestination::NewWorkspace { .. } => {
+            return super::unsupported_platform(Some(format), locale);
+        }
     };
     super::mutation(
         MutationCommand::PanelMove {

@@ -2,8 +2,8 @@
 use super::{
     CreationDirectory, OutputFormat, ParseFailure, ParsedWorkspaceCreationCommand,
     ParsedWorkspaceCreationDirectory, UsageContext, WorkspaceCreationCommand, path_failure,
-    selection_envelope,
 };
+use crate::invocation::selection_envelope;
 impl ParsedWorkspaceCreationCommand {
     /// Resolves explicit paths in the final process, before configuration or runtime access.
     ///

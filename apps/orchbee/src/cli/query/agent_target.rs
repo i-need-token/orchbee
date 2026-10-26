@@ -73,6 +73,12 @@ pub(super) fn prepare(
                 AgentNameTarget::Terminal { binding } => AgentSessionSelector::Terminal { binding },
             }));
         }
+        #[cfg(not(windows))]
+        AgentTarget::Projection { .. } => {
+            return Err(Failure::new(FailureKind::ServiceUnavailable).details(
+                crate::cli::stage_reason_details("platform", "unsupported-platform"),
+            ));
+        }
         AgentTarget::Terminal { target } => {
             let owned;
             let snapshot = match snapshot {

@@ -7,7 +7,7 @@ use crate::invocation::{
 };
 use crate::localization::Locale;
 
-pub(super) fn run(
+pub(crate) fn run(
     command: ParsedWorkspaceCreationCommand,
     format: OutputFormat,
     locale: Locale,

@@ -1,5 +1,8 @@
 use super::Locale;
-use crate::{cli::named_sessions::SessionState, invocation::CommandPath};
+#[cfg(windows)]
+use crate::cli::named_sessions::SessionState;
+use crate::invocation::CommandPath;
+#[cfg(windows)]
 use orchbee_local_runtime::NamedSessionDeleteReason as Reason;
 
 impl Locale {

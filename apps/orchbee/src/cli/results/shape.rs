@@ -42,8 +42,10 @@ pub(super) fn canonical_list(
             AgentSemanticStatus::Unknown { .. } => "unknown",
             AgentSemanticStatus::Ended {} => "ended",
         };
-        let provider = AgentReportProvider::lookup(item.provider_id.as_str())
-            .map_or(item.provider_id.as_str(), AgentReportProvider::native_provider_id);
+        let provider = match AgentReportProvider::lookup(item.provider_id.as_str()) {
+            Some(provider) => provider.native_provider_id(),
+            None => item.provider_id.as_str(),
+        };
         json!({"ordinal":index+1,"provider":provider,"status":status,"source":"canonical",
             "canonical":item,"terminal":unsupported(),"placement":unsupported(),"cwd":unsupported(),"client":unsupported()})
     }).collect::<Vec<_>>();

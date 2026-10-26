@@ -80,9 +80,11 @@ pub(super) fn run_agent(
 }
 
 #[cfg(any(target_os = "linux", windows))]
-pub(crate) use linux::{Receipt, receipt_output};
+pub(crate) use linux::submit_prompt_on_session;
 #[cfg(windows)]
-pub(crate) use linux::{submit_prompt_on_session, submit_prompt_on_session_cancellable};
+pub(crate) use linux::submit_prompt_on_session_cancellable;
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use linux::{Receipt, receipt_output};
 
 #[cfg(all(test, any(target_os = "linux", windows)))]
 pub(super) use linux::test_receipt;

@@ -20,7 +20,9 @@ mod layouts;
 mod named_sessions;
 pub(crate) mod pane_graphics;
 mod send_key;
-pub(crate) use layouts::{LayoutApplyCommand, LayoutDestination, LayoutExportCommand};
+#[cfg(windows)]
+pub(crate) use layouts::LayoutDestination;
+pub(crate) use layouts::{LayoutApplyCommand, LayoutExportCommand};
 pub(crate) use named_sessions::NamedSessionCommand;
 pub(crate) mod machine_routing;
 mod machines;
@@ -28,7 +30,9 @@ pub(crate) use machines::MachineCommand;
 mod creation;
 pub(crate) mod program;
 pub(crate) mod workspace_creation;
-pub(crate) use workspace_creation::{ParsedWorkspaceCreationCommand, WorkspaceCreationCommand};
+pub(crate) use workspace_creation::ParsedWorkspaceCreationCommand;
+#[cfg(windows)]
+pub(crate) use workspace_creation::WorkspaceCreationCommand;
 mod panel_relocation;
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
@@ -43,17 +47,23 @@ mod terminal_links;
 pub(crate) use crate::terminal_copy::{
     CopyMotion, CopySearchDirection, TerminalTextPoint, TerminalTextRange,
 };
-pub(crate) use terminal_copy::{TerminalCopyAction, TerminalCopyCommand};
+#[cfg(windows)]
+pub(crate) use terminal_copy::TerminalCopyAction;
+pub(crate) use terminal_copy::TerminalCopyCommand;
 pub(crate) use terminal_links::TerminalLinkCommand;
 mod terminal_run;
 mod terminal_stream;
 mod terminal_target;
+pub(crate) use client_control::ClientLayoutTarget;
 pub(crate) use client_control::{ClientCommand, LayoutQuery};
-pub(crate) use client_control::{ClientLayoutTarget, ClientNavigationTarget, ZoomMode};
+#[cfg(any(windows, test))]
+pub(crate) use client_control::{ClientNavigationTarget, ZoomMode};
+#[cfg(windows)]
 pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
 mod output_cursor;
 pub(crate) use output_cursor::{OutputAfter, OutputCursor};
+#[cfg(windows)]
 pub(crate) use terminal_stream::AttachTarget;
 pub(crate) use terminal_stream::{
     TerminalAttachCommand, TerminalControlCommand, TerminalObserveCommand,
@@ -64,8 +74,12 @@ pub(crate) mod user_path;
 pub(crate) mod user_path_windows;
 mod worktree;
 use std::{ffi::OsString, path::PathBuf};
+#[cfg(any(windows, test))]
+pub(crate) use worktree::WorktreeCommand;
+#[cfg(windows)]
 pub(crate) use worktree::WorktreeQueryCommand;
-pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand, WorktreeCommand};
+pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand};
+#[cfg(any(windows, test))]
 pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
 use orchbee_agent_observation_protocol::{

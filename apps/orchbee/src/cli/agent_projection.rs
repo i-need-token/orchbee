@@ -12,7 +12,7 @@ use crate::{
         read::{Checkpoint, Error},
     },
     invocation::{AgentSelector, OutputFormat, QueryCommand, Target},
-    local_client::LocalClient,
+    local_client::{LocalClient, cancellation::Cancellation},
     localization::Locale,
 };
 use orchbee_agent_observation_protocol::AgentNameTarget;
@@ -20,7 +20,6 @@ use orchbee_workbench_protocol::{Snapshot, WorkbenchClientId};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
-    sync::atomic::AtomicU8,
     time::{Duration, Instant},
 };
 mod present;
@@ -90,16 +89,6 @@ fn classify(error: Error) -> Failure {
     };
     failure(kind, reason)
 }
-fn cancellation<'a>(
-    wake: Option<orchbee_local_ipc::LocalIo<'a>>,
-    idle: &'a AtomicU8,
-) -> Result<&'a AtomicU8, Failure> {
-    match wake {
-        Some(orchbee_local_ipc::LocalIo::Wake(flag, _)) => Ok(flag),
-        None => Ok(idle),
-        _ => Err(classify(Error::Invalid)),
-    }
-}
 pub(super) fn read(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -107,15 +96,7 @@ pub(super) fn read(
     deadline: Instant,
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<Checkpoint, Failure> {
-    let idle = AtomicU8::new(0);
-    model::read::read(
-        client,
-        snapshot,
-        ended,
-        deadline,
-        cancellation(wake, &idle)?,
-    )
-    .map_err(classify)
+    model::read::read(client, snapshot, ended, deadline, Cancellation::new(wake)).map_err(classify)
 }
 pub(super) fn confirm(
     client: &mut LocalClient,
@@ -125,14 +106,13 @@ pub(super) fn confirm(
     deadline: Instant,
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<(), Failure> {
-    let idle = AtomicU8::new(0);
     model::read::confirm(
         client,
         snapshot,
         read,
         ended,
         deadline,
-        cancellation(wake, &idle)?,
+        Cancellation::new(wake),
     )
     .map_err(classify)
 }

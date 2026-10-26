@@ -13,7 +13,6 @@ fn command(words: &[&str]) -> WorktreeCommand {
     else {
         panic!("worktree command")
     };
-    #[cfg(windows)]
     let command = command
         .into_resolved(
             OutputFormat::Text,

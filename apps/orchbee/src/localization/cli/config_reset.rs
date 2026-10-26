@@ -1,4 +1,7 @@
-use crate::{cli::escape::quoted, localization::Locale};
+#[cfg(windows)]
+use crate::cli::escape::quoted;
+use crate::localization::Locale;
+#[cfg(windows)]
 use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport};
 
 impl Locale {

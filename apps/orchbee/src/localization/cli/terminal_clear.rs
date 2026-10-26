@@ -1,4 +1,5 @@
 use super::Locale;
+#[cfg(windows)]
 use orchbee_client_server_protocol::TerminalControlOutcome;
 
 impl Locale {

@@ -1,4 +1,5 @@
 use super::Locale;
+#[cfg(windows)]
 use serde_json::Value;
 impl Locale {
     #[cfg(windows)]
