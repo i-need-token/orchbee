@@ -2,8 +2,9 @@
 use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
-    client_control, current_presentation, failure_output, output, query, results,
-    source::{ArmedSignals, Finish, SignalWatch},
+    client_control,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    current_presentation, failure_output, output, query, results,
 };
 use crate::{
     invocation::{OutputFormat, Target},
@@ -24,6 +25,9 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::ClientControl) {
+        return failure_output(failure, Some(format), locale);
+    }
     let deadline = Instant::now() + Duration::from_millis(u64::from(timeout_ms));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,

@@ -17,6 +17,7 @@ pub(super) enum Capability {
     Reports,
     AgentManifests,
     RuntimeStatus,
+    TerminalContent,
     Plugins,
     ConfiguredCommands,
     NamedSessions,
@@ -46,6 +47,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus
+        | Capability::TerminalContent
         | Capability::Plugins
         | Capability::ConfiguredCommands
         | Capability::NamedSessions => Failure::new(FailureKind::ServiceUnavailable)

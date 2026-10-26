@@ -55,12 +55,10 @@ pub(crate) mod channel;
 mod completion;
 #[cfg(windows)]
 mod terminal_clear;
-#[cfg(windows)]
 mod terminal_editor;
 mod terminal_list;
 #[cfg(windows)]
 pub(crate) use terminal_clear::run as clear_terminal;
-#[cfg(windows)]
 pub(crate) use terminal_editor::run as edit_terminal_scrollback;
 pub(crate) mod config;
 pub(crate) mod config_reset;
@@ -115,11 +113,8 @@ pub(crate) use worktree_operation::run as run_worktree;
 #[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;
 mod terminal_output;
-#[cfg(windows)]
 pub(crate) use query::terminal_copy::run as copy_terminal;
-#[cfg(windows)]
 pub(crate) use query::terminal_links::run as resolve_terminal_link;
-#[cfg(windows)]
 pub(crate) use query::terminal_selection::run as read_terminal_selection;
 #[cfg(windows)]
 pub(crate) mod terminal_stream;

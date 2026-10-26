@@ -14,6 +14,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus
+        | Capability::TerminalContent
         | Capability::Plugins
         | Capability::ConfiguredCommands
         | Capability::NamedSessions

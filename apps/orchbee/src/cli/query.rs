@@ -24,15 +24,11 @@ pub(super) fn run_terminal(
     )
 }
 
-#[cfg(windows)]
 mod terminal_buffer;
-#[cfg(windows)]
 pub(super) mod terminal_copy;
-#[cfg(windows)]
 pub(super) mod terminal_links;
 #[cfg(any(target_os = "linux", windows))]
 mod terminal_output;
-#[cfg(windows)]
 pub(super) mod terminal_selection;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use terminal_output::read_output;
@@ -1391,7 +1387,6 @@ fn read_history_window(
 /// payload against the request and the frame that priced it: envelope role
 /// and encoding, Host epoch, and every window field — attachment, sequence,
 /// revision, generation, columns, start, count, and the frame-derived total.
-#[cfg(any(target_os = "linux", windows))]
 fn decode_history_window(
     record: Vec<u8>,
     attachment: AttachmentId,
@@ -1534,7 +1529,6 @@ fn acknowledge_frame(
 /// budget overrun is a rejection, Host state answers are unavailability, and
 /// reasons our fixed request shape cannot honestly produce are protocol
 /// violations.
-#[cfg(any(target_os = "linux", windows))]
 fn classify_rows_rejected(
     reason: orchbee_client_server_protocol::ViewerRowsRejectedReason,
     operation: &'static str,

@@ -1,9 +1,7 @@
 //! Localized safe link receipts and public immutable viewport help.
 use crate::localization::Locale;
-#[cfg(windows)]
 use crate::{terminal_buffer_text::TerminalTextPoint, terminal_links::ResolvedLink};
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_link_activation(
         self,
         state: &str,
@@ -31,7 +29,6 @@ impl Locale {
         }
         text
     }
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_link(
         self,
         terminal: &str,

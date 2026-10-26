@@ -139,7 +139,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_selection(
         self,
         terminal: &str,

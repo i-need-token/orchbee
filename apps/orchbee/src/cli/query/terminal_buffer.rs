@@ -9,8 +9,9 @@ use super::{
 };
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, output, results,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        failure_output, output, results,
     },
     invocation::{OutputFormat, Target, TerminalTextPoint},
     localization::Locale,
@@ -61,6 +62,11 @@ pub(super) fn run(
     schema: &'static str,
     prepare: impl FnOnce(&mut BufferReader<'_>) -> Result<Prepared, Failure>,
 ) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::TerminalContent)
+    {
+        return failure_output(failure, Some(format), locale);
+    }
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,

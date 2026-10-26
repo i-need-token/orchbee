@@ -165,10 +165,6 @@ fn main() -> ExitCode {
             #[cfg(not(windows))]
             Ok(
                 invocation::Request::TerminalClear { format, .. }
-                | invocation::Request::TerminalEditor { format, .. }
-                | invocation::Request::TerminalLink { format, .. }
-                | invocation::Request::TerminalCopy { format, .. }
-                | invocation::Request::TerminalSelection { format, .. }
                 | invocation::Request::PaneGraphics { format, .. }
                 | invocation::Request::Events { format, .. }
                 | invocation::Request::ChannelShow { format, .. }
@@ -191,7 +187,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::TerminalClear { target, format }) => {
                 cli::clear_terminal(&target, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::TerminalEditor {
                 target,
                 client,
@@ -200,15 +195,12 @@ fn main() -> ExitCode {
             }) => {
                 cli::edit_terminal_scrollback(&target, client.as_ref(), timeout_ms, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::TerminalLink { command, format }) => {
                 cli::resolve_terminal_link(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::TerminalCopy { command, format }) => {
                 cli::copy_terminal(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::TerminalSelection { command, format }) => {
                 cli::read_terminal_selection(&command, format, locale)
             }
