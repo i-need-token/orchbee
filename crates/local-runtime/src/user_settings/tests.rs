@@ -1,4 +1,5 @@
 use super::*;
+use crate::NotificationDelivery;
 #[cfg(windows)]
 use std::sync::atomic::{AtomicU64, Ordering};
 

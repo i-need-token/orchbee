@@ -21,8 +21,8 @@ pub use diagnostics::{
     SettingsDiagnostics,
 };
 pub use notifications::{
-    AgentSoundSetting, MAXIMUM_AGENT_SOUND_OVERRIDES, MAXIMUM_NOTIFICATION_DELAY_SECONDS,
-    MAXIMUM_NOTIFICATION_PROFILE_BYTES, NotificationDelivery, NotificationSettings,
+    MAXIMUM_AGENT_SOUND_OVERRIDES, MAXIMUM_NOTIFICATION_DELAY_SECONDS,
+    MAXIMUM_NOTIFICATION_PROFILE_BYTES, NotificationSettings,
 };
 mod reset_keys;
 mod shell;

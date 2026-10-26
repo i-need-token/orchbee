@@ -17,7 +17,7 @@ pub struct SessionStore {
     _directories: Vec<File>,
 }
 
-use super::CheckpointLoad;
+use super::{CheckpointLoad, CheckpointRestoreNotice};
 
 impl SessionStore {
     /// `local_app_data` is an existing private absolute directory. The admitted runtime identity

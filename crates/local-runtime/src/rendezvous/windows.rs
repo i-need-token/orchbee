@@ -1,9 +1,8 @@
 //! Native Windows refinement of the lock/marker state machine; pipes are not
 //! filesystem socket leaves and are authenticated only at connection admission.
 use crate::private_filesystem as permissions;
-pub use crate::rendezvous_types::{
-    EntryKind, EntryObservation, LockKind, RendezvousError, SessionLifetimeObservation,
-    SessionScope,
+use crate::rendezvous_types::{
+    LockKind, RendezvousError, SessionLifetimeObservation, SessionScope,
 };
 use sha2::{Digest, Sha256};
 use std::{

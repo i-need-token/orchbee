@@ -10,8 +10,6 @@ pub use unsupported::{
     require_private,
 };
 #[cfg(windows)]
-pub(crate) use windows::denied;
-#[cfg(windows)]
 pub use windows::{
     file_identity, open_directory, open_file, open_snapshot_file, open_tree, protect_new,
     require_private,
