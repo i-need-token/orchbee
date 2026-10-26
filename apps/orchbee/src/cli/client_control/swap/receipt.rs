@@ -8,6 +8,7 @@ use super::{
     WorkbenchCommandOutcome, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId, failure_output,
 };
+use crate::cli_text::CliText;
 use serde_json::{Value, json};
 
 #[cfg(test)]
@@ -149,9 +150,9 @@ impl Receipt {
         let encoded = match format {
             OutputFormat::Json => crate::cli::output::encode_document(&document),
             OutputFormat::Text => {
-                let mut text = locale.cli_panel_swap(&document);
+                let mut text = CliText::new(locale).cli_panel_swap(&document);
                 if let Some(kind) = self.failure {
-                    text.push_str(&locale.cli_failure(&Failure::new(kind)));
+                    text.push_str(&CliText::new(locale).cli_failure(&Failure::new(kind)));
                 }
                 crate::cli::output::encode_text(&text)
             }

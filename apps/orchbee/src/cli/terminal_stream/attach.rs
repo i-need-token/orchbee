@@ -7,6 +7,7 @@ use super::{
     control::{Controller, classify_control, submit},
     display::Display,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{AttachTarget, TerminalAttachCommand},
     terminal_device::{InheritedTerminal, TerminalAdmissionError},
@@ -37,7 +38,9 @@ pub(crate) fn run(command: &TerminalAttachCommand, locale: Locale) -> Output {
     let finish = |failure: Option<Failure>| Output {
         status: failure.as_ref().map_or(0, |f| f.kind.exit_code()),
         stdout: Vec::new(),
-        stderr: failure.map_or_else(String::new, |f| locale.terminal_stream_failure(&f)),
+        stderr: failure.map_or_else(String::new, |f| {
+            CliText::new(locale).terminal_stream_failure(&f)
+        }),
         finalization: None,
     };
     let inherited = match InheritedTerminal::admit() {
@@ -46,7 +49,7 @@ pub(crate) fn run(command: &TerminalAttachCommand, locale: Locale) -> Output {
             return Output {
                 status: 2,
                 stdout: Vec::new(),
-                stderr: locale.attach_requires_terminal().to_owned(),
+                stderr: CliText::new(locale).attach_requires_terminal().to_owned(),
                 finalization: None,
             };
         }
@@ -318,7 +321,7 @@ impl<W: Write> Display for ConsoleDisplay<W> {
         if record["kind"] == "notice" {
             let mut text = String::from("\x1b7\x1b[0m\x1b[H\x1b[2K");
             let mut columns = 0;
-            for ch in self.locale.attach_input_unavailable().chars() {
+            for ch in CliText::new(self.locale).attach_input_unavailable().chars() {
                 columns += ratatui::text::Span::raw(ch.to_string()).width();
                 if columns >= usize::from(self.columns) {
                     break;

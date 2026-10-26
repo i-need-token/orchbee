@@ -1,5 +1,6 @@
 //! Preserve resolved executable facts without changing submission or cleanup outcomes.
 use super::{Failure, FailureKind, Output, failure_output, output};
+use crate::cli_text::CliText;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::LaunchSelection;
 use serde_json::{Value, json};
@@ -14,7 +15,8 @@ pub(super) fn annotate(
         return output;
     };
     if format == OutputFormat::Text {
-        let suffix = locale.cli_resolved_executable(&super::escape::unquoted(launch.executable()));
+        let suffix = CliText::new(locale)
+            .cli_resolved_executable(&super::escape::unquoted(launch.executable()));
         if suffix.len() > output::LIMIT.saturating_sub(output.stdout.len()) {
             return oversized(output, format, locale);
         }

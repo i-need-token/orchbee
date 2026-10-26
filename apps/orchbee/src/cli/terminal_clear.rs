@@ -4,6 +4,7 @@ use super::{
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, output, query, results,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, Target},
     local_client::SubmissionError,
@@ -120,7 +121,7 @@ fn execute(
         )
         .map_err(|_| Failure::new(FailureKind::OutputTooLarge))?
     } else {
-        locale
+        CliText::new(locale)
             .cli_terminal_clear(&terminal.terminal_id, &outcome)
             .into_bytes()
     };

@@ -3,6 +3,7 @@ use crate::cli::{
     query::terminal_metadata::{Metadata, Read},
     results::{PanelProcessInfoDoc, TerminalRow},
 };
+use crate::cli_text::CliText;
 use orchbee_terminal_protocol::{
     TerminalId, TerminalProcess, TerminalProcessInfo, decode_terminal_text_frame,
 };
@@ -171,8 +172,8 @@ fn runtime_text_escapes_untrusted_metadata_in_both_locales() {
         let text = String::from_utf8(bytes).unwrap();
         let expected = format!(
             "{}\n{rendered_title}  {current_directory}\n{}\n{rendered_agent_title}  {rendered_display_agent}\n{rendered_token_key}={rendered_token_value}\nready={rendered_state_label}\n",
-            locale.cli_agent_terminal_heading(),
-            locale.cli_panel_metadata_heading()
+            CliText::new(locale).cli_agent_terminal_heading(),
+            CliText::new(locale).cli_panel_metadata_heading()
         );
         assert_eq!(text, expected);
         assert!(!text.contains('\x1b'));

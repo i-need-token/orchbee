@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 
 #[test]
 fn current_stream_envelopes_validate_without_reopening_historical_event_names() {
@@ -232,7 +233,7 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
         "01:01:01Z"
     );
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let help = locale
+        let help = CliText::new(locale)
             .events_help(crate::invocation::CommandPath::EventsSubscribe)
             .notes;
         for kind in Kind::ALL {
@@ -242,6 +243,9 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
                 kind.as_str()
             );
         }
-        assert_ne!(locale.events_subscribe_status(7), locale.events_status(7));
+        assert_ne!(
+            CliText::new(locale).events_subscribe_status(7),
+            CliText::new(locale).events_status(7)
+        );
     }
 }

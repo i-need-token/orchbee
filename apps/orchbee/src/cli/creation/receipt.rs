@@ -2,6 +2,7 @@
 //! receipt and exit status. It reports acknowledged partial effects without executing creation
 //! or promising that a terminal is already visible.
 
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, FailureKind, Output, client_control::Answer, failure_output, mutation, output},
     invocation::OutputFormat,
@@ -85,9 +86,9 @@ impl Receipt {
         let encoded = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => {
-                let mut text = locale.cli_creation(&document);
+                let mut text = CliText::new(locale).cli_creation(&document);
                 if let Some(kind) = self.failure {
-                    text.push_str(&locale.cli_failure(&Failure::new(kind)));
+                    text.push_str(&CliText::new(locale).cli_failure(&Failure::new(kind)));
                 }
                 output::encode_text(&text)
             }

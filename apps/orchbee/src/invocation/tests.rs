@@ -1,6 +1,7 @@
 use super::{CloseWait, PanelQueryTarget};
 use super::{CreationCommand, CreationKind, ServerStopCommand};
 use super::{CreationDirectory, ManifestCommand};
+use crate::cli_text::CliText;
 use crate::localization::Locale;
 use std::ffi::OsString;
 
@@ -227,7 +228,8 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     let failure = parse(&["agent", "start", "alpha", "--provider=claude"]).unwrap_err();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let stderr = crate::cli::parse_failure(failure.clone(), locale).stderr;
-        let (_, help) = locale.cli_help_option(super::CommandPath::AgentStart, "--provider");
+        let (_, help) =
+            CliText::new(locale).cli_help_option(super::CommandPath::AgentStart, "--provider");
         for provider in crate::agent_provider::CANONICAL_IDS {
             assert!(stderr.contains(provider), "{provider}: {stderr}");
             assert!(help.contains(provider), "{provider}: {help}");

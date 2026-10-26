@@ -4,6 +4,7 @@ use super::{
     console_interrupt::{ArmedSignals as Signals, Finish, SignalWatch},
     failure_output, output, query, results,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{
         OutputFormat, QueryCommand,
@@ -111,7 +112,7 @@ fn execute(
     let stdout = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {
-            let mut text = locale.pane_graphics_status(status).to_owned();
+            let mut text = CliText::new(locale).pane_graphics_status(status).to_owned();
             text.push_str(&format!(
                 "{}\t{}\n",
                 command.operation(),

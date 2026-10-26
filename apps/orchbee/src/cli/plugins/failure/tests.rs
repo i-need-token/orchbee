@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use crate::localization::Locale;
 
 #[test]
@@ -34,7 +35,7 @@ fn preparation_failures_are_typed_localized_and_closed_to_the_new_version() {
         document["failure"]["details"]["reason"] = "unknown".into();
         assert!(!validator.is_valid(&document));
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let diagnostic = locale.cli_failure(&failure);
+            let diagnostic = CliText::new(locale).cli_failure(&failure);
             assert!(
                 !diagnostic.contains("()")
                     && !diagnostic.contains("（）")

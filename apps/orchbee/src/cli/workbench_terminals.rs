@@ -6,6 +6,7 @@ use super::{
     query,
     results::Projection,
 };
+use crate::cli_text::CliText;
 use crate::{invocation::Target, local_client::LocalClient, localization::Locale};
 use orchbee_workbench_protocol::Snapshot;
 use serde_json::Value;
@@ -90,7 +91,7 @@ impl Document {
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
         out.write(format_args!(
             "{}\n",
-            locale.cli_terminal_observations_heading()
+            CliText::new(locale).cli_terminal_observations_heading()
         ))?;
         for (id, observation) in &self.0 {
             let fields = observation.fields();

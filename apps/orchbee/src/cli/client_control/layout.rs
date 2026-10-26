@@ -1,5 +1,6 @@
 //! Present one retained layout read as layout, neighbor or edge output without another request.
 use super::{Answer, output};
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, FailureKind, Output, failure_output},
     invocation::{LayoutQuery, OutputFormat},
@@ -44,8 +45,8 @@ pub(super) fn emit(
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {
             let text = layout.map_or_else(
-                || locale.cli_client_control(&answer.document()),
-                |layout| locale.cli_panel_layout(layout, query),
+                || CliText::new(locale).cli_client_control(&answer.document()),
+                |layout| CliText::new(locale).cli_panel_layout(layout, query),
             );
             output::encode_text(&text)
         }

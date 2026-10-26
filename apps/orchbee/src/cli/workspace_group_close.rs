@@ -1,6 +1,7 @@
 //! CLI waiting is separate from the Server's retained group Close operation.
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, WorkspaceGroupCloseCommand},
     localization::Locale,
@@ -127,7 +128,7 @@ fn emit(
             "source":{"kind":"local-workspace-group","sessionId":session_id},"result":result}))
         }
         OutputFormat::Text => {
-            output::encode_text(&locale.cli_workspace_group_close_result(&result))
+            output::encode_text(&CliText::new(locale).cli_workspace_group_close_result(&result))
         }
     };
     match encoded {

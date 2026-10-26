@@ -1,5 +1,6 @@
 use super::*;
 use crate::cli::query::terminal_metadata::{Metadata, Read};
+use crate::cli_text::CliText;
 use orchbee_terminal_protocol::decode_terminal_text_frame;
 use serde_json::json;
 use std::sync::Arc;
@@ -45,7 +46,7 @@ fn panel_terminal_text_keeps_paths_copyable_and_escapes_controls_without_changin
         let text = String::from_utf8(bytes).unwrap();
         let expected = format!(
             "{}\n{panel_id}  {rendered_title}  {current_directory}\n",
-            locale.cli_terminal_observations_heading()
+            CliText::new(locale).cli_terminal_observations_heading()
         );
         assert_eq!(text, expected);
         assert!(!text.contains('\u{001b}'));

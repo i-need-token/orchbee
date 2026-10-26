@@ -1,5 +1,6 @@
 //! An exact Client supplies scroll facts; a fresh Host viewer cannot substitute for it.
 use super::{Failure, FailureKind, console_interrupt::SignalWatch, query, results::Projection};
+use crate::cli_text::CliText;
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
     ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewOutcome,
@@ -21,8 +22,11 @@ impl Document {
         out: &mut super::output::Bounded,
         locale: crate::localization::Locale,
     ) -> Result<(), super::output::TooLarge> {
-        out.write(format_args!("{}\n", locale.cli_scroll_heading()))?;
-        let states = locale.cli_scroll_states();
+        out.write(format_args!(
+            "{}\n",
+            CliText::new(locale).cli_scroll_heading()
+        ))?;
+        let states = CliText::new(locale).cli_scroll_states();
         for (id, observation) in &self.rows {
             let state = match observation {
                 ClientViewportObservation::Unavailable { reason } => match reason {

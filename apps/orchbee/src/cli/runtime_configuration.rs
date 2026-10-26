@@ -1,5 +1,6 @@
 //! Running-Session configuration control. A submitted reload is never automatically retried.
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::ConfigurationAction;
 
@@ -107,36 +108,37 @@ pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Loc
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
                 OutputFormat::Text => {
-                    let mut text = locale.cli_runtime_configuration(message, revision, restart);
+                    let mut text =
+                        CliText::new(locale).cli_runtime_configuration(message, revision, restart);
                     if let Some(
                         ConfigurationOutcome::Current { snapshot }
                         | ConfigurationOutcome::Reloaded { snapshot, .. },
                     ) = reply.as_ref().map(|reply| &reply.outcome)
                     {
-                        text.push_str(&locale.cli_configuration_notifications(
+                        text.push_str(&CliText::new(locale).cli_configuration_notifications(
                             &super::escape::escape(&snapshot.notification_profile),
                         ));
-                        text.push_str(&locale.cli_configuration_shell(
+                        text.push_str(&CliText::new(locale).cli_configuration_shell(
                             &super::escape::escape(&snapshot.default_shell),
                             snapshot.shell_mode.as_str(),
                         ));
-                        text.push_str(&locale.cli_configuration_title(&super::escape::escape(
-                            &snapshot.window_title,
-                        )));
+                        text.push_str(&CliText::new(locale).cli_configuration_title(
+                            &super::escape::escape(&snapshot.window_title),
+                        ));
                         text.push_str(&format!(
                             "spacesSidebarProfile={}\n",
                             super::escape::escape(&snapshot.spaces_sidebar_profile)
                         ));
                         text.push_str(&format!("themeName={}\n", snapshot.theme_name.as_str()));
-                        text.push_str(&locale.cli_configuration_sidebar(&super::escape::escape(
-                            &snapshot.agent_sidebar_profile,
-                        )));
-                        text.push_str(&locale.cli_configuration_diagnostics(
+                        text.push_str(&CliText::new(locale).cli_configuration_sidebar(
+                            &super::escape::escape(&snapshot.agent_sidebar_profile),
+                        ));
+                        text.push_str(&CliText::new(locale).cli_configuration_diagnostics(
                             snapshot.diagnostics.items.len(),
                             snapshot.diagnostics.omitted_count,
                         ));
                         for diagnostic in &snapshot.diagnostics.items {
-                            text.push_str(&locale.cli_configuration_diagnostic(
+                            text.push_str(&CliText::new(locale).cli_configuration_diagnostic(
                                 &super::escape::escape(&diagnostic.field),
                                 &diagnostic.reason,
                                 match diagnostic.disposition {

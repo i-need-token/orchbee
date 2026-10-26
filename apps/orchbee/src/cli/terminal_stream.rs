@@ -1,5 +1,6 @@
 //! Invocation-owned terminal observation and control streams. The transport and Viewer remain single owners.
 use super::{Failure, FailureKind, Output, output, query};
+use crate::cli_text::CliText;
 use crate::{
     cli::console_interrupt::ArmedSignals as Interrupt, invocation::TerminalObserveCommand,
     local_client::LocalClient, localization::Locale, terminal_projection::TerminalProjection,
@@ -36,7 +37,7 @@ pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
     let failure_output = |failure: Failure| Output {
         status: failure.kind.exit_code(),
         stdout: Vec::new(),
-        stderr: locale.terminal_stream_failure(&failure),
+        stderr: CliText::new(locale).terminal_stream_failure(&failure),
         finalization: None,
     };
     let signal = match Interrupt::arm_interrupts() {

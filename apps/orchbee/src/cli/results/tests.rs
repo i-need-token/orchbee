@@ -3,6 +3,7 @@
 //! filter-target hit/miss/ambiguity for every filter arm.
 
 use super::*;
+use crate::cli_text::CliText;
 use orchbee_workbench_protocol::parse_snapshot;
 
 mod topology;
@@ -1920,12 +1921,12 @@ fn ambiguity_text_lists_candidate_handles_with_labels() {
     let details = failure.details.clone().unwrap();
     assert_eq!(details["totalCount"], 2);
     assert_eq!(details["candidates"], json!([tid(0, 0xcc), tid(1, 0xcc)]));
-    let english = crate::localization::Locale::EnUs.cli_failure(&failure);
+    let english = CliText::new(crate::localization::Locale::EnUs).cli_failure(&failure);
     assert_eq!(
         english,
         "2 workspace candidates match \"w\": @workspace:0xcc (\"w\"), @workspace:0x100000000000000cc (\"w\"). Use one of these handles or the full ID.\n"
     );
-    let chinese = crate::localization::Locale::ZhCn.cli_failure(&failure);
+    let chinese = CliText::new(crate::localization::Locale::ZhCn).cli_failure(&failure);
     assert!(
         chinese.contains("@workspace:0x100000000000000cc (\"w\")"),
         "{chinese}"
@@ -2018,7 +2019,7 @@ fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
         let Projection::WorkspaceGet(doc) = &projection else {
             panic!("workspace get projection");
         };
-        let summary = locale.cli_workspace_summary(
+        let summary = CliText::new(locale).cli_workspace_summary(
             &crate::cli::escape::quoted(&doc.row.label),
             doc.row.number,
             doc.row.tab_count,
@@ -2042,7 +2043,7 @@ fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
             assert!(!text.contains(&directory_id), "{text}");
         }
         assert!(
-            text.contains(locale.cli_ungrouped()) || text.contains("("),
+            text.contains(CliText::new(locale).cli_ungrouped()) || text.contains("("),
             "{text}"
         );
     }

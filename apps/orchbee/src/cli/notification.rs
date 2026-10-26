@@ -1,5 +1,6 @@
 //! One notification submission. Lost delivery replies are never retried automatically.
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::Notification;
 
@@ -89,7 +90,9 @@ pub(crate) fn run(message: Notification, format: OutputFormat, locale: Locale) -
             let document = serde_json::json!({"schema":"orchbee.notification.show","version":1,"source":{"kind":"local-runtime"},"result":{"reply":reply,"interrupted":interrupted,"cleanupFailed":cleanup_failed}});
             let encoded = match format {
                 OutputFormat::Json => output::encode_document(&document),
-                OutputFormat::Text => output::encode_text(locale.notification_result(label)),
+                OutputFormat::Text => {
+                    output::encode_text(CliText::new(locale).notification_result(label))
+                }
             };
             match encoded {
                 Ok(stdout) => Output {

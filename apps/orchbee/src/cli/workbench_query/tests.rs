@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use crate::invocation::Target;
 use orchbee_workbench_protocol::{ClientViewSequence, WorkbenchResponse};
 
@@ -194,7 +195,7 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
             assert!(
                 String::from_utf8(output.stdout)
                     .unwrap()
-                    .contains(locale.cli_query_client_labels()[0])
+                    .contains(CliText::new(locale).cli_query_client_labels()[0])
             );
         }
     }
@@ -410,7 +411,7 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
                 assert!(
                     String::from_utf8(output.stdout)
                         .unwrap()
-                        .contains(locale.cli_workbench_agents_heading())
+                        .contains(CliText::new(locale).cli_workbench_agents_heading())
                 );
             }
         }

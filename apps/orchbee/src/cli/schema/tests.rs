@@ -1,5 +1,6 @@
 //! The published catalog must describe the exact embedded schema dictionary.
 use super::DOCUMENTS;
+use crate::cli_text::CliText;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -713,8 +714,8 @@ fn text_catalog_lists_every_schema_and_explicit_requests_keep_documents() {
         assert_eq!(output.status, 0);
         let text = String::from_utf8(output.stdout).unwrap();
         assert_eq!(text.lines().count(), DOCUMENTS.len() + 2, "{text}");
-        assert!(text.starts_with(locale.cli_schema_catalog_headers()[0]));
-        assert!(text.ends_with(locale.cli_schema_catalog_footer()));
+        assert!(text.starts_with(CliText::new(locale).cli_schema_catalog_headers()[0]));
+        assert!(text.ends_with(CliText::new(locale).cli_schema_catalog_footer()));
         for (id, _) in DOCUMENTS {
             assert!(
                 text.lines()

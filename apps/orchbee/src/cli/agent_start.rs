@@ -4,6 +4,7 @@
 use super::Failure;
 use super::output;
 use super::{FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     agent_start::Request,
     cli::{
@@ -201,7 +202,7 @@ fn project(
         let bytes = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => output::encode_text(
-                &locale.cli_agent_started(report.name.as_str(), session.as_str()),
+                &CliText::new(locale).cli_agent_started(report.name.as_str(), session.as_str()),
             ),
         };
         if let Ok(stdout) = bytes {

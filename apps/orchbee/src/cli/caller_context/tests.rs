@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 #[cfg(not(windows))]
 use crate::invocation::QueryCommand;
 use crate::{cli::OutputFormat, localization::Locale};
@@ -119,7 +120,7 @@ fn invalid_or_absent_context_fails_before_discovery_without_echoing_values() {
             assert!(failure.source.is_none());
             assert!(failure.details.is_none());
             for locale in [Locale::EnUs, Locale::ZhCn] {
-                let diagnostic = locale.cli_failure(&failure);
+                let diagnostic = CliText::new(locale).cli_failure(&failure);
                 assert!(diagnostic.contains("panel current --panel"));
                 assert!(!diagnostic.contains("secret-untrusted-value"));
             }

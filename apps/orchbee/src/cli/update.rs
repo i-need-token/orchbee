@@ -1,4 +1,5 @@
 //! Explicit Windows cohort updates and save-then-update channel changes; never starts a Session.
+use crate::cli_text::CliText;
 mod acquire;
 mod install;
 mod installed;
@@ -225,10 +226,10 @@ pub(crate) fn run(
         OutputFormat::Text => {
             let mut text = String::new();
             if report.channel_saved {
-                text.push_str(locale.cli_update_message("channel-saved"));
+                text.push_str(CliText::new(locale).cli_update_message("channel-saved"));
                 text.push('\n');
             }
-            text.push_str(locale.cli_update_message(error.map_or(
+            text.push_str(CliText::new(locale).cli_update_message(error.map_or(
                 "complete",
                 |error| match error {
                     Error::LocalManifestRead => "local-manifest-read",
@@ -243,7 +244,7 @@ pub(crate) fn run(
                 text.push('\n');
             }
             if let Some(path) = &report.cleanup_pending {
-                text.push_str(locale.cli_update_message("cleanup-pending"));
+                text.push_str(CliText::new(locale).cli_update_message("cleanup-pending"));
                 text.push_str(&super::escape::escape(&path.to_string_lossy()));
                 text.push('\n');
             }

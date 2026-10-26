@@ -1,5 +1,6 @@
 //! Shared terminal frame and process projection for Panel and Agent queries.
 use super::query;
+use crate::cli_text::CliText;
 use serde_json::{Value, json};
 
 #[derive(Debug)]
@@ -77,14 +78,14 @@ pub(super) fn render(
 ) -> Result<(), super::output::TooLarge> {
     out.write(format_args!(
         "{}\n{}  {}\n",
-        locale.cli_agent_terminal_heading(),
+        CliText::new(locale).cli_agent_terminal_heading(),
         super::escape::unquoted(fields["terminalTitleStripped"].as_str().unwrap_or("-")),
         super::escape::unquoted(fields["cwd"].as_str().unwrap_or("-")),
     ))?;
     if let Some(metadata) = fields.get("metadata") {
         out.write(format_args!(
             "{}\n{}  {}\n",
-            locale.cli_panel_metadata_heading(),
+            CliText::new(locale).cli_panel_metadata_heading(),
             super::escape::unquoted(metadata["presentation"]["title"].as_str().unwrap_or("-")),
             super::escape::unquoted(
                 metadata["presentation"]["displayAgent"]

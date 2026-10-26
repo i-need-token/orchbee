@@ -6,6 +6,7 @@ use super::{
     query,
     results::{Projection, WorkspaceRow},
 };
+use crate::cli_text::CliText;
 use crate::{
     local_client::{LocalClient, workbench::worktree_query::WorktreeQueryError},
     localization::Locale,
@@ -219,14 +220,18 @@ impl Document {
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
         out.write(format_args!(
             "{}\n",
-            locale.cli_workspace_worktrees_heading()
+            CliText::new(locale).cli_workspace_worktrees_heading()
         ))?;
         for (id, observation) in &self.0 {
             let (state, path) = match observation {
-                Observation::NoDirectory => (locale.cli_workspace_worktree_states()[0], "-"),
-                Observation::Unavailable { .. } => (locale.cli_workspace_worktree_states()[1], "-"),
+                Observation::NoDirectory => {
+                    (CliText::new(locale).cli_workspace_worktree_states()[0], "-")
+                }
+                Observation::Unavailable { .. } => {
+                    (CliText::new(locale).cli_workspace_worktree_states()[1], "-")
+                }
                 Observation::Observed { summary, .. } => (
-                    locale.cli_workspace_worktree_states()
+                    CliText::new(locale).cli_workspace_worktree_states()
                         [if summary["linked"] == true { 3 } else { 2 }],
                     summary["checkoutPath"]
                         .as_str()

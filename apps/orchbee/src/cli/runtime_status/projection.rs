@@ -1,6 +1,7 @@
 //! Pure projection of independently observed process and local cohort facts.
 use super::{Failure, FailureKind, Locale, Output, OutputFormat, failed};
 use crate::cli::{config, escape::escape, output};
+use crate::cli_text::CliText;
 use orchbee_local_client_protocol::{
     SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW, SERVER_FEATURE_LIVE_HANDOFF,
     SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata, ServerMode,
@@ -267,7 +268,7 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                 let text = display(label, value, locale);
                 out.write(format_args!(
                     "{}: {}\n",
-                    locale.cli_runtime_status_label(label),
+                    CliText::new(locale).cli_runtime_status_label(label),
                     text
                 ))?;
             }
@@ -294,8 +295,8 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
 
 fn display(label: &str, value: &Value, locale: Locale) -> String {
     match value {
-        Value::Null => locale.cli_runtime_status_unknown().to_owned(),
-        Value::Bool(value) => locale
+        Value::Null => CliText::new(locale).cli_runtime_status_unknown().to_owned(),
+        Value::Bool(value) => CliText::new(locale)
             .cli_runtime_status_value(if *value { "true" } else { "false" })
             .to_owned(),
         Value::String(value) => escape(
@@ -303,7 +304,7 @@ fn display(label: &str, value: &Value, locale: Locale) -> String {
                 label,
                 "server" | "state" | "reason" | "mode" | "profile" | "delivery"
             ) {
-                locale.cli_runtime_status_value(value)
+                CliText::new(locale).cli_runtime_status_value(value)
             } else {
                 value
             },
@@ -317,7 +318,7 @@ fn display(label: &str, value: &Value, locale: Locale) -> String {
                 .map(|(name, value)| {
                     format!(
                         "{}: {}",
-                        locale.cli_runtime_status_label(name),
+                        CliText::new(locale).cli_runtime_status_label(name),
                         display(name, value, locale)
                     )
                 })

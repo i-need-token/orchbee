@@ -1,6 +1,7 @@
 //! Link observation owns an explicit immutable viewport and existing viewer reads.
 use super::terminal_buffer::{self, BufferReader, ContentFence, Prepared};
 use super::viewer_protocol_invalid;
+use crate::cli_text::CliText;
 use crate::{
     cli::Output,
     invocation::{OutputFormat, TerminalLinkCommand, TerminalTextPoint},
@@ -59,7 +60,7 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
                     resolved,
                 )
             };
-            let mut text = locale.cli_terminal_link(
+            let mut text = CliText::new(locale).cli_terminal_link(
                 &reader.terminal.terminal_id,
                 reader.frame.route.revision,
                 command.cursor,
@@ -87,12 +88,12 @@ pub(crate) fn run(command: &TerminalLinkCommand, format: OutputFormat, locale: L
                 status = activation.status();
                 submitted = activation.submitted();
                 text.push_str(
-                    &locale
+                    &CliText::new(locale)
                         .cli_terminal_link_activation(activation.state(), activation.operation()),
                 );
                 result["handled"] = json!(activation.handled());
                 if let Some(reason) = activation.failure() {
-                    text.push_str(locale.plugin_runtime_failure(reason));
+                    text.push_str(CliText::new(locale).plugin_runtime_failure(reason));
                     text.push('\n');
                 }
                 result["activation"] = json!(activation);

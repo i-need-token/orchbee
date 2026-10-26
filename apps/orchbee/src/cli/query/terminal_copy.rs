@@ -1,6 +1,7 @@
 //! Public copy commands project one complete admitted physical buffer read.
 use super::terminal_buffer::{self, BufferReader, ContentFence, Prepared};
 use super::viewer_protocol_invalid;
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, FailureKind, Output},
     invocation::{OutputFormat, TerminalCopyAction, TerminalCopyCommand},
@@ -33,7 +34,7 @@ pub(crate) fn run(command: &TerminalCopyCommand, format: OutputFormat, locale: L
                         status: 0,
                         submitted: false,
                         result: json!({"origin":point(cursor),"motion":motion.token(),"cursor":point(target)}),
-                        text: locale.cli_terminal_copy_motion(
+                        text: CliText::new(locale).cli_terminal_copy_motion(
                             &reader.terminal.terminal_id,
                             reader.frame.route.revision,
                             motion.token(),
@@ -71,7 +72,7 @@ pub(crate) fn run(command: &TerminalCopyCommand, format: OutputFormat, locale: L
                             crate::cli::Failure::new(FailureKind::InvalidUsage)
                         }
                     })?;
-                    let text = locale.cli_terminal_copy_search(
+                    let text = CliText::new(locale).cli_terminal_copy_search(
                         &reader.terminal.terminal_id,
                         reader.frame.route.revision,
                         query,

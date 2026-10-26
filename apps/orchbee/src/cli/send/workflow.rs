@@ -715,7 +715,11 @@ pub(in crate::cli) fn startup_failure(
 /// A preparation overflow degrades to the
 /// shared `output-too-large` failure under the caller's format.
 fn answer_output(answer: &SendAnswer, format: OutputFormat, locale: Locale) -> Output {
-    let stderr = locale.cli_send_stderr(answer.verdict, answer.reason, answer.cleanup_unconfirmed);
+    let stderr = CliText::new(locale).cli_send_stderr(
+        answer.verdict,
+        answer.reason,
+        answer.cleanup_unconfirmed,
+    );
     let document = json!({
         "schema": TERMINAL_SEND_ID,
         "version": 1,

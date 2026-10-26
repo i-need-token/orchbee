@@ -1,6 +1,7 @@
 //! `config check`: pure local inspection. No socket is connected, no process
 //! is started, no directory is created, and no lock is taken.
 
+use crate::cli_text::CliText;
 use std::path::Path;
 #[cfg(all(test, target_os = "linux"))]
 use std::path::PathBuf;
@@ -99,7 +100,7 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                 "checks": check_documents,
             });
             let stderr = if failed {
-                locale.cli_config_failed().to_owned()
+                CliText::new(locale).cli_config_failed().to_owned()
             } else {
                 String::new()
             };

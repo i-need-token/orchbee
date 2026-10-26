@@ -1,4 +1,5 @@
 //! Application receipts retain canonical and Client acknowledgements without launch secrets.
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, FailureKind, Output, failure_output, output},
     invocation::OutputFormat,
@@ -55,10 +56,10 @@ impl Receipt {
         let encoded = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => {
-                let mut text = locale.cli_layout_apply(&document);
+                let mut text = CliText::new(locale).cli_layout_apply(&document);
                 if let Some(failure) = &failure {
                     // Preserve source-specific diagnostics, including escaped file errors.
-                    text.push_str(&locale.cli_failure(failure));
+                    text.push_str(&CliText::new(locale).cli_failure(failure));
                 }
                 output::encode_text(&text)
             }

@@ -9,6 +9,7 @@
 //! clear. Other interrupted, live, incomplete or uncertain state refuses
 //! recovery-required without repair or deletion.
 
+use crate::cli_text::CliText;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use std::time::{Duration, Instant};
 
@@ -89,9 +90,9 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                 }
                 OutputFormat::Text => {
                     let line = if started.spawned {
-                        locale.cli_server_started()
+                        CliText::new(locale).cli_server_started()
                     } else {
-                        locale.cli_server_already_running()
+                        CliText::new(locale).cli_server_already_running()
                     };
                     match output::encode_text(line) {
                         Ok(stdout) => Output {

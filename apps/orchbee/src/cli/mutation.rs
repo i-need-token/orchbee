@@ -5,6 +5,7 @@
 //! Nothing is retried or replayed: an ambiguous post-submission outcome
 //! retires the session and surfaces as a typed `outcome-unknown` failure.
 
+use crate::cli_text::CliText;
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogRevision, WorkbenchRevision, WorkbenchTerminalGeometry,
 };
@@ -251,7 +252,7 @@ impl Receipt {
         } else {
             "tab"
         };
-        Some(locale.cli_close_finished(resource, &closing.label, closing.terminals))
+        Some(CliText::new(locale).cli_close_finished(resource, &closing.label, closing.terminals))
     }
 
     pub(super) fn target_hint(&self, locale: Locale) -> Option<&'static str> {
@@ -261,7 +262,7 @@ impl Receipt {
         {
             self.label
                 .as_deref()
-                .and_then(|label| locale.cli_label_target_hint(label))
+                .and_then(|label| CliText::new(locale).cli_label_target_hint(label))
         } else {
             None
         }
@@ -771,7 +772,7 @@ mod workflow {
             .find(|(name, _)| *name == key)
             .and_then(|(_, id)| id.clone())
             .unwrap_or_default();
-        let hint = locale.cli_close_wait_hint(workspace, &id, timeout_ms);
+        let hint = CliText::new(locale).cli_close_wait_hint(workspace, &id, timeout_ms);
         let mut observations = 0_u64;
         loop {
             let present = match snapshot_session_until(deadline) {
@@ -839,7 +840,9 @@ mod workflow {
             locale,
         );
         if output.status == 0 && format == OutputFormat::Text {
-            let mut text = locale.cli_close_preview(resource).into_bytes();
+            let mut text = CliText::new(locale)
+                .cli_close_preview(resource)
+                .into_bytes();
             text.append(&mut output.stdout);
             output.stdout = text;
         }

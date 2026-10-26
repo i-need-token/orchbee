@@ -1,4 +1,5 @@
 //! One revision-consistent observation of logical-terminal reports, shared by Panel and Agent reads.
+use crate::cli_text::CliText;
 mod reports;
 use super::{
     Failure, FailureKind,
@@ -346,7 +347,10 @@ impl Document {
         }
     }
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
-        out.write(format_args!("{}\n", locale.cli_panel_metadata_heading()))?;
+        out.write(format_args!(
+            "{}\n",
+            CliText::new(locale).cli_panel_metadata_heading()
+        ))?;
         for (id, row) in &self.rows {
             let report = self
                 .reports
@@ -441,7 +445,7 @@ pub(in crate::cli) fn render_report(
     if view.is_null() {
         return Ok(());
     }
-    let labels = locale.cli_reported_agent_fields();
+    let labels = CliText::new(locale).cli_reported_agent_fields();
     for (label, value) in labels.iter().zip([
         &view["agent"],
         &view["state"],

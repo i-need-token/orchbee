@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use crate::invocation::{self, ClientNavigationTarget, Request, Target, ZoomMode};
 use orchbee_workbench_protocol::{
     ClientViewAvailability, ClientViewIntent, ClientViewRecord, Snapshot, WorkbenchClientId,
@@ -609,7 +610,8 @@ fn client_control_routing_failures_are_closed_schema_documents() {
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validator.validate(&document).unwrap();
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let diagnostic = locale.cli_failure(&selection::failure(kind, reason, vec![]));
+            let diagnostic =
+                CliText::new(locale).cli_failure(&selection::failure(kind, reason, vec![]));
             assert!(
                 !diagnostic.contains("project") && !diagnostic.contains("项目"),
                 "{diagnostic}"

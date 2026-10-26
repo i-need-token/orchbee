@@ -1,6 +1,7 @@
 //! Installed manifests and retained reload receipts; transport loss never replays a mutation.
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{ManifestCommand, OutputFormat},
     localization::Locale,
@@ -136,7 +137,7 @@ impl Answer {
                         Some(operation_id.as_str())
                     }
                 };
-                output::encode_text(&locale.cli_agent_manifests(id, outcome, unknown))
+                output::encode_text(&CliText::new(locale).cli_agent_manifests(id, outcome, unknown))
             }
         };
         match encoded {
@@ -144,7 +145,7 @@ impl Answer {
                 status: self.exit_code(),
                 stdout,
                 stderr: if self.cleanup_failed {
-                    locale.cli_failure(&Failure::new(FailureKind::InternalFailure))
+                    CliText::new(locale).cli_failure(&Failure::new(FailureKind::InternalFailure))
                 } else {
                     String::new()
                 },

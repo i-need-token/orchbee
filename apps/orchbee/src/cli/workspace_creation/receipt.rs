@@ -2,6 +2,7 @@
 //! outcomes into a partial-effect receipt and exit status. It does not create membership or
 //! claim successful focus from command admission alone.
 
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, FailureKind, Output, client_control::Answer, failure_output, mutation, output},
     invocation::OutputFormat,
@@ -44,9 +45,9 @@ impl Receipt {
         let bytes = match format {
             OutputFormat::Json => output::encode_document(&document),
             OutputFormat::Text => {
-                let mut text = locale.cli_workspace_creation(&document);
+                let mut text = CliText::new(locale).cli_workspace_creation(&document);
                 if let Some(failure) = &self.failure {
-                    text.push_str(&locale.cli_failure(failure));
+                    text.push_str(&CliText::new(locale).cli_failure(failure));
                 }
                 output::encode_text(&text)
             }

@@ -1,6 +1,7 @@
 //! Retained status uses receipt identity; resume submits once with an explicit generation.
 use super::command_interrupt::{ArmedSignals, Finish};
 use super::{Failure, FailureKind, Output, failure_output, output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, operation::CloseFamily},
     localization::Locale,
@@ -37,7 +38,9 @@ pub(crate) fn run_close(
                 OutputFormat::Json => output::encode_document(&json!({
                     "schema":"orchbee.operation.close", "version":1, "result":result
                 })),
-                OutputFormat::Text => output::encode_text(&locale.operation_result(&result)),
+                OutputFormat::Text => {
+                    output::encode_text(&CliText::new(locale).operation_result(&result))
+                }
             };
             match bytes {
                 Ok(stdout) => Output {
@@ -229,7 +232,7 @@ pub(crate) fn run_server(id: &WorkbenchRequestId, format: OutputFormat, locale: 
         .as_ref()
         .and_then(|v| v["result"].as_object())
         .and_then(|r| {
-            output::encode_text(&locale.cli_server_stop_result(
+            output::encode_text(&CliText::new(locale).cli_server_stop_result(
                 r.get("outcome")?.as_str()?,
                 raw,
                 r.get("wait").and_then(Value::as_str),

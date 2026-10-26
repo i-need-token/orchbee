@@ -1,4 +1,5 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
+use crate::cli_text::CliText;
 pub(in crate::cli) mod context;
 mod failure;
 pub(in crate::cli) mod links;
@@ -70,7 +71,7 @@ pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         Err(reason) => (
             1,
             json!({"kind":"failed","reason":reason}),
-            format!("{}\n", locale.plugin_error(reason)),
+            format!("{}\n", CliText::new(locale).plugin_error(reason)),
         ),
     };
     let document = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":operation,"result":result});
@@ -129,7 +130,7 @@ fn render(result: &Value, locale: Locale) -> String {
     if result["kind"] == "directory" {
         return format!("{}\n", string(&result["path"]));
     }
-    let mut lines = vec![locale.plugin_result_heading().to_owned()];
+    let mut lines = vec![CliText::new(locale).plugin_result_heading().to_owned()];
     if let Some(entries) = result["catalog"]["plugins"].as_array() {
         for entry in entries {
             lines.push(format!(
@@ -137,12 +138,12 @@ fn render(result: &Value, locale: Locale) -> String {
                 string(&entry["manifest"]["id"]),
                 string(&entry["manifest"]["name"]),
                 string(&entry["manifest"]["version"]),
-                locale.plugin_enabled(entry["enabled"] == true)
+                CliText::new(locale).plugin_enabled(entry["enabled"] == true)
             ));
             if let Ok(reason) =
                 serde_json::from_value::<PluginRegistryError>(entry["warning"].clone())
             {
-                lines.push(format!("  {}", locale.plugin_error(reason)));
+                lines.push(format!("  {}", CliText::new(locale).plugin_error(reason)));
             }
         }
     }

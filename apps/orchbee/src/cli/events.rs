@@ -5,6 +5,7 @@ use super::{
     failure_output, output, query, results,
     terminal_stream::relay::Relay,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, Resource, events::Command},
     local_client::LocalClient,
@@ -226,7 +227,7 @@ fn execute(
             stderr: if status == 0 {
                 String::new()
             } else {
-                locale.events_subscribe_status(status).into()
+                CliText::new(locale).events_subscribe_status(status).into()
             },
             finalization: None,
         });
@@ -257,7 +258,7 @@ fn finish_reply(
     let stdout = match format {
         OutputFormat::Json => output::encode_record(&json!({"schema":"orchbee.events.wait","version":1,"source":source(snapshot),"result":public_reply(&reply)?,"cleanup":cleanup})),
         OutputFormat::Text => {
-            let mut text = locale.events_status(status).to_owned();
+            let mut text = CliText::new(locale).events_status(status).to_owned();
             if let Outcome::Matched {event, ..} = &reply.outcome { text.push_str(&format!("{}\t{}\n", crate::invocation::events::public_name(event.event), super::escape::escape(&serde_json::to_string(&event.data).map_err(|_| Failure::new(FailureKind::InternalFailure))?))); }
             output::encode_text(&text)
         }

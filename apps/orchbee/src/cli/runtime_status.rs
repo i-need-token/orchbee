@@ -1,5 +1,6 @@
 //! Read-only local build and Server metadata, separate from Workbench status.
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, RuntimeStatusScope},
     localization::Locale,
@@ -25,6 +26,6 @@ fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output 
         Some(format),
         locale,
     );
-    result.stderr = locale.cli_runtime_status_failure(kind.as_str());
+    result.stderr = CliText::new(locale).cli_runtime_status_failure(kind.as_str());
     result
 }

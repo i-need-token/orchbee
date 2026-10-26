@@ -1,5 +1,6 @@
 //! Popup commands address one current Client and preserve one mutation's receipt.
 use super::failure::Reason;
+use crate::cli_text::CliText;
 use crate::{
     cli::{
         Failure, FailureKind, Output,
@@ -182,10 +183,10 @@ fn execute(
     let text = match answer.reply.as_ref().map(|reply| &reply.outcome) {
         Some(ClientViewOutcome::Operation { operation }) => match &operation.status {
             ClientViewControlStatus::PopupOpened { popup_id, .. } => {
-                locale.cli_popup_opened(popup_id)
+                CliText::new(locale).cli_popup_opened(popup_id)
             }
             ClientViewControlStatus::PopupClosed { had_popup, .. } => {
-                locale.cli_popup_closed(*had_popup).into()
+                CliText::new(locale).cli_popup_closed(*had_popup).into()
             }
             ClientViewControlStatus::PresentationRead { .. }
             | ClientViewControlStatus::ViewportRead { .. }
@@ -202,10 +203,12 @@ fn execute(
             | ClientViewControlStatus::ZoomUnchanged { .. }
             | ClientViewControlStatus::ZoomToggled { .. }
             | ClientViewControlStatus::Rejected { .. }
-            | ClientViewControlStatus::Incomplete { .. } => locale.cli_client_control(&document),
+            | ClientViewControlStatus::Incomplete { .. } => {
+                CliText::new(locale).cli_client_control(&document)
+            }
         },
         // This step consumes its requested ClientView receipt class; other replies cannot confirm that observation.
-        _ => locale.cli_client_control(&document),
+        _ => CliText::new(locale).cli_client_control(&document),
     };
     let stdout = match format {
         OutputFormat::Json => output::encode_document(&document),

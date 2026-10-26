@@ -1,6 +1,7 @@
 //! Session stop receipts remain inspectable across Client disconnection and Server exit.
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, ServerStopCommand},
     localization::Locale,
@@ -67,7 +68,7 @@ fn emit(
         OutputFormat::Json => output::encode_document(
             &json!({"schema":"orchbee.server.stop","version":1,"source":super::config::local_runtime_source(),"result":result}),
         ),
-        OutputFormat::Text => output::encode_text(&locale.cli_server_stop_result(
+        OutputFormat::Text => output::encode_text(&CliText::new(locale).cli_server_stop_result(
             result["outcome"].as_str().expect("outcome"),
             &id_text(id),
             wait,

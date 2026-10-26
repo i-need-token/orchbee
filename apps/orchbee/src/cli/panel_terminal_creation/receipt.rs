@@ -2,6 +2,7 @@
 //! receipt, and exit status. It does not submit the operation or turn a pending or unknown
 //! physical launch into success.
 
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, FailureKind, Output, failure_output, output},
     invocation::OutputFormat,
@@ -51,7 +52,7 @@ pub(super) fn emit(
         OutputFormat::Text => {
             let mut text = locale.cli_panel_terminal_create(document);
             if let Some(kind) = failure {
-                text.push_str(&locale.cli_failure(&Failure::new(kind)));
+                text.push_str(&CliText::new(locale).cli_failure(&Failure::new(kind)));
             }
             output::encode_text(&text)
         }

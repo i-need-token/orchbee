@@ -6,6 +6,7 @@ use super::{
 use crate::cli::processes::{Selection, interpret};
 use crate::cli::query::terminal_agent::{TerminalAgentRead, failure as error};
 use crate::cli::query::terminal_agent_wait::{self, Matched};
+use crate::cli_text::CliText;
 use crate::invocation::Target;
 use crate::local_client::LocalClient;
 use orchbee_agent_observation_protocol::{AgentLaunchBinding, AgentReportProvider};
@@ -187,7 +188,7 @@ pub(super) fn success(
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => output::encode_text(
-            &locale
+            &CliText::new(locale)
                 .cli_terminal_prompt_submitted(binding.presentation_id.as_str(), matched.is_some()),
         ),
     };

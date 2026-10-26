@@ -7,6 +7,7 @@ use super::{
     query,
     results::{self, AgentClientViewDoc, Projection},
 };
+use crate::cli_text::CliText;
 use crate::{invocation::QueryCommand, local_client::LocalClient, localization::Locale};
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentListCursor, AgentListOutcome, AgentObservationFreshness, AgentSafeInteger,
@@ -359,14 +360,17 @@ impl Document {
         }).collect::<Vec<_>>()});
     }
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
-        out.write(format_args!("{}\n", locale.cli_workbench_agents_heading()))?;
+        out.write(format_args!(
+            "{}\n",
+            CliText::new(locale).cli_workbench_agents_heading()
+        ))?;
         for id in self.rows.keys() {
             let sessions = self.row_sessions(id);
             let state = aggregate(sessions.iter().map(|session| status(session)));
             out.write(format_args!(
                 "{}  {}  {}\n",
                 id,
-                locale.cli_workbench_agent_status(state),
+                CliText::new(locale).cli_workbench_agent_status(state),
                 sessions.len()
             ))?;
         }

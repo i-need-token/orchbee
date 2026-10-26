@@ -1,4 +1,5 @@
 //! Shared prompt delivery and subsequent sampled or journal-backed observation.
+use crate::cli_text::CliText;
 mod terminal;
 use super::{AgentTarget, Locale, Output, OutputFormat, ResolvedWait, failure_output};
 use crate::cli::command_interrupt::{ArmedSignals, Finish};
@@ -603,7 +604,7 @@ fn prompt_failure(failure: Failure, format: OutputFormat, locale: Locale) -> Out
         .as_ref()
         .and_then(|details| details.get("reason"))
         .and_then(Value::as_str)
-        .and_then(|reason| locale.cli_prompt_hint(reason));
+        .and_then(|reason| CliText::new(locale).cli_prompt_hint(reason));
     let mut output = failure_output(failure, Some(format), locale);
     if let Some(hint) = hint {
         output.stderr.push_str(hint);
@@ -648,7 +649,7 @@ fn success(
     let document = json!({"schema":"orchbee.agent.prompt", "version":1, "source":receipt["source"], "result":{"sessionId":session_id, "submission":receipt, "observation":observation, "wait":wait,"matchedChange":matched_change,"client":client_view}});
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
-        OutputFormat::Text => output::encode_text(&locale.cli_prompt_submitted(
+        OutputFormat::Text => output::encode_text(&CliText::new(locale).cli_prompt_submitted(
             &format!("{session_id:?}"),
             !document["result"]["wait"].is_null(),
         )),

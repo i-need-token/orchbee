@@ -1,5 +1,6 @@
 //! Shared projection text uses the same rows and ordinals as its machine document.
 use super::{Inspection, List};
+use crate::cli_text::CliText;
 use crate::{
     cli::{
         output::{Bounded, TooLarge},
@@ -14,7 +15,7 @@ pub(in crate::cli) fn render_list(
     list: &List,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    let headers = locale.cli_projection_headers();
+    let headers = CliText::new(locale).cli_projection_headers();
     let handle_width = list
         .items
         .iter()
@@ -34,14 +35,18 @@ pub(in crate::cli) fn render_list(
                 item.ordinal.to_string(),
                 item.panel_handle.clone().unwrap_or_else(|| "-".into()),
                 truncate_terminal_cell(item.row.provider(), 12),
-                locale.cli_projection_status(item.row.status()).into(),
-                locale.cli_projection_source(item.row.source()).into(),
+                CliText::new(locale)
+                    .cli_projection_status(item.row.status())
+                    .into(),
+                CliText::new(locale)
+                    .cli_projection_source(item.row.source())
+                    .into(),
                 truncate_terminal_cell(item.cwd.as_deref().unwrap_or("-"), cwd_width),
             ]
         },
     )?;
     if let Some(cursor) = &list.next {
-        out.push(&locale.cli_agent_next_cursor(cursor.as_str()))?;
+        out.push(&CliText::new(locale).cli_agent_next_cursor(cursor.as_str()))?;
     }
     Ok(())
 }
@@ -51,15 +56,15 @@ pub(in crate::cli) fn render_inspection(
     command: &QueryCommand,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    let headers = locale.cli_projection_headers();
+    let headers = CliText::new(locale).cli_projection_headers();
     out.write(format_args!(
         "{}: {}\n{}: {}\n{}: {}\n",
         headers[2],
         crate::cli::escape::unquoted(doc.row.provider()),
         headers[3],
-        locale.cli_projection_status(doc.row.status()),
+        CliText::new(locale).cli_projection_status(doc.row.status()),
         headers[4],
-        locale.cli_projection_source(doc.row.source())
+        CliText::new(locale).cli_projection_source(doc.row.source())
     ))?;
     crate::cli::present::render(out, &doc.detail, command, locale)
 }
@@ -99,8 +104,8 @@ mod tests {
             .unwrap();
             assert!(text.contains("@panel:0xb"));
             assert!(text.contains("grok"));
-            assert!(text.contains(locale.cli_projection_status("idle")));
-            assert!(text.contains(locale.cli_projection_source("terminal")));
+            assert!(text.contains(CliText::new(locale).cli_projection_status("idle")));
+            assert!(text.contains(CliText::new(locale).cli_projection_source("terminal")));
             assert_eq!(text.lines().count(), 2);
             assert!(
                 text.lines()

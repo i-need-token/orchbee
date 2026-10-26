@@ -1,6 +1,7 @@
 //! Public names commands project the Server's correlated outcomes. The CLI
 //! owns no alias cache and never retries a mutation after transport ambiguity.
 
+use crate::cli_text::CliText;
 use orchbee_agent_observation_protocol::{
     AgentNameAssignOutcome, AgentNameReleaseOutcome, AgentNameTarget, AgentNamesListOutcome,
     AgentNamesResult, AgentResolveOutcome,
@@ -183,7 +184,7 @@ fn project(
         },
         AgentNamesResult::NamesList { result, .. } => match &result.outcome {
             AgentNamesListOutcome::ListedTargets { bindings, pending } => {
-                let mut text = locale.cli_agent_names_header(true).to_owned();
+                let mut text = CliText::new(locale).cli_agent_names_header(true).to_owned();
                 for entry in bindings {
                     text.push_str(&format!(
                         "{}\t{}\n",
@@ -192,7 +193,7 @@ fn project(
                     ));
                 }
                 if !pending.is_empty() {
-                    text.push_str(locale.cli_agent_pending_names_header());
+                    text.push_str(CliText::new(locale).cli_agent_pending_names_header());
                     for entry in pending {
                         text.push_str(&format!(
                             "{}\t{}\t{}\t{}\n",
@@ -206,12 +207,14 @@ fn project(
                 Ok(("orchbee.agent.names", json!(result.outcome), text))
             }
             AgentNamesListOutcome::Listed { bindings, pending } => {
-                let mut text = locale.cli_agent_names_header(false).to_owned();
+                let mut text = CliText::new(locale)
+                    .cli_agent_names_header(false)
+                    .to_owned();
                 for binding in bindings {
                     text.push_str(&format!("{}\t{}\n", binding.name, binding.session_id));
                 }
                 if !pending.is_empty() {
-                    text.push_str(locale.cli_agent_pending_names_header());
+                    text.push_str(CliText::new(locale).cli_agent_pending_names_header());
                     for launch in pending {
                         text.push_str(&format!(
                             "{}\t{}\t{}\t{}\n",
@@ -232,7 +235,8 @@ fn project(
             | AgentNameAssignOutcome::UnchangedTarget { target, name } => Ok((
                 "orchbee.agent.rename",
                 json!(result.outcome),
-                locale.cli_agent_name_assigned(name.as_str(), &target_text(target, locale)),
+                CliText::new(locale)
+                    .cli_agent_name_assigned(name.as_str(), &target_text(target, locale)),
             )),
             AgentNameAssignOutcome::RejectedTarget {
                 reason,
@@ -248,7 +252,8 @@ fn project(
                 session_id, name, ..
             }
             | AgentNameAssignOutcome::Unchanged { session_id, name } => {
-                let text = locale.cli_agent_name_assigned(name.as_str(), session_id.as_str());
+                let text = CliText::new(locale)
+                    .cli_agent_name_assigned(name.as_str(), session_id.as_str());
                 Ok(("orchbee.agent.rename", json!(result.outcome), text))
             }
             AgentNameAssignOutcome::Rejected {
@@ -261,12 +266,12 @@ fn project(
             AgentNameReleaseOutcome::ReleasedTarget { target, .. }
             | AgentNameReleaseOutcome::UnchangedTarget { target } => {
                 let target = target_text(target, locale);
-                let text = locale.cli_agent_name_cleared(&target);
+                let text = CliText::new(locale).cli_agent_name_cleared(&target);
                 Ok(("orchbee.agent.rename", json!(result.outcome), text))
             }
             AgentNameReleaseOutcome::Released { session_id, .. }
             | AgentNameReleaseOutcome::Unchanged { session_id } => {
-                let text = locale.cli_agent_name_cleared(session_id.as_str());
+                let text = CliText::new(locale).cli_agent_name_cleared(session_id.as_str());
                 Ok(("orchbee.agent.rename", json!(result.outcome), text))
             }
             AgentNameReleaseOutcome::Rejected { reason } => Err(rejection(json!(reason), None)),
@@ -279,7 +284,7 @@ fn target_text(target: &AgentNameTarget, locale: Locale) -> String {
     match target {
         AgentNameTarget::Session { session_id } => session_id.to_string(),
         AgentNameTarget::Terminal { binding } => {
-            locale.cli_agent_terminal_name_target(binding.presentation_id.as_str())
+            CliText::new(locale).cli_agent_terminal_name_target(binding.presentation_id.as_str())
         }
     }
 }

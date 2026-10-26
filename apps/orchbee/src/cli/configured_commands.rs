@@ -6,6 +6,7 @@ use super::{
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, output, query,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{ClientNavigationTarget, OutputFormat, Target, configured_commands::Command},
     localization::Locale,
@@ -459,9 +460,11 @@ fn emit(
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {
             let text: String = match document["result"]["reply"]["outcome"]["entries"].as_array() {
-                Some(entries) if entries.is_empty() => locale.cli_command_empty().into(),
+                Some(entries) if entries.is_empty() => {
+                    CliText::new(locale).cli_command_empty().into()
+                }
                 Some(entries) => super::present::columns(
-                    &locale.cli_command_headers(),
+                    &CliText::new(locale).cli_command_headers(),
                     &entries
                         .iter()
                         .map(|entry| {
@@ -484,7 +487,9 @@ fn emit(
                         })
                         .collect::<Vec<_>>(),
                 ),
-                None => locale.configured_command_status(status).into(),
+                None => CliText::new(locale)
+                    .configured_command_status(status)
+                    .into(),
             };
             output::encode_text(&text)
         }

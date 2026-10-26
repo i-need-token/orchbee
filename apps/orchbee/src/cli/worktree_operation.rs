@@ -1,6 +1,7 @@
 //! CLI waiting is separate from the Server's retained Worktree operation.
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::invocation::WorktreeCommand;
 use crate::{
     invocation::{OutputFormat, ParsedWorktreeCommand},
@@ -171,7 +172,9 @@ fn emit(
             output::encode_document(&json!({"schema":"orchbee.worktree.operation","version":1,
             "source":{"kind":"local-worktree","sessionId":session_id},"result":result}))
         }
-        OutputFormat::Text => output::encode_text(&locale.cli_worktree_result(&result)),
+        OutputFormat::Text => {
+            output::encode_text(&CliText::new(locale).cli_worktree_result(&result))
+        }
     };
     match encoded {
         Ok(stdout) => Output {

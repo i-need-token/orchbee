@@ -2,6 +2,7 @@
 //! injected at the result layer so every format-sensitive path is covered
 //! without an invalid wire-sized snapshot.
 
+use crate::cli_text::CliText;
 mod list_output;
 #[cfg(windows)]
 mod projection_schemas;
@@ -390,7 +391,7 @@ fn terminal_lists_use_localized_headers_and_copyable_stable_handles() {
         assert!(text.contains("@terminal:0x1"), "{text}");
         assert!(text.contains("@terminal:0x2"), "{text}");
         assert!(!text.contains(ID), "full identities belong to JSON: {text}");
-        assert!(text.starts_with(locale.cli_labels().terminal_list_headers[0]));
+        assert!(text.starts_with(CliText::new(locale).cli_labels().terminal_list_headers[0]));
     }
 }
 
@@ -429,7 +430,7 @@ fn empty_terminal_lists_keep_the_localized_header() {
         );
         let text = String::from_utf8(output.stdout).unwrap();
         assert_eq!(text.lines().count(), 1);
-        for header in locale.cli_labels().terminal_list_headers {
+        for header in CliText::new(locale).cli_labels().terminal_list_headers {
             assert!(text.contains(header), "missing {header:?} in {text:?}");
         }
     }
@@ -467,7 +468,7 @@ fn terminal_list_agent_states_are_localized() {
                 locale,
             );
             let text = String::from_utf8(output.stdout).unwrap();
-            assert!(text.contains(locale.cli_terminal_list_state(state)));
+            assert!(text.contains(CliText::new(locale).cli_terminal_list_state(state)));
         }
     }
 }
@@ -681,7 +682,10 @@ fn terminal_get_preserves_launch_arguments_and_omits_unknown_selection_in_all_lo
                     }
                     OutputFormat::Text => {
                         let text = String::from_utf8(result.stdout).unwrap();
-                        assert_eq!(text.contains(locale.cli_labels().launch_program), explicit);
+                        assert_eq!(
+                            text.contains(CliText::new(locale).cli_labels().launch_program),
+                            explicit
+                        );
                         if explicit {
                             assert!(text.contains("[\"\",\"quoted \\\" text\",\"中文\"]"));
                         }
@@ -1559,7 +1563,7 @@ fn source_stage_failures_diagnose_the_input_read() {
             ),
         ] {
             let failure = Failure::new(kind).details(input_details());
-            let stderr = locale.cli_failure(&failure);
+            let stderr = CliText::new(locale).cli_failure(&failure);
             assert!(
                 stderr.contains(expected),
                 "{kind:?} {locale:?} must diagnose the input read, got {stderr:?}"
@@ -1609,7 +1613,9 @@ fn wait_stage_failures_keep_the_wait_wording() {
                 _ => "wait was cancelled",
             };
             assert!(
-                Locale::EnUs.cli_failure(&failure).contains(expected),
+                CliText::new(Locale::EnUs)
+                    .cli_failure(&failure)
+                    .contains(expected),
                 "{kind:?} without stage:\"input\" keeps the wait wording"
             );
         }
@@ -1798,10 +1804,13 @@ fn terminal_get_text_is_a_sentence_and_aligned_labels() {
         );
         let text = String::from_utf8(output.stdout).unwrap();
         assert!(
-            text.starts_with(&locale.cli_terminal_summary(&panel)),
+            text.starts_with(&CliText::new(locale).cli_terminal_summary(&panel)),
             "{text}"
         );
-        assert!(text.contains(locale.cli_launch_state("creating")), "{text}");
+        assert!(
+            text.contains(CliText::new(locale).cli_launch_state("creating")),
+            "{text}"
+        );
         for internal in [&worker, &context, &"6".repeat(32)] {
             assert!(!text.contains(internal.as_str()), "{text}");
         }
@@ -1902,7 +1911,10 @@ fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
             "{text}"
         );
         assert!(!text.contains("spacesSidebarProfile"), "{text}");
-        assert!(text.contains(locale.cli_check_json_hint()), "{text}");
+        assert!(
+            text.contains(CliText::new(locale).cli_check_json_hint()),
+            "{text}"
+        );
     }
 }
 
@@ -1910,9 +1922,9 @@ fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
 fn empty_lists_say_how_to_create_their_first_entry() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for empty in [
-            locale.cli_session_empty(),
-            locale.cli_command_empty(),
-            locale.cli_launch_profile_empty(),
+            CliText::new(locale).cli_session_empty(),
+            CliText::new(locale).cli_command_empty(),
+            CliText::new(locale).cli_launch_profile_empty(),
         ] {
             assert!(empty.contains("orchbee "), "{empty}");
             assert!(

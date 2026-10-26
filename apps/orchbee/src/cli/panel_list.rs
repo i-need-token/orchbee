@@ -6,6 +6,7 @@ use super::{
     query,
     results::{self, PanelRow, Projection},
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{QueryCommand, Target},
     local_client::LocalClient,
@@ -156,7 +157,7 @@ pub(super) fn read(
 }
 impl Document {
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
-        let headers = locale.cli_panel_table_headers();
+        let headers = CliText::new(locale).cli_panel_table_headers();
         let handle = self
             .rows
             .iter()
@@ -180,7 +181,7 @@ impl Document {
                     super::present::truncate_terminal_cell(&r.title, title),
                     super::present::truncate_terminal_cell(&r.agents, agent),
                     r.state
-                        .map_or("-", |s| locale.cli_projection_status(s))
+                        .map_or("-", |s| CliText::new(locale).cli_projection_status(s))
                         .into(),
                     super::present::truncate_terminal_cell(r.cwd.as_deref().unwrap_or("-"), cwd),
                 ]
@@ -211,7 +212,7 @@ mod tests {
             let text = String::from_utf8(bytes).unwrap();
             let lines = text.lines().collect::<Vec<_>>();
             assert_eq!(lines.len(), 2);
-            assert!(lines[0].contains(locale.cli_panel_table_headers()[2]));
+            assert!(lines[0].contains(CliText::new(locale).cli_panel_table_headers()[2]));
             assert!(
                 lines
                     .iter()
@@ -221,7 +222,7 @@ mod tests {
             assert!(!text.contains('\u{1b}'));
             assert!(!text.contains('\u{202e}'));
             assert!(text.contains(&"a".repeat(32)));
-            assert!(text.contains(locale.cli_projection_status("working")));
+            assert!(text.contains(CliText::new(locale).cli_projection_status("working")));
         }
     }
 }

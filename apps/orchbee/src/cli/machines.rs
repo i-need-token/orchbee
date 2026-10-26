@@ -1,4 +1,5 @@
 //! Saved-machine commands; remote readiness and local publication have separate outcomes.
+use crate::cli_text::CliText;
 pub(crate) mod routing;
 mod ssh;
 use super::{
@@ -235,59 +236,58 @@ fn emit(
             "profiles":report.catalog.as_ref().map(|c| c.profiles.iter().map(crate::machines::Profile::json).collect::<Vec<_>>()),
             "changed":report.changed,"committed":report.committed,"remote":report.remote.token(),
             "error":error.map(Error::code),"interrupted":interrupted }});
-    let encoded = match format {
-        OutputFormat::Json => output::encode_document(&document),
-        OutputFormat::Text if error.is_some() => output::encode_text(""),
-        OutputFormat::Text => {
-            let mut text = String::new();
-            if let Some(catalog) = &report.catalog {
-                if matches!(command, MachineCommand::List) {
-                    if catalog.profiles.is_empty() {
-                        text.push_str(locale.cli_machine_message("empty"));
+    let encoded =
+        match format {
+            OutputFormat::Json => output::encode_document(&document),
+            OutputFormat::Text if error.is_some() => output::encode_text(""),
+            OutputFormat::Text => {
+                let mut text = String::new();
+                if let Some(catalog) = &report.catalog {
+                    if matches!(command, MachineCommand::List) {
+                        if catalog.profiles.is_empty() {
+                            text.push_str(CliText::new(locale).cli_machine_message("empty"));
+                            text.push('\n');
+                        }
+                        for profile in &catalog.profiles {
+                            text.push_str(&format!(
+                                "{}\t{}\t{}\t{}\t{}\n",
+                                profile.id.as_str(),
+                                super::escape::escape(&profile.draft.label),
+                                super::escape::escape(&profile.draft.target),
+                                profile.draft.session.as_str(),
+                                CliText::new(locale).cli_machine_message(if profile.enabled {
+                                    "enabled"
+                                } else {
+                                    "disabled"
+                                })
+                            ));
+                        }
+                    } else {
+                        text.push_str(CliText::new(locale).cli_machine_message(
+                            if report.changed { "saved" } else { "unchanged" },
+                        ));
+                        if let Some(id) = &report.id {
+                            text.push(' ');
+                            text.push_str(id.as_str());
+                        }
                         text.push('\n');
                     }
-                    for profile in &catalog.profiles {
-                        text.push_str(&format!(
-                            "{}\t{}\t{}\t{}\t{}\n",
-                            profile.id.as_str(),
-                            super::escape::escape(&profile.draft.label),
-                            super::escape::escape(&profile.draft.target),
-                            profile.draft.session.as_str(),
-                            locale.cli_machine_message(if profile.enabled {
-                                "enabled"
-                            } else {
-                                "disabled"
-                            })
-                        ));
-                    }
-                } else {
-                    text.push_str(locale.cli_machine_message(if report.changed {
-                        "saved"
-                    } else {
-                        "unchanged"
-                    }));
-                    if let Some(id) = &report.id {
-                        text.push(' ');
-                        text.push_str(id.as_str());
-                    }
-                    text.push('\n');
                 }
+                output::encode_text(&text)
             }
-            output::encode_text(&text)
-        }
-    };
+        };
     match encoded {
         Ok(stdout) => {
             let mut stderr = String::new();
             if let Some(error) = error {
-                stderr.push_str(locale.cli_machine_message(error.code()));
+                stderr.push_str(CliText::new(locale).cli_machine_message(error.code()));
                 stderr.push('\n');
                 if report.committed {
-                    stderr.push_str(locale.cli_machine_message("already-committed"));
+                    stderr.push_str(CliText::new(locale).cli_machine_message("already-committed"));
                     stderr.push('\n');
                 }
                 if matches!(report.remote, Remote::PossiblyStarted | Remote::Ready) {
-                    stderr.push_str(locale.cli_machine_message("remote-retained"));
+                    stderr.push_str(CliText::new(locale).cli_machine_message("remote-retained"));
                     stderr.push('\n');
                 }
             }

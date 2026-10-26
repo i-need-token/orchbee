@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use crate::invocation::{SendSourceCause, UsageReason};
 
 #[test]
@@ -10,7 +11,7 @@ fn text_failure_retains_localized_source_diagnostic_and_escapes_untrusted_paths(
             value: Some("C:\\bad\u{1b}[31m\tfile".into()),
             cause: SendSourceCause::NotRegularFile,
         }));
-        let diagnostic = locale.cli_failure(&failure);
+        let diagnostic = CliText::new(locale).cli_failure(&failure);
         let result = Receipt::new().emit(Some(failure), OutputFormat::Text, locale);
         assert_eq!(result.status, 2);
         assert!(result.stdout.is_empty());

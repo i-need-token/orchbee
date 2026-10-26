@@ -1,5 +1,6 @@
 //! Compose command help from admitted grammar and localized semantic copy.
 
+use crate::cli_text::{CliText, HelpText};
 mod examples;
 mod pages;
 use pages::directory;
@@ -10,7 +11,7 @@ mod tests;
 use crate::{
     help::{Document, Row, Section, render},
     invocation::{CommandPath, HelpTopic},
-    localization::{HelpText, Locale},
+    localization::Locale,
 };
 
 pub(crate) fn help(topic: HelpTopic, locale: Locale) -> String {
@@ -22,23 +23,25 @@ pub(crate) fn help(topic: HelpTopic, locale: Locale) -> String {
 }
 
 fn command(path: CommandPath, locale: Locale) -> Document {
-    let details = locale.cli_command_help(path);
+    let details = CliText::new(locale).cli_command_help(path);
     let mut sections = vec![Section::Syntax {
-        heading: locale.cli_help_text(HelpText::Usage).into(),
+        heading: CliText::new(locale).cli_help_text(HelpText::Usage).into(),
         lines: details.usage.lines().map(str::to_owned).collect(),
     }];
     if path == CommandPath::Status {
         // Only the command list; this page renders its own option table.
-        let options = locale.cli_help_text(HelpText::Options);
+        let options = CliText::new(locale).cli_help_text(HelpText::Options);
         let children = directory(HelpTopic::Command(path), locale);
         sections.extend(children.sections.into_iter().filter(
             |section| matches!(section, Section::Rows { heading, .. } if heading != options),
         ));
     }
-    let arguments = locale.cli_help_arguments(path);
+    let arguments = CliText::new(locale).cli_help_arguments(path);
     if !arguments.is_empty() {
         sections.push(Section::Rows {
-            heading: locale.cli_help_text(HelpText::Arguments).into(),
+            heading: CliText::new(locale)
+                .cli_help_text(HelpText::Arguments)
+                .into(),
             rows: arguments
                 .into_iter()
                 .map(|(label, description)| Row {
@@ -49,7 +52,7 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         });
     }
     sections.push(Section::Rows {
-        heading: locale.cli_help_text(HelpText::Options).into(),
+        heading: CliText::new(locale).cli_help_text(HelpText::Options).into(),
         rows: help_options(path)
             .into_iter()
             .map(|flag| {
@@ -59,10 +62,10 @@ fn command(path: CommandPath, locale: Locale) -> Document {
                 {
                     (
                         spec.value.map_or("", |_| "<value>"),
-                        locale.cli_grammar_option(copy),
+                        CliText::new(locale).cli_grammar_option(copy),
                     )
                 } else {
-                    locale.cli_help_option(path, flag)
+                    CliText::new(locale).cli_help_option(path, flag)
                 };
                 let (choices, closed) =
                     crate::invocation::grammar::specification(path).values(flag);
@@ -95,13 +98,15 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         });
     }
     sections.push(Section::Examples {
-        heading: locale.cli_help_text(HelpText::Examples).into(),
+        heading: CliText::new(locale)
+            .cli_help_text(HelpText::Examples)
+            .into(),
         examples,
     });
     sections.push(Section::Paragraphs {
-        heading: locale.cli_help_text(HelpText::Notes).into(),
+        heading: CliText::new(locale).cli_help_text(HelpText::Notes).into(),
         paragraphs: std::iter::once(
-            locale
+            CliText::new(locale)
                 .cli_grammar_availability(
                     crate::invocation::grammar::specification(path).availability,
                 )
@@ -112,9 +117,15 @@ fn command(path: CommandPath, locale: Locale) -> Document {
     });
     Document {
         title: format!("orchbee {}", path.as_str()),
-        summary: locale.cli_help_summary(HelpTopic::Command(path)).into(),
+        summary: CliText::new(locale)
+            .cli_help_summary(HelpTopic::Command(path))
+            .into(),
         sections,
-        footer: vec![locale.cli_help_text(HelpText::Reference).into()],
+        footer: vec![
+            CliText::new(locale)
+                .cli_help_text(HelpText::Reference)
+                .into(),
+        ],
     }
 }
 

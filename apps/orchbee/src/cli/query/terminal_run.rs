@@ -2,6 +2,7 @@
 use crate::cli::command_interrupt::{ArmedSignals, Finish};
 use crate::cli::console_interrupt::SignalWatch;
 use crate::cli::{Failure, FailureKind, Output, output, send};
+use crate::cli_text::CliText;
 use crate::invocation::{OutputFormat, Target};
 use crate::localization::Locale;
 use orchbee_terminal_protocol::{TerminalObservedCommand, TerminalTextFrame};
@@ -121,7 +122,8 @@ pub(in crate::cli) fn run(
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text if status == 0 => output::encode_text(
-            &locale.cli_terminal_run_result(attempt.terminal_id.as_deref().unwrap_or(""), true),
+            &CliText::new(locale)
+                .cli_terminal_run_result(attempt.terminal_id.as_deref().unwrap_or(""), true),
         ),
         OutputFormat::Text => output::encode_text(""),
     };
@@ -131,7 +133,8 @@ pub(in crate::cli) fn run(
             stderr: if status == 0 {
                 String::new()
             } else {
-                locale.cli_terminal_run_result(attempt.terminal_id.as_deref().unwrap_or(""), false)
+                CliText::new(locale)
+                    .cli_terminal_run_result(attempt.terminal_id.as_deref().unwrap_or(""), false)
             },
             status,
             finalization,

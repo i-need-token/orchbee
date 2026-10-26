@@ -1,5 +1,6 @@
 //! One-shot remote native CLI relay. SSH failure never authorizes a retry.
 use super::{Context, Error, ssh};
+use crate::cli_text::CliText;
 use crate::{
     cli::{
         self, Failure, FailureKind, Output,
@@ -157,7 +158,7 @@ fn failed(
     result.status = status;
     result.stderr = format!(
         "{} [{}; remoteOutcome={}]\n",
-        locale.cli_machine_route_failure(outcome == Outcome::Unknown),
+        CliText::new(locale).cli_machine_route_failure(outcome == Outcome::Unknown),
         code,
         outcome.token()
     );

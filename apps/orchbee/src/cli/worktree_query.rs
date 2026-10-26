@@ -1,5 +1,6 @@
 //! Source-based listing has its own envelope; the registered-directory format is stable.
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, ParsedWorktreeQueryCommand},
     localization::Locale,
@@ -46,7 +47,7 @@ fn emit(
             "schema":"orchbee.worktree.query", "version":1, "result":result,
         })),
         OutputFormat::Text => {
-            super::output::encode_text(&locale.cli_worktree_query(&result.outcome))
+            super::output::encode_text(&CliText::new(locale).cli_worktree_query(&result.outcome))
         }
     };
     match encoded {

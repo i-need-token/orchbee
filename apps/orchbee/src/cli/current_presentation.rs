@@ -1,5 +1,6 @@
 //! Passive Client-local member reads and exact canonical identity validation.
 use super::{Failure, FailureKind, client_control, console_interrupt::SignalWatch, query, results};
+use crate::cli_text::CliText;
 use crate::local_client::LocalClient;
 use orchbee_workbench_protocol::{
     ClientPresentationSelection, ClientViewControl, ClientViewControlStatus, ClientViewIntent,
@@ -216,7 +217,7 @@ impl Resolved {
     ) -> Result<(), super::output::TooLarge> {
         out.write(format_args!(
             "{}: {}  {}\n",
-            locale.cli_current_presentation_label(),
+            CliText::new(locale).cli_current_presentation_label(),
             self.presentation_id,
             super::escape::escape(&self.presentation.display_label)
         ))

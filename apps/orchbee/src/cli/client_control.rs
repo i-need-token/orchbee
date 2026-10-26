@@ -1,6 +1,7 @@
 //! Native Client discovery and one-shot control submission with retained status reads.
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{ClientCommand, OutputFormat},
     localization::Locale,
@@ -137,7 +138,9 @@ pub(super) fn emit(answer: &Answer, format: OutputFormat, locale: Locale) -> Out
     };
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&document),
-        OutputFormat::Text => output::encode_text(&locale.cli_client_control(&document)),
+        OutputFormat::Text => {
+            output::encode_text(&CliText::new(locale).cli_client_control(&document))
+        }
     };
     match encoded {
         Ok(stdout) => Output {

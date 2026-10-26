@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use crate::terminal_links::LinkRegion;
 #[test]
 fn link_activation_receipt_requires_truthful_handled_and_closed_known_or_unknown_identity() {
@@ -60,7 +61,8 @@ fn link_activation_receipt_requires_truthful_handled_and_closed_known_or_unknown
 fn link_activation_text_distinguishes_admission_refusal_and_unknown_in_both_locales() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for state in ["no-link", "no-handler", "started", "failed", "unknown"] {
-            let text = locale.cli_terminal_link_activation(state, Some("operation\u{1b}[31m"));
+            let text = CliText::new(locale)
+                .cli_terminal_link_activation(state, Some("operation\u{1b}[31m"));
             assert!(!text.contains('\u{1b}'));
             assert!(text.contains("operation"));
             if state == "unknown" {
@@ -118,10 +120,18 @@ fn link_resolve_text_localizes_none_and_escapes_link_controls() {
                 end_col: 3,
             }],
         };
-        let text = locale.cli_terminal_link("id", u64::MAX, cursor, 0, "plain-text", &found);
+        let text =
+            CliText::new(locale).cli_terminal_link("id", u64::MAX, cursor, 0, "plain-text", &found);
         assert!(!text.contains('\x1b'));
         assert!(text.contains("1:0-3"));
-        let empty = locale.cli_terminal_link("id", 0, cursor, 0, "none", &ResolvedLink::none());
+        let empty = CliText::new(locale).cli_terminal_link(
+            "id",
+            0,
+            cursor,
+            0,
+            "none",
+            &ResolvedLink::none(),
+        );
         assert!(empty.contains(if locale == Locale::EnUs {
             "none"
         } else {

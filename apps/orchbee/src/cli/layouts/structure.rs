@@ -1,4 +1,5 @@
 //! Shared topology operations resolve only canonical identities, never a virtual viewport.
+use crate::cli_text::CliText;
 mod ratio;
 use crate::{
     cli::{
@@ -170,7 +171,7 @@ pub(in crate::cli) fn run(
             let encoded = if format == OutputFormat::Json {
                 output::encode_document(&document)
             } else {
-                output::encode_text(&locale.cli_shared_layout(&document))
+                output::encode_text(&CliText::new(locale).cli_shared_layout(&document))
             };
             match encoded {
                 Ok(stdout) => Output {

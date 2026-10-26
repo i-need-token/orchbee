@@ -4,6 +4,7 @@ use super::{
     PaneGraphicsRequest, PaneGraphicsTarget, Signals, Snapshot, exchange, framing, output, query,
     request, resolve,
 };
+use crate::cli_text::CliText;
 use crate::{
     cli::{
         console_interrupt::SignalWatch,
@@ -279,7 +280,9 @@ pub(super) fn run(
         stderr: if final_status == 0 {
             String::new()
         } else {
-            locale.pane_graphics_status(final_status).into()
+            CliText::new(locale)
+                .pane_graphics_status(final_status)
+                .into()
         },
         finalization: None,
     })

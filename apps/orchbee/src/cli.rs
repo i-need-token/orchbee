@@ -2,6 +2,7 @@
 //! structured failures, and process outcomes. It does not own command grammar, canonical
 //! Workbench state, or physical terminal execution.
 
+use crate::cli_text::CliText;
 pub(crate) mod agent_manifests;
 pub(crate) mod agent_view_spec;
 mod command_interrupt;
@@ -364,14 +365,14 @@ pub(crate) fn failure_output(
     locale: Locale,
 ) -> Output {
     let status = failure.kind.exit_code();
-    let mut stderr = locale.cli_failure(&failure);
+    let mut stderr = CliText::new(locale).cli_failure(&failure);
     if failure.failure_schema == Some("orchbee.cli.failure.agent-runtime")
         && let Some(hint) = failure
             .details
             .as_ref()
             .and_then(|details| details.get("reason"))
             .and_then(Value::as_str)
-            .and_then(|reason| locale.cli_agent_runtime_hint(reason))
+            .and_then(|reason| CliText::new(locale).cli_agent_runtime_hint(reason))
     {
         stderr.push_str(hint);
         stderr.push('\n');
@@ -409,7 +410,7 @@ pub(crate) fn source_failure_output(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let stderr = locale.cli_failure(&failure);
+    let stderr = CliText::new(locale).cli_failure(&failure);
     match format {
         OutputFormat::Json => {
             let mut failure_object =

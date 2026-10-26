@@ -1,5 +1,6 @@
 //! Offline schema publication stages and residue receipts follow complete output preparation.
 use super::{Output, schema};
+use crate::cli_text::CliText;
 use crate::{invocation::OutputFormat, localization::Locale};
 
 #[cfg(windows)]
@@ -137,7 +138,11 @@ fn failure(path: &str, error: PublishFailure, format: OutputFormat, locale: Loca
     Output {
         status: 1,
         stdout,
-        stderr: locale.schema_export_failure(error.stage.as_str(), path, error.residue.as_deref()),
+        stderr: CliText::new(locale).schema_export_failure(
+            error.stage.as_str(),
+            path,
+            error.residue.as_deref(),
+        ),
         finalization: None,
     }
 }

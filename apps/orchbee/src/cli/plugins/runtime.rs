@@ -4,6 +4,7 @@ use super::super::{
     console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, output, query,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},
     localization::Locale,
@@ -189,21 +190,21 @@ fn render(
         if let Some(id) = operation_id {
             out.write(format_args!(
                 "{}: {id}\n",
-                locale.plugin_runtime_state("operation-id")
+                CliText::new(locale).plugin_runtime_state("operation-id")
             ))?;
         }
         if !complete {
-            out.push(locale.plugin_runtime_state("unknown"))?;
+            out.push(CliText::new(locale).plugin_runtime_state("unknown"))?;
             out.push("\n")?;
         }
         for reply in replies.iter().rev() {
             match &reply.outcome {
                 PluginOutcome::Failed { reason } => {
-                    out.push(locale.plugin_runtime_failure(*reason))?;
+                    out.push(CliText::new(locale).plugin_runtime_failure(*reason))?;
                     out.push("\n")?;
                 }
                 PluginOutcome::Unknown { .. } => {
-                    out.push(locale.plugin_runtime_state("unknown"))?;
+                    out.push(CliText::new(locale).plugin_runtime_state("unknown"))?;
                     out.push("\n")?;
                 }
                 outcome => {
@@ -225,7 +226,7 @@ fn render(
                         if let Some(code) = log.exit_code {
                             out.write(format_args!(
                                 "{}: {code}\n",
-                                locale.plugin_runtime_state("exit-code")
+                                CliText::new(locale).plugin_runtime_state("exit-code")
                             ))?;
                         }
                         out.write(format_args!(
@@ -233,13 +234,15 @@ fn render(
                             escape(&log.job_id),
                             escape(&log.plugin_id),
                             escape(&log.command_id),
-                            locale.plugin_runtime_state(if log.finished_ms.is_none() {
-                                "running"
-                            } else if log.failure.is_some() {
-                                "failed"
-                            } else {
-                                "succeeded"
-                            })
+                            CliText::new(locale).plugin_runtime_state(
+                                if log.finished_ms.is_none() {
+                                    "running"
+                                } else if log.failure.is_some() {
+                                    "failed"
+                                } else {
+                                    "succeeded"
+                                }
+                            )
                         ))?;
                         if !log.stdout.is_empty() {
                             out.write(format_args!("stdout: {}\n", escape(&log.stdout)))?;
@@ -248,11 +251,11 @@ fn render(
                             out.write(format_args!("stderr: {}\n", escape(&log.stderr)))?;
                         }
                         if log.stdout_truncated || log.stderr_truncated {
-                            out.push(locale.plugin_runtime_state("truncated"))?;
+                            out.push(CliText::new(locale).plugin_runtime_state("truncated"))?;
                             out.push("\n")?;
                         }
                         if let Some(reason) = log.failure {
-                            out.push(locale.plugin_command_failure(reason))?;
+                            out.push(CliText::new(locale).plugin_command_failure(reason))?;
                             out.push("\n")?;
                         }
                     }

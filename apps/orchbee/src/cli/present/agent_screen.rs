@@ -1,5 +1,6 @@
 //! Escaped diagnostic evidence keeps raw rule prediction separate from the effective state.
 use super::{Bounded, Locale, TooLarge, escape, field};
+use crate::cli_text::CliText;
 use orchbee_workbench_protocol::TerminalAgentExplanation;
 
 pub(super) fn render(
@@ -7,12 +8,12 @@ pub(super) fn render(
     terminal: &TerminalAgentExplanation,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    let labels = locale.cli_agent_screen_fields();
+    let labels = CliText::new(locale).cli_agent_screen_fields();
     let explanation = &terminal.explanation;
     field(out, labels[0], &escape(&explanation.agent))?;
     field(
         out,
-        locale.cli_reported_agent_fields()[0],
+        CliText::new(locale).cli_reported_agent_fields()[0],
         &escape(terminal.view.agent.as_deref().unwrap_or("—")),
     )?;
     field(
@@ -42,7 +43,7 @@ pub(super) fn render(
         ),
     )?;
     if let Some(manifest) = &explanation.manifest {
-        let fields = locale.cli_agent_manifest_fields();
+        let fields = CliText::new(locale).cli_agent_manifest_fields();
         field(
             out,
             fields[0],
@@ -56,23 +57,31 @@ pub(super) fn render(
         field(
             out,
             fields[2],
-            locale.cli_agent_bool(manifest.local_override_shadowing_remote),
+            CliText::new(locale).cli_agent_bool(manifest.local_override_shadowing_remote),
         )?;
         for warning in &manifest.warnings {
-            field(out, fields[3], &locale.cli_agent_manifest_warning(warning))?;
+            field(
+                out,
+                fields[3],
+                &CliText::new(locale).cli_agent_manifest_warning(warning),
+            )?;
         }
     }
     if explanation.skip_state_update || explanation.fallback_reason.is_some() {
         field(
             out,
             labels[6],
-            locale.cli_agent_screen_reason(explanation.skip_state_update),
+            CliText::new(locale).cli_agent_screen_reason(explanation.skip_state_update),
         )?;
     }
     for evaluated in &explanation.evaluated_rules {
         let rule = &evaluated.rule;
         out.write(format_args!("\n{}: {}\n", labels[7], escape(&rule.id)))?;
-        field(out, labels[8], locale.cli_agent_bool(evaluated.matched))?;
+        field(
+            out,
+            labels[8],
+            CliText::new(locale).cli_agent_bool(evaluated.matched),
+        )?;
         field(out, labels[9], &rule.priority.to_string())?;
         field(out, labels[10], &escape(&rule.region))?;
         field(out, labels[2], locale.panel_report_state(rule.state))?;

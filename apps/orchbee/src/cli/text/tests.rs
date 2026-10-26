@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use crate::invocation::{Request, help_paths, parse_request};
 use std::ffi::OsString;
 
@@ -49,7 +50,7 @@ fn every_help_path_parses_and_renders_in_both_languages() {
             );
             if let HelpTopic::Command(command) = path.topic() {
                 let prefix = format!("orchbee {}", command.as_str());
-                for syntax in locale.cli_command_help(command).usage.lines() {
+                for syntax in CliText::new(locale).cli_command_help(command).usage.lines() {
                     for flag in declared_flag.find_iter(syntax) {
                         assert!(
                             crate::invocation::grammar::help_flags(command)
@@ -89,7 +90,9 @@ fn directories_list_direct_children_without_dumping_their_syntax() {
                 .iter()
                 .filter_map(|section| {
                     if let Section::Rows { heading, rows } = section
-                        && heading == locale.cli_help_text(crate::localization::HelpText::Commands)
+                        && heading
+                            == CliText::new(locale)
+                                .cli_help_text(crate::cli_text::HelpText::Commands)
                     {
                         Some(rows)
                     } else {
@@ -262,7 +265,7 @@ fn option_tables_and_usage_lines_agree_for_every_command() {
             continue;
         };
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let usage = locale.cli_command_help(path).usage;
+            let usage = CliText::new(locale).cli_command_help(path).usage;
             let table = super::help_options(path)
                 .into_iter()
                 .filter(|flag| !matches!(*flag, "--help" | "--session"))
@@ -280,7 +283,7 @@ fn option_tables_and_usage_lines_agree_for_every_command() {
                     spelled.difference(&table).collect::<Vec<_>>(),
                 ));
             }
-            for (label, _) in locale.cli_help_arguments(path) {
+            for (label, _) in CliText::new(locale).cli_help_arguments(path) {
                 let label = label.trim_start_matches("-- ");
                 let core = label
                     .trim_start_matches('[')
@@ -319,12 +322,12 @@ fn family_help_carries_a_synopsis_derived_from_child_usage() {
     use crate::invocation::{Family, HelpTopic};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let text = super::help(HelpTopic::Family(Family::Tab), locale);
-        let heading = locale.cli_help_text(HelpText::Synopsis);
+        let heading = CliText::new(locale).cli_help_text(HelpText::Synopsis);
         let synopsis = text
             .split(heading)
             .nth(1)
             .expect("family help has a synopsis section");
-        let usage = locale
+        let usage = CliText::new(locale)
             .cli_command_help(crate::invocation::CommandPath::TabRename)
             .usage
             .lines()

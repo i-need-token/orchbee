@@ -4,6 +4,7 @@
 //! Session is started or contacted. Mutations are guarded and report the
 //! post-effect state they actually observed.
 
+use crate::cli_text::CliText;
 use serde_json::{Map, Value, json};
 
 #[cfg(any(unix, windows))]
@@ -211,7 +212,7 @@ impl Prepared {
                     text.push_str(&list_summary(&items, &capsule, locale));
                 }
                 if outdated_only {
-                    text.push_str(&locale.cli_integration_maintenance(
+                    text.push_str(&CliText::new(locale).cli_integration_maintenance(
                         inspected,
                         items.len(),
                         &unresolved,
@@ -538,9 +539,9 @@ fn item_row(item: &SnapshotItem) -> Vec<String> {
 
 #[cfg(any(unix, windows))]
 fn list_text(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) -> String {
-    let labels = locale.cli_labels();
+    let labels = CliText::new(locale).cli_labels();
     let mut out = String::new();
-    out.push_str(&locale.cli_integration_capsule_line(&capsule_summary(capsule)));
+    out.push_str(&CliText::new(locale).cli_integration_capsule_line(&capsule_summary(capsule)));
     let rows: Vec<Vec<String>> = items.iter().map(item_row).collect();
     out.push_str(&bounded_table(&labels.integration_headers, &rows));
     out
@@ -574,7 +575,7 @@ fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale)
     let next = enable
         .map(|id| ("enable", id))
         .or_else(|| explain.map(|id| ("explain", id)));
-    locale.cli_integration_summary(counts, next)
+    CliText::new(locale).cli_integration_summary(counts, next)
 }
 
 #[cfg(any(unix, windows))]
@@ -600,7 +601,7 @@ fn explain_text(
     locale: Locale,
 ) -> String {
     let mut out = String::new();
-    out.push_str(&locale.cli_integration_explain_header(
+    out.push_str(&CliText::new(locale).cli_integration_explain_header(
         item.integration_id.provider(),
         item.state.as_str(),
         item.availability.as_str(),
@@ -611,9 +612,9 @@ fn explain_text(
         out.push_str(&line);
     }
     if plan.is_empty() {
-        out.push_str(locale.cli_integration_plan_empty());
+        out.push_str(CliText::new(locale).cli_integration_plan_empty());
     } else {
-        out.push_str(locale.cli_integration_plan_header());
+        out.push_str(CliText::new(locale).cli_integration_plan_header());
         for (index, step) in plan.iter().enumerate() {
             out.push_str(&format!("  {}. {}\n", index + 1, planned_step_text(step)));
         }
@@ -685,29 +686,29 @@ fn mutation_text(report: &MutationReport, locale: Locale) -> String {
     let provider = report.integration_id.provider();
     let direction = report.direction.as_str();
     let mut out = match report.verdict {
-        Verdict::Completed => locale.cli_integration_completed(direction, provider),
+        Verdict::Completed => CliText::new(locale).cli_integration_completed(direction, provider),
         Verdict::Refused(refusal) => {
-            locale.cli_integration_refused(direction, provider, refusal.as_str())
+            CliText::new(locale).cli_integration_refused(direction, provider, refusal.as_str())
         }
-        Verdict::Failed(code) => locale.cli_integration_failed(
+        Verdict::Failed(code) => CliText::new(locale).cli_integration_failed(
             direction,
             provider,
             code.as_str(),
             report.observed.map(|item| item.state.as_str()),
         ),
-        Verdict::Unknown => locale.cli_integration_unknown(direction, provider),
-        Verdict::Cancelled => locale.cli_integration_cancelled(direction, provider),
+        Verdict::Unknown => CliText::new(locale).cli_integration_unknown(direction, provider),
+        Verdict::Cancelled => CliText::new(locale).cli_integration_cancelled(direction, provider),
     };
     for step in &report.attempted {
         out.push_str(&format!(
             "  {} {} → {}\n",
-            locale.cli_integration_attempted_word(),
+            CliText::new(locale).cli_integration_attempted_word(),
             step_text(&step.step),
             step.outcome.as_str(),
         ));
     }
     if !report.residuals.is_empty() {
-        out.push_str(locale.cli_integration_residue_header());
+        out.push_str(CliText::new(locale).cli_integration_residue_header());
         for residual in &report.residuals {
             out.push_str(&format!("  {}\n", residual.display()));
         }

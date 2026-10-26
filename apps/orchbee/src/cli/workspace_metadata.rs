@@ -1,6 +1,7 @@
 //! A display-data report is submitted once; its acknowledgement survives late cancellation.
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, WorkspaceMetadataCommand},
     localization::Locale,
@@ -72,7 +73,7 @@ impl Answer {
                     Observation::Server(reply) => (Some(&reply.outcome), None),
                     Observation::Unknown(reason) => (None, Some(*reason)),
                 };
-                output::encode_text(&locale.cli_workspace_metadata(
+                output::encode_text(&CliText::new(locale).cli_workspace_metadata(
                     self.request_id.as_str(),
                     self.workspace_id.as_str(),
                     outcome,
@@ -85,7 +86,7 @@ impl Answer {
                 status: self.exit_code(),
                 stdout,
                 stderr: if self.cleanup_failed {
-                    locale.cli_failure(&Failure::new(FailureKind::InternalFailure))
+                    CliText::new(locale).cli_failure(&Failure::new(FailureKind::InternalFailure))
                 } else {
                     String::new()
                 },

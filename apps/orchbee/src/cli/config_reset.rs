@@ -1,5 +1,6 @@
 //! Offline settings repair; this command never connects to or activates a Session.
 use super::{Failure, FailureKind, Output, failure_output, output};
+use crate::cli_text::CliText;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport, reset_keybindings};
 use serde_json::json;
@@ -34,7 +35,7 @@ fn emit(report: KeysResetReport, format: OutputFormat, locale: Locale) -> Output
             *recovery_required,
         ),
     };
-    let text = locale.cli_config_reset(&report);
+    let text = CliText::new(locale).cli_config_reset(&report);
     let failed = error.is_some();
     let encoded = match format {
         OutputFormat::Json => output::encode_document(&json!({

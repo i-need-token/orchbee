@@ -6,6 +6,7 @@ use super::{
     query,
     results::Projection,
 };
+use crate::cli_text::CliText;
 use crate::{
     local_client::{LocalClient, workbench::metadata_exchange::MetadataExchangeReason},
     localization::Locale,
@@ -169,7 +170,7 @@ impl Document {
     pub(super) fn render(&self, out: &mut Bounded, locale: Locale) -> Result<(), TooLarge> {
         out.write(format_args!(
             "{}\n",
-            locale.cli_workspace_metadata_heading()
+            CliText::new(locale).cli_workspace_metadata_heading()
         ))?;
         for (id, tokens) in &self.rows {
             for (key, value) in tokens.as_map() {

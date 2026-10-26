@@ -1,6 +1,7 @@
 //! Text records for `events subscribe`: one line per stream record with the
 //! UTC receipt time, the record or event name, its subject and a short
 //! detail. The machine envelope stays the JSON format's responsibility.
+use crate::cli_text::CliText;
 use crate::{cli::escape::quoted, localization::Locale};
 use orchbee_workbench_protocol::{
     SemanticEvent, SemanticEventData as Data, SemanticEventsOutcome as Outcome,
@@ -24,8 +25,10 @@ pub(super) fn clock(now: std::time::SystemTime) -> String {
 pub(super) fn record(kind: &str, outcome: &Outcome, clock: &str, locale: Locale) -> String {
     let body = match outcome {
         Outcome::Matched { event, .. } => event_line(event),
-        Outcome::Gap { gap, .. } => locale.events_gap(gap.after.value(), gap.through.value()),
-        _ if kind == "opened" => locale.events_listening().to_owned(),
+        Outcome::Gap { gap, .. } => {
+            CliText::new(locale).events_gap(gap.after.value(), gap.through.value())
+        }
+        _ if kind == "opened" => CliText::new(locale).events_listening().to_owned(),
         // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
         _ => kind.to_owned(),
     };

@@ -4,6 +4,7 @@ use crate::cli::{
     results::{ContextRef, Projection, StatusDoc, TabRow, WorkspaceRow},
     success_output,
 };
+use crate::cli_text::CliText;
 use crate::invocation::QueryCommand;
 use crate::localization::Locale;
 use serde_json::{Value, json};
@@ -125,7 +126,7 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         );
         assert!(workspace_text.contains("\"工作区\\n…\""));
         assert!(workspace_text.contains("\"\\u{001b}Pro…\""));
-        assert!(workspace_text.contains(&format!("\"{}\"", locale.cli_ungrouped())));
+        assert!(workspace_text.contains(&format!("\"{}\"", CliText::new(locale).cli_ungrouped())));
         assert!(!workspace_text.contains(&workspace.terminal_context_id));
         assert!(!workspace_text.contains("directory-id-is-not-a-path"));
         assert!(!workspace_text.contains('\u{1b}'));

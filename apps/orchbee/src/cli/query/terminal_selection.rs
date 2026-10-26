@@ -1,6 +1,7 @@
 //! One revision-pinned buffer read; it does not own the user's selection.
 use super::terminal_buffer::{self, ContentFence, Prepared};
 use super::viewer_protocol_invalid;
+use crate::cli_text::CliText;
 use crate::{
     cli::{Failure, Output},
     invocation::{OutputFormat, TerminalSelectionCommand, TerminalTextPoint},
@@ -30,7 +31,7 @@ pub(crate) fn run(
             let count = (u64::from(end.row) - u64::from(start.row) + 1) as u16;
             let window = reader.window(u64::from(start.row), count)?;
             let text = extract(&window, start, end)?;
-            let rendered = locale.cli_terminal_selection(
+            let rendered = CliText::new(locale).cli_terminal_selection(
                 &reader.terminal.terminal_id,
                 reader.frame.route.revision,
                 &text,

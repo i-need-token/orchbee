@@ -1,6 +1,7 @@
 //! Bounded Session view requests with mutation handoff uncertainty retained in the receipt.
 use super::{Failure, FailureKind, Output, failure_output, output, query};
 use crate::cli::console_interrupt::{ArmedSignals, Finish, SignalWatch};
+use crate::cli_text::CliText;
 use crate::local_client::workbench::metadata_exchange::MetadataExchangeReason;
 use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::{
@@ -71,9 +72,11 @@ impl Answer {
         let encoded = match format {
             OutputFormat::Json => output::encode_document(&self.document()),
             OutputFormat::Text => output::encode_text(&match &self.observation {
-                Observation::ExchangeFailed(_) => locale.cli_agent_view_exchange_failed().into(),
-                Observation::Server(r) => locale.cli_agent_view(Some(&r.outcome)),
-                Observation::Unknown(_) => locale.cli_agent_view(None),
+                Observation::ExchangeFailed(_) => {
+                    CliText::new(locale).cli_agent_view_exchange_failed().into()
+                }
+                Observation::Server(r) => CliText::new(locale).cli_agent_view(Some(&r.outcome)),
+                Observation::Unknown(_) => CliText::new(locale).cli_agent_view(None),
             }),
         };
         match encoded {
@@ -81,7 +84,7 @@ impl Answer {
                 status: self.status(),
                 stdout,
                 stderr: if self.cleanup_failed {
-                    locale.cli_failure(&Failure::new(FailureKind::InternalFailure))
+                    CliText::new(locale).cli_failure(&Failure::new(FailureKind::InternalFailure))
                 } else {
                     String::new()
                 },

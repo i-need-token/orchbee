@@ -8,6 +8,7 @@ use super::{
     Locale, Outcome, Output, STEP, TerminalProjection, Value, ViewerId, classify, emit, exchange,
     history, input, json, query, relay,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::TerminalControlCommand,
     terminal_input::{
@@ -32,7 +33,9 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
     let output = |failure: Option<Failure>| Output {
         status: failure.as_ref().map_or(0, |f| f.kind.exit_code()),
         stdout: Vec::new(),
-        stderr: failure.map_or_else(String::new, |f| locale.terminal_stream_failure(&f)),
+        stderr: failure.map_or_else(String::new, |f| {
+            CliText::new(locale).terminal_stream_failure(&f)
+        }),
         finalization: None,
     };
     let signal = match Interrupt::arm_interrupts() {

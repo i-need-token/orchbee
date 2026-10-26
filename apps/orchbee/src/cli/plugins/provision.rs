@@ -4,6 +4,7 @@ use super::super::{
     console_interrupt::{ArmedSignals, Finish},
     failure_output, output, query,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},
     localization::Locale,
@@ -167,11 +168,15 @@ fn render(
         writeln!(
             out,
             "{}: {operation_id}",
-            locale.plugin_runtime_state("operation-id")
+            CliText::new(locale).plugin_runtime_state("operation-id")
         )?;
-        writeln!(out, "{}", locale.plugin_provision_stage(report.stage))?;
+        writeln!(
+            out,
+            "{}",
+            CliText::new(locale).plugin_provision_stage(report.stage)
+        )?;
         if report.changed {
-            writeln!(out, "{}", locale.plugin_provision_committed())?;
+            writeln!(out, "{}", CliText::new(locale).plugin_provision_committed())?;
         }
         if let Some(plugin) = &report.plugin {
             writeln!(
@@ -182,14 +187,27 @@ fn render(
             )?;
         }
         if let Some(error) = &report.failure {
-            writeln!(out, "{}", locale.plugin_provision_failure(error))?;
+            writeln!(
+                out,
+                "{}",
+                CliText::new(locale).plugin_provision_failure(error)
+            )?;
         }
         for path in &report.cleanup_pending {
-            writeln!(out, "{}: {}", locale.plugin_cleanup_pending(), escape(path))?;
+            writeln!(
+                out,
+                "{}: {}",
+                CliText::new(locale).plugin_cleanup_pending(),
+                escape(path)
+            )?;
         }
         if let Some(output) = &report.output {
             if let Some(code) = output.exit_code {
-                writeln!(out, "{}: {code}", locale.plugin_runtime_state("exit-code"))?;
+                writeln!(
+                    out,
+                    "{}: {code}",
+                    CliText::new(locale).plugin_runtime_state("exit-code")
+                )?;
             }
             if !output.stdout.is_empty() {
                 writeln!(out, "stdout: {}", escape(&output.stdout))?;
@@ -198,7 +216,11 @@ fn render(
                 writeln!(out, "stderr: {}", escape(&output.stderr))?;
             }
             if output.stdout_truncated || output.stderr_truncated {
-                writeln!(out, "{}", locale.plugin_runtime_state("truncated"))?;
+                writeln!(
+                    out,
+                    "{}",
+                    CliText::new(locale).plugin_runtime_state("truncated")
+                )?;
             }
         }
         Ok(())

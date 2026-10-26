@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 use orchbee_terminal_protocol::{
     AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextCellMapping, TerminalTextWindowRow,
 };
@@ -105,8 +106,11 @@ fn selection_read_uses_cell_mapping_for_wide_tails_and_combining_clusters() {
         assert_eq!(extract(&rows, p(0, a), p(0, b)).unwrap(), expected);
     }
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let text =
-            locale.cli_terminal_selection("11111111111111111111111111111111", 14, "中\n\u{1b}[31m");
+        let text = CliText::new(locale).cli_terminal_selection(
+            "11111111111111111111111111111111",
+            14,
+            "中\n\u{1b}[31m",
+        );
         assert!(!text.contains('\u{1b}'));
         assert!(text.contains("\\n\\u{001b}[31m"));
     }

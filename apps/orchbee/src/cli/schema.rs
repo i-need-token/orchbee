@@ -2,6 +2,7 @@
 //! dictionary reads never touch the filesystem, the network, or a Session.
 //! Explicit file publication belongs to the separate schema exporter.
 
+use crate::cli_text::CliText;
 use serde_json::{Map, Value, json};
 
 use super::{Failure, FailureKind, Output, failure_output, output, target_details};
@@ -43,8 +44,9 @@ fn catalog(locale: Locale) -> Result<String, Failure> {
             document["title"].as_str().unwrap_or("-").to_owned(),
         ]);
     }
-    let mut text = super::present::columns(&locale.cli_schema_catalog_headers(), &rows);
-    text.push_str(locale.cli_schema_catalog_footer());
+    let mut text =
+        super::present::columns(&CliText::new(locale).cli_schema_catalog_headers(), &rows);
+    text.push_str(CliText::new(locale).cli_schema_catalog_footer());
     Ok(text)
 }
 

@@ -3,6 +3,7 @@
 //! written piece by piece into the bounded preparation sink, so an oversized
 //! render aborts at the 8 MiB bound instead of assembling the full body.
 
+use crate::cli_text::{CliLabels, CliText};
 use serde_json::Value;
 mod agent_screen;
 
@@ -27,7 +28,7 @@ use super::results::{
     StatusDoc, TerminalRow, hex_encode,
 };
 use crate::invocation::QueryCommand;
-use crate::localization::{CliLabels, Locale};
+use crate::localization::Locale;
 
 /// Render one table under the bound: header plus aligned rows. Column widths
 /// are measured on per-row cells — the only intermediate allocation is one
@@ -135,7 +136,7 @@ fn workspace_list(
     let widths = [handle_width, NAME_WIDTH, PROJECT_WIDTH];
     compact_table(out, &text.workspace_headers, &widths, rows, |row| {
         let project = match (&row.project_id, &row.project_label) {
-            (None, _) => locale.cli_ungrouped(),
+            (None, _) => CliText::new(locale).cli_ungrouped(),
             (Some(_), Some(label)) => label.as_str(),
             (Some(_), None) => "-",
         };
@@ -291,7 +292,7 @@ fn terminal_list_cells(
     let details = details.unwrap_or(&empty);
     let state = details
         .state
-        .map(|state| locale.cli_terminal_list_state(state))
+        .map(|state| CliText::new(locale).cli_terminal_list_state(state))
         .unwrap_or("-");
     let placement = details.placement.as_ref();
     vec![
@@ -456,7 +457,7 @@ fn workspace_close_status(
     else {
         return out.push(&format!("{}\n", text.close_not_closing));
     };
-    out.push(locale.cli_close_status_verdict(close_status_token(status)))?;
+    out.push(CliText::new(locale).cli_close_status_verdict(close_status_token(status)))?;
     field(out, text.close_request_id, close_request_id.as_str())?;
     field(out, text.workspace_id, workspace_id.as_str())?;
     field(out, text.terminal_context, terminal_context_id.as_str())?;
@@ -619,7 +620,7 @@ pub(crate) fn render(
     command: &QueryCommand,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    let text = locale.cli_labels();
+    let text = CliText::new(locale).cli_labels();
     match projection {
         Projection::WorkbenchQuery(doc) => doc.render(out, command, locale),
         Projection::Status(doc) => status(out, doc, text),
@@ -662,9 +663,9 @@ pub(crate) fn render(
         }
         Projection::WorkspaceList(rows) => workspace_list(out, rows, text, locale),
         Projection::WorkspaceGet(doc) => {
-            use crate::localization::DetailLabel;
+            use crate::cli_text::DetailLabel;
             let row = &doc.row;
-            out.push(&locale.cli_workspace_summary(
+            out.push(&CliText::new(locale).cli_workspace_summary(
                 &quoted(&row.label),
                 row.number,
                 row.tab_count,
@@ -673,18 +674,21 @@ pub(crate) fn render(
             let project = match (&row.project_id, &row.project_label) {
                 (Some(id), Some(label)) => format!("{} ({id})", quoted(label)),
                 (Some(id), None) => id.clone(),
-                (None, _) => locale.cli_ungrouped().to_owned(),
+                (None, _) => CliText::new(locale).cli_ungrouped().to_owned(),
             };
             aligned(
                 out,
                 &[
                     (
-                        locale.cli_detail_label(DetailLabel::Id),
+                        CliText::new(locale).cli_detail_label(DetailLabel::Id),
                         row.workspace_id.clone(),
                     ),
-                    (locale.cli_detail_label(DetailLabel::Project), project),
                     (
-                        locale.cli_detail_label(DetailLabel::Directory),
+                        CliText::new(locale).cli_detail_label(DetailLabel::Project),
+                        project,
+                    ),
+                    (
+                        CliText::new(locale).cli_detail_label(DetailLabel::Directory),
                         doc.primary_directory_path
                             .as_deref()
                             .map_or_else(|| "-".to_owned(), unquoted),
@@ -693,7 +697,7 @@ pub(crate) fn render(
             )?;
             out.write(format_args!(
                 "{}\n",
-                locale.cli_detail_label(DetailLabel::Tabs)
+                CliText::new(locale).cli_detail_label(DetailLabel::Tabs)
             ))?;
             table(out, &text.tab_ref_headers, &doc.tabs, |tab| {
                 vec![tab.tab_id.clone(), table_label(&tab.label)]
@@ -761,7 +765,7 @@ pub(crate) fn render(
                 out.push("\n")?;
             }
             if doc.range.capacity_omitted > 0 {
-                out.push(&locale.cli_read_truncated(
+                out.push(&CliText::new(locale).cli_read_truncated(
                     usize::try_from(doc.range.capacity_omitted).unwrap_or(usize::MAX),
                 ))?;
             }
@@ -786,10 +790,12 @@ pub(crate) fn render(
             if let Some(tail) = &doc.tail
                 && tail.omitted > 0
             {
-                out.push(&locale.cli_read_tail_omitted(tail.omitted, doc.lines.is_some()))?;
+                out.push(
+                    &CliText::new(locale).cli_read_tail_omitted(tail.omitted, doc.lines.is_some()),
+                )?;
             }
             if doc.omitted_rows > 0 {
-                out.push(&locale.cli_read_truncated(doc.omitted_rows))?;
+                out.push(&CliText::new(locale).cli_read_truncated(doc.omitted_rows))?;
             }
             Ok(())
         }
@@ -815,11 +821,13 @@ pub(crate) fn render(
             if let Some(tail) = &doc.tail
                 && tail.omitted > 0
             {
-                out.push(&locale.cli_read_tail_omitted(tail.omitted, doc.lines.is_some()))?;
+                out.push(
+                    &CliText::new(locale).cli_read_tail_omitted(tail.omitted, doc.lines.is_some()),
+                )?;
             }
             if doc.omitted_rows > 0 {
                 out.push(
-                    &locale.cli_read_truncated(
+                    &CliText::new(locale).cli_read_truncated(
                         usize::try_from(doc.omitted_rows).unwrap_or(usize::MAX),
                     ),
                 )?;
@@ -835,11 +843,12 @@ pub(crate) fn render(
             Ok(())
         }
         Projection::TerminalGet(doc) => {
-            use crate::localization::DetailLabel;
+            use crate::cli_text::DetailLabel;
             let row = &doc.terminal;
-            out.push(&locale.cli_terminal_summary(&row.panel_id))?;
+            out.push(&CliText::new(locale).cli_terminal_summary(&row.panel_id))?;
             let launch = super::results::launch_fact_json(&doc.launch);
-            let state = locale.cli_launch_state(launch["state"].as_str().unwrap_or_default());
+            let state =
+                CliText::new(locale).cli_launch_state(launch["state"].as_str().unwrap_or_default());
             let launch = match (
                 launch["geometry"]["columns"].as_u64(),
                 launch["geometry"]["rows"].as_u64(),
@@ -849,18 +858,21 @@ pub(crate) fn render(
             };
             let mut rows = vec![
                 (
-                    locale.cli_detail_label(DetailLabel::Id),
+                    CliText::new(locale).cli_detail_label(DetailLabel::Id),
                     row.terminal_id.clone(),
                 ),
                 (
-                    locale.cli_detail_label(DetailLabel::Panel),
+                    CliText::new(locale).cli_detail_label(DetailLabel::Panel),
                     row.panel_id.clone(),
                 ),
                 (
-                    locale.cli_detail_label(DetailLabel::Tab),
+                    CliText::new(locale).cli_detail_label(DetailLabel::Tab),
                     row.tab_id.clone(),
                 ),
-                (locale.cli_detail_label(DetailLabel::Launch), launch),
+                (
+                    CliText::new(locale).cli_detail_label(DetailLabel::Launch),
+                    launch,
+                ),
             ];
             if let Some(selection) = &doc.launch_selection {
                 rows.push((text.launch_program, unquoted(selection.executable())));
@@ -895,7 +907,7 @@ pub(crate) fn render(
         // name/value members the machine document carries.
         Projection::LaunchProfileCatalog(doc) => match &doc.selection {
             LaunchProfileCatalogSelection::List(entries) if entries.is_empty() => {
-                out.push(locale.cli_launch_profile_empty())
+                out.push(CliText::new(locale).cli_launch_profile_empty())
             }
             LaunchProfileCatalogSelection::List(entries) => table(
                 out,
@@ -934,7 +946,7 @@ pub(crate) fn render(
                 locale,
             )?;
             if let Some(client) = client_view {
-                out.push(&locale.cli_terminal_agent_client_view(
+                out.push(&CliText::new(locale).cli_terminal_agent_client_view(
                     client.client_id.as_str(),
                     client.status,
                     client.seen,
@@ -952,9 +964,9 @@ pub(crate) fn render(
                 text,
                 locale,
             )?;
-            out.push(&locale.cli_agent_management(&doc.management.management))?;
+            out.push(&CliText::new(locale).cli_agent_management(&doc.management.management))?;
             if let Some(client) = &doc.client {
-                out.push(&locale.cli_agent_client_view(client))?;
+                out.push(&CliText::new(locale).cli_agent_client_view(client))?;
             }
             if let Some(terminal) = &doc.terminal {
                 super::terminal_observation::render(out, terminal, locale)?;
@@ -966,14 +978,14 @@ pub(crate) fn render(
             }
             match &doc.runtime {
                 super::results::AgentRuntimeDoc::Unavailable(reason) => {
-                    out.push(&locale.cli_agent_runtime(None, Some(reason)))
+                    out.push(&CliText::new(locale).cli_agent_runtime(None, Some(reason)))
                 }
                 super::results::AgentRuntimeDoc::Observed {
                     processes,
                     prompt_ready,
                     ..
                 } => {
-                    out.push(&locale.cli_agent_runtime(Some(*prompt_ready), None))?;
+                    out.push(&CliText::new(locale).cli_agent_runtime(Some(*prompt_ready), None))?;
                     panel_process(out, processes, locale)
                 }
             }
@@ -984,7 +996,7 @@ pub(crate) fn render(
         }
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
         Projection::AgentTerminalWait(doc) => out.push(
-            &locale.cli_agent_terminal_wait_matched(
+            &CliText::new(locale).cli_agent_terminal_wait_matched(
                 doc.read.observation.binding.presentation_id.as_str(),
                 &doc.conditions
                     .iter()
@@ -1017,7 +1029,7 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
         .map(|condition| condition.as_str())
         .collect::<Vec<_>>()
         .join(",");
-    out.push(&locale.cli_agent_wait_matched(
+    out.push(&CliText::new(locale).cli_agent_wait_matched(
         doc.session.snapshot.session_id.as_str(),
         &conditions,
         revision.value(),
@@ -1028,7 +1040,7 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
         .as_ref()
         .and_then(|history| history.client.as_ref())
     {
-        out.push(&locale.cli_agent_client_view(client))?;
+        out.push(&CliText::new(locale).cli_agent_client_view(client))?;
     }
     Ok(())
 }
@@ -1049,14 +1061,14 @@ fn agent_list(
         unreachable!("agent list projection holds only the listed outcome")
     };
     if items.is_empty() {
-        out.push(locale.cli_agent_empty())?;
+        out.push(CliText::new(locale).cli_agent_empty())?;
     } else {
         table(out, &text.agent_headers, items, |row| {
             vec![
                 row.session_id.as_str().to_owned(),
                 row.provider_id.as_str().to_owned(),
-                locale.cli_agent_status(&row.status),
-                locale
+                CliText::new(locale).cli_agent_status(&row.status),
+                CliText::new(locale)
                     .cli_agent_freshness(row.observation.freshness)
                     .to_owned(),
                 row.execution_location
@@ -1067,7 +1079,7 @@ fn agent_list(
         })?;
     }
     if let Some(cursor) = next_cursor {
-        out.push(&locale.cli_agent_next_cursor(cursor.as_str()))?;
+        out.push(&CliText::new(locale).cli_agent_next_cursor(cursor.as_str()))?;
     }
     Ok(())
 }
@@ -1100,17 +1112,17 @@ fn agent_session_fields(
     field(
         out,
         text.agent_lifecycle,
-        locale.cli_agent_lifecycle(snapshot.lifecycle),
+        CliText::new(locale).cli_agent_lifecycle(snapshot.lifecycle),
     )?;
     field(
         out,
         text.agent_status,
-        &locale.cli_agent_status(&session.status),
+        &CliText::new(locale).cli_agent_status(&session.status),
     )?;
     field(
         out,
         text.agent_freshness,
-        locale.cli_agent_freshness(snapshot.observation.freshness),
+        CliText::new(locale).cli_agent_freshness(snapshot.observation.freshness),
     )?;
     field(
         out,
@@ -1124,8 +1136,8 @@ fn agent_session_fields(
         snapshot.observation.generation.value(),
         text.agent_sequence,
         snapshot.observation.sequence.value(),
-        locale.cli_agent_fidelity(snapshot.observation.fidelity),
-        locale.cli_agent_source(snapshot.observation.source),
+        CliText::new(locale).cli_agent_fidelity(snapshot.observation.fidelity),
+        CliText::new(locale).cli_agent_source(snapshot.observation.source),
     ))?;
     if snapshot.capabilities.is_empty() {
         field(out, text.agent_capabilities, text.agent_none)?;
@@ -1135,7 +1147,7 @@ fn agent_session_fields(
             if index > 0 {
                 out.push(", ")?;
             }
-            out.push(locale.cli_agent_capability(*capability))?;
+            out.push(CliText::new(locale).cli_agent_capability(*capability))?;
         }
         out.push("\n")?;
     }
@@ -1143,7 +1155,7 @@ fn agent_session_fields(
         Some(outcome) => out.write(format_args!(
             "{:<14}{} {} {}\n",
             text.agent_last_outcome,
-            locale.cli_agent_outcome_kind(outcome.kind),
+            CliText::new(locale).cli_agent_outcome_kind(outcome.kind),
             outcome.turn_id.as_str(),
             outcome.event_id.as_str(),
         ))?,
@@ -1160,7 +1172,9 @@ fn agent_session_fields(
         &snapshot.pending_requests,
         |request| {
             vec![
-                locale.cli_agent_attention_kind(request.kind).to_owned(),
+                CliText::new(locale)
+                    .cli_agent_attention_kind(request.kind)
+                    .to_owned(),
                 request.request_id.as_str().to_owned(),
                 request
                     .turn_id
@@ -1179,8 +1193,10 @@ fn agent_session_fields(
             vec![
                 attachment.presentation_id.as_str().to_owned(),
                 attachment.generation.as_str().to_owned(),
-                locale.cli_agent_bool(attachment.navigable).to_owned(),
-                locale
+                CliText::new(locale)
+                    .cli_agent_bool(attachment.navigable)
+                    .to_owned(),
+                CliText::new(locale)
                     .cli_agent_visibility(attachment.visibility)
                     .to_owned(),
             ]
@@ -1223,22 +1239,22 @@ fn agent_explanation_fields(
     field(
         out,
         text.agent_status,
-        &locale.cli_agent_status(&explanation.status),
+        &CliText::new(locale).cli_agent_status(&explanation.status),
     )?;
     field(
         out,
         text.agent_status_basis,
-        locale.cli_agent_status_basis(explanation.status_basis),
+        CliText::new(locale).cli_agent_status_basis(explanation.status_basis),
     )?;
     field(
         out,
         text.agent_freshness_meaning,
-        locale.cli_agent_freshness_meaning(explanation.freshness_meaning),
+        CliText::new(locale).cli_agent_freshness_meaning(explanation.freshness_meaning),
     )?;
     field(
         out,
         text.agent_freshness,
-        locale.cli_agent_freshness(explanation.freshness),
+        CliText::new(locale).cli_agent_freshness(explanation.freshness),
     )?;
     out.write(format_args!(
         "{:<14}{} {} · {} {}\n",
@@ -1256,22 +1272,22 @@ fn agent_explanation_fields(
             if index > 0 {
                 out.push(", ")?;
             }
-            out.push(locale.cli_agent_capability(*capability))?;
+            out.push(CliText::new(locale).cli_agent_capability(*capability))?;
         }
         out.push("\n")?;
     }
     field(
         out,
         text.agent_source,
-        locale.cli_agent_source(explanation.source),
+        CliText::new(locale).cli_agent_source(explanation.source),
     )?;
     field(
         out,
         text.agent_fidelity,
-        locale.cli_agent_fidelity(explanation.fidelity),
+        CliText::new(locale).cli_agent_fidelity(explanation.fidelity),
     )?;
     out.write(format_args!("{:<14}", text.agent_navigate_only))?;
-    out.push(locale.cli_agent_navigate_only_facts())
+    out.push(CliText::new(locale).cli_agent_navigate_only_facts())
 }
 
 fn status_field(
@@ -1430,18 +1446,29 @@ pub(crate) fn config_checks(
     locale: Locale,
 ) -> Result<(), TooLarge> {
     let count = |status| checks.iter().filter(|check| check.status == status).count();
-    out.push(&locale.cli_check_verdict(checks.len(), count("warning"), count("fail")))?;
+    out.push(&CliText::new(locale).cli_check_verdict(
+        checks.len(),
+        count("warning"),
+        count("fail"),
+    ))?;
     let rows = checks
         .iter()
         .map(|check| {
             vec![
                 check.name.to_owned(),
-                locale.cli_check_status(check.status).to_owned(),
+                CliText::new(locale)
+                    .cli_check_status(check.status)
+                    .to_owned(),
                 check_summary(check),
             ]
         })
         .collect::<Vec<_>>();
-    table(out, &locale.cli_check_headers(), &rows, Vec::clone)?;
+    table(
+        out,
+        &CliText::new(locale).cli_check_headers(),
+        &rows,
+        Vec::clone,
+    )?;
     for check in checks {
         for diagnostic in check
             .details
@@ -1464,9 +1491,9 @@ pub(crate) fn config_checks(
         .and_then(|check| check.details.get("path"))
         .and_then(Value::as_str)
     {
-        out.push(&locale.cli_config_file_line(&super::escape::native_path(path)))?;
+        out.push(&CliText::new(locale).cli_config_file_line(&super::escape::native_path(path)))?;
     }
-    out.push(locale.cli_check_json_hint())
+    out.push(CliText::new(locale).cli_check_json_hint())
 }
 
 /// The one fact a check row shows: a failure's field and reason, else its
@@ -1509,7 +1536,7 @@ pub(crate) fn server_diagnose(
         }
     }
     for advisory in &document.advisories {
-        out.push(locale.cli_server_diagnose_advisory(advisory))?;
+        out.push(CliText::new(locale).cli_server_diagnose_advisory(advisory))?;
     }
     Ok(())
 }
@@ -1556,7 +1583,7 @@ pub(super) fn receipt(
     receipt: &super::mutation::Receipt,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    out.push(&locale.cli_receipt_with(
+    out.push(&CliText::new(locale).cli_receipt_with(
         &receipt.document()["result"],
         receipt.closed_summary(locale),
     ))?;
@@ -1576,7 +1603,7 @@ pub(crate) fn send_result(
     let terminal_id = result["terminalId"]
         .as_str()
         .expect("typed send terminal identity");
-    out.push(&locale.cli_send_success(terminal_id))
+    out.push(&CliText::new(locale).cli_send_success(terminal_id))
 }
 
 /// One `name  value` block over a JSON object's own fields; nested values go
@@ -1609,7 +1636,7 @@ pub(crate) fn agent_doctor(
     result: &Value,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    let text = locale.cli_labels();
+    let text = CliText::new(locale).cli_labels();
     out.push(&doctor_summary(result, locale))?;
     out.push("\n")?;
     let providers = result["providers"]
@@ -1625,7 +1652,12 @@ pub(crate) fn agent_doctor(
             ]
         })
         .collect::<Vec<_>>();
-    table(out, &locale.cli_doctor_headers(), &providers, Vec::clone)?;
+    table(
+        out,
+        &CliText::new(locale).cli_doctor_headers(),
+        &providers,
+        Vec::clone,
+    )?;
     out.push("\n")?;
     aligned(
         out,
@@ -1667,11 +1699,14 @@ pub(crate) fn agent_doctor(
         for hint in hints {
             out.push("  ")?;
             let id = hint["id"].as_str().unwrap_or_default();
-            out.push(&locale.cli_agent_doctor_hint_text(id, &doctor_hint_subjects(result, hint)))?;
+            out.push(
+                &CliText::new(locale)
+                    .cli_agent_doctor_hint_text(id, &doctor_hint_subjects(result, hint)),
+            )?;
             out.push("\n")?;
         }
     }
-    out.push(locale.cli_doctor_json_hint())
+    out.push(CliText::new(locale).cli_doctor_json_hint())
 }
 
 /// The closing conclusion: a provider is ready with both its executable and
@@ -1703,7 +1738,7 @@ fn doctor_summary(result: &Value, locale: Locale) -> String {
     let next = enable
         .map(|id| ("enable", id))
         .or_else(|| explain.map(|id| ("explain", id)));
-    locale.cli_integration_summary(counts, next)
+    CliText::new(locale).cli_integration_summary(counts, next)
 }
 
 /// Re-derives a hint's subject list from its `evidence` rows for localized
@@ -1758,17 +1793,22 @@ fn agent_changes(
             runtime_revision,
             ..
         } => {
-            table(out, &locale.cli_agent_change_headers(), changes, |row| {
-                vec![
-                    row.revision.value().to_string(),
-                    row.session.session_id.as_str().to_owned(),
-                    locale.cli_agent_status(&row.session.status),
-                    locale
-                        .cli_agent_freshness(row.session.observation.freshness)
-                        .to_owned(),
-                ]
-            })?;
-            out.push(&locale.cli_agent_changes_progress(
+            table(
+                out,
+                &CliText::new(locale).cli_agent_change_headers(),
+                changes,
+                |row| {
+                    vec![
+                        row.revision.value().to_string(),
+                        row.session.session_id.as_str().to_owned(),
+                        CliText::new(locale).cli_agent_status(&row.session.status),
+                        CliText::new(locale)
+                            .cli_agent_freshness(row.session.observation.freshness)
+                            .to_owned(),
+                    ]
+                },
+            )?;
+            out.push(&CliText::new(locale).cli_agent_changes_progress(
                 observed_through_revision.value(),
                 runtime_revision.value(),
             ))?;
@@ -1776,7 +1816,7 @@ fn agent_changes(
         }
         AgentChangesOutcome::Current { cursor, revision }
         | AgentChangesOutcome::ResetRequired { cursor, revision } => {
-            out.push(&locale.cli_agent_changes_checkpoint(
+            out.push(&CliText::new(locale).cli_agent_changes_checkpoint(
                 revision.value(),
                 matches!(outcome, AgentChangesOutcome::ResetRequired { .. }),
             ))?;
@@ -1786,7 +1826,7 @@ fn agent_changes(
             unreachable!("refusals do not reach successful change projection")
         }
     };
-    out.push(&locale.cli_agent_next_cursor(cursor.as_str()))
+    out.push(&CliText::new(locale).cli_agent_next_cursor(cursor.as_str()))
 }
 
 fn panel_process(
@@ -1795,10 +1835,13 @@ fn panel_process(
     locale: Locale,
 ) -> Result<(), TooLarge> {
     use super::processes::{filetime_utc, program_name, readable_command};
-    use crate::localization::DetailLabel;
+    use crate::cli_text::DetailLabel;
     let view = super::processes::interpret(&doc.info);
-    let label = |label| locale.cli_detail_label(label);
-    out.push(&locale.cli_process_summary(view.foreground.selection, view.foreground.provider))?;
+    let label = |label| CliText::new(locale).cli_detail_label(label);
+    out.push(
+        &CliText::new(locale)
+            .cli_process_summary(view.foreground.selection, view.foreground.provider),
+    )?;
     let mut rows = vec![(
         label(DetailLabel::Terminal),
         doc.terminal.terminal_id.clone(),
@@ -1835,19 +1878,24 @@ fn panel_process(
     }
     aligned(out, &rows)?;
     out.write(format_args!("{}\n", label(DetailLabel::Processes)))?;
-    table(out, &locale.cli_process_headers(), &view.processes, |row| {
-        let process = row.facts;
-        vec![
-            process.pid.to_string(),
-            process
-                .parent_pid
-                .map_or_else(|| "-".to_owned(), |pid| pid.to_string()),
-            unquoted(&program_name(process)),
-            row.provider.unwrap_or("-").to_owned(),
-            filetime_utc(process.creation_time),
-            unquoted(process.current_directory.as_deref().unwrap_or("-")),
-        ]
-    })
+    table(
+        out,
+        &CliText::new(locale).cli_process_headers(),
+        &view.processes,
+        |row| {
+            let process = row.facts;
+            vec![
+                process.pid.to_string(),
+                process
+                    .parent_pid
+                    .map_or_else(|| "-".to_owned(), |pid| pid.to_string()),
+                unquoted(&program_name(process)),
+                row.provider.unwrap_or("-").to_owned(),
+                filetime_utc(process.creation_time),
+                unquoted(process.current_directory.as_deref().unwrap_or("-")),
+            ]
+        },
+    )
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli_text::CliText;
 
 #[test]
 fn project_listing_uses_display_order_while_identity_lookup_stays_stable() {
@@ -239,7 +240,7 @@ fn workspace_grouping_is_nullable_metadata_and_global_scope_survives_regrouping(
                 assert!(
                     String::from_utf8(output.stdout)
                         .unwrap()
-                        .contains(locale.cli_ungrouped())
+                        .contains(CliText::new(locale).cli_ungrouped())
                 );
             }
         }

@@ -9,6 +9,7 @@ use super::{
     results::{self, Projection},
     success_output,
 };
+use crate::cli_text::CliText;
 use crate::{
     invocation::{OutputFormat, QueryCommand},
     localization::Locale,
@@ -649,7 +650,7 @@ impl Document {
         if let Some(member) = &self.current_member {
             out.write(format_args!(
                 "{}: {}\n",
-                locale.cli_current_panel_label(),
+                CliText::new(locale).cli_current_panel_label(),
                 member.panel_id
             ))?;
             member.render(out, locale)?;
@@ -679,7 +680,7 @@ impl Document {
                 super::present::render(out, &self.projection, command, locale)
             };
         };
-        let labels = locale.cli_query_client_labels();
+        let labels = CliText::new(locale).cli_query_client_labels();
         out.write(format_args!("{}: {}\n", labels[0], client.client_id))?;
         if let Some(selection) = &client.view.selection {
             out.write(format_args!(

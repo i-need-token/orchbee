@@ -5,6 +5,7 @@
 //! liveness. `fs` is the module's only IO boundary; `probes` is the pure
 //! classification half.
 
+use crate::cli_text::CliText;
 mod fs;
 mod probes;
 #[cfg(test)]
@@ -1339,7 +1340,7 @@ fn build_hints(run: &DoctorRun) -> Vec<Value> {
         hints.push(json!({
             "id": id,
             "evidence": evidence,
-            "text": Locale::EnUs.cli_agent_doctor_hint_text(id, &subjects),
+            "text": CliText::new(Locale::EnUs).cli_agent_doctor_hint_text(id, &subjects),
         }));
     };
 

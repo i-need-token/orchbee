@@ -4,6 +4,7 @@
 
 use super::console_interrupt::{ArmedSignals, Finish, SignalWatch};
 use super::{Failure, FailureKind, Output, config, failure_output, output};
+use crate::cli_text::CliText;
 use crate::{
     invocation::{NamedSessionCommand, OutputFormat},
     localization::Locale,
@@ -209,16 +210,17 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
             absent |= state == SessionState::Absent;
             rows.push(vec![
                 entry.name.as_str().to_owned(),
-                locale.cli_session_state(state).to_owned(),
+                CliText::new(locale).cli_session_state(state).to_owned(),
                 super::escape::native_path(&entry.runtime.to_string_lossy()),
             ]);
         }
         let text = if rows.is_empty() {
-            locale.cli_session_empty().to_owned()
+            CliText::new(locale).cli_session_empty().to_owned()
         } else {
-            let mut text = super::present::columns(&locale.cli_session_headers(), &rows);
+            let mut text =
+                super::present::columns(&CliText::new(locale).cli_session_headers(), &rows);
             if absent {
-                text.push_str(locale.cli_session_absent_note());
+                text.push_str(CliText::new(locale).cli_session_absent_note());
             }
             text
         };
@@ -363,7 +365,7 @@ fn delete_output(
         Reason::Unsupported => "unsupported-platform",
     });
     let result = json!({"name":name,"outcome":outcome,"reason":reason_token,"pending":pending});
-    let diagnostic = locale.cli_session_delete(name, outcome, reason);
+    let diagnostic = CliText::new(locale).cli_session_delete(name, outcome, reason);
     let mut output = emit(
         "orchbee.session.delete",
         result,

@@ -1,5 +1,6 @@
 //! Closed copy receipts preserve integer precision and localize safe text.
 use super::*;
+use crate::cli_text::CliText;
 use crate::terminal_copy::CopySearchResult;
 
 fn common(schema: &str, result: Value) -> Value {
@@ -86,7 +87,7 @@ fn copy_text_is_localized_and_escapes_queries_before_adding_match_markers() {
         current_global: Some(0),
     };
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let text = locale.cli_terminal_copy_search(
+        let text = CliText::new(locale).cli_terminal_copy_search(
             "11111111111111111111111111111111",
             7,
             "x\n\u{1b}[31m",
@@ -95,7 +96,7 @@ fn copy_text_is_localized_and_escapes_queries_before_adding_match_markers() {
         assert!(!text.contains('\u{1b}'));
         assert!(text.contains("\\n\\u{001b}[31m"));
         assert!(text.contains("* 2:1–2:1"));
-        let motion = locale.cli_terminal_copy_motion(
+        let motion = CliText::new(locale).cli_terminal_copy_motion(
             "11111111111111111111111111111111",
             7,
             "line-end",
