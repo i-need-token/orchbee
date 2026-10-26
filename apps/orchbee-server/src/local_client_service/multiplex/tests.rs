@@ -96,6 +96,18 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
         *owners.lock().unwrap(),
         BTreeSet::from([MultiplexLaneId::new(3).unwrap()])
     );
+    write_multiplex_message(&mut peer, &open(3, 2, StreamMode::Request)).unwrap();
+    assert!(matches!(
+        read_multiplex_message(&mut peer).unwrap(),
+        MultiplexMessage::Disconnect {
+            reason: MultiplexDisconnectReason::InvalidStream
+        }
+    ));
+    assert_eq!(
+        *owners.lock().unwrap(),
+        BTreeSet::from([MultiplexLaneId::new(3).unwrap()]),
+        "a late request cannot resurrect the closed lane"
+    );
     peer.shutdown(std::net::Shutdown::Both).unwrap();
     let _closed = task.join().unwrap();
 }

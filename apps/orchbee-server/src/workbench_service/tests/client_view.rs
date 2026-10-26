@@ -48,9 +48,9 @@ fn service(read: bool, navigate: bool) -> WorkbenchService {
             create_terminal: false,
             manage_terminal_lifecycle: false,
         },
-        Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
-            WorkerRegistry::new(),
-        )))),
+        Arc::new(LocalTerminalService::workspace_fixture(Arc::new(
+            Mutex::new(WorkerRegistry::new()),
+        ))),
     )
 }
 fn bootstrap(service: &WorkbenchService) -> orchbee_workbench_protocol::Snapshot {
@@ -97,11 +97,12 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
     let snapshot = bootstrap(&service);
     let session = &snapshot.session_id;
     let first = service.client_connection(NonZeroU64::new(1).unwrap());
+    let publisher = orchbee_workbench_protocol::MultiplexLaneId::new(2).unwrap();
     let second = service.client_connection(NonZeroU64::new(2).unwrap());
     let caller = service.client_connection(NonZeroU64::new(3).unwrap());
     let ClientViewOutcome::Synchronized {
         client: first_view, ..
-    } = execute(&first, session, sample(&snapshot, None))
+    } = execute_lane(&first, session, sample(&snapshot, None), publisher)
     else {
         panic!("first view");
     };
@@ -136,7 +137,7 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         ClientViewOutcome::Synchronized { control: None, .. }
     ));
     assert!(
-        matches!(execute(&first,session,sample(&snapshot,None)),ClientViewOutcome::Synchronized { control:Some(delivered),.. } if *delivered==command)
+        matches!(execute_lane(&first,session,sample(&snapshot,None),publisher),ClientViewOutcome::Synchronized { control:Some(delivered),.. } if *delivered==command)
     );
     assert!(matches!(
         execute(
@@ -158,7 +159,7 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         execute(&caller, &wrong_session, ClientViewAction::List {}),
         ClientViewOutcome::Denied {}
     ));
-    let sibling = orchbee_workbench_protocol::MultiplexLaneId::new(2).unwrap();
+    let sibling = orchbee_workbench_protocol::MultiplexLaneId::new(3).unwrap();
     assert!(matches!(
         execute_lane(&first, session, sample(&snapshot, None), sibling),
         ClientViewOutcome::Conflict {}
@@ -168,7 +169,7 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         execute(&caller, session, ClientViewAction::Read { operation_id: command.operation_id.clone() }),
         ClientViewOutcome::Operation { operation } if operation.status == ClientViewControlStatus::Delivered {}
     ));
-    first.close_lane(orchbee_workbench_protocol::MultiplexLaneId::ROOT);
+    first.close_lane(publisher);
     assert!(
         matches!(execute(&caller,session,submit),ClientViewOutcome::Operation { operation } if operation.status==ClientViewControlStatus::Incomplete { reason:ClientViewControlReason::ClientDisconnected,view:None })
     );

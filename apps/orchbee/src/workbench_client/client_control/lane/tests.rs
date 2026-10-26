@@ -46,7 +46,7 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
             else {
                 panic!("synchronize");
             };
-            let client_id = WorkbenchClientId::parse(&format!("{:032x}", 2)).unwrap();
+            let client_id = WorkbenchClientId::parse(&format!("{:032x}", index + 1)).unwrap();
             write_workbench_response(
                 &mut stream,
                 &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
