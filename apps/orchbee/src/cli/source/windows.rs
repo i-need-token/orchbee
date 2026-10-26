@@ -34,19 +34,6 @@ impl ArmedSignals {
     pub(in crate::cli) fn requested(&self) -> bool {
         self.0.requested()
     }
-    pub(in crate::cli) fn check_before(&mut self, deadline: Instant) -> Result<(), Failure> {
-        if self
-            .take()
-            .map_err(|_| Failure::new(FailureKind::InternalFailure))?
-            .is_some()
-        {
-            Err(Failure::new(FailureKind::Cancelled))
-        } else if Instant::now() >= deadline {
-            Err(Failure::new(FailureKind::Timeout))
-        } else {
-            Ok(())
-        }
-    }
     pub(crate) fn arm() -> io::Result<Self> {
         ControlInterrupt::arm().map(Self)
     }
@@ -220,8 +207,5 @@ impl super::ArmedSignals {
 
     pub(in crate::cli) fn requested(&self) -> bool {
         self.0.requested()
-    }
-    pub(in crate::cli) fn check_before(&mut self, deadline: Instant) -> Result<(), Failure> {
-        self.0.check_before(deadline)
     }
 }
