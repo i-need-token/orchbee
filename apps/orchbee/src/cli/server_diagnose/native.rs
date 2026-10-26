@@ -19,6 +19,6 @@ mod platform;
 mod platform;
 
 pub(super) use platform::{
-    PRIVATE_RUNTIME, activation_lock_exists, activation_state, metadata_base, metadata_scope,
-    observe_entry, unsupported_field,
+    PRIVATE_RUNTIME, activation_lock_exists, activation_state, endpoint_exists_before,
+    metadata_base, metadata_scope, observe_entry, unsupported_field,
 };

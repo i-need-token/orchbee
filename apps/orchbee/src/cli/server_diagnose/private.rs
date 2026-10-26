@@ -158,7 +158,7 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
                 step(
                     deadline,
                     &mut complete,
-                    || match orchbee_local_ipc::endpoint_exists_before(&path, deadline) {
+                    || match super::native::endpoint_exists_before(&path, deadline) {
                         Ok(Some(true)) => row("known", None),
                         Ok(Some(false)) => row("absent", None),
                         Ok(None) => row("uninspectable", Some("observation-limit")),

@@ -52,3 +52,10 @@ pub(in crate::cli::server_diagnose) fn activation_lock_exists(
 ) -> io::Result<bool> {
     Err(io::ErrorKind::Unsupported.into())
 }
+
+pub(in crate::cli::server_diagnose) fn endpoint_exists_before(
+    _path: &std::path::Path,
+    _deadline: std::time::Instant,
+) -> io::Result<Option<bool>> {
+    Err(io::ErrorKind::Unsupported.into())
+}

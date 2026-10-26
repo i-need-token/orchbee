@@ -38,3 +38,10 @@ pub(in crate::cli::server_diagnose) fn activation_lock_exists(
 ) -> io::Result<bool> {
     session.activation_lock_exists()
 }
+
+pub(in crate::cli::server_diagnose) fn endpoint_exists_before(
+    path: &std::path::Path,
+    deadline: std::time::Instant,
+) -> io::Result<Option<bool>> {
+    orchbee_local_ipc::endpoint_exists_before(path, deadline)
+}
