@@ -1051,6 +1051,15 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 `providers[]` 始终按规范次序报告每个所选 provider。`hints[]` 仅作观察：每个
 `{id,evidence,text}` 指明其引用的具体事实行，不含因果、修复或信任断言。
 
+运行流程、预算、探测分类、根目录折叠和报告渲染在 Windows、Linux、macOS 构建间共用。
+私有原生观察能力先于信号注册、环境及文件系统观察准入；macOS 拒绝该能力，保留上述
+命令专用失败。Windows 与 Linux 保留各自原生读取、路径和可执行文件观察。
+配置 hook 候选保持声明顺序：仅文件缺失时尝试下一候选，首个文件字节或其他读取结果
+立即结束查找。扫描事实进入共享分类和根目录折叠，不另建预算。
+Linux 继续在既有 home 目录检查之后拒绝配置 hook 检查。
+Windows 端点提示和文本保留未检查事实，仅 JSON 渲染将该端点映射为
+`{kind:"unsupported"}`。这一边界不新增平台检查能力。
+
 Capsule 清单使用契约 1，严格包含 `contractVersion` 和 `payloadSha256`。
 集成结果的 `capsule.payloadSha256` 替代载荷版本字段，根目录为
 `~/.orchbee/agent-observation-adapters/<payloadSha256>`。Marketplace 检查使用
@@ -2526,4 +2535,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=053bf0c96b998bc62fdfd90f5fea27dc27e74abe84c78b17bc82d72a898ed7f2 zh-cn-sha256=4bb81a07de6dbdc487f88808b2932458601c892fa7d0f433f1783edd391d00e4 -->
+<!-- documentation-pairing: english-sha256=6e228068b6a9ce3072935df4d84fecece1b9d3d6c9d1f4ddab49578be1a76b5a zh-cn-sha256=133d24281ce0e491745720c0e069b6184b7454f4a200428853a6044bcf841d92 -->

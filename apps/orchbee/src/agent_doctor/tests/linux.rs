@@ -3,6 +3,7 @@
 //! filesystem only inside each test's scratch directory.
 
 use super::super::*;
+use super::observation;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
@@ -260,7 +261,7 @@ fn codex_probe(home: &Path, config: &[u8]) -> (Vec<RootCandidate>, HookProbe) {
         std::fs::write(&codex, config).expect("write config");
     }
     let mut recorded = Vec::new();
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let probe = probe_codex(provider("codex"), home, &mut recorded, &mut budget);
     (recorded, probe)
 }
@@ -657,7 +658,7 @@ fn guarded_probe_through_filesystem() {
             r#"{{"kind":"guarded-extension","integrationId":"gemini","contractVersion":{contract_version},"files":[{{"path":"index.js","sha256":"{sha}"}}]}}"#
         );
         std::fs::write(target.join(probes::GUARDED_MARKER_NAME), marker).expect("write marker");
-        let mut budget = Budget::new();
+        let mut budget = Budget::new(observation());
         let probe = probe_guarded(provider("gemini"), &home, &mut budget);
         let expected = if contract_version == 1 {
             (HookState::Present, HookReason::MarkerConsistent)
@@ -668,7 +669,7 @@ fn guarded_probe_through_filesystem() {
     }
     // Marker declaring a payload that differs → contradiction.
     std::fs::write(target.join("index.js"), b"different").expect("rewrite payload");
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let probe = probe_guarded(provider("gemini"), &home, &mut budget);
     assert_eq!(
         verdict(&probe),
@@ -676,7 +677,7 @@ fn guarded_probe_through_filesystem() {
     );
     // Missing target → absent; symlinked target → unknown/symlink-uninspected.
     let empty = scratch("guarded-absent");
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let probe = probe_guarded(provider("gemini"), &empty, &mut budget);
     assert_eq!(
         verdict(&probe),
@@ -732,7 +733,7 @@ fn cline_package_versions() {
             package("orchbee-agent-observation", &contract_version.to_string()),
         )
         .unwrap();
-        let mut budget = Budget::new();
+        let mut budget = Budget::new(observation());
         let probe = probe_cline(provider("cline"), &home, &mut budget);
         let expected = if contract_version == 1 {
             (HookState::Present, HookReason::MarkerConsistent)
@@ -744,7 +745,7 @@ fn cline_package_versions() {
     let external = home.join("external-package");
     std::fs::rename(&installed, &external).unwrap();
     std::os::unix::fs::symlink(&external, &installed).unwrap();
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     assert_eq!(
         verdict(&probe_cline(provider("cline"), &home, &mut budget)),
         (HookState::Unknown, HookReason::SymlinkUninspected)
@@ -870,14 +871,14 @@ fn supplied_root_probe_states() {
     let root = scratch("capsule-good");
     std::fs::write(root.join("payload.bin"), b"payload").expect("write payload");
     // Digest the same serialized walk the probe itself collects.
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let CapsuleWalk::Entries(mut walked) = fs::capsule_walk(&root, &mut budget) else {
         panic!("fixture capsule must walk")
     };
     let digest = probes::capsule_payload_digest(&mut walked);
     let manifest = format!(r#"{{"contractVersion":1,"payloadSha256":"{digest}"}}"#);
     std::fs::write(root.join(probes::CAPSULE_MANIFEST_NAME), manifest).expect("write manifest");
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let outcome = probe_root(root.as_os_str().as_bytes(), &mut budget);
     assert_eq!(outcome.state, RootState::Consistent);
     // Non-current metadata requires both matching bytes and recognizable
@@ -895,7 +896,7 @@ fn supplied_root_probe_states() {
     ] {
         std::fs::write(root.join("bundle/scripts").join(file), b"// owned").unwrap();
     }
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let CapsuleWalk::Entries(mut entries) = fs::capsule_walk(&root, &mut budget) else {
         panic!("owned capsule must walk")
     };
@@ -907,7 +908,7 @@ fn supplied_root_probe_states() {
             manifest.to_string(),
         )
         .unwrap();
-        let mut budget = Budget::new();
+        let mut budget = Budget::new(observation());
         assert_eq!(
             probe_root(root.as_os_str().as_bytes(), &mut budget).state,
             RootState::UpdateRequired
@@ -915,12 +916,12 @@ fn supplied_root_probe_states() {
     }
     // A tampered payload → inconsistent (proven contradiction).
     std::fs::write(root.join("payload.bin"), b"tampered").expect("tamper");
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let outcome = probe_root(root.as_os_str().as_bytes(), &mut budget);
     assert_eq!(outcome.state, RootState::Inconsistent);
     // Even a refreshed, self-consistent digest does not establish foreign ownership.
     std::fs::write(root.join("bundle/package.json"), br#"{"name":"foreign"}"#).unwrap();
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let CapsuleWalk::Entries(mut entries) = fs::capsule_walk(&root, &mut budget) else {
         panic!("foreign capsule must walk")
     };
@@ -930,26 +931,26 @@ fn supplied_root_probe_states() {
         manifest.to_string(),
     )
     .unwrap();
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     assert_eq!(
         probe_root(root.as_os_str().as_bytes(), &mut budget).state,
         RootState::Inconsistent
     );
     // Missing root → absent.
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let outcome = probe_root(b"/definitely/not/present", &mut budget);
     assert_eq!(outcome.state, RootState::Absent);
     // A non-directory / unsafe kind → unsafe.
     let file_root = scratch("capsule-file");
     let file_path = file_root.join("plain");
     std::fs::write(&file_path, b"x").expect("write file");
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let outcome = probe_root(file_path.as_os_str().as_bytes(), &mut budget);
     assert_eq!(outcome.state, RootState::Unsafe);
     // A symlinked root → unsafe, never followed.
     let link = file_root.join("link");
     std::os::unix::fs::symlink(&root, &link).expect("symlink");
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     let outcome = probe_root(link.as_os_str().as_bytes(), &mut budget);
     assert_eq!(outcome.state, RootState::Unsafe);
 }
@@ -964,15 +965,18 @@ fn observation_socket_fact_states() {
     // Absent when nothing exists.
     let directory = scratch("socket");
     let path = directory.join("agent-observation-v1.sock");
-    assert_eq!(fs::observation_socket(&path, euid), fs::SocketFact::Absent);
+    assert_eq!(
+        fs::observation_socket(&path, euid, observation()),
+        fs::SocketFact::Absent
+    );
     // A real same-euid socket → present.
     let _listener = UnixListener::bind(&path).expect("bind scratch socket");
-    match fs::observation_socket(&path, euid) {
+    match fs::observation_socket(&path, euid, observation()) {
         fs::SocketFact::Present { .. } => {}
         other => panic!("expected present, got {other:?}"),
     }
     // Foreign euid → wrong-owner.
-    match fs::observation_socket(&path, euid + 1) {
+    match fs::observation_socket(&path, euid + 1, observation()) {
         fs::SocketFact::WrongOwner { owner, .. } => assert_eq!(owner, euid),
         other => panic!("expected wrong-owner, got {other:?}"),
     }
@@ -980,14 +984,14 @@ fn observation_socket_fact_states() {
     let plain = directory.join("plain");
     std::fs::write(&plain, b"x").expect("write file");
     assert!(matches!(
-        fs::observation_socket(&plain, euid),
+        fs::observation_socket(&plain, euid, observation()),
         fs::SocketFact::NotASocket { .. }
     ));
     // A symlink at the path → unsafe-symlink, never followed.
     let link = directory.join("link");
     std::os::unix::fs::symlink(&plain, &link).expect("symlink");
     assert_eq!(
-        fs::observation_socket(&link, euid),
+        fs::observation_socket(&link, euid, observation()),
         fs::SocketFact::UnsafeSymlink
     );
 }

@@ -1275,6 +1275,17 @@ partial facts are explicit, never silently dropped — and `providers[]` always 
 selected provider in canonical order. `hints[]` are observation-only: each `{id,evidence,text}`
 names the concrete fact rows it cites and carries no causal, remedy, or trust claim.
 
+The runner, budget, probe classification, root folding and report rendering are shared across
+Windows, Linux and macOS builds. A private native observation capability is admitted before
+signal registration or environment and filesystem observations; macOS refuses that capability
+with the command-specific failure above. Windows and Linux retain their native read, path and
+executable observations. Configuration-hook candidates keep their declared order: only an absent
+file permits the next candidate, and the first bytes or other read outcome ends the search.
+Their scan facts enter the shared classification and root fold without a separate budget.
+Linux continues to decline configuration-hook inspection after the existing home-directory
+check. Windows endpoint hints and text retain the uninspected fact; only JSON rendering maps
+that endpoint to `{kind:"unsupported"}`. This boundary adds no platform inspection capability.
+
 Capsule manifests use contract 1 with exactly `contractVersion` and `payloadSha256`.
 The integration result's `capsule.payloadSha256` replaces payload-version fields;
 its root is `~/.orchbee/agent-observation-adapters/<payloadSha256>`. Marketplace

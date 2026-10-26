@@ -663,10 +663,10 @@ fn parse_assignment(line: &[u8]) -> Option<(&[u8], &[u8])> {
 /// else `None`.
 fn basic_string(raw: &[u8]) -> Option<String> {
     // Codex serializes Windows paths as TOML single-line literal strings.
-    #[cfg(windows)]
-    if let Some(literal) = raw
-        .strip_prefix(b"'")
-        .and_then(|raw| raw.strip_suffix(b"'"))
+    if super::fs::WINDOWS_PATHS
+        && let Some(literal) = raw
+            .strip_prefix(b"'")
+            .and_then(|raw| raw.strip_suffix(b"'"))
     {
         if literal
             .iter()
@@ -735,15 +735,18 @@ pub(crate) fn derive_module_root(module_url: &str, suffix: &str) -> ModuleUrlRoo
     if decoded.contains(&0) || !decoded.starts_with(b"/") {
         return ModuleUrlRoot::Invalid;
     }
-    #[cfg(windows)]
-    let decoded = if decoded.len() >= 4
-        && decoded[1].is_ascii_alphabetic()
-        && decoded[2] == b':'
-        && decoded[3] == b'/'
-    {
-        decoded[1..].to_vec()
+    let decoded = if super::fs::WINDOWS_PATHS {
+        if decoded.len() >= 4
+            && decoded[1].is_ascii_alphabetic()
+            && decoded[2] == b':'
+            && decoded[3] == b'/'
+        {
+            decoded[1..].to_vec()
+        } else {
+            return ModuleUrlRoot::Invalid;
+        }
     } else {
-        return ModuleUrlRoot::Invalid;
+        decoded
     };
     let Some(root) = decoded
         .strip_suffix(suffix.as_bytes())

@@ -7,7 +7,65 @@ use std::{
     path::{Component, Path, PathBuf, Prefix},
 };
 
+use super::observation::{ConfigurationScan, ConfigurationTarget, Native};
 use super::{Budget, EntryKind, EnvValue, FileRead, Lstat, MAX_PATH_BYTES, PathScan};
+
+pub(super) static NATIVE: Native = Native {
+    lstat,
+    read_regular,
+    read_dir: |path| fs::read_dir(path),
+    reject_entry: |entry| matches!(lstat(&entry.path()), Lstat::Symlink | Lstat::Unreadable),
+    env_value,
+    home_directory,
+    inherited_path: || std::env::var_os("PATH"),
+    current_executable: std::env::current_exe,
+    scan_path_for,
+    endpoint_user: || None,
+    codex_target: |_, home| codex_configuration_path(home),
+    guarded_target: |provider, home| {
+        crate::agent_configuration_windows::extension_directory(provider.id, home)
+    },
+    bootstrap_target: |provider, home| {
+        if provider.id == "opencode" {
+            crate::agent_configuration_windows::opencode_entries(home).map(|paths| paths.current)
+        } else if provider.id == "kilo" {
+            crate::agent_configuration_windows::kilo_entry(home)
+        } else {
+            Some(home.join(provider.home_target))
+        }
+    },
+    configuration_targets: |provider, home| {
+        Ok(
+            crate::agent_configuration_windows::hook_configuration_candidates(provider.id, home)
+                .map(|targets| {
+                    targets
+                        .into_iter()
+                        .map(|target| {
+                            let kind = target.kind;
+                            ConfigurationTarget {
+                                path: target.path,
+                                scan: Box::new(move |bytes| {
+                                    use crate::agent_integrations::HookConfigurationScan as Scan;
+                                    match crate::agent_integrations::scan_hook_configuration(
+                                        kind, bytes,
+                                    ) {
+                                        Scan::Absent => ConfigurationScan::Absent,
+                                        Scan::Conflict => ConfigurationScan::Conflict,
+                                        Scan::Malformed => ConfigurationScan::Malformed,
+                                        Scan::Owned(root) => ConfigurationScan::Owned(root),
+                                        Scan::Disabled(root) => ConfigurationScan::Disabled(root),
+                                        Scan::Incomplete(root) => {
+                                            ConfigurationScan::Incomplete(root)
+                                        }
+                                    }
+                                }),
+                            }
+                        })
+                        .collect()
+                }),
+        )
+    },
+};
 
 const REPARSE_POINT: u32 = 0x400;
 const OPEN_REPARSE_POINT: u32 = 0x0020_0000;
@@ -89,6 +147,7 @@ pub(crate) fn lstat(path: &Path) -> Lstat {
         } else {
             EntryKind::Other
         },
+        ownership: None,
         size: metadata.len(),
     }
 }

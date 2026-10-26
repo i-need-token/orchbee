@@ -1,4 +1,5 @@
 use super::super::{Budget, fs, probes};
+use super::observation;
 use std::{ffi::OsStr, path::Path};
 
 #[test]
@@ -59,7 +60,11 @@ fn windows_paths_admit_drive_and_unc_but_refuse_devices_and_relative_names() {
         assert!(!fs::path_admitted(Path::new(path)), "{path}");
     }
     assert!(matches!(
-        fs::read_regular(Path::new(r"\\.\pipe\unused"), 10, &mut Budget::new()),
+        fs::read_regular(
+            Path::new(r"\\.\pipe\unused"),
+            10,
+            &mut Budget::new(observation())
+        ),
         fs::FileRead::UnsafeKind
     ));
 }
@@ -95,14 +100,14 @@ fn windows_reads_obey_caps_and_do_not_follow_junctions() {
     let file = root.0.join("literal 中文.txt");
     disk::write(&file, b"abcd").unwrap();
     assert_eq!(
-        fs::read_regular(&file, 4, &mut Budget::new()),
+        fs::read_regular(&file, 4, &mut Budget::new(observation())),
         fs::FileRead::Bytes(b"abcd".to_vec())
     );
     assert_eq!(
-        fs::read_regular(&file, 3, &mut Budget::new()),
+        fs::read_regular(&file, 3, &mut Budget::new(observation())),
         fs::FileRead::OverLimit
     );
-    let mut budget = Budget::new();
+    let mut budget = Budget::new(observation());
     budget.consume(super::super::MAX_TOTAL_READ_BYTES - 3);
     assert_eq!(
         fs::read_regular(&file, 10, &mut budget),
@@ -110,7 +115,7 @@ fn windows_reads_obey_caps_and_do_not_follow_junctions() {
     );
     assert_eq!(budget.remaining_bytes(), 3);
     assert_eq!(
-        fs::read_regular(&root.0, 100, &mut Budget::new()),
+        fs::read_regular(&root.0, 100, &mut Budget::new(observation())),
         fs::FileRead::UnsafeKind
     );
     let source = root.0.join("source");
@@ -126,17 +131,17 @@ fn windows_reads_obey_caps_and_do_not_follow_junctions() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fs::lstat(&link), fs::Lstat::Symlink);
+    assert_eq!(fs::lstat(&link, observation()), fs::Lstat::Symlink);
     assert_eq!(
-        fs::read_regular(&link, 100, &mut Budget::new()),
+        fs::read_regular(&link, 100, &mut Budget::new(observation())),
         fs::FileRead::Symlink
     );
     assert!(matches!(
-        fs::capsule_walk(&link, &mut Budget::new()),
+        fs::capsule_walk(&link, &mut Budget::new(observation())),
         fs::CapsuleWalk::Symlink
     ));
     assert!(matches!(
-        fs::capsule_walk(&root.0, &mut Budget::new()),
+        fs::capsule_walk(&root.0, &mut Budget::new(observation())),
         fs::CapsuleWalk::UnsafeKind
     ));
     disk::remove_dir(&link).unwrap();
@@ -159,7 +164,7 @@ enabled = true
         matches!(probes::derive_module_root("file:///C:/a%20b/bundle/opencode/orchbee-agent-observation.mjs", "/bundle/opencode/orchbee-agent-observation.mjs"), probes::ModuleUrlRoot::Root(root) if root == b"C:/a b")
     );
     assert!(
-        fs::scan_path_for("../codex", OsStr::new(r"C:\bin"))
+        fs::scan_path_for("../codex", OsStr::new(r"C:\bin"), observation())
             .found
             .is_none()
     );
