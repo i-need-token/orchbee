@@ -764,8 +764,9 @@ fn closing_watcher_cancels_only_its_pending_stream() {
     assert!(watcher.connection.lock().unwrap().is_none());
     assert!(!watcher.reload());
     watcher.close();
-    drop(client);
+    // Keep the carrier alive until the peer observes this stream's cancellation.
     server.finish().unwrap();
+    drop(client);
 }
 
 #[test]

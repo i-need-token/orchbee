@@ -29,17 +29,18 @@ use orchbee_local_client_protocol::{ClientConnection, ConnectClientError};
 
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
 
-pub(crate) enum LocalClientShutdown {
+pub(crate) struct LocalClientShutdown(ShutdownTarget);
+enum ShutdownTarget {
     Direct(orchbee_local_ipc::LocalStream),
     Multiplex(Arc<multiplex::Connection>),
     Lane(Arc<multiplex::Lane>, orchbee_local_ipc::LocalStream),
 }
 impl LocalClientShutdown {
     pub(crate) fn close(&self) -> io::Result<()> {
-        match self {
-            Self::Direct(stream) => stream.shutdown(std::net::Shutdown::Both),
-            Self::Multiplex(connection) => connection.shutdown(),
-            Self::Lane(lane, stream) => {
+        match &self.0 {
+            ShutdownTarget::Direct(stream) => stream.shutdown(std::net::Shutdown::Both),
+            ShutdownTarget::Multiplex(connection) => connection.shutdown(),
+            ShutdownTarget::Lane(lane, stream) => {
                 lane.close();
                 stream.shutdown(std::net::Shutdown::Both)
             }
@@ -295,9 +296,9 @@ impl LocalClient {
 
     pub(crate) fn connection_shutdown_handle(&self) -> io::Result<LocalClientShutdown> {
         match &self.connection {
-            Some(ClientTransport::Lane(lane)) => {
-                Ok(LocalClientShutdown::Multiplex(Arc::clone(&lane.connection)))
-            }
+            Some(ClientTransport::Lane(lane)) => Ok(LocalClientShutdown(
+                ShutdownTarget::Multiplex(Arc::clone(&lane.connection)),
+            )),
             _ => self.shutdown_handle(),
         }
     }
@@ -311,20 +312,22 @@ impl LocalClient {
             let ClientTransport::Lane(connection) = connection else {
                 unreachable!()
             };
-            return Ok(LocalClientShutdown::Lane(
+            return Ok(LocalClientShutdown(ShutdownTarget::Lane(
                 Arc::clone(&connection.owner),
                 connection.shutdown.try_clone()?,
-            ));
+            )));
         };
         #[cfg(unix)]
         {
-            Ok(LocalClientShutdown::Direct(
+            Ok(LocalClientShutdown(ShutdownTarget::Direct(
                 std::os::unix::net::UnixStream::from(connection.as_fd().try_clone_to_owned()?),
-            ))
+            )))
         }
         #[cfg(windows)]
         {
-            Ok(LocalClientShutdown::Direct(connection.shutdown_stream()?))
+            Ok(LocalClientShutdown(ShutdownTarget::Direct(
+                connection.shutdown_stream()?,
+            )))
         }
     }
 

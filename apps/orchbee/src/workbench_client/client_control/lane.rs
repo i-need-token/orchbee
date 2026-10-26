@@ -641,9 +641,6 @@ impl ClientControlLane {
     pub(super) fn completion_for_test(&self) -> Option<(Sample, ClientViewCompletion)> {
         self.shared.0.lock().unwrap().completion.clone()
     }
-    pub(super) fn registered_for_test(&self) -> bool {
-        self.shared.0.lock().unwrap().registered.is_some()
-    }
     pub(super) fn take_layout_for_test(
         &self,
     ) -> Option<orchbee_workbench_protocol::WorkbenchCommand> {

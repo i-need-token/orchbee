@@ -245,7 +245,7 @@ impl Drop for TestDirectory {
 }
 
 pub(crate) fn shutdown_handle(stream: UnixStream) -> super::super::LocalClientShutdown {
-    super::super::LocalClientShutdown::Direct(stream)
+    super::super::LocalClientShutdown(super::super::ShutdownTarget::Direct(stream))
 }
 
 pub(crate) fn connect_with_checkpoint_clock(
