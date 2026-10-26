@@ -79,7 +79,6 @@ pub(super) fn usage(
         details: None,
         source: None,
         failure_schema: None,
-        version: 1,
         io_diagnostic: None,
         candidate_display: None,
         usage: Some(Box::new(UsageReason::SendSource {

@@ -42,7 +42,7 @@ fn physical_attention_receipt_uses_closed_client_control_schema() {
         wait: None,
     };
     assert_eq!(answer.exit_code(), 0);
-    let mut document = answer.document();
+    let document = answer.document();
     assert_eq!(document["version"], 1);
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
@@ -74,7 +74,7 @@ fn agent_focus_receipts_keep_current_control_shape_closed() {
             unknown: false,
             wait: None,
         };
-        let mut document = answer.document();
+        let document = answer.document();
         assert_eq!(answer.exit_code(), 0);
         assert_eq!(document["version"], 1);
         validator.validate(&document).unwrap();
@@ -1103,7 +1103,7 @@ fn presentation_receipts_keep_bound_and_empty_shapes_closed() {
             wait: None,
         };
         assert_eq!(answer.exit_code(), 0);
-        let mut document = answer.document();
+        let document = answer.document();
         assert_eq!(document["version"], 1);
         let schema: Value =
             serde_json::from_str(include_str!("../schemas/orchbee.client.control.json")).unwrap();
@@ -1198,7 +1198,7 @@ fn configured_popup_receipt_is_closed() {
         unknown: false,
         wait: None,
     };
-    let mut document = answer.document();
+    let document = answer.document();
     assert_eq!(answer.exit_code(), 0);
     assert_eq!(document["version"], 1);
     let schema: Value =
