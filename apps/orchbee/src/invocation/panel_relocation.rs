@@ -11,8 +11,8 @@ pub(crate) struct PanelRelocationCommand {
     pub(crate) source: Target,
     pub(crate) destination: PanelRelocationDestination,
     pub(crate) client: Option<WorkbenchClientId>,
-    pub(crate) focus: bool,
-    pub(crate) timeout_ms: u32,
+    pub(crate) focus: Option<bool>,
+    pub(crate) timeout_ms: Option<u32>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum PanelRelocationDestination {
@@ -161,11 +161,11 @@ pub(super) fn parse(
             source: target(value.to_owned(), Resource::Panel, envelope)?,
             destination,
             client: client_control::client_id(options, context, envelope)?,
-            focus: !options.no_focus,
+            focus: (options.focus || options.no_focus).then_some(!options.no_focus),
             timeout_ms: if options.timeout.is_some() {
-                wait_timeout_option(options, context, envelope)?
+                Some(wait_timeout_option(options, context, envelope)?)
             } else {
-                30_000
+                None
             },
         },
         format: options.format.unwrap_or(OutputFormat::Text),

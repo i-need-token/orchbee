@@ -9,15 +9,22 @@ pub(super) fn render() -> String {
         }
         script.push_str(&format!(
             "    case {}\n      printf '%s\\n' {}\n",
-            super::metadata::quote(&key),
+            quote(&key),
             values
                 .iter()
-                .map(|value| super::metadata::quote(value))
+                .map(|value| quote(value))
                 .collect::<Vec<_>>()
                 .join(" ")
         ));
     }
     script.push_str("  end\nend\n");
-    script.push_str(include_str!("fish.fish"));
+    script.push_str(&include_str!("fish.fish").replace(
+        "__ORCHBEE_TRIM_CHARACTERS__",
+        &quote(crate::invocation::grammar::trim_characters()),
+    ));
     script
+}
+
+fn quote(value: &str) -> String {
+    format!("'{}'", value.replace('\\', "\\\\").replace('\'', "\\'"))
 }

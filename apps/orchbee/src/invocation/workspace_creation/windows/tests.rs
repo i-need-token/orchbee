@@ -1,7 +1,7 @@
-use super::*;
+use super::super::*;
 use std::ffi::OsString;
 fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
-    super::super::parse_request(words.iter().map(OsString::from))
+    crate::invocation::parse_request(words.iter().map(OsString::from))
 }
 
 fn parsed_directory(value: &str) -> ParsedWorkspaceCreationCommand {

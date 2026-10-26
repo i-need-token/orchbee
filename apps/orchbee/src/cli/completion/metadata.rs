@@ -69,7 +69,10 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
         let key = command.key;
         insert(format!("words|{key}"), command.words.to_vec());
         if let Some(rule) = command.operand_string_rule() {
-            insert(format!("string|{key}|operand"), vec![rule.pattern]);
+            insert(
+                format!("string|{key}|operand"),
+                vec![rule.allowed.unwrap_or("")],
+            );
             insert(format!("excluded|{key}|operand"), rule.excluded.to_vec());
             insert(format!("operand-equals|{key}"), vec!["--session"]);
         }
@@ -115,7 +118,10 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
                 command.conflicts(flag).to_vec(),
             );
             if let Some(rule) = command.string_rule(flag) {
-                insert(format!("string|{key}|{flag}"), vec![rule.pattern]);
+                insert(
+                    format!("string|{key}|{flag}"),
+                    vec![rule.allowed.unwrap_or("")],
+                );
                 insert(format!("excluded|{key}|{flag}"), rule.excluded.to_vec());
                 if rule.trim {
                     insert(format!("trim|{key}|{flag}"), vec!["1"]);
@@ -133,6 +139,26 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
     }
     // Numeric rows own no vocabulary; values come directly from the descriptors.
     for command in authority::COMMANDS {
+        let flags = command
+            .flags()
+            .iter()
+            .copied()
+            .chain(super::GLOBAL_FLAGS.iter().copied());
+        for (flag, rule) in flags
+            .filter_map(|flag| command.string_rule(flag).map(|rule| (flag, rule)))
+            .chain(command.operand_string_rule().map(|rule| ("operand", rule)))
+        {
+            rows.insert(
+                format!("minimum|{}|{flag}", command.key),
+                vec![rule.minimum.to_string()],
+            );
+            rows.insert(
+                format!("maximum|{}|{flag}", command.key),
+                rule.maximum
+                    .map(|value| vec![value.to_string()])
+                    .unwrap_or_default(),
+            );
+        }
         rows.insert(
             format!("limit|{}", command.key),
             vec![command.maximum_operands.to_string()],
@@ -156,5 +182,5 @@ pub(super) fn rows() -> BTreeMap<String, Vec<String>> {
 }
 
 pub(super) fn quote(value: &str) -> String {
-    format!("'{}'", value.replace('\\', "\\\\").replace('\'', "'\\''"))
+    format!("'{}'", value.replace('\'', "'\\''"))
 }

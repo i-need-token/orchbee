@@ -33,7 +33,8 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let deadline = Instant::now() + Duration::from_millis(u64::from(command.timeout_ms));
+    let deadline =
+        Instant::now() + Duration::from_millis(u64::from(command.timeout_ms.unwrap_or(30_000)));
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => return failure_output(internal(), Some(format), locale),
@@ -109,7 +110,10 @@ fn select_client(
             return Err(Failure::new(FailureKind::ProtocolInvalid));
         }
     };
-    if clients.is_empty() && command.client.is_none() && !command.focus && command.ratio().is_none()
+    if clients.is_empty()
+        && command.client.is_none()
+        && !command.focus.unwrap_or(true)
+        && command.ratio().is_none()
     {
         return Ok(None);
     }
@@ -136,7 +140,7 @@ fn execute(
         base_revision: snapshot.revision,
         source: source.clone(),
         client_id: selected.as_ref().map(|client| client.client_id.clone()),
-        requested_focus: command.focus,
+        requested_focus: command.focus.unwrap_or(true),
         requested_ratio: command.ratio(),
         directory_path: None,
         directory_source: None,
@@ -418,7 +422,7 @@ fn execute(
                 return Ok(());
             }
         }
-        if command.focus {
+        if command.focus.unwrap_or(true) {
             receipt.stage = "focus";
             let current = view::observe(&mut client, selected, &snapshot, deadline, signals)?;
             receipt.focus = Some(view::submit(
@@ -444,7 +448,7 @@ fn execute(
         receipt.stage = "layouts";
         // The final focus intentionally changes selection, so its confirmed view becomes the
         // observation baseline; a plain Get still verifies Ready/minimum through the layout reply.
-        let current = if command.focus {
+        let current = if command.focus.unwrap_or(true) {
             focused_client(&mut client, selected, &snapshot, &target, deadline, signals)?
         } else {
             view::observe(&mut client, selected, &snapshot, deadline, signals)?

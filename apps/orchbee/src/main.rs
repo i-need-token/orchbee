@@ -175,7 +175,6 @@ fn main() -> ExitCode {
                 | invocation::Request::TerminalSelection { format, .. }
                 | invocation::Request::ClientQuery { format, .. }
                 | invocation::Request::PanelTerminalCreation { format, .. }
-                | invocation::Request::PanelRelocation { format, .. }
                 | invocation::Request::LayoutExport { format, .. }
                 | invocation::Request::LayoutApply { format, .. }
                 | invocation::Request::Plugin { format, .. }
@@ -260,7 +259,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Creation { command, format }) => {
                 cli::run_creation(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::PanelRelocation { command, format }) => {
                 cli::panel_relocation::run(&command, format, locale)
             }

@@ -16,7 +16,7 @@ fn panel_relocation_destinations_defaults_and_ratio_follow_reference() {
     else {
         panic!()
     };
-    assert!(parsed.focus);
+    assert_eq!(parsed.focus, None);
     assert!(matches!(
         parsed.destination,
         PanelRelocationDestination::NewTab {
@@ -44,7 +44,7 @@ fn panel_relocation_destinations_defaults_and_ratio_follow_reference() {
     else {
         panic!()
     };
-    assert!(!parsed.focus);
+    assert_eq!(parsed.focus, Some(false));
     assert_eq!(parsed.ratio(), ClientSplitRatio::new(0.9).ok());
     for args in [
         vec!["--new-tab", "--workspace", "other"],

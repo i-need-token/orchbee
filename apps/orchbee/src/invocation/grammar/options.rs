@@ -429,7 +429,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--position",
-        values: &["top-left", "top-right", "bottom-left", "bottom-right"],
+        values: super::values::NOTIFICATION_POSITIONS,
         closed_values: true,
         string_rule: None,
         commands: &[CommandPath::NotificationShow],
@@ -445,7 +445,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--sound",
-        values: &["none", "done", "request"],
+        values: super::values::NOTIFICATION_SOUNDS,
         closed_values: true,
         string_rule: None,
         commands: &[CommandPath::NotificationShow],
@@ -523,7 +523,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         spelling: "--state",
-        values: &["idle", "working", "blocked", "unknown"],
+        values: super::values::PANEL_AGENT_STATES,
         closed_values: true,
         string_rule: None,
         commands: &[CommandPath::PanelReportAgent],

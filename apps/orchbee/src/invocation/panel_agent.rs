@@ -5,9 +5,8 @@ use super::{
 };
 use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
 use orchbee_workbench_protocol::{
-    PanelAgentReport, PanelAgentRequest, PanelAgentState, PresentationBinding, ProtocolVersion,
-    SessionId, TerminalId, WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId,
-    write_workbench_request,
+    PanelAgentReport, PanelAgentRequest, PresentationBinding, ProtocolVersion, SiteId, TerminalId,
+    WorkbenchPanelId, WorkbenchRequest, WorkbenchRequestId, WorkerId, write_workbench_request,
 };
 
 #[derive(Default)]
@@ -139,15 +138,8 @@ pub(super) fn parse(
                     .state
                     .as_deref()
                     .ok_or_else(|| missing_required(context, "--state", envelope))?;
-                let state = match raw {
-                    "idle" => PanelAgentState::Idle,
-                    "working" => PanelAgentState::Working,
-                    "blocked" => PanelAgentState::Blocked,
-                    "done" => PanelAgentState::Done,
-                    "error" => PanelAgentState::Error,
-                    "unknown" => PanelAgentState::Unknown,
-                    _ => return Err(invalid("--state", raw, ExpectedValue::ReportState)),
-                };
+                let state = super::grammar::values::panel_agent_state(raw)
+                    .ok_or_else(|| invalid("--state", raw, ExpectedValue::ReportState))?;
                 PanelAgentReport::State {
                     source: source.into(),
                     agent,

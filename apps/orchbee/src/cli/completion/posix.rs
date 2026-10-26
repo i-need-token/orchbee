@@ -20,7 +20,10 @@ pub(super) fn render(shell: CompletionShell) -> String {
         ));
     }
     script.push_str("  esac\n}\n");
-    script.push_str(include_str!("posix.sh"));
+    script.push_str(&include_str!("posix.sh").replace(
+        "__ORCHBEE_TRIM_CHARACTERS__",
+        &super::metadata::quote(crate::invocation::grammar::trim_characters()),
+    ));
     script.push_str(match shell {
         CompletionShell::Bash => {
             r#"

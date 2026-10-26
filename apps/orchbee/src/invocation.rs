@@ -23,10 +23,8 @@ mod machines;
 pub(crate) use machines::MachineCommand;
 mod creation;
 pub(crate) mod program;
-mod workspace_creation;
-pub(crate) use workspace_creation::{
-    ParsedWorkspaceCreationCommand, ParsedWorkspaceCreationDirectory, WorkspaceCreationCommand,
-};
+pub(crate) mod workspace_creation;
+pub(crate) use workspace_creation::{ParsedWorkspaceCreationCommand, WorkspaceCreationCommand};
 mod panel_relocation;
 pub(crate) use panel_relocation::{PanelRelocationCommand, PanelRelocationDestination};
 mod panel_input;
@@ -264,13 +262,6 @@ pub(crate) enum QueryCommand {
         target: AgentTarget,
         client: WorkbenchClientId,
     },
-    #[cfg(test)]
-    AgentRead {
-        target: AgentTarget,
-        history: Option<u16>,
-        unwrap: bool,
-        lines: Option<u16>,
-    },
     AgentExplain(AgentTarget),
     /// `agent wait`: one held Client Connection polls the canonical session
     /// document until a requested condition matches, the fence refuses, or
@@ -342,18 +333,6 @@ pub(crate) enum QueryCommand {
         selection: OutputSelection,
         timeout_ms: Option<u32>,
         after: Option<OutputAfter>,
-    },
-    #[cfg(test)]
-    TerminalWaitOutput {
-        target: Target,
-        /// The searched pattern: the literal `--match` text or the
-        /// pre-compiled `--regex`, exactly one admitted by the grammar.
-        matcher: WaitPattern,
-        /// The searched retained-row window (visible + history as one
-        /// range), 1..=1000 — `--rows` defaults to 1000.
-        rows: u16,
-        /// Total wait budget in milliseconds from command start, 1..=3600000.
-        timeout_ms: u32,
     },
     /// `worktree list --project <t> --directory <id>`: both selectors are
     /// mandatory; the directory is a strict nonzero 32-lowercase-hex Workbench
@@ -3158,9 +3137,7 @@ fn resolve_words(
             envelope,
         )),
         ["notification", "show", title] => {
-            use orchbee_workbench_protocol::{
-                Notification, NotificationPosition as Position, NotificationSound as Sound,
-            };
+            use orchbee_workbench_protocol::Notification;
             let context = UsageContext::Path("notification show");
             check_scope(options, context, envelope)?;
             let invalid = |option, value: &str, expected| {
@@ -3174,26 +3151,18 @@ fn resolve_words(
                     envelope,
                 )
             };
-            let position = match options.notification_position.as_deref() {
-                None => None,
-                Some("top-left") => Some(Position::TopLeft),
-                Some("top-right") => Some(Position::TopRight),
-                Some("bottom-left") => Some(Position::BottomLeft),
-                Some("bottom-right") => Some(Position::BottomRight),
-                Some(value) => {
-                    return Err(invalid(
-                        "--position",
-                        value,
-                        ExpectedValue::NotificationPosition,
-                    ));
-                }
-            };
-            let sound = match options.notification_sound.as_deref().unwrap_or("none") {
-                "none" => Sound::None,
-                "done" => Sound::Done,
-                "request" => Sound::Request,
-                value => return Err(invalid("--sound", value, ExpectedValue::NotificationSound)),
-            };
+            let position = options
+                .notification_position
+                .as_deref()
+                .map(|value| {
+                    grammar::values::notification_position(value).ok_or_else(|| {
+                        invalid("--position", value, ExpectedValue::NotificationPosition)
+                    })
+                })
+                .transpose()?;
+            let raw_sound = options.notification_sound.as_deref().unwrap_or("none");
+            let sound = grammar::values::notification_sound(raw_sound)
+                .ok_or_else(|| invalid("--sound", raw_sound, ExpectedValue::NotificationSound))?;
             let message = Notification::normalize(
                 title,
                 options.notification_body.as_deref(),
@@ -4739,9 +4708,7 @@ fn adapter_source_option(
 ) -> Result<Option<PathBuf>, ParseFailure> {
     match &options.adapter_source {
         Some(value)
-            if value.is_empty()
-                || !PathBuf::from(value).is_absolute()
-                || value.as_bytes().contains(&0) =>
+            if value.is_empty() || !user_path::absolute(value) || value.as_bytes().contains(&0) =>
         {
             Err(usage_with(
                 UsageReason::InvalidValue {
@@ -4921,10 +4888,7 @@ fn doctor_asset_roots_option(
     envelope: FailureEnvelope,
 ) -> Result<Vec<String>, ParseFailure> {
     for value in &options.asset_roots {
-        if value.is_empty()
-            || !std::path::Path::new(value).is_absolute()
-            || value.as_bytes().contains(&0)
-        {
+        if value.is_empty() || !user_path::absolute(value) || value.as_bytes().contains(&0) {
             return Err(usage_with(
                 UsageReason::InvalidValue {
                     context,

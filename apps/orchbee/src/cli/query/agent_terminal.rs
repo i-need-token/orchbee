@@ -9,23 +9,10 @@ use super::{
     agent_protocol_invalid, agent_session_rejection, agent_unavailable_details,
     classify_agent_read, obap_request_id,
 };
-#[cfg(test)]
-use super::{Projection, read_terminal_on_session, snapshot_session};
 #[cfg(windows)]
 use super::{named_terminal_target, read_terminal_processes};
 use crate::invocation::AgentTarget;
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
-
-#[cfg(test)]
-pub(crate) fn read_agent_terminal(
-    target: &AgentTarget,
-    history: Option<u16>,
-    presentation: super::super::results::ReadPresentation,
-) -> Result<(serde_json::Value, Projection), Failure> {
-    let (mut client, deadline, snapshot) = snapshot_session()?;
-    let target = agent_terminal_target(&mut client, &snapshot, target, deadline)?;
-    read_terminal_on_session(client, deadline, &snapshot, &target, history, presentation)
-}
 
 /// Resolve once, get once, and refuse a missing or ambiguous live binding.
 /// The caller keeps the admission and original deadline for the terminal operation.

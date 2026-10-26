@@ -242,9 +242,6 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceId,
 };
 
-#[cfg(not(windows))]
-use super::PanelMoveDestination;
-#[cfg(windows)]
 use super::PanelRelocationDestination;
 use super::{
     AgentTarget, CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
@@ -1752,14 +1749,6 @@ fn accepts_every_mutation_path() {
                 label: label("session"),
             },
         ),
-        #[cfg(not(windows))]
-        (
-            &["workspace", "create", "--project", "web", "--label", "api"],
-            MutationCommand::WorkspaceCreate {
-                project: Target::Label("web".into()),
-                label: label("api"),
-            },
-        ),
         (
             &["workspace", "rename", "main", "--label", "ops"],
             MutationCommand::WorkspaceRename {
@@ -1812,28 +1801,6 @@ fn accepts_every_mutation_path() {
             &["panel", "close", ID, "--confirm"],
             MutationCommand::PanelClose {
                 target: Target::Id(ID.into()),
-            },
-        ),
-        #[cfg(not(windows))]
-        (
-            &[
-                "panel",
-                "move",
-                ID,
-                "--into-tab",
-                "target-tab",
-                "--target-panel",
-                ID2,
-                "--direction",
-                "left",
-            ],
-            MutationCommand::PanelMove {
-                target: Target::Id(ID.into()),
-                destination: PanelMoveDestination::Tab {
-                    tab: Target::Label("target-tab".into()),
-                    panel: Some(Target::Id(ID2.into())),
-                    direction: WorkbenchPanelSplitDirection::Left,
-                },
             },
         ),
     ];
@@ -2946,23 +2913,6 @@ fn mutation_direction_values_follow_the_command_family() {
             "--direction",
             word,
         ];
-        #[cfg(not(windows))]
-        assert_eq!(
-            parse(&arguments),
-            Ok(mutation(
-                MutationCommand::PanelMove {
-                    target: Target::Id(ID.into()),
-                    destination: PanelMoveDestination::Tab {
-                        tab: Target::Label("target-tab".into()),
-                        panel: Some(Target::Id(ID2.into())),
-                        direction,
-                    },
-                },
-                OutputFormat::Text
-            )),
-            "{arguments:?}"
-        );
-        #[cfg(windows)]
         assert!(
             matches!(parse(&arguments), Ok(Request::PanelRelocation { command, .. })
             if matches!(command.destination, PanelRelocationDestination::Tab { direction: actual, .. } if actual == direction))
@@ -3009,10 +2959,6 @@ fn mutation_required_options_cannot_be_dropped() {
     full_split.extend(GEOMETRY_ARGS);
     let cases: &[&[&str]] = &[
         &["project", "create"],
-        #[cfg(not(windows))]
-        &["workspace", "create", "--label", "x"],
-        #[cfg(not(windows))]
-        &["workspace", "create", "--project", "p"],
         &["workspace", "rename", "w"],
         &["workspace", "accept-directory", "w"],
         &["tab", "rename", "t"],
@@ -3193,25 +3139,20 @@ fn mutation_options_stay_inside_their_command_scope() {
             "{arguments:?}"
         );
     }
-    // The legal form still parses; Windows always composes terminal creation.
-    #[cfg(windows)]
+    // The legal form preserves creation intent on every host.
     assert!(matches!(
         parse(&create),
         Ok(Request::WorkspaceCreation { .. })
     ));
     create.push("--format");
     create.push("json");
-    #[cfg(not(windows))]
-    assert_eq!(
+    assert!(matches!(
         parse(&create),
-        Ok(mutation(
-            MutationCommand::WorkspaceCreate {
-                project: Target::Label("p".into()),
-                label: label("x"),
-            },
-            OutputFormat::Json
-        ))
-    );
+        Ok(Request::WorkspaceCreation {
+            format: OutputFormat::Json,
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -3975,14 +3916,6 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         // Required options, values, and geometry.
-        #[cfg(not(windows))]
-        (
-            &["workspace", "create", "--label", "w"],
-            UsageReason::MissingRequired {
-                context: path("workspace create"),
-                requirement: "'--project'",
-            },
-        ),
         (
             &["workspace", "rename", ID],
             UsageReason::MissingRequired {
@@ -6463,43 +6396,22 @@ fn workspace_launch_preserves_launch_values_in_the_platform_workflow() {
         "/K",
     ])
     .unwrap();
-    let (options, launch) = match request {
-        #[cfg(windows)]
-        Request::WorkspaceCreation { command, format } => {
-            assert!(command.options.cwd.is_none());
-            let command = command
-                .into_resolved(
-                    format,
-                    |_| panic!("absolute path"),
-                    || panic!("absolute path"),
-                )
-                .unwrap();
-            (command.options, command.launch)
-        }
-        #[cfg(not(windows))]
-        Request::Mutation {
-            command:
-                MutationCommand::WorkspaceLaunch {
-                    options, launch, ..
-                },
-            ..
-        } => (options, launch),
-        _ => panic!("directory Workspace launch expected"),
+    let Request::WorkspaceCreation { command, .. } = request else {
+        panic!("directory Workspace launch expected");
     };
-    assert_eq!(options.cwd.unwrap().as_str(), r"C:\project space");
+    assert!(
+        matches!(&command.directory, super::workspace_creation::ParsedWorkspaceCreationDirectory::Explicit(path) if path.as_str() == r"C:\project space")
+    );
+    assert!(command.options.cwd.is_none());
     assert_eq!(
-        options.environment.entries(),
+        command.options.environment.entries(),
         &[("DEMO".to_owned(), "a=b $literal".to_owned())]
     );
-    assert_eq!(launch.unwrap().arguments(), &["/K"]);
+    assert!(
+        matches!(command.launch, Some(super::program::ParsedLaunch::Absolute(launch)) if launch.arguments() == &["/K"])
+    );
     for tail in [
-        #[cfg(not(windows))]
-        vec!["--env", "A=B"],
-        #[cfg(not(windows))]
-        vec!["--exec", r"C:\cmd.exe"],
         vec!["--cols", "80"],
-        #[cfg(not(windows))]
-        vec!["--cwd", "relative"],
         vec![
             "--cwd",
             r"C:\project",
@@ -6606,7 +6518,6 @@ fn projection_selectors_share_one_grammar_across_agent_operations() {
                     command:
                         QueryCommand::AgentGet(target)
                         | QueryCommand::AgentExplain(target)
-                        | QueryCommand::AgentRead { target, .. }
                         | QueryCommand::TerminalOutput {
                             target: super::OutputTarget::Agent(target),
                             ..
@@ -6740,7 +6651,7 @@ fn terminal_and_agent_send_share_extended_keys_and_reject_partial_invalid_sequen
 fn prompt_grammar_keeps_text_literal_and_wait_options_explicit() {
     assert!(
         matches!(parse(&["agent", "prompt", "--name", "alpha", "line one\nline two", "--wait", "--until", "succeeded", "--timeout", "1234"]),
-        Ok(Request::Mutation { command: MutationCommand::AgentPrompt { text, wait: Some(wait), .. }, .. }) if text == "line one\nline two" && wait.timeout_ms == Some(1234))
+        Ok(Request::Mutation { command: MutationCommand::AgentPrompt { text, wait: Some(wait), .. }, .. }) if text == "line one\nline two" && wait.timeout_ms == Some(crate::invocation::AgentWaitTimeout::Milliseconds(1234)))
     );
     for words in [
         vec!["agent", "prompt", "alpha"],

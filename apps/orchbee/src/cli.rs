@@ -85,6 +85,9 @@ pub(crate) mod named_sessions;
 pub(crate) mod output;
 #[cfg(windows)]
 pub(crate) mod panel_relocation;
+#[cfg(not(windows))]
+#[path = "cli/panel_relocation_unix.rs"]
+pub(crate) mod panel_relocation;
 pub(crate) mod present;
 pub(crate) use crate::agent_runtime::processes;
 mod query;
@@ -784,27 +787,6 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             ),
             Err(failure) => parse_failure(failure, locale),
         },
-        #[cfg(test)]
-        QueryCommand::AgentRead {
-            target,
-            history,
-            unwrap,
-            lines,
-        } => {
-            match query::read_agent_terminal(
-                target,
-                *history,
-                results::ReadPresentation {
-                    unwrap: *unwrap,
-                    tail: *lines,
-                },
-            ) {
-                Err(failure) => failure_output(failure, Some(format), locale),
-                Ok((source, projection)) => {
-                    success_output(projection, source, &command, format, locale)
-                }
-            }
-        }
         QueryCommand::AgentGet(session_id) => {
             #[cfg(windows)]
             {
@@ -889,18 +871,6 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             *timeout_ms,
             after.as_ref(),
         ) {
-            Err(failure) => failure_output(failure, Some(format), locale),
-            Ok((source, projection)) => {
-                success_output(projection, source, &command, format, locale)
-            }
-        },
-        #[cfg(test)]
-        QueryCommand::TerminalWaitOutput {
-            target,
-            matcher,
-            rows,
-            timeout_ms,
-        } => match query::wait_output(target, matcher, *rows, *timeout_ms) {
             Err(failure) => failure_output(failure, Some(format), locale),
             Ok((source, projection)) => {
                 success_output(projection, source, &command, format, locale)

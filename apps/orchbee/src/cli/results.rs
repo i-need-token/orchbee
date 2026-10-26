@@ -50,7 +50,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::TerminalList { .. } => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
         #[cfg(test)]
-        QueryCommand::TerminalRead { history, .. } | QueryCommand::AgentRead { history, .. } => {
+        QueryCommand::TerminalRead { history, .. } => {
             if history.is_some() {
                 "orchbee.terminal.history"
             } else {
@@ -58,8 +58,6 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
             }
         }
         QueryCommand::TerminalOutput { .. } => "orchbee.terminal.output",
-        #[cfg(test)]
-        QueryCommand::TerminalWaitOutput { .. } => "orchbee.terminal.wait-output",
         QueryCommand::TerminalSourceWait { .. } => "orchbee.terminal.wait-output",
         QueryCommand::WorktreeList { .. } => "orchbee.worktree.list",
         QueryCommand::LaunchProfileList => "orchbee.launch-profile.list",
@@ -2425,11 +2423,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // answered by the OBAP exchange, never a snapshot projection.
         // `launch-profile list`/`get` ride their own typed catalog read.
         #[cfg(test)]
-        QueryCommand::AgentRead { .. }
-        | QueryCommand::TerminalRead { .. }
-        | QueryCommand::TerminalWaitOutput { .. } => {
-            Err(Failure::new(FailureKind::InternalFailure))
-        }
+        QueryCommand::TerminalRead { .. } => Err(Failure::new(FailureKind::InternalFailure)),
         QueryCommand::PanelProcessInfo(_)
         | QueryCommand::PanelCurrent(PanelQueryTarget::Current | PanelQueryTarget::Client(_))
         | QueryCommand::AgentList { .. }

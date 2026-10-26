@@ -221,7 +221,6 @@ pub(super) fn parse(
             verb @ ("focus" | "zoom" | "layout" | "neighbor" | "edges" | "resize"),
             rest @ ..,
         ] => {
-            let panel = *family == "panel";
             let zoom = *verb == "zoom";
             let path = match (*family, *verb) {
                 ("workspace", "focus") => "workspace focus",

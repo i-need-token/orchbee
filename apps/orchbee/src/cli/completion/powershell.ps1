@@ -51,11 +51,13 @@ __ORCHBEE_GRAMMAR__
     $positionals = [System.Collections.Generic.List[string]]::new()
     $seen = [System.Collections.Generic.List[string]]::new()
     $values = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::Ordinal)
+    $allValues = [System.Collections.Generic.List[object]]::new()
     $pending = ''
     foreach ($word in $words) {
         if ($word -ceq '--') { return }
         if ($pending.Length -gt 0) {
             $values[$pending] = $word
+            $allValues.Add(@($pending, $word))
             $pending = ''
             continue
         }
@@ -68,7 +70,7 @@ __ORCHBEE_GRAMMAR__
             if ($pair.Length -eq 2 -and $grammar.joinedFlags -cnotcontains $flag) { return }
             $seen.Add($flag)
             if ($grammar.valueFlags -ccontains $flag) {
-                if ($pair.Length -eq 2) { $values[$flag] = $pair[1] } else { $pending = $flag }
+                if ($pair.Length -eq 2) { $values[$flag] = $pair[1]; $allValues.Add(@($flag, $pair[1])) } else { $pending = $flag }
             } elseif ($pair.Length -eq 2) { return }
         } else {
             $positionals.Add($word)
@@ -76,8 +78,9 @@ __ORCHBEE_GRAMMAR__
     }
     function Test-OrchbeeLiteral($value, $rule) {
         if ($null -eq $rule) { return $true }
-        if ($rule.trim) { $value = $value.Trim() }
-        return ($value -cmatch $rule.pattern -and $rule.excluded -cnotcontains $value)
+        if ($rule.trim) { $value = $value.Trim($grammar.trimCharacters.ToCharArray()) }
+        if ($value.Length -lt $rule.minimum -or ($null -ne $rule.maximum -and $value.Length -gt $rule.maximum)) { return $false }
+        return (($null -eq $rule.allowed -or $value -cnotmatch ('[^' + $rule.allowed + ']')) -and $rule.excluded -cnotcontains $value)
     }
     if ($machine -and $seen -ccontains '--session') { return }
     $businessSeen = @($seen | Where-Object { $grammar.globalFlags -cnotcontains $_ })
@@ -108,8 +111,11 @@ __ORCHBEE_GRAMMAR__
             if ($command.format) { $allowed += '--format' }
             $valid = $true
             foreach ($value in $command.values) {
-                if ($value.closed -and $values.ContainsKey($value.flag) -and $value.choices -cnotcontains $values[$value.flag]) { $valid = $false }
-                if ($values.ContainsKey($value.flag) -and -not (Test-OrchbeeLiteral $values[$value.flag] $value.string)) { $valid = $false }
+                foreach ($occurrence in $allValues) {
+                    if ($occurrence[0] -cne $value.flag) { continue }
+                    if ($value.closed -and $value.choices -cnotcontains $occurrence[1]) { $valid = $false }
+                    if (-not (Test-OrchbeeLiteral $occurrence[1] $value.string)) { $valid = $false }
+                }
             }
             foreach ($pair in $command.conflicts) {
                 if ($seen -ccontains $pair.flag -and @($pair.with | Where-Object { $seen -ccontains $_ }).Count -gt 0) { $valid = $false }

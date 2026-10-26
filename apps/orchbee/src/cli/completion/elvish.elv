@@ -33,10 +33,11 @@
     }
     var positionals seen = [] []
     var values = [&]
+    var all-values = []
     var pending = ''
     for word $words {
       if (eq $word --) { return }
-      if (not-eq $pending '') { set values[$pending] = $word; set pending = ''; continue }
+      if (not-eq $pending '') { set values[$pending] = $word; set all-values = [$@all-values [$pending $word]]; set pending = ''; continue }
       if (or (has-value $grammar[rootModeFlags] $word) (eq $word -h)) { return }
       if (and (str:has-prefix $word -) (> (count $word) 1)) {
         var pair = [(str:split &max=2 = $word)]
@@ -46,14 +47,17 @@
         if (and (== (count $pair) 2) (not (has-value $grammar[joinedFlags] $flag))) { return }
         set seen = [$@seen $flag]
         if (has-value $grammar[valueFlags] $flag) {
-          if (== (count $pair) 2) { set values[$flag] = $pair[1] } else { set pending = $flag }
+          if (== (count $pair) 2) { set values[$flag] = $pair[1]; set all-values = [$@all-values [$flag $pair[1]]] } else { set pending = $flag }
         } elif (== (count $pair) 2) { return }
       } else { set positionals = [$@positionals $word] }
     }
     fn valid-string {|value rule|
       if (eq $rule $nil) { put $true; return }
-      if $rule[trim] { set value = (str:trim-space $value) }
-      put (and (re:match $rule[pattern] $value) (not (has-value $rule[excluded] $value)))
+      if $rule[trim] { set value = (str:trim $value $grammar[trimCharacters]) }
+      if (< (count $value) $rule[minimum]) { put $false; return }
+      if (and (not-eq $rule[maximum] $nil) (> (count $value) $rule[maximum])) { put $false; return }
+      if (and (not-eq $rule[allowed] $nil) (re:match '[^'$rule[allowed]']' $value)) { put $false; return }
+      put (not (has-value $rule[excluded] $value))
     }
     if (and $machine (has-value $seen --session)) { return }
     var business-seen = []
@@ -94,8 +98,11 @@
           if (and (> $occurrences 1) (not (has-value $command[repeatable] $flag))) { set valid = $false }
         }
         for value $command[values] {
-          if (and $value[closed] (has-key $values $value[flag]) (not (has-value $value[choices] $values[$value[flag]]))) { set valid = $false }
-          if (and (has-key $values $value[flag]) (not (valid-string $values[$value[flag]] $value[string]))) { set valid = $false }
+          for occurrence $all-values {
+            if (not-eq $occurrence[0] $value[flag]) { continue }
+            if (and $value[closed] (not (has-value $value[choices] $occurrence[1]))) { set valid = $false }
+            if (not (valid-string $occurrence[1] $value[string])) { set valid = $false }
+          }
         }
         var limit = $command[operand]
         for group $command[reductions] { if (any $seen $group) { set limit = (- $limit 1) } }

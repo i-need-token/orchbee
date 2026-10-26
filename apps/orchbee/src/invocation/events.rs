@@ -4,8 +4,8 @@ use super::{
     UsageContext, UsageReason, check_scope, missing_command, target, unknown_command, usage_with,
 };
 use orchbee_workbench_protocol::{
-    PanelAgentState, SemanticEventCursor, SemanticEventFilter, SemanticEventKind,
-    SemanticOutputMatch, SemanticOutputSource, WorkbenchClientId,
+    SemanticEventCursor, SemanticEventFilter, SemanticEventKind, SemanticOutputMatch,
+    SemanticOutputSource, WorkbenchClientId,
 };
 
 /// The CLI vocabulary is independent of the private event protocol's historical noun.
@@ -190,14 +190,8 @@ pub(super) fn parse(
     let state = options
         .until
         .first()
-        .map(|raw| match raw.as_str() {
-            "idle" => Ok(PanelAgentState::Idle),
-            "working" => Ok(PanelAgentState::Working),
-            "blocked" => Ok(PanelAgentState::Blocked),
-            "done" => Ok(PanelAgentState::Done),
-            "error" => Ok(PanelAgentState::Error),
-            "unknown" => Ok(PanelAgentState::Unknown),
-            _ => Err(invalid("--until", raw)),
+        .map(|raw| {
+            super::grammar::values::panel_agent_state(raw).ok_or_else(|| invalid("--until", raw))
         })
         .transpose()?;
     let selectors = usize::from(options.workspace.is_some())

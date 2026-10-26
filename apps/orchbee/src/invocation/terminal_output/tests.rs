@@ -201,6 +201,7 @@ fn invalid_or_mixed_source_forms_fail_before_runtime() {
 fn source_wait_defaults_bounds_and_forever_are_explicit() {
     let id = "11111111111111111111111111111111";
     for (extra, source, lines, timeout) in [
+        (vec![], OutputSource::Recent, None, Some(30_000)),
         (
             vec!["--source=visible"],
             OutputSource::Visible,
@@ -244,18 +245,6 @@ fn source_wait_defaults_bounds_and_forever_are_explicit() {
         assert_eq!(selection, OutputSelection { source, lines });
         assert_eq!(timeout_ms, timeout);
     }
-    #[cfg(not(windows))]
-    assert!(matches!(
-        parse(&["terminal", "wait-output", id, "--match=x"]),
-        Ok(Request::Query {
-            command: QueryCommand::TerminalWaitOutput {
-                rows: 1000,
-                timeout_ms: 30_000,
-                ..
-            },
-            ..
-        })
-    ));
     for extra in [
         vec!["--source=visible", "--rows=2"],
         vec!["--lines=1", "--rows=2"],

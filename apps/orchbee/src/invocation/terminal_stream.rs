@@ -57,7 +57,7 @@ pub(super) fn attach(
             takeover: options.takeover,
             mouse: options.mouse.unwrap_or(true),
             timeout_ms: if options.timeout.is_some() {
-                agent_wait_timeout_option(options, context, envelope)?
+                explicit_timeout(options, context, envelope)?
             } else {
                 None
             },
@@ -152,7 +152,7 @@ fn stream(
         ));
     }
     let timeout_ms = if options.timeout.is_some() {
-        agent_wait_timeout_option(options, context, envelope)?
+        explicit_timeout(options, context, envelope)?
     } else {
         None
     };
@@ -166,3 +166,16 @@ fn stream(
 
 #[cfg(test)]
 mod tests;
+
+fn explicit_timeout(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<Option<u32>, ParseFailure> {
+    Ok(
+        match agent_wait_timeout_option(options, context, envelope)? {
+            Some(super::AgentWaitTimeout::Milliseconds(value)) => Some(value),
+            Some(super::AgentWaitTimeout::Forever) | None => None,
+        },
+    )
+}

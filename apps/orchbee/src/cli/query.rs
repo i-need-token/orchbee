@@ -167,8 +167,6 @@ pub(crate) fn panel_process_info(
 }
 #[cfg(any(target_os = "linux", windows))]
 mod agent_terminal;
-#[cfg(all(test, any(target_os = "linux", windows)))]
-pub(crate) use agent_terminal::read_agent_terminal;
 #[cfg(target_os = "linux")]
 pub(crate) use agent_terminal::resolve_agent_terminal;
 #[cfg(windows)]
@@ -3169,20 +3167,6 @@ pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, su
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn terminal_get(
     _target: &crate::invocation::Target,
-) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
-    Err(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    )
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-#[cfg(test)]
-pub(crate) fn read_agent_terminal(
-    _target: &crate::invocation::AgentTarget,
-    _history: Option<u16>,
-    _presentation: super::results::ReadPresentation,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

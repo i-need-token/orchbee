@@ -21,17 +21,21 @@ __orchbee_limit() {
   done
 }
 __orchbee_string() {
-  local key=$1 value=$2 pattern
-  __orchbee_meta "string|$key"; ((${#reply[@]})) || return 0
-  pattern=${reply[0]}
+  local key=$1 value=$2 allowed minimum maximum whitespace=__ORCHBEE_TRIM_CHARACTERS__
+  __orchbee_meta "minimum|$key"; ((${#reply[@]})) || return 0
+  minimum=${reply[0]}
+  __orchbee_meta "maximum|$key"; maximum=${reply[0]-}
   __orchbee_meta "trim|$key"
   if ((${#reply[@]})); then
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
+    value="${value#"${value%%[!$whitespace]*}"}"
+    value="${value%"${value##*[!$whitespace]}"}"
   fi
+  ((${#value} >= minimum)) || return 1
+  [[ -z $maximum ]] || ((${#value} <= maximum)) || return 1
   __orchbee_meta "excluded|$key"
   __orchbee_has "$value" "${reply[@]}" && return 1
-  [[ $value =~ $pattern ]]
+  __orchbee_meta "string|$key"; allowed=${reply[0]-}
+  [[ -z $allowed || $value != *[!$allowed]* ]]
 }
 __orchbee_candidates() {
   if [[ -n ${ZSH_VERSION-} ]]; then emulate -L ksh; fi

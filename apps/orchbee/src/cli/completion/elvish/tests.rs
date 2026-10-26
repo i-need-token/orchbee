@@ -3,7 +3,7 @@
 #[test]
 fn script_carries_the_shared_grammar_within_the_output_bound() {
     let script = super::render();
-    assert!(script.len() < 128 * 1024);
+    assert!(script.len() < crate::cli::output::LIMIT);
     assert!(!script.contains("__ORCHBEE_GRAMMAR__"));
     let start =
         script.find("var grammar = (print '").expect("grammar") + "var grammar = (print '".len();

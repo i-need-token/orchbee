@@ -200,6 +200,12 @@ struct ValueOverride {
 
 const VALUE_OVERRIDES: &[ValueOverride] = &[
     ValueOverride {
+        commands: &[CommandPath::EventsSubscribe, CommandPath::EventsWait],
+        flag: "--until",
+        values: values::PANEL_AGENT_STATES,
+        closed: true,
+    },
+    ValueOverride {
         commands: &[CommandPath::AgentStart],
         flag: "--provider",
         values: crate::agent_provider::CANONICAL_IDS,
@@ -212,6 +218,7 @@ const VALUE_OVERRIDES: &[ValueOverride] = &[
             CommandPath::PanelReportAgent,
             CommandPath::PanelReleaseAgent,
             CommandPath::PanelClearAgentAuthority,
+            CommandPath::AgentViewClear,
         ],
         flag: "--source",
         values: &[],
@@ -352,17 +359,9 @@ impl CommandSpec {
         }
         for (flag, value) in &options.values {
             let (choices, closed) = self.values(flag);
-            let valid_string = self.string_rule(flag).is_none_or(|rule| {
-                let value = if rule.trim {
-                    value.trim()
-                } else {
-                    value.as_str()
-                };
-                regex::Regex::new(rule.pattern)
-                    .expect("literal grammar expression")
-                    .is_match(value)
-                    && !rule.excluded.contains(&value)
-            });
+            let valid_string = self
+                .string_rule(flag)
+                .is_none_or(|rule| rule.accepts(value));
             if !valid_string || (closed && !choices.contains(&value.as_str())) {
                 return Err(usage_with(
                     UsageReason::InvalidValue {
@@ -388,24 +387,56 @@ impl CommandSpec {
     }
 }
 
-/// A bounded literal constraint shared with shell adapters; no host path interpretation.
+/// Character and length constraints, projected without regex anchor or dot semantics.
 pub(crate) struct StringRule {
-    pub(crate) pattern: &'static str,
+    pub(crate) allowed: Option<&'static str>,
+    pub(crate) minimum: usize,
+    pub(crate) maximum: Option<usize>,
     pub(crate) excluded: &'static [&'static str],
     pub(crate) trim: bool,
 }
+impl StringRule {
+    fn accepts(&self, value: &str) -> bool {
+        let value = if self.trim { value.trim() } else { value };
+        let length = value.chars().count();
+        length >= self.minimum
+            && self.maximum.is_none_or(|maximum| length <= maximum)
+            && !self.excluded.contains(&value)
+            && self.allowed.is_none_or(|characters| {
+                !regex::Regex::new(&format!("[^{characters}]"))
+                    .expect("literal ASCII character set")
+                    .is_match(value)
+            })
+    }
+}
+/// Shell trimming uses the same Unicode White_Space definition as Rust's str::trim.
+pub(crate) fn trim_characters() -> &'static str {
+    static CHARACTERS: LazyLock<String> = LazyLock::new(|| {
+        (0..=char::MAX as u32)
+            .filter_map(char::from_u32)
+            .filter(|character| character.is_whitespace())
+            .collect()
+    });
+    &CHARACTERS
+}
 pub(crate) const SESSION_NAME_RULE: StringRule = StringRule {
-    pattern: "^[A-Za-z0-9._-]{1,64}$",
+    allowed: Some("A-Za-z0-9._-"),
+    minimum: 1,
+    maximum: Some(64),
     excluded: &[".", ".."],
     trim: false,
 };
 const METADATA_SOURCE_RULE: StringRule = StringRule {
-    pattern: "^[A-Za-z0-9:._-]{1,80}$",
+    allowed: Some("A-Za-z0-9:._-"),
+    minimum: 1,
+    maximum: Some(80),
     excluded: &[],
     trim: true,
 };
 const AGENT_SOURCE_RULE: StringRule = StringRule {
-    pattern: "^.+$",
+    allowed: None,
+    minimum: 1,
+    maximum: None,
     excluded: &[],
     trim: true,
 };

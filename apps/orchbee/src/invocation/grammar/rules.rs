@@ -827,16 +827,23 @@ static PROJECTED_CONFLICTS: std::sync::LazyLock<
     super::COMMANDS
         .iter()
         .flat_map(|command| {
-            command.flags().iter().map(move |flag| {
-                let mut conflicts = CONFLICTS
-                    .iter()
-                    .filter(|rule| rule.commands.contains(&command.id) && rule.flags.contains(flag))
-                    .flat_map(|rule| rule.incompatible.iter().copied())
-                    .collect::<Vec<_>>();
-                conflicts.sort_unstable();
-                conflicts.dedup();
-                (command.id, *flag, conflicts)
-            })
+            command
+                .flags()
+                .iter()
+                .copied()
+                .chain(command.format.then_some("--format"))
+                .map(move |flag| {
+                    let mut conflicts = CONFLICTS
+                        .iter()
+                        .filter(|rule| {
+                            rule.commands.contains(&command.id) && rule.flags.contains(&flag)
+                        })
+                        .flat_map(|rule| rule.incompatible.iter().copied())
+                        .collect::<Vec<_>>();
+                    conflicts.sort_unstable();
+                    conflicts.dedup();
+                    (command.id, flag, conflicts)
+                })
         })
         .collect()
 });

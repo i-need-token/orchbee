@@ -83,39 +83,46 @@ wait_conditions! {
     Stale => "stale",
     Disconnected => "disconnected",
 }
-pub(crate) const PROVIDER_VALUES: &[&str] = &[
-    "claude-code",
-    "codex",
-    "gemini",
-    "github-copilot",
-    "grok",
-    "cline",
-    "opencode",
-    "kilo",
-    "cursor",
-    "qodercli",
-    "antigravity",
-    "mastracode",
-    "droid",
-    "kimi",
-    "letta",
-    "devin",
-    "hermes",
-    "pi",
-    "omp",
-    "qwen-code",
-];
-pub(crate) const COPY_MOTION_VALUES: &[&str] = &[
-    "line-end",
-    "first-non-blank",
-    "next-word-start",
-    "previous-word-start",
-    "next-word-end",
-    "next-big-word-start",
-    "previous-big-word-start",
-    "next-big-word-end",
-    "previous-paragraph",
-    "next-paragraph",
-];
+pub(crate) const PROVIDER_VALUES: &[&str] = &{
+    use crate::agent_integrations::IntegrationId;
+    let mut values = [""; IntegrationId::ALL.len()];
+    let mut index = 0;
+    while index < values.len() {
+        values[index] = IntegrationId::ALL[index].provider();
+        index += 1;
+    }
+    values
+};
+pub(crate) const COPY_MOTION_VALUES: &[&str] = &{
+    use crate::terminal_copy::CopyMotion;
+    let mut values = [""; CopyMotion::ALL.len()];
+    let mut index = 0;
+    while index < values.len() {
+        values[index] = CopyMotion::ALL[index].token();
+        index += 1;
+    }
+    values
+};
+macro_rules! mapped_values {
+    ($values:ident, $parse:ident, $type:ty, {$($word:literal => $value:expr),+ $(,)?}) => {
+        pub(crate) const $values: &[&str] = &[$($word),+];
+        pub(crate) fn $parse(value: &str) -> Option<$type> {
+            match value { $($word => Some($value),)+ _ => None }
+        }
+    };
+}
+use orchbee_workbench_protocol::{NotificationPosition, NotificationSound, PanelAgentState};
+mapped_values!(PANEL_AGENT_STATES, panel_agent_state, PanelAgentState, {
+    "idle" => PanelAgentState::Idle, "working" => PanelAgentState::Working,
+    "blocked" => PanelAgentState::Blocked, "done" => PanelAgentState::Done,
+    "error" => PanelAgentState::Error, "unknown" => PanelAgentState::Unknown,
+});
+mapped_values!(NOTIFICATION_POSITIONS, notification_position, NotificationPosition, {
+    "top-left" => NotificationPosition::TopLeft, "top-right" => NotificationPosition::TopRight,
+    "bottom-left" => NotificationPosition::BottomLeft, "bottom-right" => NotificationPosition::BottomRight,
+});
+mapped_values!(NOTIFICATION_SOUNDS, notification_sound, NotificationSound, {
+    "none" => NotificationSound::None, "done" => NotificationSound::Done, "request" => NotificationSound::Request,
+});
 pub(crate) const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
 pub(crate) const FORMAT_VALUES: &[&str] = &["text", "json"];

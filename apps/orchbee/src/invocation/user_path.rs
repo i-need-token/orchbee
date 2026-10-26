@@ -27,3 +27,15 @@ impl ParsedUserPath {
         }
     }
 }
+
+/// Absolute path vocabulary for inert local inputs, independent of the parsing host.
+pub(super) fn absolute(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    value.starts_with('/')
+        || matches!(bytes, [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic())
+        || value.strip_prefix(r"\\").is_some_and(|tail| {
+            let mut parts = tail.split(['/', '\\']);
+            parts.next().is_some_and(|part| !part.is_empty())
+                && parts.next().is_some_and(|part| !part.is_empty())
+        })
+}

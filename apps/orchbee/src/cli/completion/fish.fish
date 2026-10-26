@@ -16,14 +16,24 @@ function __orchbee_limit
 end
 function __orchbee_string
     set -l key $argv[1]
-    set -l value $argv[2]
-    set -l pattern (__orchbee_meta "string|$key")
-    test (count $pattern) -gt 0; or return 0
+    set -l value "$argv[2]"
+    set -l minimum (__orchbee_meta "minimum|$key")
+    test (count $minimum) -gt 0; or return 0
     if test (count (__orchbee_meta "trim|$key")) -gt 0
-        set value (string trim -- $value)
+        set -l whitespace __ORCHBEE_TRIM_CHARACTERS__
+        set value (string trim -c "$whitespace" -- "$value" | string collect --allow-empty)
     end
-    contains -- $value (__orchbee_meta "excluded|$key"); and return 1
-    string match -qr -- $pattern $value
+    set -l length (string length -- "$value")
+    test $length -ge $minimum; or return 1
+    set -l maximum (__orchbee_meta "maximum|$key")
+    if test (count $maximum) -gt 0; and test $length -gt $maximum
+        return 1
+    end
+    contains -- "$value" (__orchbee_meta "excluded|$key"); and return 1
+    set -l allowed (__orchbee_meta "string|$key")
+    if test (count $allowed) -gt 0; and test -n "$allowed"
+        not string match -qr -- "[^$allowed]" "$value"
+    end
 end
 function __orchbee_candidates
     set -l words (commandline -opc)
