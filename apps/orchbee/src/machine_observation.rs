@@ -155,11 +155,10 @@ pub(crate) struct Collector<T> {
 }
 impl<T: Clone + Send + Sync + 'static> Collector<T> {
     pub(crate) fn new(wakeup: UiWakeup, sample_external: bool) -> Self {
-        Self {
-            wakeup: Some(wakeup),
-            sample_external,
-            ..Self::default()
-        }
+        let mut collector = Self::default();
+        collector.wakeup = Some(wakeup);
+        collector.sample_external = sample_external;
+        collector
     }
     pub(crate) fn sample_external_sources(&mut self, enabled: bool) {
         self.sample_external = enabled;
