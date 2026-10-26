@@ -145,10 +145,13 @@ fn external_preferences_keep_their_deadline_during_traffic_and_idle() {
         );
         let external = UserPreferencesStore::new(scope);
         let save = |source: &str, theme: &str| {
-            let request: UserPreferencesRequest = serde_json::from_value(serde_json::json!({
-                "kind": "update", "source": source, "changes": { "applicationTheme": theme }
-            }))
-            .unwrap();
+            let request = UserPreferencesRequest::Update {
+                source: source.to_owned(),
+                changes: serde_json::from_value(serde_json::json!({
+                    "applicationTheme": theme
+                }))
+                .unwrap(),
+            };
             let UserPreferencesResponse::Snapshot {
                 snapshot,
                 changed: true,
