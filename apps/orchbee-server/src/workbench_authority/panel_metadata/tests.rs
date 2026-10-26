@@ -601,7 +601,6 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
         },
         &[fact],
         now,
-        |p| std::path::Path::new(p).is_absolute(),
     );
     let orchbee_workbench_protocol::PanelAgentOutcome::Read {
         report_revision,

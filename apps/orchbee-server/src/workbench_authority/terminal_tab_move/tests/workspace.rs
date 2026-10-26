@@ -1,5 +1,4 @@
 use super::*;
-use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, Project, Snapshot,
     TerminalPresentationId, WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchSplitId,

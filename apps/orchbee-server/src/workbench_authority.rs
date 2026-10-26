@@ -30,9 +30,8 @@ mod agent_reports;
 mod panel_agent;
 mod report_membership;
 pub use panel_agent::{
-    PreparedManagedAgentClear, TerminalAgentBinding, TerminalAgentExplainContext,
-    TerminalAgentNameOwner, TerminalAgentProcessObservation, TerminalAgentProcessOutcome,
-    TerminalAgentScreenObservation,
+    TerminalAgentBinding, TerminalAgentExplainContext, TerminalAgentNameOwner,
+    TerminalAgentProcessObservation, TerminalAgentProcessOutcome, TerminalAgentScreenObservation,
 };
 mod panel_metadata;
 mod plugin_panes;
