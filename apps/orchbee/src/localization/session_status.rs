@@ -3,7 +3,6 @@
 use super::Locale;
 
 impl Locale {
-    #[cfg(any(unix, windows))]
     pub(crate) const fn terminal_status(
         self,
         status: crate::workbench_client::TerminalStatus,
@@ -31,13 +30,11 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     pub(crate) fn native_status(
         self,
         view: &crate::workbench_client::WorkbenchClientView<'_>,
         columns: u16,
     ) -> String {
-        #[cfg(windows)]
         if let Some(notice) = view.worktree_notice() {
             return self.worktree_status_line(notice, view.worktree().map(|v| v.stage()));
         }
@@ -68,7 +65,6 @@ impl Locale {
             }
             return status;
         }
-        #[cfg(windows)]
         if view.notice().is_none()
             && view.retirement().is_none()
             && view.setup_status().is_none()
@@ -122,7 +118,6 @@ impl Locale {
         )
     }
 
-    #[cfg(any(unix, windows))]
     pub(crate) fn native_phase_status(
         self,
         view: &crate::workbench_client::WorkbenchClientView<'_>,
@@ -165,7 +160,6 @@ impl Locale {
         )
     }
 
-    #[cfg(any(unix, windows))]
     pub(crate) const fn native_unbound_terminal(self) -> &'static str {
         match self {
             Self::EnUs => "Empty terminal slot · Use panel create-terminal to start a terminal",
@@ -173,7 +167,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_phase_status_values(
         self,
         phase: crate::workbench_client::NativeDisplayPhase,
@@ -262,7 +255,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     pub(crate) fn native_refresh_status(
         self,
         status: crate::workbench_client::NativeRefreshStatus,
@@ -275,7 +267,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// Adds only the matching operation's sanitized display context to a localized notice.
     pub(crate) fn native_notice_with_context(
         self,
@@ -283,7 +274,6 @@ impl Locale {
         native: &crate::workbench_client::WorkbenchClientView<'_>,
     ) -> String {
         let message = self.native_notice(notice);
-        #[cfg(windows)]
         if let Some(context) = native.notice_context() {
             use crate::workbench_client::NativeNoticeContext;
             return match context {
@@ -296,23 +286,19 @@ impl Locale {
                 ),
             };
         }
-        #[cfg(not(windows))]
-        let _ = native;
         message
     }
 
-    #[cfg(any(unix, windows))]
     pub(crate) fn native_notice(
         self,
         notice: crate::workbench_client::WorkbenchClientNotice,
     ) -> String {
         use crate::workbench_client::WorkbenchClientNotice;
         match notice {
+            WorkbenchClientNotice::Unsupported(capability) => self.unsupported_capability(capability),
             WorkbenchClientNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
-            #[cfg(windows)]
             WorkbenchClientNotice::AgentStart(phase) => self.agent_start_phase(phase).to_owned(),
             WorkbenchClientNotice::LocalBusy => self.native_local_busy().to_owned(),
-            #[cfg(windows)]
             WorkbenchClientNotice::MenuUnavailable => match self {
                 Self::EnUs => "Menu action cancelled or unavailable · open the menu again".into(),
                 Self::ZhCn => "菜单动作已取消或不可用 · 请重新打开菜单".into(),
@@ -381,22 +367,18 @@ impl Locale {
                 Self::EnUs => "Showing the latest output".to_owned(),
                 Self::ZhCn => "正在显示最新输出".to_owned(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::CommandAccepted => match self {
                 Self::EnUs => "Command accepted".into(),
                 Self::ZhCn => "命令已接受".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::CommandFailed => match self {
                 Self::EnUs => "Command or focus failed; inspect result".into(),
                 Self::ZhCn => "命令或聚焦失败；请检查结果".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::CommandUnknown => match self {
                 Self::EnUs => "Outcome unknown; inspect before retry".into(),
                 Self::ZhCn => "结果不确定；请检查后再决定是否重试".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::CommandRefused(reason) => {
                 use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
                 match (self, reason) {
@@ -421,49 +403,40 @@ impl Locale {
                 }
                 .into()
             }
-            #[cfg(windows)]
             WorkbenchClientNotice::LaunchProfileSelected => match self {
                 Self::EnUs => "Launch profile".into(),
                 Self::ZhCn => "启动配置".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LaunchProfileUnavailable => match self {
                 Self::EnUs => "Terminal not created · check profile in Settings".into(),
                 Self::ZhCn => "终端未创建 · 请在设置中检查启动配置".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LinkOpened => match self {
                 Self::EnUs => "Link opened".into(),
                 Self::ZhCn => "链接已打开".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LinkHandled => match self {
                 Self::EnUs => "Link sent to a plugin".into(),
                 Self::ZhCn => "链接已交给插件处理".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LinkNoLink => match self {
                 Self::EnUs => "No link at that cell".into(),
                 Self::ZhCn => "该单元格没有链接".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LinkBusy => match self {
                 Self::EnUs => "Another link activation is still running".into(),
                 Self::ZhCn => "另一个链接仍在处理中".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LinkFailed => match self {
                 Self::EnUs => "Link activation failed".into(),
                 Self::ZhCn => "链接打开失败".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::LinkUnknown => match self {
                 Self::EnUs => {
                     "Link activation outcome unknown · inspect before trying again".into()
                 }
                 Self::ZhCn => "链接处理结果不确定 · 请检查后再决定是否重试".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::PopupUnavailable => match self {
                 Self::EnUs => {
                     "Popup connection or cleanup uncertain · restart the session before reopening"
@@ -531,29 +504,24 @@ impl Locale {
                 Self::EnUs => "Terminal bell delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认终端响铃投递结果".to_owned(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::PositionChanged => match self {
                 Self::EnUs => {
                     "The saved Tab or pane is unavailable; showing the first available member.".into()
                 }
                 Self::ZhCn => "上次的标签页或面板已不可用；已打开首个可用成员。".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::PositionChangedEmpty => match self {
                 Self::EnUs => "The saved Tab is unavailable; showing the empty Workspace.".into(),
                 Self::ZhCn => "上次的标签页已不可用；已打开原工作区的空视图。".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::PositionLocationChanged => match self {
                 Self::EnUs => "The saved location could not be restored; showing the first available Workspace.".into(),
                 Self::ZhCn => "无法恢复上次的位置；已打开首个可用工作区。".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::PositionLocationChangedEmpty => match self {
                 Self::EnUs => "The saved location could not be restored; showing an empty Workspace.".into(),
                 Self::ZhCn => "无法恢复上次的位置；已打开空工作区。".into(),
             },
-            #[cfg(windows)]
             WorkbenchClientNotice::PositionUnavailable => match self {
                 Self::EnUs => {
                     "Position memory is unavailable; terminal tasks are still running.".into()
@@ -563,7 +531,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_starting_status(
         self,
         label: Option<&str>,
@@ -576,7 +543,6 @@ impl Locale {
         )
     }
 
-    #[cfg(any(unix, windows))]
     fn native_switching_status(
         self,
         label: Option<&str>,
@@ -589,7 +555,6 @@ impl Locale {
         )
     }
 
-    #[cfg(any(unix, windows))]
     fn native_connection_status(
         self,
         label: Option<&str>,
@@ -610,7 +575,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     const fn native_creating(self) -> &'static str {
         match self {
             Self::EnUs => "Creating Tab…",
@@ -618,7 +582,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     const fn native_create_not_created(self) -> &'static str {
         match self {
             Self::EnUs => "Tab not created · previous Tab unchanged",
@@ -626,7 +589,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     const fn native_refreshing(self) -> &'static str {
         match self {
             Self::EnUs => "Refreshing Tabs…",
@@ -634,7 +596,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_refresh_success(self, revision: u64) -> String {
         match self {
             Self::EnUs => format!("Tabs refreshed · revision {revision}"),
@@ -642,7 +603,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_refresh_failure(self, revision: u64) -> String {
         match self {
             Self::EnUs => format!("Tab refresh failed · showing revision {revision}"),
@@ -650,7 +610,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     const fn native_local_busy(self) -> &'static str {
         match self {
             Self::EnUs => "Client busy · no command sent",
@@ -658,7 +617,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_no_tab(self, position: u8) -> String {
         match self {
             Self::EnUs => format!("No Tab at position {position}"),
@@ -666,7 +624,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// Labels a one-based automatic Tab position without changing its canonical name.
     pub(crate) fn automatic_tab_label(self, position: usize) -> String {
         match self {
@@ -675,7 +632,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// Names how many panes a zoomed pane hides behind it.
     pub(crate) fn zoomed_panes(self, count: usize) -> String {
         match self {
@@ -684,7 +640,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_connecting(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · Connecting…"),
@@ -692,7 +647,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_waiting_for_frame(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · Connecting · waiting for full frame"),
@@ -700,7 +654,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_display_blocked(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · Connecting · display blocked"),
@@ -708,7 +661,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_ready_controlling(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · Ready"),
@@ -716,7 +668,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_ready_read_only(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · Ready · view only"),
@@ -724,7 +675,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     const fn native_committed_refresh_required(self) -> &'static str {
         match self {
             Self::EnUs => "Created Tab committed · refresh required",
@@ -732,7 +682,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_terminal_pending(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · terminal creation pending · no replay"),
@@ -740,7 +689,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_terminal_unavailable(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · terminal unavailable"),
@@ -748,7 +696,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_terminal_failed(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · terminal creation failed"),
@@ -756,7 +703,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     fn native_terminal_outcome_unknown(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("{label} · terminal result unknown · no replay"),

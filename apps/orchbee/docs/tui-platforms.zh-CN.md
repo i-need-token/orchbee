@@ -72,3 +72,5 @@ Server 仍逐项授权请求；编译可达不代表 Server 或 Host 实现了�
 OS、模拟器／版本、几何、locale、主题和能力，覆盖共享导航、菜单、调整大小和复制模式搜索，
 以及缺失适配的本地化拒绝。远程连接失败或 Windows 检查都不能证明 macOS 或 Linux 通过。
 [TUI 验证](../../../docs/zh-CN/tui/verification.md)管理证据类别。
+
+<!-- documentation-pairing: english-sha256=3ef9a723ff7dda91334455b99d2f9062bda80d201f6adfb135f1170aa99c20f1 zh-cn-sha256=bd25d468f1ddbb5f5273c263d520597306980741534b845235cf62fac2a52c84 -->

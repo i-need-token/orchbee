@@ -23,11 +23,7 @@ pub(crate) struct ShellText<'a> {
     pub(crate) exit_hint: &'a str,
     pub(crate) hint_short: &'a str,
     pub(crate) binding_unbound: &'static str,
-    #[cfg(not(windows))]
-    pub(crate) overlay_input_hint: &'static str,
     pub(crate) overlay_refused: &'static str,
-    #[cfg(not(windows))]
-    pub(crate) navigator_detail: &'static str,
     pub(crate) navigator_title: &'static str,
     pub(crate) no_client_connection: &'static str,
     pub(crate) panel_title: &'static str,
@@ -60,13 +56,9 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     exit_hint: "Ctrl+B q · exit",
     hint_short: "Ctrl+B ? · help",
     overlay_refused: "Not enough room to show this view · resize the terminal",
-    #[cfg(not(windows))]
-    navigator_detail: "A session connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
     no_client_connection: "No Orchbee session is connected.",
     binding_unbound: "Unbound",
-    #[cfg(not(windows))]
-    overlay_input_hint: "Terminal input continues while this overlay is visible.",
     panel_title: "Terminal",
     pointer_released: "mouse released · Ctrl+B m restores",
     prefix_active: "PREFIX Ctrl+B",
@@ -97,13 +89,9 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     exit_hint: "Ctrl+B q · 退出",
     hint_short: "Ctrl+B ? · 帮助",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
-    #[cfg(not(windows))]
-    navigator_detail: "连接会话后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
     no_client_connection: "当前未连接 Orchbee 会话。",
     binding_unbound: "未绑定",
-    #[cfg(not(windows))]
-    overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
     panel_title: "终端",
     pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
     prefix_active: "前缀 Ctrl+B",
@@ -240,7 +228,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn navigator_columns(self) -> (&'static str, &'static str) {
         match self {
             Self::EnUs => ("Workspaces / terminals", "Tabs in this location"),
@@ -248,7 +235,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) const fn resize_done_label(self) -> &'static str {
         match self {
             Self::EnUs => "Done",
@@ -258,35 +244,32 @@ impl Locale {
 
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
-            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::NotificationUnsupported)) => {
+                "Host notification delivery is not supported on this platform"
+            }
+            (Self::ZhCn, Some(Notice::NotificationUnsupported)) => "此平台尚不支持宿主通知投递",
+            (Self::EnUs, Some(Notice::WindowTitleUnsupported)) => {
+                "Setting the host window title is not supported on this platform"
+            }
+            (Self::ZhCn, Some(Notice::WindowTitleUnsupported)) => "此平台尚不支持设置宿主窗口标题",
+
             (Self::EnUs, Some(Notice::OnboardingSaveFailed)) => {
                 "Guide closed here; saving failed, so it may return next time"
             }
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::OnboardingSaveFailed)) => {
                 "本次引导已关闭；保存失败，下次可能再次显示"
             }
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; input was not queued",
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::ResizeBusy)) => "大小调整待定；输入未排队",
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeFailed)) => "Resize failed; inspect the current layout",
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::ResizeFailed)) => "大小调整失败；请检查当前布局",
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeUnknown)) => {
                 "Resize outcome unknown; inspect layout before trying again"
             }
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::ResizeUnknown)) => "大小调整结果不确定；请先检查布局再操作",
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeNoSplit)) => "No divider on this axis",
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::ResizeNoSplit)) => "该方向没有分隔线",
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeLimit)) => "Divider is at its size limit",
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::ResizeLimit)) => "分隔线已达到大小边界",
             (Self::EnUs, Some(Notice::CheckpointRecovered)) => {
                 "Unreadable workspace snapshots retained; restored a valid snapshot"
@@ -376,14 +359,12 @@ impl Locale {
                     | BackendAction::ConfigureWorkspaceDirectory,
                 )),
             ) => "工作区设置不可用 · 未发送命令",
-            #[cfg(windows)]
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorktree | BackendAction::OpenWorktree,
                 )),
             ) => "Worktree unavailable · no command was sent",
-            #[cfg(windows)]
             (
                 Self::ZhCn,
                 Some(Notice::BackendUnavailable(
@@ -414,11 +395,9 @@ impl Locale {
                 "Terminal input unavailable · input was not sent"
             }
             (Self::ZhCn, Some(Notice::TerminalInputUnavailable)) => "终端输入不可用 · 未发送输入",
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::WorkspaceNavigationUnavailable)) => {
                 "Could not switch · select the destination again to retry"
             }
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::WorkspaceNavigationUnavailable)) => {
                 "无法切换 · 请再次选择目标以重试"
             }
@@ -428,13 +407,10 @@ impl Locale {
             (Self::ZhCn, Some(Notice::PointerInputDropped)) => {
                 "指针输入被丢弃 · 焦点切换未及时就绪"
             }
-            #[cfg(windows)]
             (Self::EnUs, Some(Notice::NavigatorChanged)) => {
                 "Navigator closed · location or target changed"
             }
-            #[cfg(windows)]
             (Self::ZhCn, Some(Notice::NavigatorChanged)) => "导航器已关闭 · 位置或目标已改变",
-            #[cfg(windows)]
             (_, Some(Notice::NavigatorTooSmall)) => self.shell().overlay_refused,
             (Self::EnUs, Some(Notice::UnknownPrefix)) => "Unknown prefix key",
             (Self::ZhCn, Some(Notice::UnknownPrefix)) => "未知前缀键",

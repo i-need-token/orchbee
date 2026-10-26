@@ -1,26 +1,23 @@
 //! Owns locale selection and the localized presentation boundary for this executable.
 //! Feature modules own human-facing copy; domain and protocol identifiers stay unchanged.
 
-#[cfg(windows)]
 mod action_menu;
 #[cfg(windows)]
 mod agent_projection;
 mod control_takeover;
 mod directory_startup;
-#[cfg(windows)]
 mod machines;
-#[cfg(windows)]
 mod navigator;
 mod notification;
 mod operation;
 mod presentation;
-#[cfg(windows)]
 mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
 #[cfg(windows)]
 mod plugins;
 mod shortcut_help;
 pub(crate) use shortcut_help::{ShortcutHelpEntry, shortcut_filter_matches};
+mod capabilities;
 mod runtime_configuration;
 mod settings;
 mod status;
@@ -35,13 +32,11 @@ mod cli;
 pub(crate) use cli::{HelpDetails, HelpText};
 #[cfg(windows)]
 mod configured_commands;
-#[cfg(windows)]
 mod copy_mode;
 #[cfg(windows)]
 mod events;
 #[cfg(windows)]
 mod pane_graphics;
-#[cfg(windows)]
 mod panel_reports;
 pub(crate) use cli::{CliLabels, DetailLabel};
 mod agent_board;
@@ -63,7 +58,6 @@ mod terminal_history;
 mod workspace_close;
 #[cfg(any(unix, windows))]
 mod workspace_setup;
-#[cfg(windows)]
 mod worktree_launch;
 pub(crate) use shell::ShellText;
 

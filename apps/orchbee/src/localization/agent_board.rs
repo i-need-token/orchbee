@@ -27,6 +27,7 @@ pub(crate) struct AgentBoardText {
     pub(crate) empty_partial: &'static str,
     /// PATH-backed startup form copy.
     pub(crate) start_checking: &'static str,
+    pub(crate) start_platform_unsupported: &'static str,
     pub(crate) start_catalog_unavailable: &'static str,
     pub(crate) start_none_found: &'static str,
     pub(crate) start_providers: &'static str,
@@ -77,6 +78,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     empty_start: "Choose an installed Agent. Its name is ready to use or edit.",
     empty_partial: "No sessions in this partial read.",
     start_checking: "Looking for installed commands; you can choose now.",
+    start_platform_unsupported: "Starting an Agent is not supported on this platform.",
     start_catalog_unavailable: "Detection incomplete. Choose an Agent installed in this terminal.",
     start_none_found: "Nothing detected. You can still choose an installed Agent.",
     start_providers: "Found on PATH",
@@ -127,6 +129,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     empty_start: "选择已安装的智能体，名称已填好，也可修改。",
     empty_partial: "本次不完整读取暂未返回会话。",
     start_checking: "正在查找已安装的命令；也可直接选择。",
+    start_platform_unsupported: "此平台尚不支持启动智能体。",
     start_catalog_unavailable: "检测未完成，请选择此终端中已安装的智能体。",
     start_none_found: "未检测到命令，仍可手动选择已安装的智能体。",
     start_providers: "已在 PATH 中找到",
@@ -172,7 +175,6 @@ impl Locale {
 
     /// One board row's canonical semantic status, rendered verbatim —
     /// the board localizes the server's verdict, never reinterprets it.
-    #[cfg(any(unix, windows))]
     pub(crate) fn agent_status(
         self,
         status: &orchbee_agent_observation_protocol::AgentSemanticStatus,
@@ -219,7 +221,6 @@ impl Locale {
     }
 
     /// The board body's line for a non-ready read state.
-    #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_read_line(
         self,
         read: crate::workbench_client::AgentBoardRead,
@@ -240,7 +241,6 @@ impl Locale {
     }
 
     /// A jump refusal's board notice.
-    #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_notice(
         self,
         failure: crate::workbench_client::JumpFailure,
@@ -260,7 +260,6 @@ impl Locale {
     /// The sidebar's one-line Agent summary: the last *completed* read's
     /// count plus its completeness and age marks — `None` input means no
     /// completed read ever ran and the line must not exist at all.
-    #[cfg(any(unix, windows))]
     pub(crate) fn agent_sidebar_line(
         self,
         summary: crate::workbench_client::AgentBoardSummary,
@@ -285,7 +284,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn agent_start_phase(
         self,
         phase: crate::workbench_client::AgentStartPhase,

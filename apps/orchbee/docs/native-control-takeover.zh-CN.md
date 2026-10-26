@@ -70,4 +70,4 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 Windows Terminal 或真实 Agent provider 验收，也不建立主动更新控制标签的通知契约。
 同作者审读不等同独立确认。
 
-<!-- documentation-pairing: english-sha256=ab35fd0f187c27793ad087dfcba277c59dc86fa6f4b097043ddcf568f98bd145 zh-cn-sha256=ae5092a1854f82d3f13bf80fefa78924c2fdf6edcfc6bf76b9cf92fabce113b9 -->
+<!-- documentation-pairing: english-sha256=9d0f1867a102094fca5f0914235b649beb1cda54b187c30ca36d3432476b07ee zh-cn-sha256=b79d245d095621704ada9c1080725197be07d9b737796dadfbe960ee8d787387 -->

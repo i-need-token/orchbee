@@ -499,4 +499,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=6bf15b15a63708e580809959c939ac6d65fdeddc28098e6839f52a5e77172153 zh-cn-sha256=70c4b85326894f13f2f0600cb62f5811aa929f23f8ad864aab824cde70cb666c -->
+<!-- documentation-pairing: english-sha256=604485664c1462a50bbd14430086e3791795030ee30615b0314e742bc41a5f19 zh-cn-sha256=52da5297caa108324b522077147ed0a4757ed720df581ab2f9548e7dbab9f24f -->

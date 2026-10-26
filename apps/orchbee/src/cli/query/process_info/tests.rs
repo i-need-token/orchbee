@@ -1,4 +1,5 @@
 use super::*;
+use crate::{cli::results::Projection, invocation::QueryCommand};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, TerminalId, TerminalProcess, TypedFailure,
     encode_connection_control, encode_process_info_control, encode_transport_envelope,

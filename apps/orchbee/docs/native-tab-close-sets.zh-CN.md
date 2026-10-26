@@ -82,4 +82,4 @@ Server 发布 owner 仅在移除关闭 Tab 后其源组变空时删除该组。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=231338119a02a2c64e0989e2a457f52769e101dc9db888ae6f1dba018d2a601c zh-cn-sha256=d7010a25fd1daf4ef62786dfc5da1c9ed64cba949f8dc77ec9ed9648e640d1f9 -->
+<!-- documentation-pairing: english-sha256=e7b7c9b8aab1e7e358aa54b81b44f6bc72324320449dce9578796d1f277c92a0 zh-cn-sha256=3a657046a5ca6adb2027e77ad8c8133d0a68b6f26955b121e274405ca5f022fc -->

@@ -185,4 +185,4 @@ Minimal 尺寸下，以两种语言和原生／RGB 主题组合完整 shell。�
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=98a84f77be1adc683d5f577e07ad6bb4d8e60a028ec11300ce329029713be273 zh-cn-sha256=76de384415d69a2e4008f7bef5a57d6d35c6623508c973e510b33feaba117793 -->
+<!-- documentation-pairing: english-sha256=51067f7ba898b26100864060e004b2a980185a987f69ed97c01a6038bc8c56b0 zh-cn-sha256=d07b23941173e05196b525ff2914bf0ec9e0ca984c649ec0dd6f6850b93956b9 -->

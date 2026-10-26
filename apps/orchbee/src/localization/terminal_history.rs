@@ -3,7 +3,6 @@
 use super::Locale;
 
 impl Locale {
-    #[cfg(any(unix, windows))]
     /// The right-edge badge a pane carries while its retained-history core
     /// owns the leaf.
     pub(crate) const fn terminal_history_badge(self) -> &'static str {
@@ -13,7 +12,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// The loading indicator while entry or a row window is still in
     /// flight — no retained content may show yet.
     pub(crate) const fn terminal_history_loading(self) -> &'static str {
@@ -23,7 +21,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// The recovering indicator while the core returns the pane to live.
     pub(crate) const fn terminal_history_recovering(self) -> &'static str {
         match self {
@@ -32,7 +29,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// The retained-window position readout: the window's first retained
     /// row index out of the total retained rows the host reported.
     pub(crate) fn terminal_history_position(self, start_row: u64, total_rows: u64) -> String {
@@ -42,7 +38,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// The persistent bottom-line hint for leaving history and returning
     /// to live output.
     pub(crate) const fn terminal_history_hint(self) -> &'static str {
@@ -52,7 +47,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// Live viewing is clipped locally; the physical terminal keeps its controller's size.
     pub(crate) const fn terminal_live_crop(self) -> &'static str {
         match self {
@@ -61,7 +55,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// Complete compact clipping and history-entry instruction for a narrow live viewer.
     pub(crate) const fn terminal_live_crop_compact(self) -> &'static str {
         match self {
@@ -70,7 +63,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(unix, windows))]
     /// Short action label paired with the effective history-entry binding.
     pub(crate) const fn terminal_view_history(self) -> &'static str {
         match self {

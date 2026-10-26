@@ -256,4 +256,4 @@ Cargo/TypeScript 检查。受影响的根门禁仍为必需。
 
 Shell 保留启动时是否由非空 `NO_COLOR` 禁用了颜色，并将该原因传入已提交主题及预览主题。应用／终端主题和可编辑颜色的说明以两种语言解释颜色抑制。校验、确认和未知保存结果的恢复信息优先。提示不会仅由单色模式推断 `NO_COLOR`，不会在渲染时读取环境，也不会更改已保存的主题选项。
 
-<!-- documentation-pairing: english-sha256=f2bba5d3148fee5ac789b8c86f4c05e0e1aca7016babf71a525e162fce461956 zh-cn-sha256=f995cd7a91179d32514cb178273a81364552221adb397590e099c3bbb0447bac -->
+<!-- documentation-pairing: english-sha256=d1984c1f5502d1717d8eabfc49a3769fa2283d31e4117b299f876531e5f739d9 zh-cn-sha256=9a6556232d9c3e389e48e72d9bd579946c575d2801641bef1503a1697a730df9 -->

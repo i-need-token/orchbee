@@ -3,7 +3,6 @@
 use super::Locale;
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn onboarding_title(self) -> &'static str {
         match self {
             Self::EnUs => "Welcome to Orchbee",
@@ -11,7 +10,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn onboarding_status(self, failed: bool) -> &'static str {
         match (self, failed) {
             (Self::EnUs, false) => "You can keep typing.",
@@ -21,7 +19,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn onboarding_label(self, action: crate::onboarding::Action) -> &'static str {
         use crate::onboarding::Action::*;
         match (self, action) {

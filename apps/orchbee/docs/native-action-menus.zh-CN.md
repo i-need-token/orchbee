@@ -366,4 +366,4 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 
 侧栏锚定菜单保留被覆盖行的完整矩形用于定位，同时抑制底层输入目标。空间允许时在行旁打开，否则在其上方或下方打开。工作树发现过程在检查中、可用和不可用结果间保留原因行，使靠边放置的重命名与删除操作保持位置。
 
-<!-- documentation-pairing: english-sha256=bf43d2f79e9cbbcb020b887a154ea913b19b4ec228604302889b5d374725ca28 zh-cn-sha256=d7fab3b75ac6024436842773c541ebad4ac73e49c3da69fd955ae992c7ff036b -->
+<!-- documentation-pairing: english-sha256=6a4f53142e8bc0117a5fdcb08b0844ac2be8eef03daca54dee6da9a8ba1fa41b zh-cn-sha256=3cf23d2fe130776522334c35634b0d3999a5e10ab9daec98b1e1c7930e35628e -->

@@ -176,4 +176,4 @@ unavailable／unknown、投影恢复及超时均停止剩余源。当前操作�
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 
-<!-- documentation-pairing: english-sha256=3e17b379392f596646ba8b25c59e8ca2fde691afbbb9b6d67cf95c01a5849b95 zh-cn-sha256=ff38c2ed45121e9ae3a38119839965dfc56c6d71532eec742e30c6adcba11cad -->
+<!-- documentation-pairing: english-sha256=344511581af0dda5dc0be2448dbd17612336a552f203e56dd87d8bfa6e7e9c52 zh-cn-sha256=8e6efb508954e034891bbbbd2a8da4f49eef49291b43ffa4365a3b81c40a5be9 -->

@@ -5,64 +5,36 @@ use crate::client_view::PrefixDesc;
 
 pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
-        #[cfg(windows)]
         PrefixDesc::DismissOnboarding => "Dismiss the welcome guide",
-        #[cfg(windows)]
         PrefixDesc::ConfiguredCommand(_) => "Run configured command",
-        #[cfg(windows)]
         PrefixDesc::ResizeMode => "Enter pane resize mode",
-        #[cfg(windows)]
         PrefixDesc::CopyMode => "Enter keyboard copy mode",
-        #[cfg(windows)]
         PrefixDesc::CopyMove => "Move the copy cursor",
-        #[cfg(windows)]
         PrefixDesc::CopyWord => "Move by word / whitespace-delimited word",
-        #[cfg(windows)]
         PrefixDesc::CopyParagraph => "Move to previous / next paragraph",
-        #[cfg(windows)]
         PrefixDesc::CopyPage => "Page older / newer content (pages help while open)",
-        #[cfg(windows)]
         PrefixDesc::CopyEnds => "Go to oldest / newest content",
-        #[cfg(windows)]
         PrefixDesc::CopySearch => "Search forward / backward; Enter confirms",
-        #[cfg(windows)]
         PrefixDesc::CopyRepeatSearch => "Repeat search / reverse direction",
-        #[cfg(windows)]
         PrefixDesc::CopyReverseSearch => "Reverse the search draft direction",
-        #[cfg(windows)]
         PrefixDesc::CopySelection => "Start / cancel selection",
-        #[cfg(windows)]
         PrefixDesc::CopySubmit => "Copy selection; return live after success",
-        #[cfg(windows)]
         PrefixDesc::CopyExit => "Leave copy mode (Esc also cancels search)",
-        #[cfg(windows)]
         PrefixDesc::ResizeLeft => "Move pane divider left by 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeRight => "Move pane divider right by 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeUp => "Move pane divider up by 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeDown => "Move pane divider down by 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeCoarse => "Move divider by 5 percentage points",
-        #[cfg(windows)]
         PrefixDesc::ResizeFine => "Move divider by 1 percentage point",
-        #[cfg(windows)]
         PrefixDesc::ResizeExit => "Leave resize mode",
-        #[cfg(windows)]
         PrefixDesc::Machines => "Choose local or saved SSH machine",
-        #[cfg(windows)]
         PrefixDesc::ActionMenu => "Open action menu",
         PrefixDesc::Settings => "Open settings",
-        #[cfg(windows)]
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
-        #[cfg(windows)]
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
         PrefixDesc::ReloadConfiguration => "Reload Client configuration",
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
-        #[cfg(windows)]
         PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
-        #[cfg(windows)]
         PrefixDesc::WorktreeOpen => "Open an existing Git checkout",
         PrefixDesc::ControlTakeover => "Take control of the current pane; use this window's size",
         PrefixDesc::WorkspaceClose => {
@@ -90,7 +62,6 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ClosePanel => "Close focused Panel (requires connection)",
         PrefixDesc::MovePanel => "Move focused Panel to that side (requires connection)",
         PrefixDesc::SidebarToggle => "Toggle business sidebar",
-        #[cfg(windows)]
         PrefixDesc::SidebarFocus => "Switch sidebar / terminal focus",
         PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
         PrefixDesc::BoardToggle => "Toggle the Agent board",
@@ -105,64 +76,36 @@ pub(super) fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
 
 pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
-        #[cfg(windows)]
         PrefixDesc::DismissOnboarding => "关闭首次运行引导",
-        #[cfg(windows)]
         PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
-        #[cfg(windows)]
         PrefixDesc::ResizeMode => "进入 pane 大小调整模式",
-        #[cfg(windows)]
         PrefixDesc::CopyMode => "进入键盘复制模式",
-        #[cfg(windows)]
         PrefixDesc::CopyMove => "移动复制光标",
-        #[cfg(windows)]
         PrefixDesc::CopyWord => "按词 / 空白分隔的大词移动",
-        #[cfg(windows)]
         PrefixDesc::CopyParagraph => "移动到上一个 / 下一个段落",
-        #[cfg(windows)]
         PrefixDesc::CopyPage => "翻看更早 / 更新内容（帮助打开时翻页）",
-        #[cfg(windows)]
         PrefixDesc::CopyEnds => "跳到最旧 / 最新内容",
-        #[cfg(windows)]
         PrefixDesc::CopySearch => "向前 / 向后搜索；Enter 确认",
-        #[cfg(windows)]
         PrefixDesc::CopyRepeatSearch => "重复搜索 / 反向跳转",
-        #[cfg(windows)]
         PrefixDesc::CopyReverseSearch => "反转搜索草稿方向",
-        #[cfg(windows)]
         PrefixDesc::CopySelection => "开始 / 取消选择",
-        #[cfg(windows)]
         PrefixDesc::CopySubmit => "复制选区；成功后回实时显示",
-        #[cfg(windows)]
         PrefixDesc::CopyExit => "退出复制模式（Esc 也取消搜索）",
-        #[cfg(windows)]
         PrefixDesc::ResizeLeft => "分隔线向左移动 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeRight => "分隔线向右移动 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeUp => "分隔线向上移动 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeDown => "分隔线向下移动 5%",
-        #[cfg(windows)]
         PrefixDesc::ResizeCoarse => "分隔线移动 5 个百分点",
-        #[cfg(windows)]
         PrefixDesc::ResizeFine => "分隔线移动 1 个百分点",
-        #[cfg(windows)]
         PrefixDesc::ResizeExit => "退出大小调整模式",
-        #[cfg(windows)]
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
-        #[cfg(windows)]
         PrefixDesc::ActionMenu => "打开操作菜单",
         PrefixDesc::Settings => "打开设置",
-        #[cfg(windows)]
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个智能体",
-        #[cfg(windows)]
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号智能体",
         PrefixDesc::ReloadConfiguration => "重载客户端配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
-        #[cfg(windows)]
         PrefixDesc::WorktreeCreate => "创建 Git 工作树并进入终端",
-        #[cfg(windows)]
         PrefixDesc::WorktreeOpen => "打开已有 Git 检出目录",
         PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
@@ -184,7 +127,6 @@ pub(super) fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ClosePanel => "关闭焦点面板（需要连接）",
         PrefixDesc::MovePanel => "将焦点面板移向该侧（需要连接）",
         PrefixDesc::SidebarToggle => "切换业务侧边栏",
-        #[cfg(windows)]
         PrefixDesc::SidebarFocus => "切换侧栏／终端焦点",
         PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
         PrefixDesc::BoardToggle => "切换智能体看板",

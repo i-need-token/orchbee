@@ -146,4 +146,4 @@ Minimal 和被拒绝的几何。适用的仓库 gate 仍是权威；定向开发
 这些受控实现轨迹不证明全部交错、物理终端外观或未测试的平台。共享身份与提交协议仍由
 已注册模型负责。
 
-<!-- documentation-pairing: english-sha256=18d724b06a317da6b25d67a230bf5eabf96e934014ea12c034c47e04793a5264 zh-cn-sha256=44b82d08c5a66ce125666a6af2ff581913bdd1bee66e75bc7cd02dc1204bd458 -->
+<!-- documentation-pairing: english-sha256=eeff2598405c4c8fa3384f0940e7ef5aec74710fc31a87ce06157fc10a09c29d zh-cn-sha256=d311639855e7784456892361680c126afd9e50cf7b03f250edd39b369cd6b934 -->
