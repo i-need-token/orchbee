@@ -1,7 +1,9 @@
-//! Owns one independently cancellable listener connection and its latest handoff.
-use super::{Duration, Notification};
+//! Owns an event subscription on the shared Client connection and its UI handoff.
+#[cfg(test)]
+use super::Duration;
+use super::Notification;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
-use orchbee_local_ipc::{AsLocalIo, LocalStream};
+use orchbee_local_ipc::LocalStream;
 use orchbee_workbench_protocol::{
     NotificationAction, NotificationOutcome, NotificationRequest, ProtocolVersion, SessionId,
     WorkbenchRequestId,
@@ -30,6 +32,8 @@ impl Subscription {
     ) -> std::io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (reader, wake) = LocalStream::pair()?;
+        reader.set_nonblocking(true)?;
+        wake.set_nonblocking(true)?;
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-notifications".into())
@@ -44,9 +48,14 @@ impl Subscription {
         let Ok(mut state) = self.shared.0.lock() else {
             return None;
         };
+        let changed = state.accepting != accepting || state.message.is_some();
         state.accepting = accepting;
         // A surface that appeared since the last wire poll wins; never replace it.
         let message = state.message.take();
+        drop(state);
+        if changed {
+            let _notified = crate::local_client::subscription::notify(&self.wake);
+        }
         if accepting { message } else { None }
     }
     pub(crate) fn close(&mut self) {
@@ -75,7 +84,8 @@ fn run(
     session: SessionId,
     wake: LocalStream,
 ) {
-    let mut client = None;
+    let _clock = clock;
+    let mut active = None;
     let mut serial = 0_u64;
     loop {
         let accepting = {
@@ -87,42 +97,45 @@ fn run(
             }
             state.accepting && state.message.is_none()
         };
-        if client.is_none() {
-            client = origin
-                .reconnect_before_cancellable(
-                    clock.now() + Duration::from_secs(2),
-                    clock.clone(),
-                    Some(wake.as_local_io()),
-                )
-                .ok();
-        }
-        let Some(next) = serial.checked_add(1) else {
-            return;
-        };
-        serial = next;
-        let result = client.as_mut().map(|client| {
-            client.notification(
-                NotificationRequest {
+        if active
+            .as_ref()
+            .is_none_or(|(previous, _)| *previous != accepting)
+        {
+            let Some(next) = serial.checked_add(1) else {
+                return;
+            };
+            serial = next;
+            let request =
+                orchbee_workbench_protocol::WorkbenchRequest::Notification(NotificationRequest {
                     protocol_version: ProtocolVersion,
                     request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
                         .expect("nonzero serial"),
                     session_id: session.clone(),
                     action: NotificationAction::Listen { accepting },
-                },
-                clock.now() + Duration::from_secs(2),
-                Some(wake.as_local_io()),
-            )
-        });
-        let message = match result {
-            Some(Ok(reply)) => match reply.outcome {
-                NotificationOutcome::Listening { notification } => notification,
-                NotificationOutcome::Show { .. } | NotificationOutcome::Failed { .. } => None,
-            },
-            Some(Err(_)) => {
-                client = None;
-                None
+                });
+            let Ok(subscription) =
+                origin.subscribe(&request, orchbee_workbench_protocol::StreamMode::Events)
+            else {
+                return;
+            };
+            active = Some((accepting, subscription));
+        }
+        let Some((_, subscription)) = &active else {
+            return;
+        };
+        let reply = match crate::local_client::subscription::next_workbench(subscription, &wake) {
+            Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::Notification(reply)))
+                if reply.request_id.as_str() == format!("{serial:032x}")
+                    && reply.session_id == session =>
+            {
+                reply
             }
-            None => None,
+            Ok(None) => continue,
+            _ => return,
+        };
+        let message = match reply.outcome {
+            NotificationOutcome::Listening { notification } => notification,
+            _ => None,
         };
         let Ok(mut state) = shared.0.lock() else {
             return;
@@ -133,12 +146,8 @@ fn run(
         if state.message.is_none() {
             state.message = message;
         }
-        if let Ok((next, _)) = shared.1.wait_timeout(state, Duration::from_millis(100))
-            && next.stopped
-        {
-            return;
-        }
     }
 }
+
 #[cfg(test)]
 mod tests;

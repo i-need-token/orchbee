@@ -18,6 +18,9 @@ pub(super) struct ClientRecordStream<'stream> {
     write_deadline: Option<Instant>,
 }
 impl<'stream> ClientRecordStream<'stream> {
+    pub(super) fn begin_read(&mut self) {
+        self.read_deadline = None;
+    }
     pub(super) fn new(stream: &'stream UnixStream) -> io::Result<Self> {
         stream.set_nonblocking(true)?;
         Ok(Self {
@@ -87,6 +90,7 @@ impl Write for ClientRecordStream<'_> {
         }
     }
     fn flush(&mut self) -> io::Result<()> {
+        self.write_deadline = None;
         Ok(())
     }
 }

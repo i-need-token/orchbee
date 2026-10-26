@@ -353,7 +353,7 @@ fn semantic_events_denied_invalid_regex_and_foreign_cursor_leave_owner_vacant() 
             reason: Failure::Denied
         }
     );
-    assert!(denied_session.events.lock().unwrap().is_none());
+    assert!(denied_session.events.lock().unwrap().is_empty());
     let service = service(true, false);
     let session = service.client_connection(NonZeroU64::new(1).unwrap());
     let mut cursor = service.terminals.event_journal().unwrap().head().unwrap();
@@ -364,7 +364,7 @@ fn semantic_events_denied_invalid_regex_and_foreign_cursor_leave_owner_vacant() 
             reason: Failure::CursorAhead
         }
     );
-    assert!(session.events.lock().unwrap().is_none());
+    assert!(session.events.lock().unwrap().is_empty());
     assert_eq!(
         execute(
             &session,
@@ -394,5 +394,5 @@ fn semantic_events_denied_invalid_regex_and_foreign_cursor_leave_owner_vacant() 
             reason: Failure::InvalidRegex
         }
     );
-    assert!(session.events.lock().unwrap().is_none());
+    assert!(session.events.lock().unwrap().is_empty());
 }

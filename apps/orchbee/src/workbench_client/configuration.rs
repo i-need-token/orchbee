@@ -58,6 +58,7 @@ fn queue_snapshot(state: &mut Handoff, snapshot: ConfigurationSnapshot) {
 pub(super) struct Watcher {
     shared: Shared,
     wake: LocalStream,
+    changed: LocalStream,
     task: Option<JoinHandle<()>>,
     revision: Option<u64>,
     applied_snapshot: Option<ConfigurationSnapshot>,
@@ -71,13 +72,17 @@ impl Watcher {
     ) -> std::io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (reader, wake) = LocalStream::pair()?;
+        let (changes, changed) = LocalStream::pair()?;
+        changes.set_nonblocking(true)?;
+        changed.set_nonblocking(true)?;
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-client-config".into())
-            .spawn(move || run(state, origin, clock, session, reader))?;
+            .spawn(move || run(state, origin, clock, session, reader, changes))?;
         Ok(Self {
             shared,
             wake,
+            changed,
             task: Some(task),
             revision: None,
             applied_snapshot: None,
@@ -93,7 +98,8 @@ impl Watcher {
         }
         state.reload = true;
         self.shared.1.notify_all();
-        true
+        drop(state);
+        crate::local_client::subscription::notify(&self.changed).is_ok()
     }
     pub(super) fn tick(&mut self, view: &mut ClientView) -> bool {
         self.notification_update = None;
@@ -179,6 +185,7 @@ impl Watcher {
         }
         self.shared.1.notify_all();
         let _ = self.wake.shutdown(std::net::Shutdown::Both);
+        let _ = self.changed.shutdown(std::net::Shutdown::Both);
         if let Some(task) = self.task.take() {
             let _ = task.join();
         }
@@ -196,9 +203,22 @@ fn run(
     clock: LocalOperationClock,
     session: SessionId,
     wake: LocalStream,
+    changes: LocalStream,
 ) {
-    let mut client = None;
-    let mut serial = 0_u64;
+    let current_id = WorkbenchRequestId::parse("00000000000000000000000000000001")
+        .expect("nonzero request identity");
+    let Ok(subscription) = origin.subscribe(
+        &orchbee_workbench_protocol::WorkbenchRequest::Configuration(ConfigurationRequest {
+            protocol_version: ProtocolVersion,
+            request_id: current_id.clone(),
+            session_id: session.clone(),
+            action: ConfigurationAction::Current,
+        }),
+        orchbee_workbench_protocol::StreamMode::State,
+    ) else {
+        return;
+    };
+    let mut serial = 1_u64;
     loop {
         let reload = {
             let Ok(mut state) = shared.0.lock() else {
@@ -209,46 +229,46 @@ fn run(
             }
             std::mem::take(&mut state.reload)
         };
-        if client.is_none() {
-            client = origin
-                .reconnect_before_cancellable(
+        let (outcome, submitted) = if reload {
+            let Some(next) = serial.checked_add(1) else {
+                return;
+            };
+            serial = next;
+            let result = origin
+                .lane_before_cancellable(
                     clock.now() + Duration::from_secs(2),
                     clock.clone(),
                     Some(wake.as_local_io()),
                 )
-                .ok();
-        }
-        let Some(next) = serial.checked_add(1) else {
-            return;
-        };
-        serial = next;
-        let request = ConfigurationRequest {
-            protocol_version: ProtocolVersion,
-            request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
-                .expect("bounded request id"),
-            session_id: session.clone(),
-            action: if reload {
-                ConfigurationAction::Reload
-            } else {
-                ConfigurationAction::Current
-            },
-        };
-        let result = client.as_mut().map(|client| {
-            client.configuration(
-                request,
-                clock.now() + Duration::from_secs(2),
-                Some(wake.as_local_io()),
-            )
-        });
-        let mut submitted = false;
-        let outcome = match result {
-            Some(Ok(reply)) => Some(reply.outcome),
-            Some(Err(error)) => {
-                submitted = error.submitted;
-                client = None;
-                None
+                .ok()
+                .map(|mut client| {
+                    client.configuration(
+                        ConfigurationRequest {
+                            protocol_version: ProtocolVersion,
+                            request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
+                                .expect("nonzero serial"),
+                            session_id: session.clone(),
+                            action: ConfigurationAction::Reload,
+                        },
+                        clock.now() + Duration::from_secs(2),
+                        Some(wake.as_local_io()),
+                    )
+                });
+            match result {
+                Some(Ok(reply)) => (Some(reply.outcome), false),
+                Some(Err(error)) => (None, error.submitted),
+                None => (None, false),
             }
-            None => None,
+        } else {
+            match crate::local_client::subscription::next_workbench(&subscription, &changes) {
+                Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::Configuration(reply)))
+                    if reply.request_id == current_id && reply.session_id == session =>
+                {
+                    (Some(reply.outcome), false)
+                }
+                Ok(None) => continue,
+                _ => return,
+            }
         };
         let Ok(mut state) = shared.0.lock() else {
             return;
@@ -290,12 +310,6 @@ fn run(
             }
             // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
             _ => {}
-        }
-        if !state.reload
-            && let Ok((next, _)) = shared.1.wait_timeout(state, Duration::from_millis(500))
-            && next.stopped
-        {
-            return;
         }
     }
 }

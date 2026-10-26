@@ -18,6 +18,8 @@ pub(super) struct PhysicalObserver {
     clock: LocalOperationClock,
     time_origin: Instant,
     origin: Option<LocalClientOrigin>,
+    changes: Option<crate::local_client::subscription::ChangeSubscription>,
+    dirty: bool,
     lane: Option<AgentReadLane>,
     epoch: u64,
     inflight: Option<(u64, Instant)>,
@@ -43,6 +45,8 @@ impl PhysicalObserver {
             clock,
             time_origin,
             origin: None,
+            changes: None,
+            dirty: true,
             lane: None,
             epoch: 0,
             inflight: None,
@@ -53,6 +57,8 @@ impl PhysicalObserver {
 
     pub(super) fn set_origin(&mut self, origin: LocalClientOrigin) {
         self.close();
+        self.changes = origin.watch_changes().ok();
+        self.dirty = true;
         self.origin = Some(origin);
         self.next_read = None;
     }
@@ -62,6 +68,7 @@ impl PhysicalObserver {
             lane.close();
         }
         self.origin = None;
+        self.changes = None;
         self.inflight = None;
         self.stopping = false;
         self.unavailable();
@@ -166,6 +173,13 @@ impl PhysicalObserver {
 
     pub(super) fn tick(&mut self) -> bool {
         let now = self.clock.now();
+        if self
+            .changes
+            .as_ref()
+            .is_some_and(|changes| changes.changed().unwrap_or(true))
+        {
+            self.dirty = true;
+        }
         let mut changed = false;
         while let Some(outcome) = self.lane.as_mut().and_then(AgentReadLane::take_outcome) {
             let LaneOutcome::PhysicalAttention { epoch, result } = outcome else {
@@ -196,6 +210,7 @@ impl PhysicalObserver {
                     }
                 },
                 Err(_) => {
+                    self.dirty = true;
                     changed |= self.unavailable();
                 }
             }
@@ -205,6 +220,7 @@ impl PhysicalObserver {
             self.inflight = None;
             self.stopping = false;
             self.next_read = now.checked_add(READ_INTERVAL);
+            self.dirty = true;
             changed |= self.unavailable();
         }
         if self.inflight.is_some_and(|(_, deadline)| now >= deadline) && !self.stopping {
@@ -214,7 +230,10 @@ impl PhysicalObserver {
             }
             changed |= self.unavailable();
         }
-        if self.inflight.is_some() || self.stopping || self.next_read.is_some_and(|next| now < next)
+        if !self.dirty
+            || self.inflight.is_some()
+            || self.stopping
+            || self.next_read.is_some_and(|next| now < next)
         {
             return changed;
         }
@@ -242,6 +261,7 @@ impl PhysicalObserver {
             .as_ref()
             .is_some_and(|lane| lane.send(LaneCommand::PhysicalAttention { epoch, deadline }))
         {
+            self.dirty = false;
             self.inflight = Some((epoch, deadline));
         } else {
             self.stopping = true;

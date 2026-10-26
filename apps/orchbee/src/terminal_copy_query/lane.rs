@@ -255,7 +255,7 @@ fn execute(
         .check(job.deadline)
         .map_err(|()| Failure::TransportUnavailable)?;
     let mut client = origin
-        .reconnect_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
+        .lane_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
         .map_err(|_| Failure::TransportUnavailable)?;
     let snapshot = machine_observation::snapshot(
         &mut client,

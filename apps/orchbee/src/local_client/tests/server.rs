@@ -245,7 +245,7 @@ impl Drop for TestDirectory {
 }
 
 pub(crate) fn shutdown_handle(stream: UnixStream) -> super::super::LocalClientShutdown {
-    super::super::LocalClientShutdown(stream)
+    super::super::LocalClientShutdown::Direct(stream)
 }
 
 pub(crate) fn connect_with_checkpoint_clock(
@@ -296,6 +296,7 @@ pub(crate) fn adjustable_operation_clock(
 /// standing up a live OBAP socket.
 pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
     super::super::LocalClientOrigin {
+        multiplex: None,
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),
         cohort: "agent-board-tests".to_owned(),
         local: true,

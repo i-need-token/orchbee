@@ -254,6 +254,8 @@ pub(super) struct Driver {
     host: crate::terminal_graphics::Facts,
     clock: LocalOperationClock,
     origin: Option<LocalClientOrigin>,
+    changes: Option<crate::local_client::subscription::ChangeSubscription>,
+    pending_sources: usize,
     lane: Option<AgentReadLane>,
     scope: Option<Scope>,
     rows: BTreeMap<WorkbenchPanelId, Canvas>,
@@ -323,6 +325,8 @@ impl Driver {
             host: crate::terminal_graphics::Facts::default(),
             clock,
             origin: None,
+            changes: None,
+            pending_sources: usize::MAX,
             lane: None,
             scope: None,
             rows: BTreeMap::new(),
@@ -336,6 +340,8 @@ impl Driver {
     }
     pub(super) fn set_origin(&mut self, origin: LocalClientOrigin) {
         self.close();
+        self.changes = origin.watch_changes().ok();
+        self.pending_sources = usize::MAX;
         self.origin = Some(origin);
     }
     pub(super) fn close(&mut self) {
@@ -343,6 +349,8 @@ impl Driver {
             lane.close();
         }
         self.origin = None;
+        self.changes = None;
+        self.pending_sources = 0;
         self.scope = None;
         self.rows.clear();
         self.draws.clear();
@@ -372,6 +380,7 @@ impl Driver {
             self.interrupt();
             self.next = None;
             self.cursor = 0;
+            self.pending_sources = usize::MAX;
             self.rows.retain(|_, row| {
                 self.scope
                     .as_ref()
@@ -397,6 +406,14 @@ impl Driver {
     }
     pub(super) fn tick(&mut self, state: Option<&WorkbenchClientState>) -> bool {
         let now = self.clock.now();
+        if self
+            .changes
+            .as_ref()
+            .is_some_and(|changes| changes.changed().unwrap_or(true))
+        {
+            self.pending_sources = usize::MAX;
+            self.next = None;
+        }
         let mut changed = false;
         if self
             .scope
@@ -471,7 +488,11 @@ impl Driver {
             self.interrupt();
             self.next = now.checked_add(INTERVAL);
         }
-        if self.stopping || self.inflight.is_some() || self.next.is_some_and(|next| now < next) {
+        if self.pending_sources == 0
+            || self.stopping
+            || self.inflight.is_some()
+            || self.next.is_some_and(|next| now < next)
+        {
             return changed;
         }
         let (Some(scope), Some(origin)) = (self.scope.as_ref(), self.origin.clone()) else {
@@ -481,15 +502,17 @@ impl Driver {
             return changed;
         }
         self.cursor %= scope.sources.len();
+        self.pending_sources = self.pending_sources.min(scope.sources.len());
         let sources = scope
             .sources
             .iter()
             .cycle()
             .skip(self.cursor)
-            .take(BATCH.min(scope.sources.len()))
+            .take(BATCH.min(self.pending_sources))
             .cloned()
             .collect::<Vec<_>>();
         self.cursor = (self.cursor + sources.len()) % scope.sources.len();
+        self.pending_sources -= sources.len();
         let previous = self
             .rows
             .iter()

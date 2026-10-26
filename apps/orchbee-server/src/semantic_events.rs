@@ -9,14 +9,16 @@ use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
+mod changes;
 mod projection;
 mod source;
+pub use changes::{SessionChangeSignal, SessionChangeSource};
 pub use source::{semantic_pane, semantic_panes_for_binding};
 const RETAINED_EVENTS: usize = 512;
 const RETAINED_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
-pub struct SessionEventJournal(Arc<Mutex<State>>);
+pub struct SessionEventJournal(Arc<Mutex<State>>, Arc<SessionChangeSource>);
 #[derive(Debug)]
 struct State {
     epoch: WorkbenchRequestId,
@@ -47,15 +49,18 @@ impl SessionEventJournal {
         ))
     }
     fn with_epoch(snapshot: &Snapshot, epoch: WorkbenchRequestId) -> Self {
-        Self(Arc::new(Mutex::new(State {
-            epoch,
-            head: 0,
-            lost_through: 0,
-            bytes: 0,
-            exhausted: false,
-            events: VecDeque::new(),
-            workspaces: workspace_index(snapshot),
-        })))
+        Self(
+            Arc::new(Mutex::new(State {
+                epoch,
+                head: 0,
+                lost_through: 0,
+                bytes: 0,
+                exhausted: false,
+                events: VecDeque::new(),
+                workspaces: workspace_index(snapshot),
+            })),
+            Arc::new(SessionChangeSource::default()),
+        )
     }
     pub fn head(&self) -> Result<SemanticEventCursor, Failure> {
         let state = self.0.lock().map_err(|_| Failure::Unavailable)?;
@@ -83,15 +88,22 @@ impl SessionEventJournal {
         kind: SemanticEventKind,
         data: SemanticEventData,
     ) -> bool {
-        self.0
+        let published = self
+            .0
             .lock()
-            .is_ok_and(|mut state| state.publish(revision, workspace, kind, data))
+            .is_ok_and(|mut state| state.publish(revision, workspace, kind, data));
+        self.1.notify();
+        published
     }
     pub(crate) fn projection_committed(&self, before: &Snapshot, after: &Snapshot) {
         if let Ok(mut state) = self.0.lock() {
             projection::publish(&mut state, before, after);
             state.workspaces = workspace_index(after);
         }
+        self.1.notify();
+    }
+    pub fn watch(&self, signal: &Arc<SessionChangeSignal>) {
+        self.1.watch(signal);
     }
     pub fn read(
         &self,

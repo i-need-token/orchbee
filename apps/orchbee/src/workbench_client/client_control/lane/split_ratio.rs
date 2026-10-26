@@ -22,7 +22,7 @@ impl Mutation {
             .name("orchbee-split-ratio".into())
             .spawn(move || {
                 let deadline = clock.now() + Duration::from_secs(2);
-                let result = origin.reconnect_before_cancellable(
+                let result = origin.lane_before_cancellable(
                     deadline,
                     clock.clone(),
                     Some(wake_read.as_local_io()),

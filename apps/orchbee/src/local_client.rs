@@ -29,10 +29,76 @@ use orchbee_local_client_protocol::{ClientConnection, ConnectClientError};
 
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
 
-pub(crate) struct LocalClientShutdown(orchbee_local_ipc::LocalStream);
+pub(crate) enum LocalClientShutdown {
+    Direct(orchbee_local_ipc::LocalStream),
+    Multiplex(Arc<multiplex::Connection>),
+}
 impl LocalClientShutdown {
     pub(crate) fn close(&self) -> io::Result<()> {
-        self.0.shutdown(std::net::Shutdown::Both)
+        match self {
+            Self::Direct(stream) => stream.shutdown(std::net::Shutdown::Both),
+            Self::Multiplex(connection) => connection.shutdown(),
+        }
+    }
+}
+
+pub(crate) mod multiplex;
+pub(crate) mod subscription;
+#[derive(Debug)]
+enum ClientTransport {
+    Direct(ClientConnection),
+    Lane(ClientLane),
+}
+#[derive(Debug)]
+struct ClientLane {
+    connection: Arc<multiplex::Connection>,
+    cancel: orchbee_local_ipc::LocalStream,
+    shutdown: orchbee_local_ipc::LocalStream,
+}
+impl ClientLane {
+    fn new(connection: Arc<multiplex::Connection>) -> io::Result<Self> {
+        let (cancel, shutdown) = orchbee_local_ipc::LocalStream::pair()?;
+        Ok(Self {
+            connection,
+            cancel,
+            shutdown,
+        })
+    }
+}
+impl ClientTransport {
+    fn generation(&self) -> std::num::NonZeroU64 {
+        match self {
+            Self::Direct(connection) => connection.generation(),
+            Self::Lane(lane) => lane.connection.generation(),
+        }
+    }
+    fn as_local_io(&self) -> BorrowedFd<'_> {
+        match self {
+            Self::Direct(connection) => connection.as_local_io(),
+            Self::Lane(_) => unreachable!("lane I/O is owned by the connection actor"),
+        }
+    }
+}
+impl Read for ClientTransport {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Direct(connection) => connection.read(buffer),
+            Self::Lane(_) => Err(io::ErrorKind::Unsupported.into()),
+        }
+    }
+}
+impl Write for ClientTransport {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Direct(connection) => connection.write(buffer),
+            Self::Lane(_) => Err(io::ErrorKind::Unsupported.into()),
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Direct(connection) => connection.flush(),
+            Self::Lane(_) => Ok(()),
+        }
     }
 }
 
@@ -40,7 +106,7 @@ impl LocalClientShutdown {
 pub(crate) struct LocalClient {
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     origin: LocalClientOrigin,
-    connection: Option<ClientConnection>,
+    connection: Option<ClientTransport>,
     request_timeout: Duration,
     submission_deadline: Option<Instant>,
     clock: LocalOperationClock,
@@ -53,6 +119,7 @@ pub(crate) struct LocalClientOrigin {
     endpoint: PathBuf,
     cohort: String,
     local: bool,
+    multiplex: Option<Arc<multiplex::Connection>>,
     #[cfg(windows)]
     tunnel: Option<Arc<crate::machine_tunnel::Tunnel>>,
 }
@@ -69,22 +136,35 @@ impl LocalClientOrigin {
         deadline: Instant,
         clock: LocalOperationClock,
     ) -> Result<LocalClient, LocalClientConnectError> {
-        let mut client = LocalClient::connect_before(&self.endpoint, &self.cohort, deadline)?;
-        client.origin = self.clone();
-        client.clock = clock;
-        Ok(client)
+        self.lane_before_cancellable(deadline, clock, None)
     }
 
-    /// `reconnect_before` with the owner's borrowed wake descriptor joined
-    /// into the admission wait set — the narrow second-lane variant: it only
-    /// forwards the private endpoint/cohort to the existing cancellable
-    /// admission and reinstates the caller's clock, copying nothing else.
-    pub(crate) fn reconnect_before_cancellable(
+    /// Creates a cancellable logical lane on a promoted TUI connection. Direct CLI origins
+    /// retain their bounded admission adapter; TUI reconnect belongs exclusively to the actor.
+    pub(crate) fn lane_before_cancellable(
         &self,
         deadline: Instant,
         clock: LocalOperationClock,
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<LocalClient, LocalClientConnectError> {
+        if let Some(connection) = &self.multiplex {
+            if clock.now() >= deadline {
+                return Err(LocalClientConnectError::RequestIoConfiguration(
+                    io::ErrorKind::TimedOut.into(),
+                ));
+            }
+            return Ok(LocalClient {
+                origin: self.clone(),
+                connection: Some(ClientTransport::Lane(
+                    ClientLane::new(Arc::clone(connection))
+                        .map_err(LocalClientConnectError::RequestIoConfiguration)?,
+                )),
+                request_timeout: REQUEST_TOTAL_TIMEOUT,
+                submission_deadline: None,
+                clock,
+                io_chunk_limits: IoChunkLimits::UNBOUNDED,
+            });
+        }
         let mut client =
             LocalClient::connect_before_cancellable(&self.endpoint, &self.cohort, deadline, wake)?;
         client.origin = self.clone();
@@ -94,6 +174,19 @@ impl LocalClientOrigin {
 }
 
 impl LocalClient {
+    /// Transfers the bootstrap stream once. Every derived lane shares this connection owner.
+    pub(crate) fn into_multiplexed(mut self) -> io::Result<Self> {
+        if let Some(transport) = self.connection.take() {
+            let ClientTransport::Direct(connection) = transport else {
+                self.connection = Some(transport);
+                return Ok(self);
+            };
+            let connection = multiplex::Connection::start(connection, self.origin.clone())?;
+            self.origin.multiplex = Some(Arc::clone(&connection));
+            self.connection = Some(ClientTransport::Lane(ClientLane::new(connection)?));
+        }
+        Ok(self)
+    }
     /// Retains the transport owner for lanes derived from this origin.
     #[cfg(windows)]
     pub(crate) fn with_tunnel(mut self, tunnel: Arc<crate::machine_tunnel::Tunnel>) -> Self {
@@ -131,6 +224,7 @@ impl LocalClient {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
                 local: true,
+                multiplex: None,
                 #[cfg(windows)]
                 tunnel: None,
             },
@@ -153,7 +247,7 @@ impl LocalClient {
         Ok(Self {
             #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             origin,
-            connection: Some(connection),
+            connection: Some(ClientTransport::Direct(connection)),
             request_timeout,
             submission_deadline: None,
             clock: LocalOperationClock(Arc::from(clock)),
@@ -184,26 +278,43 @@ impl LocalClient {
         self.submission_deadline = deadline;
     }
 
+    pub(crate) fn connection_shutdown_handle(&self) -> io::Result<LocalClientShutdown> {
+        match &self.connection {
+            Some(ClientTransport::Lane(lane)) => {
+                Ok(LocalClientShutdown::Multiplex(Arc::clone(&lane.connection)))
+            }
+            _ => self.shutdown_handle(),
+        }
+    }
+
     pub(crate) fn shutdown_handle(&self) -> io::Result<LocalClientShutdown> {
         let connection = self
             .connection
             .as_ref()
             .ok_or_else(|| io::Error::other("Client Connection unavailable"))?;
+        let ClientTransport::Direct(connection) = connection else {
+            let ClientTransport::Lane(connection) = connection else {
+                unreachable!()
+            };
+            return Ok(LocalClientShutdown::Direct(
+                connection.shutdown.try_clone()?,
+            ));
+        };
         #[cfg(unix)]
         {
-            Ok(LocalClientShutdown(std::os::unix::net::UnixStream::from(
-                connection.as_fd().try_clone_to_owned()?,
-            )))
+            Ok(LocalClientShutdown::Direct(
+                std::os::unix::net::UnixStream::from(connection.as_fd().try_clone_to_owned()?),
+            ))
         }
         #[cfg(windows)]
         {
-            Ok(LocalClientShutdown(connection.shutdown_stream()?))
+            Ok(LocalClientShutdown::Direct(connection.shutdown_stream()?))
         }
     }
 
     #[must_use]
     pub(crate) fn generation(&self) -> Option<std::num::NonZeroU64> {
-        self.connection.as_ref().map(ClientConnection::generation)
+        self.connection.as_ref().map(ClientTransport::generation)
     }
 
     pub(crate) fn submit_terminal_viewer_before(
@@ -745,7 +856,7 @@ enum ExchangeAttempt<ResultType, ReadError> {
 }
 
 fn exchange_once<ResultType, ReadError>(
-    connection: &mut ClientConnection,
+    connection: &mut ClientTransport,
     clock: &dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
@@ -753,6 +864,23 @@ fn exchange_once<ResultType, ReadError>(
     frame: &[u8],
     read_result: impl FnOnce(&mut DeadlineIo<'_>) -> Result<ResultType, ReadError>,
 ) -> ExchangeAttempt<ResultType, ReadError> {
+    let buffered = if let ClientTransport::Lane(lane) = connection {
+        // The queued-to-handoff CAS owns definite refusal versus possible delivery. Cancellation
+        // never replays a request, and only the connection actor can write the physical stream.
+        match lane.connection.exchange(
+            frame,
+            deadline.expires_at,
+            clock,
+            wake,
+            Some(lane.cancel.as_local_io()),
+        ) {
+            Ok(bytes) => Some(io::Cursor::new(bytes)),
+            Err((false, error)) => return ExchangeAttempt::NotSubmitted(error),
+            Err((true, error)) => return ExchangeAttempt::WriteFailed(error),
+        }
+    } else {
+        None
+    };
     let mut io = DeadlineIo {
         connection,
         clock,
@@ -760,11 +888,14 @@ fn exchange_once<ResultType, ReadError>(
         io_chunk_limits,
         wake,
         write_began: false,
+        buffered,
     };
 
     #[cfg(test)]
     clock.before_request_write();
-    if let Err(error) = io.write_all(frame) {
+    if io.buffered.is_none()
+        && let Err(error) = io.write_all(frame)
+    {
         return if io.write_began {
             ExchangeAttempt::WriteFailed(error)
         } else {
@@ -785,7 +916,8 @@ fn exchange_once<ResultType, ReadError>(
 }
 
 struct DeadlineIo<'a> {
-    connection: &'a mut ClientConnection,
+    connection: &'a mut ClientTransport,
+    buffered: Option<io::Cursor<Vec<u8>>>,
     clock: &'a dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
@@ -920,6 +1052,9 @@ fn poll_timeout(remaining: Duration) -> PollTimeout {
 
 impl Read for DeadlineIo<'_> {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if let Some(buffered) = &mut self.buffered {
+            return buffered.read(buffer);
+        }
         if buffer.is_empty() {
             return Ok(0);
         }

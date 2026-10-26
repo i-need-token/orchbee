@@ -1,5 +1,8 @@
-//! A separate Windows connection with a bounded latest-sample handoff and owned shutdown.
-use crate::local_client::{LocalClientConnectError, LocalClientOrigin, LocalOperationClock};
+//! A shared-connection control subscription with bounded observations and owned cancellation.
+#[cfg(test)]
+use crate::local_client::LocalClientConnectError;
+use crate::local_client::{LocalClientOrigin, LocalOperationClock};
+#[cfg(test)]
 use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
@@ -150,6 +153,7 @@ impl Handoff {
 pub(super) struct ClientControlLane {
     shared: Shared,
     wake: LocalStream,
+    changed: LocalStream,
     task: Option<JoinHandle<()>>,
 }
 impl ClientControlLane {
@@ -170,6 +174,8 @@ impl ClientControlLane {
         handoff.layout_pending = true;
         handoff.layout = Some(command);
         signal.notify_one();
+        drop(handoff);
+        let _notified = crate::local_client::subscription::notify(&self.changed);
         Ok(())
     }
     pub(super) fn take_layout_result(&self) -> Option<LayoutCompletion> {
@@ -214,11 +220,14 @@ impl ClientControlLane {
     ) -> io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (wake_read, wake) = LocalStream::pair()?;
+        let (changes, changed) = LocalStream::pair()?;
+        changes.set_nonblocking(true)?;
+        changed.set_nonblocking(true)?;
         let worker_shared = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-client-control".into())
             .spawn(move || {
-                run(&worker_shared, origin, clock, session_id, &wake_read);
+                run(&worker_shared, origin, clock, session_id, &wake_read, &changes);
                 let (lock, signal) = &*worker_shared;
                 if let Ok(mut handoff) = lock.lock() {
                     handoff.failed = true;
@@ -228,6 +237,7 @@ impl ClientControlLane {
         Ok(Self {
             shared,
             wake,
+            changed,
             task: Some(task),
         })
     }
@@ -239,9 +249,17 @@ impl ClientControlLane {
         if handoff.failed || handoff.stopped {
             return false;
         }
+        if handoff.sample.as_ref().is_some_and(|previous| {
+            previous.revision == sample.revision
+                && previous.view == sample.view
+                && previous.graphics == sample.graphics
+        }) {
+            return true;
+        }
         handoff.sample = Some(sample);
         signal.notify_one();
-        true
+        drop(handoff);
+        crate::local_client::subscription::notify(&self.changed).is_ok()
     }
     pub(super) fn complete(&self, sample: Sample, completion: ClientViewCompletion) -> bool {
         let (lock, signal) = &*self.shared;
@@ -255,7 +273,8 @@ impl ClientControlLane {
         handoff.sample = Some(sample.clone());
         handoff.completion = Some((sample, completion));
         signal.notify_one();
-        true
+        drop(handoff);
+        crate::local_client::subscription::notify(&self.changed).is_ok()
     }
     pub(super) fn take_control(&self) -> Option<Delivery> {
         self.shared.0.lock().ok()?.control.take()
@@ -274,6 +293,7 @@ impl ClientControlLane {
         signal.notify_all();
         // Closing our wake endpoint interrupts admission and exchange without waiting for a peer.
         let _ = self.wake.shutdown(std::net::Shutdown::Both);
+        let _ = self.changed.shutdown(std::net::Shutdown::Both);
         if let Some(task) = self.task.take() {
             let _ = task.join();
         }
@@ -291,34 +311,33 @@ fn run(
     clock: LocalOperationClock,
     session_id: SessionId,
     wake: &LocalStream,
+    changes: &LocalStream,
 ) {
-    let Ok(mut client) = admit_startup_with(&clock, |deadline| {
-        origin.reconnect_before_cancellable(deadline, clock.clone(), Some(wake.as_local_io()))
-    }) else {
+    let Ok(mut client) = origin.lane_before_cancellable(
+        clock.now() + STARTUP_ADMISSION_TOTAL_TIMEOUT,
+        clock.clone(),
+        Some(wake.as_local_io()),
+    ) else {
         return;
     };
     let mut invocation_task: Option<configured_command::Invocation> = None;
     let mut layout_task: Option<split_ratio::Mutation> = None;
     let mut exchange_id = 0_u64;
-    let mut next_exchange = Instant::now();
+    let mut last_sample: Option<Sample> = None;
+    let mut subscription: Option<(
+        WorkbenchRequestId,
+        crate::local_client::multiplex::Subscription,
+    )> = None;
     loop {
         let (lock, signal) = &**shared;
         let Ok(mut handoff) = lock.lock() else {
             return;
         };
-        while !handoff.stopped && (handoff.sample.is_none() || Instant::now() < next_exchange) {
-            if handoff.sample.is_none() {
-                let Ok(next) = signal.wait(handoff) else {
-                    return;
-                };
-                handoff = next;
-            } else {
-                let duration = next_exchange.saturating_duration_since(Instant::now());
-                let Ok((next, _)) = signal.wait_timeout(handoff, duration) else {
-                    return;
-                };
-                handoff = next;
-            }
+        while !handoff.stopped && handoff.sample.is_none() {
+            let Ok(next) = signal.wait(handoff) else {
+                return;
+            };
+            handoff = next;
         }
         if handoff.stopped {
             return;
@@ -330,7 +349,30 @@ fn run(
         } else {
             continue;
         };
+        let changed = last_sample.as_ref().is_none_or(|previous| {
+            previous.revision != sample.revision || previous.graphics != sample.graphics
+        }) || completion.is_some()
+            || handoff.invocation.is_some()
+            || handoff.layout.is_some();
         drop(handoff);
+        let pushed = if !changed {
+            let Some((expected, active)) = &subscription else {
+                return;
+            };
+            match crate::local_client::subscription::next_workbench(active, changes) {
+                Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::ClientView(reply)))
+                    if &reply.request_id == expected && reply.session_id == session_id =>
+                {
+                    Some(reply)
+                }
+                Ok(None) => continue,
+                _ => return,
+            }
+        } else {
+            subscription.take();
+            None
+        };
+
         let Some(next) = exchange_id.checked_add(1) else {
             return;
         };
@@ -345,17 +387,37 @@ fn run(
             action: ClientViewAction::Synchronize {
                 heartbeat: sample.heartbeat,
                 view_revision: sample.revision,
-                view: Box::new(sample.view),
+                view: Box::new(sample.view.clone()),
                 completion: completion.clone(),
             },
         };
-        let Ok(result) = client.exchange_client_view(
-            request,
-            clock.now() + Duration::from_secs(2),
-            Some(wake.as_local_io()),
-        ) else {
-            return;
+        let result = if let Some(result) = pushed {
+            result
+        } else {
+            let Ok(result) = client.exchange_client_view(
+                request.clone(),
+                clock.now() + Duration::from_secs(2),
+                Some(wake.as_local_io()),
+            ) else {
+                return;
+            };
+            // A completion remains a one-shot mutation. Only its completion-free read continuation
+            // is retained for push and reconnection, so an uncertain acknowledgement is not replayed.
+            let mut listen = request;
+            if let ClientViewAction::Synchronize { completion, .. } = &mut listen.action {
+                *completion = None;
+            }
+            let expected = listen.request_id.clone();
+            let Ok(active) = origin.subscribe(
+                &orchbee_workbench_protocol::WorkbenchRequest::ClientView(listen),
+                orchbee_workbench_protocol::StreamMode::Events,
+            ) else {
+                return;
+            };
+            subscription = Some((expected, active));
+            result
         };
+        last_sample = Some(sample.clone());
         let ClientViewOutcome::Synchronized {
             client: registered,
             control,
@@ -363,7 +425,7 @@ fn run(
         else {
             return;
         };
-        if let Some(observation) = sample.graphics {
+        if changed && let Some(observation) = sample.graphics {
             let Some(next) = exchange_id.checked_add(1) else {
                 return;
             };
@@ -562,10 +624,10 @@ fn run(
             }
             handoff.control = Some(delivery);
         }
-        next_exchange = Instant::now() + Duration::from_millis(100);
     }
 }
 
+#[cfg(test)]
 fn admit_startup_with<T>(
     clock: &LocalOperationClock,
     mut connect: impl FnMut(Instant) -> Result<T, LocalClientConnectError>,
@@ -579,6 +641,7 @@ fn admit_startup_with<T>(
     }
 }
 
+#[cfg(test)]
 fn transient_startup_admission_failure(error: &LocalClientConnectError) -> bool {
     let LocalClientConnectError::Admission(
         ConnectClientError::ConnectFailed(error) | ConnectClientError::Io(error),
@@ -612,6 +675,7 @@ impl ClientControlLane {
         let (_reader, wake) = LocalStream::pair().unwrap();
         Self {
             shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+            changed: wake.try_clone().unwrap(),
             wake,
             task: None,
         }

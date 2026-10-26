@@ -1458,12 +1458,13 @@ fn adjustable_clock_exposes_distinct_forward_and_cleanup_cutoffs() -> TestResult
 /// A `DeadlineIo` over the admitted connection plus a fresh deadline; the
 /// borrowed wake descriptor only joins the wait set.
 fn deadline_io<'a>(
-    connection: &'a mut ClientConnection,
+    connection: &'a mut super::ClientTransport,
     clock: &'a LocalOperationClock,
     deadline: SubmissionDeadline,
     wake: Option<LocalIo<'a>>,
 ) -> DeadlineIo<'a> {
     DeadlineIo {
+        buffered: None,
         connection,
         clock,
         deadline,
@@ -1794,6 +1795,7 @@ impl LocalClient {
         Self::from_connection(
             connection,
             LocalClientOrigin {
+                multiplex: None,
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
                 local: true,

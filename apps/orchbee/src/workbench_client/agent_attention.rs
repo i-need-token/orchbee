@@ -51,6 +51,8 @@ pub(super) struct AgentAttention {
     physical: PhysicalObserver,
     clock: LocalOperationClock,
     origin: Option<LocalClientOrigin>,
+    changes: Option<crate::local_client::subscription::ChangeSubscription>,
+    dirty: bool,
     lane: Option<AgentReadLane>,
     cursor: Option<AgentChangesCursor>,
     revision: Option<u64>,
@@ -210,6 +212,8 @@ impl AgentAttention {
             physical: PhysicalObserver::new(clock.clone()),
             clock,
             origin: None,
+            changes: None,
+            dirty: true,
             lane: None,
             cursor: None,
             revision: None,
@@ -225,6 +229,8 @@ impl AgentAttention {
     pub(super) fn set_origin(&mut self, origin: LocalClientOrigin) {
         self.close();
         self.physical.set_origin(origin.clone());
+        self.changes = origin.watch_changes().ok();
+        self.dirty = true;
         self.origin = Some(origin);
         self.next_read = None;
     }
@@ -235,6 +241,7 @@ impl AgentAttention {
             lane.close();
         }
         self.origin = None;
+        self.changes = None;
         self.inflight = None;
         self.stopping = false;
         self.redraw |= self.state.unavailable();
@@ -242,6 +249,7 @@ impl AgentAttention {
 
     /// Reads now, or right after the in-flight read, instead of awaiting the interval.
     pub(super) fn expedite(&mut self) {
+        self.dirty = true;
         if self.inflight.is_some() {
             self.expedited = true;
         } else {
@@ -255,6 +263,13 @@ impl AgentAttention {
 
     pub(super) fn tick(&mut self) -> bool {
         let now = self.clock.now();
+        if self
+            .changes
+            .as_ref()
+            .is_some_and(|changes| changes.changed().unwrap_or(true))
+        {
+            self.dirty = true;
+        }
         let mut changed = std::mem::take(&mut self.redraw) | self.physical.tick();
         while let Some(outcome) = self.lane.as_mut().and_then(AgentReadLane::take_outcome) {
             let LaneOutcome::Attention { epoch, result } = outcome else {
@@ -289,6 +304,7 @@ impl AgentAttention {
                     }
                 },
                 Err(_) => {
+                    self.dirty = true;
                     changed |= self.state.unavailable();
                 }
             }
@@ -298,6 +314,7 @@ impl AgentAttention {
             self.inflight = None;
             self.stopping = false;
             self.next_read = now.checked_add(READ_INTERVAL);
+            self.dirty = true;
             changed |= self.state.unavailable();
         }
         if self.inflight.is_some_and(|(_, deadline)| now >= deadline) && !self.stopping {
@@ -307,7 +324,10 @@ impl AgentAttention {
             }
             changed |= self.state.unavailable();
         }
-        if self.inflight.is_some() || self.stopping || self.next_read.is_some_and(|next| now < next)
+        if !self.dirty
+            || self.inflight.is_some()
+            || self.stopping
+            || self.next_read.is_some_and(|next| now < next)
         {
             return changed;
         }
@@ -338,6 +358,7 @@ impl AgentAttention {
                 deadline,
             })
         }) {
+            self.dirty = false;
             self.inflight = Some((epoch, deadline));
         } else {
             self.stopping = true;

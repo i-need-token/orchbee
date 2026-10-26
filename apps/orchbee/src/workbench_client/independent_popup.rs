@@ -705,7 +705,7 @@ impl PopupRunner {
         mut geometry: Geometry,
     ) -> Result<(), Reason> {
         let mut client = origin
-            .reconnect_before_cancellable(
+            .lane_before_cancellable(
                 self.deadline(),
                 self.clock.clone(),
                 Some(self.wake.as_local_io()),
@@ -786,6 +786,7 @@ impl PopupRunner {
         };
         self.publish(Phase::Opening, Some(title), None);
         let mut sequence = 1u64;
+        // Child process completion is currently exposed only by the Host status read.
         let mut observe_at = self.clock.now() + Duration::from_secs(1);
         while !self.close.load(Ordering::Acquire) {
             if self.stop.load(Ordering::Acquire) {
@@ -884,6 +885,7 @@ impl PopupRunner {
                 }
                 observe_at = self.clock.now() + Duration::from_secs(1);
             }
+            // The Host viewer protocol supplies pull frames and has no output-ready event.
             thread::sleep(Duration::from_millis(20));
         }
         self.publish(Phase::Closing, None, None);
@@ -904,6 +906,7 @@ impl PopupRunner {
                     }
                     match self.observe_popup(&mut client, kind, false)? {
                         PopupOutcome::Closed => break,
+                        // Host termination completion has no event source in this protocol.
                         PopupOutcome::State(_) => thread::sleep(Duration::from_millis(100)),
                         _ => return Err(Reason::Interrupted),
                     }

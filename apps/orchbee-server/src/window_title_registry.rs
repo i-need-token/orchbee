@@ -11,7 +11,6 @@ use std::{
     time::{Duration, Instant},
 };
 struct Listener {
-    seen: Instant,
     order: u64,
     focused: bool,
 }
@@ -111,8 +110,6 @@ impl Registry {
         action: Action,
         now: Instant,
     ) -> Outcome {
-        self.listeners
-            .retain(|_, item| now.saturating_duration_since(item.seen) < Duration::from_secs(5));
         self.receipts
             .retain(|_, item| now.saturating_duration_since(item.at) < Duration::from_secs(60));
         if let Action::Listen { focused, context } = &action {
@@ -136,14 +133,8 @@ impl Registry {
             } else {
                 previous.expect("existing listener").order
             };
-            self.listeners.insert(
-                generation,
-                Listener {
-                    seen: now,
-                    order,
-                    focused,
-                },
-            );
+            self.listeners
+                .insert(generation, Listener { order, focused });
             return self.rendered(generation, context);
         }
         if let Some(receipt) = self.receipts.get(&id) {

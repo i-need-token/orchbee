@@ -1,4 +1,4 @@
-//! One bounded Windows Worktree command/result lane with its own Client Connection and joined shutdown.
+//! Bounded Worktree commands share the Client carrier and retain joined domain cancellation.
 use super::state::worktree_launch::{Discovery, Origin, Plan, WorktreeNotice, WorktreeToken};
 use crate::local_client::{LocalClient, LocalClientOrigin, LocalOperationClock};
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
@@ -168,7 +168,7 @@ fn run(shared: &Shared, origin: LocalClientOrigin, clock: LocalOperationClock, w
             .is_none_or(|c: &LocalClient| c.generation().is_none())
         {
             client = origin
-                .reconnect_before_cancellable(
+                .lane_before_cancellable(
                     job.deadline.min(clock.now() + Duration::from_secs(2)),
                     clock.clone(),
                     Some(wake.as_local_io()),

@@ -22,6 +22,7 @@ pub(super) struct Subscription {
     probe_sequence: u64,
     capture: capture::Capture,
     pending_failure: Option<Failure>,
+    changed: std::sync::Arc<orchbee_server::SessionChangeSignal>,
 }
 
 impl WorkbenchClientConnection<'_> {
@@ -57,10 +58,8 @@ impl WorkbenchClientConnection<'_> {
                 filters,
                 after,
             } => {
-                if let Some(subscription) = owned.as_ref() {
-                    if &subscription.id != subscription_id
-                        || &subscription.filters != filters
-                        || &subscription.definition_cursor != after
+                if let Some(subscription) = owned.get(subscription_id) {
+                    if &subscription.filters != filters || &subscription.definition_cursor != after
                     {
                         return Err(Failure::Conflict);
                     }
@@ -75,6 +74,11 @@ impl WorkbenchClientConnection<'_> {
                     .terminals
                     .event_journal()
                     .ok_or(Failure::Unavailable)?;
+                if owned.len() >= orchbee_workbench_protocol::MAXIMUM_MULTIPLEX_STREAMS {
+                    return Err(Failure::Busy);
+                }
+                let changed = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
+                journal.watch(&changed);
                 self.service.terminals.maintain_events()?;
                 let cursor = match after {
                     Some(cursor) => {
@@ -97,8 +101,9 @@ impl WorkbenchClientConnection<'_> {
                     probe_sequence: 0,
                     capture: capture::Capture::default(),
                     pending_failure: None,
+                    changed,
                 };
-                *owned = Some(subscription);
+                owned.insert(subscription_id.clone(), subscription);
                 Ok(Outcome::Opened {
                     subscription_id: subscription_id.clone(),
                     cursor,
@@ -106,11 +111,10 @@ impl WorkbenchClientConnection<'_> {
                 })
             }
             Action::Close { subscription_id } => {
-                if !owned.as_ref().is_some_and(|s| &s.id == subscription_id) {
+                if owned.remove(subscription_id).is_none() {
                     return Err(Failure::NotFound);
                 }
                 // Dropping the actor consumes Required I/O, cancels, and joins before Closed escapes.
-                *owned = None;
                 Ok(Outcome::Closed {
                     subscription_id: subscription_id.clone(),
                 })
@@ -119,10 +123,7 @@ impl WorkbenchClientConnection<'_> {
                 subscription_id,
                 limit,
             } => {
-                let subscription = owned
-                    .as_mut()
-                    .filter(|s| &s.id == subscription_id)
-                    .ok_or(Failure::NotFound)?;
+                let subscription = owned.get_mut(subscription_id).ok_or(Failure::NotFound)?;
                 let page = subscription.read(self, request, usize::from(*limit), false)?;
                 Ok(Outcome::Events {
                     subscription_id: subscription.id.clone(),
@@ -136,13 +137,11 @@ impl WorkbenchClientConnection<'_> {
                 subscription_id,
                 timeout_milliseconds,
             } => {
-                let subscription = owned
-                    .as_mut()
-                    .filter(|s| &s.id == subscription_id)
-                    .ok_or(Failure::NotFound)?;
+                let subscription = owned.get_mut(subscription_id).ok_or(Failure::NotFound)?;
                 let deadline =
                     Instant::now() + Duration::from_millis(u64::from(*timeout_milliseconds));
                 loop {
+                    let observed = subscription.changed.wake_revision();
                     // The admitted baseline is read even for a zero-duration wait.
                     let mut page = subscription.read(self, request, 1, true)?;
                     if let Some(gap) = page.gap {
@@ -173,11 +172,15 @@ impl WorkbenchClientConnection<'_> {
                             cursor: page.cursor,
                         });
                     }
-                    std::thread::sleep(
-                        deadline
-                            .saturating_duration_since(now)
-                            .min(Duration::from_millis(20)),
-                    );
+                    // Filesystem, process and Host probes have no notification source yet.
+                    // Journal-only waits sleep until publication or their actual deadline.
+                    let remaining = deadline.saturating_duration_since(now);
+                    let wait = if subscription.probes.is_empty() {
+                        remaining
+                    } else {
+                        remaining.min(Duration::from_millis(20))
+                    };
+                    subscription.changed.wait(observed, Some(wait));
                 }
             }
         }

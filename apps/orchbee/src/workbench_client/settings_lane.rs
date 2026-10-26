@@ -33,6 +33,7 @@ type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 pub(super) struct Lane {
     shared: Shared,
     wake: LocalStream,
+    changed: LocalStream,
     task: Option<JoinHandle<()>>,
 }
 impl Lane {
@@ -43,13 +44,17 @@ impl Lane {
     ) -> std::io::Result<Self> {
         let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
         let (reader, wake) = LocalStream::pair()?;
+        let (changes, changed) = LocalStream::pair()?;
+        changes.set_nonblocking(true)?;
+        changed.set_nonblocking(true)?;
         let state = Arc::clone(&shared);
         let task = thread::Builder::new()
             .name("orchbee-client-settings".into())
-            .spawn(move || run(state, origin, clock, session, reader))?;
+            .spawn(move || run(state, origin, clock, session, reader, changes))?;
         Ok(Self {
             shared,
             wake,
+            changed,
             task: Some(task),
         })
     }
@@ -63,7 +68,8 @@ impl Lane {
         state.busy = true;
         state.job = Some(job);
         self.shared.1.notify_all();
-        true
+        drop(state);
+        crate::local_client::subscription::notify(&self.changed).is_ok()
     }
     pub(super) fn take(&self) -> Option<Reply> {
         let mut state = self.shared.0.lock().ok()?;
@@ -81,6 +87,7 @@ impl Lane {
         }
         self.shared.1.notify_all();
         let _ = self.wake.shutdown(std::net::Shutdown::Both);
+        let _ = self.changed.shutdown(std::net::Shutdown::Both);
         if let Some(task) = self.task.take() {
             let _ = task.join();
         }
@@ -97,74 +104,55 @@ fn run(
     clock: LocalOperationClock,
     session: SessionId,
     wake: LocalStream,
+    changes: LocalStream,
 ) {
-    let mut client = None;
-    let mut serial = 0_u64;
-    let mut next_poll = clock.now();
+    let request_id = WorkbenchRequestId::parse("ffff0000000000000000000000000001")
+        .expect("nonzero read identity");
+    let Ok(subscription) = origin.subscribe(
+        &orchbee_workbench_protocol::WorkbenchRequest::Settings(SettingsRequest {
+            protocol_version: ProtocolVersion,
+            request_id: request_id.clone(),
+            session_id: session.clone(),
+            operation: SettingsOperation::Open {},
+        }),
+        orchbee_workbench_protocol::StreamMode::State,
+    ) else {
+        return;
+    };
     loop {
         let job = {
             let Ok(mut state) = shared.0.lock() else {
                 return;
             };
-            loop {
-                if state.stopped {
-                    return;
+            if state.stopped {
+                return;
+            }
+            state.job.take()
+        };
+        let (token, result) = if let Some(job) = job {
+            let deadline = clock.now() + Duration::from_secs(2);
+            let result = match origin.lane_before_cancellable(
+                deadline,
+                clock.clone(),
+                Some(wake.as_local_io()),
+            ) {
+                Ok(mut client) => client
+                    .settings(job.request, deadline, Some(wake.as_local_io()))
+                    .map_err(|error| error.submitted),
+                Err(_) => Err(false),
+            };
+            (Some(job.token), result)
+        } else {
+            match crate::local_client::subscription::next_workbench(&subscription, &changes) {
+                Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::Settings(reply)))
+                    if reply.request_id == request_id && reply.session_id == session =>
+                {
+                    (None, Ok(reply))
                 }
-                if let Some(job) = state.job.take() {
-                    break Some(job);
-                }
-                let now = clock.now();
-                if !state.busy && now >= next_poll {
-                    break None;
-                }
-                let wait = if state.busy {
-                    Duration::from_secs(1)
-                } else {
-                    next_poll
-                        .saturating_duration_since(now)
-                        .min(Duration::from_secs(1))
-                };
-                let Ok((next, _)) = shared.1.wait_timeout(state, wait) else {
-                    return;
-                };
-                state = next;
+                Ok(None) => continue,
+                _ => return,
             }
         };
-        let (token, request) = match job {
-            Some(job) => (Some(job.token), job.request),
-            None => {
-                let Some(next) = serial.checked_add(1) else {
-                    return;
-                };
-                serial = next;
-                (
-                    None,
-                    SettingsRequest {
-                        protocol_version: ProtocolVersion,
-                        request_id: WorkbenchRequestId::parse(&format!("ffff{serial:028x}"))
-                            .expect("bounded read serial"),
-                        session_id: session.clone(),
-                        operation: SettingsOperation::Open {},
-                    },
-                )
-            }
-        };
-        let deadline = clock.now() + Duration::from_secs(2);
-        if client.is_none() {
-            client = origin
-                .reconnect_before_cancellable(deadline, clock.clone(), Some(wake.as_local_io()))
-                .ok();
-        }
-        let result = match client.as_mut() {
-            Some(client) => client
-                .settings(request, deadline, Some(wake.as_local_io()))
-                .map_err(|error| error.submitted),
-            None => Err(false),
-        };
-        if result.is_err() {
-            client = None;
-        }
-        next_poll = clock.now() + Duration::from_secs(1);
         let Ok(mut state) = shared.0.lock() else {
             return;
         };

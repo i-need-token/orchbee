@@ -24,7 +24,7 @@ pub(super) fn read_round(
     if client_slot.is_none() {
         *client_slot = Some(
             origin
-                .reconnect_before_cancellable(deadline, clock.clone(), Some(wake))
+                .lane_before_cancellable(deadline, clock.clone(), Some(wake))
                 .map_err(|_| LaneFailure::Transport)?,
         );
     }

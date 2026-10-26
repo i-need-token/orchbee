@@ -22,6 +22,171 @@ use orchbee_workbench_protocol::{
 use crate::agent_service::AgentReadFault;
 use crate::workbench_service::WorkbenchExecution;
 
+pub(super) struct ApplicationRequest {
+    kind: ApplicationRequestKind,
+    encoded_length: usize,
+}
+enum ApplicationRequestKind {
+    Terminal(ClientMessage),
+    Workbench(WorkbenchRequest),
+    Agent(AgentRequest),
+}
+impl ApplicationRequest {
+    pub(super) fn workbench(&self) -> Option<&WorkbenchRequest> {
+        match &self.kind {
+            ApplicationRequestKind::Workbench(request) => Some(request),
+            _ => None,
+        }
+    }
+    pub(super) fn same_subscription_owner(&self, other: &Self) -> bool {
+        match (self.workbench(), other.workbench()) {
+            (Some(WorkbenchRequest::WindowTitle(_)), Some(WorkbenchRequest::WindowTitle(_)))
+            | (Some(WorkbenchRequest::Notification(_)), Some(WorkbenchRequest::Notification(_))) => {
+                true
+            }
+            _ => false,
+        }
+    }
+    pub(super) fn decode(bytes: &[u8]) -> Result<Self, ApplicationConnectionError> {
+        let prefix = bytes
+            .get(..4)
+            .ok_or(ApplicationConnectionError::UnknownProtocol)?;
+        let mut reader = Cursor::new(bytes);
+        let kind =
+            if prefix == FRAME_MAGIC || prefix == PASTE_RECORD_MAGIC || prefix == SEND_RECORD_MAGIC
+            {
+                ApplicationRequestKind::Terminal(
+                    read_client_message(&mut reader).map_err(ApplicationConnectionError::Read)?,
+                )
+            } else if prefix == WORKBENCH_MAGIC {
+                ApplicationRequestKind::Workbench(
+                    read_workbench_request(&mut reader)
+                        .map_err(ApplicationConnectionError::Workbench)?,
+                )
+            } else if prefix == AGENT_MAGIC {
+                ApplicationRequestKind::Agent(
+                    read_agent_request(&mut reader).map_err(ApplicationConnectionError::Agent)?,
+                )
+            } else {
+                return Err(ApplicationConnectionError::UnknownProtocol);
+            };
+        if reader.position() != bytes.len() as u64 {
+            return Err(ApplicationConnectionError::UnknownProtocol);
+        }
+        Ok(Self {
+            kind,
+            encoded_length: bytes.len(),
+        })
+    }
+    pub(super) fn encoded_length(&self) -> usize {
+        self.encoded_length
+    }
+    pub(super) fn subscribable(&self) -> bool {
+        match &self.kind {
+            ApplicationRequestKind::Workbench(request) => {
+                crate::workbench_service::subscription_request(request)
+            }
+            ApplicationRequestKind::Agent(request) => {
+                matches!(request, AgentRequest::Read(_) | AgentRequest::Changes(_))
+            }
+            ApplicationRequestKind::Terminal(ClientMessage::TerminalViewer(request)) => matches!(
+                request.action(),
+                orchbee_client_server_protocol::TerminalViewerAction::Poll { .. }
+                    | orchbee_client_server_protocol::TerminalViewerAction::ReadProcessInfo { .. }
+            ),
+            ApplicationRequestKind::Terminal(_) => false,
+        }
+    }
+    pub(super) fn requires_sampling(&self) -> bool {
+        // Host output and external filesystem/process state currently expose snapshot reads,
+        // not change notifications. Semantic state subscriptions have no periodic deadline.
+        matches!(
+            &self.kind,
+            ApplicationRequestKind::Terminal(_)
+                | ApplicationRequestKind::Workbench(
+                    WorkbenchRequest::WorkspaceGit(_)
+                        | WorkbenchRequest::WorktreeQuery(_)
+                        | WorkbenchRequest::WorktreeListRead(_)
+                        | WorkbenchRequest::Plugin(_)
+                        | WorkbenchRequest::TerminalEditor(_)
+                )
+        )
+    }
+}
+
+pub(super) fn run_network<Permit>(
+    stream: &orchbee_local_ipc::LocalStream,
+    mut execute: impl FnMut(ClientMessage) -> ServerMessage,
+    mut execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
+    mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
+    mut admit: impl FnMut() -> Option<Permit>,
+    watch: impl FnOnce(&std::sync::Arc<orchbee_server::SessionChangeSignal>),
+    mut cancel: impl FnMut(&WorkbenchRequest),
+) -> Result<(), ApplicationConnectionError> {
+    let mut records = super::record_stream::ClientRecordStream::new(stream)
+        .map_err(ApplicationConnectionError::Prefix)?;
+    let mut header = [0; 12];
+    records
+        .read_exact(&mut header)
+        .map_err(ApplicationConnectionError::Prefix)?;
+    let mut prefixed = super::multiplex::PrefixedStream {
+        prefix: Cursor::new(header.to_vec()),
+        stream: &mut records,
+    };
+    if header[..4] != WORKBENCH_MAGIC
+        || u16::from_be_bytes([header[6], header[7]])
+            != orchbee_workbench_protocol::MULTIPLEX_OPEN_KIND
+    {
+        return run_guarded(
+            &mut prefixed,
+            execute,
+            execute_workbench,
+            execute_agent,
+            admit,
+        );
+    }
+    let first = orchbee_workbench_protocol::read_multiplex_message(&mut prefixed)
+        .map_err(ApplicationConnectionError::Prefix)?;
+    let signal = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
+    watch(&signal);
+    super::multiplex::run(
+        stream,
+        first,
+        signal,
+        |request| {
+            let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
+            let mut bytes = Vec::new();
+            match &request.kind {
+                ApplicationRequestKind::Terminal(request) => {
+                    write_server_message(&mut bytes, &execute(request.clone()))
+                        .map_err(ApplicationConnectionError::Write)?
+                }
+                ApplicationRequestKind::Workbench(request) => {
+                    let WorkbenchExecution::Response(response) = execute_workbench(request.clone())
+                    else {
+                        return Err(ApplicationConnectionError::WorkbenchOutcomeUnknown);
+                    };
+                    write_workbench_response(&mut bytes, &response)
+                        .map_err(ApplicationConnectionError::Workbench)?;
+                }
+                ApplicationRequestKind::Agent(request) => {
+                    let response = execute_agent(request.clone())
+                        .map_err(ApplicationConnectionError::AgentFault)?;
+                    write_agent_result(&mut bytes, &response)
+                        .map_err(ApplicationConnectionError::Agent)?;
+                }
+            }
+            Ok(bytes)
+        },
+        |request| {
+            if let Some(request) = request.workbench() {
+                cancel(request);
+            }
+        },
+    )
+    .map_err(ApplicationConnectionError::Prefix)
+}
+
 #[cfg(test)]
 pub(super) fn run<Stream>(
     stream: &mut Stream,

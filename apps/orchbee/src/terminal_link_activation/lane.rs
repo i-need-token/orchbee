@@ -319,7 +319,7 @@ fn execute(
         return Notice::Failed;
     }
     let Ok(mut client) =
-        origin.reconnect_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
+        origin.lane_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
     else {
         return Notice::Failed;
     };

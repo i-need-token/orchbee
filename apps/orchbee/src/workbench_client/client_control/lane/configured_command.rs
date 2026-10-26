@@ -23,7 +23,7 @@ impl Invocation {
             .name("orchbee-configured-command".into())
             .spawn(move || {
                 let command_id = invocation.command_id.clone();
-                let result = origin.reconnect_before_cancellable(
+                let result = origin.lane_before_cancellable(
                     clock.now() + Duration::from_secs(2),
                     clock.clone(),
                     Some(wake_read.as_local_io()),

@@ -928,7 +928,7 @@ pub(crate) fn snapshot_from_origin(
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<(LocalClient, Snapshot), Failure> {
     let mut client = origin
-        .reconnect_before_cancellable(deadline, clock, wake)
+        .lane_before_cancellable(deadline, clock, wake)
         .map_err(classify_connect)?;
     let snapshot = agent_target::read_snapshot(&mut client, deadline, wake)?;
     Ok((client, snapshot))

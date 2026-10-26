@@ -317,7 +317,8 @@ impl WorkbenchClient {
         geometry: Geometry,
         context: Option<workbench_projection::ClientStartupTarget>,
     ) -> io::Result<Self> {
-        let shutdown = client.shutdown_handle()?;
+        let client = client.into_multiplexed()?;
+        let shutdown = client.connection_shutdown_handle()?;
         let clock = client.operation_clock();
         let identity_seed = random_identity_seed()?;
         let origin = client.origin();

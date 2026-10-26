@@ -297,6 +297,7 @@ pub(crate) struct PreparedUnavailable;
 
 /// Owns the canonical Agent runtime and the private list-cursor authority.
 pub(crate) struct AgentService {
+    changes: orchbee_server::SessionChangeSource,
     cursors: AgentCursorAuthority,
     policy: AgentPolicy,
     state: Mutex<AgentState>,
@@ -318,6 +319,7 @@ impl AgentService {
         socket_path: Option<String>,
     ) -> io::Result<Self> {
         Ok(Self {
+            changes: orchbee_server::SessionChangeSource::default(),
             cursors: AgentCursorAuthority::open()?,
             policy,
             state: Mutex::new(AgentState::open(socket_path)),
@@ -337,16 +339,35 @@ impl AgentService {
         &self,
         f: impl FnOnce(&mut AgentState) -> R,
     ) -> Result<R, AgentFoldUnavailable> {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut state = self.state.lock().map_err(|_| AgentFoldUnavailable)?;
+            let previous = (
+                state.runtime.snapshot().revision,
+                state.runtime.is_disposed(),
+            );
             state.reconcile_launch_names(Instant::now());
             let result = f(&mut state);
             state.reconcile_launch_names(Instant::now());
             let AgentState { runtime, names, .. } = &mut *state;
             names.reconcile(runtime);
-            Ok(result)
+            let changed = previous
+                != (
+                    state.runtime.snapshot().revision,
+                    state.runtime.is_disposed(),
+                );
+            Ok((result, changed))
         }))
-        .unwrap_or(Err(AgentFoldUnavailable))
+        .unwrap_or(Err(AgentFoldUnavailable));
+        outcome.map(|(result, changed)| {
+            if changed {
+                self.changes.notify();
+            }
+            result
+        })
+    }
+
+    pub(crate) fn watch_changes(&self, signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>) {
+        self.changes.watch(signal);
     }
 
     /// Disposes the canonical runtime under the same lock the read path

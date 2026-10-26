@@ -11,7 +11,6 @@ use std::{
 const LIVE: Duration = Duration::from_secs(5);
 const RETAIN: Duration = Duration::from_secs(60);
 struct Listener {
-    seen: Instant,
     accepting: bool,
     pending: Option<(Notification, Instant)>,
 }
@@ -44,8 +43,6 @@ impl Registry {
         action: NotificationAction,
         now: Instant,
     ) -> NotificationOutcome {
-        self.listeners
-            .retain(|_, listener| now.saturating_duration_since(listener.seen) < LIVE);
         self.receipts
             .retain(|_, receipt| now.saturating_duration_since(receipt.at) < RETAIN);
         for listener in self.listeners.values_mut() {
@@ -65,11 +62,9 @@ impl Registry {
                     };
                 }
                 let listener = self.listeners.entry(generation).or_insert(Listener {
-                    seen: now,
                     accepting,
                     pending: None,
                 });
-                listener.seen = now;
                 listener.accepting = accepting;
                 NotificationOutcome::Listening {
                     notification: if accepting {

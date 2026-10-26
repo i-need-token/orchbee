@@ -74,6 +74,8 @@ pub(super) struct Driver {
     origin: Option<LocalClientOrigin>,
     lane: Option<Lane>,
     inflight: Option<OverlayJob>,
+    // PaneObserve samples the Host-owned process exit status. The Host protocol has no exit
+    // notification; this deadline is OS/process sampling, not a semantic-state heartbeat.
     next: Option<Instant>,
 }
 impl Driver {
@@ -192,7 +194,7 @@ fn execute(
 ) -> OverlayResult {
     let before = || stop.load(Ordering::Acquire) || clock.now() >= job.deadline;
     let Ok(mut client) =
-        origin.reconnect_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
+        origin.lane_before_cancellable(job.deadline, clock.clone(), Some(wake.as_local_io()))
     else {
         return OverlayResult::Waiting;
     };

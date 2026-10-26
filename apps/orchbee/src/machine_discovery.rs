@@ -135,7 +135,7 @@ impl Connection {
         cancel: Cancellation<'_>,
     ) -> io::Result<LocalClient> {
         self.origin
-            .reconnect_before_cancellable(deadline, self.clock.clone(), cancel.wake())
+            .lane_before_cancellable(deadline, self.clock.clone(), cancel.wake())
             .map_err(crate::machine_tunnel::admission_error)
     }
 }

@@ -24,6 +24,8 @@ use orchbee_workbench_protocol::{
     WorkbenchWorktreeListOutcome, WorkbenchWorktreeListResult, WorktreeListUnavailableReason,
 };
 use std::sync::Arc;
+mod subscription;
+pub(crate) use subscription::subscription_request;
 
 pub(crate) struct WorkbenchPolicy {
     pub(crate) read: bool,
@@ -46,6 +48,7 @@ pub(crate) enum WorkbenchExecution {
 mod tests;
 
 pub(crate) struct WorkbenchService {
+    changes: orchbee_server::SessionChangeSource,
     #[cfg(windows)]
     agent_views: std::sync::Mutex<agent_view::Registry>,
     terminals: Arc<LocalTerminalService>,
@@ -63,6 +66,7 @@ impl WorkbenchService {
         #[cfg(windows)]
         let events = terminals.event_journal();
         Self {
+            changes: orchbee_server::SessionChangeSource::default(),
             #[cfg(windows)]
             agent_views: std::sync::Mutex::default(),
             terminals,
@@ -86,7 +90,7 @@ impl WorkbenchService {
             service: self,
             generation,
             #[cfg(windows)]
-            events: std::sync::Mutex::new(None),
+            events: std::sync::Mutex::new(std::collections::BTreeMap::new()),
         }
     }
 
@@ -874,9 +878,53 @@ pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
     #[cfg(windows)]
-    events: std::sync::Mutex<Option<events::Subscription>>,
+    events: std::sync::Mutex<
+        std::collections::BTreeMap<
+            orchbee_workbench_protocol::WorkbenchRequestId,
+            events::Subscription,
+        >,
+    >,
 }
 impl WorkbenchClientConnection<'_> {
+    pub(crate) fn cancel_subscription(&self, request: &WorkbenchRequest) {
+        #[cfg(windows)]
+        match request {
+            WorkbenchRequest::WindowTitle(_) => self
+                .service
+                .window_titles
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .disconnect(self.generation),
+            WorkbenchRequest::Notification(_) => self
+                .service
+                .notifications
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .disconnect(self.generation),
+            WorkbenchRequest::Events(events) => {
+                if let orchbee_workbench_protocol::SemanticEventsAction::Read {
+                    subscription_id,
+                    ..
+                } = &events.action
+                {
+                    self.events
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .remove(subscription_id);
+                }
+            }
+            _ => {}
+        }
+        #[cfg(not(windows))]
+        let _ = request;
+    }
+    pub(crate) fn watch_changes(&self, signal: &Arc<orchbee_server::SessionChangeSignal>) {
+        self.service.changes.watch(signal);
+        #[cfg(windows)]
+        if let Some(journal) = self.service.terminals.event_journal() {
+            journal.watch(signal);
+        }
+    }
     pub(crate) fn execute_with_terminal_connection(
         &self,
         request: WorkbenchRequest,
@@ -909,6 +957,15 @@ impl WorkbenchClientConnection<'_> {
     }
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
+        let changes = !subscription_request(&request);
+        let result = self.execute_inner(request);
+        if changes {
+            self.service.changes.notify();
+        }
+        result
+    }
+
+    fn execute_inner(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         #[cfg(windows)]
         if let WorkbenchRequest::PaneGraphics(graphics) = &request {
             let allowed = if graphics.action.writes() {

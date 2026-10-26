@@ -13,7 +13,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const FRESHNESS: Duration = Duration::from_secs(5);
 const QUEUE_LIFETIME: Duration = Duration::from_secs(5);
 const RECEIPT_RETENTION: Duration = Duration::from_secs(60);
 const MAXIMUM_RECEIPTS: usize = 256;
@@ -29,19 +28,14 @@ pub(crate) struct GraphicsInfo {
 
 struct PublishedView {
     record: ClientViewRecord,
-    sampled_at: Instant,
     #[cfg(windows)]
     graphics: Option<orchbee_workbench_protocol::PaneGraphicsClientObservation>,
 }
 impl PublishedView {
-    fn observe(&self, now: Instant) -> ClientViewRecord {
-        let mut record = self.record.clone();
-        record.availability = if now.saturating_duration_since(self.sampled_at) < FRESHNESS {
-            ClientViewAvailability::Current
-        } else {
-            ClientViewAvailability::Stale
-        };
-        record
+    fn observe(&self, _now: Instant) -> ClientViewRecord {
+        // The authenticated connection owns liveness. Semantic view/graphics revisions still
+        // fence every control; an idle Client no longer needs timer heartbeats to stay current.
+        self.record.clone()
     }
 }
 struct Receipt {
@@ -569,11 +563,6 @@ impl ClientViewRegistry {
         } else {
             None
         };
-        let sampled_at = self
-            .clients
-            .get(&client_id)
-            .filter(|previous| previous.record.heartbeat == heartbeat)
-            .map_or(now, |previous| previous.sampled_at);
         let published = PublishedView {
             record: ClientViewRecord {
                 client_id: client_id.clone(),
@@ -582,7 +571,6 @@ impl ClientViewRegistry {
                 view,
                 availability: ClientViewAvailability::Current,
             },
-            sampled_at,
             #[cfg(windows)]
             graphics: self
                 .clients

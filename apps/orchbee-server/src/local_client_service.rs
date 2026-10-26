@@ -35,6 +35,7 @@ mod application_connection;
 mod managed_windows;
 #[cfg(windows)]
 mod metadata;
+mod multiplex;
 mod record_stream;
 mod stop_control;
 #[cfg(windows)]
@@ -312,12 +313,9 @@ fn handle_candidate_control(
     }
     drop(admission_lease);
 
-    let Ok(mut records) = record_stream::ClientRecordStream::new(&stream) else {
-        return;
-    };
     let connection = std::cell::RefCell::new(terminals.client_connection());
-    let _connection_result = application_connection::run_guarded(
-        &mut records,
+    let _connection_result = application_connection::run_network(
+        &stream,
         |request| connection.borrow_mut().execute(request),
         |request| {
             workbench_connection
@@ -353,6 +351,11 @@ fn handle_candidate_control(
             }
         },
         || control.enter(),
+        |signal| {
+            workbench_connection.watch_changes(signal);
+            agents.watch_changes(signal);
+        },
+        |request| workbench_connection.cancel_subscription(request),
     );
 }
 

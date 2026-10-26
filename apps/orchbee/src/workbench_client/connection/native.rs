@@ -153,7 +153,7 @@ struct ClientExecutor {
     /// reconcile command is the only writer that installs new entries.
     attachments: Vec<AttachedTerminal>,
     workbench_baseline: Option<Snapshot>,
-    last_publication_probe: Option<Instant>,
+    publications: Option<crate::local_client::multiplex::Subscription>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_panel: Option<crate::workbench_client::state::PendingPanelCommit>,
@@ -164,9 +164,6 @@ struct ClientExecutor {
         Option<crate::workbench_client::state::workspace_close::WorkspaceCloseEvidence>,
     pending_takeover: Option<crate::workbench_client::state::control_takeover::TakeoverEvidence>,
 }
-
-/// Minimum interval between publication probes piggybacked on ordinary polls.
-const PUBLICATION_PROBE_INTERVAL: Duration = Duration::from_millis(250);
 
 /// The wall-clock backoff before a reconcile that yielded on `ServerBusy`
 /// re-enters the queue — the same slice the in-lease retry wait used, now
@@ -324,7 +321,17 @@ enum InitialAttachResult {
 impl ClientExecutor {
     fn new(client: LocalClient, mailbox: Arc<CommandMailbox>) -> Self {
         let clock = client.operation_clock();
-        let started = clock.now();
+        let publications = client
+            .origin()
+            .subscribe(
+                &orchbee_workbench_protocol::WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+                    protocol_version: ProtocolVersion,
+                    request_id: WorkbenchRequestId::parse("fffffffffffffffffffffffffffffffe")
+                        .expect("nonzero subscription identity"),
+                }),
+                orchbee_workbench_protocol::StreamMode::State,
+            )
+            .ok();
         Self {
             client,
             initial_context: None,
@@ -335,9 +342,7 @@ impl ClientExecutor {
             mailbox,
             attachments: Vec::new(),
             workbench_baseline: None,
-            // Prime the probe clock so the first probe only leaves once the session has been
-            // alive for a full interval; a just-bootstrapped baseline is definitionally current.
-            last_publication_probe: Some(started),
+            publications,
             pending_create: None,
             pending_move: None,
             pending_panel: None,
@@ -1951,14 +1956,18 @@ impl ClientExecutor {
         let Some(baseline) = self.workbench_baseline.clone() else {
             return Ok(false);
         };
-        let now = self.clock.now();
-        if self
-            .last_publication_probe
-            .is_some_and(|last| now.saturating_duration_since(last) < PUBLICATION_PROBE_INTERVAL)
-        {
+        let Some(subscription) = &self.publications else {
             return Ok(false);
+        };
+        match subscription.poll() {
+            Ok(Some(crate::local_client::multiplex::StreamEvent::Record(_))) => {}
+            Ok(Some(
+                crate::local_client::multiplex::StreamEvent::Gap
+                | crate::local_client::multiplex::StreamEvent::Disconnected,
+            ))
+            | Ok(None) => return Ok(false),
+            Err(_) => return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol)),
         }
-        self.last_publication_probe = Some(now);
         let request_id = self
             .mailbox
             .allocate_workbench_request_id()

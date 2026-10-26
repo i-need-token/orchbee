@@ -37,6 +37,7 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        changed: wake.try_clone().unwrap(),
         wake,
         task: None,
         revision: None,
@@ -95,6 +96,7 @@ fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomic
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        changed: wake.try_clone().unwrap(),
         wake,
         task: None,
         revision: None,
@@ -153,6 +155,7 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        changed: wake.try_clone().unwrap(),
         wake,
         task: None,
         revision: None,
@@ -232,6 +235,7 @@ fn diagnostics_follow_only_a_complete_newer_snapshot_and_clean_publication_clear
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        changed: wake.try_clone().unwrap(),
         wake,
         task: None,
         revision: None,
@@ -891,6 +895,7 @@ fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        changed: wake.try_clone().unwrap(),
         wake,
         task: None,
         revision: None,
