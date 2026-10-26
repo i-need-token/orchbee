@@ -2388,33 +2388,6 @@
 					"$ref": "#/$defs/nameTarget"
 				}
 			}
-		},
-		"agentTerminalManagement": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["phase"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "unmanaged"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["phase", "providerId"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "active"
-						},
-						"providerId": {
-							"$ref": "#/$defs/providerId"
-						}
-					}
-				}
-			]
 		}
 	}
 }
