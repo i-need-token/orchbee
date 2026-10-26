@@ -3,11 +3,11 @@
 //! claiming process, PTY, input, or publication evidence on other hosts.
 
 #[path = "support/tui_observer.rs"]
-mod tui_observer;
+mod frame_observer;
 
 use std::time::{Duration, Instant};
 
-use tui_observer::{ModalRow, Screen, WorkbenchHeader};
+use frame_observer::{ModalRow, Screen, WorkbenchHeader};
 
 const COLUMNS: usize = 120;
 const ROWS: usize = 32;
@@ -348,7 +348,7 @@ fn fragmented_complete_draw_rejects_a_later_half_draw_hybrid() {
             .working_text()
             .contains("Tab 1 · Ready · controlling")
     );
-    let mut false_ready = |frame: &tui_observer::CompletedFrame| {
+    let mut false_ready = |frame: &frame_observer::CompletedFrame| {
         (frame.has_ordered_tabs(&["1", "2"], 1)
             && frame.text().contains("Tab 1 · Ready · controlling"))
         .then_some(())
@@ -396,7 +396,7 @@ fn complete_frame_snapshot_ignores_next_partial_draw_in_the_same_batch() {
                 .as_bytes(),
         )
         .unwrap();
-    let mut stale_ready = |frame: &tui_observer::CompletedFrame| {
+    let mut stale_ready = |frame: &frame_observer::CompletedFrame| {
         frame
             .text()
             .contains("Tab 1 · Ready · controlling")
@@ -425,7 +425,7 @@ fn draw_resets_and_fragmented_cell_writes_publish_once_at_flush_boundary() {
         screen.latest_frame().unwrap().marker_offset(),
         previous_marker
     );
-    let mut new_frame = |frame: &tui_observer::CompletedFrame| {
+    let mut new_frame = |frame: &frame_observer::CompletedFrame| {
         frame
             .text()
             .lines()
@@ -474,7 +474,7 @@ fn expired_deadline_rejects_a_preloaded_complete_frame() {
     let screen = complete_frame("\x1b[1;1Hready");
     let expired = Instant::now() - Duration::from_secs(1);
     let mut predicate =
-        |frame: &tui_observer::CompletedFrame| frame.text().contains("ready").then_some(());
+        |frame: &frame_observer::CompletedFrame| frame.text().contains("ready").then_some(());
     assert!(
         screen
             .observe_completed_before(0, expired, &mut predicate)

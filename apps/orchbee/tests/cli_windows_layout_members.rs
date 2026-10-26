@@ -1,8 +1,6 @@
 //! Actual CLI receipts over controlled Windows peers; no claim of real provider or TUI acceptance.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod peer_support;
+use crate::peer_support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use peer_support::{Fixture, assert_closed, peer, validate};

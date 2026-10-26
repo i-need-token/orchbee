@@ -1,8 +1,6 @@
 //! Real CLI processes with controlled Windows IPC; no actual Worker/provider acceptance claim.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod peer_support;
+use crate::peer_support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use peer_support::{Fixture, assert_closed, peer, validate};

@@ -2,9 +2,7 @@
 #![cfg(windows)]
 #[path = "../src/machine_tunnel/program.rs"]
 mod program;
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_local_client_protocol::{ClientHello, LocalClientMessage, read_message, write_message};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader, LocalListener};
 use orchbee_local_runtime::{Cohort, CommandChild};

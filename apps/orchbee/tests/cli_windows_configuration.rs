@@ -1,8 +1,6 @@
 //! Persistent configuration through real Windows CLI processes and scripted IPC.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use serde_json::{Value, json};

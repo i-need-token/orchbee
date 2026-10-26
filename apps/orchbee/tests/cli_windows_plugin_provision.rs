@@ -1,8 +1,6 @@
 //! Actual offline CLI + Git + build processes, with no network or Session dependency.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use serde_json::Value;
 use std::{
     ffi::OsStr,

@@ -1,8 +1,6 @@
 //! Title receipts over a real Windows named pipe, with no live console mutation.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_local_ipc::LocalListener;
 use orchbee_workbench_protocol::*;
 use serde_json::Value;

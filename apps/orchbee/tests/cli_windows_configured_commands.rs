@@ -1,8 +1,6 @@
 //! Real native CLI processes against admitted configured-command peers.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_local_ipc::LocalListener;
 use orchbee_workbench_protocol::*;
 use support::{Fixture, assert_closed, bound_snapshot_reply, peer, validate};

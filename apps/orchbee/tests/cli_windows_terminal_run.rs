@@ -1,9 +1,6 @@
 //! Windows terminal-run submission and uncertain-delivery evidence.
 #![cfg(windows)]
-#[path = "support/windows_agent_peer.rs"]
-// The shared fixture also serves Agent-specific process suites.
-#[allow(dead_code)]
-mod peer_support;
+use crate::peer_support;
 use orchbee_client_server_protocol::*;
 use orchbee_local_ipc::LocalListener;
 use peer_support::*;

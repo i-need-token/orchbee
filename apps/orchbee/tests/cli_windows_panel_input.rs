@@ -1,8 +1,6 @@
 //! Real Windows one-effect Panel policy receipts, caller fences and lost replies.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod peer_support;
+use crate::peer_support;
 use orchbee_local_ipc::LocalListener;
 use orchbee_workbench_protocol::*;
 use peer_support::{Fixture, assert_closed, bound_snapshot_reply, peer, validate};

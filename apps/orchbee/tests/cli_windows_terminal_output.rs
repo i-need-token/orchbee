@@ -1,8 +1,6 @@
 //! Windows source read/wait lifecycle, strict sample and stdout evidence.
 #![cfg(windows)]
-#[path = "support/windows_agent_peer.rs"]
-#[allow(dead_code)]
-mod peer_support;
+use crate::peer_support;
 use orchbee_client_server_protocol::{
     self as obcs, ClientMessage, ServerMessage, TerminalViewerAction as Action,
     TerminalViewerOutcome as Outcome, TerminalViewerRequest, TerminalViewerResult, ViewerId,

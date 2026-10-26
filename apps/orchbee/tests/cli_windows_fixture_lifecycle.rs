@@ -1,8 +1,6 @@
 //! Failure settlement for the shared Windows CLI process/peer owner.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod peer_support;
+use crate::peer_support;
 use orchbee_local_ipc::LocalListener;
 use peer_support::{Fixture, peer, peer_with_budget, process::FailureKind};
 use std::{

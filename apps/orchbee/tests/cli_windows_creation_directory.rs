@@ -1,8 +1,6 @@
 //! Real Windows CLI: directory observation precedes the one creation effect.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_client_server_protocol as c;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_terminal_protocol as t;

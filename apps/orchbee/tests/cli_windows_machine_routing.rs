@@ -1,8 +1,6 @@
 //! Actual native relay boundary; owned local fixtures, no SSH configuration changes.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use orchbee_local_runtime::{Cohort, PrivateCache, run_windows_command_exchange};
 use serde_json::{Value, json};

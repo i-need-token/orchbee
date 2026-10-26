@@ -1,8 +1,6 @@
 //! Metadata is readable before cohort admission and never activates a Session.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_client_server_protocol::PROTOCOL_VERSION as TERMINAL_PROTOCOL_VERSION;
 use orchbee_local_client_protocol::{
     ClientHello, LocalClientMessage, RejectionReason, ServerMetadata, ServerMode, read_message,

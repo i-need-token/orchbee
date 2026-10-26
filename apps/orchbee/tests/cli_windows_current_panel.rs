@@ -1,8 +1,6 @@
 //! Windows CLI current-Panel reads: target precedence, stale views and no control effects.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_client_server_protocol as c;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_terminal_protocol as t;
@@ -456,9 +454,7 @@ mod presentations;
 use support as peer_support;
 #[path = "cli_windows_current_panel/current_member.rs"]
 mod current_member;
-#[allow(dead_code)]
-#[path = "support/terminal_metadata_peer.rs"]
-mod terminal_metadata_peer;
+use crate::terminal_metadata_peer;
 
 #[path = "cli_windows_current_panel/plugin_context.rs"]
 mod plugin_context;

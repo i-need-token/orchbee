@@ -1,11 +1,7 @@
 //! Agent Get joins a real bounded process sample only across a stable binding.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/terminal_metadata_peer.rs"]
-mod metadata_peer;
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod peer_support;
+use crate::peer_support;
+use crate::terminal_metadata_peer as metadata_peer;
 use orchbee_local_ipc::LocalListener;
 use peer_support::*;
 use serde_json::{Value, json};

@@ -1,8 +1,6 @@
 //! Actual CLI catalog operations without changing the user's settings or contacting SSH.
 #![cfg(windows)]
-#[allow(dead_code)]
-#[path = "support/windows_agent_peer.rs"]
-mod support;
+use crate::peer_support as support;
 use orchbee_local_runtime::PrivateCache;
 use serde_json::{Value, json};
 use support::{Fixture, validate};
