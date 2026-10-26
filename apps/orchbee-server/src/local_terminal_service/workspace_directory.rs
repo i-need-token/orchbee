@@ -1,3 +1,7 @@
+//! Validates a Workspace launch directory through the selected current Worker and commits only
+//! the matching observation before continuing the requested launch. It does not infer
+//! filesystem usability from wire syntax or modify a running shell's cwd.
+
 use super::{LocalTerminalService, placement};
 use crate::worker_obcn_carrier::WorkerRequestError;
 use orchbee_capability_node_protocol::{

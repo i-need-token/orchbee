@@ -1,3 +1,7 @@
+//! Prepares and settles replacement shells for retained worktree recovery plans using exact
+//! Workspace members and Worker placement. It does not run Git, replay an uncertain launch, or
+//! perform transport I/O.
+
 use super::{SessionCoordinator, presentation_binding, tab_create};
 use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{

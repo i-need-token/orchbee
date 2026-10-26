@@ -1,3 +1,7 @@
+//! Accumulates one valid UTF-8 scalar for modal text admission and reports malformed or
+//! incomplete input separately. It does not recognize terminal control frames or decide an
+//! editor's text capacity.
+
 #[derive(Default)]
 pub(super) struct Scalar {
     bytes: [u8; 4],

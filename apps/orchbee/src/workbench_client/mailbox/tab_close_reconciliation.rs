@@ -1,3 +1,7 @@
+//! Owns queue admission and correlated settlement for exact retained-close membership
+//! recovery, preserving lease acknowledgement until consumed. It does not read canonical
+//! membership or infer attachment cleanup from the close record alone.
+
 use super::{
     COMMAND_CAPACITY, CloseAdmissionError, CloseLeaseAcknowledgement, CloseReconciliationMarker,
     CommandMailbox, EventDeadline, EventError, Instant, LocalOperationClock, MailboxClock,

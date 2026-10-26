@@ -1,26 +1,7 @@
-//! The managed observation ingress transport — the managed Session-owned
-//! private AF_UNIX endpoint for RICH hook envelopes.
-//!
-//! Production status: `local_worker_service::managed` binds this endpoint
-//! inside the Session runtime directory before publishing readiness, and
-//! shares the one canonical `AgentService` cell with Worker admission
-//! and client reads. The transport, the one-thread poll loop, and the
-//! production clock adapter run real `UnixStream` clients against the
-//! canonical service; the endpoint binds after the Session lifetime lock and
-//! before the Worker socket.
-//!
-//! Wire semantics are the ported oracle contract (`AgentHookObservation
-//! Ingress.ts`): one `<runtime>/agent-observation-v1.sock` listener,
-//! 64-connection bound, 16 KiB body cap, read-to-EOF then admit, and a
-//! 30-byte `{"accepted":true,"version":1}\n` ACK written after the
-//! shared-state fold decides admission. The ACK means "admitted into
-//! join bookkeeping" — never "a canonical session exists": an
-//! uncorrelated envelope is acknowledged and silently consumed at
-//! settle (join.rs matched-attachment guards). Deliberate deviation
-//! from the oracle: the 500 ms connection deadline is ABSOLUTE from
-//! accept and covers every state including the blocking admit fold and
-//! the ACK write — the oracle's `socket.setTimeout` is an inactivity
-//! timer and cannot bound the fold.
+//! Owns the managed Session's private same-user hook-ingress endpoint and bounded connection
+//! loop, reading complete envelopes before shared Agent-service admission and acknowledgement.
+//! One absolute connection deadline applies across the exchange; an accepted acknowledgement
+//! confirms join bookkeeping, not that a canonical Agent session exists.
 
 #[cfg(unix)]
 use std::fs;
@@ -177,8 +158,7 @@ pub(crate) fn bind(runtime_directory: &Path) -> io::Result<BoundEndpoint> {
 }
 
 impl BoundEndpoint {
-    /// The bound pathname — informational; the managed Session holds the
-    /// value for the future launch environment injection.
+    /// The bound pathname retained by the managed Session for launch environment injection.
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }

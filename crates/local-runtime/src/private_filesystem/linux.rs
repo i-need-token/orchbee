@@ -1,3 +1,7 @@
+//! Refines descriptor admission to supported ext4 or tmpfs objects and rejects extended access
+//! ACLs beyond private mode bits. It does not create, repair, or remove a caller's filesystem
+//! object.
+
 use nix::sys::statfs::{EXT4_SUPER_MAGIC, TMPFS_MAGIC, fstatfs};
 use std::{io, os::fd::AsFd};
 

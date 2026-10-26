@@ -1,3 +1,7 @@
+//! Extracts validated terminal presentation and tree membership from canonical Workbench state
+//! and supplies atomic simple-Tab construction. It does not resolve Worker incarnations or
+//! treat topology membership as physical lifecycle truth.
+
 use super::{WorkbenchAuthority, identity};
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, PresentationBinding, Snapshot, Tab, TerminalContext,

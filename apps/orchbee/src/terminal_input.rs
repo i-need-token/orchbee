@@ -1,3 +1,7 @@
+//! Defines the input port contract between decoded host events, Client capture owners, and
+//! terminal forwarding, with explicit unavailable outcomes. It supplies routing vocabulary
+//! without owning host reads, Server effects, or canonical Workbench state.
+
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView};
 use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
 use crate::workbench_client::{

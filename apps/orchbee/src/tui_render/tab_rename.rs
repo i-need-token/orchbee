@@ -1,3 +1,7 @@
+//! Paints a captured rename draft and its inline or modal controls using sanitized text and
+//! exact draft identity. It does not edit the draft or commit a rename against the Server
+//! revision.
+
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
     paint_modal_close, paint_modal_frame, set_modal_cursor, status_line,

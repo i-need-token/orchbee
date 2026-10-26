@@ -1,15 +1,7 @@
-//! `agent integration` — the CLI-owned provider onboarding surface. This
-//! module is the private owner of the accepted contract: the canonical
-//! adapter semantics are ported verbatim from
-//! `apps/desktop/src/main/agent-integration-management`, with the accepted
-//! divergences (ambient-PATH resolution, no-replace publication, and the
-//! bounded process-group runner).
-//!
-//! The payload source is the native cohort's `agent-observation-adapters`
-//! sidecar — declared by the schema-2 manifest, admitted lazily here, and
-//! never touched by Session startup. The managed capsule materializes at
-//! `~/.orchbee/agent-observation-adapters/<payloadSha256>` only as an
-//! explicit `enable` effect.
+//! Owns explicit provider integration inspection, plans, and enable or disable effects using
+//! the cohort-admitted observation-adapter sidecar and retained mutation outcomes. Session
+//! startup does not materialize adapter capsules, and provider integration does not own Agent
+//! session state.
 
 #[cfg(any(unix, windows))]
 mod capsule;

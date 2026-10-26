@@ -1,3 +1,7 @@
+//! Retains exact child exit observation and transfers a dropped live child to a background
+//! reaper while the parent remains alive. It never terminates that child on drop; after parent
+//! exit, orphan reaping belongs to the operating system.
+
 use std::{
     io,
     process::{Child, ExitStatus},

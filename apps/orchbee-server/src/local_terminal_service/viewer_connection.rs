@@ -1,3 +1,7 @@
+//! Owns one Client connection's bounded viewers and their exact Worker attachments, including
+//! deferred cleanup on owner release. It resolves exposed targets without granting input
+//! authority or treating a dropped handle as confirmed physical detach.
+
 use super::{LocalTerminalService, placement, projection::ViewerProjection};
 use crate::session_coordinator::{
     BindingViewerPreparationError, PreparedBindingViewer, TargetLifecycle,

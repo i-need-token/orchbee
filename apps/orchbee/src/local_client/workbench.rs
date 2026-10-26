@@ -1,3 +1,7 @@
+//! Implements bounded correlated Workbench reads and terminal Tab creation on an admitted
+//! Client connection, preserving pre-submission, known-commit, and unknown-delivery outcomes.
+//! It does not own canonical Workbench state or install Client presentation membership.
+
 pub(crate) mod agent_manifests;
 mod agent_view;
 pub(crate) mod client_view;

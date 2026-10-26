@@ -1,3 +1,7 @@
+//! Reads the bounded Session launch-profile catalog and submits typed create or delete
+//! operations with exact correlation and catalog-revision validation. It does not select or
+//! launch a program or retain a second authoritative catalog.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

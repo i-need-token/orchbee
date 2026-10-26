@@ -1,3 +1,7 @@
+//! Retains the exact Windows process handle for exit observation and explicit deadline-bounded
+//! termination, including suspended startup support. Dropping the handle does not terminate
+//! the Session, and descendant ownership stays with the caller.
+
 use std::{
     ffi::OsStr, io, os::windows::process::ExitStatusExt, path::Path, process::ExitStatus,
     time::Instant,

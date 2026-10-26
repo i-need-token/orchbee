@@ -1,3 +1,7 @@
+//! Preflights a Workspace directory update and commits only a matching validated Worker
+//! observation under the Workbench grant. It neither probes the directory nor changes an
+//! existing terminal's working directory.
+
 use super::SessionCoordinator;
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{

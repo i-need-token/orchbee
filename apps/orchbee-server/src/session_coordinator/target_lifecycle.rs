@@ -1,3 +1,7 @@
+//! Resolves an exact physical binding against retained close targets and current terminal
+//! lifecycle state before admitting reads or cleanup. It does not query the Worker or infer
+//! disposal from a missing Workbench member.
+
 use orchbee_capability_node_protocol::{TerminalId, WorkerId};
 use orchbee_server::{
     WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeTarget,

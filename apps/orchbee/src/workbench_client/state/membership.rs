@@ -1,3 +1,7 @@
+//! Stages exact attachment cleanup and prepares atomic membership installation while
+//! preserving pending-operation provenance and selected physical identity. It does not perform
+//! detach I/O or infer cleanup from canonical membership changes.
+
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, ClientContextTabs, ClientPhase,
     CreateTerminalProvenance, OperationDeadlines, PaneKey, SelectedTab, SwitchSetup,

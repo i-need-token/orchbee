@@ -1,3 +1,7 @@
+//! Resolves a Windows command operand using its literal path, caller cwd, and absolute PATH
+//! entries with PATHEXT candidates. It returns a program path without starting a process or
+//! admitting an artifact as an Orchbee cohort executable.
+
 use std::path::{Path, PathBuf};
 
 pub fn resolve_windows_program(value: &str, cwd: &Path) -> PathBuf {

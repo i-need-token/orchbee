@@ -1,3 +1,6 @@
+//! Projects Tab labels, navigation controls, and drag previews into one bounded strip or
+//! navigator surface. It does not reorder canonical Tabs or change the Client's selected Tab.
+
 use ratatui::{
     Frame,
     layout::Rect,

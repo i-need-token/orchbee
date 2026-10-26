@@ -1,3 +1,7 @@
+//! Coordinates source association, Workspace attachment, exclusive checkout admission, and
+//! retained Workspace close progress for the Worktree driver. It does not execute Git or
+//! decide physical terminal cleanup from layout state alone.
+
 use super::{Driver, identity};
 use crate::local_terminal_service::{create_reference, lease_expiry, placement};
 use orchbee_server::{WorkbenchGrant, WorkbenchReadOrNavigationRequest};

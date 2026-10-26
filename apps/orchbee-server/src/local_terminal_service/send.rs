@@ -1,3 +1,7 @@
+//! Freezes an exposed send target, dispatches its ordered records to that Worker incarnation,
+//! and preserves prefix progress and cleanup in the Client result. It does not re-resolve an
+//! admitted target or replay partial and unknown input effects.
+
 use std::num::NonZeroU64;
 
 use orchbee_capability_node_protocol::{

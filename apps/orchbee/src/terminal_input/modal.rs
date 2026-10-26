@@ -1,3 +1,7 @@
+//! Owns bounded modal input decoding, field-capacity admission, framing deadlines, and
+//! release-tail suppression across input packets. It emits edit or decision events without
+//! mutating a feature draft or forwarding captured bytes to a terminal.
+
 use std::time::{Duration, Instant};
 
 mod paste;

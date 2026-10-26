@@ -1,3 +1,7 @@
+//! Schedules exact close-membership recovery and atomically settles its UI state and mailbox
+//! reply after validating the captured origin. It performs no transport I/O and does not treat
+//! membership absence as physical cleanup proof.
+
 use super::{
     Arc, CarrierFailure, CommandMailbox, MutationResult, OperationDeadlines, RefreshDecision,
     UiReply, WorkbenchClientState, WorkbenchClientUi,

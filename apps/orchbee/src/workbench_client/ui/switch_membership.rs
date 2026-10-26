@@ -1,3 +1,7 @@
+//! Consumes exact switch snapshot, cleanup, and expiry events into prepared UI membership and
+//! mailbox decisions. It does not execute attachment I/O or let a stale switch reply change
+//! the current selection.
+
 use super::{
     Arc, CarrierFailure, CommandMailbox, MutationResult, PaneKey, RefreshDecision,
     RefreshSettlement, UiReply, WorkbenchClientUi,

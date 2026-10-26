@@ -1,3 +1,7 @@
+//! Defines canonical Workbench topology, presentation bindings, snapshots, and publication
+//! documents with explicit identity relationships. It represents state without owning its live
+//! writer, selecting Client-local focus, or performing terminal effects.
+
 use serde::{Deserialize, Serialize};
 
 use crate::directory::WorkbenchDirectoryPath;

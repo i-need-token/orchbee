@@ -1,3 +1,7 @@
+//! Owns captured Panel split, placement, and close operations and validates their commits
+//! before preparing Client membership changes. It does not create a physical terminal, mutate
+//! canonical topology locally, or substitute a new target after submission.
+
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, ClientNotice, ClientPhase, MembershipCleanup,
     PaneKey, PreparedMembershipCandidate, WorkbenchClientState,

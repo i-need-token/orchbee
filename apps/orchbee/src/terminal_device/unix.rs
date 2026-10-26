@@ -1,3 +1,7 @@
+//! Admits matching inherited Unix terminal descriptors, duplicates owned input or output
+//! handles, and observes their window geometry. It does not change terminal modes or open a
+//! replacement terminal device.
+
 use std::{
     io,
     os::fd::{AsFd, BorrowedFd, OwnedFd},

@@ -1,3 +1,7 @@
+//! Projects untrusted text into terminal-safe display strings with raw-to-visible cursor
+//! boundaries, display-width limits, and distinct chrome filtering. It does not mutate the
+//! source text or parse canonical protocol identities from rendered labels.
+
 use std::borrow::Cow;
 pub(crate) mod line_editor;
 

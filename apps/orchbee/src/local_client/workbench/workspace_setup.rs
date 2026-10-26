@@ -1,3 +1,7 @@
+//! Submits admitted Workspace setup or organization commands and classifies exact
+//! pre-submission, known-commit, and uncertain-delivery outcomes. It does not edit setup
+//! drafts or install canonical membership into the Client.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

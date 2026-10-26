@@ -1,3 +1,7 @@
+//! Selects a usable default interactive shell from platform observations and supplies literal
+//! argv and terminal environment facts. It does not start the shell, create a terminal, or
+//! grant launch authority.
+
 use std::fmt;
 
 #[cfg(unix)]

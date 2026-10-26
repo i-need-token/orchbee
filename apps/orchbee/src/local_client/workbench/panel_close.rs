@@ -1,3 +1,7 @@
+//! Submits a captured Panel close and validates the returned scope and accepted close identity
+//! while preserving non-submission and uncertain-delivery distinctions. It does not infer
+//! physical disposal from acceptance or decide confirmation policy.
+
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason,

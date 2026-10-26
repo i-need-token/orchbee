@@ -1,3 +1,7 @@
+//! Validates known creation receipts against canonical membership and prepares the exact
+//! projection and landing selection for installation. It does not launch a terminal or accept
+//! a receipt as proof that an attachment is ready.
+
 use super::{
     CarrierFailure, ClientContextTabs, ClientPhase, CommittedTabCreate, CreateOperationKey,
     CreateProjectionDecision, ReadyAttachment, SelectedTab, WorkbenchClientState,

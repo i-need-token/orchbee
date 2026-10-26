@@ -1,3 +1,7 @@
+//! Validates the captured Tab rename and committed revision against a canonical candidate
+//! while preserving unrelated membership. It does not treat an echoed wire label as canonical
+//! proof or infer attachment cleanup.
+
 use super::{
     ClientContextTabs, ClientProjectionDivergence, WorkbenchLabel, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId, validate_canonical_candidate,

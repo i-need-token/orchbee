@@ -1,3 +1,7 @@
+//! Adapts Panel close input and draw receipts to the exact confirmation token before queueing
+//! a captured close plan. It does not paint the prompt or grant closure from an unpresented or
+//! stale confirmation.
+
 use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 use crate::workbench_client::state::{self, OPERATION_TOTAL, WorkbenchClientState};
 use crate::{

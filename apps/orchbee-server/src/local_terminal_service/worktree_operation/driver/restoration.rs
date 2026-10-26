@@ -1,3 +1,7 @@
+//! Attempts the plan's explicit shell restoration after a failed worktree removal while
+//! preserving the original Git failure and separate restoration facts. It does not rerun the
+//! failed Git mutation or overwrite its physical outcome.
+
 use super::{Driver, absolute};
 use crate::local_terminal_service::{create_reference, lease_expiry, placement, submit};
 use orchbee_capability_node_protocol::WorktreeMutation;

@@ -1,3 +1,7 @@
+//! Admits retained close lifecycle work into the Worker carrier and wakes its owner when the
+//! exact result settles. It preserves an outstanding physical request after local wait
+//! cancellation without advancing the close state machine itself.
+
 use std::{
     sync::{
         Arc,

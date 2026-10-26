@@ -1,3 +1,7 @@
+//! Computes checked wire and retained-heap charges for complete close records and their
+//! possible receipts before admission. It reserves no memory or ledger entry itself and does
+//! not advance close state.
+
 use std::mem::size_of;
 
 use orchbee_capability_node_protocol::TerminalLifecycleRequest;

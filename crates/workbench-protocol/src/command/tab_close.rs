@@ -1,3 +1,7 @@
+//! Defines generation-fenced reads and resumes for retained Tab closure with closed blocked,
+//! unknown, and publication states. It describes an existing close operation without
+//! terminating a terminal, removing membership, or deciding a retry policy.
+
 use std::{fmt, num::NonZeroU64};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};

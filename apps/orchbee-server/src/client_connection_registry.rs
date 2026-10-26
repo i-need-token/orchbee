@@ -1,3 +1,7 @@
+//! Owns the bounded set of admitted Client connection generations and retires only the exact
+//! disconnected generation. It allocates connection identity without authenticating peers or
+//! representing product Sessions.
+
 use std::{collections::BTreeSet, num::NonZeroU64};
 
 pub(crate) const MAXIMUM_ACTIVE_CLIENT_CONNECTIONS: usize = 32;

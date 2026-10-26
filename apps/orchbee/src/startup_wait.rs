@@ -1,3 +1,7 @@
+//! Owns the bounded wait for a presentable inherited-terminal geometry with captured
+//! cancellation input, progress rendering, and explicit mode restoration. It does not activate
+//! a Session or enter the connected Workbench event loop.
+
 #[cfg(unix)]
 use std::{fs::File, io::Read};
 use std::{

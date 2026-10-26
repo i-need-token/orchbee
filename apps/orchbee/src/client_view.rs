@@ -1,3 +1,7 @@
+//! Owns Client-local chrome, prefix bindings, overlay decisions, and presentation preferences,
+//! emitting explicit backend or shell actions. It does not own canonical Workbench membership,
+//! physical terminal state, or Server command settlement.
+
 #[cfg(test)]
 pub(crate) use bindings::PREFIX_GROUPS;
 /// Wide hosts show the sidebar by default: the default width still docks beside usable content.

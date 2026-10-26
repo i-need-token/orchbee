@@ -1,3 +1,7 @@
+//! Owns the current validated snapshot and bounded publication journal, preparing complete
+//! advances before atomic publication. It projects already-admitted state without authorizing
+//! commands or executing terminal effects.
+
 use std::{collections::VecDeque, fmt};
 
 use orchbee_workbench_protocol::{

@@ -1,3 +1,7 @@
+//! Consumes a captured Tab move result into validated canonical membership and an atomic
+//! mailbox settlement. It does not execute the move or discard a known commit when its
+//! projection still requires recovery.
+
 use super::WorkbenchClientUi;
 use crate::workbench_client::{
     mailbox::{CommandMailbox, DesiredInstall, MoveSettlement, MutationResult, UiReply, UiWaitKey},

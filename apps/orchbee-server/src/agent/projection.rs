@@ -1,9 +1,7 @@
-//! Read-side projections: per-session status, summaries, explanations,
-//! wait-condition matching, aggregate groups, and per-location presentations.
-//!
-//! Status/aggregate comparison is hand-ported from `projection.ts` —
-//! `compareSessionPresentation` sorts by descending semantic priority, then
-//! descending freshness, then activity-hint presence, then canonical identity.
+//! Derives Agent session status, summaries, explanations, and presentation ordering from
+//! admitted domain snapshots, preserving semantic priority, freshness, and stable identity
+//! ordering. It does not mutate Agent state, read terminal contents, or perform transport
+//! effects.
 
 #[cfg(test)]
 use std::collections::{BTreeMap, BTreeSet, HashMap};

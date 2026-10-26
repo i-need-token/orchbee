@@ -1,3 +1,7 @@
+//! Reads and writes one bounded OBWP request or response, enforcing exact version, kind,
+//! direction, and per-message size limits. It owns no connection, subscription lifetime,
+//! deadline, or operation authorization.
+
 use std::{
     fmt,
     io::{self, Read, Write},

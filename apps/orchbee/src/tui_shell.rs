@@ -1,3 +1,7 @@
+//! Owns the inherited-terminal TUI event loop, surface switching, bounded input polling,
+//! drawing, and transfer of mode or draw receipts to feature owners. It does not own canonical
+//! Workbench state or treat transport observations as painted output.
+
 mod divider;
 mod machines;
 mod measurement;

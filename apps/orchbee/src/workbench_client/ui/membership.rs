@@ -1,3 +1,7 @@
+//! Consumes exact membership-detach results and coordinates prepared UI installation with the
+//! mailbox's desired attachment. It does not perform cleanup I/O or install a candidate whose
+//! cleanup evidence no longer matches.
+
 use super::{
     Arc, AttachmentKey, CarrierFailure, CommandMailbox, MutationResult, RefreshDecision,
     RefreshSettlement, UiReply, WorkbenchClientUi,

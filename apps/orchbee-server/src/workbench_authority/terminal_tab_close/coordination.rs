@@ -1,3 +1,7 @@
+//! Associates retained close records with exact physical lifecycle steps and settles matching
+//! admission, completion, and local cleanup reports. It updates canonical close state without
+//! performing Worker requests or directly publishing topology removal.
+
 use std::{num::NonZeroU64, time::Instant};
 
 use orchbee_capability_node_protocol::{

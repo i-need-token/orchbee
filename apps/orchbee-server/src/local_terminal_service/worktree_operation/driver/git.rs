@@ -1,3 +1,7 @@
+//! Admits, polls, and settles retained generation-fenced Worker Git mutations while preserving
+//! physical effect and failure distinctions. It performs no Git command locally and never
+//! interprets a lost response as permission to resubmit the mutation.
+
 use super::{Driver, absolute};
 use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,

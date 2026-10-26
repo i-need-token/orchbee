@@ -1,3 +1,7 @@
+//! Owns Client Workspace setup drafts, captured operations, known commit evidence, and
+//! canonical projection settlement before selection installation. It does not create Server
+//! membership locally or treat submission as a completed launch.
+
 mod draft;
 mod labels;
 mod organization;

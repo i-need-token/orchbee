@@ -1,3 +1,7 @@
+//! Defines bounded worktree-list reads and outcomes with validated lossless path-text
+//! representations and association facts. It does not invoke Git, canonicalize filesystem
+//! identity, or mutate Workbench directory membership.
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{

@@ -1,3 +1,7 @@
+//! Submits a captured Workspace close and validates its exact Session, Workspace, context,
+//! attempt generation, and correlated result. It does not close children locally or infer
+//! physical settlement from command acceptance.
+
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,

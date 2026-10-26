@@ -1,3 +1,7 @@
+//! Joins a retired connection task before admitting its correlated poll evidence and
+//! scheduling canonical membership recovery. It does not infer viewer cleanup from task loss
+//! or install an unrelated recovery snapshot.
+
 use super::{
     CommandMailbox, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,
     WorkbenchClientUi,

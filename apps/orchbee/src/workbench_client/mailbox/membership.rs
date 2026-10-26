@@ -1,3 +1,7 @@
+//! Prepares the mailbox's desired attachment installation in the same UI reply transaction as
+//! canonical membership settlement. It does not perform transport cleanup or authorize a
+//! different attachment than the validated candidate.
+
 use super::{
     AttachmentKey, CarrierFailure, MailboxMembership, MailboxState, PaneKey, PaneRef,
     UiReplyTransaction,

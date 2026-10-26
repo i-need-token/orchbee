@@ -1,3 +1,7 @@
+//! Reads one retained Tab close and validates the exact request and target association before
+//! exposing status. It observes progress without resuming the close or treating a missing
+//! status as physical cleanup proof.
+
 use super::{
     CloseExchangeError, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
     validate_correlation, validate_target,

@@ -1,3 +1,7 @@
+//! Owns bounded setup queue admission, captured draft and configuration intents, structural
+//! barriers, and retained result evidence. It does not execute Server commands or infer
+//! canonical membership from local submission.
+
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
     MailboxClock, MailboxClosed, MailboxState, MembershipResultKey, MoveAdmissionError,

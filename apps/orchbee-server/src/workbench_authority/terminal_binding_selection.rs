@@ -1,3 +1,7 @@
+//! Determines whether an exact Session and physical binding is exposed by current committed
+//! Workbench presentations. It grants no viewer or controller and does not prove that the
+//! bound Worker or Host is still live.
+
 use orchbee_workbench_protocol::{PanelNode, PresentationBinding, SessionId};
 
 use super::{WorkbenchAuthority, terminal_membership::visit_panel_presentations};

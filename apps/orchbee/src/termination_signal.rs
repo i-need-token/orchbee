@@ -1,3 +1,7 @@
+//! Owns host termination observation through scoped Unix signal registrations or the Windows
+//! control-interrupt adapter. It signals the application's shutdown path without restoring
+//! terminal modes or terminating owned resources itself.
+
 use std::io;
 
 #[cfg(unix)]

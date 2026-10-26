@@ -1,3 +1,7 @@
+//! Evaluates semantic event filters against the event's explicit identities and typed data,
+//! including scope-specific and Agent-state matching. It performs no capture, journal read,
+//! subscription mutation, or inference from terminal text.
+
 use super::{
     SemanticEvent, SemanticEventData, SemanticEventFilter, SemanticEventKind, SemanticEventMatch,
     SemanticEventScope,

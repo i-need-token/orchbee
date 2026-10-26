@@ -1,3 +1,7 @@
+//! Owns a Client Tab-move operation's captured identity, known commit, canonical projection
+//! validation, and membership reconciliation. It does not reorder Server state locally or
+//! replay an operation whose delivery is unknown.
+
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, ClientNotice, ClientPhase, MembershipCleanup,
     PaneKey, PreparedMembershipCandidate, WorkbenchClientState,

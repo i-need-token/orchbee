@@ -1,3 +1,7 @@
+//! Joins checkpoint membership and retained launch state to prepare exact terminal restoration
+//! requests and checkpoint directory facts. It does not read storage, launch a terminal, or
+//! adopt a physical terminal from another incarnation.
+
 use super::{SessionCoordinator, presentation_binding};
 use crate::terminal_coordinator::{PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;

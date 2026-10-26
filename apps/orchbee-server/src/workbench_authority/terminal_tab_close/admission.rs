@@ -1,3 +1,7 @@
+//! Admits Tab, Panel, and Workspace close scope against one canonical revision, reserving
+//! ledger capacity and captured runtime members before commitment. It does not inspect
+//! processes or send termination and disposal requests.
+
 use std::time::Instant;
 
 use orchbee_capability_node_protocol::LifecycleTerminalPhase;

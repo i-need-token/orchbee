@@ -1,3 +1,7 @@
+//! Loads a bounded Windows checkpoint and coordinates cleanup when startup aborts before
+//! launch, retaining exact child and generation ownership. It does not interpret Workbench
+//! topology or claim that a pathname or pipe disappearance proves process exit.
+
 use orchbee_local_runtime::{
     ModeCheckedLocalSessionRendezvous, RetainedChild, RetainedSessionRecord, SessionStore,
 };

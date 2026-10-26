@@ -1,3 +1,7 @@
+//! Owns Client close confirmation presentation, retained status records, and exact-generation
+//! resume permits across Tab and Workspace closure. It observes Server close authority without
+//! deciding physical disposal or implicitly replaying an unknown close.
+
 use super::{AttachmentKey, ClientNotice, PaneKey};
 use crate::{
     local_client::workbench::WorkbenchTabCloseAccepted,

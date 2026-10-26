@@ -1,3 +1,7 @@
+//! Owns bounded Workspace setup fields, choice stages, draft tokens, and exact presented-input
+//! admission before producing a setup intent. It does not execute commands, validate a remote
+//! directory, or commit membership.
+
 use super::super::field_window::{FieldWindow, field_window};
 use super::super::line_editor::{LengthLimit, LineEditor};
 use super::{ClientContextTabs, WorkbenchClientState, WorkbenchLabel, WorkbenchProjectId};

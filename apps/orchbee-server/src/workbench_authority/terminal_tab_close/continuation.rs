@@ -1,3 +1,7 @@
+//! Owns one target's bounded close progression, exact lifecycle-step tokens, explicit resume
+//! generations, and unknown or blocked settlement. It chooses the next authorized step without
+//! executing I/O or replaying an uncertain mutation.
+
 use std::{
     num::NonZeroU64,
     sync::Arc,

@@ -1,3 +1,7 @@
+//! Prepares exact restored presentation bindings against checkpoint topology and commits a
+//! validated projection advance. It neither reads checkpoint storage nor launches or adopts a
+//! physical terminal.
+
 use std::{collections::BTreeMap, fmt};
 
 use orchbee_workbench_protocol::{

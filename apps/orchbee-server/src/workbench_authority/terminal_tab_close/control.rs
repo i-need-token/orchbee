@@ -1,3 +1,7 @@
+//! Serves retained close reads and admits generation-fenced explicit resumes with correlated
+//! receipts for Tab and Workspace scopes. It does not restart physical work implicitly or
+//! decide that an unknown step succeeded.
+
 use std::time::Instant;
 
 use orchbee_workbench_protocol::{

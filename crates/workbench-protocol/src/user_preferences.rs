@@ -58,7 +58,7 @@ pub enum CompletionReminderMode {
     Always,
 }
 
-/// Stable keys are also reset and migration identities, never translated labels.
+/// Stable keys identify preferences for reads, updates, and resets; they are never translated labels.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PreferenceKey {

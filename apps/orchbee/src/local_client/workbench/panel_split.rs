@@ -1,3 +1,7 @@
+//! Submits a typed Panel split and validates committed topology identities, launch provenance,
+//! geometry, and terminal outcome against the request. It does not install UI membership or
+//! equate logical commitment with successful physical launch.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

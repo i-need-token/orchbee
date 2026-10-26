@@ -1,3 +1,7 @@
+//! Admits Client takeover actions and consumes correlated results into UI controller state
+//! while retaining evidence across connection-task loss. It does not grant Server authority or
+//! submit a second takeover after unknown delivery.
+
 use super::{WorkbenchClientUi, WorkbenchClientView};
 use crate::{
     client_view::ClientActionDisposition,

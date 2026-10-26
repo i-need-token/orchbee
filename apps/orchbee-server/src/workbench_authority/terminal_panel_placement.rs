@@ -1,3 +1,7 @@
+//! Prepares atomic Panel move or swap plans with grant, revision, structure, and
+//! retained-close checks before projection commit. It preserves physical bindings without
+//! moving terminals between Workers or changing Client-local selection.
+
 use super::{
     CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant, allocate,
     identity, result, unavailable,

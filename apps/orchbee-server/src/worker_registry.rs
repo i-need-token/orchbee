@@ -1,3 +1,7 @@
+//! Owns Worker admission generations, the active registered carrier, and exact-generation
+//! retirement with Agent Drain identity minting. It does not authenticate transport peers or
+//! let a stale registration retire a replacement Worker.
+
 use std::{
     num::NonZeroU64,
     sync::{

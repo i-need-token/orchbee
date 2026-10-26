@@ -1,3 +1,7 @@
+//! Executes one captured controller takeover and reconciles its exact receipt and projection
+//! through the UI handoff. It does not decide confirmation presentation or repeat a possibly
+//! delivered takeover.
+
 use super::{ClientExecutor, Result, closed, event, submission};
 use crate::{
     local_client::SubmissionError,

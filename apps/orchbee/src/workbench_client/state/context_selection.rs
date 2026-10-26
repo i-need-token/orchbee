@@ -1,3 +1,7 @@
+//! Owns Client context-selection provenance, retained context candidates, and admission of
+//! exact navigation targets against canonical snapshots. It does not change canonical
+//! membership or attach a viewer before the runtime settles the selection plan.
+
 use super::recovery_fence::RecoveryFence;
 use super::{
     CarrierFailure, ClientContextTabs, ClientPhase, CreateTerminalProvenance, OperationDeadlines,

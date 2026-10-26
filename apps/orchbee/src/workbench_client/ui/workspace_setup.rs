@@ -1,3 +1,7 @@
+//! Adapts setup draft editing, quick creation, organization intents, draw evidence, and
+//! correlated results to Client state and mailbox admission. It does not execute Server
+//! commands or assume that a submitted setup already changed canonical membership.
+
 use super::{
     ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView, finish_action,
 };

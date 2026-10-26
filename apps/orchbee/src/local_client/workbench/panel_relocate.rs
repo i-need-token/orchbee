@@ -1,3 +1,7 @@
+//! Submits an exact cross-Tab Panel relocation and checks its source, destination, split
+//! identities, and committed revision. It does not change physical terminal ownership or
+//! authorize replay after unknown delivery.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

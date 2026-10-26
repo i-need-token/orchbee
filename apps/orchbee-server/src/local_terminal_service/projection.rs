@@ -1,3 +1,7 @@
+//! Tracks one viewer's in-flight projection route and admits only matching frame or snapshot
+//! feedback and capturable revisions. It validates routing state without decoding terminal
+//! cells or proving that a Client painted the frame.
+
 use orchbee_client_server_protocol::TerminalViewerAction;
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HostEpoch, MessageRole, PayloadEncoding,

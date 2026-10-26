@@ -1,3 +1,7 @@
+//! Retains bounded identity-based context, Tab, Panel, and presentation preferences and prunes
+//! them against admitted membership. It chooses Client-local remembered selections without
+//! changing canonical display order or creating a missing target.
+
 use super::{ClientContextTabs, ClientPhase, ClientTab, SelectedTab, WorkbenchClientState};
 use crate::workbench_client::workbench_projection::ClientContextLocation;
 use orchbee_workbench_protocol::{TerminalPresentationId, WorkbenchPanelId, WorkbenchTabId};

@@ -1,3 +1,7 @@
+//! Preflights Workspace directory changes and prepares their canonical commit only after the
+//! caller supplies a matching Worker validation. It performs no filesystem probe and changes
+//! no running terminal directory.
+
 use super::{
     CommitPlan, PlanFailure, WorkbenchAuthority, WorkbenchGrant, allocate, identity, result,
     unavailable,

@@ -1,3 +1,7 @@
+//! Adapts close confirmations, explicit resumes, retained status reads, and draw receipts to
+//! Client state and mailbox admission. It observes Server close truth without painting the
+//! prompt, executing physical closure, or acknowledging a merely prepared frame.
+
 use super::{PanelCloseConfirmationToken, WorkbenchClientUi, WorkbenchClientView};
 use crate::workbench_client::state::{self, TabCloseResumePermit};
 use crate::{

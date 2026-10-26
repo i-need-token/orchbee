@@ -1,3 +1,7 @@
+//! Observes bounded absolute shell candidates from the inherited environment, current account,
+//! and POSIX fallback, requiring a usable executable. It does not execute a candidate or
+//! override the caller's launch selection.
+
 use std::{
     env,
     ffi::OsStr,

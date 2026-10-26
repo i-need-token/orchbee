@@ -1,3 +1,7 @@
+//! Owns one bounded modal paste run, retaining UTF-8 and terminator provenance until its real
+//! closing frame even after timeout or rejection. It returns admitted text or discard progress
+//! without editing a draft or releasing a partial paste tail.
+
 use std::time::{Duration, Instant};
 
 use super::{ModalCapacity, utf8::Scalar};

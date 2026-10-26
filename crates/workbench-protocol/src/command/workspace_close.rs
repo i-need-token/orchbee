@@ -1,3 +1,7 @@
+//! Carries bounded Workspace closure observations and generation-fenced resumes with explicit
+//! per-member status and counts. It validates the aggregate contract without executing child
+//! closes or inferring physical cleanup from membership removal.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

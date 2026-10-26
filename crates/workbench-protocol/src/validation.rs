@@ -1,3 +1,7 @@
+//! Validates bounded canonical Workbench documents and applies deltas or publications
+//! atomically after checking revision and identity relationships. It performs pure value
+//! transitions; authoritative commit, persistence, and publication remain with the Server.
+
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt,

@@ -1,3 +1,8 @@
+//! Owns canonical Session Workbench state, revision admission, identity allocation, and the
+//! bounded retained request ledger with prepared projection commits. It decides logical
+//! membership and publication without performing Worker effects or choosing Client-local
+//! focus.
+
 mod layout_create;
 use std::collections::BTreeMap;
 

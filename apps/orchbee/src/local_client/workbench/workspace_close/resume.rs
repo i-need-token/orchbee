@@ -1,3 +1,7 @@
+//! Submits one explicit generation-fenced Workspace close resume and validates the returned
+//! scope and outcome. It does not choose a new close scope or replay a request whose delivery
+//! is uncertain.
+
 use super::{
     WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
     WorkspaceCloseExchangeError, validate_correlation, validate_scope,

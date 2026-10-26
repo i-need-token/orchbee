@@ -1,3 +1,7 @@
+//! Classifies canonical removal of the current context and mints a narrowly scoped permit for
+//! installing its validated fallback location. It does not grant ordinary navigation authority
+//! or bypass outstanding operation and cleanup fences.
+
 use super::recovery_fence::RecoveryFence;
 use super::{
     ClientContextTabs, ClientPhase, CreateTerminalProvenance, PreparedRefresh, WorkbenchClientState,

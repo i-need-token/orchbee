@@ -1,3 +1,7 @@
+//! Drives retained Tab and Workspace close continuations, explicit resumes, lifecycle
+//! settlement, and publication through bounded maintenance turns. It does not own the close
+//! state machine or replace physical disposal evidence with topology changes.
+
 use std::time::{Duration, Instant};
 
 use orchbee_capability_node_protocol::LifecycleUnknownReason;

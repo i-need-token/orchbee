@@ -1,3 +1,7 @@
+//! Starts a dedicated retained-close observation task only after the prior Client connection
+//! task is absent, preserving its origin and recovery mailbox seed. It does not replay close
+//! mutations or replace the Server's retained status authority.
+
 use super::{ClientTask, WorkbenchClient, connection, state, thread};
 
 impl WorkbenchClient {

@@ -1,3 +1,7 @@
+//! Submits one captured Panel split, placement, or close operation and reads the matching
+//! canonical projection while retaining known commit evidence. It does not install UI
+//! membership or replay an uncertain structural effect.
+
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::{
     local_client::workbench::{

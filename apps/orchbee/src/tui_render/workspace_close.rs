@@ -1,3 +1,6 @@
+//! Paints the admitted Workspace close confirmation and records only controls tied to its
+//! captured token. It does not decide membership or submit Workspace closure.
+
 use super::modal::{
     ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
     paint_modal_frame,

@@ -1,3 +1,7 @@
+//! Pairs prepared Tab or Workspace launch membership with an exact terminal authorization,
+//! preserving committed launch metadata through settlement. It does not perform Worker I/O or
+//! redirect a completion to another prepared creation.
+
 use super::{SessionCoordinator, presentation_binding};
 use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{

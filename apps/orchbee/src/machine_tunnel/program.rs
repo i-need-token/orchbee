@@ -1,3 +1,7 @@
+//! Encodes the literal remote executable and validated tunnel operands into a PowerShell
+//! process launch that inherits binary streams directly. It performs no SSH connection or
+//! process launch and never reparses protocol bytes as text.
+
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 /// ProcessStartInfo inherits binary handles directly; the PowerShell pipeline must
 /// never decode/re-encode protocol bytes as native-command text.

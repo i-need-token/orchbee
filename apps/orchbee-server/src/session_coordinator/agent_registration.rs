@@ -1,3 +1,7 @@
+//! Projects bounded Agent registration facts from committed presentations joined to exact
+//! retained Worker and Host bindings. It does not infer Agent state, create registrations for
+//! uncommitted membership, or consume physical observations.
+
 use super::SessionCoordinator;
 use crate::terminal_coordinator::{RetainedBindingResolution, TerminalPhase};
 use orchbee_capability_node_protocol::{

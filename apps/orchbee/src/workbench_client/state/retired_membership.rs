@@ -1,3 +1,7 @@
+//! Admits replacement membership after a retired attachment's correlated poll and cleanup
+//! evidence while preserving recovery fences and exact operation identity. It does not treat
+//! carrier loss or a missing member as confirmed detach.
+
 use super::recovery_fence::RecoveryFence;
 use super::{
     AttachmentKey, CarrierFailure, ClientContextTabs, ClientPhase, OperationDeadlines,

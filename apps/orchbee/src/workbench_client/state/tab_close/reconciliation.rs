@@ -1,3 +1,7 @@
+//! Retains exact close origins and joins release, canonical membership, and known
+//! closed-attachment evidence before consuming a close record. It does not use topology
+//! disappearance alone as proof that a viewer or controller was cleaned up.
+
 use super::{
     AttachmentKey, ClientTerminalBinding, CloseCarrier, CloseFlightKey, CloseOperation,
     CloseOperationKind, CloseResult, CloseSelection, CloseState, CloseStateError,

@@ -1,3 +1,8 @@
+//! Owns Client-local attachment, membership, selection, and pending-operation transitions
+//! against validated canonical projections and exact completion evidence. It performs no
+//! transport I/O and cannot mint Server membership or infer physical cleanup from a missing
+//! projection.
+
 use super::workbench_projection::{
     ClientContextTabs, ClientTab, ClientTerminalBinding, CreatedTabExpectation,
     validate_canonical_refresh, validate_created_tab,

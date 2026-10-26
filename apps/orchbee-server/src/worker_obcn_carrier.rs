@@ -1,3 +1,8 @@
+//! Owns one Worker wire with bounded priority admission, serialized exchanges, exact response
+//! validation, and explicit queued versus uncertain-delivery failures. Handles submit work
+//! without owning the socket, and the carrier does not authorize product operations or replay
+//! effects.
+
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{

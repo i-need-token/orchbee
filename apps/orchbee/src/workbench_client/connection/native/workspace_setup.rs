@@ -1,3 +1,7 @@
+//! Submits a captured Workspace setup operation and preserves known commit or pre-submission
+//! evidence through the canonical snapshot handoff. It does not own the draft or install the
+//! resulting Client membership.
+
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupSubmission,

@@ -1,3 +1,7 @@
+//! Defines inherited-terminal admission failures and geometry observations and exposes the
+//! selected native device adapter. It does not enter raw mode, take an alternate screen, or
+//! decide application startup policy.
+
 use std::{fmt, io};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

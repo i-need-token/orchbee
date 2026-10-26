@@ -1,3 +1,7 @@
+//! Settles a retained terminal request into its next phase and Client-visible outcome from the
+//! exact physical completion classification. It does not perform I/O, retry unknown delivery,
+//! or change Workbench membership.
+
 use super::{
     ClientMessage, Completion, CreateAcceptedState, CreateFailureReason, CreateOutcome,
     CreateUnavailableReason, HostLaunchState, PendingOperation, ServerMessage, StartFailureReason,

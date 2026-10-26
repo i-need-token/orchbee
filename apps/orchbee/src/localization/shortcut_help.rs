@@ -1,3 +1,8 @@
+//! Projects available bindings and contextual actions into localized, identity-deduplicated
+//! shortcut help with stable groups and search aliases. It reads Client capability and mode
+//! facts without changing bindings, executing actions, or deriving semantic identity from
+//! translated titles.
+
 use super::Locale;
 use crate::{
     action_projection::{ActionCategory, ActionIdentity, ActionMetadata, ActionSearchAlias},

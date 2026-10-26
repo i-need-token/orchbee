@@ -1,3 +1,7 @@
+//! Owns inherited-terminal mode leases, initialization rollback, synchronized-frame cleanup,
+//! and bounded explicit or panic-path restoration. It does not own the Workbench connection or
+//! infer that dropping a UI surface restores the host terminal.
+
 use std::{
     fmt, io,
     io::Write as _,

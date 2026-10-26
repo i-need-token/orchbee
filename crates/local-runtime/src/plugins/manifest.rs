@@ -1,3 +1,7 @@
+//! Parses and normalizes the bounded closed plugin manifest, checking identifiers, literal
+//! commands, platform lists, and display declarations. It does not load plugin code, resolve
+//! an executable, or perform a declared action.
+
 use super::PluginRegistryError as Error;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;

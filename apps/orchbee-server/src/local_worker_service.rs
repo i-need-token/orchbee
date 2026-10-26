@@ -1,3 +1,7 @@
+//! Owns explicit local Worker endpoint startup and same-user, cohort-checked Worker admission
+//! before transferring each accepted wire to its registered owner. It does not execute
+//! terminal requests or infer peer identity from an endpoint pathname.
+
 use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 #[cfg(unix)]
 use std::fs;

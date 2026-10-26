@@ -1,3 +1,7 @@
+//! Projects validated canonical snapshots into identity-preserving Client contexts, Tabs, and
+//! Panels and verifies expected creation or movement results. It owns no live connection or
+//! authoritative membership and never derives physical cleanup from a missing projection.
+
 use orchbee_workbench_protocol::{
     MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, PanelOrientation, SessionId,
     Snapshot, Tab, TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,

@@ -1,3 +1,7 @@
+//! Validates bounded absolute directory wire paths and compares admitted Windows spellings
+//! under the association rule. It does not probe the filesystem, resolve dot components, or
+//! establish that two spellings identify the same directory object.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};

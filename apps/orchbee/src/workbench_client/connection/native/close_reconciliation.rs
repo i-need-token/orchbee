@@ -1,3 +1,7 @@
+//! Reads canonical membership for an exact retained close origin and obtains a correlated UI
+//! decision before continuing recovery. It does not infer physical detach from the snapshot or
+//! choose a replacement navigation target.
+
 use super::{
     CarrierFailure, ClientExecutor, CommandLease, MutationResult, RefreshDecision, Result,
     SetupEntryExpiry, SetupOwner, SetupTarget, UiReply, closed, event,

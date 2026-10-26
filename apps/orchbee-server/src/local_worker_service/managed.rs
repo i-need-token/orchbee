@@ -1,3 +1,7 @@
+//! Composes admitted runtime locks, verified cohort artifacts, retained Worker startup, Client
+//! service, and checkpoint lifecycle for a managed Session. It does not define domain
+//! transitions or adopt an unregistered process as the Session owner.
+
 #[cfg(not(windows))]
 use crate::local_client_service;
 use crate::{

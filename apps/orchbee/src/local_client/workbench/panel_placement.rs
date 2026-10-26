@@ -1,3 +1,7 @@
+//! Submits a captured Panel move or swap and validates its exact target and committed revision
+//! before returning typed settlement. It does not rewrite Client topology or redirect a
+//! response to a replacement Panel.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

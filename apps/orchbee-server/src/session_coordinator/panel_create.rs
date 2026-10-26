@@ -1,3 +1,7 @@
+//! Coordinates Panel creation by pairing prepared Workbench membership with its exact
+//! authorized terminal operation and settling the matching completion. Worker dispatch and
+//! physical terminal creation remain outside the coordinator lock.
+
 use super::tab_create::{
     client_geometry, pending_authorization, pending_authorization_from_message,
     pending_cwd_matches, pending_environment_matches, pending_launch_matches,

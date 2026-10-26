@@ -1,3 +1,7 @@
+//! Owns packet-level keyboard, pointer, modal, and host-reply routing against current capture
+//! claims and the last drawn interaction map. It preserves release and unread-tail ownership
+//! without executing backend commands or bypassing feature admission.
+
 use std::time::Instant;
 
 use crate::client_view::{
@@ -95,7 +99,7 @@ struct ProjectedCaptureItem {
 #[cfg(test)]
 mod tests;
 
-/// Adapts one decoded item to the legacy confirmation-port vocabulary. Only
+/// Adapts one decoded item to the confirmation port's decision vocabulary. Only
 /// legal single keys convert; every other complete item (modified keys,
 /// navigation keys, paste runs, non-decision sequences) maps to `Other` so an
 /// open confirmation swallows it without a decision — never a tail leak.

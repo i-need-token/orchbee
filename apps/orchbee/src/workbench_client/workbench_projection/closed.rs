@@ -1,3 +1,7 @@
+//! Validates a captured Tab's canonical removal at or after its known revision within the
+//! exact Session and context. It proves membership absence only, never physical terminal
+//! disposal or viewer and controller cleanup.
+
 use super::{
     ClientContextTabs, ClientProjectionDivergence, SessionId, WorkbenchRevision, WorkbenchTabId,
     WorkbenchTerminalContextId, validate_canonical_candidate,

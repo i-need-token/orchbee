@@ -1,3 +1,7 @@
+//! Admits and prepares atomic Tab placement with canonical order, revision, and close-fence
+//! checks before committing the projection. It moves logical membership without restarting
+//! terminals or choosing a Client's active Tab.
+
 use super::{
     CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant, result,
     unavailable,

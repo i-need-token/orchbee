@@ -1,3 +1,7 @@
+//! Executes the UI-authorized exact attachment cleanup and reports its correlated result
+//! before membership installation. It does not choose the replacement canonical projection or
+//! count a dropped viewer as confirmed detach.
+
 use super::{
     CarrierFailure, ClientExecutor, CommandLease, EventDeadline, Instant, PaneKey, RefreshDecision,
     Result, SetupEntryExpiry, SetupOwner, SetupTarget, TerminalViewerAction, TerminalViewerOutcome,

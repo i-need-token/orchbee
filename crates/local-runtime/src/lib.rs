@@ -1,4 +1,7 @@
-//! Private native development runtime boundaries; applications own startup policy.
+//! Provides shared native runtime admission, exact process ownership, and device configuration
+//! and storage capabilities to application owners. It does not choose application startup
+//! policy, own Workbench state, or interpret the documents stored through these capabilities.
+
 mod notification_policy;
 pub use notification_policy::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
 mod user_preferences;

@@ -1,3 +1,7 @@
+//! Paints the admitted Panel close confirmation and returns only controls and draw proof tied
+//! to its exact confirmation token. It does not submit closure or infer physical disposal from
+//! the displayed state.
+
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
     paint_modal_close, paint_modal_frame,

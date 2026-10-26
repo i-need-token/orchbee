@@ -1,3 +1,7 @@
+//! Validates setup action-result pairing, committed identities and revisions, and
+//! action-specific rejection or unavailable classes. It classifies an observed response
+//! without executing a command or applying UI state.
+
 use super::{
     WorkbenchSetupCommit, WorkbenchSetupOutcomeUnknownReason, WorkbenchSetupPrecommit,
     WorkbenchSetupSubmission,

@@ -1,3 +1,7 @@
+//! Tracks UTF-8 continuation-byte provenance across framed input so text tails cannot
+//! masquerade as C1 control introducers. It recognizes byte shape without validating Unicode
+//! scalars or admitting text into an editor.
+
 /// Byte provenance for framed input, independent of text admission. Rejected
 /// payloads still advance this tracker so a continuation cannot open a C1
 /// control sequence, and a broken scalar cannot hide a later real terminator.

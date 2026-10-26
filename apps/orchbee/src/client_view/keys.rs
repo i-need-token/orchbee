@@ -1,6 +1,6 @@
-//! Typed key vocabulary shared by the legacy input decoder, the prefix binding
-//! registry, and help/status label formatting. This module is pure data plus
-//! normalization; matching and display both consume the same canonical form.
+//! Defines normalized key identities shared by host decoding, prefix bindings, and help or
+//! status labels so matching and display use one canonical form. It owns no input stream,
+//! binding registry state, or action execution.
 
 /// The key a host event resolves to. `Enter`, `Tab`, and `Space` are authoring
 /// aliases for canonical control chords (`Ctrl+M`, `Ctrl+I`, and literal

@@ -1,3 +1,7 @@
+//! Drives a prepared Panel creation through current Worker placement, dispatch, and exact
+//! postcommit settlement without holding the coordinator lock during I/O. It does not decide
+//! topology independently or replay an uncertain terminal effect.
+
 use super::{LocalTerminalService, lease_expiry, placement, submit};
 use crate::session_coordinator::{PostcommitCoordinationError, PreparedTerminalPanelCreate};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;

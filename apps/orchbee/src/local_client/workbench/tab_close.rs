@@ -1,3 +1,7 @@
+//! Submits an exact retained Tab close and validates correlation, scope, generation, and
+//! action-compatible acceptance or failure. It does not remove UI membership, decide physical
+//! disposal, or automatically resume an unknown close.
+
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
 use orchbee_workbench_protocol::{
     SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,

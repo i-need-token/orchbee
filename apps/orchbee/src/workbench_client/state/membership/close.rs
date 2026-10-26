@@ -1,3 +1,7 @@
+//! Validates closed membership and prepares its replacement only after matching
+//! close-reconciliation and attachment cleanup evidence. It does not close a terminal or treat
+//! disappearance from a snapshot as physical disposal proof.
+
 use super::{
     AttachmentKey, CarrierFailure, ClientPhase, MembershipCleanup, MembershipResultKey,
     OperationDeadlines, PendingMembership, PreparedMembershipCandidate, PreparedMembershipInstall,

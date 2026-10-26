@@ -1,3 +1,8 @@
+//! Defines the closed correlated Workbench request and response vocabulary and validates each
+//! variant's semantic and encoded-size constraints. It carries intents and observations
+//! without dispatching effects, retaining authoritative state, or admitting a Client
+//! connection.
+
 mod close_operation;
 mod creation;
 pub use close_operation::{

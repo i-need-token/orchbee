@@ -1,3 +1,7 @@
+//! Adapts Client popup controls, capture context, and surface geometry to the exact active
+//! popup and its correlated completion. It does not own the popup's physical launch or
+//! authorize input to another presentation.
+
 use super::WorkbenchClientUi;
 use orchbee_workbench_protocol::{
     ClientViewCompletionOutcome, ClientViewControl, ClientViewControlReason as Reason,

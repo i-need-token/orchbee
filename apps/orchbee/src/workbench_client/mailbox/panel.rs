@@ -1,3 +1,7 @@
+//! Owns bounded Panel-operation queue admission, structural barriers, exact in-flight markers,
+//! and correlated result settlement. It performs no protocol I/O and does not apply canonical
+//! topology or UI membership itself.
+
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
     Instant, LocalOperationClock, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey,

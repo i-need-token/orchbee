@@ -41,7 +41,7 @@ impl PluginPaneSelector {
     }
 }
 
-/// Validated per-launch overrides; empty options preserve the legacy request.
+/// Validated per-launch overrides; empty options preserve the request's selected defaults.
 #[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LaunchOptions {

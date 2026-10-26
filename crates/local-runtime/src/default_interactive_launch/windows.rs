@@ -1,3 +1,7 @@
+//! Resolves configured or automatic Windows shell policy into a usable literal executable and
+//! supported login arguments, structurally checking automatic PowerShell candidates. It does
+//! not launch a shell or alter persisted shell settings.
+
 use super::{
     DefaultInteractiveLaunch, DefaultInteractiveLaunchError, UsableShellCandidates, default_launch,
     select_default_interactive_launch,

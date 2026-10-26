@@ -1,3 +1,7 @@
+//! Retains bounded close records, captured members, physical targets, attempt generations, and
+//! structural fences until cleanup and publication settle. It does not perform lifecycle I/O
+//! or equate a missing member with confirmed disposal.
+
 use std::time::Instant;
 
 use orchbee_capability_node_protocol::{

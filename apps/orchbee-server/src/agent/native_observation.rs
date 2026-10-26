@@ -1,20 +1,7 @@
-//! `NativeObservation` — the private native observation reducer leaf.
-//!
-//! Production-active: the managed drain/registry path owns every call.
-//! It owns held hints, the one current carrier's scalar-W sequence, and
-//! the current committed bindings — a pure fold that classifies typed
-//! facts and returns owned effect data. It never calls `AgentRuntime`,
-//! the translator, I/O, the registry, or the coordinator: the
-//! `with_state` closure applies the returned effects to the runtime-free
-//! translator and the one runtime inside the same cell guard.
-//!
-//! Semantics are the selected model-32 contract: `seq<=W` dedup |
-//! `seq==W+1` classify+commit | `seq>W+1` hole | gap clips the prefix
-//! then must cover contiguously | a dead or absent carrier mints no ACK.
-//! The production Worker connection generation IS the drain epoch — no
-//! same-generation rotate and no drain token exists here; page-fence/
-//! token/ackEcho prevalidation stays the carrier consumer's
-//! obligation.
+//! Folds physical Agent drain events and gaps into bounded held hints, committed bindings, and
+//! contiguous per-carrier sequence state, returning effects to the owning Agent service. It
+//! performs no I/O or runtime dispatch; carrier page, token, and acknowledgement validation
+//! remain with the consumer before this fold.
 
 #[cfg(test)]
 mod tests;
@@ -51,7 +38,7 @@ pub(crate) struct CarrierIdentity {
     pub generation: WorkerGeneration,
 }
 
-/// The typed domain fact the (future) wire/decode boundary produces.
+/// The typed domain fact produced by the admitted drain consumer.
 /// `sequence` is carrier-owned and positive by construction; `raw` is
 /// validated UTF-8 within the application payload bound at construction
 /// — oversized input is rejected by the type, never stored or parsed.

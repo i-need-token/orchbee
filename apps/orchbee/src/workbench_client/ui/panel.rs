@@ -1,3 +1,7 @@
+//! Consumes exact Panel operation results into prepared membership and mailbox settlement,
+//! preserving the operation's captured focus and commit evidence. It does not mutate Server
+//! topology or retarget a stale result to the current Panel.
+
 use super::WorkbenchClientUi;
 use crate::workbench_client::{
     mailbox::{

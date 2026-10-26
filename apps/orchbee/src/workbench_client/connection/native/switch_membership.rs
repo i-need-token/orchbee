@@ -1,3 +1,7 @@
+//! Performs exact switch snapshot and cleanup work only under mailbox-issued permits,
+//! returning correlated decisions before continuing attachment changes. It does not choose
+//! Client selection or bypass a stale switch handoff.
+
 use super::{ClientExecutor, Result, closed, event, submission};
 use crate::{
     local_client::SubmissionError,

@@ -1,3 +1,7 @@
+//! Projects a single-line draft into a grapheme-aligned, chrome-safe cell window with an exact
+//! visible cursor boundary. It does not edit the draft, validate domain syntax, or claim that
+//! undisplayed text was presented.
+
 use std::borrow::Cow;
 
 use unicode_segmentation::UnicodeSegmentation;

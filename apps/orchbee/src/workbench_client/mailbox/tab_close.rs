@@ -1,3 +1,7 @@
+//! Owns bounded close queue admission, exact flight identity, retained recovery seeds, and
+//! correlated result placement. It does not execute a close or turn loss of the connection
+//! task into physical disposal evidence.
+
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CloseFlightKey, CloseOperation, CloseResult,
     CommandMailbox, EventDeadline, EventError, Geometry, Instant, LocalOperationClock,

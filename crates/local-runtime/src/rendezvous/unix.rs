@@ -1,3 +1,7 @@
+//! Admits descriptor-relative private Session runtime paths and owns exact activation or
+//! lifetime locks, marker publication, and read-only endpoint observations. It never repairs
+//! another owner's path or infers authenticated peer identity from a socket name.
+
 pub use crate::rendezvous_types::{
     EntryKind, EntryObservation, LockKind, RendezvousError, SessionLifetimeObservation,
     SessionScope,

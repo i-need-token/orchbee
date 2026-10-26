@@ -1,3 +1,7 @@
+//! Separates Workbench identity domains and validates canonical nonzero hexadecimal
+//! identities, decimal revisions, and the current protocol marker. It neither allocates
+//! identities nor establishes revision freshness or permission to change state.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};

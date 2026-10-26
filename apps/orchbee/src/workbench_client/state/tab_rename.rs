@@ -1,3 +1,7 @@
+//! Owns captured rename operation identity, known receipt and worker evidence, and canonical
+//! membership validation for settlement. It does not edit the draft or change a canonical
+//! label without a matching Server outcome.
+
 use super::recovery_fence::RecoveryFence;
 use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
 use super::{AttachmentKey, CarrierFailure, ClientContextTabs};

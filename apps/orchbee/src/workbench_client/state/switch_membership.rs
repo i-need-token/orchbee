@@ -1,3 +1,7 @@
+//! Prepares Client membership for an exact Tab or context switch, retaining selection
+//! provenance and required cleanup before installation. It does not open a transport, attach a
+//! terminal, or redirect the switch to an unrequested live target.
+
 use super::{
     AttachTarget, CarrierFailure, ClientPhase, ControllerMode, ExistingAttachment, FrameIdentity,
     Geometry, PaneKey, PaneRecord, PaneRef, PreparedMembershipCandidate, ReadyAttachment,

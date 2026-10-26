@@ -1,3 +1,7 @@
+//! Owns causal switch handoff records and single-use snapshot, cleanup, and expiry permits
+//! tied to the exact mailbox call. It does not read a snapshot or detach a viewer and cannot
+//! authorize a stale handoff by matching only its destination.
+
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, CommandLease, CommandMailbox, EventDeadline,
     Instant, LocalOperationClock, MailboxState, MembershipCleanup, MembershipResultKey, PaneKey,

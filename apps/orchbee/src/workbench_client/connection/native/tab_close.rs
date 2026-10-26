@@ -1,3 +1,7 @@
+//! Submits or explicitly resumes one captured retained close and carries its exact read or
+//! receipt outcome back to the UI. It does not decide that a close succeeded from connection
+//! loss or repeat a possibly delivered close.
+
 use super::{ClientExecutor, Result, closed, event, io_failure};
 use crate::{
     local_client::workbench::{

@@ -1,3 +1,7 @@
+//! Normalizes and validates bounded Agent view specifications, including field-value types and
+//! recursive filter budgets. It does not read Agent facts, evaluate the view, or decide which
+//! source owns a specification.
+
 use super::{
     AgentViewBuiltinField, AgentViewContextOperand, AgentViewField, AgentViewFilter,
     AgentViewSortField, AgentViewSpec, AgentViewToken, AgentViewValue, ContractError,

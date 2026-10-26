@@ -1,3 +1,7 @@
+//! Routes existing-viewer controls to the pinned Worker and validates correlated record
+//! targets, feedback, and row detail before returning them. It neither renders the opaque
+//! records nor rebinds a viewer to a replacement terminal.
+
 use super::{
     Action, LocalTerminalConnection, Outcome, Rejected, TargetLifecycle, TerminalViewerRequest,
     Unavailable, ViewerAttachment, ViewerRejection, WorkerAction, WorkerOperationRequest,

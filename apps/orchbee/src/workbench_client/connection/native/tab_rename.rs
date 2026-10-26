@@ -1,3 +1,7 @@
+//! Submits a captured rename and joins its known receipt to a subsequent canonical snapshot
+//! through a correlated UI reply. It does not edit the draft or replay a rename after
+//! uncertain delivery.
+
 use super::{
     CarrierFailure, ClientExecutor, CommandLease, RefreshDecision, Result, SetupEntryExpiry,
     SetupOwner, SetupTarget, UiReply, closed, event,

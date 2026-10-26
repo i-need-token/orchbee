@@ -1,3 +1,7 @@
+//! Runs the Client connection task against a pinned terminal binding and returns retained
+//! operation evidence when that task exits. It owns no canonical UI state and does not discard
+//! known commits or pending closes merely because the connection ended.
+
 use super::TerminalStatus;
 use super::workbench_projection::ClientTerminalBinding;
 use crate::{

@@ -1,3 +1,7 @@
+//! Paints the admitted Tab close modal and returns token-bound control geometry and
+//! presentation evidence. It does not accept a close decision or perform terminal lifecycle
+//! effects.
+
 use super::modal::{
     ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
     paint_modal_close, paint_modal_frame,

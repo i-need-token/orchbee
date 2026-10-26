@@ -1,3 +1,7 @@
+//! Submits one admitted label rename and validates its exact correlation, action-compatible
+//! result, and revision before classifying settlement. It does not edit a local draft or
+//! authorize replay when delivery may have occurred.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

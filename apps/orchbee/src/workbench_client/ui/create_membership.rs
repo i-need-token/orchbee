@@ -1,3 +1,7 @@
+//! Consumes correlated creation snapshots and recovery results into a prepared UI and mailbox
+//! membership installation. It does not create a terminal or install unvalidated canonical
+//! state after a stale creation result.
+
 use super::{
     Arc, CarrierFailure, CommandMailbox, CreateOperationKey, CreateProjectionDecision,
     MutationResult, OperationDeadlines, RefreshDecision, RefreshSettlement, UiReply,

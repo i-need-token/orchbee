@@ -1,3 +1,7 @@
+//! Owns one identity-bound rename draft, bounded edits, and draw acknowledgement before
+//! producing an admissible rename intent. It does not persist a label or let a hidden or stale
+//! draft authorize submission.
+
 use super::field_window::{FieldWindow, field_window};
 use super::line_editor::{LengthLimit, LineEditor};
 use super::{AttachmentKey, ClientContextTabs, ClientPhase, PaneKey, WorkbenchClientState};

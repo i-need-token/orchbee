@@ -1,3 +1,7 @@
+//! Submits a captured Tab move and validates the returned context, Tab identity, compatible
+//! outcome, and committed revision. It does not reorder local membership or silently retarget
+//! an uncertain operation.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

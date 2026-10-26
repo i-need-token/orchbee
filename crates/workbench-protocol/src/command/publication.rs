@@ -1,3 +1,7 @@
+//! Defines bounded reads of committed Workbench publications and explicit fallback or
+//! unavailable outcomes. It carries journal observations without retaining publications,
+//! applying them, or advancing a Client cursor.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

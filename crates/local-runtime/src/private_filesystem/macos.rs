@@ -1,3 +1,7 @@
+//! Admits APFS objects only without extended ACLs, checking pathname identity against the
+//! retained descriptor around the native ACL lookup. It does not repair permissions or provide
+//! path stability after the admission call.
+
 use nix::sys::{stat::fstat, statfs::fstatfs};
 use std::{fs, io, os::fd::AsFd, os::unix::fs::MetadataExt, path::Path};
 

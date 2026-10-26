@@ -1,3 +1,7 @@
+//! Projects launch, version, and usage invocations into localized stdout, stderr, and process
+//! status values. It performs no I/O or command execution and does not own structured CLI
+//! result rendering.
+
 use crate::{
     invocation::{Invocation, UsageFailure},
     localization::Locale,

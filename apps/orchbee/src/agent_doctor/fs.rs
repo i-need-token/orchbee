@@ -131,8 +131,7 @@ pub(crate) enum DirEntries {
     Unreadable,
 }
 
-/// The inherited-PATH executable scan, ported from
-/// `resolveAgentExecutableCandidates.ts` + `findFirstExecutable`.
+/// The bounded inherited-PATH scan's first executable candidate and truncation status.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PathScan {
     /// The first candidate satisfying `{access X_OK, stat isFile}` — raw path

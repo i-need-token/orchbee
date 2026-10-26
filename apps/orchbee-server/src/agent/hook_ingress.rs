@@ -1,14 +1,7 @@
-//! Pure port of the Desktop `AgentHookObservationIngress` translator (751
-//! lines; fingerprint recorded in the hook fixture). One mutable owner: join
-//! commands are consumed and canonical events dispatched into the real
-//! `AgentRuntime` inside the same call — no deferred dispatch.
-//!
-//! Not ported (explicitly outside this slice): the Unix-socket accept loop,
-//! connection caps and timeouts, ACK writes, `start`/`dispose` socket
-//! lifecycle, and any Worker/Host plumbing. `socket_path` is kept so the
-//! test-only `environment_overlay_for` reproduces the Desktop return shape; the
-//! corpus, the dispatch trace, the f64-domain settlement advance, and the
-//! snapshot emitters stay under `#[cfg(test)]`.
+//! Translates admitted provider hook envelopes and settled joins into canonical Agent session
+//! events within the owning runtime call. It retains bounded join and settlement bookkeeping
+//! without accepting sockets, writing acknowledgements, or managing Worker and Host
+//! connections.
 
 mod settlement_queue;
 

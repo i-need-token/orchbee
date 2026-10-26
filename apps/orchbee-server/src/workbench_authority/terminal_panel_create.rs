@@ -1,3 +1,7 @@
+//! Owns logical Panel creation admission, reserved identities and receipts, and exact prepared
+//! membership publication and settlement. Physical launch authorization and Worker execution
+//! remain with the coordinating runtime.
+
 use std::sync::Arc;
 
 mod placement;

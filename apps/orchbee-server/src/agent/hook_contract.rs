@@ -318,8 +318,8 @@ fn is_adapter_id(value: &str) -> bool {
 
 /// `resolveAgentHookAdapter(adapterId, event)` — the event-aware gate. Returns
 /// `None` for an unknown adapter id or an event the adapter does not accept.
-/// Registry ported verbatim from `resolveAgentHookAdapter.ts` (all twelve
-/// adapters, per-event accepted sets, capabilities, provider ids).
+/// The closed registry associates each adapter with its accepted events,
+/// capabilities, and provider identity.
 pub fn resolve_adapter(adapter_id: &str, event: HookObservationEvent) -> Option<AdapterDefinition> {
     use AgentCapability::{
         Activity, Approvals, Questions, SessionLifecycle, Subagents, TurnLifecycle,

@@ -1,3 +1,7 @@
+//! Owns bounded retained terminal bindings, request identity, leases, fences, and launch or
+//! start phases, preparing exact completion tokens before mutation. It issues authorized
+//! intents without selecting Workbench topology or executing Host operations.
+
 use std::{collections::BTreeMap, num::NonZeroU64, sync::Arc};
 
 use orchbee_capability_node_protocol::{

@@ -1,3 +1,7 @@
+//! Adapts Workspace and Project-group close actions, token-bound confirmation, and correlated
+//! retained outcomes to Client state. It does not perform physical closure or authorize an
+//! unpresented confirmation.
+
 use super::{ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
 pub(crate) use crate::workbench_client::state::workspace_close::{
     WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,

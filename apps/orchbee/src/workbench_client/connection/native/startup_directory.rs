@@ -1,3 +1,7 @@
+//! Resolves directory-based startup against current canonical Workspaces and submits an
+//! explicit launch only when the captured startup workflow requires it. It does not create an
+//! implicit fallback Workspace or install UI membership from an unvalidated result.
+
 use super::{ClientExecutor, Result};
 use crate::{
     local_client::workbench::workspace_launch::{

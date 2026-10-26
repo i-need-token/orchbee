@@ -1,6 +1,6 @@
-//! Fixed provider vectors shared by inspection, plans, and effects. Windows
-//! uses the verified Copilot 1.0.88 plugin contract; Unix retains its existing
-//! legacy resource-command contract. No failed mutation triggers a fallback.
+//! Builds the fixed platform-specific Copilot plugin and marketplace argv shared by
+//! inspection, plans, and mutations. It executes no command and never chooses a fallback
+//! vector after a failed effect.
 
 use super::inspect::{GITHUB_COPILOT_PLUGIN_ID, MARKETPLACE_NAME};
 

@@ -1,3 +1,7 @@
+//! Owns exact viewer-bound controller reservations and cleanup leases while translating
+//! admitted Client controls to the current Worker. It does not transfer authority across
+//! physical incarnations or infer cleanup from transport loss.
+
 use super::{LocalTerminalService, placement, viewer_connection::ViewerAttachment};
 use crate::session_coordinator::{SessionCoordinator, TargetLifecycle};
 use crate::terminal_coordinator::BindingViewerTarget;

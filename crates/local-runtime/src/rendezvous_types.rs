@@ -1,3 +1,7 @@
+//! Defines validated Session scope names and typed lock, path, and lifetime observations
+//! shared by runtime admission adapters. These values perform no filesystem effects and do not
+//! establish service liveness on their own.
+
 #[cfg(unix)]
 use nix::sys::stat::SFlag;
 use std::{error::Error, fmt, path::PathBuf};

@@ -1,3 +1,7 @@
+//! Coordinates local activation, inherited-terminal admission, bounded startup geometry
+//! waiting, and transfer of the prepared surface into the TUI. It does not own Server lifetime
+//! after activation or define terminal mode restoration policy.
+
 use crate::{
     client_view::ClientView,
     local_activation,

@@ -1,3 +1,7 @@
+//! Composes the Client's terminal frame and interaction receipts from admitted feature views,
+//! viewport geometry, and visual roles. It paints and reports what was drawn without owning
+//! feature transitions, input admission, or backend effects.
+
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},

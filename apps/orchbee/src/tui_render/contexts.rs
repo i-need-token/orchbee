@@ -1,3 +1,7 @@
+//! Projects context navigation rows into bounded terminal geometry and matching controls from
+//! one captured display source. It does not choose canonical context membership or activate a
+//! navigation target.
+
 use ratatui::{
     Frame,
     layout::Rect,

@@ -1,3 +1,7 @@
+//! Drives admitted Tab and Workspace launches through Worker dispatch and exact coordinator
+//! settlement while keeping I/O outside canonical locks. It does not allocate a second
+//! membership plan or retry unknown launch delivery.
+
 use super::{LocalTerminalService, lease_expiry, placement, submit};
 use crate::session_coordinator::{PostcommitCoordinationError, PreparedTerminalTabCreate};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;

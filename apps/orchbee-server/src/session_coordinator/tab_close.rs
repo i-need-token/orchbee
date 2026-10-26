@@ -1,3 +1,7 @@
+//! Joins retained close membership to current physical bindings and reserves exact lifecycle
+//! steps and publication transitions. It does not issue Host requests or treat removed
+//! topology as evidence that a physical terminal was disposed.
+
 use std::time::Instant;
 
 use orchbee_capability_node_protocol::{

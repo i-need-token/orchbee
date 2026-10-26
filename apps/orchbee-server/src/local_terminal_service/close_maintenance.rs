@@ -1,3 +1,7 @@
+//! Owns the close-maintenance thread, wakeups, and bounded stop or join coordination so
+//! retained closes progress independently of requesting Clients. It drives existing close
+//! state without deciding physical lifecycle truth or granting new close authority.
+
 use std::{
     io,
     sync::{

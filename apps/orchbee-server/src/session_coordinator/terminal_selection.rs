@@ -1,3 +1,7 @@
+//! Admits viewer and send targets by joining Session exposure, committed membership, retained
+//! terminal identity, and current Worker placement. It freezes the selected physical target
+//! without opening a viewer or delivering input.
+
 use orchbee_capability_node_protocol::{
     TerminalId as CapabilityTerminalId, WorkerId as CapabilityWorkerId,
 };

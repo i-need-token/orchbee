@@ -1,3 +1,7 @@
+//! Drives one retained Worktree operation across Git effects, Workspace association, close,
+//! and restoration phases with explicit partial outcomes. It does not own the canonical ledger
+//! or replay an uncertain physical Git mutation.
+
 use super::LocalTerminalService;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, GitReference, WorktreeCheckoutSelector, WorktreeMutation,

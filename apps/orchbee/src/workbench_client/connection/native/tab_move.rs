@@ -1,3 +1,7 @@
+//! Submits a captured Tab move once and reads canonical membership after its exact commit,
+//! retaining evidence when later observation fails. It does not install the UI selection or
+//! retarget an unknown move.
+
 use super::{ClientExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::{
     local_client::workbench::{

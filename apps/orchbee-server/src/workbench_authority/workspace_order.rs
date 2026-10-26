@@ -1,3 +1,7 @@
+//! Resolves a Workspace display-order action against one admitted navigation snapshot while
+//! preserving its complete membership. It returns a pure candidate without reserving the
+//! ledger, advancing revisions, or publishing state.
+
 use super::{PlanFailure, PureWorkbenchAction};
 use orchbee_workbench_protocol::{Navigation, WorkbenchRejectionReason, WorkbenchWorkspaceList};
 use std::collections::HashSet;

@@ -1,3 +1,7 @@
+//! Owns grapheme-safe single-line editing while enforcing each field's scalar or UTF-8-byte
+//! budget against the complete resulting value. It does not admit domain syntax, persist a
+//! value, or decide when a draft is committed.
+
 use unicode_segmentation::UnicodeSegmentation;
 
 /// The protocol length budget for one editable field: a scalar count for

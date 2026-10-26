@@ -1,3 +1,7 @@
+//! Composes committed Workbench membership with retained terminal authorization and physical
+//! outcome state under one coordinator owner. It prepares and settles cross-domain operations
+//! without performing Worker I/O or owning Client presentation.
+
 use crate::terminal_coordinator::{
     Completion, PendingOperation, PreparedOperation, TerminalCompletionTokenMismatch,
     TerminalCoordinator, TerminalPhase, WorkerPlacement,

@@ -1,3 +1,7 @@
+//! Submits one explicit generation-fenced Tab close resume and validates its correlated scope
+//! and result. It does not choose whether resumption is appropriate or retry a possibly
+//! delivered resume.
+
 use super::{
     CloseExchangeError, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
     validate_correlation, validate_target,

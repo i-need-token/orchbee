@@ -1,3 +1,7 @@
+//! Prepares exact membership removal and projection publication only after captured close
+//! targets satisfy cleanup requirements. It commits logical closure without terminating a
+//! process or fabricating disposal evidence.
+
 use std::time::Instant;
 
 use orchbee_workbench_protocol::{

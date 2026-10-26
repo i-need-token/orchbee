@@ -1,3 +1,7 @@
+//! Owns the private plugin registry document, guarded revisions, registered-source
+//! fingerprints, and manifest refresh observations. It does not execute plugin commands or
+//! choose application behavior from display metadata.
+
 use super::{
     PluginManagedSource, PluginManifest, PluginRegistryError as Error, manifest::MANIFEST_LIMIT,
     plugin_identifier,

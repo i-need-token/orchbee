@@ -1,3 +1,7 @@
+//! Connects current graphics sources and surface observations to UI views and exact post-draw
+//! receipts. It does not decode image bytes, own Host resources, or acknowledge graphics that
+//! were merely prepared for drawing.
+
 use super::{WorkbenchClientUi, WorkbenchClientView};
 #[cfg(test)]
 mod tests;

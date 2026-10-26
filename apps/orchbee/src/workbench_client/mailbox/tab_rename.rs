@@ -1,3 +1,7 @@
+//! Owns atomic rename-draft admission, structural barriers, exact in-flight result
+//! correlation, and retained connection-task evidence. It does not execute the rename or
+//! accept a different draft's response as settlement.
+
 use super::{
     BarrierFence, BarrierKind, COMMAND_CAPACITY, CommandMailbox, EventDeadline, EventError,
     Instant, LocalOperationClock, MailboxClock, MailboxClosed, MailboxState, MembershipResultKey,

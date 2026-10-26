@@ -1,3 +1,7 @@
+//! Adapts identity-bound rename editing and draw evidence to mailbox submission and consumes
+//! correlated commit or recovery results. It does not execute protocol I/O or let a stale
+//! draft change a current Tab.
+
 #[cfg(test)]
 use super::WorkbenchClientState;
 use super::{

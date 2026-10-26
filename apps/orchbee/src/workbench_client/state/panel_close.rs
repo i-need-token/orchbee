@@ -1,3 +1,7 @@
+//! Owns exact Panel close confirmation tokens, draw acknowledgement, stale-target rejection,
+//! and the captured submission plan. It does not paint the prompt or execute a close before
+//! the runtime consumes that plan.
+
 use super::{
     AttachmentKey, ClientPhase, PaneKey, PanelIntent, PanelOperation, PanelRequestKind,
     WorkbenchClientState,

@@ -1,3 +1,7 @@
+//! Admits inherited Windows console input and output as the Client's device boundary and
+//! exposes bounded reads, mode access, and geometry observations. It does not choose mode
+//! lifetime or create a replacement console.
+
 use super::{TerminalAdmissionError, WindowDimensions};
 use orchbee_windows_console_host::{ConsoleInput, ConsoleOutput, ConsoleWriter};
 use std::{

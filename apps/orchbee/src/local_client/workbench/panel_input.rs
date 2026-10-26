@@ -1,3 +1,7 @@
+//! Submits a typed Panel input-policy change and validates its correlated revision and
+//! compatible result. It does not send terminal input, grant a controller locally, or retry an
+//! uncertain mutation.
+
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{

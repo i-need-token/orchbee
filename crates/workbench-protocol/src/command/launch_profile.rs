@@ -1,3 +1,7 @@
+//! Defines bounded Session launch-profile catalog reads with checked selectors, names,
+//! revisions, and result sizes. It does not store a catalog, choose a profile, or authorize
+//! the executable carried by an entry.
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::fmt;
 

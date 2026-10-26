@@ -1,3 +1,7 @@
+//! Reads retained Workspace close progress and validates its exact correlated scope and
+//! member-status result. It does not resume closure or replace the Server's physical cleanup
+//! evidence with membership observations.
+
 use super::{
     WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
     WorkspaceCloseExchangeError, validate_correlation, validate_scope,

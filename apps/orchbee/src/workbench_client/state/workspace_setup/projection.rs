@@ -1,3 +1,7 @@
+//! Validates a setup operation's known commit against the canonical Workspace and context
+//! projection before preparing its Client landing. It does not create membership or substitute
+//! a different Workspace when the expected result is absent.
+
 use super::{
     ClientContextLocation, ClientContextTabs, SetupKnownCommit, Snapshot, WorkbenchAction,
     WorkbenchSetupCommit, project_native_context_tabs, validate_canonical_refresh,
