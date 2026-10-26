@@ -1376,6 +1376,9 @@ source bytes never become script or argument text. The fixed script copies at mo
 the source limit plus one byte into a private output pipe. The CLI polls under the
 existing deadline and interrupt guard, and kills/reaps the child on success and handled failures.
 It does not change the caller's pipe mode or leave a blocking reader thread behind.
+The shared send workflow keeps source arbitration, one submission and receipt projection together.
+Linux and Windows retain their existing send routes; shell-run observation remains Windows-admitted,
+and unavailable commands refuse before source, signal or Session effects.
 Regular-file stdin retains direct reads. Process startup and termination remain OS
 scheduling boundaries, not hard real-time guarantees.
 

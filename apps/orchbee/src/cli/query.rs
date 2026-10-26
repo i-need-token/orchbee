@@ -3,26 +3,8 @@
 //! No path activates a Session. Selection/copy/link reads do not start processes;
 //! explicit link activation delegates one plugin Job to the existing execution owner.
 
-#[cfg(windows)]
 mod terminal_run;
-#[cfg(windows)]
 pub(super) use terminal_run::run as run_terminal;
-#[cfg(not(windows))]
-pub(super) fn run_terminal(
-    _target: &crate::invocation::Target,
-    _command: &str,
-    _timeout_ms: u32,
-    format: crate::invocation::OutputFormat,
-    locale: crate::localization::Locale,
-) -> super::Output {
-    super::failure_output(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-        Some(format),
-        locale,
-    )
-}
 
 mod terminal_buffer;
 pub(super) mod terminal_copy;
@@ -80,7 +62,6 @@ pub(crate) use process_info::read_terminal_processes;
 pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancellable};
 
 mod agent_terminal;
-#[cfg(target_os = "linux")]
 pub(crate) use agent_terminal::resolve_agent_terminal;
 #[cfg(windows)]
 pub(in crate::cli) use agent_terminal::resolve_session_terminal;
@@ -89,8 +70,6 @@ pub(crate) use agent_terminal::{AgentObservationRead, read_agent_observation};
 
 use super::command_interrupt::{ArmedSignals as AgentSignals, Finish as AgentFinish};
 use super::results::Projection;
-#[cfg(any(target_os = "linux", windows))]
-use super::source::{ArmedSignals, Finish, SignalWatch};
 use super::{
     Failure, FailureKind, SourceFinalization, stage_details, stage_reason_details, target_details,
 };

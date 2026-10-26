@@ -11,6 +11,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
         | Capability::RuntimeInspection
+        | Capability::TerminalInput
             if cfg!(target_os = "linux") =>
         {
             Ok(())
@@ -22,6 +23,8 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::RetainedCloseOperation
         | Capability::CanonicalWorkbenchRead
         | Capability::RuntimeInspection
+        | Capability::TerminalInput
+        | Capability::TerminalRun
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus

@@ -1140,7 +1140,9 @@ Windows 管道读取拥有一个隐藏、非交互的 Windows PowerShell 读取�
 从操作系统系统目录解析。仅传入继承的 stdin 句柄，来源字节不会变成脚本
 或参数文本。固定脚本最多向私有输出管道复制来源上限加一个探测字节。
 CLI 在现有期限和中断守卫下轮询，并在成功及已处理的失败路径终止和回收子进程。
-不修改调用者的管道模式，也不遗留阻塞的读取线程。普通文件 stdin 保留
+不修改调用者的管道模式，也不遗留阻塞的读取线程。共享 send 流程统一拥有来源仲裁、唯一提交与收据投影。
+Linux 和 Windows 保留既有 send 路径；shell-run 观察仍仅准入 Windows，
+不可用命令在来源、信号或 Session 副作用之前拒绝。普通文件 stdin 保留
 直接读取方式。进程启动和终止属于操作系统调度边界，不提供硬实时保证。
 
 适配器使用已准入的 `winsafe` 系统目录和 `winapi-util` 句柄类型绑定，
@@ -2507,4 +2509,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=88b0029eee379d491de96fe7455581cf17b9e0ae61204f9ab9dfb95bcf12773c zh-cn-sha256=3e4da7eb193c65c3f592666b0ad092f4700eac6f1c489040bb8da0ecd8d816b2 -->
+<!-- documentation-pairing: english-sha256=7d550c07fad6eed18337d32ec4fd8d7f108f04b6aa2cc87c9f0dd146e9a12702 zh-cn-sha256=d04fdd20ee36fa24f0ce23b1ee81e174c0876e5f423ed87dc9914dce64cd9134 -->

@@ -1,5 +1,6 @@
 //! One correlated shell submission followed by bounded observation, preserving every receipt.
-use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
+use crate::cli::command_interrupt::{ArmedSignals, Finish};
+use crate::cli::console_interrupt::SignalWatch;
 use crate::cli::{Failure, FailureKind, Output, output, send};
 use crate::invocation::{OutputFormat, Target};
 use crate::localization::Locale;
@@ -25,6 +26,11 @@ pub(in crate::cli) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::TerminalRun)
+    {
+        return crate::cli::failure_output(failure, Some(format), locale);
+    }
     let started = Instant::now();
     let Some(deadline) = started.checked_add(Duration::from_millis(u64::from(timeout_ms))) else {
         return crate::cli::failure_output(
