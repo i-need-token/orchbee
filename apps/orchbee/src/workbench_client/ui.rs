@@ -18,7 +18,7 @@ pub(in crate::workbench_client) use agent_attention::tests::focused_physical_age
 mod agent_focus;
 mod client_control;
 mod client_layout;
-use super::terminal_viewport::ViewportWindow;
+use super::terminal_viewport::{self, ViewportWindow};
 use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
@@ -34,8 +34,7 @@ use super::{
         SetupEventDisposition, WorkbenchClientState, WorkbenchClientView as ClientStateView,
     },
     terminal_viewport::{
-        TerminalViewport, ViewportEffect, ViewportNav, ViewportStep, ViewportSurface,
-        decode_history_changed,
+        TerminalViewport, ViewportEffect, ViewportNav, ViewportStep, decode_history_changed,
     },
 };
 use crate::{
@@ -855,13 +854,13 @@ impl<'a> WorkbenchClientView<'a> {
         }
         let viewport = projection.viewport.as_ref()?;
         Some(match viewport.surface() {
-            ViewportSurface::Window(window) => ViewportSurface::Window {
+            terminal_viewport::ViewportSurface::Window(window) => ViewportSurface::Window {
                 window,
                 position: viewport.position(),
             },
-            ViewportSurface::Entering => ViewportSurface::Entering,
-            ViewportSurface::AwaitingWindow => ViewportSurface::AwaitingWindow,
-            ViewportSurface::Recovering => ViewportSurface::Recovering,
+            terminal_viewport::ViewportSurface::Entering => ViewportSurface::Entering,
+            terminal_viewport::ViewportSurface::AwaitingWindow => ViewportSurface::AwaitingWindow,
+            terminal_viewport::ViewportSurface::Recovering => ViewportSurface::Recovering,
         })
     }
 
@@ -1692,7 +1691,7 @@ impl WorkbenchClientUi {
             let allow_agent_board_jump =
                 crate::tui_composition::project_capture(client_capture, self.capture_claims())
                     == Some(crate::tui_composition::CaptureOwner::Native(
-                        crate::tui_composition::CaptureOwner::AgentBoard,
+                        crate::tui_composition::WorkbenchCaptureOwner::AgentBoard,
                     ));
             changed |= self.drive_agent_board(allow_agent_board_jump);
             {

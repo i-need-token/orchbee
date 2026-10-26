@@ -6,15 +6,13 @@ use super::{
     WorkbenchClientUi, WorkbenchClientView,
 };
 use crate::workbench_client::state::FieldWindow;
-use crate::workbench_client::state::rename_draft::{
-    RenameDraftEdit, RenameDraftToken, RenameDraftView,
-};
+use crate::workbench_client::state::rename_draft::{self, RenameDraftEdit};
 use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RenameDraftToken(RenameDraftToken);
+pub(crate) struct RenameDraftToken(rename_draft::RenameDraftToken);
 
-pub(crate) struct RenameDraftView<'a>(RenameDraftView<'a>, Option<&'a str>);
+pub(crate) struct RenameDraftView<'a>(rename_draft::RenameDraftView<'a>, Option<&'a str>);
 impl<'a> RenameDraftView<'a> {
     pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
         self.0.tab_id()

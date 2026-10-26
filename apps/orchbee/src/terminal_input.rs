@@ -1,5 +1,5 @@
 use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView};
-use crate::tui_composition::{CaptureClaims, CaptureOwner};
+use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
 use crate::workbench_client::{
     CaptureContext, RenameDraftToken, RenameEdit, SetupEdit, SetupToken,
 };
@@ -225,7 +225,7 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// Exact per-item context for the compositor-selected native owner.
-    fn native_capture_context(&self, _owner: CaptureOwner) -> Option<CaptureContext> {
+    fn native_capture_context(&self, _owner: WorkbenchCaptureOwner) -> Option<CaptureContext> {
         None
     }
 

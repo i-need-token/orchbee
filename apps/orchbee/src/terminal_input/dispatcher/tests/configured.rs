@@ -397,10 +397,10 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         }
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::CaptureOwner,
+            owner: crate::tui_composition::WorkbenchCaptureOwner,
         ) -> Option<crate::workbench_client::CaptureContext> {
             use crate::{
-                tui_composition::CaptureOwner,
+                tui_composition::WorkbenchCaptureOwner,
                 tui_presentation::PresentationPhase,
                 workbench_client::{
                     AgentBoardEpisodeToken, AgentBoardInputContext, CaptureContext,
@@ -409,14 +409,14 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
             };
 
             match (self.owner, owner) {
-                (1, CaptureOwner::WorkspaceClose) => {
+                (1, WorkbenchCaptureOwner::WorkspaceClose) => {
                     Some(CaptureContext::WorkspaceClose(ConfirmationCaptureContext {
                         token: WorkspaceCloseToken::for_test(1),
                         phase: PresentationPhase::Admitted,
                         readiness: CaptureReadiness::Interactive,
                     }))
                 }
-                (2, CaptureOwner::AgentBoard) => Some(CaptureContext::AgentBoard(
+                (2, WorkbenchCaptureOwner::AgentBoard) => Some(CaptureContext::AgentBoard(
                     AgentBoardInputContext::for_test(
                         AgentBoardEpisodeToken::for_test(1),
                         PresentationPhase::Admitted,

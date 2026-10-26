@@ -18,10 +18,10 @@ impl TerminalInputPort for Port {
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<crate::workbench_client::CaptureContext> {
         match owner {
-            crate::tui_composition::CaptureOwner::AgentBoard => self
+            crate::tui_composition::WorkbenchCaptureOwner::AgentBoard => self
                 .board
                 .input_context()
                 .map(crate::workbench_client::CaptureContext::AgentBoard),

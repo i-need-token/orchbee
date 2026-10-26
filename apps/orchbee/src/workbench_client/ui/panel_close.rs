@@ -1,7 +1,5 @@
 use super::{ActionBuildError, ModalPresentation, WorkbenchClientUi, WorkbenchClientView};
-use crate::workbench_client::state::{
-    OPERATION_TOTAL, PanelCloseConfirmationView, WorkbenchClientState,
-};
+use crate::workbench_client::state::{self, OPERATION_TOTAL, WorkbenchClientState};
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
     workbench_client::mailbox::MoveAdmissionError,
@@ -12,7 +10,7 @@ pub(crate) use crate::workbench_client::state::PanelCloseConfirmationToken;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PanelCloseConfirmationView<'a> {
-    inner: PanelCloseConfirmationView<'a>,
+    inner: state::PanelCloseConfirmationView<'a>,
 }
 
 impl<'a> PanelCloseConfirmationView<'a> {

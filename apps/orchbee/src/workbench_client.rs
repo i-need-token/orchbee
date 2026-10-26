@@ -803,7 +803,7 @@ impl TerminalInputPort for WorkbenchClient {
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<CaptureContext> {
         match &self.backend {
             ClientBackend::Native(native) => native.capture_context(owner),

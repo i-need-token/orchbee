@@ -1,6 +1,5 @@
 use super::{PanelCloseConfirmationToken, WorkbenchClientUi, WorkbenchClientView};
-use crate::workbench_client::state::TabCloseResumePermit;
-use crate::workbench_client::state::{CloseConfirmationView, CloseStatusView};
+use crate::workbench_client::state::{self, TabCloseResumePermit};
 use crate::{
     client_view::{ClientActionDisposition, ClientKey},
     workbench_client::{
@@ -171,7 +170,7 @@ impl DrawReceipt {
 }
 
 pub(crate) struct CloseConfirmationView<'a> {
-    inner: CloseConfirmationView<'a>,
+    inner: state::CloseConfirmationView<'a>,
 }
 
 impl<'a> CloseConfirmationView<'a> {
@@ -213,7 +212,7 @@ impl<'a> CloseConfirmationView<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct CloseStatusView<'a> {
-    inner: CloseStatusView<'a>,
+    inner: state::CloseStatusView<'a>,
 }
 
 impl<'a> CloseStatusView<'a> {

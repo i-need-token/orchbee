@@ -97,9 +97,9 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::CaptureOwner,
+            owner: crate::tui_composition::WorkbenchCaptureOwner,
         ) -> Option<crate::workbench_client::CaptureContext> {
-            if owner != crate::tui_composition::CaptureOwner::TabClose || !self.active {
+            if owner != crate::tui_composition::WorkbenchCaptureOwner::TabClose || !self.active {
                 return None;
             }
             Some(crate::workbench_client::CaptureContext::TabClose(
@@ -186,9 +186,9 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::CaptureOwner,
+            owner: crate::tui_composition::WorkbenchCaptureOwner,
         ) -> Option<crate::workbench_client::CaptureContext> {
-            if owner != crate::tui_composition::CaptureOwner::TabClose || !self.active {
+            if owner != crate::tui_composition::WorkbenchCaptureOwner::TabClose || !self.active {
                 return None;
             }
             Some(crate::workbench_client::CaptureContext::TabClose(
@@ -581,9 +581,9 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
 
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::CaptureOwner,
+            owner: crate::tui_composition::WorkbenchCaptureOwner,
         ) -> Option<crate::workbench_client::CaptureContext> {
-            if owner != crate::tui_composition::CaptureOwner::Popup {
+            if owner != crate::tui_composition::WorkbenchCaptureOwner::Popup {
                 return None;
             }
             self.id.clone().map(|id| {

@@ -87,9 +87,9 @@ impl TerminalInputPort for Port {
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<crate::workbench_client::CaptureContext> {
-        (owner == crate::tui_composition::CaptureOwner::Settings)
+        (owner == crate::tui_composition::WorkbenchCaptureOwner::Settings)
             .then(|| self.editor.input_context())
             .flatten()
             .map(crate::workbench_client::CaptureContext::Settings)

@@ -50,7 +50,7 @@ pub(crate) fn run_native_close_resize_confirmation(
         }
         fn native_capture_context(
             &self,
-            owner: crate::tui_composition::CaptureOwner,
+            owner: crate::tui_composition::WorkbenchCaptureOwner,
         ) -> Option<crate::workbench_client::CaptureContext> {
             self.session.native_capture_context(owner)
         }

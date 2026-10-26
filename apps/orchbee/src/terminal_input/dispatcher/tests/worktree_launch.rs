@@ -42,9 +42,9 @@ impl TerminalInputPort for Port {
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<crate::workbench_client::CaptureContext> {
-        if owner != crate::tui_composition::CaptureOwner::Worktree || !self.active {
+        if owner != crate::tui_composition::WorkbenchCaptureOwner::Worktree || !self.active {
             return None;
         }
         Some(crate::workbench_client::CaptureContext::Worktree(

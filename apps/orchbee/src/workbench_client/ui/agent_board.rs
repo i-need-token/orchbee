@@ -23,7 +23,7 @@ use super::{
     finish_action,
 };
 use crate::client_view::KeyEvent;
-use crate::tui_composition::{CaptureOwner, project_native_capture};
+use crate::tui_composition::{WorkbenchCaptureOwner, project_native_capture};
 use crate::workbench_client::workbench_projection::ClientContextLocation;
 use std::time::Instant;
 
@@ -401,7 +401,7 @@ impl WorkbenchClientUi {
         // move context, tab, panel, or presentation unless the compositor
         // still names the Board as the top native owner and its successful
         // frame visibility lease remains live.
-        if project_native_capture(self.capture_claims()) != Some(CaptureOwner::AgentBoard)
+        if project_native_capture(self.capture_claims()) != Some(WorkbenchCaptureOwner::AgentBoard)
             || self
                 .board
                 .input_context()

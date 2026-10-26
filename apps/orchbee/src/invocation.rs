@@ -2110,7 +2110,7 @@ struct Options {
     /// `agent doctor --asset-root <path>`: repeatable, append-ordered.
     asset_roots: Vec<String>,
     name: Option<String>,
-    session: Option<String>,
+    agent_session: Option<String>,
     clear: bool,
     prompt_wait: bool,
     forever: bool,
@@ -2940,7 +2940,7 @@ fn apply_value_flag(
         "--after-revision" => &mut options.after_revision,
         "--after" => &mut options.output_after,
         "--name" => &mut options.name,
-        "--agent-session" => &mut options.session,
+        "--agent-session" => &mut options.agent_session,
         #[cfg(windows)]
         "--remote-session" => &mut options.remote_session,
         "--profile" => &mut options.profile,
@@ -3397,7 +3397,7 @@ fn resolve_words(
             )?;
             let selector_len = usize::from(
                 options.name.is_none()
-                    && options.session.is_none()
+                    && options.agent_session.is_none()
                     && options.panel.is_none()
                     && !rest.is_empty(),
             );
@@ -3457,7 +3457,7 @@ fn resolve_words(
             check_scope(options, AGENT_TARGET_SCOPE, context, envelope)?;
             let selector_len = usize::from(
                 options.name.is_none()
-                    && options.session.is_none()
+                    && options.agent_session.is_none()
                     && options.panel.is_none()
                     && !rest.is_empty(),
             );
@@ -5970,7 +5970,7 @@ fn business_options(options: &Options) -> bool {
         || !options.providers.is_empty()
         || !options.asset_roots.is_empty()
         || options.name.is_some()
-        || options.session.is_some()
+        || options.agent_session.is_some()
         || options.clear
         || options.profile.is_some()
         || options.provider.is_some()
@@ -6320,7 +6320,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if !options.asset_roots.is_empty() && !scope.asset_root {
         return Some("--asset-root");
     }
-    if options.session.is_some() && !scope.session {
+    if options.agent_session.is_some() && !scope.session {
         return Some("--agent-session");
     }
     if options.forever && !scope.forever {
@@ -7691,7 +7691,7 @@ fn agent_selector(
         ));
     }
     let selected = usize::from(!words.is_empty())
-        + usize::from(options.session.is_some())
+        + usize::from(options.agent_session.is_some())
         + usize::from(options.name.is_some())
         + usize::from(options.panel.is_some())
         + usize::from(options.terminal.is_some());
@@ -7766,7 +7766,7 @@ fn agent_selector(
             })?,
         });
     }
-    if let Some(value) = &options.session {
+    if let Some(value) = &options.agent_session {
         return Ok(AgentTarget::Session {
             session_id: agent_session_id(value, context, envelope)?,
         });

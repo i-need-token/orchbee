@@ -39,8 +39,8 @@ use crate::{
     localization::{Locale, RecoveryVerb, ShellText},
     terminal_text::{display_width, truncate_display},
     tui_composition::{
-        CaptureClaims, CaptureOwner, ClientCaptureClaims, client_chrome_overlay_allowed,
-        project_capture,
+        CaptureClaims, CaptureOwner, ClientCaptureClaims, WorkbenchCaptureOwner,
+        client_chrome_overlay_allowed, project_capture,
     },
     tui_layout::{
         PaneFrame, ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area,
@@ -524,7 +524,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         // overlay: it paints above the workbench (and any chrome overlay)
         // but below armed modals, and its painted truth settles input
         // capture through the draw receipt.
-        if native_top(CaptureOwner::AgentBoard)
+        if native_top(WorkbenchCaptureOwner::AgentBoard)
             && let Some(native) = workbench_client.as_ref()
             && let Some(board) = native.agent_board()
         {
@@ -542,7 +542,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             board_draw = Some(draw);
         }
 
-        if native_top(CaptureOwner::WorkspaceClose)
+        if native_top(WorkbenchCaptureOwner::WorkspaceClose)
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.workspace_close_confirmation()
         {
@@ -557,7 +557,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             workspace_prompt = Some(token);
         }
-        if native_top(CaptureOwner::TabClose)
+        if native_top(WorkbenchCaptureOwner::TabClose)
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
@@ -575,7 +575,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                 status_draw = Some((token, modal.area));
             }
         }
-        if native_top(CaptureOwner::PanelClose)
+        if native_top(WorkbenchCaptureOwner::PanelClose)
             && let Some(native) = workbench_client.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
@@ -591,7 +591,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             prompt = None;
             panel_prompt = Some(modal.prompt);
         }
-        if native_top(CaptureOwner::Rename)
+        if native_top(WorkbenchCaptureOwner::Rename)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.rename_draft()
         {
@@ -616,7 +616,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             panel_prompt = None;
             rename = Some(token);
         }
-        if native_top(CaptureOwner::Setup)
+        if native_top(WorkbenchCaptureOwner::Setup)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.setup_draft()
         {
@@ -635,7 +635,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             rename = None;
             setup = Some(token);
         }
-        if native_top(CaptureOwner::Worktree)
+        if native_top(WorkbenchCaptureOwner::Worktree)
             && let Some(native) = workbench_client.as_ref()
             && let Some(draft) = native.worktree()
         {
@@ -653,22 +653,22 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         // refuses an incarnation that has never painted, or suspends a
         // previously presented task while revoking its current draw proof.
         if workbench_client.as_ref().is_some() {
-            if native_top(CaptureOwner::WorkspaceClose) {
+            if native_top(WorkbenchCaptureOwner::WorkspaceClose) {
                 workspace_prompt = Some(ModalPresentation::NotPresented);
             }
-            if native_top(CaptureOwner::TabClose) {
+            if native_top(WorkbenchCaptureOwner::TabClose) {
                 prompt = Some(ModalPresentation::NotPresented);
             }
-            if native_top(CaptureOwner::PanelClose) {
+            if native_top(WorkbenchCaptureOwner::PanelClose) {
                 panel_prompt = Some(ModalPresentation::NotPresented);
             }
-            if native_top(CaptureOwner::Rename) {
+            if native_top(WorkbenchCaptureOwner::Rename) {
                 rename = Some(ModalPresentation::NotPresented);
             }
-            if native_top(CaptureOwner::Setup) {
+            if native_top(WorkbenchCaptureOwner::Setup) {
                 setup = Some(ModalPresentation::NotPresented);
             }
-            if native_top(CaptureOwner::Worktree) {
+            if native_top(WorkbenchCaptureOwner::Worktree) {
                 worktree = Some(ModalPresentation::NotPresented);
             }
         }
@@ -677,7 +677,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     // An open board that could not paint at all (too-small viewport)
     // still reports its verdict — input capture never settles on an
     // unpainted surface.
-    if native_top(CaptureOwner::AgentBoard)
+    if native_top(WorkbenchCaptureOwner::AgentBoard)
         && board_draw.is_none()
         && let Some(native) = workbench_client.as_ref()
         && let Some(board) = native.agent_board()
@@ -698,7 +698,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         (capture_owner, workbench_client.as_ref())
     {
         match owner {
-            CaptureOwner::WorkspaceClose
+            WorkbenchCaptureOwner::WorkspaceClose
                 if matches!(
                     workspace_prompt.as_ref(),
                     Some(ModalPresentation::NotPresented)
@@ -708,35 +708,35 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     .workspace_close_confirmation()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            CaptureOwner::TabClose
+            WorkbenchCaptureOwner::TabClose
                 if matches!(prompt.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .close_confirmation()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            CaptureOwner::PanelClose
+            WorkbenchCaptureOwner::PanelClose
                 if matches!(panel_prompt.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .panel_close_confirmation()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            CaptureOwner::Rename
+            WorkbenchCaptureOwner::Rename
                 if matches!(rename.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .rename_draft()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            CaptureOwner::Setup
+            WorkbenchCaptureOwner::Setup
                 if matches!(setup.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native
                     .setup_draft()
                     .map(|view| (view.presentation(), RecoveryVerb::Cancel))
             }
-            CaptureOwner::Worktree
+            WorkbenchCaptureOwner::Worktree
                 if matches!(worktree.as_ref(), Some(ModalPresentation::NotPresented)) =>
             {
                 native.worktree().map(|view| {
@@ -750,7 +750,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     )
                 })
             }
-            CaptureOwner::AgentBoard
+            WorkbenchCaptureOwner::AgentBoard
                 if board_draw.as_ref().is_some_and(|draw| !draw.is_presented()) =>
             {
                 native
@@ -765,7 +765,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     let native_recovery =
         native_recovery.map(|(phase, verb)| RecoveryStatus::LocalReturn { phase, verb });
     let native_recovery = if tier == ViewportTier::TooSmall
-        && capture_owner == Some(CaptureOwner::Native(CaptureOwner::Popup))
+        && capture_owner == Some(CaptureOwner::Native(WorkbenchCaptureOwner::Popup))
         && matches!(workbench_client.as_ref(), Some(native) if native.popup().is_some())
     {
         Some(RecoveryStatus::Plain(locale.plugin_popup_resize_recovery()))
@@ -896,7 +896,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         _ => None,
     });
     if tier != ViewportTier::TooSmall
-        && native_top(CaptureOwner::Popup)
+        && native_top(WorkbenchCaptureOwner::Popup)
         && let Some(native) = workbench_client.as_ref()
         && let Some(popup) = native.popup()
     {
@@ -920,7 +920,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             hits,
         );
     }
-    let receipt = if native_top(CaptureOwner::ActionMenu)
+    let receipt = if native_top(WorkbenchCaptureOwner::ActionMenu)
         && let Some(native) = workbench_client.as_ref()
         && let Some(menu) = native.action_menu()
     {
@@ -977,7 +977,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     } else {
         receipt
     };
-    let receipt = if native_top(CaptureOwner::Settings)
+    let receipt = if native_top(WorkbenchCaptureOwner::Settings)
         && let Some(native) = workbench_client.as_ref()
         && let Some(settings) = native.settings()
     {

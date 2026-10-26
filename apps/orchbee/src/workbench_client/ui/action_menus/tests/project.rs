@@ -1011,7 +1011,7 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
     }
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<crate::workbench_client::CaptureContext> {
         self.ui.capture_context(owner)
     }

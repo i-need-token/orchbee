@@ -2509,7 +2509,7 @@ impl PointerState {
             let menu_owns_interaction = matches!(
                 _capture,
                 Some(crate::tui_composition::CaptureOwner::Native(
-                    crate::tui_composition::CaptureOwner::ActionMenu
+                    crate::tui_composition::WorkbenchCaptureOwner::ActionMenu
                 ))
             );
 

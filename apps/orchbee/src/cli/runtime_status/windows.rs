@@ -13,7 +13,7 @@ use orchbee_local_client_protocol::{
     ConnectClientError, RejectionReason, exchange_server_metadata_before,
 };
 use orchbee_local_runtime::{
-    Cohort, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
+    self as runtime, ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope,
 };
 use std::{
     io,
@@ -120,16 +120,22 @@ fn collect(
 }
 
 fn local_cohort(deadline: Instant) -> Cohort {
-    project_cohort(Cohort::current(deadline).map_err(|error| (cohort_issue(error.kind()), None)))
+    project_cohort(
+        runtime::Cohort::current(deadline).map_err(|error| (cohort_issue(error.kind()), None)),
+    )
 }
-fn project_cohort(admitted: Result<Cohort, (CohortIssue, Option<CohortDiagnostic>)>) -> Cohort {
+fn project_cohort(
+    admitted: Result<runtime::Cohort, (CohortIssue, Option<CohortDiagnostic>)>,
+) -> Cohort {
     match admitted {
         Ok(cohort) => Cohort::Available(cohort.identity().to_owned()),
         Err((reason, diagnostic)) => Cohort::Unavailable(reason, diagnostic),
     }
 }
-fn admitted_cohort(deadline: Instant) -> Result<Cohort, (CohortIssue, Option<CohortDiagnostic>)> {
-    Cohort::current_with_diagnostic(deadline).map_err(|error| {
+fn admitted_cohort(
+    deadline: Instant,
+) -> Result<runtime::Cohort, (CohortIssue, Option<CohortDiagnostic>)> {
+    runtime::Cohort::current_with_diagnostic(deadline).map_err(|error| {
         let issue = cohort_issue(error.kind());
         let diagnostic = CohortDiagnostic::from_error(&error);
         (issue, Some(diagnostic))

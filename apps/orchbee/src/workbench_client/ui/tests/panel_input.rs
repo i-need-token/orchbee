@@ -26,7 +26,7 @@ impl TerminalInputPort for ClientInputPort<'_> {
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<crate::workbench_client::CaptureContext> {
         self.0.capture_context(owner)
     }

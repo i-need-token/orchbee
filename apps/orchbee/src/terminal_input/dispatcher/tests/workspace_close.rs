@@ -15,9 +15,9 @@ impl TerminalInputPort for ClosePort {
 
     fn native_capture_context(
         &self,
-        owner: crate::tui_composition::CaptureOwner,
+        owner: crate::tui_composition::WorkbenchCaptureOwner,
     ) -> Option<crate::workbench_client::CaptureContext> {
-        if owner != crate::tui_composition::CaptureOwner::WorkspaceClose || !self.active {
+        if owner != crate::tui_composition::WorkbenchCaptureOwner::WorkspaceClose || !self.active {
             return None;
         }
         Some(crate::workbench_client::CaptureContext::WorkspaceClose(

@@ -2,7 +2,7 @@
 
 use super::{WorkbenchClientUi, WorkbenchClientView};
 use crate::{
-    tui_composition::{CaptureClaims, CaptureOwner},
+    tui_composition::{CaptureClaims, WorkbenchCaptureOwner},
     tui_presentation::PresentationPhase,
     workbench_client::{
         CloseConfirmationToken, PanelCloseConfirmationToken, RenameDraftToken, SetupStage,
@@ -88,14 +88,16 @@ impl WorkbenchClientView<'_> {
     ///
     /// `None` is a stale/incomplete owner snapshot and must be consumed by
     /// the caller. It never authorizes falling through to a lower surface.
-    pub(crate) fn capture_context(&self, owner: CaptureOwner) -> Option<CaptureContext> {
+    pub(crate) fn capture_context(&self, owner: WorkbenchCaptureOwner) -> Option<CaptureContext> {
         match owner {
-            CaptureOwner::Settings => self.settings_input_context().map(CaptureContext::Settings),
-            CaptureOwner::ActionMenu => self
+            WorkbenchCaptureOwner::Settings => {
+                self.settings_input_context().map(CaptureContext::Settings)
+            }
+            WorkbenchCaptureOwner::ActionMenu => self
                 .action_menu_input_context()
                 .map(CaptureContext::ActionMenu),
-            CaptureOwner::Popup => self.popup_input_context().map(CaptureContext::Popup),
-            CaptureOwner::Worktree => {
+            WorkbenchCaptureOwner::Popup => self.popup_input_context().map(CaptureContext::Popup),
+            WorkbenchCaptureOwner::Worktree => {
                 let view = self.worktree()?;
                 let token = view.token();
                 let input = self
@@ -112,7 +114,7 @@ impl WorkbenchClientView<'_> {
                     remaining_bytes: input.map_or(0, |input| input.remaining_bytes),
                 }))
             }
-            CaptureOwner::Setup => {
+            WorkbenchCaptureOwner::Setup => {
                 let view = self.setup_draft()?;
                 let token = view.token();
                 let input = self
@@ -131,7 +133,7 @@ impl WorkbenchClientView<'_> {
                     remaining_bytes: input.map_or(0, |input| input.remaining_bytes()),
                 }))
             }
-            CaptureOwner::Rename => {
+            WorkbenchCaptureOwner::Rename => {
                 let view = self.rename_draft()?;
                 Some(CaptureContext::Rename(RenameCaptureContext {
                     token: view.token(),
@@ -144,7 +146,7 @@ impl WorkbenchClientView<'_> {
                     remaining_scalars: view.remaining_scalar_capacity(),
                 }))
             }
-            CaptureOwner::PanelClose => {
+            WorkbenchCaptureOwner::PanelClose => {
                 let view = self.panel_close_confirmation()?;
                 Some(CaptureContext::PanelClose(ConfirmationCaptureContext {
                     token: view.token(),
@@ -156,7 +158,7 @@ impl WorkbenchClientView<'_> {
                     },
                 }))
             }
-            CaptureOwner::TabClose => {
+            WorkbenchCaptureOwner::TabClose => {
                 let view = self.close_confirmation()?;
                 Some(CaptureContext::TabClose(ConfirmationCaptureContext {
                     token: view.token(),
@@ -168,7 +170,7 @@ impl WorkbenchClientView<'_> {
                     },
                 }))
             }
-            CaptureOwner::WorkspaceClose => {
+            WorkbenchCaptureOwner::WorkspaceClose => {
                 let view = self.workspace_close_confirmation()?;
                 Some(CaptureContext::WorkspaceClose(ConfirmationCaptureContext {
                     token: view.token(),
@@ -180,7 +182,7 @@ impl WorkbenchClientView<'_> {
                     },
                 }))
             }
-            CaptureOwner::AgentBoard => Some(CaptureContext::AgentBoard(
+            WorkbenchCaptureOwner::AgentBoard => Some(CaptureContext::AgentBoard(
                 self.agent_board()?.input_context(),
             )),
         }
@@ -194,7 +196,7 @@ impl WorkbenchClientUi {
 
     pub(in crate::workbench_client) fn capture_context(
         &self,
-        owner: CaptureOwner,
+        owner: WorkbenchCaptureOwner,
     ) -> Option<CaptureContext> {
         self.view().capture_context(owner)
     }

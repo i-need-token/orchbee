@@ -522,7 +522,7 @@ fn frame_appearance(
                 client_capture_claims(view),
                 native.capture_claims(),
             ) == Some(crate::tui_composition::CaptureOwner::Native(
-                crate::tui_composition::CaptureOwner::Settings,
+                crate::tui_composition::WorkbenchCaptureOwner::Settings,
             )) =>
         {
             native.settings_appearance_preview()
