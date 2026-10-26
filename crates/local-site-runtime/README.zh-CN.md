@@ -482,4 +482,4 @@ cohort 准入、备用租约及进程／Server 所有权；普通 client／worke
 原生管道测试验证 scope／票据地址隔离，以及长 Unicode runtime 输入下仍有界的名称。
 [Worker 契约](../../apps/orchbee-worker/docs/windows-server-handoff.zh-CN.md) 负责连接转移。
 
-<!-- documentation-pairing: english-sha256=5f4853affc829b091fc14c1d1d35ff5339606102fc06b9614aa4c7a18e0fb5f8 zh-cn-sha256=42955b2cffbf6457903ffbd73c6b5c42b89c69ea59874f2f6d37f78d5bdaedde -->
+<!-- documentation-pairing: english-sha256=8ad3767e4d2d41a386778add84d839b6579b7ae0363da2c7a4d8e65f62739178 zh-cn-sha256=53a0d6b5d205447988fbd870b3dec0b52f3687780fc2b7f59cebd6e0e51bd629 -->

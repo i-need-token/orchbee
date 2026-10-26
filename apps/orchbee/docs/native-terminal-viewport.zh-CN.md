@@ -379,4 +379,4 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态行位于终端几何之外，恢复协议和保留的操作事实保持不变。
 
-<!-- documentation-pairing: english-sha256=f5ab451ef8729b5533d0a5e758ae11bea52ca67ab172a7f40205e4b54e33ee1f zh-cn-sha256=7a72fdafd19472c8364311aa2bb89852a178d109c9e9126a54983314dd4fae4e -->
+<!-- documentation-pairing: english-sha256=bc67ec344ced6e80a7be7eea21fcab52525c90502efcec6fcce7882d12176626 zh-cn-sha256=30e0c50cd4fe70aa781e8f2fcc07b9012f9a002064c2fd5cca6360bc16ee6a13 -->

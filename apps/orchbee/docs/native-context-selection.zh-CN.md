@@ -154,4 +154,4 @@ provenance、不启动或销毁终端、不改 checkpoint，也不移动其他�
 control-takeover 和 viewport 模型保留原有 grant 与 epoch 防护。这些抽象不证明 Workspace
 排序、兼容过滤、启动接纳或 adapter/UI 行为；这些仍需具体实现测试及原生验收提供证据。
 
-<!-- documentation-pairing: english-sha256=dedd0f038fa9fb429ad66b0a0617be3d2899f5c024a03dd7d0d2d34bf756502c zh-cn-sha256=afcebd64922e58086c6bb4b27b6a992320b2e5d2754900cfcdfb22e70821cc4e -->
+<!-- documentation-pairing: english-sha256=06573210571f58c01ae76ab744ba6f70c1133bc5a5dd012b9be523394cd5ccca zh-cn-sha256=24e5a89a901f6894fb10f8dadb8b51dd06aaaf805a6094f3acc33ee8e635b445 -->

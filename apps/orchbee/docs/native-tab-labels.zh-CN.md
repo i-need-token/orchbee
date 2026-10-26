@@ -68,4 +68,4 @@ CLI Tab 行、Workspace 的 Tab 引用以及所有 Tab 标签选择器均使用�
 
 自动终端标题若为 Windows 可执行文件绝对路径，只显示文件名；原始标题观察保持不变。紧凑标签栏溢出时保留当前标签及分组上下文，在空间允许时于隐藏的一侧绘制不可交互的省略标记。关闭控件与省略标记各占独立区域。
 
-<!-- documentation-pairing: english-sha256=d65b0a61a883290f9fdf0c491ba540a336beaae5683455f8cff41253f8677687 zh-cn-sha256=a714e24d5b058528475e58acdf2f7246ff33c0178cabfa57a115f78f94a9a48f -->
+<!-- documentation-pairing: english-sha256=680d93972a48de7488bf0c3e73e5d5b5424bc3aafb36732560cfd36474fe2e0e zh-cn-sha256=02c01f35537acb78f411659238d54a26d2f15a1de2cdc42cc668fd8eeeef1700 -->

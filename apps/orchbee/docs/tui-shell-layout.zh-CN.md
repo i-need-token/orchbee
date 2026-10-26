@@ -561,4 +561,4 @@ F1 包含当前上下文、未读变化、展开折叠及所有 Agent 状态的�
 
 侧栏图例将展开控件的符号标为“已展开”和“已折叠”。帮助首次成功绘制前使用八行的有界导航估计；绘制后按发布的容量翻页。
 
-<!-- documentation-pairing: english-sha256=8548fd237c34aa4d410834cbf63e78ee3a1b249baa9e0e95ed3085b82d3c36e2 zh-cn-sha256=604ad2e1c5afc73338b57d4c87e537b8b40ef4656f5fdf62ef78ed6dfbc3675f -->
+<!-- documentation-pairing: english-sha256=e8d6644a02bbb5b2ba8fe8f09f1d17658904ab0575911ac15de14f05a4c2016b zh-cn-sha256=8bcc6825f1138723c059bc6c5cc946c7a26a0deac5730af8d33e7d3268af5264 -->
