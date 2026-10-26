@@ -1,6 +1,7 @@
-//! Provides shared native runtime admission, exact process ownership, and device configuration
-//! and storage capabilities to application owners. It does not choose application startup
-//! policy, own Workbench state, or interpret the documents stored through these capabilities.
+//! Provides shared native runtime admission, exact process ownership, device configuration and
+//! plugin registry semantics, and storage capabilities to application owners. It does not choose
+//! application startup policy or own Workbench state; the Server retains the meaning of opaque
+//! Session checkpoint payloads.
 
 mod notification_policy;
 pub use notification_policy::{AgentSoundSetting, NotificationDelivery, NotificationSettings};
