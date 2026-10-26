@@ -208,10 +208,11 @@ fn workspace_checkpoint_is_complete_and_reads_git_for_each_workspace() -> io::Re
         );
         assert_eq!(checkpoint.rows[2].project_id, None);
         assert_eq!(checkpoint.rows[1].label, checkpoint.rows[2].label);
-        // Equal canonical directories never coalesce: each first terminal may have moved.
+        // Every Workspace has its own live cwd observation, including the one without a
+        // canonical directory. Equal canonical directories never coalesce either.
         assert_eq!(
             count.load(Ordering::Acquire),
-            2 * usize::from(git_requested)
+            3 * usize::from(git_requested)
         );
         for row in &checkpoint.rows[1..] {
             assert_eq!(

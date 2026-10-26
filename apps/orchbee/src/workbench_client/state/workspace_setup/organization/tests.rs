@@ -278,7 +278,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
             .navigation
             .workspaces
             .len(),
-        1
+        2
     );
     assert_eq!(
         state.setup_status(),

@@ -142,7 +142,7 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
     empty_snapshot.navigation.workspaces.clear();
     empty_snapshot.navigation.workspace_order.clear();
     empty_snapshot.terminal_contexts.clear();
-    let mut no_workspace = WorkbenchClientState::starting(
+    let mut no_workspace = WorkbenchClientState::bootstrap(
         project_preferred_workspace(&empty_snapshot).unwrap(),
         1,
         geometry(80),

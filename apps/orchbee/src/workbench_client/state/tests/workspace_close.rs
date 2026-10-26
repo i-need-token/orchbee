@@ -816,14 +816,29 @@ fn late_completion_preserves_later_focus_and_the_next_operation_identity() {
 
 #[test]
 fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navigation_or_return() {
-    let mut state = close_state(0);
+    let mut source = close_snapshot();
+    // Close the first displayed Workspace and land on the next, empty Workspace.
+    // The initial nonempty Workspace remains a real, later navigation target.
+    source.navigation.workspace_order.rotate_left(1);
+    let initial_workspace = source.navigation.workspaces[0].workspace_id.clone();
+    let location = NativeContextLocation::Workspace {
+        workspace_id: workspace_id(0),
+        terminal_context_id: context_id(372),
+    };
+    let mut state = WorkbenchClientState::bootstrap(
+        project_native_context_tabs(&source, &location).unwrap(),
+        1,
+        geometry(80),
+    )
+    .unwrap()
+    .0;
     let operation = start(&mut state, false);
     let evidence = WorkspaceCloseEvidence {
         operation: operation.clone(),
         result: observed(&operation, true),
     };
     assert!(state.finish_workspace_close(&evidence));
-    let mut published = close_snapshot();
+    let mut published = source;
     published.revision = WorkbenchRevision::new(2);
     published.navigation.workspaces.remove(1);
     published
@@ -831,6 +846,10 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
         .workspace_order
         .retain(|workspace| workspace != &workspace_id(0));
     published.terminal_contexts.remove(1);
+    assert_eq!(
+        published.navigation.workspace_order,
+        [workspace_id(1), workspace_id(2), initial_workspace]
+    );
     let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
         operation.generation,
         WorkbenchSnapshotOutcome::Available {
@@ -865,9 +884,9 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     assert_eq!(view.workspace_id(), Some(&workspace_id(0)));
     assert!(state.desired().is_none());
     assert!(state.attached_key().is_none());
-    // The initial Workspace is nonempty in this fixture, so the other surviving
-    // Workspaces occupy indices one and two. Navigation uses the real owner.
-    for (generation, index) in [(3, 2), (4, 1), (5, 0), (6, 1)] {
+    // Visit the other empty Workspace and the nonempty initial Workspace, returning
+    // to the automatic landing each time through the real selection owner.
+    for (generation, index) in [(3, 1), (4, 0), (5, 2), (6, 0)] {
         assert!(state.start_context_selection_at(
             generation,
             index,

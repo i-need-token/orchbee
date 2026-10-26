@@ -2587,10 +2587,6 @@ pub(super) fn controller_id() -> TestResult<ControllerId> {
     Ok(ControllerId::parse(CONTROLLER_ID)?)
 }
 
-pub(super) fn obcs_request_id(value: u128) -> TestResult<RequestId> {
-    Ok(RequestId::parse(&id(value))?)
-}
-
 pub(super) fn workbench_tab_id(value: u128) -> TestResult<WorkbenchTabId> {
     Ok(WorkbenchTabId::parse(&id(value))?)
 }

@@ -4144,7 +4144,7 @@ fn usage_failures_carry_their_concrete_reason() {
             &["panel", "move", ID, "--direction", "left"],
             UsageReason::MissingRequired {
                 context: path("panel move"),
-                requirement: "'--into-tab', '--new-tab', or '--new-workspace'",
+                requirement: "'--into-tab' or '--new-tab'",
             },
         ),
         (

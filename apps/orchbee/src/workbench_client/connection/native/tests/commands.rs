@@ -2374,7 +2374,7 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
     let refresh_generation = harness.ui.admit_refresh()?;
     assert_eq!(refresh_generation, 1);
     let refresh = harness.carrier.take_read()?;
-    assert_eq!(refresh.request_id().as_str(), identity(0x10a));
+    assert_eq!(refresh.request_id().as_str(), identity(0x109));
     // The retained baseline revision is the cursor the Server journal fast-forwards from.
     assert_eq!(refresh.known_revision(), Some(WorkbenchRevision::new(1)));
     harness.carrier.respond_read(
@@ -2403,7 +2403,7 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
             attachment_id: attached_viewer_id()?,
         }
     );
-    assert_eq!(detach.request_id().as_str(), identity(0x10b));
+    assert_eq!(detach.request_id().as_str(), identity(0x10a));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -2432,7 +2432,7 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
         ));
     };
     assert_eq!(attach.action(), &attach_action(1)?);
-    assert_eq!(attach.request_id().as_str(), identity(0x10c));
+    assert_eq!(attach.request_id().as_str(), identity(0x10b));
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(

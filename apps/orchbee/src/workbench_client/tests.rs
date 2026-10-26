@@ -810,7 +810,16 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         )),
         "{before_feedback}"
     );
-    assert!(before_feedback.contains("Workspace · Connecting"));
+    assert_eq!(
+        workbench_client.view().projection_status(),
+        NativeProjectionStatus::FrameAvailable
+    );
+    // A visible first frame suppresses the connection-only footer while its draw
+    // acknowledgement is pending; it does not authorize Ready or input yet.
+    assert!(
+        !before_feedback.contains(&Locale::EnUs.native_phase_status(&workbench_client.view())),
+        "{before_feedback}"
+    );
     assert!(workbench_client.startup_draw_ready());
     workbench_client.after_draw();
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
