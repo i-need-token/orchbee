@@ -176,6 +176,12 @@ fn render_actions(
         ),
     ]
     .into_iter()
+    .filter(|(command, _, _)| {
+        *command != SidebarCommand::NewWorkspace
+            || view
+                .capabilities
+                .supports(crate::tui_capabilities::Capability::DirectoryInput)
+    })
     .enumerate()
     {
         if offset >= usize::from(area.height) {

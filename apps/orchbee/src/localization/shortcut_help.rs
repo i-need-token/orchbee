@@ -292,7 +292,12 @@ impl Locale {
         let shell = self.shell();
         if view.machines.sidebar_navigation_active() {
             for (binding, command) in SIDEBAR_BINDINGS {
-                if *command == SidebarCommand::Exit {
+                if *command == SidebarCommand::Exit
+                    || (*command == SidebarCommand::NewWorkspace
+                        && !view
+                            .capabilities
+                            .supports(crate::tui_capabilities::Capability::DirectoryInput))
+                {
                     continue;
                 }
                 let key = format_binding_with_glyphs(binding, LabelStyle::for_host(), glyphs);

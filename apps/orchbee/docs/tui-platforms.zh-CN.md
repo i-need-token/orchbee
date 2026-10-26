@@ -40,7 +40,8 @@ Server 仍逐项授权请求；编译可达不代表 Server 或 Host 实现了�
 
 ## 准入与不支持结果
 
-不支持的可选操作不出现在菜单与快捷键发现中。无剪贴板时，复制模式导航与搜索仍可使用；
+不支持的可选操作不出现在菜单与快捷键发现中。无目录输入能力时，侧栏省略新建工作区。
+缺少启动适配器时，空 Agent 看板提供刷新和本地化的不支持说明，不呈现启动表单。无剪贴板时，复制模式导航与搜索仍可使用；
 复制按钮和复制提示不显示。UI 在调用时重新校验能力，因此陈旧或显式输入的操作会通过
 既有非捕获通知所有者显示 `en-US` 或 `zh-CN` 平台不支持提示。
 设置把登录 Shell 能力作为草稿输入，呈现和编辑使用同一能力。
@@ -73,4 +74,4 @@ OS、模拟器／版本、几何、locale、主题和能力，覆盖共享导航
 以及缺失适配的本地化拒绝。远程连接失败或 Windows 检查都不能证明 macOS 或 Linux 通过。
 [TUI 验证](../../../docs/zh-CN/tui/verification.md)管理证据类别。
 
-<!-- documentation-pairing: english-sha256=3ef9a723ff7dda91334455b99d2f9062bda80d201f6adfb135f1170aa99c20f1 zh-cn-sha256=bd25d468f1ddbb5f5273c263d520597306980741534b845235cf62fac2a52c84 -->
+<!-- documentation-pairing: english-sha256=03da4404f5a2d00c87e493bf332bd55dc5716cadce3307866393405689df8963 zh-cn-sha256=f940e784fdbd8a52ee8321a84fad690ea4a3359f60ba451fda9aedea505facf6 -->

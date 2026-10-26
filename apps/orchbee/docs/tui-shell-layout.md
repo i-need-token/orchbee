@@ -101,7 +101,7 @@ and the wire geometry agree without the caller knowing the tier. Hosts at least 
 default sidebar plus that minimum (90 columns) are wide and show the sidebar by default; narrower
 hosts open it only as an explicitly requested overlay.
 
-The sidebar fixes two action rows at the top: `[ New workspace ]` and
+When directory input is supported, the sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action

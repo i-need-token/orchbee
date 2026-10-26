@@ -52,8 +52,10 @@ pub(super) fn render(
     let rows = board.rows();
     let read = board.read();
     let has_empty_guidance = rows.is_empty() && matches!(read, AgentBoardRead::Ready { .. });
-    let start_mode =
-        rows.is_empty() && matches!(read, AgentBoardRead::Ready { complete: true, .. });
+    let start_supported = board.start_catalog_status() != AgentStartCatalogStatus::Unsupported;
+    let start_mode = start_supported
+        && rows.is_empty()
+        && matches!(read, AgentBoardRead::Ready { complete: true, .. });
 
     let wanted = if start_mode {
         BOARD_MAX_HEIGHT
@@ -214,7 +216,7 @@ pub(super) fn render(
     if let Some(layout) = start_layout.as_ref() {
         render_start_form(frame, text, board, &draw, layout, theme, hits);
     } else if rows.is_empty() {
-        render_empty_state(frame, body, text, locale, read, theme);
+        render_empty_state(frame, body, text, locale, read, start_supported, theme);
     } else {
         render_rows(
             frame,
@@ -283,11 +285,12 @@ fn render_empty_state(
     text: ShellText,
     locale: Locale,
     read: AgentBoardRead,
+    start_supported: bool,
     theme: &Theme,
 ) {
     // No completed-read rows exist — surface the honest read state
     // (unread, in-flight, denied, …) or the "zero sessions" verdict.
-    let empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
+    let mut empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
         vec![Line::from(if complete {
             text.board.empty
         } else {
@@ -296,6 +299,9 @@ fn render_empty_state(
     } else {
         vec![Line::from(locale.agent_board_read_line(read))]
     };
+    if !start_supported && matches!(read, AgentBoardRead::Ready { complete: true, .. }) {
+        empty_lines.push(Line::from(text.board.start_platform_unsupported));
+    }
     frame.render_widget(
         Paragraph::new(empty_lines)
             .alignment(Alignment::Center)

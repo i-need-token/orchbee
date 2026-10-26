@@ -122,7 +122,11 @@ impl State {
     pub(super) fn new(launch_supported: bool) -> Self {
         Self {
             launch_supported,
-            catalog: Catalog::Unloaded,
+            catalog: if launch_supported {
+                Catalog::Unloaded
+            } else {
+                Catalog::Unsupported
+            },
             catalog_revision: 0,
             catalog_task: None,
             retiring_catalog_tasks: Vec::new(),

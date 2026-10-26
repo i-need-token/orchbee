@@ -125,6 +125,14 @@ fn action_availability(
     {
         return ActionAvailability::Hidden;
     }
+    if action == MenuAction::NewTab
+        && !capabilities.supports(crate::tui_capabilities::Capability::DirectoryInput)
+        && state.is_some_and(|state| {
+            matches!(state.cache().location(), NativeContextLocation::NoWorkspace)
+        })
+    {
+        return ActionAvailability::Hidden;
+    }
     if action == MenuAction::MoveToNewWindow {
         return ActionAvailability::Hidden;
     }

@@ -33,10 +33,11 @@ impl Parameters {
             .next()
             .filter(|name| !name.is_empty() && !name.ends_with(':'))
             .unwrap_or(locale.cli_default_workspace_label());
+        let workspace_label =
+            WorkbenchLabel::parse(&label.chars().take(512).collect::<String>()).ok()?;
         Some(Self {
             cwd,
-            workspace_label: WorkbenchLabel::parse(&label.chars().take(512).collect::<String>())
-                .ok()?,
+            workspace_label,
         })
     }
 }

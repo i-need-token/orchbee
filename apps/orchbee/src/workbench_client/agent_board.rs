@@ -1288,7 +1288,9 @@ impl AgentBoard {
     }
 
     pub(super) fn start_form_active(&self) -> bool {
-        self.rows.is_empty() && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+        self.start.catalog_status() != start::CatalogStatus::Unsupported
+            && self.rows.is_empty()
+            && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
     }
 
     pub(super) fn start_phase(&self) -> Option<start::Phase> {
