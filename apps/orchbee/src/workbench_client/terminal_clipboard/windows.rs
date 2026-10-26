@@ -97,14 +97,13 @@ fn run(
             ticking.close();
             return Ok(());
         }
-        if let Ok(job) = receiver.try_recv()
-            && let Some(text) = job.text()
-            && job.begin()
-        {
-            job.settle(if deliver(ticking.hwnd(), text) {
-                Outcome::Delivered
-            } else {
-                Outcome::Failed
+        if let Ok(job) = receiver.try_recv() {
+            job.dispatch_clipboard(|text| {
+                if deliver(ticking.hwnd(), text) {
+                    Outcome::Delivered
+                } else {
+                    Outcome::Failed
+                }
             });
         }
         Ok(())

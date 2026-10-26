@@ -73,6 +73,11 @@ Windows 读取器保留激活代次检查与 I/O 失败。Unix 读取器不探�
 缺失支持不会变成成功或提交结果未知，不要求重放，也不会把复制选区当作已成功投递而清除。
 既有已接受插件操作的歧义结果仍不得继续启动浏览器。
 
+终端通知选择与 OSC 编码通过同一条共享流程消费固定的主机事实。OS 端口负责读取环境和输出；
+Unix 在这两种访问之前拒绝。剪贴板任务同样共享文本选择、取消准入和终态结算。
+Windows 隐藏所有者消息泵提供实际写入，Unix 端口提供类型化的不支持结果，不创建工作线程，
+也不产生剪贴板副作用。派发前取消不会调用任一交付端口；已开始的任务结算后不会重放。
+
 共享运行时在所有平台暴露设置／manifest 类型、命令结果类型、Windows 路径语法和字面量
 命令编码。Windows 路径按 Windows 线协议语法解析，不使用宿主 `std::path` 语法；
 执行所有者提供冻结的环境和当前目录输入。这不增加 Unix 下的 Windows 路径文件系统访问、
@@ -100,4 +105,4 @@ OS、模拟器／版本、几何、locale、主题和能力，覆盖共享导航
 以及缺失适配的本地化拒绝。远程连接失败或 Windows 检查都不能证明 macOS 或 Linux 通过。
 [TUI 验证](../../../docs/zh-CN/tui/verification.md)管理证据类别。
 
-<!-- documentation-pairing: english-sha256=6343ee586580484997a1e02e2006b26ac77e3ab6529d6e180e2baa82863dc437 zh-cn-sha256=013b2a6aeafd8ffe04c098cfd8ebdab59e00b039d159cfa47e3fba5d4ff5129d -->
+<!-- documentation-pairing: english-sha256=7406163c7e31b530e8be8d4ee659e7b833734e9c4af57135d501923cd85da398 zh-cn-sha256=081554cd0e7b6d2b2cdb9a1404ae1ab959f709938c059195e9d53e1650e0b026 -->

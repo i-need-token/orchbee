@@ -26,6 +26,7 @@ use crate::terminal_device::InheritedTerminal;
 
 mod command;
 pub(crate) use command::write_ansi_command;
+mod notification;
 
 const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 
@@ -1086,16 +1087,11 @@ impl TerminalModes for InheritedTerminalModes {
     ) -> io::Result<()> {
         self.write_command(query)
     }
-    #[cfg(windows)]
     fn notify_terminal(
         &self,
         message: &orchbee_workbench_protocol::Notification,
     ) -> io::Result<()> {
-        use std::io::Write;
-        let bytes = crate::notifications::terminal::sequence(message)?;
-        let mut output = self.terminal.output()?;
-        output.write_all(&bytes)?;
-        output.flush()
+        notification::send(&self.terminal, message)
     }
     #[cfg(windows)]
     fn set_window_title(&self, title: &str) -> io::Result<()> {

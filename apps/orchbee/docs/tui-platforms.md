@@ -86,6 +86,13 @@ no-effect result. Missing support never becomes success or an unknown commit, ne
 replay, and never clears a copy selection as if clipboard delivery had succeeded. Existing accepted
 plugin ambiguity still cannot fall through to a browser launch.
 
+Terminal notification selection and OSC framing consume frozen host facts through one shared
+workflow. Its OS port owns environment capture and output; Unix refuses before either access.
+Clipboard jobs likewise share text selection, cancellation admission and terminal settlement.
+The Windows hidden-owner pump supplies the actual write, while the Unix port supplies the typed
+unsupported outcome without a worker or clipboard effect. Cancellation before dispatch never
+invokes either delivery port; a begun job settles without replay.
+
 The shared runtime exposes settings/manifest types, command outcome types, Windows path syntax
 and literal command encoding on every platform. A Windows path is parsed with the Windows wire
 grammar rather than the host `std::path` grammar; the execution owner supplies frozen environment

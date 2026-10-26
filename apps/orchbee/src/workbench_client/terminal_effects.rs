@@ -126,6 +126,14 @@ impl Job {
             Payload::Bell => None,
         }
     }
+    /// Cancellation wins before dispatch; the admitted clipboard port settles exactly once.
+    pub(super) fn dispatch_clipboard(&self, deliver: impl FnOnce(&str) -> Outcome) {
+        if let Some(text) = self.text()
+            && self.begin()
+        {
+            self.settle(deliver(text));
+        }
+    }
     pub(super) fn settle(&self, outcome: Outcome) {
         let state = match outcome {
             Outcome::Unsupported => UNSUPPORTED,

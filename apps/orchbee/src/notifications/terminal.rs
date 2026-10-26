@@ -1,5 +1,14 @@
 //! Pure host selection and bounded OSC payload construction; lifecycle owns writes.
 use orchbee_workbench_protocol::Notification;
+
+/// Frozen host facts supplied only after the terminal-notification capability is admitted.
+pub(crate) struct Host {
+    pub(crate) program: Option<String>,
+    pub(crate) term: Option<String>,
+    pub(crate) kitty: bool,
+    pub(crate) tmux: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Backend {
     Osc9,
@@ -19,20 +28,10 @@ fn backend(program: Option<&str>, term: Option<&str>, kitty: bool) -> Option<Bac
         _ => None,
     }
 }
-pub(crate) fn sequence(message: &Notification) -> std::io::Result<Vec<u8>> {
-    let program = std::env::var("TERM_PROGRAM").ok();
-    let term = std::env::var("TERM").ok();
-    let selected = backend(
-        program.as_deref(),
-        term.as_deref(),
-        std::env::var_os("KITTY_WINDOW_ID").is_some(),
-    )
-    .ok_or(std::io::ErrorKind::Unsupported)?;
-    Ok(encode(
-        selected,
-        message,
-        std::env::var_os("TMUX").is_some(),
-    ))
+pub(crate) fn sequence(message: &Notification, host: &Host) -> std::io::Result<Vec<u8>> {
+    let selected = backend(host.program.as_deref(), host.term.as_deref(), host.kitty)
+        .ok_or(std::io::ErrorKind::Unsupported)?;
+    Ok(encode(selected, message, host.tmux))
 }
 fn encode(backend: Backend, message: &Notification, tmux: bool) -> Vec<u8> {
     let clean = |value: &str| {

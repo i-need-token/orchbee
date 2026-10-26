@@ -18,7 +18,16 @@ fn notification_backend_selection_and_exact_osc_framing() {
         encode(Backend::Kitty, &message, false),
         "\x1b]99;i=1:d=0;Ready\x1b\\\x1b]99;i=1:p=body;构建\x1b\\".as_bytes()
     );
-    let bytes = encode(Backend::Osc9, &message, true);
+    let bytes = sequence(
+        &message,
+        &Host {
+            program: Some("WezTerm".into()),
+            term: None,
+            kitty: true,
+            tmux: true,
+        },
+    )
+    .unwrap();
     assert_eq!(
         bytes,
         "\x1bPtmux;\x1b\x1b]9;Ready: 构建\x1b\x1b\\\x1b\\".as_bytes()

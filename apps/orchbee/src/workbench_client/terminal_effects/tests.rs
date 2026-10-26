@@ -21,7 +21,7 @@ fn cancellation_wins_before_os_dispatch_but_not_after_it_begins() {
     assert!(queue.enqueue_selection(pane(1), NonZeroU64::MIN, "old".into()));
     let job = queue.dispatch().unwrap();
     queue.cancel_pane(&pane(1));
-    assert!(!job.begin());
+    job.dispatch_clipboard(|_| panic!("cancelled clipboard job must not invoke the OS port"));
     assert_eq!(queue.take_outcome(), None);
     drop(job);
     assert_eq!(
@@ -68,8 +68,10 @@ fn keyboard_copy_completion_retains_exact_episode_export_and_pane_identity() {
             queue.enqueue_copy_selection(pane(2), generation, export, episode, "exact".into(),)
         );
         let job = queue.dispatch().unwrap();
-        assert!(job.begin());
-        job.settle(outcome);
+        job.dispatch_clipboard(|text| {
+            assert_eq!(text, "exact");
+            outcome
+        });
         drop(job);
         assert_eq!(
             queue.take_completion(),
