@@ -498,7 +498,6 @@ pub(crate) enum CommandPath {
     WorkspaceReportMetadata,
     PanelReportMetadata,
     PanelReportAgent,
-    PanelReportAgentSession,
     PanelClearAgentAuthority,
     PanelReleaseAgent,
 
@@ -671,7 +670,6 @@ impl CommandPath {
             Self::WorkspaceRename => "workspace rename",
             Self::PanelReportMetadata => "panel report-metadata",
             Self::PanelReportAgent => "panel report-agent",
-            Self::PanelReportAgentSession => "panel report-agent-session",
             Self::PanelClearAgentAuthority => "panel clear-agent-authority",
             Self::PanelReleaseAgent => "panel release-agent",
 
@@ -2165,9 +2163,6 @@ const VALUE_FLAGS: &[&str] = &[
     "--state-label",
     "--state",
     "--message",
-    "--agent-session-id",
-    "--agent-session-path",
-    "--session-start-source",
     "--token",
     "--clear-token",
     "--seq",
@@ -2889,9 +2884,6 @@ fn apply_value_flag(
         "--position" => &mut options.notification_position,
         "--sound" => &mut options.notification_sound,
         "--message" => &mut options.panel_agent.message,
-        "--agent-session-id" => &mut options.panel_agent.session_id,
-        "--agent-session-path" => &mut options.panel_agent.session_path,
-        "--session-start-source" => &mut options.panel_agent.start,
         "--applies-to-source" => &mut options.panel_metadata.applies_to_source,
         "--title" => &mut options.panel_metadata.title,
         "--display-agent" => &mut options.panel_metadata.display_agent,
@@ -3885,10 +3877,7 @@ fn resolve_words(
         ["panel", "report-metadata", value] => panel_metadata::parse(value, options, envelope),
         [
             "panel",
-            verb @ ("report-agent"
-            | "report-agent-session"
-            | "clear-agent-authority"
-            | "release-agent"),
+            verb @ ("report-agent" | "clear-agent-authority" | "release-agent"),
             value,
         ] => panel_agent::parse(verb, value, options, envelope),
         ["workspace", "report-metadata", value] => {

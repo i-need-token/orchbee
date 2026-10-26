@@ -36,19 +36,6 @@ const PanelAgentReportSchema = z.discriminatedUnion('kind', [
 			state: PanelAgentStateSchema,
 			message: optionalString,
 			sequence: optionalSequence,
-			agentSessionId: optionalString,
-			agentSessionPath: optionalString,
-		})
-		.readonly(),
-	z
-		.strictObject({
-			kind: z.literal('session'),
-			source: z.string(),
-			agent: label,
-			sequence: optionalSequence,
-			agentSessionId: optionalString,
-			agentSessionPath: optionalString,
-			sessionStartSource: optionalString,
 		})
 		.readonly(),
 	z

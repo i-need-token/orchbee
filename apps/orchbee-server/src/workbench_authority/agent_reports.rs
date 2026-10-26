@@ -62,7 +62,6 @@ pub(super) enum Event {
         message: Option<String>,
         sequence: Option<Sequence>,
     },
-    Session,
     Clear {
         source: Option<String>,
         sequence: Option<Sequence>,
@@ -115,7 +114,6 @@ impl Reports {
                 message,
                 sequence,
             } => next.report_state(author, status, message, sequence, at),
-            Event::Session => Disposition::Ignored,
             Event::Clear { source, sequence } => next.clear(source.as_deref(), sequence),
             Event::Release { author, sequence } => {
                 let result = next.release(&author, sequence);

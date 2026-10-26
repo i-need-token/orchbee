@@ -118,7 +118,7 @@ __ORCHBEE_GRAMMAR__
             if ($values.ContainsKey('--source')) {
                 if ($commandPath -cin @('workspace:report-metadata', 'panel:report-metadata')) {
                     if ($values['--source'].Trim() -cnotmatch '^[A-Za-z0-9:._-]{1,80}$') { $valid = $false }
-                } elseif ($commandPath -cin @('panel:report-agent', 'panel:report-agent-session', 'panel:release-agent')) {
+                } elseif ($commandPath -cin @('panel:report-agent', 'panel:release-agent')) {
                     if ($values['--source'].Trim().Length -eq 0) { $valid = $false }
                 } elseif ($commandPath -cne 'panel:clear-agent-authority' -and $grammar.outputSources -cnotcontains $values['--source']) { $valid = $false }
             }
@@ -211,7 +211,7 @@ __ORCHBEE_GRAMMAR__
                 '--right-click' { $grammar.rightClick }
                 '--position' { $grammar.notificationPositions }
                 '--sound' { $grammar.notificationSounds }
-                '--source' { if (@($viable | Where-Object { ($_.words -join ':') -cnotin @('workspace:report-metadata', 'panel:report-metadata', 'panel:report-agent', 'panel:report-agent-session', 'panel:release-agent', 'panel:clear-agent-authority') }).Count -gt 0) { $grammar.outputSources } }
+                '--source' { if (@($viable | Where-Object { ($_.words -join ':') -cnotin @('workspace:report-metadata', 'panel:report-metadata', 'panel:report-agent', 'panel:release-agent', 'panel:clear-agent-authority') }).Count -gt 0) { $grammar.outputSources } }
                 '--state' { 'idle'; 'working'; 'blocked'; 'unknown' }
                 '--key' { $grammar.keys }
                 '--until' { $grammar.until }

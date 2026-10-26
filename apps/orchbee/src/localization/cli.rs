@@ -2967,12 +2967,6 @@ impl Locale {
             (Self::ZhCn, CommandPath::WorkspaceMove) => HELP_WORKSPACE_MOVE_ZH,
             (Self::EnUs, CommandPath::PanelReportAgent) => panel_agent::PANELREPORTAGENT_EN,
             (Self::ZhCn, CommandPath::PanelReportAgent) => panel_agent::PANELREPORTAGENT_ZH,
-            (Self::EnUs, CommandPath::PanelReportAgentSession) => {
-                panel_agent::PANELREPORTAGENTSESSION_EN
-            }
-            (Self::ZhCn, CommandPath::PanelReportAgentSession) => {
-                panel_agent::PANELREPORTAGENTSESSION_ZH
-            }
             (Self::EnUs, CommandPath::PanelClearAgentAuthority) => {
                 panel_agent::PANELCLEARAGENTAUTHORITY_EN
             }

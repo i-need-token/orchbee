@@ -22,8 +22,6 @@ fn panel_agent_report_correlation_uncertainty_and_no_replay() -> TestResult {
                     state: PanelAgentState::Working,
                     message: None,
                     sequence: None,
-                    agent_session_id: None,
-                    agent_session_path: None,
                 }),
             },
         };

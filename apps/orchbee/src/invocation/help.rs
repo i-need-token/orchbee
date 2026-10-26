@@ -447,10 +447,6 @@ const HELP_PATHS: &[HelpPath] = &[
         HelpTopic::Command(CommandPath::PanelReportAgent),
     ),
     HelpPath::new(
-        &["panel", "report-agent-session"],
-        HelpTopic::Command(CommandPath::PanelReportAgentSession),
-    ),
-    HelpPath::new(
         &["panel", "clear-agent-authority"],
         HelpTopic::Command(CommandPath::PanelClearAgentAuthority),
     ),

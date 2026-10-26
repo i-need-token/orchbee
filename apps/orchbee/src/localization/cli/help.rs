@@ -417,10 +417,6 @@ impl Locale {
                 "Report an Agent associated with a panel.",
                 "报告面板关联的 Agent。",
             ),
-            HelpTopic::Command(CommandPath::PanelReportAgentSession) => (
-                "Report a panel's Agent session.",
-                "报告面板中的 Agent 会话。",
-            ),
             HelpTopic::Command(CommandPath::PanelClearAgentAuthority) => (
                 "Clear an Agent reporting assignment.",
                 "清除 Agent 状态报告关联。",

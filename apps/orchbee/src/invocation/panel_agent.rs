@@ -14,9 +14,6 @@ use orchbee_workbench_protocol::{
 pub(super) struct Options {
     pub(super) state: Option<String>,
     pub(super) message: Option<String>,
-    pub(super) session_id: Option<String>,
-    pub(super) session_path: Option<String>,
-    pub(super) start: Option<String>,
 }
 impl Options {
     pub(super) fn first_option(&self) -> Option<&'static str> {
@@ -24,13 +21,10 @@ impl Options {
             .into_iter()
             .find_map(|(seen, flag)| seen.then_some(flag))
     }
-    fn flags(&self) -> [(bool, &'static str); 5] {
+    fn flags(&self) -> [(bool, &'static str); 2] {
         [
             (self.state.is_some(), "--state"),
             (self.message.is_some(), "--message"),
-            (self.session_id.is_some(), "--agent-session-id"),
-            (self.session_path.is_some(), "--agent-session-path"),
-            (self.start.is_some(), "--session-start-source"),
         ]
     }
 }
@@ -70,7 +64,6 @@ pub(super) fn parse(
 ) -> Result<Request, ParseFailure> {
     let path = match verb {
         "report-agent" => "panel report-agent",
-        "report-agent-session" => "panel report-agent-session",
         "release-agent" => "panel release-agent",
         _ => "panel clear-agent-authority",
     };
@@ -92,8 +85,7 @@ pub(super) fn parse(
         .chain([(options.panel_metadata.agent.is_some(), "--agent")])
     {
         let allowed = match verb {
-            "report-agent" => flag != "--session-start-source",
-            "report-agent-session" => !matches!(flag, "--state" | "--message"),
+            "report-agent" => true,
             "release-agent" => flag == "--agent",
             _ => false,
         };
@@ -171,18 +163,8 @@ pub(super) fn parse(
                     state,
                     message: fields.message.clone(),
                     sequence,
-                    agent_session_id: fields.session_id.clone(),
-                    agent_session_path: fields.session_path.clone(),
                 }
             }
-            "report-agent-session" => PanelAgentReport::Session {
-                source: source.into(),
-                agent,
-                sequence,
-                agent_session_id: fields.session_id.clone(),
-                agent_session_path: fields.session_path.clone(),
-                session_start_source: fields.start.clone(),
-            },
             _ => PanelAgentReport::Release {
                 source: source.into(),
                 agent,

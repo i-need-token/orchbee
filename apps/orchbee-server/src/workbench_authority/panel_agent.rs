@@ -125,7 +125,6 @@ fn event(report: &Report) -> Result<Event, Failure> {
             message: message.clone(),
             sequence: *sequence,
         },
-        Report::Session { .. } => Event::Session,
         Report::Clear { source, sequence } => Event::Clear {
             source: source.clone(),
             sequence: *sequence,

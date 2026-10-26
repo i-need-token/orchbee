@@ -9,8 +9,7 @@ source-attributed state; only correlated Host observations establish process pre
 An author has an exact source and a normalized nonempty Agent label. Every source uses the same
 custom-report policy. State is idle/working/blocked/done/error/unknown; explicit done/error describe
 turn outcomes and are never inferred from screen matching or read acknowledgement. Source names
-cannot grant provider identity, lifecycle authority or resumability. Session-report inputs and
-provider-reference fields do not change report state or source watermarks.
+cannot grant provider identity, lifecycle authority or resumability. The public protocol admits only state, clear and release inputs; unknown kinds or fields are rejected before a transition.
 
 One aggregate belongs to one physical terminal generation. It retains current authority, source
 sequence watermarks, detected provider, fallback evidence and the latest confirmed exit. The core
@@ -27,7 +26,6 @@ A missing, failed or ambiguous Host sample is not an exit.
 | Input   | Decision                                                                                                                                              |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | State   | Reject a known provider conflicting with the detected process or a confirmed exit; then require a fresh source sequence and replace custom authority. |
-| Session | Ignore without consuming sequence or creating identity.                                                                                               |
 | Clear   | Require the current matching source, or omit source to select it; sequence gates clearing authority.                                                  |
 | Release | Reject foreign authority; require the matching effective Agent and fresh sequence. Preserve an independently confirmed live process.                  |
 | Process | Reconcile provider/fallback evidence and clear matching exited-generation reports while preserving a newer custom report.                             |

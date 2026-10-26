@@ -28,32 +28,6 @@
 			}
 		},
 		{
-			"name": "session",
-			"direction": "request",
-			"document": {
-				"kind": "workbench.panel-agent",
-				"protocolVersion": 1,
-				"requestId": "11111111111111111111111111111111",
-				"siteId": "22222222222222222222222222222222",
-				"action": {
-					"kind": "report",
-					"panelId": "33333333333333333333333333333333",
-					"expectedBinding": {
-						"workerId": "44444444444444444444444444444444",
-						"terminalId": "55555555555555555555555555555555"
-					},
-					"report": {
-						"kind": "session",
-						"source": "custom:pi",
-						"agent": "pi",
-						"agentSessionId": "id",
-						"agentSessionPath": "C:\\session.json",
-						"sessionStartSource": " RESUME "
-					}
-				}
-			}
-		},
-		{
 			"name": "clear",
 			"direction": "request",
 			"document": {
@@ -4533,6 +4507,111 @@
 							"hostTerminalId": "66666666666666666666666666666666"
 						}
 					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "removed-session-report",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "session",
+						"source": "custom:pi",
+						"agent": "pi",
+						"agentSessionId": "id",
+						"agentSessionPath": "C:\\session.json",
+						"sessionStartSource": " RESUME "
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "removed-state-agentSessionId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "custom",
+						"agent": "codex",
+						"state": "working",
+						"agentSessionId": "provider-id"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "removed-state-agentSessionPath",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "custom",
+						"agent": "codex",
+						"state": "working",
+						"agentSessionPath": "C:/session"
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "removed-state-sessionStartSource",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"siteId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "report",
+					"panelId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "55555555555555555555555555555555"
+					},
+					"report": {
+						"kind": "state",
+						"source": "custom",
+						"agent": "codex",
+						"state": "working",
+						"sessionStartSource": "resume"
+					}
 				}
 			},
 			"boundary": "schema"

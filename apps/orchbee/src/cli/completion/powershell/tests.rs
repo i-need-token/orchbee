@@ -106,7 +106,7 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             "--message",
             false,
         ),
-        ("orchbee panel report-a", "report-agent-session", true),
+        ("orchbee panel report-a", "report-agent-session", false),
         ("orchbee panel clear-a", "clear-agent-authority", true),
         (
             "orchbee panel report-agent abc --source custom --a",
@@ -136,14 +136,14 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
             false,
         ),
         (
-            "orchbee panel report-agent-session abc --s",
-            "--state",
+            "orchbee panel report-agent abc --agent-s",
+            "--agent-session-id",
             false,
         ),
         (
-            "orchbee panel report-agent-session abc --s",
+            "orchbee panel report-agent abc --s",
             "--session-start-source",
-            true,
+            false,
         ),
         (
             "orchbee panel clear-agent-authority abc --source '' --s",

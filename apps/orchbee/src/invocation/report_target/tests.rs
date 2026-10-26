@@ -1,11 +1,10 @@
 use crate::invocation::{Request, parse_request};
 #[test]
-fn report_members_are_exact_and_rejected_outside_the_five_report_commands() {
+fn report_members_are_exact_and_rejected_outside_the_four_report_commands() {
     let parse = |args: &[&str]| parse_request(args.iter().map(std::ffi::OsString::from));
     let id = "00000000000000000000000000000007";
     for verb in [
         "report-agent",
-        "report-agent-session",
         "clear-agent-authority",
         "release-agent",
         "report-metadata",

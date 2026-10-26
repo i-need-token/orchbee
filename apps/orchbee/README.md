@@ -952,7 +952,7 @@ The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines re
 
 Windows `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
 
-Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions. See the [Agent report contract](docs/windows-panel-agent-reports.md).
+Windows `panel report-agent`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions. See the [Agent report contract](docs/windows-panel-agent-reports.md).
 
 ## Windows CLI notifications
 

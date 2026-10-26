@@ -336,54 +336,6 @@ fn source_and_revision_failures_do_not_consume_the_rejected_report() {
         before
     );
 }
-#[test]
-fn custom_session_reports_do_not_create_authority_or_consume_a_watermark() {
-    let mut a = owner();
-    let facts = [physical(1, 1)];
-    invoke(
-        &mut a,
-        report(
-            json!({"kind":"session","source":"custom:codex","agent":"codex","agentSessionId":"provider-id","sequence":"1"}),
-        ),
-        &facts,
-    );
-    assert!(matches!(
-        invoke(
-            &mut a,
-            report(
-                json!({"kind":"session","source":"custom:claude","agent":"claude","agentSessionId":"foreign-id","sequence":"9"})
-            ),
-            &facts
-        ),
-        Outcome::Reported {
-            changed: false,
-            disposition: orchbee_workbench_protocol::PanelAgentDisposition::Ignored,
-            ..
-        }
-    ));
-    let before = a.panel_agent.revision;
-    assert!(matches!(
-        invoke(
-            &mut a,
-            report(
-                json!({"kind":"release","source":"custom:codex","agent":"codex","sequence":"18446744073709551615"})
-            ),
-            &facts
-        ),
-        Outcome::Reported { changed: false, .. }
-    ));
-    assert_eq!(a.panel_agent.revision, before);
-    assert!(matches!(
-        invoke(
-            &mut a,
-            report(
-                json!({"kind":"state","source":"custom:codex","agent":"codex","state":"working","sequence":"1"})
-            ),
-            &facts
-        ),
-        Outcome::Reported { changed: true, .. }
-    ));
-}
 
 fn metadata(
     a: &mut WorkbenchAuthority,

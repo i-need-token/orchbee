@@ -91,85 +91,9 @@
 									"type": "null"
 								}
 							]
-						},
-						"agentSessionId": {
-							"anyOf": [
-								{
-									"type": "string"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"agentSessionPath": {
-							"anyOf": [
-								{
-									"type": "string"
-								},
-								{
-									"type": "null"
-								}
-							]
 						}
 					},
 					"required": ["kind", "source", "agent", "state"]
-				},
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "session"
-						},
-						"source": {
-							"type": "string"
-						},
-						"agent": {
-							"$ref": "#/$defs/agent"
-						},
-						"sequence": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/revision"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"agentSessionId": {
-							"anyOf": [
-								{
-									"type": "string"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"agentSessionPath": {
-							"anyOf": [
-								{
-									"type": "string"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"sessionStartSource": {
-							"anyOf": [
-								{
-									"type": "string"
-								},
-								{
-									"type": "null"
-								}
-							]
-						}
-					},
-					"required": ["kind", "source", "agent"]
 				},
 				{
 					"type": "object",

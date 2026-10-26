@@ -69,22 +69,6 @@ pub enum PanelAgentReport {
         message: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sequence: Option<AgentReportSequence>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        agent_session_id: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        agent_session_path: Option<String>,
-    },
-    Session {
-        source: String,
-        agent: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        sequence: Option<AgentReportSequence>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        agent_session_id: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        agent_session_path: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        session_start_source: Option<String>,
     },
     Clear {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -102,9 +86,7 @@ pub enum PanelAgentReport {
 impl PanelAgentReport {
     pub fn validate(&self) -> Result<(), ContractError> {
         let agent = match self {
-            Self::State { agent, .. }
-            | Self::Session { agent, .. }
-            | Self::Release { agent, .. } => agent,
+            Self::State { agent, .. } | Self::Release { agent, .. } => agent,
             Self::Clear { .. } => return Ok(()),
         };
         normalize_agent_report_label(agent)

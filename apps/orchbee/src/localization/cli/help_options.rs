@@ -206,16 +206,6 @@ impl Locale {
                     "Agent associated with this terminal.",
                     "此终端关联的 Agent。",
                 ),
-                "--agent-session-id" => (
-                    "<id>",
-                    "Agent provider's session identifier.",
-                    "Agent 提供方的会话标识。",
-                ),
-                "--agent-session-path" => (
-                    "<path>",
-                    "Agent provider's saved session path.",
-                    "Agent 提供方保存的会话路径。",
-                ),
                 "--amount" => (
                     "<step>",
                     "Split ratio step; default: 0.05, absolute value capped at 0.5.",
@@ -627,11 +617,6 @@ impl Locale {
                     "<name>",
                     "Select the local Orchbee session; default: default.",
                     "选择本地 Orchbee 会话；默认 default。",
-                ),
-                "--session-start-source" => (
-                    "<source>",
-                    "Record how the Agent session was started.",
-                    "记录 Agent 会话的启动来源。",
                 ),
                 "--sound" => ("<sound>", "Notification sound.", "通知声音。"),
                 "--source" => (

@@ -23,7 +23,6 @@ fn snapshot(unbound: bool) -> Snapshot {
 fn exact_report_cli_preserves_primary_defaults_and_member_identity_through_unknown_outcomes() {
     let verbs = [
         "report-agent",
-        "report-agent-session",
         "clear-agent-authority",
         "release-agent",
         "report-metadata",

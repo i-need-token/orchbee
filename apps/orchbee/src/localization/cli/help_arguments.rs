@@ -154,7 +154,6 @@ impl Locale {
             CommandPath::WorkspaceRename => &[Argument::Workspace],
             CommandPath::PanelReportMetadata => &[Argument::Panel],
             CommandPath::PanelReportAgent => &[Argument::Panel],
-            CommandPath::PanelReportAgentSession => &[Argument::Panel],
             CommandPath::PanelClearAgentAuthority => &[Argument::Panel],
             CommandPath::PanelReleaseAgent => &[Argument::Panel],
             CommandPath::WorkspaceReportMetadata => &[Argument::Workspace],

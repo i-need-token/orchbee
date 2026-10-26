@@ -18,11 +18,10 @@ CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既
 
 ## 命令
 
-四个命令向运行中的 Session 提交显式终端上报：
+三个命令向运行中的 Session 提交显式终端上报：
 
 ```text
-orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
-orchbee panel report-agent-session <panel> --source <id> --agent <label> [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--session-start-source <reason>]
+orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>]
 orchbee panel clear-agent-authority <panel> [--source <id>] [--seq <n>]
 orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
 ```
@@ -40,7 +39,7 @@ report/release 来源修剪首尾空白后必须非空；不同于元数据来�
 序号输入解析为完整无符号 64 位整数，在线协议中成为规范十进制字符串。重复选项、越界选项、
 非法状态及完整请求超过 16 KiB 均在连接前失败；JSON 转义后的长度计入此上限。
 
-所有来源均按自定义来源处理，完整规则由 [Server 上报所有者](../../orchbee-server/docs/agent-report-model.zh-CN.md) 维护。自定义上报是显式权威，不证明进程存在，也不创建规范 Agent 会话。会话 ID、路径与启动原因不产生 provider 身份；会话上报被忽略，且不消耗序号水位。
+所有来源均按自定义来源处理，完整规则由 [Server 上报所有者](../../orchbee-server/docs/agent-report-model.zh-CN.md) 维护。自定义上报是显式权威，不证明进程存在，也不创建规范 Agent 会话。协议仅接受状态、清除和释放上报；未知上报种类或字段在进入所有者前被拒绝。
 
 clear 作用于当前匹配权威；release 保留独立观察到的活动进程。来源已有序号水位时，旧序号或无序号的状态变更会被忽略。已接纳但不改变视图的上报仍可返回已应用，因此回执的 disposition 与 `changed` 分别表示处理结果和实际变更。
 

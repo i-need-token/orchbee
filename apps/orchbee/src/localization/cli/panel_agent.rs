@@ -194,24 +194,13 @@ impl Locale {
 
 pub(super) const PANELREPORTAGENT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel report-agent <panel> [--presentation <id>] --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--format text|json]",
+        "orchbee panel report-agent <panel> [--presentation <id>] --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--format text|json]",
         "Report explicit Agent state and an optional message. Every source is custom and grants no provider identity.\nUse an exact Panel ID or @panel:0x<hex>. --presentation selects an exact primary or child Presentation in that Panel; omit it for the primary. Sequence accepts unsigned 64-bit decimal input. Sources for report/release are trimmed and must be nonempty; clear preserves its optional source literally. Unknown Agent labels and messages are not truncated. The full request must fit 16 KiB.\nOne existing-session admission, five-second budget, binding fence, no focus change or automatic retry. Applied and ignored receipts exit 0; unknown after submission exits 8 and retains its request ID. Reports do not prove a running process or create a canonical Agent session. Panel get/list/current and Agent get expose reportedAgent and apply metadata guards using its actual context.",
     );
 pub(super) const PANELREPORTAGENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel report-agent <panel> [--presentation <id>] --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--format text|json]",
+        "orchbee panel report-agent <panel> [--presentation <id>] --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--format text|json]",
         "上报显式 Agent 状态及可选消息。所有来源均按自定义来源处理，不授予 provider 身份。使用精确 Panel ID 或 @panel:0x<hex>。--presentation 指定该 Panel 内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知 Agent 标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范 Agent 会话。Panel get/list/current 与 Agent get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
-    );
-
-pub(super) const PANELREPORTAGENTSESSION_EN: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee panel report-agent-session <panel> [--presentation <id>] --source <id> --agent <label> [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--session-start-source <reason>] [--format text|json]",
-        "Submit a session report. Custom sources cannot grant provider identity, so this report is ignored and does not consume a sequence watermark.\nUse an exact Panel ID or @panel:0x<hex>. --presentation selects an exact primary or child Presentation in that Panel; omit it for the primary. Sequence accepts unsigned 64-bit decimal input. Sources for report/release are trimmed and must be nonempty; clear preserves its optional source literally. Unknown Agent labels and messages are not truncated. The full request must fit 16 KiB.\nOne existing-session admission, five-second budget, binding fence, no focus change or automatic retry. Applied and ignored receipts exit 0; unknown after submission exits 8 and retains its request ID. Reports do not prove a running process or create a canonical Agent session. Panel get/list/current and Agent get expose reportedAgent and apply metadata guards using its actual context.",
-    );
-pub(super) const PANELREPORTAGENTSESSION_ZH: crate::localization::HelpDetails =
-    crate::localization::HelpDetails::new(
-        "orchbee panel report-agent-session <panel> [--presentation <id>] --source <id> --agent <label> [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--session-start-source <reason>] [--format text|json]",
-        "提交会话上报。自定义来源不能授予 provider 身份，因此此上报被忽略，且不消耗序号水位。使用精确 Panel ID 或 @panel:0x<hex>。--presentation 指定该 Panel 内精确的主项或子项 Presentation；省略则使用主项。序号接受无符号 64 位十进制输入。report/release 的来源修剪空白后必须非空；clear 原样保留可选来源。未知 Agent 标签和消息不截断，完整请求须不超过 16 KiB。仅连接已有会话，总期限 5 秒，校验终端绑定，不改变焦点或自动重试。已应用和已忽略回执退出 0；提交后结果未知退出 8，并保留请求 ID。上报不证明进程存活，也不创建规范 Agent 会话。Panel get/list/current 与 Agent get 展示 reportedAgent，并使用实际上下文应用元数据守卫。",
     );
 
 pub(super) const PANELCLEARAGENTAUTHORITY_EN: crate::localization::HelpDetails =

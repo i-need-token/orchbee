@@ -21,11 +21,10 @@ Full provider, multi-Client and visual acceptance remains part of the final gate
 
 ## Commands
 
-Four commands submit explicit terminal reports to the running Session:
+Three commands submit explicit terminal reports to the running Session:
 
 ```text
-orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
-orchbee panel report-agent-session <panel> --source <id> --agent <label> [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>] [--session-start-source <reason>]
+orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>]
 orchbee panel clear-agent-authority <panel> [--source <id>] [--seq <n>]
 orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
 ```
@@ -46,7 +45,7 @@ Sequence input parses a full unsigned 64-bit integer and becomes a canonical dec
 wire. Duplicate options, unsupported options, invalid states, and complete requests above 16 KiB
 fail before any connection; JSON escape expansion counts toward that limit.
 
-Every source is custom, with complete rules owned by the [Server report owner](../../orchbee-server/docs/agent-report-model.md). A custom report is explicit authority; it does not prove process existence or create a canonical Agent session. Session IDs, paths and start reasons grant no provider identity. Session reports are ignored without consuming a sequence watermark.
+Every source is custom, with complete rules owned by the [Server report owner](../../orchbee-server/docs/agent-report-model.md). A custom report is explicit authority; it does not prove process existence or create a canonical Agent session. The protocol admits only state, clear and release reports; unknown report kinds or fields are rejected before owner admission.
 
 Clear affects the current matching authority; release preserves an independently observed live process. Once a source has a sequence watermark, stale or unsequenced state changes are ignored. An admitted report that leaves the view unchanged may still be applied, so disposition and `changed` separately describe admission and actual change.
 

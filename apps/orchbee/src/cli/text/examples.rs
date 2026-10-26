@@ -146,15 +146,6 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
             "--state",
             "working",
         ],
-        CommandPath::PanelReportAgentSession => &[
-            "@panel:0xabcd",
-            "--source",
-            "cli",
-            "--agent",
-            "codex",
-            "--agent-session-id",
-            "session-1",
-        ],
         CommandPath::PanelClearAgentAuthority => &["@panel:0xabcd", "--source", "cli"],
         CommandPath::PanelReleaseAgent => &["@panel:0xabcd", "--source", "cli", "--agent", "codex"],
         CommandPath::WorkspaceReportMetadata => {

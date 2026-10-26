@@ -857,7 +857,7 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 Windows `panel report-metadata` 支持来源拥有的展示字段、守卫、token 补丁、序号和 TTL，提供绑定校验及单次提交回执。见 [Panel 元数据契约](docs/windows-panel-metadata.zh-CN.md)。
 
-Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 和 `release-agent` 提交显式来源上报并返回相关处理结果。参见 [Agent 上报契约](docs/windows-panel-agent-reports.zh-CN.md)。
+Windows `panel report-agent`、`clear-agent-authority` 和 `release-agent` 提交显式来源上报并返回相关处理结果。参见 [Agent 上报契约](docs/windows-panel-agent-reports.zh-CN.md)。
 
 ## Windows CLI 通知
 

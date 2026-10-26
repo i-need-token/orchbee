@@ -10,7 +10,7 @@ fn report(args: &[&str]) -> PanelAgentReport {
     command.report
 }
 #[test]
-fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
+fn panel_agent_input_preserves_labels_messages_and_full_sequences() {
     let value = report(&[
         "panel",
         "report-agent",
@@ -20,8 +20,6 @@ fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
         "--state=blocked",
         "--message=  问题\n\u{1b}[31m  ",
         "--seq=18446744073709551615",
-        "--agent-session-id= opaque ",
-        "--agent-session-path=relative",
     ]);
     assert_eq!(
         value,
@@ -31,8 +29,6 @@ fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
             state: PanelAgentState::Blocked,
             message: Some("  问题\n\u{1b}[31m  ".into()),
             sequence: Some(AgentReportSequence::new(u64::MAX)),
-            agent_session_id: Some(" opaque ".into()),
-            agent_session_path: Some("relative".into())
         }
     );
     let custom = " A custom\tAgent ";
@@ -40,12 +36,6 @@ fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
         matches!(report(&["panel", "release-agent", "@panel:0xabc", "--source", "source",
         "--agent", custom, "--seq=+0007"]), PanelAgentReport::Release { agent, sequence: Some(seq), .. }
         if agent == custom.trim() && seq.get() == 7)
-    );
-    assert!(
-        matches!(report(&["panel", "report-agent-session", "@panel:0xabc", "--source=custom:pi",
-        "--agent=pi", "--session-start-source= NEW ", "--agent-session-path=C:/session"]),
-        PanelAgentReport::Session { session_start_source: Some(start), agent_session_path: Some(path), .. }
-        if start == " NEW " && path == "C:/session")
     );
     assert!(matches!(
         report(&["panel", "clear-agent-authority", "@panel:0xabc"]),
@@ -75,6 +65,8 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
         "--ttl-ms=1",
         "--focus",
         "--session-start-source=startup",
+        "--agent-session-id=provider-id",
+        "--agent-session-path=C:/session",
         "--agent=pi",
         "--seq=-1",
         "--seq=18446744073709551616",
@@ -143,15 +135,6 @@ fn panel_agent_rejects_invalid_and_out_of_scope_flags_before_effect() {
             "@panel:0xabc",
             "--source=hook",
             "--agent=x",
-            "--state=idle",
-        ],
-        vec![
-            "panel",
-            "report-agent-session",
-            "@panel:0xabc",
-            "--source=hook",
-            "--agent=x",
-            "--message=x",
         ],
         vec!["panel", "get", "@panel:0xabc", "--state=working"],
         vec![
