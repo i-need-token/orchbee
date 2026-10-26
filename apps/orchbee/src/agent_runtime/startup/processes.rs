@@ -67,7 +67,7 @@ pub(crate) struct Observation {
     pub(crate) attachment: AttachmentId,
 }
 
-/// Attach once to the exact physical binding on the borrowed Client, without selecting a target.
+/// Attach once to the Snapshot's exact Server routing binding, without selecting a target.
 /// A successful caller owns the returned viewer until explicit detach or Client teardown.
 ///
 /// # Errors

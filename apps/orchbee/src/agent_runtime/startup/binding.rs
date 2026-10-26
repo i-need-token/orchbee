@@ -39,7 +39,7 @@ pub(crate) enum PrimaryError {
     InvalidBinding,
 }
 
-/// The exact Panel's primary presentation and physical routing from one admitted Snapshot.
+/// The exact Panel's primary presentation and Server routing from one admitted Snapshot.
 pub(crate) struct PrimaryTerminal {
     pub(crate) binding: Binding,
     pub(crate) presentation: TerminalPresentationId,

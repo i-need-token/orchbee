@@ -9,16 +9,6 @@ use orchbee_client_server_protocol::{
 use serde_json::Value;
 
 fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
-    report_with_delivery(receipt, state, DeliveryDisposition::Applied, 0, verdict)
-}
-
-fn report_with_delivery(
-    receipt: &Value,
-    state: ReservationState,
-    _delivery: DeliveryDisposition,
-    status: u8,
-    verdict: Verdict,
-) -> Report {
     Report {
         name: AgentName::parse("alpha").unwrap(),
         provider: AgentProviderId::parse("codex").unwrap(),
@@ -26,7 +16,7 @@ fn report_with_delivery(
         last_observed: None,
         reservation_state: state,
         submission: Some(receipt.clone()),
-        submission_status: Some(status),
+        submission_status: Some(0),
         elapsed_ms: 1,
         verdict,
     }
@@ -35,6 +25,17 @@ fn report_with_delivery(
 #[test]
 fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
     use super::super::send::SendVerdict;
+    use crate::agent_runtime::startup::{
+        binding::Binding,
+        send::{Context, Receipt as DomainReceipt},
+    };
+    use crate::agent_start::{
+        Failure as DomainFailure, Report as DomainReport, StartFailure, Submission,
+        Verdict as DomainVerdict,
+    };
+    use orchbee_client_server_protocol::{
+        HostEpoch, HostTerminalId, RequestId, SendTarget, TerminalSendResult,
+    };
 
     let cases = [
         (
@@ -121,26 +122,45 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
     )
     .unwrap();
     for (outcome, status, expected_verdict, delivery, failure_kind) in cases {
-        let receipt = super::super::send::test_receipt(outcome);
+        let receipt = super::super::send::test_receipt(outcome.clone());
         assert_eq!(receipt.exit_status(), status);
         assert_eq!(receipt.verdict(), expected_verdict);
         let document = receipt.document();
-        let answer = project(
-            report_with_delivery(
-                &document,
-                ReservationState::Released,
-                delivery,
-                status,
-                Verdict::Failed {
-                    failure: super::failure(failure_kind, "input-not-accepted"),
-                    reason: "input-not-accepted".into(),
-                    cause: None,
-                },
-            ),
-            OutputFormat::Json,
-            Locale::EnUs,
-            None,
+        let request = RequestId::parse(&"1".repeat(32)).unwrap();
+        let target = SendTarget::new(
+            std::num::NonZeroU64::MIN,
+            HostEpoch::parse(&"2".repeat(32)).unwrap(),
+            HostTerminalId::parse(&"3".repeat(32)).unwrap(),
         );
+        let receipt = DomainReceipt {
+            context: Context {
+                binding: Binding::parse(&"4".repeat(32), &"5".repeat(32), &"6".repeat(32)).unwrap(),
+                revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+                request: request.clone(),
+            },
+            result: TerminalSendResult::new(request, Some(target), outcome).unwrap(),
+            records: 2,
+            bytes: 10,
+        };
+        assert_eq!(receipt.verdict(), expected_verdict);
+        let failure =
+            DomainFailure::Start(StartFailure::InputNotAccepted(receipt.refusal().unwrap()));
+        let report = Report::from(DomainReport {
+            name: AgentName::parse("alpha").unwrap(),
+            provider: AgentProviderId::parse("codex").unwrap(),
+            reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
+            last_observed: None,
+            reservation_state: ReservationState::Released,
+            submission: Some(Submission::Sent(Box::new(receipt))),
+            delivery,
+            elapsed_ms: 1,
+            verdict: DomainVerdict::Failed {
+                failure,
+                read_cause: None,
+            },
+        });
+        assert_eq!(report.failure_kind(), Some(failure_kind));
+        let answer = project(report, OutputFormat::Json, Locale::EnUs, None);
         assert_eq!(answer.status, status);
         let envelope: Value = serde_json::from_slice(&answer.stdout).unwrap();
         assert!(schema.is_valid(&envelope), "{envelope}");

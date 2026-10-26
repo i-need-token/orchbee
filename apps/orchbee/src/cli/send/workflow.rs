@@ -355,7 +355,7 @@ pub(crate) fn test_receipt(outcome: TerminalSendOutcome) -> Receipt {
         fact: PayloadFact {
             kind: "sequence",
             records: 2,
-            record_bytes: None,
+            record_bytes: Some(10),
         },
         facts: RequestFacts {
             session_id: "44444444444444444444444444444444".to_owned(),
