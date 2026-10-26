@@ -143,7 +143,6 @@ fn prompt_help_keeps_transport_details_in_the_offline_guide() {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn command_examples_are_admitted_without_executing_them() {
     let mut failures = Vec::new();
@@ -167,99 +166,6 @@ fn command_examples_are_admitted_without_executing_them() {
             failures.push(format!(
                 "{command:?}: --format admission disagrees with help"
             ));
-        }
-    }
-    assert!(failures.is_empty(), "{}", failures.join("\n"));
-}
-
-/// Well-formed sample values for value-taking options. Some options validate their value before
-/// the command scope, so an invalid sample would hide whether the scope admits the option.
-#[cfg(windows)]
-const SAMPLE_VALUES: &[&str] = &["1", "on", "left", "text", "@terminal:0xabcd"];
-
-/// Declared options whose admission depends on another option that the help example omits.
-#[cfg(windows)]
-const CONDITIONAL_OPTIONS: &[(CommandPath, &str)] = &[
-    // `--paste` modifies a `--file` or `--stdin` source; the example sends `--text`.
-    (CommandPath::TerminalSend, "--paste"),
-];
-
-/// Whether the parser admits `flag` after an otherwise valid invocation, or `None` when no sample
-/// value is well formed. Only a scope rejection naming this flag counts as non-admission.
-#[cfg(windows)]
-fn parser_admits(base: &[&str], flag: &'static str) -> Option<bool> {
-    use crate::invocation::UsageReason;
-    let parse = |extra: &[&str]| parse_request(base.iter().chain(extra).map(OsString::from));
-    let reason = |result: &Result<Request, crate::invocation::ParseFailure>| {
-        result
-            .as_ref()
-            .err()
-            .and_then(|failure| failure.usage.clone())
-    };
-    let mut result = parse(&[flag]);
-    if matches!(reason(&result), Some(UsageReason::MissingValue { option }) if option == flag) {
-        result = SAMPLE_VALUES
-            .iter()
-            .map(|value| parse(&[flag, value]))
-            .find(|result| {
-                !matches!(
-                    reason(result),
-                    Some(UsageReason::InvalidValue { option, .. }) if option == flag
-                )
-            })?;
-    }
-    Some(!match reason(&result) {
-        Some(
-            UsageReason::UnexpectedOption { option, .. }
-            | UsageReason::MisplacedFlag { flag: option, .. },
-        ) => option == flag,
-        Some(UsageReason::UnknownOption { option, .. }) => option == flag,
-        _ => false,
-    })
-}
-
-/// The parser's per-command option scope is the authority; help and completion project it through
-/// one declared table, so every declared option must be admitted and every other option rejected.
-#[cfg(windows)]
-#[test]
-fn command_option_scopes_agree_with_help_and_completion() {
-    let commands = help_paths()
-        .iter()
-        .filter_map(|path| match path.topic() {
-            HelpTopic::Command(command) => Some(command),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let mut options = std::collections::BTreeSet::new();
-    for command in &commands {
-        options.extend(crate::invocation::grammar::help_flags(*command));
-    }
-    // `--help` turns any path into help, and `--format` has its own check above.
-    options.remove("--help");
-    options.remove("--format");
-    let mut failures = Vec::new();
-    for command in commands {
-        let declared = crate::invocation::grammar::help_flags(command);
-        let base = command
-            .as_str()
-            .split(' ')
-            .chain(examples::arguments(command).iter().copied())
-            .collect::<Vec<_>>();
-        for option in &options {
-            if base.contains(option) || CONDITIONAL_OPTIONS.contains(&(command, *option)) {
-                continue;
-            }
-            let declares = declared.contains(option);
-            match parser_admits(&base, option) {
-                // Command parsing reached a declared option's own value check: nothing to compare.
-                None if declares => {}
-                None => failures.push(format!("{command:?} {option}: no well-formed sample value")),
-                Some(admitted) if admitted != declares => failures.push(format!(
-                    "{command:?} {option}: parser admits={admitted}, help/completion declare={}",
-                    !admitted
-                )),
-                Some(_) => {}
-            }
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));

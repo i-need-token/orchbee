@@ -118,13 +118,9 @@ fn command(path: CommandPath, locale: Locale) -> Document {
     }
 }
 
-/// The admitted options a command's help lists. Offline commands never
-/// open a session, so the session selector is not offered there.
+/// The option table projects the admitted grammar, including orthogonal global options.
 pub(super) fn help_options(path: CommandPath) -> Vec<&'static str> {
     crate::invocation::grammar::help_flags(path)
-        .into_iter()
-        .filter(|flag| !(*flag == "--session" && path == CommandPath::ApiSchema))
-        .collect()
 }
 
 /// The value placeholder the usage line spells after `flag`, so the option
