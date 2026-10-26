@@ -209,8 +209,11 @@ fn external_preferences_keep_their_deadline_during_traffic_and_idle() {
                 .all(|pair| pair[1].duration_since(pair[0]) >= Duration::from_secs(1))
         );
     }));
-    peer.shutdown(std::net::Shutdown::Both).unwrap();
-    let _closed = task.join().unwrap();
+    let shutdown = peer.shutdown(std::net::Shutdown::Both);
+    drop(peer);
+    let joined = task.join();
+    shutdown.unwrap();
+    let _closed = joined.unwrap();
     if let Err(failure) = result {
         std::panic::resume_unwind(failure);
     }
