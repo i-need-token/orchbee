@@ -142,7 +142,7 @@ AttachmentId ── one disposable projection capability
 
 `TerminalPresentationId` is created and retired by Workbench. Main maintains a strict in-memory bijection to `TerminalBindingId`; it never exposes Binding, Creation, Host, Terminal, or Attachment identity through lifecycle control. The Host remains the source of truth for the process and VT.
 
-The version-1 binding store contains a canonical BindingId-ordered collection. Every record has one unique BindingId, PresentationId, CreationId, bounded launch profile, and exactly one durable state: `planned`, `create-requested`, `retained`, `exited`, `closing`, or `lost`. Retained identities are unique and must repeat their owning CreationId. The file is parsed as untrusted input, updated through owner-only atomic replacement, and never rewritten automatically when invalid or unreadable. Launch environment values never enter diagnostics. Every default launch declares `TERM=xterm-256color`, `COLORTERM=truecolor`, and the Ghostty compatibility identity `TERM_PROGRAM=ghostty`, and preserves the Host’s inherited `NO_COLOR`, `FORCE_COLOR`, and `NODE_DISABLE_COLORS` policy. Capability declarations do not override a user’s color choice; an explicit Launch Profile environment may still override inherited values. Controlled UI fixtures remove automation-injected color policy before starting both Desktop and its fresh Host, rather than changing production launch semantics. `TERM` remains the portable baseline because Desktop does not install `xterm-ghostty` terminfo; the compatibility identity lets applications select the Kitty graphics and keyboard protocols that Orchbee implements through its pinned Ghostty VT without claiming a Ghostty application version. New POSIX terminals also receive `ORCHBEE_SHELL_INTEGRATION_DIR` from a code-resolved application resource path: development resolves it relative to the built Main entry, and packaged applications resolve it beneath `process.resourcesPath`. Ambient environment cannot replace that path. Desktop ships its own Zsh, Bash, and Fish scripts and one-shot loaders as package resources. After profile selection, supported new local Zsh, non-login Bash, and Fish launches load the shared integration automatically without Main reading or modifying a startup file; unsupported launch forms remain unchanged and Settings exposes the exact manual fallback commands. Running, restored, Windows, and remote terminals are outside this refinement. See [`docs/kitty-automatic-shell-integration-alignment.md`](docs/kitty-automatic-shell-integration-alignment.md).
+The version-1 binding store contains a canonical BindingId-ordered collection. Every record has one unique BindingId, PresentationId, CreationId, bounded launch profile, and exactly one durable state: `planned`, `create-requested`, `retained`, `exited`, `closing`, or `lost`. Retained identities are unique and must repeat their owning CreationId. The file is parsed as untrusted input, updated through owner-only atomic replacement, and never rewritten automatically when invalid or unreadable. Launch environment values never enter diagnostics. Every default launch declares `TERM=xterm-256color`, `COLORTERM=truecolor`, and the Ghostty compatibility identity `TERM_PROGRAM=ghostty`, and preserves the Host’s inherited `NO_COLOR`, `FORCE_COLOR`, and `NODE_DISABLE_COLORS` policy. Capability declarations do not override a user’s color choice; an explicit Launch Profile environment may still override inherited values. Controlled UI fixtures remove automation-injected color policy before starting both Desktop and its fresh Host, rather than changing production launch semantics. `TERM` remains the portable baseline because Desktop does not install `xterm-ghostty` terminfo; the compatibility identity lets applications select the Kitty graphics and keyboard protocols that Orchbee implements through its pinned Ghostty VT without claiming a Ghostty application version. New POSIX terminals also receive `ORCHBEE_SHELL_INTEGRATION_DIR` from a code-resolved application resource path: development resolves it relative to the built Main entry, and packaged applications resolve it beneath `process.resourcesPath`. Ambient environment cannot replace that path. Desktop ships its own Zsh, Bash, and Fish scripts and one-shot loaders as package resources. After profile selection, supported new local Zsh, non-login Bash, and Fish launches load the shared integration automatically without Main reading or modifying a startup file; unsupported launch forms remain unchanged and Settings exposes the exact manual fallback commands. Running, restored, Windows, and remote terminals are outside this refinement. See [`docs/automatic-shell-integration.md`](docs/automatic-shell-integration.md).
 
 The launch-locale resolver is a deterministic policy over the target platform, Desktop's inherited `LC_ALL`, `LANG`, and `LC_CTYPE`, the Darwin system locale, and Darwin's installed locale inventory. It emits only the environment delta captured by a new terminal launch. On Darwin that delta explicitly sets or removes all three locale variables, so the PTY locale cannot depend on the ambient environment of a separately supervised Host. Retained launch records and running PTYs never change retroactively.
 
@@ -461,7 +461,7 @@ Focused traces cover:
   immutable terminal-text viewer, exact retained snapshots, visible-top anchoring, bounded search,
   source-specific Copy Actions, focus restoration, and unchanged attachment identity;
 - exact headed `terminal-parity/FS-10-active-tab-movement` and
-  `terminal-parity/FS-11-tab-title` Browser-composition witnesses for Kitty-aligned circular active-Tab
+  `terminal-parity/FS-11-tab-title` Browser-composition witnesses for circular active-Tab
   movement inside the pinned partition, stable explicit tab-title targeting, pre-filled custom-title
   editing, dynamic-title preservation beneath the custom value, blank reset to the latest natural
   title, Action-search discovery, focus restoration, and unchanged terminal input identity;
@@ -471,11 +471,11 @@ Focused traces cover:
   stale-target closure, focus restoration, unchanged attachment identity during resize, and stable
   terminal/creation identity across Tab handoff;
 - exact headed `terminal-parity/FS-13-directional-panel-movement` Browser-composition witness for
-  Kitty-aligned directional neighbor selection and leaf exchange across a nested four-Panel layout,
+  directional neighbor selection and leaf exchange across a nested four-Panel layout,
   all four movement directions, outer-edge event fallthrough, moved-source focus restoration,
   invariant Panel/presentation/terminal identity, and Action-search plus Settings
   discovery;
-- exact headed `terminal-parity/FS-14-panel-equalization` Browser-composition witness for Kitty's
+- exact headed `terminal-parity/FS-14-panel-equalization` Browser-composition witness for
   proportional same-axis Panel-unit semantics across three nested columns, menu and Action-search
   discovery, configurable shortcut presentation, available-versus-unavailable event prevention,
   stable Panel ordering, terminal identity, attachment identity, and input focus;
@@ -540,7 +540,7 @@ Focused traces cover:
 - exact `terminal-parity/HS-11-keyboard-scrollback` real-PTY/Electron evidence that
   `Ctrl+Shift+Arrow`, `Ctrl+Shift+PageUp/PageDown`, and `Ctrl+Shift+Home/End` move one production
   retained-history viewport by line, overlapping page, top, and bottom without replacing the
-  attachment. The witness does not claim Kitty's secondary aliases, alternate-screen behavior, or
+  attachment. The witness does not claim secondary aliases, alternate-screen behavior, or
   keyboard smooth-animation timing;
 - exact `terminal-parity/HS-12-sustained-output-interaction` real-PTY/Electron evidence that large
   and small wheel deltas enter and continue moving retained history during 2-millisecond in-place

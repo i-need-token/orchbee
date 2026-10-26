@@ -38,7 +38,7 @@ only that terminal request, without a fabricated executable or another profile f
 Concurrent provision requests for one presentation share pending discovery.
 Closing the presentation or disposing its adapter prevents later binding creation and Host effects.
 An admitted binding captures one complete launch. Supported POSIX shells subsequently receive
-[automatic shell integration](kitty-automatic-shell-integration-alignment.md).
+[automatic shell integration](automatic-shell-integration.md).
 An unavailable custom executable fails through the existing terminal lifecycle.
 
 ## Commands and persistence

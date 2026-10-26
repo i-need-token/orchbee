@@ -82,9 +82,9 @@ Find 控制器会把以选择内容为初始查询的打开操作发布为一个
 [控制器测试](src/workbench-client/terminal-find-surface/model/__tests__/TerminalFindController.unit.test.ts)
 覆盖替换、关闭、处置、重入打开，以及这些保留准入的更新。
 
-`Ctrl+Shift+G` 会在应用拥有的模态查看器中打开上一条带 Shell 标记的命令输出。一个 replace-latest Action 通过有界通用缓冲区 lane 准备精确 generation/revision 的纯文本 document；过时、淘汰、备用屏幕、不可用或超限读取绝不发布局部输出。已准备 document 在打开期间保持不可变，字面量不区分大小写搜索、Enter/Shift+Enter 导航、原生文本选择与独立的 `terminal.output.copy` Action 都在本地运行。查看器会约束焦点循环并在关闭时恢复终端焦点，且有意不启动外部 pager 或重新渲染 ANSI 样式。参见 [Kitty 对齐契约](../../packages/terminal/docs/command-output-viewer.zh-CN.md) 与 `projected-terminal.text-viewer` experience component。
+`Ctrl+Shift+G` 会在应用拥有的模态查看器中打开上一条带 Shell 标记的命令输出。一个 replace-latest Action 通过有界通用缓冲区 lane 准备精确 generation/revision 的纯文本 document；过时、淘汰、备用屏幕、不可用或超限读取绝不发布局部输出。已准备 document 在打开期间保持不可变，字面量不区分大小写搜索、Enter/Shift+Enter 导航、原生文本选择与独立的 `terminal.output.copy` Action 都在本地运行。查看器会约束焦点循环并在关闭时恢复终端焦点，且有意不启动外部 pager 或重新渲染 ANSI 样式。参见 [行为契约](../../packages/terminal/docs/command-output-viewer.zh-CN.md) 与 `projected-terminal.text-viewer` experience component。
 
-`Ctrl+Shift+H` 会通过同一个私有查看器打开完整的主屏幕保留历史。精确快照投影器会连接软换行、保留硬行边界、记录捕获的可见顶部 offset，并且只发布一份完整 document 或类型化的空/不可用结果。命令输出与回滚历史准备会在发布前相互替换，其不可变 document 保留按来源区分的复制 Action。参见 [Kitty 回滚历史查看器契约](../../packages/terminal/docs/scrollback-viewer.zh-CN.md)。
+`Ctrl+Shift+H` 会通过同一个私有查看器打开完整的主屏幕保留历史。精确快照投影器会连接软换行、保留硬行边界、记录捕获的可见顶部 offset，并且只发布一份完整 document 或类型化的空/不可用结果。命令输出与回滚历史准备会在发布前相互替换，其不可变 document 保留按来源区分的复制 Action。参见 [回滚历史查看器契约](../../packages/terminal/docs/scrollback-viewer.zh-CN.md)。
 
 提示符导航和文本查看器准备各自拥有一个 replace-latest 协调器，其生命周期与一次 Action 注册一致。
 任务归属会在取消通知观察者前更新，因此 abort 监听器启动的替代任务仍是当前任务并且可被取消。
@@ -175,7 +175,7 @@ OSC 52 写入从不共享选择复制快速路径。共享渲染器自动处理�
 有头（headed）Canvas 2D 见证 `terminal-parity/FS-07-keyboard-hints` 使用同一个生产界面与有界行夹具。
 `Mod+Shift+O` 为可见 URL、路径、文件位置与 hash 目标添加标签；标签按键绝不会到达终端输入，
 选择 hash 会插入其精确文本，选择 URL 会到达捕获的 Browser opener，而 Escape 会移除 overlay
-且不产生效果。该见证不声明屏幕外发现、文件系统/编辑器激活、Kitty 自定义或操作系统 URL 投递。
+且不产生效果。该见证不声明屏幕外发现、文件系统/编辑器激活、自定义匹配器或操作系统 URL 投递。
 
 有头（headed）Canvas 2D 见证 `terminal-parity/FS-08-command-output-viewer` 使用生产界面与合成 OSC 133
 提示符行。`Ctrl+Shift+G` 打开精确保留的命令输出；搜索与可见匹配导航留在不可变 document 内，

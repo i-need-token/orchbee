@@ -1,19 +1,8 @@
-# Kitty automatic shell-integration alignment
+# Automatic shell integration
 
-## Reference scope
+## Integration scope
 
-This contract adopts Kitty's automatic local-shell integration at commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`, inspected on 2026-08-27. Kitty
-detects Zsh, Bash, and Fish from the configured executable, changes only the child launch, loads an
-application-owned integration resource without editing a startup file, restores the shell's normal
-startup path, and falls back without injection when the launch cannot be handled safely.
-
-Orchbee adopts those user-observable properties for new local Desktop terminals. It reuses the
-existing Orchbee-owned OSC 133 and OSC 7 scripts instead of Kitty's integration implementation. The
-parity claim excludes Kitty configuration flags, cursor and title changes, completions, sudo or PATH
-wrapping, command transport, shell cloning, remote or SSH injection, new-user detection, global Zsh
-environment probing, arbitrary Bash invocation compatibility, and shells other than Zsh, Bash, and
-Fish.
+Orchbee detects Zsh, Bash and Fish from the configured executable for new local Desktop terminals. It changes only the child launch, loads the existing application-owned OSC 133 and OSC 7 resources without editing startup files, restores the normal shell startup path and skips injection when a launch cannot be handled safely. This contract excludes cursor/title changes, completions, sudo or PATH wrapping, command transport, shell cloning, remote or SSH injection, new-user detection, global Zsh environment probing, arbitrary Bash invocations and other shells.
 
 ## Problem and scope
 

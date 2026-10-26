@@ -109,7 +109,7 @@ AttachmentId ── one disposable projection capability
 
 `TerminalPresentationId` 由 Workbench 创建并停用。 Main 保持对 `TerminalBindingId` 的严格内存中双射；它从不通过生命周期控制公开绑定、创建、主机、终端或附件身份。主机仍然是该过程和 VT 的真实来源。
 
-版本 1 绑定存储包含规范的 BindingId-ordered 集合。每条记录都有唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、`exited`、`closing` 或 `lost`。保留的身份是唯一的，并且必须重复其所属的 CreationId。该文件被解析为不受信任的输入，通过仅所有者可用的原子替换进行更新，并且在无效或不可读时绝不自动重写。启动环境值绝不进入诊断。每个默认启动都声明 `TERM=xterm-256color`、`COLORTERM=truecolor` 和 Ghostty 兼容身份 `TERM_PROGRAM=ghostty`，并保留 Host 继承的 `NO_COLOR`、`FORCE_COLOR` 和 `NODE_DISABLE_COLORS` 策略。能力声明不覆盖用户的颜色选择；显式 Launch Profile 环境仍可覆盖继承值。受控 UI 夹具在启动 Desktop 及其全新 Host 前清除自动化注入的颜色策略，而不改变生产启动语义。Desktop 不安装 `xterm-ghostty` terminfo，因此 `TERM` 仍保持可移植基线；该兼容身份使应用可以选择 Orchbee 通过固定 Ghostty VT 实现的 Kitty graphics 和 Kitty keyboard 协议，而不声称 Ghostty 应用版本。新的 POSIX 终端还从代码解析的应用资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发环境相对构建后的 Main 入口解析它，打包应用则在 `process.resourcesPath` 下解析它。环境中的值无法替换该路径。Desktop 将自己的 Zsh、Bash、Fish 脚本及一次性 loader 作为包资源提供。profile 选择后，新建且受支持的本地 Zsh、非登录 Bash 和 Fish launch 会自动加载共享集成，而 Main 不读取或修改启动文件；不受支持的启动形式保持不变，Settings 仍公开精确的手动回退命令。运行中、恢复的、Windows 和远程终端不在该细化范围内。参见 [`docs/kitty-automatic-shell-integration-alignment.md`](docs/kitty-automatic-shell-integration-alignment.zh-CN.md)。
+版本 1 绑定存储包含规范的 BindingId-ordered 集合。每条记录都有唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、`exited`、`closing` 或 `lost`。保留的身份是唯一的，并且必须重复其所属的 CreationId。该文件被解析为不受信任的输入，通过仅所有者可用的原子替换进行更新，并且在无效或不可读时绝不自动重写。启动环境值绝不进入诊断。每个默认启动都声明 `TERM=xterm-256color`、`COLORTERM=truecolor` 和 Ghostty 兼容身份 `TERM_PROGRAM=ghostty`，并保留 Host 继承的 `NO_COLOR`、`FORCE_COLOR` 和 `NODE_DISABLE_COLORS` 策略。能力声明不覆盖用户的颜色选择；显式 Launch Profile 环境仍可覆盖继承值。受控 UI 夹具在启动 Desktop 及其全新 Host 前清除自动化注入的颜色策略，而不改变生产启动语义。Desktop 不安装 `xterm-ghostty` terminfo，因此 `TERM` 仍保持可移植基线；该兼容身份使应用可以选择 Orchbee 通过固定 Ghostty VT 实现的 Kitty graphics 和 Kitty keyboard 协议，而不声称 Ghostty 应用版本。新的 POSIX 终端还从代码解析的应用资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发环境相对构建后的 Main 入口解析它，打包应用则在 `process.resourcesPath` 下解析它。环境中的值无法替换该路径。Desktop 将自己的 Zsh、Bash、Fish 脚本及一次性 loader 作为包资源提供。profile 选择后，新建且受支持的本地 Zsh、非登录 Bash 和 Fish launch 会自动加载共享集成，而 Main 不读取或修改启动文件；不受支持的启动形式保持不变，Settings 仍公开精确的手动回退命令。运行中、恢复的、Windows 和远程终端不在该细化范围内。参见 [`docs/automatic-shell-integration.md`](docs/automatic-shell-integration.zh-CN.md)。
 
 启动 locale resolver 是一个确定性策略，其输入为目标平台、Desktop 继承的 `LC_ALL`、`LANG` 和 `LC_CTYPE`、Darwin 系统 locale 以及 Darwin 已安装 locale inventory。它只生成由新终端启动记录捕获的环境 delta。在 Darwin 上，该 delta 会显式设置或删除全部三个 locale 变量，因此 PTY locale 不会依赖单独受监督 Host 的环境。已保留的启动记录和正在运行的 PTY 永远不会被追溯修改。
 
@@ -299,17 +299,17 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
   `terminal-parity/FS-09-scrollback-viewer` 浏览器组合见证，覆盖生产共享不可变 terminal-text viewer、
   精确保留快照、可见顶部锚定、有界搜索、按来源复制 Action、焦点恢复与不变的 attachment identity；
 - 精确的 `terminal-parity/FS-10-active-tab-movement` 与
-  `terminal-parity/FS-11-tab-title` 浏览器组合见证，覆盖 Kitty 对齐的固定分区内活动 Tab 循环移动、
+  `terminal-parity/FS-11-tab-title` 浏览器组合见证，覆盖 固定分区内活动 Tab 循环移动、
   稳定显式 Tab 标题定位、预填自定义标题编辑、在自定义值下保留动态标题、空值重置为最新自然标题、
   Action 搜索发现、焦点恢复与不变的终端输入标识；
-- 精确的 `terminal-parity/FS-12-panel-resize` 浏览器组合见证，覆盖 Kitty 对齐的调整模式入口键与
+- 精确的 `terminal-parity/FS-12-panel-resize` 浏览器组合见证，覆盖 调整模式入口键与
   `W`/`N`/`T`/`S`/`R` 词汇、Control 修饰的大步幅、最近匹配分割轴变更、整个标签页的等权重重置、
   菜单与 Action 搜索发现、陈旧目标关闭、焦点恢复、调整期间不变的 attachment identity，以及标签页
   交接前后稳定的 terminal/creation identity；
-- 精确的 `terminal-parity/FS-13-directional-panel-movement` 浏览器组合见证，覆盖 Kitty 对齐的方向邻居
+- 精确的 `terminal-parity/FS-13-directional-panel-movement` 浏览器组合见证，覆盖 方向邻居
   选择与嵌套四 Panel 布局中的叶节点交换、全部四个移动方向、外侧边缘事件透传、移动源焦点恢复、
   不变的 Panel/presentation/terminal 标识，以及 Action 搜索与设置发现；
-- 精确的 `terminal-parity/FS-14-panel-equalization` 浏览器组合见证，覆盖 Kitty 在三个嵌套列上的
+- 精确的 `terminal-parity/FS-14-panel-equalization` 浏览器组合见证，覆盖三个嵌套列上的
   同轴 Panel 单元比例语义、菜单与 Action 搜索发现、可配置快捷键呈现、可用与不可用状态下的事件
   阻止、稳定的 Panel 顺序、终端标识、attachment 标识及输入焦点；
 - 精确的 `terminal-parity/FS-15-current-directory-tab` 真实 PTY/Electron 见证，覆盖可信 OSC 7
@@ -344,7 +344,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
   marker，并在无需手动设置或替换附件的情况下发出命令完成事实；
 - 精确的 `terminal-parity/HS-11-keyboard-scrollback` real-PTY/Electron 证据表明，
   `Ctrl+Shift+Arrow`、`Ctrl+Shift+PageUp/PageDown` 和 `Ctrl+Shift+Home/End` 会让一个生产保留历史
-  视口逐行、按重叠页面、到顶部和到底部移动，且不会替换附件。该见证不声明 Kitty 的次要别名、
+  视口逐行、按重叠页面、到顶部和到底部移动，且不会替换附件。该见证不声明 次要别名、
   备用屏幕行为或键盘平滑动画时序；
 - 精确的 `terminal-parity/HS-12-sustained-output-interaction` real-PTY/Electron 证据表明，
   在每 2 毫秒原地重绘状态行期间，大、小滚轮增量都能进入并继续移动保留历史；细粒度

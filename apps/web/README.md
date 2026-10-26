@@ -196,7 +196,7 @@ never publish partial output. The prepared document remains immutable while lite
 case-insensitive search, Enter/Shift+Enter navigation, native text selection, and the separate
 `terminal.output.copy` Action operate locally. The viewer traps focus, restores terminal focus on
 close, and deliberately does not launch an external pager or re-render ANSI styling. See the
-[Kitty alignment contract](../../packages/terminal/docs/command-output-viewer.md)
+[behavior contract](../../packages/terminal/docs/command-output-viewer.md)
 and the `projected-terminal.text-viewer` experience component.
 
 `Ctrl+Shift+H` opens the complete retained primary-screen history through that same private viewer.
@@ -204,7 +204,7 @@ The exact snapshot projector joins soft wraps, preserves hard row boundaries, re
 visible-top offset, and publishes either one complete document or a typed empty/unavailable result.
 Command-output and scrollback preparation replace each other before publication; their immutable
 documents retain source-specific copy Actions. See the
-[Kitty scrollback-viewer contract](../../packages/terminal/docs/scrollback-viewer.md).
+[scrollback-viewer contract](../../packages/terminal/docs/scrollback-viewer.md).
 
 Prompt navigation and text-viewer preparation each own a replace-latest coordinator for one Action
 registration lifetime. Ownership changes before cancellation invokes observers, so a replacement
@@ -399,7 +399,7 @@ The headed Canvas 2D witness `terminal-parity/FS-07-keyboard-hints` uses that sa
 surface and bounded row fixture. `Mod+Shift+O` labels visible URL, path, file-location, and hash
 targets; label keys never reach terminal input, selecting the hash inserts its exact text, selecting
 the URL reaches the captured Browser opener, and Escape removes the overlay without an effect. The
-witness does not claim off-screen discovery, filesystem/editor activation, Kitty customization, or
+witness does not claim off-screen discovery, filesystem/editor activation, custom matchers, or
 operating-system URL delivery.
 
 The headed Canvas 2D witness `terminal-parity/FS-08-command-output-viewer` uses the production

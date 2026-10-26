@@ -1,16 +1,8 @@
-# Kitty 自动 Shell Integration 对齐
+# 自动 Shell Integration
 
-## 参考范围
+## 集成范围
 
-本契约采用 2026-08-27 检查的 Kitty commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中的本地 Shell 自动集成。Kitty 从已配置的
-executable 检测 Zsh、Bash 与 Fish，只改变子进程 launch，不编辑启动文件便加载应用拥有的集成资源，
-恢复 Shell 的正常启动路径，并在无法安全处理 launch 时回退为不注入。
-
-Orchbee 为新的本地 Desktop 终端采用这些用户可观察属性。它复用现有 Orchbee 拥有的 OSC 133 与
-OSC 7 脚本，而不复用 Kitty 的集成实现。对齐声明不包含 Kitty 配置 flag、光标和标题变化、补全、
-sudo 或 PATH 包装、命令传输、Shell 克隆、远程或 SSH 注入、新用户检测、全局 Zsh 环境探测、任意
-Bash 调用兼容性，以及 Zsh、Bash 与 Fish 之外的 Shell。
+Orchbee 为新的本地 Desktop 终端从配置的 executable 识别 Zsh、Bash 和 Fish，只改变子进程 launch，不编辑启动文件便加载已有应用拥有的 OSC 133 与 OSC 7 资源，并恢复正常 Shell 启动路径；无法安全处理时跳过注入。本契约不包含光标／标题变化、补全、sudo 或 PATH 包装、命令传输、Shell 克隆、远程或 SSH 注入、新用户检测、全局 Zsh 环境探测、任意 Bash 调用或其他 Shell。
 
 ## 问题与范围
 

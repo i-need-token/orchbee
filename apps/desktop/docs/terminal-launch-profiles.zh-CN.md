@@ -35,7 +35,7 @@ Main 在等待发现之前捕获选定配置。自定义配置不依赖系统 Sh
 同一展示的并发创建请求共享待处理发现。
 关闭展示或释放适配器会阻止后续绑定创建及 Host 副作用。
 准入后的绑定捕获完整启动信息。受支持的 POSIX Shell 随后获得
-[自动 Shell 集成](kitty-automatic-shell-integration-alignment.zh-CN.md)。
+[自动 Shell 集成](automatic-shell-integration.zh-CN.md)。
 自定义可执行文件不可用时通过现有终端生命周期报告失败。
 
 ## 命令与持久化
