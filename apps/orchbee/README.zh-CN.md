@@ -902,7 +902,7 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 ## Workspace 元数据集成
 
-[Workspace 元数据契约](docs/windows-workspace-metadata.zh-CN.md) 定义上报规范化、来源序号栅栏、TTL 及一致读取组合。其 Server 和共享通信所有者独立于权威拓扑及终端 OSC 元数据。`workspace report-metadata` 和 Workspace list/get 通过有界关联读取及未知结果回执消费该所有者；通用事件与可配置 TUI token 模板需要各自集成。
+[Workspace 元数据契约](docs/windows-workspace-metadata.zh-CN.md) 定义上报规范化、来源序号栅栏、TTL 及一致读取组合。其 Server 和共享通信所有者独立于权威拓扑及终端 OSC 元数据。`workspace report-metadata` 和 Workspace list/get 通过有界关联读取及未知结果回执消费该所有者。已提交的元数据变更通过事件日志发布；订阅失效通知和精确 TTL 期限使 TUI 读取保持当前状态。可配置 TUI token 模板仍需单独集成。
 
 Windows `panel report-metadata` 支持来源拥有的展示字段、守卫、token 补丁、序号和 TTL，提供绑定校验及单次提交回执。见 [Panel 元数据契约](docs/windows-panel-metadata.zh-CN.md)。
 
@@ -932,4 +932,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=2b9c285af9b0c9ac9488cfb0b4e01f9e04facc5cf44946b8535b5ba108db7a80 zh-cn-sha256=956c30e1c86eeb4aff00bd2719a123106646b7c7ccec044cf790551ae195def5 -->
+<!-- documentation-pairing: english-sha256=9d5bd1b67e09040bc3c7c7dc55fe8cffa33d0b8e1073d833ea391dc3a0040fd4 zh-cn-sha256=607394a53b4d943655e679d712e24c046c9e247dd9b5827d67ea420a7fe5abf9 -->

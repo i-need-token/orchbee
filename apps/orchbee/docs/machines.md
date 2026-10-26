@@ -193,9 +193,8 @@ progress deadline is Stale and cannot supply a reusable connection. Gap/Disconne
 summary and retain the same observer while the actor rebuilds its subscription; only a fresh
 snapshot restores Online.
 
-Workspace navigation and its count include nonempty legacy compatibility content without
-inventing a canonical Workspace ID. Empty compatibility slots are omitted; empty canonical
-Workspaces remain visible. The same policy governs local sidebar checkpoints and remote summaries.
+Workspace navigation and its count use canonical ordered Workspaces, including empty Workspaces.
+Local sidebar checkpoints and remote summaries preserve those same Workspace identities.
 
 Transitions are Waiting -> Connecting -> Online, or Connecting/Online ->
 Reconnecting/Attention. Bootstrap transport failure retries after 500 milliseconds,

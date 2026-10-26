@@ -1007,7 +1007,7 @@ Shared application and terminal themes apply to the native TUI from the same pre
 
 ## Workspace metadata integration
 
-The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines report normalization, source sequence fences, TTL and the consistent read join. Its Server and shared wire owners are separate from canonical topology and terminal OSC metadata. `workspace report-metadata` and Workspace list/get consume that owner with bounded, correlated reads and unknown-outcome receipts; general events and configurable TUI token templates require their own integration.
+The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines report normalization, source sequence fences, TTL and the consistent read join. Its Server and shared wire owners are separate from canonical topology and terminal OSC metadata. `workspace report-metadata` and Workspace list/get consume that owner with bounded, correlated reads and unknown-outcome receipts. Committed metadata changes publish through the event journal; subscription invalidations and exact TTL deadlines keep TUI reads current. Configurable TUI token templates require their own integration.
 
 Windows `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
 

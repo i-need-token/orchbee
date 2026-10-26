@@ -143,8 +143,8 @@ TooSmall 只绘制根尺寸提示与选择器状态。它保留选择器模型�
 两秒总期限只读 probe 及资源、关联上界。进展期限已过时显示过期，不提供可复用连接。
 Gap／Disconnected 撤回摘要并保留同一观察器，由 actor 重建订阅；只有新快照恢复在线。
 
-工作区导航及其计数包含非空历史兼容内容，不虚构规范 Workspace ID。空兼容槽不显示，
-空的规范 Workspace 仍可见。本地侧栏 checkpoint 与远端摘要使用同一策略。
+工作区导航及其计数使用规范顺序中的 Workspace，包括空 Workspace。
+本地侧栏 checkpoint 与远端摘要保留相同的 Workspace 身份。
 
 状态迁移为等待 -> 连接中 -> 在线，或连接中/在线 -> 重连/需要处理。引导传输失败从
 500 毫秒开始重试，翻倍至最多 120 秒；连续在线 60 秒后重置失败历史。认证、主机信任、
@@ -527,4 +527,4 @@ null/unknown 区分、样式／Unicode 绘制及导航几何。整套 cohort 与
 
 Agent 选择器显示指定名称，并在存在不同的任务标题时一并显示。详情为工作区、提供商、标题和自定义令牌分别保留行；存在远程配置时再增加机器上下文，同时保留复制 ID 操作。模式栏使用共用的当前状态轨道，使每个模式都有独立的可见标签和命中区域。
 
-<!-- documentation-pairing: english-sha256=4c2db1d5d83680ae7b497388ba8a077b32f6636f415dd92928df3f3d72f53d06 zh-cn-sha256=73eb84785f147baf39460fcc146cb3d7545d04a293f4519216a908c80429c235 -->
+<!-- documentation-pairing: english-sha256=afd50840d691ede556f55617e6ef41debd76b89958e62ecb49cb8ab33ebdcb4f zh-cn-sha256=dfbd11ed45dc8b60fe368371911cd758924d68653356c2c0aaf28d4c7089ddba -->

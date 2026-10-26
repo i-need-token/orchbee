@@ -76,6 +76,7 @@ impl PopupRunner {
                         });
                     }
                 }
+                // The Host viewer has no output-ready event; this bounded capture samples frames.
                 TerminalViewerOutcome::Empty {} => thread::sleep(Duration::from_millis(20)),
                 TerminalViewerOutcome::Attached { .. }
                 | TerminalViewerOutcome::FeedbackAccepted { .. }

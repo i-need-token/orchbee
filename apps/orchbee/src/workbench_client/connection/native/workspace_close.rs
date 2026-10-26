@@ -249,6 +249,8 @@ impl ClientExecutor {
         if let Some(failure) = self.mailbox.is_closed() {
             return Err(failure);
         }
+        // Physical Close settlement has no complete progress notification in this protocol.
+        // Sample only while this bounded operation remains pending, never as an idle state read.
         thread::sleep(
             Duration::from_millis(50).min(cutoff.saturating_duration_since(self.clock.now())),
         );
