@@ -5,7 +5,7 @@ VARIABLES revision, generation, phase, queue, flight, captured, delivered,
           snapshot, gapIssued, gapSeen, cancelled, unsafeDelivery
 vars == <<revision, generation, phase, queue, flight, captured, delivered,
           snapshot, gapIssued, gapSeen, cancelled, unsafeDelivery>>
-Empty == "empty"
+Empty == [kind |-> "empty", rev |-> 0, gen |-> 0, gap |-> 0]
 Frame(c, kind) == [kind |-> kind, rev |-> revision, gen |-> generation[c], gap |-> gapIssued[c]]
 
 Init == /\ revision = 0

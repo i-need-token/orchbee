@@ -127,6 +127,13 @@ describe('protocol mutation counterexamples', { concurrency: 3 }, () => {
 			assert.ifError(result.error);
 			assert.notEqual(result.status, 0, 'The seeded protocol defect must be detected');
 			assert.match(result.stdout + result.stderr, counterexample);
+			if (target === 'config') {
+				t.diagnostic(
+					(result.stdout.match(/Error: Invariant[^\n]+|\d+ states generated[^\n]+/gu) ?? []).join(
+						'; ',
+					),
+				);
+			}
 		});
 	}
 });
