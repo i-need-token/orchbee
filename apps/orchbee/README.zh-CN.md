@@ -572,7 +572,8 @@ OS 可执行文件查找是有限本地 job，不是 Server 订阅轮询。UI �
 时间、线程数、Server 连接处理线程数及线程上下文切换。全程按 PID 和进程创建时间配对每个
 必需角色，以实际单调时钟采样间隔归一化 CPU，并保留无法配对的线程生命周期数量。采样前清除
 继承的 Session 选择并核实私有 runtime。具名 Server 处理线程只是空闲准入的代理指标，不是
-OBLC 握手计数。冻结可编译基线、候选、工作负载、工具链和采样脚本；测量窗口排除构建和其他
+OBLC 握手计数。如果无法读取线程名，应将该代理指标记为不可用；匹配到零个名称不能证明连接数为零。
+冻结可编译基线、候选、工作负载、工具链和采样脚本；测量窗口排除构建和其他
 测量。上下文切换只是调度代理指标，不是硬件唤醒或 ReadyThread 事件。Windows 直接就绪测量
 需要获授权的 ETW 采集，将 [ReadyThread payload 的目标线程身份](https://learn.microsoft.com/en-us/windows/win32/etw/readythread)
 与进程／线程生命周期对应，并保留 trace 丢失计数。若无采集权限，记录具体限制和原生人工交接，
@@ -932,4 +933,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=9d5bd1b67e09040bc3c7c7dc55fe8cffa33d0b8e1073d833ea391dc3a0040fd4 zh-cn-sha256=607394a53b4d943655e679d712e24c046c9e247dd9b5827d67ea420a7fe5abf9 -->
+<!-- documentation-pairing: english-sha256=d23215cf108e10c25e239db8e70f3767751513f111d3d42ce83753c0fb9b8de1 zh-cn-sha256=12ebab70a01b932671c108026d7366b7f1a792f0ca8feca8b971c232eb9c7f50 -->

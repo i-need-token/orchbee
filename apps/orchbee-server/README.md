@@ -712,6 +712,14 @@ recomputes the deadline even when only TTL changes and token values remain equal
 Workbench state has no deadline; retirement or maintenance failure closes the carrier rather than
 retrying a past deadline. Pure metadata consumers therefore need no periodic read to drive expiry.
 
+Shared-preferences snapshot subscriptions separately retain an absolute one-second file-sampling
+deadline. Desktop and other Sessions use the shared store's OS lock but expose no cross-process
+change signal. Same-Server commits still trigger immediate reads; ordinary carrier frames and
+Host sampling cannot advance or postpone the file deadline. The dispatcher waits for the earliest
+Host sample, metadata expiry or file sample, and cancellation removes that subscription's deadline.
+Invalidation mode carries Server commit hints only; external-file sampling belongs to subscriptions
+that deliver semantic snapshots. No Client polling timer or additional connection is involved.
+
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
 is not submitted. Once its write may have begun, transport loss is OutcomeUnknown and the request
@@ -736,6 +744,9 @@ Controlled implementation traces in `local_client_service/multiplex/tests.rs` ch
 capture, an undrained peer alongside a progressing peer, exclusive event cursors, and late lane
 cleanup preserving a sibling, idle metadata expiry after a same-value earlier-TTL report, and
 maintenance failure without a past-deadline retry loop.
+The preferences carrier trace writes the actual shared store without a commit notification,
+checks that unrelated request traffic neither accelerates nor starves file sampling, and then
+observes a second external write while the peer sends no requests.
 Client transport traces check cancelled late replies, actual event overflow/gap/snapshot delivery
 and aggregate reservation refusal. A controlled idle-probe trace keeps unrelated pushes and an
 old probe reply flowing until the fixed deadline, then verifies subscription-only recovery and no

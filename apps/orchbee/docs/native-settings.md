@@ -245,8 +245,13 @@ horizons in localized row help:
 
 Native host configuration is a separate admitted surface, not extra shared-editor
 rows. Windows TOML changes require an explicit `server reload-config` (default
-prefix F5), followed by the Client's 500 ms configuration observer. Shared preferences
-are observed independently once per second, including while Settings is closed.
+prefix F5). Configuration and shared preferences use separate state subscriptions on the
+Client's shared carrier, including while Settings is closed. The UI consumes their snapshots
+on its existing tick, whose input wait is at most 50 ms; neither observer polls the Server.
+Same-Server preference commits invalidate immediately. Desktop and other Sessions can write
+the shared preferences file without a Server notification, so the Server retains a separate
+one-second sampling deadline for that snapshot subscription. Unrelated carrier traffic and
+Host sampling neither advance nor postpone that deadline.
 Neither publication is an acknowledgment from every connected Client.
 
 | Admitted native configuration or Client state                                                                                  | Actual application policy                                                                                                                                 |

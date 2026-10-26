@@ -650,7 +650,8 @@ Client/Server/Worker CPU time, thread count, Server connection-handler counts an
 switches. Pair each required role by PID and process creation time throughout the run, normalize
 CPU by the actual monotonic sample interval, and retain unmatched thread-lifetime counts. Clear
 inherited Session selection and verify the private runtime before sampling. Named Server handlers
-are an idle admission proxy, not an OBLC handshake counter. Freeze a compiling baseline and
+are an idle admission proxy, not an OBLC handshake counter. If thread names cannot be read,
+report that proxy as unavailable; zero matching names does not establish zero connections. Freeze a compiling baseline and
 candidate, workload, toolchain and sampling script; exclude builds and other measurements from
 those windows. Context switches are a scheduling proxy, not hardware wakeups or ReadyThread
 events. A direct Windows readiness measurement requires an authorized ETW capture and filtering
