@@ -327,7 +327,7 @@ fn status_close_server(
 ) -> io::Result<CloseTestServer> {
     let teardown = Arc::new(AtomicBool::new(false));
     let server_teardown = Arc::clone(&teardown);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         let result = (|| {
             serve_native_controlling_frame(&mut stream, geometry)?;
@@ -516,7 +516,7 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
     };
     snapshot.terminal_contexts[0].tabs[0].label = label;
     let (poll_sent, poll_seen) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame_with_snapshot(
             &mut stream,

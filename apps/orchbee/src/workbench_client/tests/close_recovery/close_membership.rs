@@ -74,7 +74,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
     let geometry = fixture_geometry()?;
     let (gap_tx, gap_rx) = mpsc::sync_channel(1);
     let mut operation = None;
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(2, move |index, stream| {
         let mut stream = UnixStream::new(stream);
         if index == 0 {
             serve_native_controlling_frame(&mut stream, geometry)?;
@@ -127,7 +127,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
 fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_id() -> TestResult {
     let geometry = fixture_geometry()?;
     let (gap_tx, gap_rx) = mpsc::sync_channel(1);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -188,7 +188,7 @@ fn close_closed_snapshot_uses_exact_gone_and_installs_empty_without_another_term
 -> TestResult {
     let geometry = fixture_geometry()?;
     let (done_tx, done_rx) = mpsc::sync_channel(1);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;

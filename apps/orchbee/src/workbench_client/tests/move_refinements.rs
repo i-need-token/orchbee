@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::WorkbenchTabMoveDirection;
 fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() -> TestResult {
     let geometry = fixture_geometry()?;
     let (poll_sent, poll_seen) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -109,7 +109,7 @@ fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_
     let (poll_sent, poll_seen) = mpsc::sync_channel(0);
     let (release_poll, poll_released) = mpsc::sync_channel(0);
     let (snapshot_sent, snapshot_seen) = mpsc::sync_channel(1);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame_with_snapshot(
             &mut stream,

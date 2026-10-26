@@ -8,7 +8,6 @@ use std::{
     io::Read,
     num::NonZeroU64,
     sync::{Arc, mpsc},
-    time::Instant,
 };
 
 mod configured_invocation;
@@ -189,7 +188,7 @@ fn closing_during_the_one_workbench_snapshot_read_wakes_and_joins_without_delive
         }
         let reply = parse_workbench_response(&serde_json::to_vec(&reply).unwrap()).unwrap();
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
-        let server = FakeServer::start_connections(1, move |index, stream| {
+        let server = FakeServer::start_connections(1, move |_, stream| {
             let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,
@@ -289,7 +288,7 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
     };
     for during_admission in [false] {
         let (reached_tx, reached_rx) = mpsc::sync_channel(1);
-        let server = FakeServer::start_connections(1, move |index, stream| {
+        let server = FakeServer::start_connections(1, move |_, stream| {
             let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
             assert!(matches!(
                 read_message(&mut stream).map_err(io::Error::other)?,

@@ -8,7 +8,7 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
         let geometry = fixture_geometry()?;
         let (poll_sender, poll_receiver) = mpsc::sync_channel(1);
         let (release_sender, release_receiver) = mpsc::sync_channel(1);
-        let server = FakeServer::start(move |mut stream| {
+        let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::new(stream);
             serve_native_controlling_frame(&mut stream, geometry)?;
             accept_native_frame_feedback(&mut stream)?;

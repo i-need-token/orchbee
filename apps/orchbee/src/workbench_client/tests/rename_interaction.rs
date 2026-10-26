@@ -47,7 +47,7 @@ impl RenameServer {
         let saw_detach = Arc::clone(&detached);
         let successor_ready = Arc::new(AtomicBool::new(false));
         let saw_successor_feedback = Arc::clone(&successor_ready);
-        let server = FakeServer::start(move |mut stream| {
+        let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::new(stream);
             let result = (|| {
                 serve_native_controlling_frame(&mut stream, geometry)?;

@@ -564,7 +564,7 @@ fn native_identity(value: u128) -> String {
 #[test]
 fn unsupported_reload_without_a_watcher_reports_before_dispatch() -> TestResult {
     use crate::tui_capabilities::{Capabilities, Capability};
-    let server = FakeServer::start(|mut stream| admit(&mut stream))?;
+    let server = FakeServer::start(|stream| admit(&mut UnixStream::new(stream)))?;
     let client = native_client(&server)?;
     let mailbox = Arc::new(mailbox::CommandMailbox::new(
         NATIVE_TEST_IDENTITY_SEED,
@@ -706,7 +706,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     let geometry = fixture_geometry()?;
     let (ordinary_poll_sent, ordinary_poll_seen) = mpsc::sync_channel(0);
     let (release_ordinary_poll, ordinary_poll_released) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -874,7 +874,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         let (release_poll, poll_released) = mpsc::sync_channel(0);
         let (input_sent, input_seen) = mpsc::sync_channel(1);
         let (resize_sent, resize_seen) = mpsc::sync_channel(1);
-        let server = FakeServer::start(move |mut stream| {
+        let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::new(stream);
             let WorkbenchSnapshotOutcome::Available { mut snapshot } =
                 available_snapshot(Some(binding()))
@@ -1207,7 +1207,7 @@ fn taken_forward_expiry_fixture() -> Result<TakenForwardExpiryFixture, Box<dyn s
     let (ordinary_poll_sent, ordinary_poll_seen) = mpsc::sync_channel(0);
     let (release_ordinary_poll, ordinary_poll_released) = mpsc::sync_channel(0);
     let (precommit_sent, precommit_written) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -1420,7 +1420,7 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
     let (ordinary_poll_sent, ordinary_poll_seen) = mpsc::sync_channel(0);
     let (release_ordinary_poll, ordinary_poll_released) = mpsc::sync_channel(0);
     let (commit_sent, commit_written) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -1552,7 +1552,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
     let (ordinary_poll_sent, ordinary_poll_seen) = mpsc::sync_channel(0);
     let (release_ordinary_poll, ordinary_poll_released) = mpsc::sync_channel(0);
     let (snapshot_sent, snapshot_written) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -1688,7 +1688,7 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
     let (ordinary_poll_sent, ordinary_poll_seen) = mpsc::sync_channel(0);
     let (release_ordinary_poll, ordinary_poll_released) = mpsc::sync_channel(0);
     let (commit_sent, commit_written) = mpsc::sync_channel(0);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -1803,7 +1803,7 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
 fn drop_interrupts_an_inflight_exchange_and_joins_its_owner() -> TestResult {
     let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(1);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -1835,7 +1835,7 @@ fn drop_interrupts_an_inflight_exchange_and_joins_its_owner() -> TestResult {
 #[test]
 fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
     let geometry = fixture_geometry()?;
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
@@ -1879,7 +1879,7 @@ fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
 
 #[test]
 fn workspace_startup_attaches_only_the_snapshot_binding() -> TestResult {
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         admit(&mut stream)?;
         let snapshot_request =
@@ -1942,7 +1942,7 @@ fn workspace_snapshot_failures_are_unavailable_without_an_attachment_fallback() 
         SnapshotFailure::UnsupportedShape,
         SnapshotFailure::WrongKind,
     ] {
-        let server = FakeServer::start(move |mut stream| {
+        let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::new(stream);
             admit(&mut stream)?;
             match failure {
@@ -2006,7 +2006,7 @@ fn workspace_geometry_changes_require_a_separate_controller_grant() -> TestResul
             initial_geometry.cell_pixel_width(),
             initial_geometry.cell_pixel_height(),
         )?;
-        let server = FakeServer::start(move |mut stream| {
+        let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::new(stream);
             admit(&mut stream)?;
             respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
@@ -2205,7 +2205,7 @@ fn workspace_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestR
     let (release, released) = mpsc::sync_channel(1);
     let expired = Arc::new(AtomicBool::new(false));
     let client_expired = expired.clone();
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         admit(&mut stream)?;
         respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;

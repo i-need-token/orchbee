@@ -6,7 +6,7 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
     let geometry = fixture_geometry()?;
     let (sent, received) = mpsc::sync_channel(1);
     let (release, released) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(2, move |index, stream| {
         let mut stream = UnixStream::new(stream);
         if index == 0 {
             serve_native_controlling_frame(&mut stream, geometry)?;
@@ -182,7 +182,7 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
     let (sighted, poll_sighted) = mpsc::sync_channel(1);
     let (release, released) = mpsc::sync_channel(1);
     let mut prior = None;
-    let server = FakeServer::start_connections(3, move |index, mut stream| {
+    let server = FakeServer::start_connections(3, move |index, stream| {
         let mut stream = UnixStream::new(stream);
         if index == 0 {
             return retire_on_poll(&mut stream, geometry, &sighted, &released);
@@ -251,7 +251,7 @@ fn exit_closes_a_recovery_carrier_before_any_late_snapshot_can_install() -> Test
     let (sent, received) = mpsc::sync_channel(1);
     let (sighted, poll_sighted) = mpsc::sync_channel(1);
     let (release, released) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(2, move |index, stream| {
         let mut stream = UnixStream::new(stream);
         if index == 0 {
             return retire_on_poll(&mut stream, geometry, &sighted, &released);
@@ -291,7 +291,7 @@ fn exit_closes_a_recovery_carrier_before_any_late_snapshot_can_install() -> Test
 fn wrong_id_transport_loss_and_other_unavailability_cannot_open_peer_recovery() -> TestResult {
     for kind in 0..3 {
         let geometry = fixture_geometry()?;
-        let server = FakeServer::start(move |mut stream| {
+        let server = FakeServer::start(move |stream| {
             let mut stream = UnixStream::new(stream);
             serve_native_controlling_frame(&mut stream, geometry)?;
             accept_native_frame_feedback(&mut stream)?;
@@ -363,7 +363,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
     let (sent, received) = mpsc::sync_channel(1);
     let (sighted, poll_sighted) = mpsc::sync_channel(1);
     let (release, released) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(2, move |index, stream| {
         let mut stream = UnixStream::new(stream);
         if index == 0 {
             return retire_on_poll(&mut stream, geometry, &sighted, &released);
@@ -595,7 +595,7 @@ fn cancelled_connect_closes_late_admission_without_placing_snapshot() -> TestRes
     let (release, released) = mpsc::sync_channel(1);
     let (sighted, poll_sighted) = mpsc::sync_channel(1);
     let (loss_release, loss_released) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(2, move |index, stream| {
         let mut stream = UnixStream::new(stream);
         if index == 0 {
             return retire_on_poll(&mut stream, geometry, &sighted, &loss_released);

@@ -6,7 +6,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     let saw_close = Arc::new(AtomicBool::new(false));
     let observed = Arc::clone(&saw_close);
     let (wire_id_sender, wire_id_receiver) = mpsc::sync_channel(1);
-    let server = FakeServer::start(move |mut stream| {
+    let server = FakeServer::start(move |stream| {
         let mut stream = UnixStream::new(stream);
         serve_native_controlling_frame(&mut stream, geometry)?;
         accept_native_frame_feedback(&mut stream)?;
