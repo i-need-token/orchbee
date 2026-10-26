@@ -17,6 +17,7 @@ use super::super::{
     source_failure_output, stage_details,
 };
 use super::{SendTarget, SendVerdict, TERMINAL_SEND_ID};
+use crate::agent_runtime::startup::send::verdict as send_verdict;
 use crate::invocation::{OutputFormat, Target, TerminalSendInput};
 use crate::local_client::{OutcomeUnknownReason, SubmissionError};
 use crate::localization::Locale;
@@ -314,23 +315,8 @@ pub(crate) fn submit_prompt_on_session_cancellable(
     deadline: Instant,
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<Receipt, Failure> {
-    let internal = |_| Failure::new(FailureKind::InternalFailure);
-    let mut records = vec![SendRecord::Paste {
-        content: SendPasteContent::new(text.as_bytes().to_vec()).map_err(internal)?,
-    }];
-    if codex_boundary {
-        // A semantic key flushes Windows Codex's paste-burst buffer before
-        // Enter. Keep it inside this one sequence, never a second send.
-        records.push(SendRecord::Stroke(
-            SendKeyStroke::new(SendStrokeKey::Named(SendKey::Right), 0)
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-        ));
-    }
-    records.push(SendRecord::Stroke(
-        SendKeyStroke::new(SendStrokeKey::Named(SendKey::Enter), 0)
-            .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-    ));
-    let records = SendRecords::new(records).map_err(internal)?;
+    let records = crate::agent_runtime::startup::send::prompt_records(text, codex_boundary)
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
     let prepared = prepare_records(target, snapshot, (records, "sequence", Some(text.len())))?;
     submit_prepared(client, snapshot, prepared, deadline, wake)
 }
@@ -343,11 +329,8 @@ fn submit_prepared(
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
 ) -> Result<Receipt, Failure> {
     let source = send_source(snapshot, request.request_id().as_str());
-    let result = match wake {
-        Some(wake) => client.submit_terminal_send_cancellable(request, deadline, Some(wake)),
-        None => client.submit_terminal_send_before(request, deadline),
-    }
-    .map_err(|error| classify_send(error).source(source.clone()))?;
+    let result = crate::agent_runtime::startup::send::submit(client, request, deadline, wake)
+        .map_err(|error| classify_send(error).source(source.clone()))?;
     Ok(Receipt {
         result,
         fact,
@@ -622,40 +605,14 @@ fn answer(
     }
 }
 
-/// Preserve delivery truth independently from the process status. Status 5
-/// deliberately covers both accepted input with unconfirmed cleanup and a
-/// zero-input Host protocol fault, so it cannot answer retry safety.
-fn send_verdict(outcome: &TerminalSendOutcome) -> SendVerdict {
-    match outcome {
-        TerminalSendOutcome::Accepted { cleanup, .. } => {
-            if matches!(cleanup, SendCleanupStatus::Confirmed) {
-                SendVerdict::Quiet
-            } else {
-                SendVerdict::AcceptedCleanupUnconfirmed
-            }
-        }
-        TerminalSendOutcome::Rejected { .. } => {
-            if outcome.progress().records_accepted() > 0 {
-                SendVerdict::PartialAccepted
-            } else {
-                SendVerdict::Rejected
-            }
-        }
-        TerminalSendOutcome::Unavailable { .. } => {
-            if outcome.progress().records_accepted() > 0 {
-                SendVerdict::PartialAccepted
-            } else {
-                SendVerdict::Unavailable
-            }
-        }
-        TerminalSendOutcome::OutcomeUnknown { .. } => SendVerdict::OutcomeUnknown,
-    }
-}
-
 /// The submission failures that provably never placed a byte on the wire
 /// are clean transport loss; anything after a possible handoff leaves the
 /// input's fate undetermined — `outcome-unknown`, never a retry.
 fn classify_send(error: SubmissionError) -> Failure {
+    classify_send_ref(&error)
+}
+
+fn classify_send_ref(error: &SubmissionError) -> Failure {
     match error {
         SubmissionError::ConnectionUnavailable | SubmissionError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
@@ -667,7 +624,7 @@ fn classify_send(error: SubmissionError) -> Failure {
             Failure::new(FailureKind::OutcomeUnknown).details(Map::from_iter([
                 ("stage".to_owned(), json!("send")),
                 ("requestId".to_owned(), json!(request_id.as_str())),
-                ("reason".to_owned(), json!(unknown_reason(&reason))),
+                ("reason".to_owned(), json!(unknown_reason(reason))),
             ]))
         }
     }
@@ -689,12 +646,64 @@ fn unknown_reason(reason: &OutcomeUnknownReason) -> &'static str {
 /// `source` for every send answer: the admitted request's own identity
 /// plus the snapshot revision the binding was resolved from.
 fn send_source(snapshot: &Snapshot, request_id: &str) -> Value {
+    send_source_parts(snapshot.session_id.as_str(), snapshot.revision, request_id)
+}
+
+fn send_source_parts(
+    session: &str,
+    revision: orchbee_workbench_protocol::WorkbenchRevision,
+    request_id: &str,
+) -> Value {
     json!({
         "kind": "terminal.send",
-        "sessionId": snapshot.session_id.as_str(),
+        "sessionId": session,
         "requestId": request_id,
-        "snapshotRevision": snapshot.revision,
+        "snapshotRevision": revision,
     })
+}
+
+pub(in crate::cli) fn startup_receipt(
+    receipt: &crate::agent_runtime::startup::send::Receipt,
+) -> (Value, u8) {
+    let context = &receipt.context;
+    let fact = PayloadFact {
+        kind: "sequence",
+        records: receipt.records,
+        record_bytes: Some(receipt.bytes),
+    };
+    let facts = RequestFacts {
+        session_id: context.binding.session.as_str().to_owned(),
+        worker_id: context.binding.worker.as_str().to_owned(),
+        terminal_id: context.binding.terminal.as_str().to_owned(),
+    };
+    let source = send_source_parts(
+        context.binding.session.as_str(),
+        context.revision,
+        context.request.as_str(),
+    );
+    let projected = answer(&receipt.result, &fact, &facts, source);
+    (
+        json!({"schema": TERMINAL_SEND_ID, "version":1, "source":projected.source, "result":projected.result}),
+        projected.status,
+    )
+}
+
+pub(in crate::cli) fn startup_failure(
+    error: &crate::agent_runtime::startup::send::Error,
+) -> Failure {
+    match error {
+        crate::agent_runtime::startup::send::Error::Preparation => {
+            Failure::new(FailureKind::InternalFailure)
+        }
+        crate::agent_runtime::startup::send::Error::Exchange(error) => {
+            let context = &error.context;
+            classify_send_ref(&error.failure).source(send_source_parts(
+                context.binding.session.as_str(),
+                context.revision,
+                context.request.as_str(),
+            ))
+        }
+    }
 }
 
 /// JSON retains the full receipt. Human output confirms successful input

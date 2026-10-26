@@ -140,7 +140,6 @@ fn one_started_completion_requests_exactly_one_refresh() {
         last_observed: None,
         reservation_state: ReservationState::Completed,
         submission: None,
-        submission_status: Some(0),
         delivery: DeliveryDisposition::Applied,
         elapsed_ms: 1,
         verdict: Verdict::Started {

@@ -99,17 +99,22 @@ fn explicit_wake_reports_cancelled_without_overwriting_mutation_uncertainty() {
     let (reader, wake) = LocalStream::pair().unwrap();
     wake.shutdown(std::net::Shutdown::Both).unwrap();
     let cancelled = settle_cancellation::<()>(
-        Err(error(FailureKind::TransportLoss, "launch-exchange-failed")),
+        Err(Failure::Start(StartFailure::Exchange(
+            ExchangeFailure::Transport,
+        ))),
         Some(reader.as_local_io()),
     )
     .unwrap_err();
-    assert_eq!(cancelled.kind, FailureKind::Cancelled);
+    assert!(matches!(cancelled, Failure::Start(StartFailure::Cancelled)));
     let unknown = settle_cancellation::<()>(
-        Err(error(FailureKind::OutcomeUnknown, "reply-not-confirmed")),
+        Err(Failure::Start(StartFailure::ReplyNotConfirmed)),
         Some(reader.as_local_io()),
     )
     .unwrap_err();
-    assert_eq!(unknown.kind, FailureKind::OutcomeUnknown);
+    assert!(matches!(
+        unknown,
+        Failure::Start(StartFailure::ReplyNotConfirmed)
+    ));
 }
 
 #[test]

@@ -1,67 +1,76 @@
-//! Startup execution capability. Unix has no Agent-launch adapter and refuses before effects.
+//! Shared startup protocol operations. Callers retain discovery, selectors, presentation and signal ownership.
 pub(crate) use super::processes::{Selection, interpret};
 pub(crate) use super::{SendVerdict, wait_backoff};
-use crate::cli::{
-    Failure, FailureKind,
-    results::{self, Projection},
-    target_details,
+pub(crate) mod binding;
+pub(crate) mod observation;
+pub(crate) mod processes;
+pub(crate) mod send;
+pub(crate) mod snapshot;
+use crate::local_client::{
+    LocalClient, LocalClientConnectError, LocalClientOrigin, LocalOperationClock,
 };
-use crate::invocation::{QueryCommand, Resource, Target};
 use orchbee_agent_observation_protocol::ObapRequestId;
-use orchbee_workbench_protocol::Snapshot;
-use serde_json::Value;
+use orchbee_local_ipc::LocalIo;
+use orchbee_workbench_protocol::{Snapshot, WorkbenchSnapshotOutcome};
+use std::time::Instant;
 #[cfg(windows)]
 #[path = "startup/windows.rs"]
 mod platform;
 #[cfg(not(windows))]
 #[path = "startup/unix.rs"]
 mod platform;
-pub(crate) use platform::{
-    admit, read_agent_observation, read_terminal_processes_cancellable, snapshot_from_origin,
-    stream_snapshot, submit_prompt_on_session,
-};
+pub(crate) use platform::admit;
 
-pub(crate) fn obap_request_id() -> Result<ObapRequestId, Failure> {
+/// This native Agent launch operation has no adapter on the current host.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Unsupported;
+
+#[derive(Debug)]
+pub(crate) struct IdentityError;
+
+fn identity() -> Result<String, IdentityError> {
     let mut bytes = [0_u8; 16];
-    getrandom::fill(&mut bytes).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    ObapRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes)))
-        .map_err(|_| Failure::new(FailureKind::InternalFailure))
+    getrandom::fill(&mut bytes).map_err(|_| IdentityError)?;
+    Ok(format!("{:032x}", u128::from_be_bytes(bytes)))
 }
 
-/// Frozen protocol facts, independent of process-facing stdout/stderr presentation.
-pub(crate) struct Receipt {
-    pub(super) status: u8,
-    pub(super) verdict: SendVerdict,
-    pub(super) accepted: bool,
-    pub(super) document: Value,
+pub(crate) fn obap_identity() -> Result<ObapRequestId, IdentityError> {
+    ObapRequestId::parse(&identity()?).map_err(|_| IdentityError)
 }
-impl Receipt {
-    pub(crate) fn exit_status(&self) -> u8 {
-        self.status
-    }
-    pub(crate) fn verdict(&self) -> SendVerdict {
-        self.verdict
-    }
-    pub(crate) fn accepted(&self) -> bool {
-        self.accepted
-    }
-    pub(crate) fn document(&self) -> Value {
-        self.document.clone()
-    }
+pub(crate) fn obcs_identity() -> Result<orchbee_client_server_protocol::RequestId, IdentityError> {
+    orchbee_client_server_protocol::RequestId::parse(&identity()?).map_err(|_| IdentityError)
+}
+pub(crate) fn workbench_request_id()
+-> Result<orchbee_workbench_protocol::WorkbenchRequestId, IdentityError> {
+    orchbee_workbench_protocol::WorkbenchRequestId::parse(&identity()?).map_err(|_| IdentityError)
 }
 
-pub(crate) fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<Target, Failure> {
-    let Projection::PanelGet(panel) =
-        results::project(&QueryCommand::PanelGet(target.clone()), snapshot)?
-    else {
-        return Err(Failure::new(FailureKind::InternalFailure));
-    };
-    panel
-        .primary_presentation
-        .terminal_id
-        .map(Target::Id)
-        .ok_or_else(|| {
-            Failure::new(FailureKind::NotFound)
-                .details(target_details(Resource::Panel, &panel.row.panel_id))
-        })
+#[derive(Debug)]
+pub(crate) enum AdmissionError {
+    Connect(LocalClientConnectError),
+    Snapshot(snapshot::Error),
+    Timeout,
+    Denied,
+    Unavailable,
+}
+
+/// Preserve the caller's operation clock, retained carrier and absolute budget on its new lane.
+pub(crate) fn snapshot_from_origin(
+    origin: &LocalClientOrigin,
+    clock: LocalOperationClock,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+) -> Result<(LocalClient, Snapshot), AdmissionError> {
+    let mut client = origin
+        .lane_before_cancellable(deadline, clock, wake)
+        .map_err(AdmissionError::Connect)?;
+    let observed = snapshot::read(&mut client, deadline, wake).map_err(AdmissionError::Snapshot)?;
+    if Instant::now() >= deadline {
+        return Err(AdmissionError::Timeout);
+    }
+    match observed {
+        WorkbenchSnapshotOutcome::Available { snapshot } => Ok((client, snapshot)),
+        WorkbenchSnapshotOutcome::Denied {} => Err(AdmissionError::Denied),
+        WorkbenchSnapshotOutcome::Unavailable { .. } => Err(AdmissionError::Unavailable),
+    }
 }

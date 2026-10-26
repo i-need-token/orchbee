@@ -19,6 +19,8 @@ pub(crate) use workflow::{
     Receipt, receipt_output, submit_prompt_on_session, submit_prompt_on_session_cancellable,
 };
 
+pub(in crate::cli) use workflow::{startup_failure, startup_receipt};
+
 enum SendTarget<'a> {
     Terminal(&'a Target),
     Agent(&'a crate::invocation::AgentTarget),

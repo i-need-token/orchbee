@@ -3,9 +3,8 @@
 
 use super::AgentSessionId;
 use super::{
-    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Projection, ProtocolVersion, Resource,
-    Snapshot, SnapshotReadIntent, Target, WorkbenchSnapshotOutcome, agent_names_failure,
-    classify_read, obap_request_id, request_id, stage_details,
+    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Projection, Resource, Snapshot, Target,
+    WorkbenchSnapshotOutcome, agent_names_failure, classify_read, obap_request_id, stage_details,
 };
 use crate::invocation::{AgentTarget, QueryCommand};
 use orchbee_agent_observation_protocol::{
@@ -331,22 +330,23 @@ pub(super) fn read_snapshot(
     total: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<Snapshot, Failure> {
-    let result = client
-        .submit_workbench_snapshot_read_before_cancellable(
-            SnapshotReadIntent {
-                protocol_version: ProtocolVersion,
-                request_id: request_id()?,
-            },
-            total,
-            wake,
-        )
-        .map_err(|error| classify_read(error).failure_schema(super::super::schema::FAILURE_ID))?;
+    let outcome =
+        crate::agent_runtime::startup::snapshot::read(client, total, wake).map_err(|error| {
+            match error {
+                crate::agent_runtime::startup::snapshot::Error::Identity => {
+                    Failure::new(FailureKind::InternalFailure)
+                }
+                crate::agent_runtime::startup::snapshot::Error::Exchange(error) => {
+                    classify_read(error).failure_schema(super::super::schema::FAILURE_ID)
+                }
+            }
+        })?;
     if Instant::now() >= total {
         return Err(
             Failure::new(FailureKind::Timeout).failure_schema(super::super::schema::FAILURE_ID)
         );
     }
-    match result.outcome {
+    match outcome {
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok(snapshot),
         WorkbenchSnapshotOutcome::Denied {} => {
             Err(Failure::new(FailureKind::Denied).failure_schema(super::super::schema::FAILURE_ID))

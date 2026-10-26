@@ -57,11 +57,13 @@ pub(crate) use agent_focus::{
     attention_covers_observation, authenticate_attention,
 };
 mod process_info;
+pub(in crate::cli) use process_info::classify_process;
 pub(crate) use process_info::panel_process_info;
 pub(crate) use process_info::read_terminal_processes;
 pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancellable};
 
 mod agent_terminal;
+pub(in crate::cli) use agent_terminal::classify_observation;
 pub(crate) use agent_terminal::resolve_agent_terminal;
 pub(in crate::cli) use agent_terminal::resolve_session_terminal;
 pub(crate) use agent_terminal::verify_agent_terminal;
@@ -88,10 +90,9 @@ use orchbee_agent_observation_protocol::{
     AgentSafeInteger, AgentSessionId, AgentWireError, ObapRequestId,
 };
 use orchbee_client_server_protocol::{
-    RequestId as ObcsRequestId, SessionId as ObcsSessionId, TerminalId as ObcsTerminalId,
-    TerminalLaunchReadOutcome, TerminalLaunchReadRequest, TerminalViewerAction,
-    TerminalViewerOutcome, TerminalViewerRequest, ViewerId, ViewerRejectedReason,
-    WorkerId as ObcsWorkerId,
+    RequestId as ObcsRequestId, TerminalId as ObcsTerminalId, TerminalLaunchReadOutcome,
+    TerminalLaunchReadRequest, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    ViewerId, ViewerRejectedReason,
 };
 use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_ipc::LocalIo as BorrowedFd;
@@ -748,41 +749,15 @@ pub(crate) fn stream_snapshot(
         wake,
     )
     .map_err(classify_connect)?;
-    let result = client
-        .submit_workbench_snapshot_read_before_cancellable(
-            SnapshotReadIntent {
-                protocol_version: ProtocolVersion,
-                request_id: request_id()?,
-            },
-            deadline,
-            wake,
-        )
-        .map_err(classify_read)?;
-    match result.outcome {
+    let outcome = crate::agent_runtime::startup::snapshot::read(&mut client, deadline, wake)
+        .map_err(classify_snapshot)?;
+    match outcome {
         WorkbenchSnapshotOutcome::Available { snapshot } => Ok((client, snapshot)),
         WorkbenchSnapshotOutcome::Denied {} => Err(Failure::new(FailureKind::Denied)),
         WorkbenchSnapshotOutcome::Unavailable { .. } => {
             Err(Failure::new(FailureKind::ServiceUnavailable))
         }
     }
-}
-
-/// Reconnect through an already-admitted Workbench Client origin and read one
-/// fresh Snapshot under the caller's absolute deadline and cancellation wake.
-/// This is the TUI counterpart of `stream_snapshot`: it preserves tunnel and
-/// cohort identity instead of rediscovering the process-local Session.
-#[cfg(windows)]
-pub(crate) fn snapshot_from_origin(
-    origin: &crate::local_client::LocalClientOrigin,
-    clock: crate::local_client::LocalOperationClock,
-    deadline: Instant,
-    wake: Option<BorrowedFd<'_>>,
-) -> Result<(LocalClient, Snapshot), Failure> {
-    let mut client = origin
-        .lane_before_cancellable(deadline, clock, wake)
-        .map_err(classify_connect)?;
-    let snapshot = agent_target::read_snapshot(&mut client, deadline, wake)?;
-    Ok((client, snapshot))
 }
 
 /// The same preamble and admission as `snapshot_session`, but every stage
@@ -1094,50 +1069,24 @@ pub(super) fn attach_viewer_cancellable_with_host(
     // Typed IDs and `@terminal:` selectors resolve against the snapshot's
     // complete bound set; the attach request carries the resolved full id.
     let row = super::results::terminal_select(snapshot, target)?;
-    let attach = TerminalViewerRequest::new(
-        obcs_request_id()?,
-        TerminalViewerAction::AttachBinding {
-            session_id: ObcsSessionId::parse(snapshot.session_id.as_str())
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-            worker_id: ObcsWorkerId::parse(row.worker_id.as_str())
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-            terminal_id: ObcsTerminalId::parse(row.terminal_id.as_str())
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
-        },
-    );
-    let result = client
-        .submit_terminal_viewer_cancellable(attach, Some(deadline), wake)
-        .map_err(classify_viewer)?;
-    match result.outcome() {
-        TerminalViewerOutcome::Attached {
-            attachment_id,
-            host_epoch,
-            host_terminal_id,
-        } => {
-            let attachment = AttachmentId::parse(attachment_id.as_str())
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-            let epoch = HostEpoch::parse(host_epoch.as_str())
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-            let host_terminal = HostTerminalId::parse(host_terminal_id.as_str())
-                .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-            Ok((
-                row,
-                attachment_id.clone(),
-                attachment,
-                epoch,
-                host_terminal,
-                TerminalProjection::new(attachment, epoch)
-                    .with_host_terminal(host_terminal_id.clone()),
-            ))
-        }
-        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
-        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        TerminalViewerOutcome::Empty { .. }
-        | TerminalViewerOutcome::FeedbackAccepted { .. }
-        | TerminalViewerOutcome::Detached { .. }
-        | TerminalViewerOutcome::RowsRejected { .. }
-        | TerminalViewerOutcome::Record(..) => Err(viewer_protocol_invalid()),
-    }
+    let binding = crate::agent_runtime::startup::binding::Binding::parse(
+        snapshot.session_id.as_str(),
+        &row.worker_id,
+        &row.terminal_id,
+    )
+    .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let attachment =
+        crate::agent_runtime::startup::processes::attach(client, deadline, &binding, wake)
+            .map_err(classify_process)?;
+    Ok((
+        row,
+        attachment.viewer,
+        attachment.id,
+        attachment.epoch,
+        attachment.terminal,
+        TerminalProjection::new(attachment.id, attachment.epoch)
+            .with_host_terminal(attachment.host_terminal),
+    ))
 }
 
 /// The read observation is released no matter how the exchange ended; the
@@ -2100,6 +2049,41 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
     }
 }
 
+pub(in crate::cli) fn classify_startup_admission(
+    error: crate::agent_runtime::startup::AdmissionError,
+) -> Failure {
+    use crate::agent_runtime::startup::{AdmissionError, snapshot};
+    match error {
+        AdmissionError::Connect(error) => classify_connect(error),
+        AdmissionError::Snapshot(snapshot::Error::Identity) => {
+            Failure::new(FailureKind::InternalFailure)
+        }
+        AdmissionError::Snapshot(snapshot::Error::Exchange(error)) => {
+            classify_read(error).failure_schema(super::schema::FAILURE_ID)
+        }
+        AdmissionError::Timeout => {
+            Failure::new(FailureKind::Timeout).failure_schema(super::schema::FAILURE_ID)
+        }
+        AdmissionError::Denied => {
+            Failure::new(FailureKind::Denied).failure_schema(super::schema::FAILURE_ID)
+        }
+        AdmissionError::Unavailable => Failure::new(FailureKind::ServiceUnavailable)
+            .details(stage_details("snapshot"))
+            .failure_schema(super::schema::FAILURE_ID),
+    }
+}
+
+pub(in crate::cli) fn classify_snapshot(
+    error: crate::agent_runtime::startup::snapshot::Error,
+) -> Failure {
+    match error {
+        crate::agent_runtime::startup::snapshot::Error::Identity => {
+            Failure::new(FailureKind::InternalFailure)
+        }
+        crate::agent_runtime::startup::snapshot::Error::Exchange(error) => classify_read(error),
+    }
+}
+
 fn classify_read(error: SnapshotReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     match error {
@@ -2758,7 +2742,10 @@ fn classify_agent_failure(reason: AgentExchangeFailure, operation: AgentReadOper
 
 /// The OBAP request identity minted per command: sixteen fresh bytes as
 /// canonical 32-lowercase-hex, never reused.
-pub(crate) use crate::agent_runtime::startup::obap_request_id;
+pub(crate) fn obap_request_id() -> Result<ObapRequestId, Failure> {
+    crate::agent_runtime::startup::obap_identity()
+        .map_err(|_| Failure::new(FailureKind::InternalFailure))
+}
 
 fn rejection_reason_text(
     reason: &orchbee_agent_observation_protocol::AgentListRejectionReason,

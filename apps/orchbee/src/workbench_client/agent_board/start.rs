@@ -23,7 +23,6 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 
 use crate::{
     agent_start::{Progress, Report, Request, ReservationState, Verdict},
-    cli::FailureKind,
     client_view::{KeyCode, KeyEvent, KeyKind, Modifiers},
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
@@ -735,13 +734,13 @@ fn report_phase(report: &Report) -> Phase {
     match &report.verdict {
         Verdict::Started { .. } => Phase::Started,
         Verdict::Failed { failure, .. }
-            if failure.kind == FailureKind::Timeout
+            if failure.timed_out()
                 && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>
         {
             Phase::Unconfirmed
         }
         Verdict::Failed { failure, .. }
-            if failure.kind == FailureKind::OutcomeUnknown
+            if failure.unknown()
                 || matches!(
                     report.reservation_state,
                     ReservationState::Pending | ReservationState::Unknown
@@ -750,9 +749,7 @@ fn report_phase(report: &Report) -> Phase {
         {
             Phase::Unknown
         }
-        Verdict::Failed { failure, .. } if failure.kind == FailureKind::Cancelled => {
-            Phase::Cancelled
-        }
+        Verdict::Failed { failure, .. } if failure.cancelled() => Phase::Cancelled,
         Verdict::Failed { .. } => Phase::Failed,
     }
 }

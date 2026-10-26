@@ -5,10 +5,9 @@ use super::agent_target;
 use super::named_terminal_target;
 use super::read_terminal_processes;
 use super::{
-    AgentGetOutcome, AgentReadOperation, AgentReadRequest, AgentReadResult, AgentSessionId,
-    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Resource, Snapshot, Target,
-    agent_protocol_invalid, agent_session_rejection, agent_unavailable_details,
-    classify_agent_read, obap_request_id,
+    AgentReadOperation, AgentSessionId, BorrowedFd, Failure, FailureKind, Instant, LocalClient,
+    Resource, Snapshot, Target, agent_protocol_invalid, agent_session_rejection,
+    agent_unavailable_details, classify_agent_read,
 };
 use crate::invocation::AgentTarget;
 use orchbee_agent_observation_protocol::{AgentLifecycle, AgentSessionDetail};
@@ -151,51 +150,32 @@ pub(crate) fn read_agent_observation(
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<AgentObservationRead, Failure> {
-    let request_id = obap_request_id()?;
-    let source = super::super::results::agent_source(&request_id);
-    let result = client
-        .submit_agent_read_before_cancellable(
-            AgentReadRequest::Get {
-                request_id: request_id.clone(),
-                session_id: session_id.clone(),
-            },
-            deadline,
-            wake,
-        )
-        .map_err(|error| {
-            classify_agent_read(error, AgentReadOperation::Get)
-                .failure_schema(super::super::schema::AGENT_FAILURE_ID)
-        })?;
-    if Instant::now() >= deadline {
-        return Err(Failure::new(FailureKind::Timeout));
-    }
-    let AgentReadResult::Get { result, .. } = result else {
-        return Err(agent_protocol_invalid(AgentReadOperation::Get)
-            .failure_schema(super::super::schema::AGENT_FAILURE_ID));
-    };
-    match result.outcome {
-        AgentGetOutcome::Found { session, revision } => {
-            if session.snapshot.session_id != *session_id {
-                return Err(agent_protocol_invalid(AgentReadOperation::Get)
-                    .failure_schema(super::super::schema::AGENT_FAILURE_ID));
-            }
-            Ok(AgentObservationRead {
-                request_id,
-                revision,
-                session,
-            })
-        }
-        AgentGetOutcome::Rejected { reason } => {
-            Err(
-                agent_session_rejection(AgentReadOperation::Get, reason, session_id)
-                    .source(source)
-                    .failure_schema(super::super::schema::AGENT_FAILURE_ID),
-            )
-        }
-        AgentGetOutcome::Unavailable { .. } => Err(Failure::new(FailureKind::ServiceUnavailable)
+    crate::agent_runtime::startup::observation::read(client, session_id, deadline, wake)
+        .map_err(classify_observation)
+}
+
+pub(in crate::cli) fn classify_observation(
+    error: crate::agent_runtime::startup::observation::Error,
+) -> Failure {
+    use crate::agent_runtime::startup::observation::Error;
+    match error {
+        Error::Identity => Failure::new(FailureKind::InternalFailure),
+        Error::Exchange(error) => classify_agent_read(error, AgentReadOperation::Get)
+            .failure_schema(super::super::schema::AGENT_FAILURE_ID),
+        Error::Timeout => Failure::new(FailureKind::Timeout),
+        Error::Protocol => agent_protocol_invalid(AgentReadOperation::Get)
+            .failure_schema(super::super::schema::AGENT_FAILURE_ID),
+        Error::Rejected {
+            request,
+            session,
+            reason,
+        } => agent_session_rejection(AgentReadOperation::Get, reason, &session)
+            .source(super::super::results::agent_source(&request))
+            .failure_schema(super::super::schema::AGENT_FAILURE_ID),
+        Error::Unavailable { request } => Failure::new(FailureKind::ServiceUnavailable)
             .details(agent_unavailable_details(AgentReadOperation::Get))
-            .source(source)
-            .failure_schema(super::super::schema::AGENT_FAILURE_ID)),
+            .source(super::super::results::agent_source(&request))
+            .failure_schema(super::super::schema::AGENT_FAILURE_ID),
     }
 }
 

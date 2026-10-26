@@ -7,14 +7,15 @@
 
 use std::time::Instant;
 
+use crate::agent_runtime::startup::send;
+pub(crate) use failure::{ExchangeFailure, Failure, StartFailure};
 use orchbee_agent_observation_protocol::{
     AgentLaunchReservation, AgentName, AgentProviderId, AgentSessionId, ObapRequestId,
 };
-use serde_json::Value;
-
-use crate::cli::{Failure, FailureKind};
+use std::sync::Arc;
 
 mod command;
+mod failure;
 mod workflow;
 
 /// One already-validated startup intent. Panel selection is deliberately not
@@ -80,19 +81,23 @@ impl ReservationState {
 }
 
 #[derive(Debug)]
+pub(crate) enum Submission {
+    Sent(Box<send::Receipt>),
+    Failed(Arc<send::Error>),
+}
+
+#[derive(Debug)]
 pub(crate) enum Verdict {
     Started {
         session: AgentSessionId,
     },
     Failed {
         failure: Failure,
-        reason: String,
-        cause: Option<Value>,
+        read_cause: Option<Box<Failure>>,
     },
 }
 
-/// Typed terminal result. Every independently known mutation/input fact is
-/// retained before either the CLI or the TUI projects it.
+/// Independently known reservation and delivery facts survive every later observation failure.
 #[derive(Debug)]
 pub(crate) struct Report {
     pub(crate) name: AgentName,
@@ -100,30 +105,13 @@ pub(crate) struct Report {
     pub(crate) reservation: Option<ObapRequestId>,
     pub(crate) last_observed: Option<AgentLaunchReservation>,
     pub(crate) reservation_state: ReservationState,
-    pub(crate) submission: Option<Value>,
-    pub(crate) submission_status: Option<u8>,
+    pub(crate) submission: Option<Submission>,
     pub(crate) delivery: DeliveryDisposition,
     pub(crate) elapsed_ms: u64,
     pub(crate) verdict: Verdict,
 }
-
 impl Report {
     pub(crate) fn preflight(request: Request, started: Instant, failure: Failure) -> Self {
-        let reason = failure
-            .details
-            .as_ref()
-            .filter(|details| details.get("stage").and_then(Value::as_str) == Some("agent-start"))
-            .and_then(|details| details.get("reason"))
-            .and_then(Value::as_str)
-            .unwrap_or("startup-failed")
-            .to_owned();
-        let cause = (failure
-            .details
-            .as_ref()
-            .and_then(|details| details.get("stage"))
-            .and_then(Value::as_str)
-            != Some("agent-start"))
-        .then(|| workflow::cause(&failure));
         Self {
             name: request.name,
             provider: request.provider,
@@ -131,86 +119,37 @@ impl Report {
             last_observed: None,
             reservation_state: ReservationState::None,
             submission: None,
-            submission_status: None,
             delivery: DeliveryDisposition::NotApplied,
             elapsed_ms: elapsed_ms(started),
             verdict: Verdict::Failed {
                 failure,
-                reason,
-                cause,
+                read_cause: None,
             },
         }
     }
-
-    pub(crate) const fn failure_kind(&self) -> Option<FailureKind> {
-        match &self.verdict {
-            Verdict::Started { .. } => None,
-            Verdict::Failed { failure, .. } => Some(failure.kind),
-        }
-    }
-
-    pub(crate) const fn completed(&self) -> bool {
-        matches!(self.verdict, Verdict::Started { .. })
-    }
-
-    pub(crate) fn replace_failure(&mut self, failure: Failure) {
-        let read_cause = match &self.verdict {
-            Verdict::Failed {
-                failure: previous,
-                cause,
-                ..
-            } if previous
-                .details
-                .as_ref()
-                .and_then(|details| details.get("stage"))
-                .and_then(Value::as_str)
-                == Some("agent-start") =>
-            {
-                cause.clone()
-            }
-            Verdict::Started { .. } | Verdict::Failed { .. } => None,
-        };
-        let reason = failure
-            .details
-            .as_ref()
-            .filter(|details| details.get("stage").and_then(Value::as_str) == Some("agent-start"))
-            .and_then(|details| details.get("reason"))
-            .and_then(Value::as_str)
-            .unwrap_or("startup-failed")
-            .to_owned();
-        let cause = if failure
-            .details
-            .as_ref()
-            .and_then(|details| details.get("stage"))
-            .and_then(Value::as_str)
-            == Some("agent-start")
-        {
-            read_cause
-        } else {
-            Some(workflow::cause(&failure))
-        };
-        self.verdict = Verdict::Failed {
-            failure,
-            reason,
-            cause,
-        };
-    }
 }
-
 fn elapsed_ms(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
-pub(crate) fn run_local(
+pub(crate) use workflow::step_deadline;
+
+pub(crate) fn run_on_client(
     request: Request,
     started: Instant,
     deadline: Instant,
     wake: Option<orchbee_local_ipc::LocalIo<'_>>,
-    resolve_panel: impl FnOnce(
-        &orchbee_workbench_protocol::Snapshot,
-    ) -> Result<crate::invocation::Target, Failure>,
+    client: crate::local_client::LocalClient,
+    snapshot: orchbee_workbench_protocol::Snapshot,
+    panel: orchbee_workbench_protocol::WorkbenchPanelId,
 ) -> Report {
-    workflow::run_local(request, started, deadline, wake, resolve_panel)
+    if crate::agent_runtime::startup::admit().is_err() {
+        drop(client);
+        return Report::preflight(request, started, Failure::Unsupported);
+    }
+    workflow::run_admitted(
+        &request, started, deadline, wake, client, snapshot, panel, None,
+    )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -234,11 +173,6 @@ pub(crate) fn run_on_origin(
         request, started, deadline, wake, origin, clock, panel, progress,
     )
 }
-
-pub(crate) fn failure(kind: FailureKind, reason: &str) -> Failure {
-    workflow::error(kind, reason)
-}
-
 pub(crate) fn command_valid(request: &Request) -> bool {
     command::launch(request.provider.as_str(), &request.args).is_some()
 }

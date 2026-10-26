@@ -1,5 +1,7 @@
 use super::*;
-use crate::agent_start::{DeliveryDisposition, Verdict};
+use crate::agent_start::{
+    DeliveryDisposition, ExchangeFailure, Failure, StartFailure, Submission, Verdict,
+};
 use orchbee_agent_observation_protocol::{AgentSessionId, ObapRequestId};
 
 fn panel(value: u8) -> WorkbenchPanelId {
@@ -18,7 +20,7 @@ fn operation(generation: u64, panel: WorkbenchPanelId, phase: Phase) -> Operatio
 }
 
 fn report(
-    kind: FailureKind,
+    failure: Failure,
     reservation_state: ReservationState,
     delivery: DeliveryDisposition,
     submission_status: Option<u8>,
@@ -29,16 +31,77 @@ fn report(
         reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
         last_observed: None,
         reservation_state,
-        submission: None,
-        submission_status,
+        submission: submission_status.map(|status| sent(status, delivery)),
         delivery,
         elapsed_ms: 1,
         verdict: Verdict::Failed {
-            failure: crate::agent_start::failure(kind, "fixture"),
-            reason: "fixture".into(),
-            cause: None,
+            failure,
+            read_cause: None,
         },
     }
+}
+
+// Retain the old status cases as their actual protocol receipt, independent of the later startup failure.
+fn sent(status: u8, delivery: DeliveryDisposition) -> Submission {
+    use crate::agent_runtime::startup::{
+        binding::Binding,
+        send::{Context, Receipt},
+    };
+    use orchbee_client_server_protocol::{
+        HostEpoch, HostTerminalId, RequestId, SendCleanupStatus, SendProgress, SendRejectedReason,
+        SendTarget, SendUnavailableReason, TerminalSendOutcome, TerminalSendResult,
+    };
+    let outcome = match status {
+        0 => TerminalSendOutcome::Accepted {
+            progress: SendProgress::complete(2, 10),
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+        5 if delivery == DeliveryDisposition::Applied => TerminalSendOutcome::Accepted {
+            progress: SendProgress::complete(2, 10),
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+        5 => TerminalSendOutcome::Unavailable {
+            reason: SendUnavailableReason::HostProtocolFault,
+            progress: SendProgress::none(),
+            cleanup: SendCleanupStatus::NotNeeded,
+        },
+        3 => TerminalSendOutcome::Rejected {
+            reason: SendRejectedReason::HostInputBackpressure,
+            progress: SendProgress::none(),
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+        4 => TerminalSendOutcome::Unavailable {
+            reason: SendUnavailableReason::WorkerUnavailable,
+            progress: SendProgress::none(),
+            cleanup: SendCleanupStatus::NotNeeded,
+        },
+        8 => TerminalSendOutcome::OutcomeUnknown {
+            progress: SendProgress::none(),
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+        9 => TerminalSendOutcome::Rejected {
+            reason: SendRejectedReason::HostInputBackpressure,
+            progress: SendProgress::stopped(1, 4),
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+        _ => panic!("fixture status is not declared"),
+    };
+    let request = RequestId::parse(&"1".repeat(32)).unwrap();
+    let target = SendTarget::new(
+        std::num::NonZeroU64::MIN,
+        HostEpoch::parse(&"2".repeat(32)).unwrap(),
+        HostTerminalId::parse(&"3".repeat(32)).unwrap(),
+    );
+    Submission::Sent(Box::new(Receipt {
+        context: Context {
+            binding: Binding::parse(&"4".repeat(32), &"5".repeat(32), &"6".repeat(32)).unwrap(),
+            revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+            request: request.clone(),
+        },
+        result: TerminalSendResult::new(request, Some(target), outcome).unwrap(),
+        records: 2,
+        bytes: 10,
+    }))
 }
 
 #[test]
@@ -80,7 +143,7 @@ fn completion_requires_the_exact_generation_and_panel() {
 fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     assert_eq!(
         report_phase(&report(
-            FailureKind::Rejected,
+            Failure::Start(StartFailure::TerminalNotIdle),
             ReservationState::None,
             DeliveryDisposition::NotApplied,
             None,
@@ -90,7 +153,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     );
     assert_eq!(
         report_phase(&report(
-            FailureKind::Cancelled,
+            Failure::Start(StartFailure::Cancelled),
             ReservationState::Released,
             DeliveryDisposition::NotApplied,
             None,
@@ -100,7 +163,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     );
     assert_eq!(
         report_phase(&report(
-            FailureKind::Cancelled,
+            Failure::Start(StartFailure::Cancelled),
             ReservationState::Unknown,
             DeliveryDisposition::NotApplied,
             None,
@@ -109,7 +172,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     );
     assert_eq!(
         report_phase(&report(
-            FailureKind::Timeout,
+            Failure::Start(StartFailure::Deadline),
             ReservationState::Pending,
             DeliveryDisposition::NotApplied,
             None,
@@ -124,7 +187,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     ] {
         assert_eq!(
             report_phase(&report(
-                FailureKind::Cancelled,
+                Failure::Start(StartFailure::Cancelled),
                 ReservationState::Released,
                 delivery,
                 Some(status),
@@ -135,7 +198,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     }
     assert_eq!(
         report_phase(&report(
-            FailureKind::Cancelled,
+            Failure::Start(StartFailure::Cancelled),
             ReservationState::Released,
             DeliveryDisposition::NotApplied,
             Some(4),
@@ -144,7 +207,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     );
     assert_eq!(
         report_phase(&report(
-            FailureKind::Rejected,
+            Failure::Start(StartFailure::TerminalNotIdle),
             ReservationState::Released,
             DeliveryDisposition::NotApplied,
             Some(3),
@@ -153,7 +216,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
     );
     assert_eq!(
         report_phase(&report(
-            FailureKind::TransportLoss,
+            Failure::Start(StartFailure::Exchange(ExchangeFailure::Transport)),
             ReservationState::Released,
             DeliveryDisposition::NotApplied,
             Some(5),
@@ -162,7 +225,7 @@ fn only_proven_zero_delivery_with_a_settled_reservation_is_retryable() {
         "status 5 with a typed zero-input verdict remains retryable"
     );
     let mut success = report(
-        FailureKind::Rejected,
+        Failure::Start(StartFailure::TerminalNotIdle),
         ReservationState::Completed,
         DeliveryDisposition::Applied,
         Some(0),
@@ -192,7 +255,7 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
     // observation, including after its worker handle has become finished.
     assert_eq!(state.drain(), Drain::default());
     let mut completed = report(
-        FailureKind::Rejected,
+        Failure::Start(StartFailure::TerminalNotIdle),
         ReservationState::Completed,
         DeliveryDisposition::Applied,
         Some(0),
@@ -512,7 +575,7 @@ fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
 #[test]
 fn accepted_command_timeout_is_unconfirmed_and_cannot_be_replayed() {
     let result = report(
-        FailureKind::Timeout,
+        Failure::Start(StartFailure::Deadline),
         ReservationState::Pending,
         DeliveryDisposition::Applied,
         Some(0),

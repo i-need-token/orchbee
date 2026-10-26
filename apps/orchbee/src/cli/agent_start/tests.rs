@@ -1,5 +1,5 @@
 use super::*;
-use crate::agent_start::{DeliveryDisposition, ReservationState, Verdict};
+use crate::agent_start::{DeliveryDisposition, ReservationState};
 use orchbee_agent_observation_protocol::{
     AgentName, AgentProviderId, AgentSessionId, ObapRequestId,
 };
@@ -15,7 +15,7 @@ fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report 
 fn report_with_delivery(
     receipt: &Value,
     state: ReservationState,
-    delivery: DeliveryDisposition,
+    _delivery: DeliveryDisposition,
     status: u8,
     verdict: Verdict,
 ) -> Report {
@@ -27,7 +27,6 @@ fn report_with_delivery(
         reservation_state: state,
         submission: Some(receipt.clone()),
         submission_status: Some(status),
-        delivery,
         elapsed_ms: 1,
         verdict,
     }
@@ -133,7 +132,7 @@ fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
                 delivery,
                 status,
                 Verdict::Failed {
-                    failure: crate::agent_start::failure(failure_kind, "input-not-accepted"),
+                    failure: super::failure(failure_kind, "input-not-accepted"),
                     reason: "input-not-accepted".into(),
                     cause: None,
                 },
@@ -194,7 +193,7 @@ fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() 
                     &receipt,
                     state,
                     Verdict::Failed {
-                        failure: crate::agent_start::failure(kind, reason),
+                        failure: super::failure(kind, reason),
                         reason: reason.to_owned(),
                         cause: None,
                     },
@@ -243,15 +242,12 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
         &receipt,
         ReservationState::Pending,
         Verdict::Failed {
-            failure: crate::agent_start::failure(FailureKind::Timeout, "start-deadline"),
+            failure: super::failure(FailureKind::Timeout, "start-deadline"),
             reason: "start-deadline".into(),
             cause: Some(read_cause.clone()),
         },
     );
-    retained.replace_failure(crate::agent_start::failure(
-        FailureKind::Cancelled,
-        "cancelled",
-    ));
+    retained.replace_failure(super::failure(FailureKind::Cancelled, "cancelled"));
     let Verdict::Failed { cause, .. } = retained.verdict else {
         panic!("replacement stays failed")
     };
@@ -267,10 +263,7 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
             cause: Some(serde_json::json!({"kind":"transport-loss"})),
         },
     );
-    upstream.replace_failure(crate::agent_start::failure(
-        FailureKind::Cancelled,
-        "cancelled",
-    ));
+    upstream.replace_failure(super::failure(FailureKind::Cancelled, "cancelled"));
     let Verdict::Failed { cause, .. } = upstream.verdict else {
         panic!("replacement stays failed")
     };

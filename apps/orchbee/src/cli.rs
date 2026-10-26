@@ -73,17 +73,6 @@ pub(crate) mod runtime_status;
 pub(crate) mod schema;
 pub(crate) mod send;
 
-/// Narrow typed operations used by the app-owned Agent startup workflow.
-/// The CLI's broader query/process modules remain private to this adapter
-/// family instead of becoming crate-wide implementation surfaces.
-#[cfg(windows)]
-pub(crate) mod agent_start_runtime {
-    pub(crate) use super::query::{
-        read_agent_observation, read_terminal_processes_cancellable, snapshot_from_origin,
-        stream_snapshot,
-    };
-    pub(crate) use super::send::submit_prompt_on_session_cancellable as submit_prompt_on_session;
-}
 mod server;
 mod server_diagnose;
 mod server_metadata;

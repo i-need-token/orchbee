@@ -1,9 +1,6 @@
 use super::*;
 use crate::{cli::results::Projection, invocation::QueryCommand};
-use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, TerminalId, TerminalProcess, TypedFailure,
-    encode_connection_control, encode_process_info_control, encode_transport_envelope,
-};
+use orchbee_terminal_protocol::{TerminalId, TerminalProcess, TerminalProcessInfo};
 
 fn info() -> TerminalProcessInfo {
     TerminalProcessInfo {
@@ -21,50 +18,6 @@ fn info() -> TerminalProcessInfo {
     }
 }
 
-fn record(kind: u16, payload: &[u8], change: impl FnOnce(&mut Envelope<'_>)) -> Vec<u8> {
-    let mut envelope = Envelope {
-        protocol: CURRENT_PROTOCOL_VERSION,
-        role: MessageRole::Response,
-        kind,
-        optional_message: false,
-        payload_encoding: PayloadEncoding::ControlJson,
-        correlation_id: Some(CorrelationId::from_bytes([3; 16]).unwrap()),
-        host_epoch: Some(HostEpoch::from_bytes([4; 16]).unwrap()),
-        payload,
-    };
-    change(&mut envelope);
-    encode_transport_envelope(&envelope).unwrap()
-}
-
-fn read(record: &[u8]) -> Result<(TerminalProcessInfo, String), Failure> {
-    decode(
-        record,
-        info().attachment_id,
-        HostEpoch::from_bytes([4; 16]).unwrap(),
-    )
-}
-
-#[test]
-fn process_info_rejects_wrong_envelope_attachment_and_malformed_payload() {
-    let encoded = encode_process_info_control(&ProcessInfoControl::ProcessInfo(info())).unwrap();
-    let valid = record(encoded.kind, &encoded.payload, |_| {});
-    assert_eq!(read(&valid).unwrap().0, info());
-    let epoch = record(encoded.kind, &encoded.payload, |e| {
-        e.host_epoch = Some(HostEpoch::from_bytes([5; 16]).unwrap())
-    });
-    let role = record(encoded.kind, &encoded.payload, |e| {
-        e.role = MessageRole::Request
-    });
-    let malformed = record(encoded.kind, b"{}", |_| {});
-    let mut wrong = info();
-    wrong.attachment_id = AttachmentId::from_bytes([6; 16]).unwrap();
-    let wrong = encode_process_info_control(&ProcessInfoControl::ProcessInfo(wrong)).unwrap();
-    let attachment = record(wrong.kind, &wrong.payload, |_| {});
-    for bad in [&epoch, &role, &malformed, &attachment, &vec![0; 65536 + 65]] {
-        assert_eq!(read(bad).unwrap_err().kind, FailureKind::ProtocolInvalid);
-    }
-}
-
 #[test]
 fn process_info_preserves_expected_host_failures_with_valid_failure_schema() {
     let schema: Value = serde_json::from_str(include_str!(
@@ -72,21 +25,16 @@ fn process_info_preserves_expected_host_failures_with_valid_failure_schema() {
     ))
     .unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
-    for code in [
-        "limit-exceeded",
-        "missing-resource",
-        "process-sample-unsupported",
-        "process-sample-changed",
-        "process-sample-unavailable",
-        "invalid-field",
+    use crate::agent_runtime::startup::processes::{Error, HostFailure};
+    for (code, expected) in [
+        ("limit-exceeded", Some(HostFailure::LimitExceeded)),
+        ("missing-resource", Some(HostFailure::MissingResource)),
+        ("process-sample-unsupported", Some(HostFailure::Unsupported)),
+        ("process-sample-changed", Some(HostFailure::Changed)),
+        ("process-sample-unavailable", Some(HostFailure::Unavailable)),
+        ("invalid-field", None),
     ] {
-        let encoded = encode_connection_control(&ConnectionControl::TypedFailure(TypedFailure {
-            code: code.into(),
-            message: "untrusted Host diagnostic".into(),
-            retryable: false,
-        }))
-        .unwrap();
-        let failure = read(&record(encoded.kind, &encoded.payload, |_| {})).unwrap_err();
+        let failure = classify_process(expected.map_or(Error::Protocol, Error::Host));
         if code == "invalid-field" {
             assert_eq!(failure.kind, FailureKind::ProtocolInvalid);
             continue;

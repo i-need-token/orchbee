@@ -5,7 +5,7 @@ use super::Failure;
 use super::output;
 use super::{FailureKind, Output, failure_output};
 use crate::{
-    agent_start::{Report, Request, Verdict},
+    agent_start::Request,
     cli::{
         caller_context::PanelTarget,
         console_interrupt::{ArmedSignals, Finish},
@@ -19,14 +19,21 @@ use orchbee_agent_observation_protocol::AgentProviderId;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
+mod report;
+use report::{Report, Verdict};
+
 const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-start";
 
 #[cfg(test)]
 mod tests;
 
 pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Locale) -> Output {
-    if let Err(failure) = crate::agent_runtime::startup::admit() {
-        return failure_output(failure, Some(format), locale);
+    if crate::agent_runtime::startup::admit().is_err() {
+        return failure_output(
+            report::domain_failure(crate::agent_start::Failure::Unsupported),
+            Some(format),
+            locale,
+        );
     }
     let started = Instant::now();
     let provider = AgentProviderId::parse(&command.provider)
@@ -37,7 +44,7 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
             Report::preflight(
                 request,
                 started,
-                crate::agent_start::failure(FailureKind::InvalidUsage, "command-too-long"),
+                failure(FailureKind::InvalidUsage, "command-too-long"),
             ),
             format,
             locale,
@@ -63,10 +70,7 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
                 Report::preflight(
                     request,
                     started,
-                    crate::agent_start::failure(
-                        FailureKind::InternalFailure,
-                        "signal-registration-failed",
-                    ),
+                    failure(FailureKind::InternalFailure, "signal-registration-failed"),
                 ),
                 format,
                 locale,
@@ -74,30 +78,22 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
             );
         }
     };
-    let mut report = match PanelTarget::prepare(command.panel.as_ref(), |name| {
-        std::env::var_os(name)
-    }) {
-        Ok(prepared) => {
-            crate::agent_start::run_local(request, started, deadline, armed.poll_fd(), |snapshot| {
-                prepared.resolve(snapshot)
-            })
-        }
-        Err(failure) => Report::preflight(request, started, failure),
-    };
+    let mut report =
+        match PanelTarget::prepare(command.panel.as_ref(), |name| std::env::var_os(name)) {
+            Ok(prepared) => run_local(request, started, deadline, armed.poll_fd(), prepared),
+            Err(failure) => Report::preflight(request, started, failure),
+        };
     let finalization = match armed.finish() {
         Ok(Finish::Clear) => None,
         Ok(Finish::Cancelled { finalization }) => {
             if !report.completed() && report.failure_kind() != Some(FailureKind::OutcomeUnknown) {
-                report.replace_failure(crate::agent_start::failure(
-                    FailureKind::Cancelled,
-                    "cancelled",
-                ));
+                report.replace_failure(failure(FailureKind::Cancelled, "cancelled"));
             }
             Some(finalization)
         }
         Err(_) => {
             if !report.completed() && report.failure_kind() != Some(FailureKind::OutcomeUnknown) {
-                report.replace_failure(crate::agent_start::failure(
+                report.replace_failure(failure(
                     FailureKind::InternalFailure,
                     "signal-finalization-failed",
                 ));
@@ -110,6 +106,51 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
     // boundary and keep the workflow's own settlement time.
     report.elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     project(report, format, locale, finalization)
+}
+
+fn run_local(
+    request: Request,
+    started: Instant,
+    deadline: Instant,
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+    prepared: PanelTarget,
+) -> Report {
+    let admitted = crate::agent_start::step_deadline(deadline)
+        .map_err(report::domain_failure)
+        .and_then(|step| super::query::stream_snapshot(step, wake))
+        .and_then(|(client, snapshot)| {
+            let target = prepared.resolve(&snapshot)?;
+            let super::results::Projection::PanelGet(panel) = super::results::project(
+                &crate::invocation::QueryCommand::PanelGet(target),
+                &snapshot,
+            )?
+            else {
+                return Err(Failure::new(FailureKind::InternalFailure));
+            };
+            let panel = orchbee_workbench_protocol::WorkbenchPanelId::parse(&panel.row.panel_id)
+                .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+            Ok((client, snapshot, panel))
+        });
+    let admitted = match admitted {
+        Err(error)
+            if error.kind != FailureKind::OutcomeUnknown
+                && crate::agent_runtime::wait_backoff(wake, Duration::from_millis(1)) =>
+        {
+            Err(failure(FailureKind::Cancelled, "cancelled"))
+        }
+        result => result,
+    };
+    match admitted {
+        Ok((client, snapshot, panel)) => crate::agent_start::run_on_client(
+            request, started, deadline, wake, client, snapshot, panel,
+        )
+        .into(),
+        Err(error) => Report::preflight(request, started, error),
+    }
+}
+
+fn failure(kind: FailureKind, reason: &str) -> Failure {
+    Failure::new(kind).details(super::stage_reason_details("agent-start", reason))
 }
 
 /// The local inspection never consumes more than this share of the start
@@ -143,10 +184,7 @@ fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
         (_, State::Enabled) if !capsule.ready => "integration-not-enabled",
         _ => return None,
     };
-    Some(crate::agent_start::failure(
-        FailureKind::CheckFailed,
-        reason,
-    ))
+    Some(failure(FailureKind::CheckFailed, reason))
 }
 
 fn project(
@@ -174,10 +212,7 @@ fn project(
                 finalization,
             };
         }
-        report.replace_failure(crate::agent_start::failure(
-            FailureKind::OutputTooLarge,
-            "output-too-large",
-        ));
+        report.replace_failure(failure(FailureKind::OutputTooLarge, "output-too-large"));
     }
     let Verdict::Failed {
         mut failure,
