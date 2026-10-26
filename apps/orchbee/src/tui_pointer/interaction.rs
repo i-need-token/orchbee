@@ -113,13 +113,13 @@ pub(crate) enum InteractionTarget {
         token: crate::action_menu::MenuToken,
         control: crate::action_menu::MenuControl,
     },
-    AgentBoardRow(crate::terminal_session::AgentBoardRowTarget),
-    AgentBoardControl(crate::terminal_session::AgentBoardControlTarget),
-    Presentation(crate::terminal_session::DrawnPresentationTarget),
+    AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
+    AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
+    Presentation(crate::workbench_client::DrawnPresentationTarget),
     #[cfg(not(windows))]
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     #[cfg(not(windows))]
-    Context(crate::terminal_session::NativeContextLocation),
+    Context(crate::workbench_client::NativeContextLocation),
     #[cfg(windows)]
     Sidebar(crate::machine_picker::DrawnSidebarTarget),
     #[cfg(windows)]
@@ -138,7 +138,7 @@ pub(crate) enum InteractionTarget {
         tab: orchbee_workbench_protocol::WorkbenchTabId,
     },
     #[cfg(windows)]
-    PopupClose(crate::terminal_session::DrawnPopupClose),
+    PopupClose(crate::workbench_client::DrawnPopupClose),
     #[cfg(test)]
     Fixture(HitTarget),
 }

@@ -8,12 +8,12 @@ use crate::client_view::help::HelpDrawSource;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
-    Setup(crate::terminal_session::NativeSetupToken),
+    Setup(crate::workbench_client::NativeSetupToken),
     #[cfg(windows)]
-    Worktree(crate::terminal_session::WorktreeToken),
+    Worktree(crate::workbench_client::WorktreeToken),
     #[cfg(windows)]
     Copy(crate::terminal_copy_mode::CopyModeToken),
-    AgentBoard(crate::terminal_session::AgentBoardToken),
+    AgentBoard(crate::workbench_client::AgentBoardToken),
     Help(crate::client_view::help::HelpDrawSource),
     Settings(crate::native_settings::Token),
     #[cfg(windows)]

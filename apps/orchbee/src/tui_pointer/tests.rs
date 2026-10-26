@@ -51,10 +51,10 @@ use crate::terminal_input::{
     PointerPane, PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
     PointerTab,
 };
-use crate::terminal_session::state::{AttachmentKey, PaneKey};
+use crate::workbench_client::state::{AttachmentKey, PaneKey};
 
 use crate::client_view::{
-    KeyCode, KeyEvent, Modifiers, Overlay, PrefixInput, SessionActionDisposition,
+    ClientActionDisposition, KeyCode, KeyEvent, Modifiers, Overlay, PrefixInput,
 };
 
 #[cfg(windows)]
@@ -116,7 +116,7 @@ fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
 #[test]
 fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
-    use crate::terminal_session::NativeStartupTarget;
+    use crate::workbench_client::NativeStartupTarget;
 
     for (action, button, mods) in [
         (MouseAction::Press, MouseButton::Middle, Modifiers::NONE),
@@ -453,7 +453,7 @@ impl TerminalInputPort for RecordingPort {
         true
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         if let ClientAction::FocusPanel(panel) = &action {
             // Mirror the session's local focus transition: the desired
             // pane becomes the clicked panel's record and, when that
@@ -473,7 +473,7 @@ impl TerminalInputPort for RecordingPort {
             }
         }
         self.actions.push(action);
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 }
 
@@ -1150,13 +1150,13 @@ fn open_help_overlay(view: &mut ClientView) {
         KeyCode::Char('b'),
         Modifiers::CTRL,
     )));
-    view.commit(armed, SessionActionDisposition::KeepNavigator);
+    view.commit(armed, ClientActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
     let opened = view.decide(PrefixInput::Key(KeyEvent::press(
         KeyCode::Char('?'),
         Modifiers::NONE,
     )));
-    view.commit(opened, SessionActionDisposition::KeepNavigator);
+    view.commit(opened, ClientActionDisposition::KeepNavigator);
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
 }
 
@@ -2835,12 +2835,12 @@ fn primary_wheel_enters_history_only_over_focused_content_without_shift() {
 fn presentation_controls_activate_only_on_exact_generic_release() {
     let presentation =
         orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32)).unwrap();
-    let target = crate::terminal_session::DrawnPresentationTarget::Attached {
+    let target = crate::workbench_client::DrawnPresentationTarget::Attached {
         pane: pane_ref(1, 1, 1, 0),
         presentation,
     };
     let area = Rect::new(4, 2, 3, 1);
-    let paint = |target: crate::terminal_session::DrawnPresentationTarget, area| {
+    let paint = |target: crate::workbench_client::DrawnPresentationTarget, area| {
         let mut builder = HitMapBuilder::new();
         builder.record_interaction(
             HitLayer::Foreground,
@@ -2881,7 +2881,7 @@ fn presentation_controls_activate_only_on_exact_generic_release() {
         pointer.event(&mut view, &mut port, now(), press(5, 2)),
         PointerOutcome::Handled,
     );
-    let replacement = crate::terminal_session::DrawnPresentationTarget::Attached {
+    let replacement = crate::workbench_client::DrawnPresentationTarget::Attached {
         pane: pane_ref(1, 1, 1, 1),
         presentation: target.presentation().clone(),
     };
@@ -2966,7 +2966,7 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
 fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, FrameHitMap) {
     use crate::{
         machine_discovery::Context,
-        terminal_session::{NativeContextLocation, NativeContextTarget},
+        workbench_client::{NativeContextLocation, NativeContextTarget},
     };
     use orchbee_workbench_protocol::*;
     let (mut view, _) = sidebar_fixture(10);
@@ -3031,7 +3031,7 @@ fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, Frame
 #[test]
 fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
-    use crate::terminal_session::NativeStartupTarget;
+    use crate::workbench_client::NativeStartupTarget;
     use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
     for (invalid, legacy) in
         (0..4).flat_map(|invalid| [false, true].map(|legacy| (invalid, legacy)))
@@ -3044,7 +3044,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
                 HitTarget::MachineWorkspaceRow { selected, .. } => matches!(
                     &selected.context,
                     Some(NativeStartupTarget::Context(context))
-                        if matches!(&context.location, crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
+                        if matches!(&context.location, crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } if workspace_id.as_str() == format!("{:032x}", 900)) == legacy
                 ),
                 _ => false,
             })
@@ -3111,7 +3111,7 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
 #[test]
 fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navigation() {
     use crate::machine_picker::{SidebarPart, SidebarTarget};
-    use crate::terminal_session::NativeStartupTarget;
+    use crate::workbench_client::NativeStartupTarget;
 
     let (mut view, map) = workspace_fixture(2);
     let region = map
@@ -3871,8 +3871,8 @@ impl TerminalInputPort for PopupPointerPort {
 }
 
 #[cfg(windows)]
-fn popup_close_target(id: &WorkbenchRequestId) -> crate::terminal_session::DrawnPopupClose {
-    crate::terminal_session::PopupView {
+fn popup_close_target(id: &WorkbenchRequestId) -> crate::workbench_client::DrawnPopupClose {
+    crate::workbench_client::PopupView {
         id,
         title: "Popup",
         projection: None,
@@ -3885,7 +3885,7 @@ fn popup_close_target(id: &WorkbenchRequestId) -> crate::terminal_session::Drawn
 
 #[cfg(windows)]
 fn popup_close_map(
-    target: crate::terminal_session::DrawnPopupClose,
+    target: crate::workbench_client::DrawnPopupClose,
     rect: Rect,
     availability: InteractionAvailability,
 ) -> FrameHitMap {

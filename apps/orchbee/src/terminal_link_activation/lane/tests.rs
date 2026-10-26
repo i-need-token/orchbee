@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     terminal_link_activation::{Activation, PaintedLinkSource, PaintedRows, SnapshotMember},
-    terminal_session::state::{AttachmentKey, PaneKey, PaneRef},
+    workbench_client::state::{AttachmentKey, PaneKey, PaneRef},
 };
 
 #[derive(Default)]

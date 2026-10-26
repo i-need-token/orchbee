@@ -1,6 +1,6 @@
 use super::*;
-use crate::terminal_session::WorkspaceCloseToken;
 use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use crate::workbench_client::WorkspaceCloseToken;
 use ratatui::layout::Rect;
 
 struct ClosePort {
@@ -16,16 +16,16 @@ impl TerminalInputPort for ClosePort {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         if owner != crate::tui_composition::NativeCaptureOwner::WorkspaceClose || !self.active {
             return None;
         }
         Some(
-            crate::terminal_session::NativeCaptureContext::WorkspaceClose(
-                crate::terminal_session::ConfirmationCaptureContext {
+            crate::workbench_client::NativeCaptureContext::WorkspaceClose(
+                crate::workbench_client::ConfirmationCaptureContext {
                     token: WorkspaceCloseToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
-                    readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                    readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
             ),
         )

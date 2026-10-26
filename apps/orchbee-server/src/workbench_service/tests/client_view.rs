@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{
 use std::num::NonZeroU64;
 
 fn execute(
-    session: &WorkbenchClientSession<'_>,
+    session: &WorkbenchClientConnection<'_>,
     site: &orchbee_workbench_protocol::SiteId,
     action: ClientViewAction,
 ) -> ClientViewOutcome {
@@ -82,9 +82,9 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
     let service = service(true, true);
     let snapshot = bootstrap(&service);
     let site = &snapshot.site_id;
-    let first = service.client_session(NonZeroU64::new(1).unwrap());
-    let second = service.client_session(NonZeroU64::new(2).unwrap());
-    let caller = service.client_session(NonZeroU64::new(3).unwrap());
+    let first = service.client_connection(NonZeroU64::new(1).unwrap());
+    let second = service.client_connection(NonZeroU64::new(2).unwrap());
+    let caller = service.client_connection(NonZeroU64::new(3).unwrap());
     let ClientViewOutcome::Synchronized {
         client: first_view, ..
     } = execute(&first, site, sample(&snapshot, None))
@@ -160,7 +160,7 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
 fn client_view_control_requires_navigation_permission_but_status_is_read_only() {
     let service = service(true, false);
     let snapshot = bootstrap(&service);
-    let session = service.client_session(NonZeroU64::new(1).unwrap());
+    let session = service.client_connection(NonZeroU64::new(1).unwrap());
     let ClientViewOutcome::Synchronized { client, .. } =
         execute(&session, &snapshot.site_id, sample(&snapshot, None))
     else {
@@ -194,7 +194,7 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
         ClientViewOutcome::NotFound {}
     ));
     let denied = super::client_view::service(false, false);
-    let denied_session = denied.client_session(NonZeroU64::new(2).unwrap());
+    let denied_session = denied.client_connection(NonZeroU64::new(2).unwrap());
     assert!(matches!(
         execute(
             &denied_session,

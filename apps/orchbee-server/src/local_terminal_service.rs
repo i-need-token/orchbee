@@ -46,7 +46,7 @@ mod checkpoint;
 #[cfg(windows)]
 pub(crate) use checkpoint::CheckpointRestore;
 mod close_maintenance;
-mod controller_session;
+mod controller_connection;
 mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
@@ -57,8 +57,8 @@ mod projection;
 mod send;
 mod tab_close;
 mod tab_create;
-mod viewer_session;
-pub(crate) use viewer_session::LocalTerminalSession;
+mod viewer_connection;
+pub(crate) use viewer_connection::LocalTerminalConnection;
 mod workspace_directory;
 mod workspace_git;
 mod workspace_group_close;
@@ -106,8 +106,8 @@ pub(crate) struct LocalTerminalService {
     coordinator: Mutex<SiteCoordinator>,
     controllers: Mutex<
         std::collections::BTreeMap<
-            controller_session::ControlTarget,
-            controller_session::ControllerReservation,
+            controller_connection::ControlTarget,
+            controller_connection::ControllerReservation,
         >,
     >,
 }

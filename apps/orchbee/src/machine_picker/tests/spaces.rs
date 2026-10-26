@@ -1,5 +1,5 @@
 use super::*;
-use crate::{machine_discovery::Context, terminal_session::NativeContextLocation};
+use crate::{machine_discovery::Context, workbench_client::NativeContextLocation};
 use orchbee_workbench_protocol::*;
 mod anchoring;
 fn contexts(count: u64) -> Vec<Context> {

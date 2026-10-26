@@ -1,5 +1,5 @@
 //! One immutable subscription and one bounded observation actor belong to the authenticated connection.
-use super::WorkbenchClientSession;
+use super::WorkbenchClientConnection;
 use orchbee_server::{SiteEventJournal, SiteEventPage};
 use orchbee_workbench_protocol::{
     MAXIMUM_EVENTS_BYTES, SemanticEventCursor, SemanticEventFilter, SemanticEventsAction as Action,
@@ -24,7 +24,7 @@ pub(super) struct Subscription {
     pending_failure: Option<Failure>,
 }
 
-impl WorkbenchClientSession<'_> {
+impl WorkbenchClientConnection<'_> {
     pub(super) fn semantic_events(&self, request: SemanticEventsRequest) -> SemanticEventsResult {
         let outcome = self
             .event_outcome(&request)
@@ -186,7 +186,7 @@ impl WorkbenchClientSession<'_> {
 impl Subscription {
     fn read(
         &mut self,
-        session: &WorkbenchClientSession<'_>,
+        session: &WorkbenchClientConnection<'_>,
         request: &SemanticEventsRequest,
         limit: usize,
         gap_only: bool,

@@ -118,7 +118,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
-        PrefixDesc::ReloadConfiguration => "Reload session configuration",
+        PrefixDesc::ReloadConfiguration => "Reload Client configuration",
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
         #[cfg(windows)]
         PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
@@ -134,19 +134,21 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ProjectRename => "Rename current Workspace's Project",
         PrefixDesc::RenameTab => "Rename current Tab",
         PrefixDesc::CloseTab => "Close current Tab / retry Close (confirms for all Clients)",
-        PrefixDesc::CreateTab => "Create a Tab (requires session)",
+        PrefixDesc::CreateTab => "Create a Tab (requires connection)",
         PrefixDesc::MoveTab => "Move current Tab left / right (wraps)",
-        PrefixDesc::SelectTabWrap => "Select next / previous Tab (requires session)",
+        PrefixDesc::SelectTabWrap => "Select next / previous Tab (requires connection)",
         PrefixDesc::SelectContext => {
-            "Select previous / next Workbench location (wraps; requires session)"
+            "Select previous / next Workbench location (wraps; requires connection)"
         }
-        PrefixDesc::SelectTabDigit => "Select ordered Tab (requires session)",
-        PrefixDesc::PanelFocus => "Move between Panels (requires session)",
+        PrefixDesc::SelectTabDigit => "Select ordered Tab (requires connection)",
+        PrefixDesc::PanelFocus => "Move between Panels (requires connection)",
         PrefixDesc::PresentationSelect => "Select previous / next terminal in this Panel",
-        PrefixDesc::PanelZoom => "Zoom the focused Panel (requires session)",
-        PrefixDesc::SplitPanel => "Split focused Panel below/above/left/right (requires session)",
-        PrefixDesc::ClosePanel => "Close focused Panel (requires session)",
-        PrefixDesc::MovePanel => "Move focused Panel to that side (requires session)",
+        PrefixDesc::PanelZoom => "Zoom the focused Panel (requires connection)",
+        PrefixDesc::SplitPanel => {
+            "Split focused Panel below/above/left/right (requires connection)"
+        }
+        PrefixDesc::ClosePanel => "Close focused Panel (requires connection)",
+        PrefixDesc::MovePanel => "Move focused Panel to that side (requires connection)",
         PrefixDesc::SidebarToggle => "Toggle business sidebar",
         #[cfg(windows)]
         PrefixDesc::SidebarFocus => "Switch sidebar / terminal focus",
@@ -216,7 +218,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
-        PrefixDesc::ReloadConfiguration => "重载会话配置",
+        PrefixDesc::ReloadConfiguration => "重载客户端配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         #[cfg(windows)]
         PrefixDesc::WorktreeCreate => "创建 Git 工作树并进入终端",
@@ -230,17 +232,17 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ProjectRename => "重命名当前工作区所属的项目",
         PrefixDesc::RenameTab => "重命名当前 Tab",
         PrefixDesc::CloseTab => "关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
-        PrefixDesc::CreateTab => "创建 Tab（需要会话）",
+        PrefixDesc::CreateTab => "创建 Tab（需要连接）",
         PrefixDesc::MoveTab => "向左 / 右移动当前 Tab（首尾循环）",
-        PrefixDesc::SelectTabWrap => "选择下一个 / 上一个 Tab（需要会话）",
-        PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要会话）",
-        PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要会话）",
-        PrefixDesc::PanelFocus => "在 Panel 之间移动（需要会话）",
+        PrefixDesc::SelectTabWrap => "选择下一个 / 上一个 Tab（需要连接）",
+        PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要连接）",
+        PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要连接）",
+        PrefixDesc::PanelFocus => "在 Panel 之间移动（需要连接）",
         PrefixDesc::PresentationSelect => "选择当前 Panel 中的上一个 / 下一个终端",
-        PrefixDesc::PanelZoom => "放大焦点 Panel（需要会话）",
-        PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要会话）",
-        PrefixDesc::ClosePanel => "关闭焦点 Panel（需要会话）",
-        PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要会话）",
+        PrefixDesc::PanelZoom => "放大焦点 Panel（需要连接）",
+        PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要连接）",
+        PrefixDesc::ClosePanel => "关闭焦点 Panel（需要连接）",
+        PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要连接）",
         PrefixDesc::SidebarToggle => "切换业务侧边栏",
         #[cfg(windows)]
         PrefixDesc::SidebarFocus => "切换侧栏／终端焦点",
@@ -331,7 +333,7 @@ pub(crate) struct ShellText<'a> {
     #[cfg(not(windows))]
     pub(crate) navigator_detail: &'static str,
     pub(crate) navigator_title: &'static str,
-    pub(crate) no_client_session: &'static str,
+    pub(crate) no_client_connection: &'static str,
     pub(crate) panel_title: &'static str,
     pub(crate) pointer_released: &'a str,
     pub(crate) prefix_active: &'a str,
@@ -415,7 +417,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     #[cfg(not(windows))]
     navigator_detail: "A session connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
-    no_client_session: "No Orchbee session is connected.",
+    no_client_connection: "No Orchbee session is connected.",
     binding_unbound: "Unbound",
     #[cfg(not(windows))]
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
@@ -502,7 +504,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     #[cfg(not(windows))]
     navigator_detail: "连接会话后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
-    no_client_session: "当前未连接 Orchbee 会话。",
+    no_client_connection: "当前未连接 Orchbee 会话。",
     binding_unbound: "未绑定",
     #[cfg(not(windows))]
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
@@ -652,9 +654,11 @@ impl Locale {
                 "配置已加载，但有警告；请运行 orchbee config check"
             }
             (Self::EnUs, Some(Notice::ConfigurationRestart)) => {
-                "Keys updated; some session settings need a restart"
+                "Keys updated; some Client settings need a restart"
             }
-            (Self::ZhCn, Some(Notice::ConfigurationRestart)) => "键位已更新；部分会话设置需要重启",
+            (Self::ZhCn, Some(Notice::ConfigurationRestart)) => {
+                "键位已更新；部分客户端设置需要重启"
+            }
             (Self::EnUs, Some(Notice::ConfigurationUnknown)) => {
                 "Reload outcome unknown; inspect server config"
             }
@@ -747,8 +751,8 @@ impl Locale {
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CloseTab))) => {
                 "关闭不可用 · 未发送命令"
             }
-            (Self::EnUs, None) => "Session unavailable · no command has been sent",
-            (Self::ZhCn, None) => "会话不可用 · 未发送任何命令",
+            (Self::EnUs, None) => "Client connection unavailable · no command has been sent",
+            (Self::ZhCn, None) => "客户端连接不可用 · 未发送任何命令",
             (Self::EnUs, Some(Notice::TerminalInputUnavailable)) => {
                 "Terminal input unavailable · input was not sent"
             }
@@ -916,9 +920,9 @@ mod tests;
 impl Locale {
     pub(crate) const fn terminal_status(
         self,
-        status: crate::terminal_session::TerminalStatus,
+        status: crate::workbench_client::TerminalStatus,
     ) -> &'static str {
-        use crate::terminal_session::TerminalStatus;
+        use crate::workbench_client::TerminalStatus;
         match (self, status) {
             (Self::EnUs, TerminalStatus::Connecting) => "Connecting terminal…",
             (Self::ZhCn, TerminalStatus::Connecting) => "正在连接终端…",
@@ -943,7 +947,7 @@ impl Locale {
 
     pub(crate) fn native_status(
         self,
-        view: &crate::terminal_session::NativeSessionView<'_>,
+        view: &crate::workbench_client::WorkbenchClientView<'_>,
         columns: u16,
     ) -> String {
         #[cfg(windows)]
@@ -957,15 +961,15 @@ impl Locale {
             return self.workspace_close_status(status);
         }
         if view.retirement().is_none()
-            && (view.phase() == crate::terminal_session::NativeDisplayPhase::Ready
+            && (view.phase() == crate::workbench_client::NativeDisplayPhase::Ready
                 && view
                     .focus_panel_id()
                     .and_then(|panel| view.terminal_end(panel))
                     .is_some()
                 || view.phase()
-                    == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+                    == crate::workbench_client::NativeDisplayPhase::SelectedWithoutAttachment
                     && view.selected_provenance()
-                        == Some(crate::terminal_session::NativeDisplayProvenance::Failed))
+                        == Some(crate::workbench_client::NativeDisplayProvenance::Failed))
         {
             let status = self.native_phase_status(view);
             if crate::terminal_text::display_width(&status) > usize::from(columns)
@@ -983,7 +987,7 @@ impl Locale {
             && view.setup_status().is_none()
             && let Some(progress) = view.duplicate_progress()
         {
-            use crate::terminal_session::state::DuplicateStop;
+            use crate::workbench_client::state::DuplicateStop;
             let status = match (self, progress.stop, progress.complete) {
                 (Self::EnUs, _, true) => "Duplication complete",
                 (Self::ZhCn, _, true) => "复制完成",
@@ -1026,17 +1030,17 @@ impl Locale {
             view.retirement().is_some(),
             view.notice(),
             view.setup_status(),
-            view.phase() == crate::terminal_session::NativeDisplayPhase::Empty
+            view.phase() == crate::workbench_client::NativeDisplayPhase::Empty
                 && view.workspace_directory_unconfigured(),
         )
     }
 
     pub(crate) fn native_phase_status(
         self,
-        view: &crate::terminal_session::NativeSessionView<'_>,
+        view: &crate::workbench_client::WorkbenchClientView<'_>,
     ) -> String {
         if view.retirement().is_none()
-            && view.phase() == crate::terminal_session::NativeDisplayPhase::Ready
+            && view.phase() == crate::workbench_client::NativeDisplayPhase::Ready
             && let Some(end) = view
                 .focus_panel_id()
                 .and_then(|panel| view.terminal_end(panel))
@@ -1050,7 +1054,7 @@ impl Locale {
                 recovery.unknown,
             );
         }
-        if view.phase() == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+        if view.phase() == crate::workbench_client::NativeDisplayPhase::SelectedWithoutAttachment
             && view.selected_is_unbound()
             && view.retirement().is_none()
         {
@@ -1082,14 +1086,14 @@ impl Locale {
 
     fn native_phase_status_values(
         self,
-        phase: crate::terminal_session::NativeDisplayPhase,
+        phase: crate::workbench_client::NativeDisplayPhase,
         label: Option<&str>,
-        controller: Option<crate::terminal_session::NativeDisplayController>,
-        provenance: Option<crate::terminal_session::NativeDisplayProvenance>,
-        projection: crate::terminal_session::NativeProjectionStatus,
-        retirement: Option<crate::terminal_session::NativeDisplayRetirement>,
+        controller: Option<crate::workbench_client::NativeDisplayController>,
+        provenance: Option<crate::workbench_client::NativeDisplayProvenance>,
+        projection: crate::workbench_client::NativeProjectionStatus,
+        retirement: Option<crate::workbench_client::NativeDisplayRetirement>,
     ) -> String {
-        use crate::terminal_session::{
+        use crate::workbench_client::{
             NativeDisplayController as Controller, NativeDisplayPhase as Phase,
             NativeDisplayProvenance as Provenance, NativeDisplayRetirement as Retirement,
         };
@@ -1097,10 +1101,10 @@ impl Locale {
         if let Some(retirement) = retirement {
             return match retirement {
                 Retirement::OutcomeUnknown => self
-                    .terminal_status(crate::terminal_session::TerminalStatus::OutcomeUnknown)
+                    .terminal_status(crate::workbench_client::TerminalStatus::OutcomeUnknown)
                     .to_owned(),
                 Retirement::Unavailable => self
-                    .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
+                    .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
                     .to_owned(),
             };
         }
@@ -1115,7 +1119,7 @@ impl Locale {
             Phase::Ready => {
                 let Some(label) = label else {
                     return self
-                        .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
+                        .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
                         .to_owned();
                 };
                 match controller {
@@ -1141,7 +1145,7 @@ impl Locale {
             Phase::SelectedWithoutAttachment => {
                 let Some(label) = label else {
                     return self
-                        .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
+                        .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
                         .to_owned();
                 };
                 match provenance {
@@ -1159,20 +1163,20 @@ impl Locale {
                 (Some(label), Some(Provenance::Failed)) => self.native_terminal_failed(label),
                 (Some(label), _) => self.native_terminal_unavailable(label),
                 (None, _) => self
-                    .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
+                    .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
                     .to_owned(),
             },
             Phase::Retired => self
-                .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
+                .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
                 .to_owned(),
         }
     }
 
     pub(crate) fn native_refresh_status(
         self,
-        status: crate::terminal_session::NativeRefreshStatus,
+        status: crate::workbench_client::NativeRefreshStatus,
     ) -> String {
-        use crate::terminal_session::NativeRefreshStatus;
+        use crate::workbench_client::NativeRefreshStatus;
         match status {
             NativeRefreshStatus::Refreshing => self.native_refreshing().to_owned(),
             NativeRefreshStatus::Success(revision) => self.native_refresh_success(revision),
@@ -1232,9 +1236,9 @@ impl Locale {
     #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_read_line(
         self,
-        read: crate::terminal_session::AgentBoardRead,
+        read: crate::workbench_client::AgentBoardRead,
     ) -> &'static str {
-        use crate::terminal_session::{AgentBoardRead, AgentBoardReadFailure};
+        use crate::workbench_client::{AgentBoardRead, AgentBoardReadFailure};
         let board = self.shell().board;
         match read {
             AgentBoardRead::Unread => board.unread,
@@ -1253,9 +1257,9 @@ impl Locale {
     #[cfg(any(unix, windows))]
     pub(crate) fn agent_board_notice(
         self,
-        failure: crate::terminal_session::JumpFailure,
+        failure: crate::workbench_client::JumpFailure,
     ) -> &'static str {
-        use crate::terminal_session::JumpFailure;
+        use crate::workbench_client::JumpFailure;
         let board = self.shell().board;
         match failure {
             JumpFailure::Gone => board.jump_gone,
@@ -1273,7 +1277,7 @@ impl Locale {
     #[cfg(any(unix, windows))]
     pub(crate) fn agent_sidebar_line(
         self,
-        summary: crate::terminal_session::AgentBoardSummary,
+        summary: crate::workbench_client::AgentBoardSummary,
         elapsed: std::time::Duration,
     ) -> String {
         let seconds = elapsed.as_secs();
@@ -1298,13 +1302,13 @@ impl Locale {
     /// Adds only the matching operation's sanitized display context to a localized notice.
     pub(crate) fn native_notice_with_context(
         self,
-        notice: crate::terminal_session::NativeSessionNotice,
-        native: &crate::terminal_session::NativeSessionView<'_>,
+        notice: crate::workbench_client::WorkbenchClientNotice,
+        native: &crate::workbench_client::WorkbenchClientView<'_>,
     ) -> String {
         let message = self.native_notice(notice);
         #[cfg(windows)]
         if let Some(context) = native.notice_context() {
-            use crate::terminal_session::NativeNoticeContext;
+            use crate::workbench_client::NativeNoticeContext;
             return match context {
                 NativeNoticeContext::LaunchProfile(name) => {
                     format!("{message} · {}", self.launch_profile_label(name.as_deref()))
@@ -1322,100 +1326,100 @@ impl Locale {
 
     pub(crate) fn native_notice(
         self,
-        notice: crate::terminal_session::NativeSessionNotice,
+        notice: crate::workbench_client::WorkbenchClientNotice,
     ) -> String {
-        use crate::terminal_session::NativeSessionNotice;
+        use crate::workbench_client::WorkbenchClientNotice;
         match notice {
-            NativeSessionNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
+            WorkbenchClientNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
             #[cfg(windows)]
-            NativeSessionNotice::AgentStart(phase) => self.agent_start_phase(phase).to_owned(),
-            NativeSessionNotice::LocalBusy => self.native_local_busy().to_owned(),
+            WorkbenchClientNotice::AgentStart(phase) => self.agent_start_phase(phase).to_owned(),
+            WorkbenchClientNotice::LocalBusy => self.native_local_busy().to_owned(),
             #[cfg(windows)]
-            NativeSessionNotice::MenuUnavailable => match self {
+            WorkbenchClientNotice::MenuUnavailable => match self {
                 Self::EnUs => "Menu action cancelled or unavailable · open the menu again".into(),
                 Self::ZhCn => "菜单动作已取消或不可用 · 请重新打开菜单".into(),
             },
-            NativeSessionNotice::NoTabAtPosition(position) => self.native_no_tab(position),
-            NativeSessionNotice::CreateNotCreated => self.native_create_not_created().to_owned(),
-            NativeSessionNotice::CreateOrderConflict => match self {
+            WorkbenchClientNotice::NoTabAtPosition(position) => self.native_no_tab(position),
+            WorkbenchClientNotice::CreateNotCreated => self.native_create_not_created().to_owned(),
+            WorkbenchClientNotice::CreateOrderConflict => match self {
                 Self::EnUs => "Cannot create an unpinned tab inside the pinned tabs".to_owned(),
                 Self::ZhCn => "无法在固定标签页之间创建未固定的标签页".to_owned(),
             },
-            NativeSessionNotice::DuplicatePending => match self {
+            WorkbenchClientNotice::DuplicatePending => match self {
                 Self::EnUs => "Duplicate tab added; terminal start is pending".into(),
                 Self::ZhCn => "已添加复制标签页；终端仍在启动中".into(),
             },
-            NativeSessionNotice::DuplicateNotStarted => match self {
+            WorkbenchClientNotice::DuplicateNotStarted => match self {
                 Self::EnUs => "Duplicate tab added; terminal did not start".into(),
                 Self::ZhCn => "已添加复制标签页；终端未能启动".into(),
             },
-            NativeSessionNotice::DuplicateOutcomeUnknown => match self {
+            WorkbenchClientNotice::DuplicateOutcomeUnknown => match self {
                 Self::EnUs => "Duplicate tab added; terminal start outcome is unknown".into(),
                 Self::ZhCn => "已添加复制标签页；终端启动结果未知".into(),
             },
-            NativeSessionNotice::CloseRequestNotApplied => match self {
+            WorkbenchClientNotice::CloseRequestNotApplied => match self {
                 Self::EnUs => "Close request was not applied".to_owned(),
                 Self::ZhCn => "关闭请求未执行".to_owned(),
             },
-            NativeSessionNotice::WorkspaceCloseUnavailable => match self {
+            WorkbenchClientNotice::WorkspaceCloseUnavailable => match self {
                 Self::EnUs => {
                     "Select a workspace to close"
                         .to_owned()
                 }
                 Self::ZhCn => "请选择要关闭的工作区".to_owned(),
             },
-            NativeSessionNotice::NoWorkspace => self.no_current_workspace().to_owned(),
-            NativeSessionNotice::RenameNotRenamed => match self {
+            WorkbenchClientNotice::NoWorkspace => self.no_current_workspace().to_owned(),
+            WorkbenchClientNotice::RenameNotRenamed => match self {
                 Self::EnUs => "Tab not renamed".to_owned(),
                 Self::ZhCn => "标签页未重命名".to_owned(),
             },
-            NativeSessionNotice::MoveNotMoved => match self {
+            WorkbenchClientNotice::MoveNotMoved => match self {
                 Self::EnUs => "Tab was not moved".to_owned(),
                 Self::ZhCn => "标签未移动".to_owned(),
             },
-            NativeSessionNotice::MoveOrderConflict => match self {
+            WorkbenchClientNotice::MoveOrderConflict => match self {
                 Self::EnUs => {
                     "Tab not moved: preserve pinned Tabs and contiguous groups".to_owned()
                 }
                 Self::ZhCn => "标签未移动：需保留固定标签前缀和分组连续性".to_owned(),
             },
-            NativeSessionNotice::PanelNotApplied => match self {
+            WorkbenchClientNotice::PanelNotApplied => match self {
                 Self::EnUs => "Panel operation was not applied".to_owned(),
                 Self::ZhCn => "面板操作未执行".to_owned(),
             },
-            NativeSessionNotice::ConfirmationCancelled => match self {
+            WorkbenchClientNotice::ConfirmationCancelled => match self {
                 Self::EnUs => "Close confirmation cancelled".to_owned(),
                 Self::ZhCn => "关闭确认已取消".to_owned(),
             },
-            NativeSessionNotice::DraftCancelled => match self {
+            WorkbenchClientNotice::DraftCancelled => match self {
                 Self::EnUs => "Draft cancelled".to_owned(),
                 Self::ZhCn => "草稿已取消".to_owned(),
             },
-            NativeSessionNotice::ModalOwnsInput => match self {
+            WorkbenchClientNotice::ModalOwnsInput => match self {
                 Self::EnUs => "Close the active dialog first".to_owned(),
                 Self::ZhCn => "请先关闭当前对话框".to_owned(),
             },
-            NativeSessionNotice::HistoryRecovering => match self {
+            WorkbenchClientNotice::HistoryRecovering => match self {
                 Self::EnUs => "Showing the latest output".to_owned(),
                 Self::ZhCn => "正在显示最新输出".to_owned(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::CommandAccepted => match self {
+            WorkbenchClientNotice::CommandAccepted => match self {
                 Self::EnUs => "Command accepted".into(),
                 Self::ZhCn => "命令已接受".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::CommandFailed => match self {
+            WorkbenchClientNotice::CommandFailed => match self {
                 Self::EnUs => "Command or focus failed; inspect result".into(),
                 Self::ZhCn => "命令或聚焦失败；请检查结果".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::CommandUnknown => match self {
+            WorkbenchClientNotice::CommandUnknown => match self {
                 Self::EnUs => "Outcome unknown; inspect before retry".into(),
                 Self::ZhCn => "结果不确定；请检查后再决定是否重试".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::CommandRefused(reason) => {
+            WorkbenchClientNotice::CommandRefused(reason) => {
                 use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
                 match (self, reason) {
                     (Self::EnUs, F::Denied) => "Denied by Session permissions",
@@ -1440,139 +1444,139 @@ impl Locale {
                 .into()
             }
             #[cfg(windows)]
-            NativeSessionNotice::LaunchProfileSelected => match self {
+            WorkbenchClientNotice::LaunchProfileSelected => match self {
                 Self::EnUs => "Launch profile".into(),
                 Self::ZhCn => "启动配置".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LaunchProfileUnavailable => match self {
+            WorkbenchClientNotice::LaunchProfileUnavailable => match self {
                 Self::EnUs => "Terminal not created · check profile in Settings".into(),
                 Self::ZhCn => "终端未创建 · 请在设置中检查启动配置".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LinkOpened => match self {
+            WorkbenchClientNotice::LinkOpened => match self {
                 Self::EnUs => "Link opened".into(),
                 Self::ZhCn => "链接已打开".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LinkHandled => match self {
+            WorkbenchClientNotice::LinkHandled => match self {
                 Self::EnUs => "Link sent to a plugin".into(),
                 Self::ZhCn => "链接已交给插件处理".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LinkNoLink => match self {
+            WorkbenchClientNotice::LinkNoLink => match self {
                 Self::EnUs => "No link at that cell".into(),
                 Self::ZhCn => "该单元格没有链接".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LinkBusy => match self {
+            WorkbenchClientNotice::LinkBusy => match self {
                 Self::EnUs => "Another link activation is still running".into(),
                 Self::ZhCn => "另一个链接仍在处理中".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LinkFailed => match self {
+            WorkbenchClientNotice::LinkFailed => match self {
                 Self::EnUs => "Link activation failed".into(),
                 Self::ZhCn => "链接打开失败".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::LinkUnknown => match self {
+            WorkbenchClientNotice::LinkUnknown => match self {
                 Self::EnUs => {
                     "Link activation outcome unknown · inspect before trying again".into()
                 }
                 Self::ZhCn => "链接处理结果不确定 · 请检查后再决定是否重试".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::PopupUnavailable => match self {
+            WorkbenchClientNotice::PopupUnavailable => match self {
                 Self::EnUs => {
                     "Popup connection or cleanup uncertain · restart the session before reopening"
                         .to_owned()
                 }
                 Self::ZhCn => "popup 连接或清理状态不确定 · 重启会话后再打开".to_owned(),
             },
-            NativeSessionNotice::HistoryUnavailable => match self {
+            WorkbenchClientNotice::HistoryUnavailable => match self {
                 Self::EnUs => "History is not available on this pane".to_owned(),
                 Self::ZhCn => "此窗格历史不可用".to_owned(),
             },
-            NativeSessionNotice::HistoryPositionLost => match self {
+            WorkbenchClientNotice::HistoryPositionLost => match self {
                 Self::EnUs => {
                     "Earlier output is no longer saved; showing the latest output".to_owned()
                 }
                 Self::ZhCn => "先前输出已不在保留范围，正在显示最新输出".to_owned(),
             },
-            NativeSessionNotice::SelectionEvicted => match self {
+            WorkbenchClientNotice::SelectionEvicted => match self {
                 Self::EnUs => "Selected rows are no longer available".to_owned(),
                 Self::ZhCn => "所选行已不可用".to_owned(),
             },
-            NativeSessionNotice::CopyFailed => match self {
+            WorkbenchClientNotice::CopyFailed => match self {
                 Self::EnUs => "Could not copy to the clipboard".to_owned(),
                 Self::ZhCn => "未能复制到剪贴板".to_owned(),
             },
-            NativeSessionNotice::CopyUnknown => match self {
+            WorkbenchClientNotice::CopyUnknown => match self {
                 Self::EnUs => "Clipboard delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认剪贴板投递结果".to_owned(),
             },
-            NativeSessionNotice::CopyModeUnavailable => match self {
+            WorkbenchClientNotice::CopyModeUnavailable => match self {
                 Self::EnUs => "Copy mode is not available on this pane".into(),
                 Self::ZhCn => "此窗格暂时无法进入复制模式".into(),
             },
-            NativeSessionNotice::CopyModeBusy => match self {
+            WorkbenchClientNotice::CopyModeBusy => match self {
                 Self::EnUs => "Copy mode is busy; wait before trying again".into(),
                 Self::ZhCn => "复制模式正在处理，请稍后再操作".into(),
             },
-            NativeSessionNotice::CopyModeInvalidated => match self {
+            WorkbenchClientNotice::CopyModeInvalidated => match self {
                 Self::EnUs => "Copy mode ended because its content or pane changed".into(),
                 Self::ZhCn => "内容或窗格已改变，复制模式已退出".into(),
             },
-            NativeSessionNotice::CopyModeQueryFailed => match self {
+            WorkbenchClientNotice::CopyModeQueryFailed => match self {
                 Self::EnUs => {
                     "Could not read matching content; try the motion or search again".into()
                 }
                 Self::ZhCn => "无法读取对应内容，请重新移动或搜索".into(),
             },
-            NativeSessionNotice::CopyModeNoMatch => match self {
+            WorkbenchClientNotice::CopyModeNoMatch => match self {
                 Self::EnUs => "No search match".into(),
                 Self::ZhCn => "没有搜索匹配项".into(),
             },
-            NativeSessionNotice::CopyModeSearchLimit => match self {
+            WorkbenchClientNotice::CopyModeSearchLimit => match self {
                 Self::EnUs => "Rejected search: invalid text or more than 512 characters".into(),
                 Self::ZhCn => "拒绝搜索：文本无效或超过 512 个字符".into(),
             },
-            NativeSessionNotice::CopyModeNoSelection => match self {
+            WorkbenchClientNotice::CopyModeNoSelection => match self {
                 Self::EnUs => "Start a selection with v or Space before copying".into(),
                 Self::ZhCn => "请先用 v 或空格开始选择，再复制".into(),
             },
-            NativeSessionNotice::BellFailed => match self {
+            WorkbenchClientNotice::BellFailed => match self {
                 Self::EnUs => "Could not forward the terminal bell".to_owned(),
                 Self::ZhCn => "未能转发终端响铃".to_owned(),
             },
-            NativeSessionNotice::BellUnknown => match self {
+            WorkbenchClientNotice::BellUnknown => match self {
                 Self::EnUs => "Terminal bell delivery could not be confirmed".to_owned(),
                 Self::ZhCn => "无法确认终端响铃投递结果".to_owned(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::PositionChanged => match self {
+            WorkbenchClientNotice::PositionChanged => match self {
                 Self::EnUs => {
                     "The saved Tab or pane is unavailable; showing the first available member.".into()
                 }
                 Self::ZhCn => "上次的标签页或面板已不可用；已打开首个可用成员。".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::PositionChangedEmpty => match self {
+            WorkbenchClientNotice::PositionChangedEmpty => match self {
                 Self::EnUs => "The saved Tab is unavailable; showing the empty Workspace.".into(),
                 Self::ZhCn => "上次的标签页已不可用；已打开原工作区的空视图。".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::PositionLocationChanged => match self {
+            WorkbenchClientNotice::PositionLocationChanged => match self {
                 Self::EnUs => "The saved location could not be restored; showing the first available Workspace.".into(),
                 Self::ZhCn => "无法恢复上次的位置；已打开首个可用工作区。".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::PositionLocationChangedEmpty => match self {
+            WorkbenchClientNotice::PositionLocationChangedEmpty => match self {
                 Self::EnUs => "The saved location could not be restored; showing an empty Workspace.".into(),
                 Self::ZhCn => "无法恢复上次的位置；已打开空工作区。".into(),
             },
             #[cfg(windows)]
-            NativeSessionNotice::PositionUnavailable => match self {
+            WorkbenchClientNotice::PositionUnavailable => match self {
                 Self::EnUs => {
                     "Position memory is unavailable; terminal tasks are still running.".into()
                 }
@@ -1652,34 +1656,34 @@ impl Locale {
     fn native_starting_status(
         self,
         label: Option<&str>,
-        projection: crate::terminal_session::NativeProjectionStatus,
+        projection: crate::workbench_client::NativeProjectionStatus,
     ) -> String {
         self.native_connection_status(
             label,
             projection,
-            crate::terminal_session::TerminalStatus::Connecting,
+            crate::workbench_client::TerminalStatus::Connecting,
         )
     }
 
     fn native_switching_status(
         self,
         label: Option<&str>,
-        projection: crate::terminal_session::NativeProjectionStatus,
+        projection: crate::workbench_client::NativeProjectionStatus,
     ) -> String {
         self.native_connection_status(
             label,
             projection,
-            crate::terminal_session::TerminalStatus::Unavailable,
+            crate::workbench_client::TerminalStatus::Unavailable,
         )
     }
 
     fn native_connection_status(
         self,
         label: Option<&str>,
-        projection: crate::terminal_session::NativeProjectionStatus,
-        missing_position: crate::terminal_session::TerminalStatus,
+        projection: crate::workbench_client::NativeProjectionStatus,
+        missing_position: crate::workbench_client::TerminalStatus,
     ) -> String {
-        use crate::terminal_session::NativeProjectionStatus;
+        use crate::workbench_client::NativeProjectionStatus;
 
         let Some(label) = label else {
             return self.terminal_status(missing_position).to_owned();
@@ -2014,9 +2018,9 @@ impl Locale {
     #[cfg(windows)]
     pub(crate) fn agent_start_phase(
         self,
-        phase: crate::terminal_session::AgentStartPhase,
+        phase: crate::workbench_client::AgentStartPhase,
     ) -> &'static str {
-        use crate::terminal_session::AgentStartPhase as Phase;
+        use crate::workbench_client::AgentStartPhase as Phase;
         let text = self.shell().board;
         match phase {
             Phase::Starting => text.start_starting,

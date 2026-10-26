@@ -1,6 +1,6 @@
 //! Bounded on-demand reads share the sampler thread and its sole uncertain-viewer cleanup owner.
 use super::{LocalTerminalService, ProcessObservationTarget, ScreenDetector, Wake};
-use crate::local_terminal_service::viewer_session::CapturedAgentExplanation;
+use crate::local_terminal_service::viewer_connection::CapturedAgentExplanation;
 use orchbee_agent_observation_protocol::AgentReportProvider;
 use orchbee_workbench_protocol::PanelAgentFailure as Failure;
 use std::{

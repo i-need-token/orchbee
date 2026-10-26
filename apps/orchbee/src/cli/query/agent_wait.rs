@@ -1,4 +1,4 @@
-//! `agent wait`: one held Client Session polls the canonical session
+//! `agent wait`: one held Client Connection polls the canonical session
 //! document under a single monotonic total deadline until a requested
 //! condition matches, the revision fence refuses, the session answer is
 //! terminal, or the budget lands. The whole loop runs inside the same
@@ -637,7 +637,7 @@ fn agent_wait_span(
             backoff = (backoff.saturating_mul(2)).min(WAIT_POLL_MAXIMUM);
         }
     };
-    // The held Client Session is fully dropped before the owner arbitrates.
+    // The held Client Connection is fully dropped before the owner arbitrates.
     drop(client);
     outcome
 }
@@ -789,7 +789,7 @@ fn wait_io_error(error: &AgentExchangeError) -> Option<&std::io::Error> {
             | AgentExchangeFailure::UnexpectedResponse
             | AgentExchangeFailure::CorrelationMismatch { .. } => None,
         },
-        AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => None,
+        AgentExchangeError::ConnectionUnavailable | AgentExchangeError::RequestEncoding(_) => None,
     }
 }
 

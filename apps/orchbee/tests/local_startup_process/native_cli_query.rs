@@ -169,16 +169,12 @@ pub(super) fn spawn_real_server_env(fixture: &Fixture, env: &[(&str, &Path)]) ->
     server
 }
 
-/// Admit one real OBLC Client Session against the live Server and hold it.
+/// Admit one real OBLC Client Connection against the live Server and hold it.
 /// `cohort` is an already-validated cohort identity: the frozen fixture
 /// cohort is verified once and lent to every admission instead of re-hashing
 /// the same immutable artifacts per session.
-pub(super) fn hold_session(
-    fixture: &Fixture,
-    cohort: &str,
-    deadline: Instant,
-) -> ClientSessionConnection {
-    ClientSessionConnection::connect_before(fixture.site().client_socket_path(), cohort, deadline)
+pub(super) fn hold_session(fixture: &Fixture, cohort: &str, deadline: Instant) -> ClientConnection {
+    ClientConnection::connect_before(fixture.site().client_socket_path(), cohort, deadline)
         .unwrap_or_else(|error| panic!("admit held session: {error}"))
 }
 
@@ -394,8 +390,8 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
     Ok(())
 }
 
-/// Thirty-two real admitted Client Sessions saturate the Server; the
-/// thirty-third query is refused with `session-capacity`, and a released slot
+/// Thirty-two real admitted Client Connections saturate the Server; the
+/// thirty-third query is refused with `connection-capacity`, and a released slot
 /// is usable again without assuming synchronous EOF teardown.
 #[test]
 fn cli_query_session_capacity_and_release_on_a_real_server() -> TestResult {
@@ -418,7 +414,7 @@ fn cli_query_session_capacity_and_release_on_a_real_server() -> TestResult {
     // The thirty-third session request — a real query — is refused at admission.
     let (output, failure) = run_json(&fixture, &["status", "--format", "json"]);
     assert_eq!(output.status.code(), Some(4));
-    assert_eq!(failure["failure"]["kind"], "session-capacity");
+    assert_eq!(failure["failure"]["kind"], "connection-capacity");
     assert_eq!(failure["failure"]["details"]["stage"], "admission");
 
     // Release one slot: the Server notices the disconnect on its own schedule

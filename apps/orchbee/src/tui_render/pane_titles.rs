@@ -1,7 +1,7 @@
 //! Framed panes title themselves on the frame or divider line above them, so a title never takes a
 //! terminal row. Titles paint after the focus outline, keeping a neighbor's title in its own color.
 use super::{
-    Frame, HitMapBuilder, Locale, NativeSessionView, NativeTabView, Rect, Role, ShellText, Theme,
+    Frame, HitMapBuilder, Locale, NativeTabView, Rect, Role, ShellText, Theme, WorkbenchClientView,
     controls::ControlSurface, presentation_selector::PresentationSelector,
 };
 #[cfg(not(windows))]
@@ -36,7 +36,7 @@ pub(super) fn paint(
     frame: &mut Frame<'_>,
     leaf: &LeafArea,
     title: &PaneTitle<'_>,
-    native: &NativeSessionView<'_>,
+    native: &WorkbenchClientView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
@@ -148,8 +148,8 @@ pub(super) fn paint(
 /// Custom and metadata titles win over the creation label; a numeric creation label keeps the
 /// localized Terminal prefix. Without room for the selector, a member still shows its position.
 fn name(
-    panel: &crate::terminal_session::NativePanel,
-    native: &NativeSessionView<'_>,
+    panel: &crate::workbench_client::NativePanel,
+    native: &WorkbenchClientView<'_>,
     text: ShellText<'_>,
     separator: &str,
     selector: bool,

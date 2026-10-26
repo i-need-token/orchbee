@@ -1,5 +1,5 @@
 use super::Locale;
-use crate::terminal_session::CompletionReminder;
+use crate::workbench_client::CompletionReminder;
 
 impl Locale {
     #[cfg(windows)]
@@ -67,9 +67,9 @@ impl Locale {
 
     pub(crate) fn terminal_launch_failure(
         self,
-        failure: crate::terminal_session::NativeLaunchFailure<'_>,
+        failure: crate::workbench_client::NativeLaunchFailure<'_>,
     ) -> String {
-        use crate::terminal_session::NativeLaunchProfile;
+        use crate::workbench_client::NativeLaunchProfile;
         let name = match (self, failure.profile) {
             (_, NativeLaunchProfile::Named(name)) => {
                 crate::terminal_text::sanitize_terminal_text(name)

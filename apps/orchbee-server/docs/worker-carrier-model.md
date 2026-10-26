@@ -9,7 +9,7 @@ counts under continuously enabled conditions, not wall-time guarantees.
 ## Roles and states
 
 One Worker generation owns one carrier. A single wire-owner thread serializes every exchange;
-at most one request is in flight (the single-writer invariant). Producers are Client Session
+at most one request is in flight (the single-writer invariant). Producers are Client Connection
 handler threads; each session has at most one outstanding request, so the producer count is
 bounded by the active-session bound (32).
 
@@ -58,7 +58,7 @@ waits with its own deadline instead of `submit`'s blocking receive.
 - Block-admit (high only) deposits the payload into `high_waiters` when the lane cannot accept
   it, then waits until the entry is transferred into `high` (admitted) or the queue closes.
   Waiters are bounded by blocked cleanup producers — at most one outstanding request per
-  Client Session, so ≤ 32 resident waiter payloads under the current session bound.
+  Client Connection, so ≤ 32 resident waiter payloads under the current session bound.
 
 ## Dispatch
 

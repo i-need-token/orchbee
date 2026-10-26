@@ -72,7 +72,7 @@ fn agent_view_receipts_have_closed_schema_status_and_localized_text() {
     });
     exchange.request.action = AgentViewAction::Read {};
     for (reason, status) in [
-        (MetadataExchangeReason::SessionUnavailable, 4),
+        (MetadataExchangeReason::ConnectionUnavailable, 4),
         (MetadataExchangeReason::Encoding, 1),
         (MetadataExchangeReason::Deadline, 7),
         (MetadataExchangeReason::NotSubmitted, 5),

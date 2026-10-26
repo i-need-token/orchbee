@@ -76,7 +76,7 @@ explicit action. [Native location labels](../../apps/orchbee/docs/native-locatio
 Project and Workspace rename controls while preserving retained terminals. Desktop migration
 remains separate work.
 
-The [explicit Session Viewer routing foundation](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record) adds
+The [explicit Session Viewer routing foundation](../../apps/orchbee-server/README.md#accepted-connection-viewer-routing-modeling-record) adds
 several viewers share one ordered Client Session, with exact attachment selection and independent
 frame and controller state. Its owner maintains the implementation and executable correctness case.
 Server-side Panel splitting and aggregate multi-terminal Tab Close now have accepted authority,

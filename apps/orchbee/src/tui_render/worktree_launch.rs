@@ -9,14 +9,14 @@ use super::{
     truncate_display,
 };
 use crate::client_view::{Binding, KeyCode, Modifiers};
-use crate::terminal_session::{
-    WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
-};
 use crate::terminal_text::sanitize_terminal_text;
 use crate::tui_pointer::{
     HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
 };
 use crate::tui_theme::Role;
+use crate::workbench_client::{
+    WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
+};
 use ratatui::text::{Span, Text};
 use unicode_segmentation::UnicodeSegmentation;
 

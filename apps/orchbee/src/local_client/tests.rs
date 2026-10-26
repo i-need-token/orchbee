@@ -31,7 +31,7 @@ use orchbee_local_ipc::{AsLocalIo, LocalIo, PollFlags};
 
 use super::agent::{AgentExchangeError, AgentExchangeFailure};
 use super::{
-    ClientSessionConnection, DeadlineIo, IoChunkLimits, LocalClient, LocalClientConnectError,
+    ClientConnection, DeadlineIo, IoChunkLimits, LocalClient, LocalClientConnectError,
     LocalOperationClock, MonotonicClock, OutcomeUnknownReason, ResultKind, SubmissionDeadline,
     SubmissionError, exchange_wake_fault, exchange_wake_ready,
 };
@@ -431,7 +431,7 @@ fn request_timeout_is_unknown_retires_the_session_and_never_resubmits() -> TestR
     assert_eq!(client.generation(), None);
     assert!(matches!(
         client.submit_terminal_create(deferred_create(SECOND_REQUEST_ID)?),
-        Err(SubmissionError::SessionUnavailable)
+        Err(SubmissionError::ConnectionUnavailable)
     ));
     server.finish()?;
     Ok(())
@@ -504,7 +504,7 @@ fn slow_trickle_read_exhausts_one_total_deadline_despite_progress() -> TestResul
     assert_eq!(client.generation(), None);
     assert!(matches!(
         client.submit_terminal_create(deferred_create(SECOND_REQUEST_ID)?),
-        Err(SubmissionError::SessionUnavailable)
+        Err(SubmissionError::ConnectionUnavailable)
     ));
     drop(client);
     server.finish()?;
@@ -555,7 +555,7 @@ fn slow_trickle_write_exhausts_one_total_deadline_after_partial_handoff() -> Tes
     assert_eq!(client.generation(), None);
     assert!(matches!(
         client.submit_terminal_create(deferred_create(SECOND_REQUEST_ID)?),
-        Err(SubmissionError::SessionUnavailable)
+        Err(SubmissionError::ConnectionUnavailable)
     ));
     drop(client);
     server.finish()?;
@@ -859,7 +859,7 @@ fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestRes
     ));
     assert!(matches!(
         client.submit_terminal_viewer(request),
-        Err(SubmissionError::SessionUnavailable)
+        Err(SubmissionError::ConnectionUnavailable)
     ));
     server.finish()?;
     Ok(())
@@ -1007,7 +1007,7 @@ fn viewer_accepts_the_extended_typed_outcomes_and_retires_on_a_wrong_pairing() -
     ));
     assert!(matches!(
         client.submit_terminal_viewer(request),
-        Err(SubmissionError::SessionUnavailable)
+        Err(SubmissionError::ConnectionUnavailable)
     ));
     server.finish()?;
     Ok(())
@@ -1458,7 +1458,7 @@ fn adjustable_clock_exposes_distinct_forward_and_cleanup_cutoffs() -> TestResult
 /// A `DeadlineIo` over the admitted connection plus a fresh deadline; the
 /// borrowed wake descriptor only joins the wait set.
 fn deadline_io<'a>(
-    connection: &'a mut ClientSessionConnection,
+    connection: &'a mut ClientConnection,
     clock: &'a LocalOperationClock,
     deadline: SubmissionDeadline,
     wake: Option<LocalIo<'a>>,
@@ -1789,7 +1789,7 @@ impl LocalClient {
         clock: Box<dyn MonotonicClock>,
         io_chunk_limits: IoChunkLimits,
     ) -> Result<Self, LocalClientConnectError> {
-        let connection = ClientSessionConnection::connect(endpoint, cohort)
+        let connection = ClientConnection::connect(endpoint, cohort)
             .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,

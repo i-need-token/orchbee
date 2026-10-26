@@ -42,9 +42,9 @@ fn notification_admission_checks_grants_site_and_session_drop_reclaims_inbox() {
             },
             terminals,
         );
-        let subscriber = service.client_session(NonZeroU64::new(1).unwrap());
-        let caller = service.client_session(NonZeroU64::new(2).unwrap());
-        let run = |session: &WorkbenchClientSession<'_>, site: SiteId, id: u64, action| {
+        let subscriber = service.client_connection(NonZeroU64::new(1).unwrap());
+        let caller = service.client_connection(NonZeroU64::new(2).unwrap());
+        let run = |session: &WorkbenchClientConnection<'_>, site: SiteId, id: u64, action| {
             let WorkbenchResponse::Notification(result) = response(session.execute(
                 WorkbenchRequest::Notification(NotificationRequest {
                     protocol_version: ProtocolVersion,

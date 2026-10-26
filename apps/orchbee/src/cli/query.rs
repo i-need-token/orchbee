@@ -270,12 +270,12 @@ const EMPTY_POLL_INTERVAL: Duration = Duration::from_millis(10);
 #[cfg(any(target_os = "linux", windows))]
 const WAIT_POLL_BACKOFF: Duration = Duration::from_millis(100);
 
-/// One admitted Client Session plus the shared network deadline every
+/// One admitted Client Connection plus the shared network deadline every
 /// request on it must finish before. The caller owns the session's drop.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     let (client, _deadline, snapshot) = snapshot_session()?;
-    // The Client Session is fully dropped before the snapshot is examined or
+    // The Client Connection is fully dropped before the snapshot is examined or
     // any output is prepared.
     drop(client);
     Ok(snapshot)
@@ -314,7 +314,7 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
     let outcome = client
         .submit_terminal_launch_read_before(request, deadline)
         .map_err(classify_launch_read);
-    // The Client Session is fully dropped before the answer is mapped into the
+    // The Client Connection is fully dropped before the answer is mapped into the
     // document or any output is prepared.
     drop(client);
     let result = outcome?;
@@ -393,7 +393,7 @@ fn read_terminal_on_session(
             },
         ),
     };
-    // The Client Session is fully dropped before the applied frame or the
+    // The Client Connection is fully dropped before the applied frame or the
     // history window is mapped into the bounded document or any output is
     // prepared.
     drop(client);
@@ -436,7 +436,7 @@ pub(crate) fn worktree_list(
     let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
     let source = super::results::snapshot_source(&snapshot);
     let outcome = worktree_list_exchange(&mut client, deadline, directory);
-    // The Client Session is fully dropped before the answer is mapped into
+    // The Client Connection is fully dropped before the answer is mapped into
     // the bounded document or any output is prepared.
     drop(client);
     outcome
@@ -592,7 +592,7 @@ pub(crate) fn workspace_close_status(
     let outcome = client
         .submit_workbench_workspace_close_read(request, None, deadline)
         .map_err(classify_close_status_read);
-    // The Client Session is fully dropped before the answer is mapped into
+    // The Client Connection is fully dropped before the answer is mapped into
     // the bounded document or any output is prepared.
     drop(client);
     outcome
@@ -646,7 +646,7 @@ fn classify_close_status_read(error: WorkbenchWorkspaceCloseReadError) -> Failur
     let failure = |kind| Failure::new(kind).failure_schema(super::schema::CLOSE_FAILURE_ID);
     match error {
         WorkbenchWorkspaceCloseReadError::NotSubmitted(reason) => match reason {
-            WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable
+            WorkbenchWorkspaceCloseNotSubmitted::ConnectionUnavailable
             | WorkbenchWorkspaceCloseNotSubmitted::RequestEncoding(_) => {
                 failure(FailureKind::InternalFailure)
             }
@@ -695,9 +695,8 @@ fn classify_worktree_read(error: WorktreeListReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     let failure = |kind| Failure::new(kind).failure_schema(super::schema::WORKTREE_FAILURE_ID);
     match error {
-        WorktreeListReadError::SessionUnavailable | WorktreeListReadError::RequestEncoding(_) => {
-            failure(FailureKind::InternalFailure)
-        }
+        WorktreeListReadError::ConnectionUnavailable
+        | WorktreeListReadError::RequestEncoding(_) => failure(FailureKind::InternalFailure),
         WorktreeListReadError::RequestNotSubmitted(_) => {
             failure(FailureKind::TransportLoss).details(stage_details("worktree-list"))
         }
@@ -749,7 +748,7 @@ pub(crate) fn launch_profile_catalog(
     let outcome = client
         .submit_workbench_launch_profile_catalog_read_before(request, deadline)
         .map_err(|error| classify_launch_profile_catalog_read(error).source(source.clone()));
-    // The Client Session is fully dropped before the answer is mapped into
+    // The Client Connection is fully dropped before the answer is mapped into
     // the bounded document or any output is prepared.
     drop(client);
     let result = outcome?;
@@ -851,7 +850,7 @@ fn classify_launch_profile_catalog_read(error: LaunchProfileCatalogReadError) ->
     let failure =
         |kind| Failure::new(kind).failure_schema(super::schema::LAUNCH_PROFILE_FAILURE_ID);
     match error {
-        LaunchProfileCatalogReadError::SessionUnavailable
+        LaunchProfileCatalogReadError::ConnectionUnavailable
         | LaunchProfileCatalogReadError::RequestEncoding(_) => {
             failure(FailureKind::InternalFailure)
         }
@@ -935,7 +934,7 @@ pub(crate) fn stream_snapshot(
     }
 }
 
-/// Reconnect through an already-admitted native Session origin and read one
+/// Reconnect through an already-admitted Workbench Client origin and read one
 /// fresh Snapshot under the caller's absolute deadline and cancellation wake.
 /// This is the TUI counterpart of `stream_snapshot`: it preserves tunnel and
 /// cohort identity instead of rediscovering the process-local Site.
@@ -2243,7 +2242,7 @@ fn wait_cleanup_details(
 #[cfg(any(target_os = "linux", windows))]
 pub(in crate::cli) fn classify_launch_read(error: SubmissionError) -> Failure {
     match error {
-        SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
+        SubmissionError::ConnectionUnavailable | SubmissionError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
         }
         SubmissionError::RequestNotSubmitted(_) => {
@@ -2268,7 +2267,7 @@ pub(in crate::cli) fn classify_launch_read(error: SubmissionError) -> Failure {
 #[cfg(any(target_os = "linux", windows))]
 pub(super) fn classify_viewer(error: SubmissionError) -> Failure {
     match error {
-        SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
+        SubmissionError::ConnectionUnavailable | SubmissionError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
         }
         SubmissionError::RequestNotSubmitted(_) => {
@@ -2381,9 +2380,8 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
                 Failure::new(FailureKind::TransportLoss).details(stage_details("admission"))
             }
             ConnectClientError::Rejected(reason) => match reason {
-                RejectionReason::CapacityExceeded => {
-                    Failure::new(FailureKind::SessionCapacity).details(stage_details("admission"))
-                }
+                RejectionReason::CapacityExceeded => Failure::new(FailureKind::ConnectionCapacity)
+                    .details(stage_details("admission")),
                 RejectionReason::HandshakeTimeout | RejectionReason::Stopping => {
                     Failure::new(FailureKind::ServiceUnavailable)
                         .details(stage_details("admission"))
@@ -2419,7 +2417,7 @@ pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectErr
 fn classify_read(error: SnapshotReadError) -> Failure {
     use orchbee_workbench_protocol::WorkbenchWireError;
     match error {
-        SnapshotReadError::SessionUnavailable | SnapshotReadError::RequestEncoding(_) => {
+        SnapshotReadError::ConnectionUnavailable | SnapshotReadError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
         }
         SnapshotReadError::RequestNotSubmitted(_) => {
@@ -2577,7 +2575,7 @@ impl AgentReadExchange for orchbee_agent_observation_protocol::AgentChangesReque
 /// One armed Agent read command: after grammar validation and request
 /// identity, the interruption guard arms before the synchronous preamble
 /// and owns SIGINT/SIGTERM for the whole `T0+5s` span; the borrowed wake
-/// descriptor joins every transport wait; the Client Session is dropped
+/// descriptor joins every transport wait; the Client Connection is dropped
 /// before the single `finish` arbitration; and no early return may bypass
 /// that arbitration once armed. `Clear` hands the raw attempt back for the
 /// normal classification; `Cancelled` answers the typed 130 family.
@@ -2678,7 +2676,7 @@ fn agent_span<Request: AgentReadExchange>(
         Err(failure) => return AgentAttempt::Target(failure),
     };
     let result = request.exchange(&mut client, total, wake);
-    // The Client Session is fully dropped before the owner arbitrates.
+    // The Client Connection is fully dropped before the owner arbitrates.
     drop(client);
     if agent_settle(total, operation).is_err() {
         return AgentAttempt::Expired;
@@ -2686,7 +2684,7 @@ fn agent_span<Request: AgentReadExchange>(
     AgentAttempt::Exchanged(result)
 }
 
-/// One admitted Client Session for an Agent observation read under the
+/// One admitted Client Connection for an Agent observation read under the
 /// caller's single absolute budget: the same cohort → discovery → socket →
 /// admission preamble as every network query, then one connect — each stage
 /// bounded by `total`, never a renewed budget. The wake descriptor joins
@@ -3059,7 +3057,7 @@ pub(in crate::cli) fn classify_agent_read(
     operation: AgentReadOperation,
 ) -> Failure {
     match error {
-        AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
+        AgentExchangeError::ConnectionUnavailable | AgentExchangeError::RequestEncoding(_) => {
             Failure::new(FailureKind::InternalFailure)
         }
         AgentExchangeError::RequestNotSubmitted(error) => {

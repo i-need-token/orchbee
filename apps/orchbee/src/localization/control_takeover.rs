@@ -1,5 +1,5 @@
 use super::Locale;
-use crate::terminal_session::TakeoverStatus;
+use crate::workbench_client::TakeoverStatus;
 use orchbee_client_server_protocol::RequestId;
 
 impl Locale {

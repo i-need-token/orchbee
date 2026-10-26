@@ -82,7 +82,7 @@ fn settings_lost_and_wrong_receipts_are_submitted_unknown_and_never_replayed() {
         assert!(!later.submitted);
         assert!(matches!(
             later.reason,
-            MetadataExchangeReason::SessionUnavailable
+            MetadataExchangeReason::ConnectionUnavailable
         ));
         server.finish().unwrap();
     }

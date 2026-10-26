@@ -313,7 +313,7 @@ fn exchange(
                 match error.reason {
                     E::Protocol | E::Correlation | E::Encoding => FailureKind::ProtocolInvalid,
                     E::Deadline | E::ResponseDeadline => FailureKind::Timeout,
-                    E::SessionUnavailable | E::NotSubmitted => FailureKind::ServiceUnavailable,
+                    E::ConnectionUnavailable | E::NotSubmitted => FailureKind::ServiceUnavailable,
                     _ => FailureKind::TransportLoss,
                 }
             })

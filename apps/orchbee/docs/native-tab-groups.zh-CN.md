@@ -172,6 +172,6 @@ unavailable／unknown、投影恢复及超时均停止剩余源。当前操作�
 
 所属实现测试覆盖组成员关系、固定顺序、复制来源身份、顺序回执/安装/Ready 屏障、取消以及拒绝后不自动重放。
 
-在 `src/terminal_session/state/tab_groups.rs`、`src/terminal_session/state/tab_duplication.rs`、`src/terminal_session/mailbox/tests/tab_duplication.rs`、`src/tui_pointer/tests/tab_groups.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/workbench_client/state/tab_groups.rs`、`src/workbench_client/state/tab_duplication.rs`、`src/workbench_client/mailbox/tests/tab_duplication.rs`、`src/tui_pointer/tests/tab_groups.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

@@ -1,7 +1,7 @@
 ---------------------- MODULE LocalTerminalCoordinator ----------------------
 EXTENDS Naturals, FiniteSets, TLC
 
-\* The coordinator refinement covers one deferred binding and two peer Sessions.
+\* The coordinator refinement covers one deferred binding and two peer Connections.
 \* Wire delivery and Worker/Host admission remain in LocalWorkerObcnCarrier and
 \* TerminalLaunchAuthorization. This model checks the Server reservation/commit
 \* boundary; geometry/capacity/codec details have deterministic runtime witnesses.

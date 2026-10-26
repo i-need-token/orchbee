@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_session::WorkspaceCloseToken;
+use crate::workbench_client::WorkspaceCloseToken;
 
 #[derive(Default)]
 struct SetupPort {
@@ -9,17 +9,17 @@ impl TerminalInputPort for SetupPort {
     fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         panic!("modal controls cannot forward terminal input");
     }
-    fn choose_setup_project(&mut self, _: crate::terminal_session::NativeSetupToken, index: usize) {
+    fn choose_setup_project(&mut self, _: crate::workbench_client::NativeSetupToken, index: usize) {
         self.decisions.push(ModalControl::Choice(index));
     }
     fn submit_setup_draft(
         &mut self,
-        _: crate::terminal_session::NativeSetupToken,
-    ) -> Option<crate::client_view::SessionActionDisposition> {
+        _: crate::workbench_client::NativeSetupToken,
+    ) -> Option<crate::client_view::ClientActionDisposition> {
         self.decisions.push(ModalControl::Submit);
         None
     }
-    fn cancel_setup_draft(&mut self, _: crate::terminal_session::NativeSetupToken) {
+    fn cancel_setup_draft(&mut self, _: crate::workbench_client::NativeSetupToken) {
         self.decisions.push(ModalControl::Cancel);
     }
 }
@@ -48,7 +48,7 @@ fn setup_choice_and_form_actions_resolve_the_painted_cell_on_matching_release() 
                 HitLayer::Overlay,
                 area,
                 HitTarget::Setup {
-                    token: crate::terminal_session::NativeSetupToken::for_test(7),
+                    token: crate::workbench_client::NativeSetupToken::for_test(7),
                     control,
                 },
                 InteractionAvailability::Enabled,
@@ -1011,7 +1011,7 @@ fn cancelled_form_control_cleanup_never_replays_its_semantic_target() {
         HitLayer::Overlay,
         area,
         HitTarget::Setup {
-            token: crate::terminal_session::NativeSetupToken::for_test(7),
+            token: crate::workbench_client::NativeSetupToken::for_test(7),
             control: ModalControl::Submit,
         },
         InteractionAvailability::Enabled,

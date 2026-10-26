@@ -1,4 +1,4 @@
-//! One real Windows metadata connection never becomes a Client Session or reconnects.
+//! One real Windows metadata connection never becomes a Client Connection or reconnects.
 #![cfg(windows)]
 use orchbee_local_client_protocol::{
     ClientHello, ConnectClientError, LocalClientMessage, RejectionReason, ServerMetadata,

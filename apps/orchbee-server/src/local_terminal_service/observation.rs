@@ -1,7 +1,7 @@
 //! Shared serial read-only observation; uncertain cleanup retains the Site's existing owner.
 use super::{
     LocalTerminalService,
-    viewer_session::{PendingCleanup, process_sampling::screen},
+    viewer_connection::{PendingCleanup, process_sampling::screen},
 };
 use crate::site_coordinator::ProcessObservationTarget;
 use std::sync::{Mutex, MutexGuard, atomic::AtomicBool};

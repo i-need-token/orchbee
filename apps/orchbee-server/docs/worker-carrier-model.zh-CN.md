@@ -8,7 +8,7 @@
 ## 角色与状态
 
 一个 Worker generation 对应一个载体。单个 wire-owner 线程串行全部交换；任一时刻至多一个
-在飞请求（single-writer 不变式）。生产者为 Client Session 处理线程；每个会话至多一个在途
+在飞请求（single-writer 不变式）。生产者为 Client Connection 处理线程；每个会话至多一个在途
 请求，故生产者数受活动会话上界（32）约束。
 
 载体队列是单个 `Mutex`+`Condvar` 单元，持有：
@@ -52,7 +52,7 @@ worker/generation 栅栏准入一个类型化 AgentDrain 请求，并返回 `Pen
   `Unavailable`；`Closed` 映射为 `Unavailable`。
 - block-admit（仅 high）在 lane 无法接纳时把载荷存入 `high_waiters`，随后等待该表项被
   移入 `high`（准入成功）或队列关闭。waiter 上界即阻塞 cleanup 生产者数——每个
-  Client Session 至多一个在途请求，故当前会话上界下驻留 waiter 载荷 ≤ 32。
+  Client Connection 至多一个在途请求，故当前会话上界下驻留 waiter 载荷 ≤ 32。
 
 ## 派发
 

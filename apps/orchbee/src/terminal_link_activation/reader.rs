@@ -8,7 +8,7 @@ use orchbee_workbench_protocol::{PluginInvocationContext, Snapshot};
 use crate::{
     local_client::LocalClient,
     terminal_buffer_text::TerminalTextPoint,
-    terminal_content::ReadSession as ContentReadSession,
+    terminal_content::ReadAttachment as ContentReader,
     terminal_link_activation::{Error, Guard, PaintedLinkSource, SnapshotMember, context},
     terminal_links::{self, LinkRead},
 };
@@ -22,11 +22,11 @@ pub(crate) struct Resolved {
 }
 
 /// Link-owned semantic wrapper around one shared temporary read-only attachment.
-pub(crate) struct ReadSession<'a, G: Guard> {
-    content: ContentReadSession<'a, G>,
+pub(crate) struct ReadAttachment<'a, G: Guard> {
+    content: ContentReader<'a, G>,
 }
 
-impl<'a, G: Guard> ReadSession<'a, G> {
+impl<'a, G: Guard> ReadAttachment<'a, G> {
     /// Reproduce the exact painted source through the shared independent reader.
     pub(crate) fn open(
         client: &'a mut LocalClient,
@@ -36,7 +36,7 @@ impl<'a, G: Guard> ReadSession<'a, G> {
         guard: &'a mut G,
     ) -> Result<Self, Error<G::Error>> {
         Ok(Self {
-            content: ContentReadSession::open(client, snapshot, source, deadline, guard)
+            content: ContentReader::open(client, snapshot, source, deadline, guard)
                 .map_err(Error::from)?,
         })
     }

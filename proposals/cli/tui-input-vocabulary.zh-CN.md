@@ -253,7 +253,7 @@ app 开启自己的 mouse reporting 时，其 viewport 内的拖拽属于该 app
   Server-semantic 结果仍按 at-most-once mutation 规则解析为恰好一个携带新 request
   identity 的 `workbench.command`。
 
-本提案不改变 `native-tab-session.md` 的 runtime 输入边界、确认绘制要求或任何 wire
+本提案不改变 `workbench-client-runtime.md` 的 runtime 输入边界、确认绘制要求或任何 wire
 schema。每个已接受切片在同一变更中更新所属 app 文档。
 
 ## 决策请求

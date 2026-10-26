@@ -14,7 +14,7 @@ use nix::{
     sys::socket::{Backlog, listen},
 };
 use orchbee_local_client_protocol::{
-    ClientHello, ClientSessionConnection, ConnectClientError, LocalClientMessage, ProtocolError,
+    ClientConnection, ClientHello, ConnectClientError, LocalClientMessage, ProtocolError,
     RejectionReason, read_message, write_message,
 };
 
@@ -29,11 +29,11 @@ fn invalid_cohort_and_expired_deadline_do_not_connect() -> TestResult {
     let listener = UnixListener::bind(&endpoint)?;
     listener.set_nonblocking(true)?;
     assert!(matches!(
-        ClientSessionConnection::connect_before(&endpoint, "", Instant::now()),
+        ClientConnection::connect_before(&endpoint, "", Instant::now()),
         Err(ConnectClientError::Protocol(ProtocolError::InvalidCohort))
     ));
     assert!(matches!(
-        ClientSessionConnection::connect_before(&endpoint, "test", Instant::now()),
+        ClientConnection::connect_before(&endpoint, "test", Instant::now()),
         Err(ConnectClientError::Io(error)) if error.kind() == io::ErrorKind::TimedOut
     ));
     assert_eq!(
@@ -69,7 +69,7 @@ fn accepted_deadline_connection_preserves_next_phase_and_blocking_mode() -> Test
         assert_eq!(&next, b"next");
         Ok(())
     });
-    let mut client = ClientSessionConnection::connect_before(
+    let mut client = ClientConnection::connect_before(
         &endpoint,
         "test",
         Instant::now() + Duration::from_secs(2),
@@ -118,7 +118,7 @@ fn silent_server_observes_candidate_eof_after_total_timeout() -> TestResult {
         );
         Ok(())
     });
-    let result = ClientSessionConnection::connect_before(
+    let result = ClientConnection::connect_before(
         &endpoint,
         "test",
         Instant::now() + Duration::from_millis(100),
@@ -163,7 +163,7 @@ fn invalid_responses_remain_typed_and_close_the_candidate() -> TestResult {
                 ))),
             }
         });
-        let result = ClientSessionConnection::connect_before(
+        let result = ClientConnection::connect_before(
             &endpoint,
             "test",
             Instant::now() + Duration::from_secs(1),
@@ -199,7 +199,7 @@ fn full_linux_unix_backlog_is_rejected_without_a_second_connection() -> TestResu
     let listener = UnixListener::bind(&endpoint)?;
     listen(&listener, Backlog::new(0)?)?;
     let _occupant = UnixStream::connect(&endpoint)?;
-    let result = ClientSessionConnection::connect_before(
+    let result = ClientConnection::connect_before(
         &endpoint,
         "test",
         Instant::now() + Duration::from_secs(1),
@@ -238,7 +238,7 @@ fn borrowed_wake_ends_a_held_admission_and_is_never_drained() -> TestResult {
         nix::unistd::write(&write_end, b"x")?;
         Ok(())
     });
-    let result = ClientSessionConnection::connect_before_cancellable(
+    let result = ClientConnection::connect_before_cancellable(
         &endpoint,
         "test",
         Instant::now() + Duration::from_secs(5),
@@ -273,7 +273,7 @@ fn a_preloaded_wake_wins_even_when_the_socket_is_ready() -> TestResult {
     });
     let (read_end, write_end) = nix::unistd::pipe()?;
     nix::unistd::write(&write_end, b"x")?;
-    let result = ClientSessionConnection::connect_before_cancellable(
+    let result = ClientConnection::connect_before_cancellable(
         &endpoint,
         "test",
         Instant::now() + Duration::from_secs(5),
@@ -302,7 +302,7 @@ fn a_faulted_wake_descriptor_is_a_source_fault_not_a_wake() -> TestResult {
     // A pipe write end with no readers reports POLLERR.
     let (read_end, write_end) = nix::unistd::pipe()?;
     drop(read_end);
-    let result = ClientSessionConnection::connect_before_cancellable(
+    let result = ClientConnection::connect_before_cancellable(
         &endpoint,
         "test",
         Instant::now() + Duration::from_secs(5),
@@ -339,7 +339,7 @@ fn a_none_wake_is_exactly_the_existing_admission() -> TestResult {
         stream.write_all(&bytes)?;
         Ok(())
     });
-    let client = ClientSessionConnection::connect_before_cancellable(
+    let client = ClientConnection::connect_before_cancellable(
         &endpoint,
         "test",
         Instant::now() + Duration::from_secs(2),
@@ -368,16 +368,12 @@ fn accept_candidate(listener: &UnixListener) -> io::Result<UnixStream> {
 fn only_pre_connection_absence_and_refusal_have_dial_failure_provenance() -> TestResult {
     let fixture = TestDirectory::new()?;
     let endpoint = fixture.path.join("client.sock");
-    assert!(
-        matches!(ClientSessionConnection::connect_before(&endpoint, "test",
+    assert!(matches!(ClientConnection::connect_before(&endpoint, "test",
         Instant::now() + Duration::from_secs(1)),
-        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::NotFound)
-    );
+        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::NotFound));
     drop(UnixListener::bind(&endpoint)?);
-    assert!(
-        matches!(ClientSessionConnection::connect_before(&endpoint, "test",
+    assert!(matches!(ClientConnection::connect_before(&endpoint, "test",
         Instant::now() + Duration::from_secs(1)),
-        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::ConnectionRefused)
-    );
+        Err(ConnectClientError::ConnectFailed(error)) if error.kind() == io::ErrorKind::ConnectionRefused));
     Ok(())
 }

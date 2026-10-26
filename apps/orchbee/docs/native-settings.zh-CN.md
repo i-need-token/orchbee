@@ -229,7 +229,7 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 
 [编辑器预览用例](../src/native_settings/tests/appearance.rs) 覆盖每个已准入键的
 精确单键保存补丁、冻结基线、子页面返回、重置、无效颜色输入、冲突投影、
-结果未知和轮次回收。[整帧用例](../src/terminal_session/ui/settings/tests/appearance.rs)
+结果未知和轮次回收。[整帧用例](../src/workbench_client/ui/settings/tests/appearance.rs)
 使用现有原生终端，经过真实 Shell 绘制边界，覆盖两种语言、80x24／120x40
 和真彩／256 色／16 色／单色能力。它们比较背景界面、默认与显式程序单元格、
 取消、外部更新和客户端遮盖捕获。这些确定性证据不证明剪贴板、通知、声音或

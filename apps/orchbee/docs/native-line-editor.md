@@ -2,14 +2,14 @@
 
 ## Scope and ownership
 
-The terminal session's rename, workspace-setup and Settings drafts share one pure single-line editor core
+The Workbench Client's rename, workspace-setup and Settings drafts share one pure single-line editor core
 at [`terminal_text/line_editor.rs`](../src/terminal_text/line_editor.rs). It
 covers the editing vocabulary the keyboard standard assigns to draft fields: insert (typed input
 and atomic paste share one path), Backspace, Delete, Left, Right, Home/Ctrl+A, End/Ctrl+E, Ctrl+W
 and Ctrl+U. Selection, undo history, Ctrl+K, and Up/Down remapping are outside this core; consumers
 leave unbound keys ignored rather than forwarding them.
 
-The editor is pure state — no I/O, clock, session mutation, terminal read, or ANSI parser.
+The editor is pure state — no I/O, clock, Client mutation, terminal read, or ANSI parser.
 Character admission stays with the typed-input boundary and each field's policy; the core never
 filters, normalizes, or rewrites supplied text. Prefill keeps protocol-legal bytes exact, including
 scalars the chrome projection cannot display, so a draft's original value and cancel path stay
@@ -45,7 +45,7 @@ snaps the mapped cursor to the visible grapheme boundary at or before it: stripp
 merge neighboring clusters. No raw prefix or mid-sequence slice is parsed independently.
 
 For rename and workspace setup,
-[`field_window(editor, field_width)`](../src/terminal_session/state/field_window.rs) chooses a window
+[`field_window(editor, field_width)`](../src/workbench_client/state/field_window.rs) chooses a window
 over the _visible_ text by whole grapheme clusters. The returned window is the
 drawable text plus the cursor column strictly inside the field width; a zero-width field yields
 `None` rather than a fake position, and a cluster wider than the remaining space is never split.

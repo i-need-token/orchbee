@@ -240,7 +240,7 @@ fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
 #[test]
 fn directory_actions_only_replace_a_live_empty_panel() {
     use crate::client_view::{ClientAction, PrefixAction, PrefixDesc};
-    use crate::terminal_session::NativeDisplayPhase as Phase;
+    use crate::workbench_client::NativeDisplayPhase as Phase;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for phase in [
             Phase::Starting,
@@ -281,7 +281,7 @@ fn directory_actions_only_replace_a_live_empty_panel() {
 #[test]
 fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_owner() {
     use super::*;
-    use crate::{client_view::ClientView, terminal_session::NativeDisplayPhase, tui_theme::Theme};
+    use crate::{client_view::ClientView, tui_theme::Theme, workbench_client::NativeDisplayPhase};
     use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
 
     let mut client = ClientView::new(100);
@@ -331,7 +331,7 @@ fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_o
     .unwrap();
     let visible = draw(&ready, true);
     assert!(visible.contains("Directory: C:/workspace"));
-    assert!(visible.contains("Ctrl+a c Create a Tab (requires session)"));
+    assert!(visible.contains("Ctrl+a c Create a Tab (requires connection)"));
     assert!(!visible.contains("Ctrl+B c"));
 
     let needed =

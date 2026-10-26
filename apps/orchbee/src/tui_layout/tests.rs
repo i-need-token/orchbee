@@ -4,7 +4,7 @@ use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 
-use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
+use crate::{client_view::SidebarSurface, workbench_client::NativePanelTree};
 
 use super::{
     LeafArea, PaneFrame, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,

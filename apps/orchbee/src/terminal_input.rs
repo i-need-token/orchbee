@@ -1,17 +1,17 @@
-use crate::client_view::{ClientAction, ClientKey, ClientView, SessionActionDisposition};
+use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey, ClientView};
+use crate::tui_composition::{NativeCaptureClaims, NativeCaptureOwner};
 #[cfg(any(not(windows), test))]
-use crate::terminal_session::NativeContextLocation;
-use crate::terminal_session::{
+use crate::workbench_client::NativeContextLocation;
+use crate::workbench_client::{
     NativeCaptureContext, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit,
     NativeSetupToken,
 };
-use crate::tui_composition::{NativeCaptureClaims, NativeCaptureOwner};
 use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
 use orchbee_workbench_protocol::WorkbenchTabId;
 
 #[cfg(windows)]
-use crate::terminal_session::{WorktreeEdit, WorktreeToken};
+use crate::workbench_client::{WorktreeEdit, WorktreeToken};
 
 mod decoder;
 #[cfg(windows)]
@@ -156,7 +156,7 @@ pub(crate) struct PointerPane {
     pub(crate) right_click_reporting: bool,
     pub(crate) right_click: orchbee_workbench_protocol::PanelRightClickTarget,
     /// The record's exact incarnation (logical pane + incarnation).
-    pub(crate) record: crate::terminal_session::state::PaneRef,
+    pub(crate) record: crate::workbench_client::state::PaneRef,
     /// The record's attachment is live for this incarnation.
     pub(crate) attached: bool,
     /// The record's controller mode once known: `Some(true)` admits input
@@ -182,10 +182,10 @@ pub(crate) struct PointerProbe {
     /// The focus pane's exact live incarnation — `None` when the focus
     /// pane departed or has no record. Compared bit for bit with a
     /// gesture's recorded target.
-    pub(crate) focus: Option<crate::terminal_session::state::PaneRef>,
+    pub(crate) focus: Option<crate::workbench_client::state::PaneRef>,
     /// The selection's desired pane key — its anchor names the active tab
     /// for stale-map edge resolution.
-    pub(crate) desired: Option<crate::terminal_session::state::PaneKey>,
+    pub(crate) desired: Option<crate::workbench_client::state::PaneKey>,
     /// Per-leaf live facts for every pane record, keyed by exact
     /// incarnation — the pending settler looks up its recorded target.
     pub(crate) panes: Vec<PointerPane>,
@@ -216,7 +216,7 @@ pub(crate) struct PointerProbe {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PointerUnboundPane {
-    pub(crate) key: crate::terminal_session::state::PaneKey,
+    pub(crate) key: crate::workbench_client::state::PaneKey,
     pub(crate) presentation: orchbee_workbench_protocol::TerminalPresentationId,
 }
 
@@ -377,7 +377,7 @@ pub(crate) trait TerminalInputPort {
     #[cfg(windows)]
     fn activate_drawn_popup_close(
         &mut self,
-        _target: &crate::terminal_session::DrawnPopupClose,
+        _target: &crate::workbench_client::DrawnPopupClose,
     ) -> bool {
         false
     }
@@ -402,9 +402,9 @@ pub(crate) trait TerminalInputPort {
 
     fn activate_drawn_presentation(
         &mut self,
-        _target: &crate::terminal_session::DrawnPresentationTarget,
-    ) -> SessionActionDisposition {
-        SessionActionDisposition::KeepNavigator
+        _target: &crate::workbench_client::DrawnPresentationTarget,
+    ) -> ClientActionDisposition {
+        ClientActionDisposition::KeepNavigator
     }
 
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.
@@ -440,7 +440,7 @@ pub(crate) trait TerminalInputPort {
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,
         _tab: &orchbee_workbench_protocol::WorkbenchTabId,
-    ) -> Option<SessionActionDisposition> {
+    ) -> Option<ClientActionDisposition> {
         None
     }
 
@@ -505,7 +505,7 @@ pub(crate) trait TerminalInputPort {
     /// later steps after a start was admitted. The default is closed.
     fn pointer_selection(
         &mut self,
-        _pane: &crate::terminal_session::state::PaneRef,
+        _pane: &crate::workbench_client::state::PaneRef,
         _intent: PointerSelectionIntent,
     ) -> PointerSelectionAdmission {
         PointerSelectionAdmission::Rejected
@@ -522,7 +522,7 @@ pub(crate) trait TerminalInputPort {
         PointerLinkAdmission::Rejected
     }
 
-    fn apply_client_action(&mut self, _action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, _action: ClientAction) -> Option<ClientActionDisposition> {
         None
     }
 
@@ -582,14 +582,14 @@ pub(crate) trait TerminalInputPort {
     /// Whether a wheel notch over `key` is consumed by that pane's
     /// non-Live history core (three rows per notch). The pointer layer
     /// only calls this for the exact focus incarnation it already probed.
-    fn history_wheel(&mut self, _key: &crate::terminal_session::state::PaneRef, _up: bool) -> bool {
+    fn history_wheel(&mut self, _key: &crate::workbench_client::state::PaneRef, _up: bool) -> bool {
         false
     }
 
     /// Revalidates the exact painted source before admitting a bounded tail jump.
     fn scrollbar_scroll(
         &mut self,
-        _key: &crate::terminal_session::state::PaneRef,
+        _key: &crate::workbench_client::state::PaneRef,
         _source: crate::terminal_scrollbar::ScrollbarSnapshot,
         _offset: u32,
     ) -> bool {
@@ -603,7 +603,7 @@ pub(crate) trait TerminalInputPort {
 
     fn capture_tab_confirmation_key_for(
         &mut self,
-        _token: crate::terminal_session::NativeCloseConfirmationToken,
+        _token: crate::workbench_client::NativeCloseConfirmationToken,
         _key: ClientKey,
     ) -> bool {
         false
@@ -611,7 +611,7 @@ pub(crate) trait TerminalInputPort {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        _token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        _token: crate::workbench_client::NativePanelCloseConfirmationToken,
         _key: ClientKey,
     ) -> bool {
         false
@@ -619,7 +619,7 @@ pub(crate) trait TerminalInputPort {
 
     fn capture_workspace_confirmation_key_for(
         &mut self,
-        _token: crate::terminal_session::WorkspaceCloseToken,
+        _token: crate::workbench_client::WorkspaceCloseToken,
         _key: ClientKey,
     ) -> bool {
         false
@@ -628,28 +628,28 @@ pub(crate) trait TerminalInputPort {
     /// A completed click on an exact, fully painted Workspace/Project close decision.
     fn click_tab_close(
         &mut self,
-        _token: crate::terminal_session::NativeCloseConfirmationToken,
+        _token: crate::workbench_client::NativeCloseConfirmationToken,
         _confirm: bool,
     ) {
     }
 
     fn click_panel_close(
         &mut self,
-        _token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        _token: crate::workbench_client::NativePanelCloseConfirmationToken,
         _confirm: bool,
     ) {
     }
 
     fn click_workspace_close(
         &mut self,
-        _token: crate::terminal_session::WorkspaceCloseToken,
+        _token: crate::workbench_client::WorkspaceCloseToken,
         _confirm: bool,
     ) {
     }
 
     fn capture_agent_board_key_for(
         &mut self,
-        _episode: crate::terminal_session::AgentBoardEpisodeToken,
+        _episode: crate::workbench_client::AgentBoardEpisodeToken,
         _key: crate::client_view::KeyEvent,
     ) -> bool {
         false
@@ -659,22 +659,22 @@ pub(crate) trait TerminalInputPort {
     /// identity, never by position.
     fn agent_board_select(
         &mut self,
-        _target: &crate::terminal_session::AgentBoardRowTarget,
+        _target: &crate::workbench_client::AgentBoardRowTarget,
     ) -> bool {
         false
     }
 
     fn scroll_agent_board(
         &mut self,
-        _token: &crate::terminal_session::AgentBoardToken,
+        _token: &crate::workbench_client::AgentBoardToken,
         _up: bool,
         _lines: usize,
-    ) -> Option<crate::terminal_session::AgentBoardToken> {
+    ) -> Option<crate::workbench_client::AgentBoardToken> {
         None
     }
     fn click_agent_board_control(
         &mut self,
-        _target: &crate::terminal_session::AgentBoardControlTarget,
+        _target: &crate::workbench_client::AgentBoardControlTarget,
     ) -> bool {
         false
     }
@@ -697,7 +697,7 @@ pub(crate) trait TerminalInputPort {
     fn submit_rename_draft(
         &mut self,
         _token: NativeRenameDraftToken,
-    ) -> Option<SessionActionDisposition> {
+    ) -> Option<ClientActionDisposition> {
         None
     }
 
@@ -733,7 +733,7 @@ pub(crate) trait TerminalInputPort {
 
     fn cancel_setup_draft(&mut self, _token: NativeSetupToken) {}
 
-    fn submit_setup_draft(&mut self, _token: NativeSetupToken) -> Option<SessionActionDisposition> {
+    fn submit_setup_draft(&mut self, _token: NativeSetupToken) -> Option<ClientActionDisposition> {
         None
     }
 

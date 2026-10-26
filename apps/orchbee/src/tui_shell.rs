@@ -115,7 +115,7 @@ trait InputSource {
     fn next_input_or_wakeup(
         &mut self,
         timeout: Duration,
-        wakeup: &crate::terminal_session::UiWakeup,
+        wakeup: &crate::workbench_client::UiWakeup,
     ) -> io::Result<Option<Vec<u8>>> {
         self.next_input(if wakeup.take() {
             Duration::ZERO
@@ -162,7 +162,7 @@ impl InputSource for InheritedInputSource {
     fn next_input_or_wakeup(
         &mut self,
         timeout: Duration,
-        wakeup: &crate::terminal_session::UiWakeup,
+        wakeup: &crate::workbench_client::UiWakeup,
     ) -> io::Result<Option<Vec<u8>>> {
         self.terminal.next_input_until(timeout, || wakeup.take())
     }
@@ -258,7 +258,7 @@ fn run_with_client(
                     })
                     .map_err(TuiFailure::Runtime)?;
             Box::new(
-                crate::terminal_session::TerminalSession::start(client, geometry)
+                crate::workbench_client::WorkbenchClient::start(client, geometry)
                     .map_err(TuiFailure::Runtime)?,
             )
         }
@@ -280,7 +280,7 @@ pub(crate) fn run_prepared(
     locale: Locale,
     inherited: InheritedTerminal,
     dimensions: WindowDimensions,
-    session: crate::terminal_session::TerminalSession,
+    workbench_client: crate::workbench_client::WorkbenchClient,
     mouse: bool,
     notice: Option<crate::client_view::Notice>,
 ) -> Result<(), TuiFailure> {
@@ -288,7 +288,7 @@ pub(crate) fn run_prepared(
         locale,
         inherited,
         dimensions,
-        Box::new(session),
+        Box::new(workbench_client),
         mouse,
         notice,
         true,
@@ -304,10 +304,10 @@ fn run_prepared_surface(
     notice: Option<crate::client_view::Notice>,
     server_configuration: bool,
 ) -> Result<(), TuiFailure> {
-    let measurement_session =
-        measurement::Session::open(std::env::var_os("ORCHBEE_TUI_MEASUREMENTS"), locale)
+    let measurement_recorder =
+        measurement::Recorder::open(std::env::var_os("ORCHBEE_TUI_MEASUREMENTS"), locale)
             .map_err(TuiFailure::Runtime)?;
-    let measurements = measurement_session.measurements();
+    let measurements = measurement_recorder.measurements();
     #[cfg(not(windows))]
     let _ = server_configuration;
     #[cfg(windows)]
@@ -485,7 +485,7 @@ fn run_prepared_surface(
     drop(system_notifications);
     drop(terminal);
     drop(surface);
-    measurement_session
+    measurement_recorder
         .finish_after_restore(
             run_result.map(|_| ()),
             || {
@@ -517,10 +517,10 @@ struct Chrome<'a> {
 fn frame_appearance(
     view: &ClientView,
     chrome: Chrome<'_>,
-    session: Option<crate::terminal_session::TerminalSessionView<'_>>,
+    workbench_client: Option<crate::workbench_client::WorkbenchClientView<'_>>,
 ) -> (crate::tui_theme::Theme, Locale) {
-    let preview = match session.as_ref() {
-        Some(crate::terminal_session::TerminalSessionView::Native(native))
+    let preview = match workbench_client.as_ref() {
+        Some(native)
             if crate::tui_composition::project_capture(
                 client_capture_claims(view),
                 native.capture_claims(),
@@ -647,7 +647,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     mut view: ClientView,
 ) -> Result<LoopCompletion, LoopFailure<B::Error>> {
     let mut dispatcher = InputDispatcher::default();
-    let wakeup = crate::terminal_session::UiWakeup::current();
+    let wakeup = crate::workbench_client::UiWakeup::current();
     surface.active().set_ui_wakeup(Some(wakeup.clone()));
     let result = (|| {
         let (inputs, mode) = input_runtime;
@@ -771,7 +771,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             #[cfg(windows)]
             {
                 let board_animates = match terminal_input.view() {
-                    Some(crate::terminal_session::TerminalSessionView::Native(native)) => native.agent_board().is_some_and(|board| {
+                    Some(native) => native.agent_board().is_some_and(|board| {
                         board.rows().iter().any(|row| matches!(row.status(), orchbee_agent_observation_protocol::AgentSemanticStatus::Working { .. } | orchbee_agent_observation_protocol::AgentSemanticStatus::NeedsAttention { .. }))
                     }),
                     _ => false,
@@ -1063,9 +1063,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     surface.observe_client_viewport(view, terminal.get_frame().area());
     let capture_owner = {
         let native_claims = match surface.view() {
-            Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
-                native.capture_claims()
-            }
+            Some(native) => native.capture_claims(),
             _ => crate::tui_composition::NativeCaptureClaims::default(),
         };
         crate::tui_composition::project_capture(client_capture_claims(view), native_claims)
@@ -1080,7 +1078,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         return Ok(false);
     }
     let mut notification_painted = false;
-    let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+    let mut receipt = crate::workbench_client::NativeDrawReceipt::default();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     #[cfg(windows)]
     let preview = if capture_owner.is_none() {
@@ -1215,7 +1213,7 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.
         surface.graphics_covered();
-        surface.after_close_draw(crate::terminal_session::NativeDrawReceipt::default());
+        surface.after_close_draw(crate::workbench_client::NativeDrawReceipt::default());
         return Ok(pointer_projection_redraw);
     }
     if notification_painted {
@@ -1340,14 +1338,12 @@ fn observe_surface_geometry(
     );
     #[cfg(not(windows))]
     let resize = resize.0;
-    let mut session_view = terminal_input.view();
-    if let Some(crate::terminal_session::TerminalSessionView::Native(native)) =
-        session_view.as_mut()
-    {
+    let mut client_view = terminal_input.view();
+    if let Some(native) = client_view.as_mut() {
         native.set_resize_projection(&resize);
     }
-    match session_view {
-        Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
+    match client_view {
+        Some(native) => {
             let panes = pane_geometries(*dimensions, view, &native)?;
             let presentable = crate::tui_layout::project_shell_areas(
                 to_area(*dimensions),
@@ -1390,7 +1386,7 @@ fn observe_surface_geometry(
             }
         }
         _ => {
-            let geometry = terminal_geometry(*dimensions, view, session_view)?;
+            let geometry = terminal_geometry(*dimensions, view, client_view)?;
             if let Some(geometry) = geometry {
                 terminal_input.observe_geometry(geometry);
             }
@@ -1410,16 +1406,14 @@ fn observe_surface_geometry(
 pub(crate) fn terminal_geometry(
     dimensions: WindowDimensions,
     view: &ClientView,
-    session: Option<crate::terminal_session::TerminalSessionView<'_>>,
+    workbench_client: Option<crate::workbench_client::WorkbenchClientView<'_>>,
 ) -> io::Result<Option<orchbee_client_server_protocol::Geometry>> {
-    let sidebar = match session.as_ref() {
-        Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
-            native.sidebar_surface(view.sidebar_surface())
-        }
+    let sidebar = match workbench_client.as_ref() {
+        Some(native) => native.sidebar_surface(view.sidebar_surface()),
         _ => view.sidebar_surface(),
     };
     let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), sidebar);
-    let Some(area) = active_pane_area(&areas, session) else {
+    let Some(area) = active_pane_area(&areas, workbench_client) else {
         return Ok(None);
     };
     let (width, height) = match (
@@ -1448,16 +1442,15 @@ pub(crate) fn terminal_geometry(
 /// returned rect.
 pub(crate) fn active_pane_area(
     areas: &crate::tui_layout::ShellAreas,
-    session: Option<crate::terminal_session::TerminalSessionView<'_>>,
+    workbench_client: Option<crate::workbench_client::WorkbenchClientView<'_>>,
 ) -> Option<Rect> {
-    use crate::terminal_session::TerminalSessionView;
     if areas.tier == crate::tui_layout::ViewportTier::TooSmall {
         return None;
     }
     let framed = areas.tier.shows_panel_frame();
     let content = crate::tui_layout::terminal_area(areas.panel, framed);
-    let native = match session {
-        Some(TerminalSessionView::Native(native)) => native,
+    let native = match workbench_client {
+        Some(native) => native,
         None => return (!content.is_empty()).then_some(content),
     };
     let tab = native
@@ -1490,7 +1483,7 @@ pub(crate) fn active_pane_area(
 pub(crate) fn pane_geometries(
     dimensions: WindowDimensions,
     view: &ClientView,
-    native: &crate::terminal_session::NativeSessionView<'_>,
+    native: &crate::workbench_client::WorkbenchClientView<'_>,
 ) -> io::Result<
     Vec<(
         orchbee_workbench_protocol::WorkbenchPanelId,
@@ -1586,21 +1579,21 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn navigate_agent(
         &mut self,
         _target: &crate::machine_agents::Target,
-    ) -> crate::terminal_session::ContextNavigationAdmission {
-        crate::terminal_session::ContextNavigationAdmission::Unavailable
+    ) -> crate::workbench_client::ContextNavigationAdmission {
+        crate::workbench_client::ContextNavigationAdmission::Unavailable
     }
     #[cfg(windows)]
     fn navigate_context(
         &mut self,
-        _target: &crate::terminal_session::NativeContextTarget,
-    ) -> crate::terminal_session::ContextNavigationAdmission {
-        crate::terminal_session::ContextNavigationAdmission::Unavailable
+        _target: &crate::workbench_client::NativeContextTarget,
+    ) -> crate::workbench_client::ContextNavigationAdmission {
+        crate::workbench_client::ContextNavigationAdmission::Unavailable
     }
-    fn set_ui_wakeup(&mut self, _wakeup: Option<crate::terminal_session::UiWakeup>) {}
+    fn set_ui_wakeup(&mut self, _wakeup: Option<crate::workbench_client::UiWakeup>) {}
     fn next_poll_delay(&self) -> Option<Duration> {
         None
     }
-    /// The attached Site published an Agent change; session-owned Agent reads start early.
+    /// The attached Site published an Agent change; Client-owned Agent reads start early.
     fn expedite_agent_reads(&mut self) {}
     #[cfg(windows)]
     fn observe_client_viewport(&mut self, _view: &ClientView, _viewport: Rect) {}
@@ -1624,7 +1617,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn resume_machine(&mut self, _focus: Option<bool>) {}
 
     #[cfg(windows)]
-    fn retained_frame_bank(&self) -> Option<crate::terminal_session::RetainedFrameBank> {
+    fn retained_frame_bank(&self) -> Option<crate::workbench_client::RetainedFrameBank> {
         None
     }
 
@@ -1669,7 +1662,7 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     ) -> io::Result<()> {
         Ok(())
     }
-    fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {}
+    fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {}
     #[cfg(windows)]
     fn graphics_covered(&mut self) {}
     fn observe_panes(
@@ -1681,27 +1674,27 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         )],
     ) {
     }
-    fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
+    fn view(&self) -> Option<crate::workbench_client::WorkbenchClientView<'_>> {
         None
     }
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
-impl TerminalSurface for crate::terminal_session::TerminalSession {
+impl TerminalSurface for crate::workbench_client::WorkbenchClient {
     #[cfg(windows)]
     fn navigate_agent(
         &mut self,
         target: &crate::machine_agents::Target,
-    ) -> crate::terminal_session::ContextNavigationAdmission {
+    ) -> crate::workbench_client::ContextNavigationAdmission {
         self.navigate_agent(target)
     }
     #[cfg(windows)]
     fn navigate_context(
         &mut self,
-        target: &crate::terminal_session::NativeContextTarget,
-    ) -> crate::terminal_session::ContextNavigationAdmission {
+        target: &crate::workbench_client::NativeContextTarget,
+    ) -> crate::workbench_client::ContextNavigationAdmission {
         self.navigate_context(target)
     }
-    fn set_ui_wakeup(&mut self, wakeup: Option<crate::terminal_session::UiWakeup>) {
+    fn set_ui_wakeup(&mut self, wakeup: Option<crate::workbench_client::UiWakeup>) {
         self.set_ui_wakeup(wakeup);
     }
     fn next_poll_delay(&self) -> Option<Duration> {
@@ -1750,27 +1743,27 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
         self.resume_machine(focus);
     }
     #[cfg(windows)]
-    fn retained_frame_bank(&self) -> Option<crate::terminal_session::RetainedFrameBank> {
+    fn retained_frame_bank(&self) -> Option<crate::workbench_client::RetainedFrameBank> {
         self.retained_frame_bank()
     }
     #[cfg(windows)]
     fn reusable_machine(&self) -> bool {
         // A canonical placeholder is a usable workspace, despite having no
         // attached terminal. Preserve it when revisiting the cached machine.
-        if let crate::terminal_session::TerminalSessionView::Native(view) = self.view()
-            && view.retirement().is_none()
+        let view = self.view();
+        if view.retirement().is_none()
             && matches!(
                 view.phase(),
-                crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
-                    | crate::terminal_session::NativeDisplayPhase::RetryableAttachUnavailable
+                crate::workbench_client::NativeDisplayPhase::SelectedWithoutAttachment
+                    | crate::workbench_client::NativeDisplayPhase::RetryableAttachUnavailable
             )
         {
             return true;
         }
         !matches!(
             self.status(),
-            crate::terminal_session::TerminalStatus::Unavailable
-                | crate::terminal_session::TerminalStatus::OutcomeUnknown
+            crate::workbench_client::TerminalStatus::Unavailable
+                | crate::workbench_client::TerminalStatus::OutcomeUnknown
         )
     }
     fn client_control_tick(
@@ -1798,7 +1791,7 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
         &mut self,
         claims: crate::tui_composition::ClientCaptureClaims,
     ) -> bool {
-        crate::terminal_session::TerminalSession::tick_with_client_capture(self, claims)
+        crate::workbench_client::WorkbenchClient::tick_with_client_capture(self, claims)
     }
     fn after_draw(&mut self) {
         self.after_draw()
@@ -1822,14 +1815,14 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     ) {
         self.observe_panes(panes)
     }
-    fn after_close_draw(&mut self, receipt: crate::terminal_session::NativeDrawReceipt) {
+    fn after_close_draw(&mut self, receipt: crate::workbench_client::NativeDrawReceipt) {
         self.after_close_draw(receipt)
     }
     #[cfg(windows)]
     fn graphics_covered(&mut self) {
         self.graphics_covered();
     }
-    fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
+    fn view(&self) -> Option<crate::workbench_client::WorkbenchClientView<'_>> {
         Some(self.view())
     }
 }

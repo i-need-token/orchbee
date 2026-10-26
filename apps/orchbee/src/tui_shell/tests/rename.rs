@@ -2,7 +2,7 @@ use super::*;
 use std::time::Instant;
 
 pub(crate) fn run_native_rename_resize(
-    session: &mut crate::terminal_session::TerminalSession,
+    session: &mut crate::workbench_client::WorkbenchClient,
 ) -> io::Result<Vec<bool>> {
     struct TimedInput {
         now: Instant,

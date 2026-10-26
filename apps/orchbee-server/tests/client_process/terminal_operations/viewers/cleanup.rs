@@ -86,8 +86,8 @@ fn acquire_peer(
 }
 
 #[test]
-fn two_viewer_session_rejects_unowned_routes_locally_and_cleans_each_exact_pair_once() -> TestResult
-{
+fn two_viewer_connection_rejects_unowned_routes_locally_and_cleans_each_exact_pair_once()
+-> TestResult {
     let server = RunningServer::start()?;
     let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut client, _) = connect_bounded_client(server.client_endpoint())?;

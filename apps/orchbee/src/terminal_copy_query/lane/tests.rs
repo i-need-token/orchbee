@@ -15,7 +15,7 @@ use crate::{
     terminal_copy::{CopySearchDirection, TerminalTextPoint},
     terminal_copy_mode::{EpisodeId, QueryId},
     terminal_copy_query::{Action, Admission, Failure, Outcome, QueryIdentity, Request},
-    terminal_session::state::{AttachmentKey, PaneKey, PaneRef},
+    workbench_client::state::{AttachmentKey, PaneKey, PaneRef},
 };
 
 #[test]

@@ -4,7 +4,7 @@
 Server/Worker 执行、保留维护、精确会话清理及规范发布已集成，并有确定性载体及 Linux
 协议客户端进程证据。原生 Close 控制及成员安装已集成；Server 侧 PanelSplit 与聚合 Close
 已有权威单测、有界模型和 Linux 真实终端 witness；
-[原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md) 记录 Linux TUI
+[原生 Session 契约](../../orchbee/docs/workbench-client-runtime.zh-CN.md) 记录 Linux TUI
 Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些有界检查不证明发布就绪或生产
 重启恢复。这份归 Server 所有的参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
 工作流、跨所有者结算及细化义务。它随这些实现及证据维护。
@@ -468,7 +468,7 @@ Presentation 标签，Tab 标签/顺序可变。叶子 close 同样表现为更�
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Server | `src/workbench_authority/terminal_tab_close/tests`、`reservation/tests.rs`、`continuation/tests.rs`；`src/local_terminal_service/tab_close/tests`          | 预留 revision/ledger 额度、准确别名和 Resume 代次、保留迟到回执、基于当前状态移除、准确 Create 引用结算、发布失败及目标围栏 |
 | Worker | `src/terminal_lifecycle_operation/tests.rs`、`src/host_connection/target_cleanup/tests.rs`、`src/terminal_authorization/lifecycle/tests.rs`                | 准确请求/目标/epoch、模糊与已知效果、缓存和预留边界、迟到 Acquire 与准确旧租约清理                                          |
-| Native | `src/terminal_session/state/tests/tab_close`、`src/terminal_session/mailbox/tests/tab_close.rs`、`src/local_client/tests/workbench/tab_close/transport.rs` | Empty 与剩余选择、attachment 代次围栏、排队结果、结构屏障、别名、固定截止时间及畸形/部分传输交接                            |
+| Native | `src/workbench_client/state/tests/tab_close`、`src/workbench_client/mailbox/tests/tab_close.rs`、`src/local_client/tests/workbench/tab_close/transport.rs` | Empty 与剩余选择、attachment 代次围栏、排队结果、结构屏障、别名、固定截止时间及畸形/部分传输交接                            |
 
 路径相对于各自所属应用；Server 的 reservation 与 continuation 路径位于同一 `terminal_tab_close` 所有者下。从仓库根目录运行：
 

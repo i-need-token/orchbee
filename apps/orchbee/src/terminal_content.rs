@@ -9,7 +9,7 @@ use std::time::Instant;
 mod reader;
 mod source;
 
-pub(crate) use reader::{ReadSession, process_directory};
+pub(crate) use reader::{ReadAttachment, process_directory};
 pub(crate) use source::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen};
 
 /// Cancellation and deadline policy supplied by the owning read lane.

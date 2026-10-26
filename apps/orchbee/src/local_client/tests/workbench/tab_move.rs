@@ -316,7 +316,7 @@ fn move_completed_response_past_caller_or_exchange_budget_retires_without_replay
                 deadline
             ),
             WorkbenchTabMoveSubmission::DefinitelyNotSubmitted(
-                WorkbenchTabMoveNotSubmitted::SessionUnavailable
+                WorkbenchTabMoveNotSubmitted::ConnectionUnavailable
             )
         ));
         drop(client);

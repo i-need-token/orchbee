@@ -247,7 +247,7 @@ a page's `nextCursor` token continues with `--cursor`. These reads submit
 no Workbench mutation and no provider command — nothing is created,
 activated, or mutated — and an ended session stays queryable only while
 the Session retains it. A terminal binding that has closed is not navigable.
-`agent wait` polls one session on a held Client Session until an `--until`
+`agent wait` polls one session on a held Client Connection until an `--until`
 condition matches or `--timeout` lands (default 600000 ms): status
 conditions need `fresh` freshness, `fresh`/`stale`/`disconnected` match the
 observation directly, and `--after-revision` fences against the first

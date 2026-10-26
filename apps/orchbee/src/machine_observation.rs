@@ -1,7 +1,7 @@
 //! Common bounded, cancellable observation lifecycle for Agent and Workspace consumers.
 use crate::{
     local_client::LocalClient, machine_discovery::Connection, machine_picker::Choice,
-    machines::ProfileId, terminal_session::UiWakeup,
+    machines::ProfileId, workbench_client::UiWakeup,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, SemanticEventFilter, SemanticEventKind, SemanticEventMatch,

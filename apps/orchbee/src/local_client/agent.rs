@@ -1,4 +1,4 @@
-//! The Agent observation exchange on one admitted Client Session: a
+//! The Agent observation exchange on one admitted Client Connection: a
 //! single OBAP request/result pair under the caller's deadline, with exact
 //! requestId+operation correlation and no replay after ambiguous outcomes.
 
@@ -126,7 +126,7 @@ impl LocalClient {
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<AgentResult, AgentExchangeError> {
         if self.connection.is_none() {
-            return Err(AgentExchangeError::SessionUnavailable);
+            return Err(AgentExchangeError::ConnectionUnavailable);
         }
 
         let request_id = request.request_id().clone();
@@ -138,7 +138,7 @@ impl LocalClient {
             .map_err(AgentExchangeError::RequestNotSubmitted)?;
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(AgentExchangeError::SessionUnavailable);
+                return Err(AgentExchangeError::ConnectionUnavailable);
             };
             exchange_once(
                 connection,
@@ -242,7 +242,7 @@ impl AgentReadOperation {
 
 #[derive(Debug)]
 pub(crate) enum AgentExchangeError {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(AgentWireError),
     RequestNotSubmitted(io::Error),
     Failed {
@@ -254,7 +254,9 @@ pub(crate) enum AgentExchangeError {
 impl fmt::Display for AgentExchangeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => {
+                formatter.write_str("local Client Connection is unavailable")
+            }
             Self::RequestEncoding(error) => {
                 write!(
                     formatter,
@@ -278,7 +280,7 @@ impl std::error::Error for AgentExchangeError {
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
             Self::Failed { reason, .. } => reason.source(),
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
         }
     }
 }

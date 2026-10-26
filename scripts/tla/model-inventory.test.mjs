@@ -386,16 +386,19 @@ test('direct model inputs and both claim languages retain each protocol owner', 
 
 test('protocol owner paths select their core while UI copy and deterministic local flows use implementation tests', async () => {
 	const cases = [
-		['apps/orchbee/src/terminal_session/terminal_viewport/window.rs', 'native-terminal-viewport'],
-		['apps/orchbee/src/terminal_session/state/membership.rs', 'native-client-pane-membership'],
+		['apps/orchbee/src/workbench_client/terminal_viewport/window.rs', 'native-terminal-viewport'],
+		['apps/orchbee/src/workbench_client/state/membership.rs', 'native-client-pane-membership'],
 		['apps/orchbee-server/src/local_terminal_service/configuration.rs', 'native-settings-save'],
-		['apps/orchbee-server/src/local_terminal_service/viewer_session.rs', 'session-viewer-routing'],
 		[
-			'apps/orchbee-server/src/local_client_service/application_session.rs',
-			'session-viewer-routing',
+			'apps/orchbee-server/src/local_terminal_service/viewer_connection.rs',
+			'connection-viewer-routing',
 		],
 		[
-			'apps/orchbee-server/src/local_terminal_service/viewer_session/routing.rs',
+			'apps/orchbee-server/src/local_client_service/application_connection.rs',
+			'connection-viewer-routing',
+		],
+		[
+			'apps/orchbee-server/src/local_terminal_service/viewer_connection/routing.rs',
 			'local-terminal-relay',
 		],
 		['apps/orchbee-server/src/terminal_coordinator.rs', 'local-terminal-coordinator'],

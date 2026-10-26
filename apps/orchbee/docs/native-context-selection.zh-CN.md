@@ -4,7 +4,7 @@
 
 原生 Client 在已连接的本机 Session 中选择 Workspace。Server 拥有导航、
 成员、revision 和终端生命周期；Client 拥有活动位置与选择。本参考文档维护
-[原生 Tab Session](native-tab-session.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
+[原生 Tab Session](workbench-client-runtime.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
 导航渲染及其正确性证据一起更新。
 
 `Ctrl+B [` 与 `Ctrl+B ]` 按规范显示顺序循环真实 Workspace，包括空 Workspace。排序及可空 Project 成员关系不改变位置身份。选择使用 Workspace／Context 对，恢复当前 Client 仍存活的 Tab／Panel 记忆，否则选择首个成员或 Empty。进入、离开 Empty 均不创建终端。显式 `c` 要求 Workspace 已准入的目录，不回退到 home。Windows 侧栏激活共用 Session 选择所有者；准确 Site／位置校验、Busy 优先级及最新未准入目标保留遵循[机器导航](machines.zh-CN.md#跨机器-workspace-导航)。Windows [目录启动](native-directory-startup.zh-CN.md) 仅在满足条件的空 Session 创建首个 Workspace。其他启动路径先读取、选择已有成员，再附着。
@@ -147,7 +147,7 @@ provenance、不启动或销毁终端、不改 checkpoint，也不移动其他�
 旧 pane 和控制授权再安装。由同伴新增的成员需要全新 attachment；可见性本身不授予输入，
 也不恢复存活进程。
 
-在 `src/terminal_session/state/context_selection.rs`、`src/terminal_session/mailbox/tests/context_selection.rs`、`src/terminal_session/connection/native/tests/context_selection.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/workbench_client/state/context_selection.rs`、`src/workbench_client/mailbox/tests/context_selection.rs`、`src/workbench_client/connection/native/tests/context_selection.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 

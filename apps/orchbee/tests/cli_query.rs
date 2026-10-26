@@ -148,7 +148,7 @@ fn spawn_peer(
 const PEER_IO_DEADLINE: Duration = Duration::from_secs(30);
 
 /// Same as `spawn_peer`, but serves `connections` sequential query sessions:
-/// each CLI invocation admits its own Client Session on the shared socket.
+/// each CLI invocation admits its own Client Connection on the shared socket.
 fn spawn_peer_n(
     scope: &Path,
     connections: usize,
@@ -454,7 +454,10 @@ fn capacity_rejection_maps_to_exit_four() -> TestResult {
     let output = run(&base, &["status", "--format", "json"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(4));
-    assert_eq!(failure_kind(&output)["failure"]["kind"], "session-capacity");
+    assert_eq!(
+        failure_kind(&output)["failure"]["kind"],
+        "connection-capacity"
+    );
     Ok(())
 }
 
@@ -671,7 +674,7 @@ fn duplicate_label_is_ambiguous_not_arbitrary() -> TestResult {
 fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     let base = base_dir("derived-schemas");
     let scope = stage_scope(&base);
-    // Each query admits one fresh Client Session on the shared scripted
+    // Each query admits one fresh Client Connection on the shared scripted
     // socket; `api schema` lookups are local and consume no connection.
     let queries: &[(&[&str], &str)] = &[
         (
@@ -1312,7 +1315,7 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"discovery"}},"source":{"kind":"local-runtime"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"platform"}},"source":{"kind":"local-runtime"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"runtime-base","reason":"x"}},"source":{"kind":"local-runtime"}}),
-        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"session-capacity","details":{"stage":"discovery"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"connection-capacity","details":{"stage":"discovery"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"incompatible","details":{"stage":"snapshot"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"protocol-invalid","details":{"stage":"snapshot","reason":"correlation-mismatch","extra":1}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"invalid-identifier","details":{"resource":"schema","target":"x","extra":1}},"source":{"kind":"embedded"}}),
@@ -1334,7 +1337,7 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"platform","reason":"unsupported-platform"}},"source":{"kind":"local-runtime"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"discovery"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"platform","reason":"unsupported-platform"}},"source":{"kind":"local-runtime"}}),
-        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"session-capacity","details":{"stage":"admission"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"connection-capacity","details":{"stage":"admission"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"protocol-invalid","details":{"stage":"snapshot","reason":"correlation-mismatch"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"protocol-invalid","details":{"stage":"admission"}},"source":{"kind":"embedded"}}),
         serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"tab","target":"x","candidates":[id(1),id(2)],"totalCount":2}},"source":{"kind":"embedded"}}),

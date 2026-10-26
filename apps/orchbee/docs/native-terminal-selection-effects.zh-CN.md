@@ -3,8 +3,8 @@
 ## 范围与归属
 
 本参考治理原生 Client 的选择手势、Host 所拥有的选区投影、纯文本导出、剪贴板投递、pane
-程序写剪贴板以及响铃投递。它与 `tui_pointer.rs`、`terminal_session/ui.rs`、
-`terminal_session/connection/native.rs`、`tui_render.rs`、`tui_backend.rs`、`local_client.rs`，
+程序写剪贴板以及响铃投递。它与 `tui_pointer.rs`、`workbench_client/ui.rs`、
+`workbench_client/connection/native.rs`、`tui_render.rs`、`tui_backend.rs`、`local_client.rs`，
 `apps/orchbee-worker`、`apps/orchbee-server`、`crates/capability-node-protocol` 和
 `crates/client-server-protocol` 中的 viewer 中继，以及 `crates/terminal-protocol` 与
 `apps/terminal-host` 中的选择／效果契约共同维护。

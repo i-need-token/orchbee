@@ -19,7 +19,7 @@ use orchbee_client_server_protocol::{
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
     encode_client_frame, read_server_message,
 };
-use orchbee_local_client_protocol::{ClientSessionConnection, ConnectClientError};
+use orchbee_local_client_protocol::{ClientConnection, ConnectClientError};
 
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
 
@@ -34,7 +34,7 @@ impl LocalClientShutdown {
 pub(crate) struct LocalClient {
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     origin: LocalClientOrigin,
-    connection: Option<ClientSessionConnection>,
+    connection: Option<ClientConnection>,
     request_timeout: Duration,
     submission_deadline: Option<Instant>,
     clock: LocalOperationClock,
@@ -115,7 +115,7 @@ impl LocalClient {
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<Self, LocalClientConnectError> {
         let connection =
-            ClientSessionConnection::connect_before_cancellable(endpoint, cohort, deadline, wake)
+            ClientConnection::connect_before_cancellable(endpoint, cohort, deadline, wake)
                 .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
@@ -133,7 +133,7 @@ impl LocalClient {
     }
 
     fn from_connection(
-        connection: ClientSessionConnection,
+        connection: ClientConnection,
         #[cfg(any(target_os = "linux", target_os = "macos", windows))] origin: LocalClientOrigin,
         request_timeout: Duration,
         clock: Box<dyn MonotonicClock>,
@@ -180,7 +180,7 @@ impl LocalClient {
         let connection = self
             .connection
             .as_ref()
-            .ok_or_else(|| io::Error::other("Client Session unavailable"))?;
+            .ok_or_else(|| io::Error::other("Client Connection unavailable"))?;
         #[cfg(unix)]
         {
             Ok(LocalClientShutdown(std::os::unix::net::UnixStream::from(
@@ -195,9 +195,7 @@ impl LocalClient {
 
     #[must_use]
     pub(crate) fn generation(&self) -> Option<std::num::NonZeroU64> {
-        self.connection
-            .as_ref()
-            .map(ClientSessionConnection::generation)
+        self.connection.as_ref().map(ClientConnection::generation)
     }
 
     pub(crate) fn submit_terminal_viewer_before(
@@ -480,7 +478,7 @@ impl LocalClient {
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<ServerMessage, SubmissionError> {
         if self.connection.is_none() {
-            return Err(SubmissionError::SessionUnavailable);
+            return Err(SubmissionError::ConnectionUnavailable);
         }
 
         let frame = encode_client_frame(&request).map_err(SubmissionError::RequestEncoding)?;
@@ -499,7 +497,7 @@ impl LocalClient {
         };
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(SubmissionError::SessionUnavailable);
+                return Err(SubmissionError::ConnectionUnavailable);
             };
             exchange_once(
                 connection,
@@ -582,7 +580,7 @@ impl std::error::Error for LocalClientConnectError {
 
 #[derive(Debug)]
 pub(crate) enum SubmissionError {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(ProtocolError),
     RequestNotSubmitted(io::Error),
     OutcomeUnknown {
@@ -594,7 +592,9 @@ pub(crate) enum SubmissionError {
 impl fmt::Display for SubmissionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => {
+                formatter.write_str("local Client Connection is unavailable")
+            }
             Self::RequestEncoding(error) => {
                 write!(
                     formatter,
@@ -621,7 +621,7 @@ impl std::error::Error for SubmissionError {
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
             Self::OutcomeUnknown { reason, .. } => reason.source(),
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
         }
     }
 }
@@ -801,7 +801,7 @@ enum ExchangeAttempt<ResultType, ReadError> {
 }
 
 fn exchange_once<ResultType, ReadError>(
-    connection: &mut ClientSessionConnection,
+    connection: &mut ClientConnection,
     clock: &dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
@@ -841,7 +841,7 @@ fn exchange_once<ResultType, ReadError>(
 }
 
 struct DeadlineIo<'a> {
-    connection: &'a mut ClientSessionConnection,
+    connection: &'a mut ClientConnection,
     clock: &'a dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,

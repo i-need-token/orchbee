@@ -27,7 +27,7 @@ fn request(value: u64) -> WorkbenchRequestId {
 fn not_submitted_maps_only_request_to_transport_loss() {
     let cases = [
         (
-            NotSubmitted::SessionUnavailable,
+            NotSubmitted::ConnectionUnavailable,
             FailureKind::InternalFailure,
         ),
         (NotSubmitted::RequestEncoding, FailureKind::InternalFailure),

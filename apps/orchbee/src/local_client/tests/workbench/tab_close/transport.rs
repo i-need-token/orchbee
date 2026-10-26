@@ -142,7 +142,7 @@ fn close_family_partial_handoff_expires_and_retires_without_replay() -> TestResu
         assert_eq!(client.generation(), None);
         assert!(matches!(
             require_not_submitted(family.submit(&mut client, deadline)),
-            WorkbenchTabCloseNotSubmitted::SessionUnavailable
+            WorkbenchTabCloseNotSubmitted::ConnectionUnavailable
         ));
         drop(client);
         server.finish()?;

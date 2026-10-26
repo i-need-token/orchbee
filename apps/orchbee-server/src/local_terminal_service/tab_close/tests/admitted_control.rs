@@ -19,7 +19,7 @@ fn client_id(value: u128) -> ClientRequestId {
 }
 
 fn execute(
-    session: &mut crate::local_terminal_service::viewer_session::LocalTerminalSession<'_>,
+    session: &mut crate::local_terminal_service::viewer_connection::LocalTerminalConnection<'_>,
     value: u128,
     action: ControlAction,
 ) -> ControlOutcome {
@@ -151,7 +151,7 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
         let (finish, finished) = mpsc::sync_channel(1);
         let actor = Arc::clone(&service);
         let client = thread::spawn(move || {
-            let mut session = actor.session();
+            let mut session = actor.client_connection();
             let ServerMessage::TerminalViewerResult(attached) =
                 session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(
                     client_id(100),

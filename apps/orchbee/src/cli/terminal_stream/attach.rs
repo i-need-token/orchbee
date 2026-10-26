@@ -4,7 +4,7 @@ use super::{
     STEP, Value, frame, query,
 };
 use super::{
-    control::{Session, classify_control, submit},
+    control::{Controller, classify_control, submit},
     display::Display,
 };
 use crate::{
@@ -134,7 +134,7 @@ fn connect(
         locale,
         columns: geometry.columns(),
     };
-    let mut session = Session::new(
+    let mut controller = Controller::new(
         client,
         viewer,
         controller_id,
@@ -143,7 +143,7 @@ fn connect(
         gate,
         &mut display,
     );
-    session.resize(geometry)?;
+    controller.resize(geometry)?;
     *modes = Some(
         TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
             .map_err(io_failure)?,
@@ -154,7 +154,7 @@ fn connect(
         .map_err(io_failure)?;
     modes.set_bracketed_paste(true).map_err(io_failure)?;
     modes.set_focus_reporting(true).map_err(io_failure)?;
-    run_console(&mut session, inherited, gate, command.mouse)
+    run_console(&mut controller, inherited, gate, command.mouse)
 }
 fn geometry(terminal: &InheritedTerminal) -> Result<Geometry, Failure> {
     let size = terminal.window_dimensions().map_err(io_failure)?;
@@ -162,7 +162,7 @@ fn geometry(terminal: &InheritedTerminal) -> Result<Geometry, Failure> {
         .map_err(|_| Failure::new(FailureKind::InvalidUsage))
 }
 fn run_console(
-    session: &mut Session<'_, '_>,
+    controller: &mut Controller<'_, '_>,
     inherited: &InheritedTerminal,
     gate: &Gate<'_>,
     mouse: bool,
@@ -174,15 +174,15 @@ fn run_console(
         if let Some(size) = inherited.observe_window_dimensions().map_err(io_failure)? {
             let size = Geometry::new(size.columns, size.rows, 0, 0)
                 .map_err(|_| Failure::new(FailureKind::InvalidUsage))?;
-            if size != session.geometry() {
-                session.resize(size)?;
+            if size != controller.geometry() {
+                controller.resize(size)?;
                 pointer.last_cell = None;
             }
         }
-        let size = session.geometry();
-        session.poll()?;
-        session.advance_history()?;
-        let application_cursor = session
+        let size = controller.geometry();
+        controller.poll()?;
+        controller.advance_history()?;
+        let application_cursor = controller
             .frame()
             .is_some_and(|frame| frame.interaction.application_cursor_keys());
         let actions = match inherited
@@ -196,26 +196,28 @@ fn run_console(
             match action {
                 input::Action::Detach => return Ok(()),
                 input::Action::Input(bytes) => {
-                    session.input(&bytes).map_err(|(failure, _)| failure)?;
+                    controller.input(&bytes).map_err(|(failure, _)| failure)?;
                 }
-                input::Action::Paste(text) => session.paste(text)?,
+                input::Action::Paste(text) => controller.paste(text)?,
                 input::Action::Scroll(scroll) => {
-                    if session
+                    if controller
                         .scroll(scroll)
                         .map_err(|(failure, _)| failure)?
                         .is_some()
                     {
-                        session.notice()?;
+                        controller.notice()?;
                     }
                 }
-                input::Action::Mouse(mouse) => match pointer.encode(mouse, session.frame(), size) {
-                    PaneEncode::Bytes(bytes) => {
-                        session.input(&bytes).map_err(|(failure, _)| failure)?;
+                input::Action::Mouse(mouse) => {
+                    match pointer.encode(mouse, controller.frame(), size) {
+                        PaneEncode::Bytes(bytes) => {
+                            controller.input(&bytes).map_err(|(failure, _)| failure)?;
+                        }
+                        PaneEncode::Silent => {}
                     }
-                    PaneEncode::Silent => {}
-                },
-                input::Action::Focus(focused) => session.focus(focused)?,
-                input::Action::Notice => session.notice()?,
+                }
+                input::Action::Focus(focused) => controller.focus(focused)?,
+                input::Action::Notice => controller.notice()?,
             }
         }
     }
@@ -330,7 +332,7 @@ impl<W: Write> Display for ConsoleDisplay<W> {
     }
     fn history(
         &mut self,
-        window: &crate::terminal_session::terminal_viewport::ViewportWindow,
+        window: &crate::workbench_client::terminal_viewport::ViewportWindow,
         columns: u16,
         rows: u16,
         gate: &Gate<'_>,

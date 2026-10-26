@@ -15,7 +15,7 @@ use orchbee_workbench_protocol::{
     ClientSplitRatio, PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId,
 };
 
-use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
+use crate::{client_view::SidebarSurface, workbench_client::NativePanelTree};
 
 pub(crate) const FULL_MINIMUM_COLUMNS: u16 = 100;
 pub(crate) const FULL_MINIMUM_ROWS: u16 = 24;

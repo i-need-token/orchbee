@@ -28,7 +28,7 @@ impl LocalClient {
     ) -> WorkbenchPanelRelocateSubmission {
         if self.connection.is_none() {
             return WorkbenchPanelRelocateSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelRelocateNotSubmitted::SessionUnavailable,
+                WorkbenchPanelRelocateNotSubmitted::ConnectionUnavailable,
             );
         }
         let command = request.0;
@@ -64,7 +64,7 @@ impl LocalClient {
         };
         let Some(connection) = self.connection.as_mut() else {
             return WorkbenchPanelRelocateSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelRelocateNotSubmitted::SessionUnavailable,
+                WorkbenchPanelRelocateNotSubmitted::ConnectionUnavailable,
             );
         };
         let attempt = exchange_once(
@@ -201,7 +201,7 @@ pub(crate) enum WorkbenchPanelRelocateSubmission {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchPanelRelocateNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
@@ -209,7 +209,7 @@ pub(crate) enum WorkbenchPanelRelocateNotSubmitted {
 impl fmt::Display for WorkbenchPanelRelocateNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP panel.relocate request encoding failed: {error}")
             }
@@ -224,7 +224,7 @@ impl fmt::Display for WorkbenchPanelRelocateNotSubmitted {
 impl std::error::Error for WorkbenchPanelRelocateNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }

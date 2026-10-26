@@ -23,7 +23,7 @@ pub(crate) struct LengthLimitReached;
 /// - `cursor` is a byte index that is always a valid extended-grapheme
 ///   boundary, possibly `text.len()`.
 ///
-/// The editor holds no I/O, clock, or session state. The horizontal window a
+/// The editor holds no I/O, clock, or Client state. The horizontal window a
 /// draft field shows is a pure consumer projection over this state measured
 /// in the chrome-safe display space — the core does not own display layout.
 #[derive(Clone, Debug, Eq, PartialEq)]

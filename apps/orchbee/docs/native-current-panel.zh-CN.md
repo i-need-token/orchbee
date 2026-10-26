@@ -79,7 +79,7 @@ ConPTY Client 验证选择及焦点不变；部分回包配合 Ctrl+C 验证取�
 
 Windows `panel process-info` 对显式 Panel 使用主终端；提供调用者元数据时保留经过验证的
 精确终端，包括子 Presentation。使用 Client 时，先被动读取 `Presentation { panelId }`
-再查询 Host：原生 Session 拥有所选 Presentation、绑定、附着代次和窗格实例编号。
+再查询 Host：Workbench Client 拥有所选 Presentation、绑定、附着代次和窗格实例编号。
 本地成员不存在时返回不可用，不回退到主终端。现有 process-info v2 已标识精确终端和
 Presentation，其封闭结构保持不变。
 

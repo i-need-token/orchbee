@@ -67,7 +67,7 @@ impl LocalClient {
     ) -> WorkspaceLaunchSubmission {
         if self.connection.is_none() {
             return WorkspaceLaunchSubmission::DefinitelyNotSubmitted(
-                NotSubmitted::SessionUnavailable,
+                NotSubmitted::ConnectionUnavailable,
             );
         }
         let command = request.0;
@@ -91,7 +91,7 @@ impl LocalClient {
         };
         let Some(connection) = self.connection.as_mut() else {
             return WorkspaceLaunchSubmission::DefinitelyNotSubmitted(
-                NotSubmitted::SessionUnavailable,
+                NotSubmitted::ConnectionUnavailable,
             );
         };
         let attempt = exchange_once(

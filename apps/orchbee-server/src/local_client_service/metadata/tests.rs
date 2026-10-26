@@ -1,8 +1,8 @@
 use super::*;
 use crate::{
     agent_service::{AgentPolicy, AgentService},
-    client_session_registry::{
-        ClientSessionAdmission, ClientSessionRegistry, MAXIMUM_ACTIVE_CLIENT_SESSIONS,
+    client_connection_registry::{
+        ClientConnectionAdmission, ClientConnectionRegistry, MAXIMUM_ACTIVE_CLIENT_CONNECTIONS,
     },
     local_client_service::{ConnectionSlots, handle_candidate_control, stop_control::StopControl},
     local_terminal_service::LocalTerminalService,
@@ -19,17 +19,17 @@ use std::{
 };
 
 #[test]
-fn metadata_bypasses_full_session_admission_without_allocating_a_generation_or_stop_lease() {
+fn metadata_bypasses_full_connection_admission_without_allocating_a_generation_or_stop_lease() {
     for mode in [
         ServerMode::Unmanaged,
         ServerMode::ManagedReady,
         ServerMode::ManagedStopping,
     ] {
-        let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
-        for _ in 0..MAXIMUM_ACTIVE_CLIENT_SESSIONS {
+        let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
+        for _ in 0..MAXIMUM_ACTIVE_CLIENT_CONNECTIONS {
             assert!(matches!(
                 registry.lock().unwrap().admit(),
-                ClientSessionAdmission::Accepted { .. }
+                ClientConnectionAdmission::Accepted { .. }
             ));
         }
         let before = registry.lock().unwrap().clone();

@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_session::NativeContextLocation;
+use crate::workbench_client::NativeContextLocation;
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchProjectId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
 };
@@ -451,7 +451,7 @@ fn context_keyboard_disclosure_enters_and_leaves_exact_agent_without_activating_
         key(&mut picker, KeyCode::Enter),
         SidebarIntent::Activate(Selection {
             machine: Choice::Local,
-            context: Some(crate::terminal_session::NativeStartupTarget::Agent(
+            context: Some(crate::workbench_client::NativeStartupTarget::Agent(
                 Box::new(agent_target)
             ))
         })

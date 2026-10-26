@@ -4,7 +4,7 @@ use std::convert::Infallible;
 use std::time::Instant;
 
 use crate::client_view::{
-    ClientAction, ClientView, Notice, Overlay, SessionActionDisposition, SidebarSurface,
+    ClientAction, ClientActionDisposition, ClientView, Notice, Overlay, SidebarSurface,
 };
 
 use super::{
@@ -98,15 +98,15 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        ) -> Option<crate::workbench_client::NativeCaptureContext> {
             if owner != crate::tui_composition::NativeCaptureOwner::TabClose || !self.active {
                 return None;
             }
-            Some(crate::terminal_session::NativeCaptureContext::TabClose(
-                crate::terminal_session::ConfirmationCaptureContext {
-                    token: crate::terminal_session::NativeCloseConfirmationToken::for_test(1),
+            Some(crate::workbench_client::NativeCaptureContext::TabClose(
+                crate::workbench_client::ConfirmationCaptureContext {
+                    token: crate::workbench_client::NativeCloseConfirmationToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
-                    readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                    readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
             ))
         }
@@ -115,21 +115,18 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
             self.forwarded.push(bytes.to_vec());
             Ok(())
         }
-        fn apply_client_action(
-            &mut self,
-            action: ClientAction,
-        ) -> Option<SessionActionDisposition> {
+        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
             if action == ClientAction::RequestCloseTab {
                 self.active = true;
             }
-            Some(SessionActionDisposition::KeepNavigator)
+            Some(ClientActionDisposition::KeepNavigator)
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::terminal_session::NativeCloseConfirmationToken,
+            token: crate::workbench_client::NativeCloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
-            if token != crate::terminal_session::NativeCloseConfirmationToken::for_test(1) {
+            if token != crate::workbench_client::NativeCloseConfirmationToken::for_test(1) {
                 return false;
             }
             if !self.active {
@@ -190,15 +187,15 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        ) -> Option<crate::workbench_client::NativeCaptureContext> {
             if owner != crate::tui_composition::NativeCaptureOwner::TabClose || !self.active {
                 return None;
             }
-            Some(crate::terminal_session::NativeCaptureContext::TabClose(
-                crate::terminal_session::ConfirmationCaptureContext {
-                    token: crate::terminal_session::NativeCloseConfirmationToken::for_test(1),
+            Some(crate::workbench_client::NativeCaptureContext::TabClose(
+                crate::workbench_client::ConfirmationCaptureContext {
+                    token: crate::workbench_client::NativeCloseConfirmationToken::for_test(1),
                     phase: crate::tui_presentation::PresentationPhase::Admitted,
-                    readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                    readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 },
             ))
         }
@@ -207,21 +204,18 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
             self.forwarded.push(bytes.to_vec());
             Ok(())
         }
-        fn apply_client_action(
-            &mut self,
-            action: ClientAction,
-        ) -> Option<SessionActionDisposition> {
+        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
             if action == ClientAction::RequestCloseTab {
                 self.active = true;
             }
-            Some(SessionActionDisposition::KeepNavigator)
+            Some(ClientActionDisposition::KeepNavigator)
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::terminal_session::NativeCloseConfirmationToken,
+            token: crate::workbench_client::NativeCloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
-            if token != crate::terminal_session::NativeCloseConfirmationToken::for_test(1) {
+            if token != crate::workbench_client::NativeCloseConfirmationToken::for_test(1) {
                 return false;
             }
             if !self.active {
@@ -314,7 +308,7 @@ enum Recorded {
 struct RecordingTerminalInput {
     recorded: Vec<Recorded>,
     unavailable: bool,
-    action_disposition: Option<SessionActionDisposition>,
+    action_disposition: Option<ClientActionDisposition>,
 }
 
 impl TerminalInputPort for RecordingTerminalInput {
@@ -327,7 +321,7 @@ impl TerminalInputPort for RecordingTerminalInput {
         }
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.recorded.push(Recorded::Action(action));
         self.action_disposition
     }
@@ -382,7 +376,7 @@ fn completes_literal_prefix_action_before_forwarding_its_byte() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
     let mut input = RecordingTerminalInput {
-        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        action_disposition: Some(ClientActionDisposition::KeepNavigator),
         ..RecordingTerminalInput::default()
     };
 
@@ -423,13 +417,13 @@ fn admitted_backend_action_uses_its_session_disposition() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
     let mut input = RecordingTerminalInput {
-        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        action_disposition: Some(ClientActionDisposition::KeepNavigator),
         ..RecordingTerminalInput::default()
     };
     dispatch(&mut dispatcher, &mut view, b"\x02w", &mut input);
     assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 
-    input.action_disposition = Some(SessionActionDisposition::DismissNavigator);
+    input.action_disposition = Some(ClientActionDisposition::DismissNavigator);
     dispatch(&mut dispatcher, &mut view, b"\x02n", &mut input);
     assert_eq!(view.overlay(), None);
     assert_eq!(view.notice(), None);
@@ -513,7 +507,7 @@ fn splits_only_at_prefix_boundaries_and_preserves_order() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
     let mut input = RecordingTerminalInput {
-        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        action_disposition: Some(ClientActionDisposition::KeepNavigator),
         ..RecordingTerminalInput::default()
     };
 
@@ -539,7 +533,7 @@ fn observes_layout_between_a_toggle_and_later_effects_in_the_same_batch() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
     let mut input = RecordingTerminalInput {
-        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        action_disposition: Some(ClientActionDisposition::KeepNavigator),
         ..RecordingTerminalInput::default()
     };
 
@@ -574,7 +568,7 @@ fn completed_unknown_action_precedes_its_parser_notice() {
     view.report_terminal_input_unavailable();
     let mut dispatcher = InputDispatcher::default();
     let mut input = RecordingTerminalInput {
-        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        action_disposition: Some(ClientActionDisposition::KeepNavigator),
         ..RecordingTerminalInput::default()
     };
 
@@ -593,7 +587,7 @@ fn exits_only_after_the_completed_prefixed_exit_action() {
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
     let mut input = RecordingTerminalInput {
-        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        action_disposition: Some(ClientActionDisposition::KeepNavigator),
         ..RecordingTerminalInput::default()
     };
 
@@ -630,13 +624,13 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        ) -> Option<crate::workbench_client::NativeCaptureContext> {
             if owner != crate::tui_composition::NativeCaptureOwner::Popup {
                 return None;
             }
             self.id.clone().map(|id| {
-                crate::terminal_session::NativeCaptureContext::Popup(
-                    crate::terminal_session::PopupInputContext::for_test(id, self.interactive),
+                crate::workbench_client::NativeCaptureContext::Popup(
+                    crate::workbench_client::PopupInputContext::for_test(id, self.interactive),
                 )
             })
         }
@@ -663,7 +657,7 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
         }
         fn activate_drawn_popup_close(
             &mut self,
-            target: &crate::terminal_session::DrawnPopupClose,
+            target: &crate::workbench_client::DrawnPopupClose,
         ) -> bool {
             self.close_attempts.push(target.id().clone());
             if self.id.as_ref() != Some(target.id()) {
@@ -770,7 +764,7 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     let close_map = |id: WorkbenchRequestId| {
         let mut hits = HitMapBuilder::new();
         hits.start_modal();
-        let popup = crate::terminal_session::PopupView {
+        let popup = crate::workbench_client::PopupView {
             id: &id,
             title: "Dashboard",
             projection: None,

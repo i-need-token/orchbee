@@ -17,7 +17,7 @@ mod agent_screen;
 #[cfg(any(unix, windows))]
 mod agent_service;
 #[cfg(any(unix, windows))]
-mod client_session_registry;
+mod client_connection_registry;
 #[cfg(any(windows, test))]
 mod client_view_registry;
 #[cfg(any(unix, windows))]

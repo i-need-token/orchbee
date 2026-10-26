@@ -9,9 +9,9 @@ use crate::{
     },
     terminal_device::InheritedTerminal,
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
-    terminal_session::{TerminalSession, TerminalStatus},
     termination_signal::TerminationSignal,
     tui_shell,
+    workbench_client::{TerminalStatus, WorkbenchClient},
 };
 use std::{
     io::{self, Write},
@@ -62,7 +62,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let started =
         local_activation::activate_local_site(deadline).map_err(|failure| failure.failure)?;
     #[cfg(windows)]
-    let directory = crate::terminal_session::StartupDirectory::new(
+    let directory = crate::workbench_client::StartupDirectory::new(
         startup_cwd.as_deref(),
         locale,
         !matches!(
@@ -84,7 +84,7 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     let mut client = started.client;
     client.set_submission_deadline(Some(deadline));
     #[cfg(windows)]
-    let mut session = TerminalSession::start_local(
+    let mut workbench_client = WorkbenchClient::start_local(
         client,
         geometry,
         &started.runtime_directory,
@@ -92,16 +92,16 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     )
     .map_err(|_| StartupFailure::TerminalUnavailable)?;
     #[cfg(not(windows))]
-    let mut session = TerminalSession::start(client, geometry)
+    let mut workbench_client = WorkbenchClient::start(client, geometry)
         .map_err(|_| StartupFailure::TerminalUnavailable)?;
     let ready = (|| {
         loop {
             local_activation::check_deadline(deadline).map_err(|failure| failure.failure)?;
-            if session.startup_draw_ready() {
+            if workbench_client.startup_draw_ready() {
                 local_activation::check_deadline(deadline).map_err(|failure| failure.failure)?;
                 break;
             }
-            match session.status() {
+            match workbench_client.status() {
                 TerminalStatus::Unavailable => return Err(StartupFailure::TerminalUnavailable),
                 TerminalStatus::OutcomeUnknown => return Err(StartupFailure::OutcomeUnknown),
                 _ => local_activation::pause(deadline).map_err(|failure| failure.failure)?,
@@ -122,10 +122,17 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     }
     ready?;
     #[cfg(windows)]
-    session.finish_local_startup();
+    workbench_client.finish_local_startup();
     drop(progress);
-    tui_shell::run_prepared(locale, inherited, dimensions, session, mouse, notice)
-        .map_err(|_| StartupFailure::Interface)
+    tui_shell::run_prepared(
+        locale,
+        inherited,
+        dimensions,
+        workbench_client,
+        mouse,
+        notice,
+    )
+    .map_err(|_| StartupFailure::Interface)
 }
 
 fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Instant) -> StartupWait {

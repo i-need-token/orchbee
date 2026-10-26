@@ -1,8 +1,8 @@
 use super::{render, render_refused};
 use crate::{
     client_view::{
-        ClientAction, ClientView, KeyCode, KeyEvent, Modifiers, Overlay, PrefixInput,
-        SessionActionDisposition,
+        ClientAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, Modifiers, Overlay,
+        PrefixInput,
         help::{HelpControl, HelpDrawSource},
     },
     localization::Locale,
@@ -19,7 +19,7 @@ use ratatui::{
 fn press(view: &mut ClientView, code: KeyCode, mods: Modifiers) -> Option<ClientAction> {
     let transition = view.decide(PrefixInput::Key(KeyEvent::press(code, mods)));
     let action = transition.action();
-    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    view.commit(transition, ClientActionDisposition::KeepNavigator);
     action
 }
 
@@ -90,11 +90,11 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
         for (locale, labels) in [
             (
                 Locale::EnUs,
-                ["Workspace", "Tab", "Panel", "Agent", "Session", "Other"],
+                ["Workspace", "Tab", "Panel", "Agent", "Client", "Other"],
             ),
             (
                 Locale::ZhCn,
-                ["工作区", "标签页", "面板", "Agent", "会话", "其他"],
+                ["工作区", "标签页", "面板", "Agent", "客户端", "其他"],
             ),
         ] {
             let mut view = ClientView::new(width);

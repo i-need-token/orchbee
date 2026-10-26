@@ -1,4 +1,4 @@
-//! Read process-owned diagnostics before allocating any Client Session state.
+//! Read process-owned diagnostics before allocating any Client Connection state.
 use orchbee_local_client_protocol::{
     ClientHello, LocalClientMessage, SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW,
     SERVER_FEATURE_RENDER_ROWS, ServerMetadata, ServerMode, write_message,

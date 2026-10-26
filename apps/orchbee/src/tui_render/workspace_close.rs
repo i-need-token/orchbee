@@ -5,10 +5,10 @@ use super::modal::{
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
-    terminal_session::{ModalPresentation, WorkspaceCloseConfirmationView, WorkspaceCloseToken},
     terminal_text::sanitize_terminal_text,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
+    workbench_client::{ModalPresentation, WorkspaceCloseConfirmationView, WorkspaceCloseToken},
 };
 use ratatui::{
     Frame,

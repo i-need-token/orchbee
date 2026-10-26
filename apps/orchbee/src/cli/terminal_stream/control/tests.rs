@@ -355,7 +355,7 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                     panic!("grant")
                 };
                 let geometry = Geometry::new(8, 2, 0, 0).unwrap();
-                let mut session = Session {
+                let mut controller = Controller {
                     client,
                     viewer: viewer.clone(),
                     controller: controller_id,
@@ -369,7 +369,7 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                 };
                 client_stage = "initial-resize";
                 client_stage_started = Instant::now();
-                let resize_result = session.resize(geometry);
+                let resize_result = controller.resize(geometry);
                 eprintln!(
                     "control client {client_stage}-returned elapsed={:?} resize={:?} result={resize_result:?}",
                     started.elapsed(),
@@ -378,7 +378,7 @@ fn control_orders_chunks_resize_receipts_and_exact_cleanup_without_replay() -> T
                 resize_result.unwrap();
                 client_stage = "drive";
                 client_stage_started = Instant::now();
-                let result = session.drive(&mut reader);
+                let result = controller.drive(&mut reader);
                 eprintln!(
                     "control client {client_stage}-returned elapsed={:?} drive={:?} result={result:?}",
                     started.elapsed(),

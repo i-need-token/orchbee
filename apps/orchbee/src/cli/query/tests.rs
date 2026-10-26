@@ -240,7 +240,7 @@ impl AgentWatch for OrderWatch {
 
 /// Owner-model evidence for the drop-before-finish order: driving the
 /// real `agent_armed_finish` against a live admitted session, the watch
-/// observes the peer's EOF at finish entry — the Client Session socket
+/// observes the peer's EOF at finish entry — the Client Connection socket
 /// was closed before the signal arbitration read ran.
 #[test]
 fn session_socket_drops_before_finish_arbitration() {

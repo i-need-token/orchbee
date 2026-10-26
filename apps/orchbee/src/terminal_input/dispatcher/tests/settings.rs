@@ -88,22 +88,22 @@ impl TerminalInputPort for Port {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         (owner == crate::tui_composition::NativeCaptureOwner::Settings)
             .then(|| self.editor.input_context())
             .flatten()
-            .map(crate::terminal_session::NativeCaptureContext::Settings)
+            .map(crate::workbench_client::NativeCaptureContext::Settings)
     }
 
     fn apply_client_action(
         &mut self,
         action: ClientAction,
-    ) -> Option<crate::client_view::SessionActionDisposition> {
+    ) -> Option<crate::client_view::ClientActionDisposition> {
         self.calls.borrow_mut().push(Call::Action(action.clone()));
         if action == ClientAction::OpenSettings {
             self.editor.open().unwrap();
         }
-        Some(crate::client_view::SessionActionDisposition::KeepNavigator)
+        Some(crate::client_view::ClientActionDisposition::KeepNavigator)
     }
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
@@ -228,7 +228,7 @@ fn render_settings_map(
                 &crate::tui_theme::Theme::terminal_native(),
                 &mut hits,
             );
-            let crate::terminal_session::ModalPresentation::Presented(draw) = presentation else {
+            let crate::workbench_client::ModalPresentation::Presented(draw) = presentation else {
                 panic!("settings geometry is admitted")
             };
             presented = Some(draw);
@@ -697,7 +697,7 @@ fn settings_cannot_hide_an_older_modal_release_or_make_it_fence_twice() {
     let mut view = ClientView::new(120);
     view.commit(
         view.decide_action(ClientAction::OpenShortcutHelp),
-        crate::client_view::SessionActionDisposition::KeepNavigator,
+        crate::client_view::ClientActionDisposition::KeepNavigator,
     );
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let source = view

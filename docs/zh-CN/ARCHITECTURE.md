@@ -15,7 +15,8 @@ apps/*（Rust）                 -> crates/*   -> 外部依赖
 
 ## 产品运行时模块
 
-产品角色与身份边界使用[术语表](GLOSSARY.md)。
+产品角色与身份边界使用[术语表](GLOSSARY.md)。TUI Workbench Client 拥有本地交互运行时；
+每条已接受的 Client–Server 传输对应一个 Client Connection。这两种生命周期均不是 Session 身份。
 
 ```mermaid
 flowchart TB

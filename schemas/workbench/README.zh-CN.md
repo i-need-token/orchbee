@@ -321,7 +321,7 @@ action/result。回退时一起恢复整组 source/runtime cohort；不提供混
 ## 已接受的 Tab 移动契约
 
 本地未发布 Move 扩展已在 schema、语料、两个 binding 及 Server 中实现；原生 Workspace Client 交互已集成，
-其有界 Linux cohort 证据见[原生 Session 契约](../../apps/orchbee/docs/native-tab-session.zh-CN.md)。它使用现有 OBWP v1
+其有界 Linux cohort 证据见[原生 Session 契约](../../apps/orchbee/docs/workbench-client-runtime.zh-CN.md)。它使用现有 OBWP v1
 命令 envelope 和 navigation-mutation 授权。action 为
 `tab.move { terminalContextId, tabId, direction }`，direction 严格为
 `previous | next | first | last`。Previous/next 与一个相邻 Tab 交换，不循环；

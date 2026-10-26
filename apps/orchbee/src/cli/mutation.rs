@@ -1,5 +1,5 @@
 //! One-effect Workbench mutation commands. Every invocation admits one
-//! Client Session, performs one bounded snapshot read that fixes the Site
+//! Client Connection, performs one bounded snapshot read that fixes the Site
 //! identity, the expected revision, and every resolved target identity, then
 //! submits exactly one `workbench.command` under a fresh request identity.
 //! Nothing is retried or replayed: an ambiguous post-submission outcome
@@ -432,7 +432,7 @@ mod linux {
     /// Every family's "definitely not submitted" reason collapses into the
     /// same three-way shape before it becomes a CLI failure.
     enum NotSubmitted {
-        SessionUnavailable,
+        ConnectionUnavailable,
         RequestEncoding,
         Request,
     }
@@ -468,7 +468,7 @@ mod linux {
             impl From<$not_submitted> for NotSubmitted {
                 fn from(reason: $not_submitted) -> Self {
                     match reason {
-                        $not_submitted::SessionUnavailable => Self::SessionUnavailable,
+                        $not_submitted::ConnectionUnavailable => Self::ConnectionUnavailable,
                         $not_submitted::RequestEncoding(_) => Self::RequestEncoding,
                         $not_submitted::RequestNotSubmitted(_) => Self::Request,
                     }
@@ -511,7 +511,7 @@ mod linux {
             impl From<$not_submitted> for NotSubmitted {
                 fn from(reason: $not_submitted) -> Self {
                     match reason {
-                        $not_submitted::SessionUnavailable => Self::SessionUnavailable,
+                        $not_submitted::ConnectionUnavailable => Self::ConnectionUnavailable,
                         $not_submitted::RequestEncoding(_) => Self::RequestEncoding,
                         $not_submitted::RequestNotSubmitted(_) => Self::Request,
                     }
@@ -670,7 +670,7 @@ mod linux {
         );
         let closing = closing(&resolved.action, &snapshot);
         let submission = submit(&mut client, deadline, resolved);
-        // The Client Session is fully dropped before the outcome is mapped or
+        // The Client Connection is fully dropped before the outcome is mapped or
         // any output is prepared; an ambiguous submission already retired the
         // connection inside the transport, and nothing is replayed.
         drop(client);
@@ -2160,7 +2160,7 @@ mod linux {
             "expectedAttemptGeneration": generation.value().to_string(),
         });
         let submission = client.submit_workbench_workspace_close_resume(resume, deadline);
-        // The Client Session is fully dropped before the outcome is mapped or
+        // The Client Connection is fully dropped before the outcome is mapped or
         // any output is prepared; an ambiguous submission already retired the
         // connection inside the transport, and nothing is replayed.
         drop(client);
@@ -2301,7 +2301,7 @@ mod linux {
     /// close envelope's stage vocabulary stays closed.
     fn not_submitted_failure_at(stage: &'static str, reason: NotSubmitted) -> Failure {
         match reason {
-            NotSubmitted::SessionUnavailable | NotSubmitted::RequestEncoding => {
+            NotSubmitted::ConnectionUnavailable | NotSubmitted::RequestEncoding => {
                 Failure::new(FailureKind::InternalFailure)
             }
             NotSubmitted::Request => {

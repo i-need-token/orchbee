@@ -688,7 +688,7 @@ fn tab_create_read_deadline_is_unknown_and_retires_without_retry() -> TestResult
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
         ),
         WorkbenchTabCreateSubmission::DefinitelyNotSubmitted(
-            WorkbenchTabCreateNotSubmitted::SessionUnavailable
+            WorkbenchTabCreateNotSubmitted::ConnectionUnavailable
         )
     ));
     server.finish()?;
@@ -868,7 +868,7 @@ fn snapshot_read_retires_on_wrong_kind_or_correlation() -> TestResult {
         assert_eq!(client.generation(), None);
         assert!(matches!(
             client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID)),
-            Err(SnapshotReadError::SessionUnavailable)
+            Err(SnapshotReadError::ConnectionUnavailable)
         ));
         server.finish()?;
     }
@@ -1024,7 +1024,7 @@ fn snapshot_partial_write_deadline_retires_the_mixed_carrier() -> TestResult {
     assert_eq!(client.generation(), None);
     assert!(matches!(
         client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID)),
-        Err(SnapshotReadError::SessionUnavailable)
+        Err(SnapshotReadError::ConnectionUnavailable)
     ));
     drop(client);
     server.finish()?;
@@ -1209,7 +1209,7 @@ fn publication_read_retires_on_wrong_kind_or_correlation() -> TestResult {
         assert_eq!(client.generation(), None);
         assert!(matches!(
             client.submit_workbench_publication_read(publication_request(SECOND_REQUEST_ID, 6)),
-            Err(PublicationReadError::SessionUnavailable)
+            Err(PublicationReadError::ConnectionUnavailable)
         ));
         server.finish()?;
     }

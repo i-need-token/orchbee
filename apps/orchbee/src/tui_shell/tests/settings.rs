@@ -1,9 +1,9 @@
 //! Exercises Settings through the real whole-frame drawing boundary.
 use super::*;
-use crate::terminal_session::{NativeDrawReceipt, TerminalSessionView};
+use crate::workbench_client::{NativeDrawReceipt, WorkbenchClientView};
 
 pub(crate) trait SettingsFrameSource {
-    fn settings_view(&self) -> TerminalSessionView<'_>;
+    fn settings_view(&self) -> WorkbenchClientView<'_>;
 }
 
 pub(crate) fn settings_frame(
@@ -22,7 +22,7 @@ pub(crate) fn settings_frame(
         }
     }
     impl<S: SettingsFrameSource> super::super::TerminalSurface for Surface<'_, S> {
-        fn view(&self) -> Option<TerminalSessionView<'_>> {
+        fn view(&self) -> Option<WorkbenchClientView<'_>> {
             Some(self.session.settings_view())
         }
         fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {

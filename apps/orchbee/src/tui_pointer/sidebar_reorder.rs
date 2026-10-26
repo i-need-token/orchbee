@@ -10,7 +10,7 @@ use crate::{
         DrawnSidebarTarget, SidebarPart, SidebarSource, SidebarTarget, SidebarWindow,
     },
     terminal_input::TerminalInputPort,
-    terminal_session::NativeContextLocation,
+    workbench_client::NativeContextLocation,
 };
 use orchbee_workbench_protocol::{Navigation, NavigationConfiguration, SiteId, Snapshot};
 use ratatui::layout::Rect;

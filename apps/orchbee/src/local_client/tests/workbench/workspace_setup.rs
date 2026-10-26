@@ -253,7 +253,7 @@ fn invalid_setup(
             deadline
         ),
         WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-            WorkbenchSetupNotSubmitted::SessionUnavailable
+            WorkbenchSetupNotSubmitted::ConnectionUnavailable
         )
     ));
     server.finish()?;
@@ -447,7 +447,7 @@ fn setup_completed_response_past_caller_or_exchange_budget_retires_without_repla
                 deadline
             ),
             WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable
+                WorkbenchSetupNotSubmitted::ConnectionUnavailable
             )
         ));
         drop(client);
@@ -486,7 +486,7 @@ fn setup_retires_malformed_or_truncated_response_without_retry() -> TestResult {
                 deadline
             ),
             WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable
+                WorkbenchSetupNotSubmitted::ConnectionUnavailable
             )
         ));
         assert_eq!(client.generation(), None);
@@ -520,7 +520,7 @@ fn setup_lost_result_retires_each_action_without_replay() -> TestResult {
                 deadline
             ),
             WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable
+                WorkbenchSetupNotSubmitted::ConnectionUnavailable
             )
         ));
         server.finish()?;
@@ -614,7 +614,7 @@ fn exchange_setup(
         assert!(matches!(
             client.submit_workbench_setup(request, deadline),
             WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable
+                WorkbenchSetupNotSubmitted::ConnectionUnavailable
             )
         ));
     }

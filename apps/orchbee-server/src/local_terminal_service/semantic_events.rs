@@ -1,5 +1,5 @@
 //! Read-only event sources reuse canonical admission and the retained temporary-viewer owner.
-use super::{LocalTerminalService, placement, viewer_session::process_sampling::screen};
+use super::{LocalTerminalService, placement, viewer_connection::process_sampling::screen};
 use crate::site_coordinator::ProcessObservationTarget;
 use orchbee_workbench_protocol::{
     ClientViewportObservation, SemanticEventSource, SemanticEventsFailure as Failure,

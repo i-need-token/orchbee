@@ -86,7 +86,7 @@ pub(crate) enum BackendAction {
     MovePanel,
 }
 
-// This value is shared with the native Session reducer while remaining protocol-free.
+// This value is shared with the Workbench Client reducer while remaining protocol-free.
 // Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
@@ -118,22 +118,22 @@ pub(crate) enum ClientAction {
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
-    RequestWorkspaceAtDirectory(Option<Box<crate::terminal_session::ProjectQuickWorkspaceRequest>>),
-    RequestProjectQuickWorkspace(Box<crate::terminal_session::ProjectQuickWorkspaceRequest>),
+    RequestWorkspaceAtDirectory(Option<Box<crate::workbench_client::ProjectQuickWorkspaceRequest>>),
+    RequestProjectQuickWorkspace(Box<crate::workbench_client::ProjectQuickWorkspaceRequest>),
     #[cfg(windows)]
     RequestWorktreeCreate,
     #[cfg(windows)]
     RequestWorktreeOpen,
     RequestWorkspaceClose,
     RequestWorkspaceCloseAt(orchbee_workbench_protocol::WorkbenchWorkspaceId),
-    RequestSidebarWorkspaceDelete(Box<crate::terminal_session::WorkspaceDeleteRequest>),
+    RequestSidebarWorkspaceDelete(Box<crate::workbench_client::WorkspaceDeleteRequest>),
     RequestControlTakeover,
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
     RequestProjectRename,
-    RequestTargetedProjectRename(Box<crate::terminal_session::ProjectRenameRequest>),
+    RequestTargetedProjectRename(Box<crate::workbench_client::ProjectRenameRequest>),
     RequestWorkspaceMove,
-    RequestWorkspaceOrganization(Box<crate::terminal_session::WorkspaceOrganizationRequest>),
+    RequestWorkspaceOrganization(Box<crate::workbench_client::WorkspaceOrganizationRequest>),
     RequestProjectCloseAll(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
     RequestRenameTab,
     RequestCloseTab,
@@ -157,7 +157,7 @@ pub(crate) enum ClientAction {
     #[cfg(windows)]
     FocusAgent(u8),
     CloseWorkbenchNavigator,
-    /// `Ctrl+B g` — toggles the session-owned Agent board overlay.
+    /// `Ctrl+B g` — toggles the Client-owned Agent board overlay.
     ToggleAgentBoard,
     CreateTab,
     SelectNextTab,
@@ -255,7 +255,7 @@ pub(crate) enum ShellCommand {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SessionActionDisposition {
+pub(crate) enum ClientActionDisposition {
     KeepNavigator,
     DismissNavigator,
     /// The action changed the rendered pane layout — a zoom toggle, or a
@@ -269,7 +269,7 @@ pub(crate) enum SessionActionDisposition {
     WorkspaceCreationStarted,
 }
 
-impl SessionActionDisposition {
+impl ClientActionDisposition {
     pub(crate) fn changes_layout(self) -> bool {
         match self {
             Self::LayoutChanged => true,
@@ -427,7 +427,7 @@ pub(crate) struct ClientView {
     resize_mode: bool,
     #[cfg(windows)]
     pub(crate) resize_pointer_fine: bool,
-    /// Read-only projection of the session-owned copy episode, used only for discovery.
+    /// Read-only projection of the Client-owned copy episode, used only for discovery.
     #[cfg(windows)]
     copy_mode_active: bool,
     #[cfg(windows)]
@@ -435,7 +435,7 @@ pub(crate) struct ClientView {
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
     /// Client-local Help incarnation, filter, requested scroll offset, and
-    /// successful-frame proof. It never enters NativeSession business state.
+    /// successful-frame proof. It never enters WorkbenchClient business state.
     help: help::State,
     /// The pointer-capture release flag: `Ctrl+B m` and `--mouse off`
     /// release host mouse reporting; while released the status line carries
@@ -1078,15 +1078,15 @@ impl ClientView {
     /// Applies the navigator settlement of a pointer-issued action. Pointer
     /// intents carry no `ClientTransition`; this is the same disposition
     /// effect `commit` applies for keyboard-issued actions.
-    pub(crate) fn commit_pointer(&mut self, disposition: SessionActionDisposition) {
+    pub(crate) fn commit_pointer(&mut self, disposition: ClientActionDisposition) {
         #[cfg(windows)]
         {
             self.project_quick_entry_eligible = None;
-            if disposition == SessionActionDisposition::WorkspaceCreationStarted {
+            if disposition == ClientActionDisposition::WorkspaceCreationStarted {
                 self.arm_project_quick_entry();
             }
         }
-        if disposition == SessionActionDisposition::DismissNavigator
+        if disposition == ClientActionDisposition::DismissNavigator
             && self.overlay == Some(Overlay::WorkbenchNavigator)
         {
             self.replace_overlay(None);
@@ -1501,16 +1501,16 @@ impl ClientView {
     pub(crate) fn commit(
         &mut self,
         transition: ClientTransition,
-        disposition: SessionActionDisposition,
+        disposition: ClientActionDisposition,
     ) {
         let mut next = transition.next;
         #[cfg(windows)]
         if transition.action == Some(ClientAction::CreateTab)
-            && disposition == SessionActionDisposition::WorkspaceCreationStarted
+            && disposition == ClientActionDisposition::WorkspaceCreationStarted
         {
             next.arm_project_quick_entry();
         }
-        if disposition == SessionActionDisposition::DismissNavigator
+        if disposition == ClientActionDisposition::DismissNavigator
             && next.overlay == Some(Overlay::WorkbenchNavigator)
         {
             next.replace_overlay(None);

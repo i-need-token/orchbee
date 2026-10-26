@@ -197,7 +197,7 @@ fn exchange(
                 | ExchangeReason::Correlation
                 | ExchangeReason::Encoding => FailureKind::ProtocolInvalid,
                 ExchangeReason::Deadline | ExchangeReason::ResponseDeadline => FailureKind::Timeout,
-                ExchangeReason::SessionUnavailable | ExchangeReason::NotSubmitted => {
+                ExchangeReason::ConnectionUnavailable | ExchangeReason::NotSubmitted => {
                     FailureKind::ServiceUnavailable
                 }
                 _ => FailureKind::TransportLoss,

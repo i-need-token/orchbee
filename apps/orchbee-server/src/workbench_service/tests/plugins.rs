@@ -79,7 +79,7 @@ fn popup_session_applies_read_create_and_close_permissions_per_operation() {
                     },
                     terminals,
                 );
-                let session = service.client_session(std::num::NonZeroU64::MIN);
+                let session = service.client_connection(std::num::NonZeroU64::MIN);
                 for (action, allowed) in [
                     (
                         PluginAction::PopupOpen {

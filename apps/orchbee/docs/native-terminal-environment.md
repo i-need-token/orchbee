@@ -46,8 +46,8 @@ repeat/modifier metadata refuses the read with `InvalidData` through the existin
 interface-failure path; malformed input cannot become a saved label or shell payload. An idle
 poll does not complete or replace a pending high surrogate. A literal user-supplied U+FFFD remains
 ordinary text. `windows_console_input/records/tests/unicode.rs` covers native record splits,
-character-free interleaving and bounded UTF-8 repeat tails; `terminal_session/ui/tests/input_provenance.rs`
-and `terminal_session/state/tests/location_labels.rs` cover exact rename requests, grapheme editing,
+character-free interleaving and bounded UTF-8 repeat tails; `workbench_client/ui/tests/input_provenance.rs`
+and `workbench_client/state/tests/location_labels.rs` cover exact rename requests, grapheme editing,
 cancel and location-label publication. These controlled implementation witnesses do not provide
 exhaustive TLC assurance or establish real-window glyph rendering.
 

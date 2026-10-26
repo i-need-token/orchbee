@@ -23,8 +23,8 @@ impl LocalClient {
             ),
             WorkspaceLaunchSubmission::DefinitelyNotSubmitted(reason) => {
                 WorkbenchSetupSubmission::DefinitelyNotSubmitted(match reason {
-                    WorkbenchTabCreateNotSubmitted::SessionUnavailable => {
-                        WorkbenchSetupNotSubmitted::SessionUnavailable
+                    WorkbenchTabCreateNotSubmitted::ConnectionUnavailable => {
+                        WorkbenchSetupNotSubmitted::ConnectionUnavailable
                     }
                     WorkbenchTabCreateNotSubmitted::RequestEncoding(error) => {
                         WorkbenchSetupNotSubmitted::RequestEncoding(error)

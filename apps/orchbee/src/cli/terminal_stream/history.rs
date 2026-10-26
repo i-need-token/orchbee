@@ -4,7 +4,7 @@ use super::{
     Action, Failure, FailureKind, Gate, Instant, LocalClient, Outcome, TerminalProjection,
     ViewerId, classify, exchange, json,
 };
-use crate::terminal_session::terminal_viewport::{
+use crate::workbench_client::terminal_viewport::{
     TerminalViewport, ViewportEffect, ViewportNav, ViewportReadRejection, ViewportStep,
     ViewportSurface, ViewportWindowFailure, decode_history_changed, decode_viewport_window,
 };

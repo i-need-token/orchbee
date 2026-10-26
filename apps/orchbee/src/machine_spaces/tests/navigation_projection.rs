@@ -1,6 +1,6 @@
 //! Canonical topology, speculative order and independently delayed metadata never share a writer.
 use super::*;
-use crate::terminal_session::SidebarNavigationProjection;
+use crate::workbench_client::SidebarNavigationProjection;
 use orchbee_workbench_protocol::{NavigationConfiguration, configure_navigation};
 
 fn source(

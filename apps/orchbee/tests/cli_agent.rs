@@ -1599,7 +1599,7 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
 // ---- agent wait: held-session polling --------------------------------------
 //
 // `agent wait` composes repeated `agent.session.get.request` polls on ONE
-// admitted Client Session — never a new wire verb. One `spawn_peer`
+// admitted Client Connection — never a new wire verb. One `spawn_peer`
 // connection proves the session is held: a reconnect would strand on the
 // unserved accept backlog and fail admission. The scripted answers drive
 // the loop's freshness-gated predicate, revision fence, and two distinct

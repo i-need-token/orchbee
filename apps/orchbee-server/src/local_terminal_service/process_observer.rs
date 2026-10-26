@@ -1,5 +1,5 @@
 //! Windows Site-owned periodic process observations with one retained viewer cleanup responsibility.
-use super::{LocalTerminalService, viewer_session::PendingCleanup};
+use super::{LocalTerminalService, viewer_connection::PendingCleanup};
 use crate::agent_screen::ScreenDetector;
 use crate::{site_coordinator::ProcessObservationTarget, worker_obcn_carrier::WorkerRequestHandle};
 use std::{

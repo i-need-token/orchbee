@@ -2,8 +2,8 @@
 use crate::{
     client_view::ClientView,
     localization::Locale,
-    terminal_session::NativeLaunchFailure,
     tui_theme::{Role, Theme},
+    workbench_client::NativeLaunchFailure,
 };
 use ratatui::{
     Frame,

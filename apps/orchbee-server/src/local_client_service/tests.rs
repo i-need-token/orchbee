@@ -3,11 +3,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::client_session_registry::{
-    ClientSessionAdmission, ClientSessionRegistry, MAXIMUM_ACTIVE_CLIENT_SESSIONS,
+use crate::client_connection_registry::{
+    ClientConnectionAdmission, ClientConnectionRegistry, MAXIMUM_ACTIVE_CLIENT_CONNECTIONS,
 };
 
-use super::{ClientSessionRegistration, ConnectionSlots, MAXIMUM_CLIENT_CONNECTIONS};
+use super::{ClientConnectionRegistration, ConnectionSlots, MAXIMUM_CLIENT_CONNECTIONS};
 
 mod agent;
 pub(crate) mod agent_harness;
@@ -32,7 +32,7 @@ fn bounds_connection_threads_and_reuses_a_released_slot() {
 }
 
 #[test]
-fn unwind_releases_the_exact_session_and_handler_capacity() {
+fn unwind_releases_the_exact_connection_and_handler_capacity() {
     let connection_slots = Arc::new(ConnectionSlots::new());
     let mut retained_connection_slots = Vec::new();
     for _connection in 1..MAXIMUM_CLIENT_CONNECTIONS {
@@ -42,17 +42,17 @@ fn unwind_releases_the_exact_session_and_handler_capacity() {
         retained_connection_slots.push(connection_slot);
     }
 
-    let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
-    let mut retained_session_generations = Vec::new();
+    let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
+    let mut retained_connection_generations = Vec::new();
     {
         let mut registry = registry
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        for _session in 1..MAXIMUM_ACTIVE_CLIENT_SESSIONS {
-            let ClientSessionAdmission::Accepted { generation } = registry.admit() else {
-                panic!("Client Session was unavailable below the bound");
+        for _connection in 1..MAXIMUM_ACTIVE_CLIENT_CONNECTIONS {
+            let ClientConnectionAdmission::Accepted { generation } = registry.admit() else {
+                panic!("Client Connection was unavailable below the bound");
             };
-            retained_session_generations.push(generation);
+            retained_connection_generations.push(generation);
         }
     }
 
@@ -65,14 +65,14 @@ fn unwind_releases_the_exact_session_and_handler_capacity() {
             let mut registry = registry
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let ClientSessionAdmission::Accepted { generation } = registry.admit() else {
-                panic!("last Client Session was not admitted");
+            let ClientConnectionAdmission::Accepted { generation } = registry.admit() else {
+                panic!("last Client Connection was not admitted");
             };
             generation
         };
         unwound_generation = Some(generation);
-        let _session_registration =
-            ClientSessionRegistration::new(Arc::clone(&registry), generation);
+        let _connection_registration =
+            ClientConnectionRegistration::new(Arc::clone(&registry), generation);
         panic!("simulated post-admission panic");
     }));
 
@@ -88,14 +88,14 @@ fn unwind_releases_the_exact_session_and_handler_capacity() {
     let mut registry = registry
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let ClientSessionAdmission::Accepted {
+    let ClientConnectionAdmission::Accepted {
         generation: replacement_generation,
     } = registry.admit()
     else {
-        panic!("unwound Client Session capacity was not released");
+        panic!("unwound Client Connection capacity was not released");
     };
     assert!(!registry.disconnect(unwound_generation));
-    for retained_generation in retained_session_generations {
+    for retained_generation in retained_connection_generations {
         assert!(registry.disconnect(retained_generation));
     }
     assert!(registry.disconnect(replacement_generation));

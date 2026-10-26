@@ -6,7 +6,7 @@ pub(crate) fn resolve_color_level(
     force_color: Option<&str>,
     color_term: Option<&str>,
     term: Option<&str>,
-    windows_terminal_session: Option<&str>,
+    windows_workbench_client: Option<&str>,
     multiplexed: bool,
 ) -> ColorLevel {
     if no_color.is_some_and(|value| !value.is_empty()) {
@@ -37,7 +37,7 @@ pub(crate) fn resolve_color_level(
     if !multiplexed
         && color_term.is_none_or(str::is_empty)
         && term.is_none_or(str::is_empty)
-        && windows_terminal_session.is_some_and(is_plain_session_guid)
+        && windows_workbench_client.is_some_and(is_plain_session_guid)
     {
         return ColorLevel::Truecolor;
     }

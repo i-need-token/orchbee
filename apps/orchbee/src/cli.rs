@@ -335,7 +335,7 @@ pub(crate) enum FailureKind {
     ProtocolInvalid,
     Rejected,
     ServiceUnavailable,
-    SessionCapacity,
+    ConnectionCapacity,
     Timeout,
     TransportLoss,
 }
@@ -357,7 +357,7 @@ impl FailureKind {
             Self::ProtocolInvalid => "protocol-invalid",
             Self::Rejected => "rejected",
             Self::ServiceUnavailable => "service-unavailable",
-            Self::SessionCapacity => "session-capacity",
+            Self::ConnectionCapacity => "connection-capacity",
             Self::Timeout => "timeout",
             Self::TransportLoss => "transport-loss",
         }
@@ -367,7 +367,7 @@ impl FailureKind {
         match self {
             Self::InvalidUsage | Self::InvalidIdentifier => 2,
             Self::NotFound | Self::Ambiguous | Self::Denied | Self::Rejected => 3,
-            Self::ServiceUnavailable | Self::SessionCapacity => 4,
+            Self::ServiceUnavailable | Self::ConnectionCapacity => 4,
             Self::TransportLoss | Self::ProtocolInvalid => 5,
             Self::Incompatible => 6,
             Self::Timeout => 7,
@@ -758,7 +758,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 success_output(projection, source, &command, format, locale)
             }
         },
-        // Agent reads exchange on their own admitted Client Session; answers
+        // Agent reads exchange on their own admitted Client Connection; answers
         // arrive already projected with the correlated request identity.
         QueryCommand::AgentChanges { limit, cursor } => agent_output(
             query::agent_changes(*limit, cursor.clone()),

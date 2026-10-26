@@ -1,6 +1,6 @@
 use super::{
-    BackendAction, ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers,
-    Notice, Overlay, PanelDirection, PrefixInput, SessionActionDisposition, ShellCommand,
+    BackendAction, ClientAction, ClientActionDisposition, ClientTransition, ClientView, KeyCode,
+    KeyEvent, Modifiers, Notice, Overlay, PanelDirection, PrefixInput, ShellCommand,
     SidebarSurface, ViewportClass, WIDE_VIEWPORT_MINIMUM_COLUMNS,
 };
 
@@ -18,7 +18,7 @@ fn ctrl_b() -> PrefixInput {
 
 fn commit(view: &mut ClientView, input: PrefixInput) -> ClientTransition {
     let transition = view.decide(input);
-    view.commit(transition.clone(), SessionActionDisposition::KeepNavigator);
+    view.commit(transition.clone(), ClientActionDisposition::KeepNavigator);
     transition
 }
 
@@ -329,7 +329,7 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         assert_eq!(view, before);
         assert_eq!(transition.action(), Some(expected_action));
         assert_eq!(transition.shell(), ShellCommand::None);
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
         assert!(!view.prefix_active());
         assert_eq!(view.notice(), expected_notice);
     }
@@ -485,12 +485,12 @@ fn only_a_success_disposition_dismisses_an_open_navigator() {
 
     enter_prefix(&mut view);
     let selection = view.decide(plain('n'));
-    view.commit(selection, SessionActionDisposition::KeepNavigator);
+    view.commit(selection, ClientActionDisposition::KeepNavigator);
     assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 
     enter_prefix(&mut view);
     let selection = view.decide(plain('n'));
-    view.commit(selection, SessionActionDisposition::DismissNavigator);
+    view.commit(selection, ClientActionDisposition::DismissNavigator);
     assert_eq!(view.overlay(), None);
 }
 

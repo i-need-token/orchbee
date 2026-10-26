@@ -1,6 +1,6 @@
 use super::{
-    AsLocalIo, ClientHello, ClientSessionConnection, ConnectClientError, Duration,
-    LocalClientMessage, LocalIo, Path, Read, UnixStream, Write, io, read_message, write_message,
+    AsLocalIo, ClientConnection, ClientHello, ConnectClientError, Duration, LocalClientMessage,
+    LocalIo, Path, Read, UnixStream, Write, io, read_message, write_message,
 };
 use orchbee_local_ipc::{PollFd, PollFlags, PollTimeout, poll};
 use std::time::Instant;
@@ -43,7 +43,7 @@ pub(super) fn connect(
     hello: ClientHello,
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
-) -> Result<ClientSessionConnection, ConnectClientError> {
+) -> Result<ClientConnection, ConnectClientError> {
     let stream = connect_stream(endpoint, deadline, wake)?;
     let mut transport = Admission {
         stream,
@@ -75,7 +75,7 @@ pub(super) fn connect(
     if let Some(cancelled) = transport.cancelled {
         return Err(cancelled);
     }
-    Ok(ClientSessionConnection {
+    Ok(ClientConnection {
         generation: exchange?,
         stream: transport.stream,
     })

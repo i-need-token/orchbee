@@ -32,7 +32,7 @@ impl LocalClient {
         }
         if self.connection.is_none() {
             return WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable,
+                WorkbenchSetupNotSubmitted::ConnectionUnavailable,
             );
         }
         let command = request.0;
@@ -56,7 +56,7 @@ impl LocalClient {
         };
         let Some(connection) = self.connection.as_mut() else {
             return WorkbenchSetupSubmission::DefinitelyNotSubmitted(
-                WorkbenchSetupNotSubmitted::SessionUnavailable,
+                WorkbenchSetupNotSubmitted::ConnectionUnavailable,
             );
         };
         let attempt = exchange_once(
@@ -190,7 +190,7 @@ pub(crate) enum WorkbenchSetupSubmission {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchSetupNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
@@ -198,7 +198,7 @@ pub(crate) enum WorkbenchSetupNotSubmitted {
 impl fmt::Display for WorkbenchSetupNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP workspace setup request encoding failed: {error}")
             }
@@ -213,7 +213,7 @@ impl fmt::Display for WorkbenchSetupNotSubmitted {
 impl std::error::Error for WorkbenchSetupNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }

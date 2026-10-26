@@ -7,7 +7,7 @@
 `tui_pointer.rs`、`terminal_input/mouse.rs`、`terminal_input/decoder.rs`、
 `terminal_input/dispatcher.rs`、`terminal_lifecycle.rs`、`tui_render.rs` 及其
 `tabs`/`contexts` 绘制器、`tui_shell.rs`、`client_view.rs` 与 `client_view/bindings.rs`、
-`terminal_session/ui.rs`、`invocation.rs`、`terminal_link_activation.rs`、`localization.rs`
+`workbench_client/ui.rs`、`invocation.rs`、`terminal_link_activation.rs`、`localization.rs`
 共同维护。仓库标准
 [`docs/tui/mouse-input.md`](../../../docs/zh-CN/tui/mouse-input.md) 拥有该映射必须满足的
 规则；[原生终端环境](native-terminal-environment.md) 拥有 arming 与恢复所依托的
@@ -454,9 +454,9 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 | `tui_render/settings.rs`、`action_menu.rs`、`agent_board.rs`、`agent_sidebar.rs`、`workspace_sidebar.rs` | Settings、已打开的动作菜单、Agent board 与可见侧边栏的精确类型化交互                                                                                                              |
 | `tui_render.rs`、`help`、`navigator`、`tabs`、`contexts`、`presentation_selector`、`machine_picker`      | 精确 authored chrome 交互与来源凭据；pane 叶区域保留专用输入契约                                                                                                                  |
 | `client_view.rs`、`client_view/bindings.rs`                                                              | `Ctrl+B m` → `TogglePointerCapture`，`SelectContextAt`/`FocusPanel`/`SelectTab` disposition，released 指示与指针 notice                                                           |
-| `terminal_session/ui.rs`、`state/`                                                                       | `pointer_probe` 新鲜事实、`focus_panel`/`select_context_at` 准入、稳定 id 访问器（`tab_id`、`panel_id`、`location`）                                                              |
+| `workbench_client/ui.rs`、`state/`                                                                       | `pointer_probe` 新鲜事实、`focus_panel`/`select_context_at` 准入、稳定 id 访问器（`tab_id`、`panel_id`、`location`）                                                              |
 | `terminal_link_activation.rs`                                                                            | 精确来源围栏、OSC 8／纯文本解析、有序 handler 交接、单效果浏览器 fallback、有界通道与 join 关闭                                                                                   |
-| `terminal_session.rs`（test 接缝）                                                                       | 由真实 projection 帧与 controller 状态支撑的单 pane `Legacy` probe——connected-PTY 见证后端                                                                                        |
+| `workbench_client.rs`（test 接缝）                                                                       | 由真实 projection 帧与 controller 状态支撑的单 pane `Legacy` probe——connected-PTY 见证后端                                                                                        |
 | `terminal_input.rs`                                                                                      | `PointerProbe`/`PointerTab`/`PointerFrameFacts` 端口表面与 `forward_or_report` 投递                                                                                               |
 | `invocation.rs`、`cli/`                                                                                  | `tui --mouse off\|on` 准入、help 文本与三种 shell 补全                                                                                                                            |
 | `crates/terminal-protocol`                                                                               | `TerminalInteraction` 可信 Rust API，暴露已验证帧的 tracking/format/几何/cursor 模式事实                                                                                          |

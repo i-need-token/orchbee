@@ -5,7 +5,7 @@ Server/Worker execution, retained maintenance, exact session cleanup and canonic
 integrated, with deterministic carrier and Linux protocol-client process evidence. Native Close
 control and membership installation are integrated; Server-side PanelSplit and aggregate Close now
 have authority tests, a bounded model and a Linux real-terminal witness; the
-[native Session contract](../../orchbee/docs/native-tab-session.md) records the Linux TUI
+[Workbench Client runtime contract](../../orchbee/docs/workbench-client-runtime.md) records the Linux TUI
 Close-to-Empty, manual Create and retained-shell reentry witness. These bounded checks do not
 establish release readiness or production restart recovery. This Server-owned reference
 governs the lifetime workflow, cross-owner settlement and refinement obligations for Server, Worker,
@@ -565,7 +565,7 @@ The Close behavior above remains the contract. Its Server, Worker and native wor
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Server | `src/workbench_authority/terminal_tab_close/tests`, `reservation/tests.rs`, `continuation/tests.rs`; `src/local_terminal_service/tab_close/tests`          | Reserved revision/ledger credits, exact aliases and Resume generations, retained late receipts, current-state removal rebase, exact Create reference settlement, publication failure and target fences |
 | Worker | `src/terminal_lifecycle_operation/tests.rs`, `src/host_connection/target_cleanup/tests.rs`, `src/terminal_authorization/lifecycle/tests.rs`                | Exact request/target/epoch, ambiguous versus known effects, cache and reservation bounds, late Acquire and exact old lease cleanup                                                                     |
-| Native | `src/terminal_session/state/tests/tab_close`, `src/terminal_session/mailbox/tests/tab_close.rs`, `src/local_client/tests/workbench/tab_close/transport.rs` | Empty and surviving selection, attachment-generation fences, queued results, structural barriers, aliases, fixed deadlines and malformed/partial transport handoff                                     |
+| Native | `src/workbench_client/state/tests/tab_close`, `src/workbench_client/mailbox/tests/tab_close.rs`, `src/local_client/tests/workbench/tab_close/transport.rs` | Empty and surviving selection, attachment-generation fences, queued results, structural barriers, aliases, fixed deadlines and malformed/partial transport handoff                                     |
 
 Paths are relative to each owner's application; the Server reservation and continuation paths are under the same `terminal_tab_close` owner. Run from the repository root:
 

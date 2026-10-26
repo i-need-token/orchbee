@@ -1,7 +1,7 @@
 use super::super::{ConnectionSlots, handle_candidate};
 use crate::{
     agent_service::{AgentPolicy, AgentService},
-    client_session_registry::ClientSessionRegistry,
+    client_connection_registry::ClientConnectionRegistry,
     local_terminal_service::LocalTerminalService,
     workbench_service::{WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
@@ -20,7 +20,7 @@ use std::{
 };
 
 #[test]
-fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledger_state()
+fn an_oblc_admitted_connection_with_read_only_policy_cannot_mutate_or_discover_ledger_state()
 -> io::Result<()> {
     let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
         WorkerRegistry::new(),
@@ -39,7 +39,7 @@ fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledg
         read: true,
         manage: true,
     })?;
-    let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
+    let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let slots = Arc::new(ConnectionSlots::new());
     let slot = slots.acquire().unwrap();
     let (mut client, server) = UnixStream::pair()?;

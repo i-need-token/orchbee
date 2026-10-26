@@ -21,7 +21,7 @@ const MAXIMUM_GLYPHS: usize = 1_048_576;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
 
 /// One temporary read-only attachment with a per-call row bound and cumulative glyph/byte bounds.
-pub(crate) struct ReadSession<'a, G: Guard> {
+pub(crate) struct ReadAttachment<'a, G: Guard> {
     client: &'a mut LocalClient,
     guard: &'a mut G,
     viewer: ViewerId,
@@ -37,7 +37,7 @@ pub(crate) struct ReadSession<'a, G: Guard> {
     detach_result: Option<bool>,
 }
 
-impl<'a, G: Guard> ReadSession<'a, G> {
+impl<'a, G: Guard> ReadAttachment<'a, G> {
     /// Attach to the exact painted binding and reproduce its terminal content fence.
     ///
     /// # Errors
@@ -452,7 +452,7 @@ fn valid_row_range(total: u64, range: &Range<u64>) -> bool {
         && range.end <= u64::from(u32::MAX) + 1
 }
 
-impl<G: Guard> Drop for ReadSession<'_, G> {
+impl<G: Guard> Drop for ReadAttachment<'_, G> {
     fn drop(&mut self) {
         let _detached = self.detach();
     }

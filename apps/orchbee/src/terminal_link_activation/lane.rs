@@ -15,7 +15,8 @@ use crate::{
     local_client::{LocalClientOrigin, LocalOperationClock},
     machine_observation,
     terminal_link_activation::{
-        Activation, Guard, PaintedLinkSource, ReadSession, context, plugin, windows::SystemBrowser,
+        Activation, Guard, PaintedLinkSource, ReadAttachment, context, plugin,
+        windows::SystemBrowser,
     },
 };
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
@@ -327,7 +328,7 @@ fn execute(
         return Notice::Failed;
     }
     let resolved = {
-        let Ok(mut reader) = ReadSession::open(
+        let Ok(mut reader) = ReadAttachment::open(
             &mut client,
             &snapshot,
             &job.source,
@@ -376,7 +377,7 @@ fn execute(
     }
     let (handoff, observed_context) = {
         let Ok(mut reader) =
-            ReadSession::open(&mut client, &current, &job.source, job.deadline, &mut guard)
+            ReadAttachment::open(&mut client, &current, &job.source, job.deadline, &mut guard)
         else {
             return Notice::Failed;
         };

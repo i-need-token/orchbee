@@ -22,7 +22,7 @@ TUI命令交换使用独立可取消连接和负责join的线程，等待命令�
 相同路径，无需先经 CLI 列出目录或调用命令。Server 的命令、来源与权限检查保持不变。
 拒绝反馈包含命令 ID，并区分繁忙、来源过时、命令／配置变化、权限、不可用及副作用结果未知，
 分别提供等待、返回实时终端、重载、重连或检查后再重试的指引。受控 lane 见证位于
-`src/terminal_session/client_control/lane/tests/configured_invocation.rs`；popup 的输入、关闭与
+`src/workbench_client/client_control/lane/tests/configured_invocation.rs`；popup 的输入、关闭与
 返回行为继续由既有独立 popup 所有者负责。
 
 ## 参考与证据

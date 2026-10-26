@@ -1,7 +1,7 @@
 use super::super::{project_shell_areas, render_terminal_shell};
 use super::*;
 use crate::{
-    client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition},
+    client_view::{ClientActionDisposition, KeyCode, KeyEvent, Modifiers, PrefixInput},
     machine_agents::{
         Observation as Agents,
         tests::{checkpoint, row},
@@ -134,7 +134,7 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
                     })
                     .collect();
                 assert_eq!(exact.len(), expected_height);
-                assert!(exact.iter().all(|s|matches!(&s.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)));
+                assert!(exact.iter().all(|s|matches!(&s.context,Some(crate::workbench_client::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)));
             }
         }
     }
@@ -294,7 +294,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
             let rendered = (0..40)
                 .filter_map(|y| match hits.hit_target_at(2, y) {
                     Some(HitTarget::MachineAgentRow { selected, .. })
-                        if matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
+                        if matches!(&selected.context,Some(crate::workbench_client::NativeStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
                     {
                         Some(rows[y as usize].as_str())
                     }
@@ -318,7 +318,7 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
                     .count(),
                 4
             );
-            assert!((0..40).filter_map(|y| match hits.hit_target_at(2,y) {Some(HitTarget::MachineAgentRow{selected,..})=>Some(selected),_=>None}).all(|selected| matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)));
+            assert!((0..40).filter_map(|y| match hits.hit_target_at(2,y) {Some(HitTarget::MachineAgentRow{selected,..})=>Some(selected),_=>None}).all(|selected| matches!(&selected.context,Some(crate::workbench_client::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)));
         }
     }
 }
@@ -358,7 +358,7 @@ fn configured_sidebar_hides_raw_token_matches_and_missing_rows_without_hiding_na
         .collect::<Vec<_>>();
     assert_eq!(hits.len(), 1);
     assert!(
-        matches!(&hits[0].context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)
+        matches!(&hits[0].context,Some(crate::workbench_client::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)
     );
 }
 
@@ -386,7 +386,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     let mut spans = std::collections::BTreeMap::new();
     for y in 0..40 {
         if let Some(HitTarget::MachineAgentRow { selected, .. }) = hits.hit_target_at(2, y) {
-            let Some(crate::terminal_session::NativeStartupTarget::Agent(t)) = &selected.context
+            let Some(crate::workbench_client::NativeStartupTarget::Agent(t)) = &selected.context
             else {
                 panic!()
             };
@@ -421,7 +421,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         KeyEvent::press(KeyCode::Char('b'), Modifiers::NONE),
     ] {
         let t = view.decide(PrefixInput::Key(key));
-        view.commit(t, SessionActionDisposition::KeepNavigator);
+        view.commit(t, ClientActionDisposition::KeepNavigator);
     }
     let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 13);
     let window = (0..13)
@@ -441,7 +441,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
             // visible entry owns no leading gap (three Claude rows), then the
             // custom entry owns its one-row gap plus two content rows.
             assert_eq!((window.top, window.end()), (2, 4));
-            let Some(crate::terminal_session::NativeStartupTarget::Agent(target)) =
+            let Some(crate::workbench_client::NativeStartupTarget::Agent(target)) =
                 &selected.context
             else {
                 panic!()
@@ -531,7 +531,7 @@ fn view(width: u16, height: u16, count: u64) -> ClientView {
             KeyEvent::press(KeyCode::Char('b'), Modifiers::NONE),
         ] {
             let transition = view.decide(PrefixInput::Key(key));
-            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            view.commit(transition, ClientActionDisposition::KeepNavigator);
         }
     }
     view.machines.observe_agent_sidebar(
@@ -727,7 +727,7 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
             assert!(!rows.join("\n").contains("space /"));
             assert!(
                 matches!(hits.hit_target_at(2, y), Some(HitTarget::MachineAgentRow { selected, .. })
-                if matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref() == &target))
+                if matches!(&selected.context, Some(crate::workbench_client::NativeStartupTarget::Agent(actual)) if actual.as_ref() == &target))
             );
         }
     }
@@ -1183,7 +1183,7 @@ fn sidebar_shares_source_order_and_never_lists_unavailable_rows() {
         })
         .unwrap();
     assert!(
-        matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.member==row(24).target.member)
+        matches!(&selected.context,Some(crate::workbench_client::NativeStartupTarget::Agent(t)) if t.member==row(24).target.member)
     );
 }
 
@@ -1206,7 +1206,7 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
     let rendered = (0..40)
         .filter_map(|y| match hits.hit_target_at(2, y) {
             Some(HitTarget::MachineAgentRow { selected, .. })
-                if matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
+                if matches!(&selected.context,Some(crate::workbench_client::NativeStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
             {
                 Some(rows[y as usize].as_str())
             }
@@ -1229,7 +1229,7 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
         })
         .unwrap();
     assert!(
-        matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)
+        matches!(&selected.context,Some(crate::workbench_client::NativeStartupTarget::Agent(t)) if t.as_ref()==&target)
     );
 }
 
@@ -1247,7 +1247,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         view.machines.observe_focus(
             Choice::Local,
             Some(agent.target.context.clone()),
-            Some(crate::terminal_session::NativeMemberTarget {
+            Some(crate::workbench_client::NativeMemberTarget {
                 tab: agent.target.tab,
                 panel: agent.target.panel,
                 presentation: agent.target.member,
@@ -1361,7 +1361,7 @@ fn bounded_sidebar_width_records_only_its_border_and_never_overrides_covering_he
                 .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(preferred).unwrap());
             view.resize(width);
             let transition = view.decide_action(ClientAction::FocusBusinessSidebar);
-            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            view.commit(transition, ClientActionDisposition::KeepNavigator);
             let area = Rect::new(0, 0, width, height);
             let target = DrawnSidebarWidth::new(area, view.sidebar_surface());
             view.machines.observe_agent_sidebar(target.is_some());
@@ -1387,7 +1387,7 @@ fn bounded_sidebar_width_records_only_its_border_and_never_overrides_covering_he
                     if target.is_some() {
                         let mut covered = view.clone();
                         let transition = covered.decide_action(ClientAction::OpenShortcutHelp);
-                        covered.commit(transition, SessionActionDisposition::KeepNavigator);
+                        covered.commit(transition, ClientActionDisposition::KeepNavigator);
                         let (_, covered_map) = paint(&covered, locale, &theme, width, height);
                         assert!((0..height).all(|y| (0..width).all(|x| !matches!(
                             covered_map.hit_target_at(x, y),
@@ -1453,7 +1453,7 @@ fn width_draft_moves_painted_geometry_and_rejects_an_equal_rect_with_stale_prefe
         ) {
             let transition =
                 view.decide_action(crate::client_view::ClientAction::ToggleBusinessSidebar);
-            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            view.commit(transition, ClientActionDisposition::KeepNavigator);
         }
         let old = DrawnSidebarWidth::new(Rect::new(0, 0, 60, 12), view.sidebar_surface()).unwrap();
         let drag = SidebarWidthDrag::begin(old, old.edge().x, 3).unwrap();

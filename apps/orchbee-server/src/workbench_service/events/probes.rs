@@ -1,5 +1,5 @@
 //! Exact logical/physical sources, bounded match edges, and correlated read-only Client queries.
-use super::{WorkbenchClientSession, capture::Capture};
+use super::{WorkbenchClientConnection, capture::Capture};
 use crate::{
     local_terminal_service::semantic_events::OutputRead, site_coordinator::ProcessObservationTarget,
 };
@@ -23,7 +23,7 @@ struct Source {
 }
 impl Source {
     fn prepare(
-        session: &WorkbenchClientSession<'_>,
+        session: &WorkbenchClientConnection<'_>,
         site: &SiteId,
         selector: &SemanticEventSource,
     ) -> Result<Self, Failure> {
@@ -36,7 +36,7 @@ impl Source {
     }
     fn current(
         &self,
-        session: &WorkbenchClientSession<'_>,
+        session: &WorkbenchClientConnection<'_>,
         site: &SiteId,
     ) -> Result<(SemanticPane, WorkbenchRevision, ProcessObservationTarget), Failure> {
         let current = session
@@ -102,7 +102,7 @@ pub(super) enum Probe {
 }
 
 pub(super) fn prepare(
-    session: &WorkbenchClientSession<'_>,
+    session: &WorkbenchClientConnection<'_>,
     site: &SiteId,
     filters: &[Filter],
 ) -> Result<Vec<Probe>, Failure> {
@@ -165,7 +165,7 @@ pub(super) fn prepare(
     Ok(probes)
 }
 fn check_primary(
-    session: &WorkbenchClientSession<'_>,
+    session: &WorkbenchClientConnection<'_>,
     site: &SiteId,
     source: &Source,
 ) -> Result<(), Failure> {
@@ -217,7 +217,7 @@ impl Probe {
     }
     pub(super) fn initial(
         &mut self,
-        session: &WorkbenchClientSession<'_>,
+        session: &WorkbenchClientConnection<'_>,
         subscription: &WorkbenchRequestId,
         sequence: u64,
     ) -> Result<Option<SemanticEvent>, Failure> {
@@ -254,7 +254,7 @@ impl Probe {
     }
     pub(super) fn observe(
         &mut self,
-        session: &WorkbenchClientSession<'_>,
+        session: &WorkbenchClientConnection<'_>,
         site: &SiteId,
         subscription: &WorkbenchRequestId,
         sequence: u64,
@@ -389,7 +389,7 @@ impl Probe {
     }
 }
 fn agent_report(
-    session: &WorkbenchClientSession<'_>,
+    session: &WorkbenchClientConnection<'_>,
     site: &SiteId,
     pane: &SemanticPane,
     request_id: &WorkbenchRequestId,
@@ -431,7 +431,7 @@ fn agent_report(
     row.panel.report.ok_or(Failure::SourceUnavailable)
 }
 fn event(
-    session: &WorkbenchClientSession<'_>,
+    session: &WorkbenchClientConnection<'_>,
     subscription: &WorkbenchRequestId,
     sequence: u64,
     revision: WorkbenchRevision,
@@ -476,7 +476,7 @@ fn fresh_id() -> Result<WorkbenchRequestId, Failure> {
         .map_err(|_| Failure::Unavailable)
 }
 fn viewport(
-    session: &WorkbenchClientSession<'_>,
+    session: &WorkbenchClientConnection<'_>,
     client_id: &WorkbenchClientId,
     pane: &SemanticPane,
     pending: &mut Option<ClientViewControl>,

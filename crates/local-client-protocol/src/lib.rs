@@ -1,6 +1,6 @@
 //! Bounded local Client admission and control messages with a same-user connecting adapter.
 //! Callers own endpoint selection, invocation deadlines and the accepted stream; Server owns
-//! Session admission and lifecycle decisions. This crate neither activates a Site nor interprets
+//! Connection admission and lifecycle decisions. This crate neither activates a Site nor interprets
 //! the application protocol that follows admission.
 
 mod codec;
@@ -27,7 +27,7 @@ pub use codec::{
 
 #[cfg(any(unix, windows))]
 pub use connection::{
-    ClientSessionConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
+    ClientConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
 };
 #[cfg(windows)]
 pub use connection::{

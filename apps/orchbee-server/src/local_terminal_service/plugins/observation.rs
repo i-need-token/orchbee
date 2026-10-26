@@ -94,7 +94,9 @@ impl LocalTerminalService {
         })?;
         let mut sampled = None;
         let observe =
-            |viewer: &mut crate::local_terminal_service::viewer_session::ViewerAttachment<'_>,
+            |viewer: &mut crate::local_terminal_service::viewer_connection::ViewerAttachment<
+                '_,
+            >,
              template: node::TerminalViewerRequest| {
                 let Some(id) = self.next_viewer_operation() else {
                     return;

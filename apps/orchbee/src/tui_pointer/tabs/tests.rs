@@ -1,13 +1,13 @@
 use super::*;
 use crate::{
     action_menu::DrawnMenuSource,
-    client_view::SessionActionDisposition,
+    client_view::ClientActionDisposition,
     terminal_input::{PointerProbe, PointerTab, TerminalInputUnavailable},
-    terminal_session::NativeContextLocation,
     tui_pointer::{
         HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, MotionObservability,
         PrimaryContract, ProjectedPointer,
     },
+    workbench_client::NativeContextLocation,
 };
 use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTerminalContextId};
 use std::time::Instant;
@@ -43,19 +43,19 @@ impl TerminalInputPort for Port {
         &mut self,
         source: &DrawnTabCreate,
         tab: &WorkbenchTabId,
-    ) -> Option<SessionActionDisposition> {
+    ) -> Option<ClientActionDisposition> {
         assert_eq!(source, &self.source.drawn);
         assert_eq!(tab, &id(2));
         self.actions.push(ClientAction::RequestRenameTab);
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
     fn commit_tab_drag(&mut self, source: &DrawnTabCreate, operation: TabConfiguration) {
         assert_eq!(source, &self.source.drawn);
         self.writes.push(operation);
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.actions.push(action);
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 }
 fn id(n: usize) -> WorkbenchTabId {

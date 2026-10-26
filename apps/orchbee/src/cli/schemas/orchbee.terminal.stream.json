@@ -231,7 +231,7 @@
 						"protocol-invalid",
 						"rejected",
 						"service-unavailable",
-						"session-capacity",
+						"connection-capacity",
 						"timeout",
 						"transport-loss",
 						"stdin-eof",

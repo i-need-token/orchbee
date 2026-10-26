@@ -15,7 +15,7 @@ use std::os::{fd::AsFd, unix::net::UnixStream};
 use std::rc::Rc;
 
 const EMPTY: &str = "No terminal tabs";
-const CONFIGURED_EMPTY_ACTION: &str = "Ctrl+b c Create a Tab (requires session)";
+const CONFIGURED_EMPTY_ACTION: &str = "Ctrl+b c Create a Tab (requires connection)";
 const UNCONFIGURED_EMPTY_FACT: &str = "No directory configured.";
 const UNCONFIGURED_EMPTY_ACTION: &str = "Ctrl+b e Configure an empty Workspace's first directory";
 const INITIAL_WORKSPACE_LOCATION: &str = "Workspace";
@@ -84,7 +84,7 @@ pub(super) struct WorkbenchPeer {
 impl WorkbenchPeer {
     pub(super) fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
         let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
-        let admitted = ClientSessionConnection::connect_before(
+        let admitted = ClientConnection::connect_before(
             fixture.site().client_socket_path(),
             cohort.identity(),
             deadline,

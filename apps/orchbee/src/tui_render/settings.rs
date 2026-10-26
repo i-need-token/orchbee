@@ -6,7 +6,6 @@ use crate::{
         Adjustment, Choice, Control, DraftView, Entry, Page, Row, SettingControl, SettingsDraw,
         SettingsHintLabel, View, footer_bindings, setting_for_row,
     },
-    terminal_session::ModalPresentation,
     terminal_text::{
         display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
     },
@@ -15,6 +14,7 @@ use crate::{
         ProjectedPointer,
     },
     tui_theme::{GlyphMode, Role, Theme},
+    workbench_client::ModalPresentation,
 };
 use ratatui::{
     Frame,

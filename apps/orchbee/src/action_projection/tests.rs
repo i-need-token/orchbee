@@ -10,7 +10,7 @@ fn every_shipped_prefix_member_has_stable_metadata() {
             assert!(!metadata.identity.stable_id().is_empty());
             assert!(
                 !metadata.search_aliases.contains(&ActionSearchAlias::Detach)
-                    || metadata.category == ActionCategory::Session
+                    || metadata.category == ActionCategory::Client
             );
         }
     }

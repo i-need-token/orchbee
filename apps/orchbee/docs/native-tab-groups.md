@@ -213,6 +213,6 @@ expires five seconds after completion or halt; the facts remain until a new expl
 
 The owning implementation tests cover group membership, pinned ordering, duplicate source identity, sequential receipt/install/Ready barriers, cancellation and refusal without automatic replay.
 
-Maintain the concrete witnesses in `src/terminal_session/state/tab_groups.rs`, `src/terminal_session/state/tab_duplication.rs`, `src/terminal_session/mailbox/tests/tab_duplication.rs`, `src/tui_pointer/tests/tab_groups.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/workbench_client/state/tab_groups.rs`, `src/workbench_client/state/tab_duplication.rs`, `src/workbench_client/mailbox/tests/tab_duplication.rs`, `src/tui_pointer/tests/tab_groups.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

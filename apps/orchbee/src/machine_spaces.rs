@@ -2,7 +2,7 @@
 use crate::{
     local_client::LocalClient,
     machine_observation::{check, request_id, snapshot},
-    terminal_session::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_workbench_protocol::{
     GitDivergence, MAXIMUM_WORKSPACE_METADATA_READ_ROWS, MetadataTokens, ProtocolVersion, SiteId,

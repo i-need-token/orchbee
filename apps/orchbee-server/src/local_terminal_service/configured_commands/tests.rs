@@ -83,7 +83,7 @@ fn configured_command_permissions_follow_execution_owner_and_preserve_failure() 
         },
         terminals,
     );
-    let session = service.client_session(std::num::NonZeroU64::new(1).unwrap());
+    let session = service.client_connection(std::num::NonZeroU64::new(1).unwrap());
     let invoke = |id| {
         session.execute(WorkbenchRequest::ConfiguredCommand(
             ConfiguredCommandRequest {

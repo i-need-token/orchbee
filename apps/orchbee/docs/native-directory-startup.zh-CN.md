@@ -32,6 +32,6 @@ Server 拥有 canonical 导航和终端准入。启动精确提交一次带修�
 
 ## 证据与边界
 
-`src/terminal_session/startup_directory/tests.rs` 覆盖空 Project 准入、已有空 Workspace 拒绝、路径/名称规则、精确作用域及两种语言的保留证据。`src/terminal_session/connection/native/tests/startup_directory.rs` 检查 Bootstrap 前只提交一次 launch、不执行隐式终端打开或 ProjectCreate、读取失败后保留已知回执，以及未知交接后不继续或重放。
+`src/workbench_client/startup_directory/tests.rs` 覆盖空 Project 准入、已有空 Workspace 拒绝、路径/名称规则、精确作用域及两种语言的保留证据。`src/workbench_client/connection/native/tests/startup_directory.rs` 检查 Bootstrap 前只提交一次 launch、不执行隐式终端打开或 ProjectCreate、读取失败后保留已知回执，以及未知交接后不继续或重放。
 
 使用匹配的原生依赖构建运行所属 `startup_directory` Rust 测试。这些测试覆盖有界实现轨迹；真实终端显示和完整 cohort 验收属于原生端到端测试，不宣称穷尽并发交错或覆盖其他平台。

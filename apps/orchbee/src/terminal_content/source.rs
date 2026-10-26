@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{
     WorkbenchPanelId, WorkbenchTabId, WorkbenchTerminalContextId, WorkerId,
 };
 
-use crate::terminal_session::state::PaneRef;
+use crate::workbench_client::state::PaneRef;
 
 /// The canonical member whose cells one successful native draw exposed.
 /// Every axis is retained so a later snapshot can reject a moved, rebound,

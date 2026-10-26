@@ -125,7 +125,7 @@
 						"refused",
 						"rejected",
 						"service-unavailable",
-						"session-capacity",
+						"connection-capacity",
 						"timeout",
 						"transport-loss",
 						"truncated-frame"

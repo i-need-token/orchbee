@@ -18,7 +18,8 @@ fn binding_request() -> ClientMessage {
 }
 
 fn binding_outcome(service: &LocalTerminalService) -> TerminalViewerOutcome {
-    let ServerMessage::TerminalViewerResult(result) = service.session().execute(binding_request())
+    let ServerMessage::TerminalViewerResult(result) =
+        service.client_connection().execute(binding_request())
     else {
         unreachable!("binding request must produce a viewer result")
     };

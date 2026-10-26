@@ -318,7 +318,7 @@ const HELP_PATHS: &[HelpPath] = &[
     ),
     HelpPath::new(
         &["terminal", "session"],
-        HelpTopic::Family(Family::TerminalSession),
+        HelpTopic::Family(Family::WorkbenchClient),
     ),
     HelpPath::new(
         &["terminal", "session", "observe"],

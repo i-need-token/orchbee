@@ -17,16 +17,16 @@ enum ControlTarget {
     ),
     #[cfg(windows)]
     Resize(super::ResizeControl),
-    TabClose(crate::terminal_session::NativeCloseConfirmationToken, bool),
+    TabClose(crate::workbench_client::NativeCloseConfirmationToken, bool),
     PanelClose(
-        crate::terminal_session::NativePanelCloseConfirmationToken,
+        crate::workbench_client::NativePanelCloseConfirmationToken,
         bool,
     ),
-    Rename(crate::terminal_session::NativeRenameDraftToken, bool),
-    Setup(crate::terminal_session::NativeSetupToken, ModalControl),
+    Rename(crate::workbench_client::NativeRenameDraftToken, bool),
+    Setup(crate::workbench_client::NativeSetupToken, ModalControl),
     #[cfg(windows)]
-    Worktree(crate::terminal_session::WorktreeToken, ModalControl),
-    Close(crate::terminal_session::WorkspaceCloseToken, bool),
+    Worktree(crate::workbench_client::WorktreeToken, ModalControl),
+    Close(crate::workbench_client::WorkspaceCloseToken, bool),
 }
 
 impl ControlTarget {
@@ -556,7 +556,7 @@ impl PointerState {
                     view.decide_action(crate::client_view::ClientAction::OpenShortcutHelp);
                 view.commit(
                     transition,
-                    crate::client_view::SessionActionDisposition::KeepNavigator,
+                    crate::client_view::ClientActionDisposition::KeepNavigator,
                 );
             } else {
                 port.click_copy_control(token, control);
@@ -607,7 +607,7 @@ impl PointerState {
                         view.decide_action(crate::client_view::ClientAction::OpenShortcutHelp);
                     view.commit(
                         transition,
-                        crate::client_view::SessionActionDisposition::KeepNavigator,
+                        crate::client_view::ClientActionDisposition::KeepNavigator,
                     );
                 }
                 super::ResizeControl::Exit => {
@@ -750,7 +750,7 @@ impl PointerState {
                 ModalControl::NextField => {
                     port.edit_setup_draft(
                         token,
-                        crate::terminal_session::NativeSetupEdit::NextField,
+                        crate::workbench_client::NativeSetupEdit::NextField,
                     );
                 }
                 ModalControl::Choice(index) => port.choose_setup_project(token, index),
@@ -763,10 +763,10 @@ impl PointerState {
             #[cfg(windows)]
             Some(ControlTarget::Worktree(token, control)) => match control {
                 ModalControl::NextField => {
-                    port.edit_worktree(token, crate::terminal_session::WorktreeEdit::NextField);
+                    port.edit_worktree(token, crate::workbench_client::WorktreeEdit::NextField);
                 }
                 ModalControl::Refresh => {
-                    port.edit_worktree(token, crate::terminal_session::WorktreeEdit::ReadStatus);
+                    port.edit_worktree(token, crate::workbench_client::WorktreeEdit::ReadStatus);
                 }
                 ModalControl::Choice(index) => port.choose_worktree(token, index),
                 ModalControl::Submit => port.submit_worktree(token),

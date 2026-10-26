@@ -3,8 +3,8 @@ use crate::{
     machine_discovery::Context,
     machine_picker::SidebarRow,
     terminal_input::{PointerProbe, TerminalInputUnavailable},
-    terminal_session::NativeContextTarget,
     tui_pointer::{HitLayer, HitMapBuilder, InteractionSpec},
+    workbench_client::NativeContextTarget,
 };
 use orchbee_workbench_protocol::{
     Project, ProtocolVersion, Snapshot, TerminalContext, WorkbenchProjectId, WorkbenchRevision,

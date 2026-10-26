@@ -1,7 +1,7 @@
 //! Controlled admission traces for direct sidebar navigation and its latest-intent slot.
 use super::super::*;
 use super::{dimensions, setup};
-use crate::{machine_picker::Selection, terminal_session::NativeContextLocation};
+use crate::{machine_picker::Selection, workbench_client::NativeContextLocation};
 use orchbee_workbench_protocol::{SiteId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
 use std::{cell::RefCell, rc::Rc};
 

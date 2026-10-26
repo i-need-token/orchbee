@@ -5,8 +5,8 @@ use super::{
 };
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
-    terminal_session::NativeContextLocation,
     tui_layout::SidebarWidthChange,
+    workbench_client::NativeContextLocation,
 };
 use orchbee_workbench_protocol::{SiteId, WorkbenchProjectId};
 use std::sync::Arc;
@@ -52,7 +52,7 @@ impl SidebarTarget {
             }),
             Self::Agent { machine, target } => Some(Selection {
                 machine: machine.clone(),
-                context: Some(crate::terminal_session::NativeStartupTarget::Agent(
+                context: Some(crate::workbench_client::NativeStartupTarget::Agent(
                     target.clone(),
                 )),
             }),
@@ -1226,7 +1226,7 @@ impl Picker {
                 {
                     return SidebarIntent::Activate(Selection {
                         machine: machine.clone(),
-                        context: Some(crate::terminal_session::NativeStartupTarget::Agent(
+                        context: Some(crate::workbench_client::NativeStartupTarget::Agent(
                             target.clone(),
                         )),
                     });

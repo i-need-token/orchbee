@@ -6,9 +6,9 @@ use ratatui::{Frame, buffer::CellWidth, layout::Rect, style::Style, widgets::Cle
 use crate::{
     localization::Locale,
     terminal_live_view::LiveView,
-    terminal_session::NativeViewportSurface,
     terminal_text::{display_width, truncate_display},
     tui_theme::{Role, Theme},
+    workbench_client::NativeViewportSurface,
 };
 
 use super::{

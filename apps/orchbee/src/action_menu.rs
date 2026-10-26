@@ -21,13 +21,13 @@ pub(crate) enum MenuTarget {
     TabGroupChoices(orchbee_workbench_protocol::WorkbenchTabId),
     TabTools(orchbee_workbench_protocol::WorkbenchTabId),
     TabCreate(DrawnTabCreate),
-    Pane(crate::terminal_session::state::PaneRef),
+    Pane(crate::workbench_client::state::PaneRef),
     Tab(orchbee_workbench_protocol::WorkbenchTabId),
     /// Organization actions address the Project directly; terminal actions require a member.
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
-    Workspace(crate::terminal_session::NativeContextLocation),
-    WorkspaceProjects(crate::terminal_session::NativeContextLocation),
-    Worktrees(crate::terminal_session::SidebarWorktreeTarget),
+    Workspace(crate::workbench_client::NativeContextLocation),
+    WorkspaceProjects(crate::workbench_client::NativeContextLocation),
+    Worktrees(crate::workbench_client::SidebarWorktreeTarget),
     /// An object entry must still belong to the exact Site snapshot that painted it.
     Drawn {
         source: DrawnMenuSource,
@@ -56,7 +56,7 @@ pub(crate) struct DrawnMenuSource {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DrawnTabCreate {
     pub(crate) source: DrawnMenuSource,
-    pub(crate) location: crate::terminal_session::NativeContextLocation,
+    pub(crate) location: crate::workbench_client::NativeContextLocation,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -476,7 +476,7 @@ enum GlobalMenuGroup {
     Tab,
     Panel,
     Workspace,
-    Session,
+    Client,
     Other,
 }
 
@@ -493,7 +493,7 @@ fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
         | MenuAction::WorkspaceAtDirectory
         | MenuAction::NewWorktree
         | MenuAction::OpenWorktree => GlobalMenuGroup::Workspace,
-        MenuAction::Detach => GlobalMenuGroup::Session,
+        MenuAction::Detach => GlobalMenuGroup::Client,
         _ => GlobalMenuGroup::Other,
     }
 }

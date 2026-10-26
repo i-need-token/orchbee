@@ -4,8 +4,8 @@
 
 本参考规范原生 Client 对实时网格的本地展示与保留历史视口：以 `Ctrl+B PageUp`、primary 屏幕向上滚轮或滚动条进入的按窗格滚动回看模式、其
 demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以及呈现面如何生成与围栏。
-与 `terminal_session/terminal_viewport.rs`、`terminal_session/mailbox.rs`、
-`terminal_session/connection/native.rs`、`terminal_session/ui.rs`、`terminal_input/dispatcher.rs`、
+与 `workbench_client/terminal_viewport.rs`、`workbench_client/mailbox.rs`、
+`workbench_client/connection/native.rs`、`workbench_client/ui.rs`、`terminal_input/dispatcher.rs`、
 `client_view.rs`、`client_view/bindings.rs`、`tui_pointer.rs`、`tui_render.rs` 及其
 `tui_render/viewport.rs` 画笔、`terminal_live_view.rs`、`tui_backend.rs`、`localization.rs`、`formal/tla/TerminalViewportCoordination.tla` 共同维护。
 协议契约归 `crates/terminal-protocol`（`row_window.rs`、`history.rs`、`row_access.rs`）
@@ -374,7 +374,7 @@ Home、End 和 Esc。
 
 `TerminalViewportCoordination.tla/.cfg` 抽象一个 pane、两次进入/读取尝试、两个匿名输入命令和容量为二的 FIFO。`Enter`（含 `EnterTail`）、`Read`、`Recover` 对应 viewport 暂存命令；`Admit`、`Execute` 对应 mailbox/worker FIFO；`Consume` 对应结果消费；`Detach` 使 pane epoch 失效。进入抽象不区分活动与暂停的投影 demand；该区别由执行器及尾部绘制测试负责。故障注入只能破坏已有窗口响应，不能制造独立结果生产者。
 
-检查范围为有界队列所有权、单一读取 flight、当前 epoch 的显示、恢复时保留已接纳命令，以及在接纳、执行、消费弱公平假设下进入/恢复最终收敛。这是更小的协议抽象，不是所有 viewport 操作的等价证明。实际行边界、导航、期限、滚动条手势和代际/序号校验由 `terminal_session/terminal_viewport/tests.rs`、`window.rs` 及 projection/connection 测试负责。
+检查范围为有界队列所有权、单一读取 flight、当前 epoch 的显示、恢复时保留已接纳命令，以及在接纳、执行、消费弱公平假设下进入/恢复最终收敛。这是更小的协议抽象，不是所有 viewport 操作的等价证明。实际行边界、导航、期限、滚动条手势和代际/序号校验由 `workbench_client/terminal_viewport/tests.rs`、`window.rs` 及 projection/connection 测试负责。
 
 ## 验证
 

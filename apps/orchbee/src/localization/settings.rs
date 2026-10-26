@@ -5,8 +5,8 @@ use crate::{
         Choice, Confirmation, DraftView, Page, Reconciliation, Row, SettingCategory, SettingUnit,
         SettingsHintLabel, setting_for_row,
     },
-    terminal_session::SettingsNotice,
     terminal_text::{sanitize_terminal_text, truncate_display},
+    workbench_client::SettingsNotice,
 };
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,

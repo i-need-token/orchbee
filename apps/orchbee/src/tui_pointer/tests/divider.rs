@@ -426,12 +426,12 @@ fn commit_overlay(view: &mut ClientView) {
         KeyCode::Char('b'),
         Modifiers::CTRL,
     )));
-    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    view.commit(transition, ClientActionDisposition::KeepNavigator);
     let transition = view.decide(PrefixInput::Key(KeyEvent::press(
         KeyCode::Char('?'),
         Modifiers::NONE,
     )));
-    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    view.commit(transition, ClientActionDisposition::KeepNavigator);
 }
 
 #[test]

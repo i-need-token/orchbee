@@ -422,9 +422,9 @@ struct Output {
 }
 
 #[derive(Default)]
-pub(super) struct Session(Option<Output>);
+pub(super) struct Recorder(Option<Output>);
 
-impl Session {
+impl Recorder {
     pub(super) fn open(value: Option<OsString>, locale: Locale) -> io::Result<Self> {
         let Some(path) = value else {
             return Ok(Self::default());

@@ -1,6 +1,6 @@
 //! Real renderer maps drive bounded wheel work and complete pointer gestures.
 use super::*;
-use crate::{localization::Locale, terminal_session::ModalPresentation, tui_theme::Theme};
+use crate::{localization::Locale, tui_theme::Theme, workbench_client::ModalPresentation};
 
 #[test]
 fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row() {
@@ -509,7 +509,7 @@ fn small_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_mode() {
             ] {
                 view.commit(
                     view.decide_action(action),
-                    SessionActionDisposition::KeepNavigator,
+                    ClientActionDisposition::KeepNavigator,
                 );
             }
             assert!(view.resize_mode());
@@ -638,7 +638,7 @@ fn help_mouse_pages_and_close_capture_only_their_own_surface_and_packet() {
         let mut view = ClientView::new(80);
         view.commit(
             view.decide_action(ClientAction::OpenShortcutHelp),
-            SessionActionDisposition::KeepNavigator,
+            ClientActionDisposition::KeepNavigator,
         );
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         let map = help_map(&mut dispatcher, &mut view, locale);
@@ -719,7 +719,7 @@ fn help_close_activates_on_release_and_fences_that_packet_once() {
     let mut view = ClientView::new(80);
     view.commit(
         view.decide_action(ClientAction::OpenShortcutHelp),
-        SessionActionDisposition::KeepNavigator,
+        ClientActionDisposition::KeepNavigator,
     );
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let map = help_map(&mut dispatcher, &mut view, Locale::EnUs);
@@ -780,7 +780,7 @@ fn replaced_help_episode_consumes_the_old_release_without_closing_the_new_surfac
     let mut view = ClientView::new(80);
     view.commit(
         view.decide_action(ClientAction::OpenShortcutHelp),
-        SessionActionDisposition::KeepNavigator,
+        ClientActionDisposition::KeepNavigator,
     );
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let map = help_map(&mut dispatcher, &mut view, Locale::EnUs);
@@ -806,12 +806,12 @@ fn replaced_help_episode_consumes_the_old_release_without_closing_the_new_surfac
     );
     view.commit(
         view.decide_action(ClientAction::OpenShortcutHelp),
-        SessionActionDisposition::KeepNavigator,
+        ClientActionDisposition::KeepNavigator,
     );
     assert_eq!(view.overlay(), None);
     view.commit(
         view.decide_action(ClientAction::OpenShortcutHelp),
-        SessionActionDisposition::KeepNavigator,
+        ClientActionDisposition::KeepNavigator,
     );
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     help_map(&mut dispatcher, &mut view, Locale::EnUs);

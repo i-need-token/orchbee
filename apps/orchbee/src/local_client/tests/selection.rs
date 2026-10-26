@@ -156,7 +156,7 @@ fn selection_wrong_reply_pairings_retire_without_replay() -> TestResult {
         ));
         assert!(matches!(
             client.submit_terminal_viewer(request),
-            Err(SubmissionError::SessionUnavailable)
+            Err(SubmissionError::ConnectionUnavailable)
         ));
         server.finish()?;
     }

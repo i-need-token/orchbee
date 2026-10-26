@@ -56,7 +56,7 @@ fn process_info_accepts_only_a_record_and_retires_on_empty_without_retry() -> Te
     ));
     assert!(matches!(
         client.submit_terminal_viewer(request(FIRST_REQUEST_ID)?),
-        Err(SubmissionError::SessionUnavailable)
+        Err(SubmissionError::ConnectionUnavailable)
     ));
     server.finish()?;
     Ok(())

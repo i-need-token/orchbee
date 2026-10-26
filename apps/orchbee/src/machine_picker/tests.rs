@@ -348,7 +348,7 @@ fn context(n: u8) -> Context {
                         "{n:032x}"
                     ))
                     .unwrap();
-                crate::terminal_session::NativeContextLocation::Workspace {
+                crate::workbench_client::NativeContextLocation::Workspace {
                     workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                         fixture_context_id.as_str(),
                     )
@@ -460,7 +460,7 @@ fn workspace_search_names_same_labelled_workspaces_by_identity_and_grouping() {
     let workspace = |n: u8, label: &str| Context {
         target: NativeContextTarget {
             site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 9)).unwrap(),
-            location: crate::terminal_session::NativeContextLocation::Workspace {
+            location: crate::workbench_client::NativeContextLocation::Workspace {
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
                     "{n:032x}"
                 ))

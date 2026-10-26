@@ -1,9 +1,9 @@
 use super::*;
 use crate::client_view::navigator::{Admission, Catalog, Row, Source, Target};
-use crate::terminal_session::NativeContextLocation;
 use crate::tui_pointer::{
     HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
 };
+use crate::workbench_client::NativeContextLocation;
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -53,9 +53,9 @@ impl TerminalInputPort for Port {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.calls.borrow_mut().push(Call::Action(action));
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
     fn navigator_catalog(&self) -> Option<Catalog> {
         Some(self.catalog.clone())

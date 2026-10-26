@@ -1,17 +1,17 @@
 //! Title-line geometry and exact member targets share one painter; selectors never overlap Pane
 //! hits.
 use super::{
-    Frame, HitLayer, HitMapBuilder, NativeDisplayPhase, NativeSessionView, Paragraph, Rect, Role,
-    Theme,
+    Frame, HitLayer, HitMapBuilder, NativeDisplayPhase, Paragraph, Rect, Role, Theme,
+    WorkbenchClientView,
     controls::{
         Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
         icon_action_rect, render_icon_action,
     },
 };
 use crate::{
-    terminal_session::{DrawnPresentationTarget, NativePanel},
     terminal_text::display_width,
     tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
+    workbench_client::{DrawnPresentationTarget, NativePanel},
 };
 
 pub(super) struct PresentationSelector {
@@ -25,7 +25,7 @@ impl PresentationSelector {
     pub(super) fn new(
         header: Rect,
         panel: &NativePanel,
-        native: &NativeSessionView<'_>,
+        native: &WorkbenchClientView<'_>,
     ) -> Option<Self> {
         if header.is_empty()
             || panel.presentation_count() < 2
@@ -84,7 +84,7 @@ impl PresentationSelector {
     pub(super) fn pending_count(
         strip: Rect,
         panel: &NativePanel,
-        native: &NativeSessionView<'_>,
+        native: &WorkbenchClientView<'_>,
     ) -> Option<(Rect, String)> {
         let total = panel.presentation_count();
         if total < 2 || native.retirement().is_some() {

@@ -3,7 +3,7 @@ use super::super::*;
 use super::{dimensions, profile, setup};
 use crate::{
     local_client::tests::server::FakeServer,
-    terminal_session::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
 use orchbee_workbench_protocol::*;

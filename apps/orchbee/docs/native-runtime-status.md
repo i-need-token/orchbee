@@ -6,7 +6,7 @@ This reference owns Windows `status server` and `status client` reads this execu
 
 `status server` probes only the selected implicit local Windows Session. It does not start a Server,
 create a runtime directory or lock file, repair a marker, attach a terminal, change focus or create
-a Client Session. Its successful response reports facts supplied by the responding same-user
+a Client Connection. Its successful response reports facts supplied by the responding same-user
 Server, not values copied from the querying Client or inferred from a pipe name.
 
 ## Observation model
@@ -55,7 +55,7 @@ live handoff; managed stop support comes from the actual managed lifecycle owner
 
 Only the Windows Server composition answers this new request. Same-user proof and existing
 candidate/handshake bounds apply before dispatch. Metadata bypasses cohort equality and ordinary
-Client Session admission solely to report diagnostics; it grants no application capability and
+Client Connection admission solely to report diagnostics; it grants no application capability and
 cannot enter a subsequent application phase. The Server can answer while ordinary admission is
 stopping, and the metadata read never acquires a shutdown record lease or creates a stop request.
 Shared codecs remain platform-neutral; this adds no macOS/Linux command runtime.

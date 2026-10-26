@@ -404,7 +404,7 @@ fn moved_pending_workspace_create_settles_after_close_at_its_original_revision_a
 
 #[test]
 fn last_workspace_close_keeps_directory_recreates_fresh_ids_and_cleans_only_its_context() {
-    use crate::local_terminal_service::controller_session::ControlTarget;
+    use crate::local_terminal_service::controller_connection::ControlTarget;
     use orchbee_capability_node_protocol::OperationId;
     let Fixture {
         service,
@@ -438,10 +438,11 @@ fn last_workspace_close_keeps_directory_recreates_fresh_ids_and_cleans_only_its_
             host_epoch: runtime.host_identity().host_epoch().as_bytes(),
             terminal: runtime.host_identity().terminal_id().as_bytes(),
         };
-        let owner = super::super::super::controller_session::ControllerReservation::active_for_test(
-            OperationId::from_bytes([40 + index as u8; 16]).unwrap(),
-            OperationId::from_bytes([60 + index as u8; 16]).unwrap(),
-        );
+        let owner =
+            super::super::super::controller_connection::ControllerReservation::active_for_test(
+                OperationId::from_bytes([40 + index as u8; 16]).unwrap(),
+                OperationId::from_bytes([60 + index as u8; 16]).unwrap(),
+            );
         // Seed the real local controller registry; this test covers exact cleanup, not acquisition.
         assert!(
             service

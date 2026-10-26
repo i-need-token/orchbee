@@ -16,7 +16,7 @@ impl LocalClient {
     ) -> WorkbenchLabelRenameSubmission {
         if self.connection.is_none() {
             return WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(
-                WorkbenchLabelRenameNotSubmitted::SessionUnavailable,
+                WorkbenchLabelRenameNotSubmitted::ConnectionUnavailable,
             );
         }
         let command = request.0;
@@ -40,7 +40,7 @@ impl LocalClient {
         };
         let Some(connection) = self.connection.as_mut() else {
             return WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(
-                WorkbenchLabelRenameNotSubmitted::SessionUnavailable,
+                WorkbenchLabelRenameNotSubmitted::ConnectionUnavailable,
             );
         };
         let attempt = exchange_once(
@@ -162,7 +162,7 @@ pub(crate) enum WorkbenchLabelRenameSubmission {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchLabelRenameNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
@@ -170,7 +170,7 @@ pub(crate) enum WorkbenchLabelRenameNotSubmitted {
 impl fmt::Display for WorkbenchLabelRenameNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP label-rename request encoding failed: {error}")
             }
@@ -185,7 +185,7 @@ impl fmt::Display for WorkbenchLabelRenameNotSubmitted {
 impl std::error::Error for WorkbenchLabelRenameNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }

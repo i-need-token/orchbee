@@ -283,7 +283,7 @@ impl Locale {
                 "Interact with an Agent's terminal.",
                 "进入 Agent 所在的终端。",
             ),
-            HelpTopic::Family(Family::TerminalSession) => (
+            HelpTopic::Family(Family::WorkbenchClient) => (
                 "Stream terminal frames and control messages.",
                 "读写终端画面与控制消息流。",
             ),

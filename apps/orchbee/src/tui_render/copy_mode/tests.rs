@@ -136,7 +136,7 @@ fn a_rejected_search_paste_keeps_the_draft_caret_warning_and_exit_path() {
                 Theme::one_dark(),
             ] {
                 let warning = locale.native_notice(
-                    crate::terminal_session::NativeSessionNotice::CopyModeSearchLimit,
+                    crate::workbench_client::WorkbenchClientNotice::CopyModeSearchLimit,
                 );
                 let warning_prefix = if locale == Locale::EnUs {
                     "Rejected"

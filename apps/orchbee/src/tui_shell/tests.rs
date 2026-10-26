@@ -12,7 +12,7 @@ use std::{
 use ratatui::{Terminal, TerminalOptions, Viewport, backend::TestBackend};
 
 use crate::{
-    client_view::{ClientAction, ClientView, SessionActionDisposition},
+    client_view::{ClientAction, ClientActionDisposition, ClientView},
     localization::Locale,
     terminal_device::WindowDimensions,
     terminal_input::{ModeRequest, TerminalInputPort, TerminalInputUnavailable},
@@ -43,10 +43,10 @@ struct QueueInputSource {
 }
 
 pub(crate) fn run_native_close_resize_confirmation(
-    session: &mut crate::terminal_session::TerminalSession,
+    session: &mut crate::workbench_client::WorkbenchClient,
 ) -> io::Result<Vec<bool>> {
     struct Surface<'a> {
-        session: &'a mut crate::terminal_session::TerminalSession,
+        session: &'a mut crate::workbench_client::WorkbenchClient,
         prompts_after_draw: Vec<bool>,
     }
     impl TerminalInputPort for Surface<'_> {
@@ -56,21 +56,18 @@ pub(crate) fn run_native_close_resize_confirmation(
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        ) -> Option<crate::workbench_client::NativeCaptureContext> {
             self.session.native_capture_context(owner)
         }
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.session.forward(bytes)
         }
-        fn apply_client_action(
-            &mut self,
-            action: ClientAction,
-        ) -> Option<SessionActionDisposition> {
+        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
             self.session.apply_client_action(action)
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
-            token: crate::terminal_session::NativeCloseConfirmationToken,
+            token: crate::workbench_client::NativeCloseConfirmationToken,
             key: crate::client_view::ClientKey,
         ) -> bool {
             self.session.capture_tab_confirmation_key_for(token, key)
@@ -89,12 +86,14 @@ pub(crate) fn run_native_close_resize_confirmation(
         fn after_draw(&mut self) {
             self.session.after_draw();
         }
-        fn after_close_draw(&mut self, receipt: crate::terminal_session::NativeDrawReceipt) {
+        fn after_close_draw(&mut self, receipt: crate::workbench_client::NativeDrawReceipt) {
             self.session.after_close_draw(receipt);
-            self.prompts_after_draw.push(matches!(self.session.view(),
-                crate::terminal_session::TerminalSessionView::Native(view) if view.close_confirmation().is_some()));
+            self.prompts_after_draw.push({
+                let view = self.session.view();
+                view.close_confirmation().is_some()
+            });
         }
-        fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
+        fn view(&self) -> Option<crate::workbench_client::WorkbenchClientView<'_>> {
             Some(self.session.view())
         }
     }
@@ -661,9 +660,9 @@ impl TerminalInputPort for OrderedSurface {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.events.push(SurfaceEvent::Action(action));
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 
     fn observe_geometry(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
@@ -718,9 +717,9 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
     use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput};
     let key = |code, mods| PrefixInput::Key(KeyEvent::press(code, mods));
     let prefix = expanded_view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
-    expanded_view.commit(prefix, SessionActionDisposition::KeepNavigator);
+    expanded_view.commit(prefix, ClientActionDisposition::KeepNavigator);
     let toggle = expanded_view.decide(key(KeyCode::Char('b'), Modifiers::NONE));
-    expanded_view.commit(toggle, SessionActionDisposition::KeepNavigator);
+    expanded_view.commit(toggle, ClientActionDisposition::KeepNavigator);
     let expanded = super::terminal_geometry(measured, &expanded_view, None)?
         .expect("a presentable viewport must produce pane geometry");
     assert_ne!(docked, expanded);
@@ -883,7 +882,7 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
         }
     }
     impl super::TerminalSurface for Surface {
-        fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {
+        fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {
             self.close_acknowledged += 1;
         }
         fn tick(&mut self) -> bool {

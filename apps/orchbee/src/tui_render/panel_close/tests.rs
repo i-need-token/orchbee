@@ -2,9 +2,9 @@ use super::super::modal::ModalAction;
 use super::{PreparedContent, confirmation_text, render_content, render_prepared};
 use crate::{
     localization::Locale,
-    terminal_session::{ModalPresentation, NativePanelCloseConfirmationToken},
     tui_pointer::HitMapBuilder,
     tui_theme::Theme,
+    workbench_client::{ModalPresentation, NativePanelCloseConfirmationToken},
 };
 use ratatui::{
     Terminal,

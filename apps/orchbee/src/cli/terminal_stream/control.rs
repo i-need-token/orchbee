@@ -124,7 +124,7 @@ fn control(
     };
     let geometry = Geometry::new(command.stream.columns, command.stream.rows, 0, 0)
         .map_err(|_| Failure::new(FailureKind::InvalidUsage))?;
-    let mut session = Session {
+    let mut controller = Controller {
         client,
         viewer: viewer.clone(),
         controller: controller_id.clone(),
@@ -136,8 +136,8 @@ fn control(
         gate,
         output: relay,
     };
-    session.resize(geometry)?;
-    session.output.event(
+    controller.resize(geometry)?;
+    controller.output.event(
         json!({"kind":"opened","mode":"control","controllerId":controller_id,"source":{
         "siteId":snapshot.site_id,"revision":snapshot.revision,"terminalId":terminal.terminal_id,"workerId":terminal.worker_id,
         "viewerId":viewer,"attachmentId":attachment.to_text(),"hostEpoch":epoch.to_text()
@@ -146,10 +146,10 @@ fn control(
     )?;
     let mut input =
         input::Reader::start().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-    session.drive(&mut input)
+    controller.drive(&mut input)
 }
 
-pub(super) struct Session<'a, 'g> {
+pub(super) struct Controller<'a, 'g> {
     client: &'a mut LocalClient,
     viewer: ViewerId,
     controller: ControllerId,
@@ -161,7 +161,7 @@ pub(super) struct Session<'a, 'g> {
     gate: &'a Gate<'g>,
     output: &'a mut dyn Display,
 }
-impl<'a, 'g> Session<'a, 'g> {
+impl<'a, 'g> Controller<'a, 'g> {
     pub(super) fn new(
         client: &'a mut LocalClient,
         viewer: ViewerId,

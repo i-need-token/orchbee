@@ -351,7 +351,7 @@ fn panel_agent_failure(reason: PanelAgentFailure) -> Failure {
 
 fn metadata_failure(reason: MetadataExchangeReason) -> FailureKind {
     match reason {
-        MetadataExchangeReason::SessionUnavailable => FailureKind::ServiceUnavailable,
+        MetadataExchangeReason::ConnectionUnavailable => FailureKind::ServiceUnavailable,
         MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
         MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
             FailureKind::Timeout

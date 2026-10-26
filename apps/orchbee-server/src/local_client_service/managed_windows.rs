@@ -3,7 +3,7 @@ use super::{AgentRuntimeOwner, ConnectionSlots, bind_managed, handle_candidate_c
 use crate::site_shutdown::SiteShutdown;
 use crate::{
     agent_service::AgentService,
-    client_session_registry::ClientSessionRegistry,
+    client_connection_registry::ClientConnectionRegistry,
     local_terminal_service::LocalTerminalService,
     workbench_service::{WorkbenchPolicy, WorkbenchService},
 };
@@ -92,7 +92,7 @@ pub(crate) fn start(
     terminals.bind_agent_names(&agents)?;
     let listener = bind_managed(endpoint)?;
     listener.set_nonblocking(true)?;
-    let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
+    let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let slots = Arc::new(ConnectionSlots::new());
     let cohort: Arc<str> = Arc::from(cohort);
     let workbench = Arc::new(WorkbenchService::new(

@@ -4,7 +4,7 @@ EXTENDS Naturals, Sequences, FiniteSets
 \* Two independently draining viewers, two frame/history records, a one-slot
 \* queue and one unsettled flight per lane. An overflowing viewer closes
 \* without dropping peer work. Record identities abstract immutable opaque
-\* payloads. Authentication/grants belong to SessionViewerOwnership; byte
+\* payloads. Authentication/grants belong to ConnectionViewerOwnership; byte
 \* arithmetic, codecs and exact production capacities have implementation tests.
 Clients == {1, 2}
 VARIABLE s

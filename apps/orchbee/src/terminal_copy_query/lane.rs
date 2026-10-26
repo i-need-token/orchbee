@@ -16,7 +16,7 @@ use super::{Action, Admission, Failure, Outcome, QueryIdentity, Request, Value};
 use crate::{
     local_client::{LocalClientOrigin, LocalOperationClock},
     machine_observation,
-    terminal_content::{ContentSource, Guard, ReadSession},
+    terminal_content::{ContentSource, Guard, ReadAttachment},
     terminal_copy::{self, CopyError},
 };
 
@@ -263,7 +263,7 @@ fn execute(
         return Err(Failure::SourceChanged);
     }
     let value = {
-        let mut reader = ReadSession::open(
+        let mut reader = ReadAttachment::open(
             &mut client,
             &snapshot,
             &job.request.source,
@@ -289,7 +289,7 @@ fn execute(
 }
 
 fn evaluate(
-    reader: &mut ReadSession<'_, LaneGuard<'_>>,
+    reader: &mut ReadAttachment<'_, LaneGuard<'_>>,
     action: &Action,
 ) -> Result<Value, Failure> {
     if reader.total_rows() > u64::from(u32::MAX) + 1 {

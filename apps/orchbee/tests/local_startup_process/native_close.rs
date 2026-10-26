@@ -25,7 +25,7 @@ impl SnapshotObserver {
         let deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let cohort = NativeCohort::load(&fixture.cohort, deadline)
             .map_err(|error| format!("observer cohort: {error}"))?;
-        let admitted = ClientSessionConnection::connect_before(
+        let admitted = ClientConnection::connect_before(
             fixture.site().client_socket_path(),
             cohort.identity(),
             deadline,

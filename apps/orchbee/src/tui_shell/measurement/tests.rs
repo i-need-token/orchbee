@@ -10,7 +10,7 @@ use std::{
 };
 
 use super::{
-    Active, Batch, CompletionFailure, Event, Journal, MeasuredWriter, Measurements, Session,
+    Active, Batch, CompletionFailure, Event, Journal, MeasuredWriter, Measurements, Recorder,
     finish_run, write_journal,
 };
 use crate::{
@@ -40,8 +40,8 @@ fn document(measurements: &Measurements, ran: bool, restored: bool) -> serde_jso
 
 #[test]
 fn disabled_observer_has_no_sample_storage_and_never_calls_the_clock() -> io::Result<()> {
-    let session = Session::open(None, Locale::EnUs)?;
-    let measurements = session.measurements();
+    let recorder = Recorder::open(None, Locale::EnUs)?;
+    let measurements = recorder.measurements();
     assert!(
         measurements.0.is_none(),
         "no journal, vector or shared allocation"
@@ -58,7 +58,7 @@ fn disabled_observer_has_no_sample_storage_and_never_calls_the_clock() -> io::Re
     assert_eq!(writer.write_vectored(&[IoSlice::new(b"ef")])?, 2);
     writer.flush()?;
     let restored = Cell::new(false);
-    session.finish_after_restore(
+    recorder.finish_after_restore(
         Ok(()),
         || {
             restored.set(true);
@@ -495,13 +495,13 @@ fn restoration_always_precedes_serialization_and_all_failures_keep_the_primary_c
 #[test]
 fn configuration_path_diagnostics_preserve_the_env_name_in_both_locales() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let error = Session::open(Some("relative.json".into()), locale)
+        let error = Recorder::open(Some("relative.json".into()), locale)
             .err()
             .expect("relative path refused before I/O");
         assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
         assert_eq!(error.to_string(), locale.tui_measurement_path_invalid());
         assert!(error.to_string().contains("ORCHBEE_TUI_MEASUREMENTS"));
-        assert!(Session::open(Some("".into()), locale).is_err());
+        assert!(Recorder::open(Some("".into()), locale).is_err());
     }
 }
 

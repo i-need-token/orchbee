@@ -1,10 +1,10 @@
-use super::WorkbenchClientSession;
+use super::WorkbenchClientConnection;
 use orchbee_workbench_protocol::{
     PaneGraphicsAction as Action, PaneGraphicsFailure as Failure, PaneGraphicsOutcome as Outcome,
     PaneGraphicsRequest, PaneGraphicsResult,
 };
 
-impl WorkbenchClientSession<'_> {
+impl WorkbenchClientConnection<'_> {
     pub(super) fn pane_graphics(&self, request: PaneGraphicsRequest) -> PaneGraphicsResult {
         let outcome = self
             .graphics_outcome(&request)

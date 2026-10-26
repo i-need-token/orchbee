@@ -4,7 +4,7 @@
 
 This reference governs the native Client's selection gesture, Host-owned selection projection,
 plain-text export, clipboard delivery, pane-program clipboard writes, and bell delivery. Maintain it
-with `tui_pointer.rs`, `terminal_session/ui.rs`, `terminal_session/connection/native.rs`,
+with `tui_pointer.rs`, `workbench_client/ui.rs`, `workbench_client/connection/native.rs`,
 `tui_render.rs`, `tui_backend.rs`, `local_client.rs`, the viewer relays in
 `apps/orchbee-worker`, `apps/orchbee-server`, `crates/capability-node-protocol`, and
 `crates/client-server-protocol`, and the selection/effect contracts in

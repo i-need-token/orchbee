@@ -15,7 +15,7 @@ pub(super) const EMPTY: &str = "No terminal tabs";
 pub(super) const DIRECTORY_NEEDED: &str = "No directory configured.";
 pub(super) const DIRECTORY_NEEDED_ACTION: &str =
     "Ctrl+b e Configure an empty Workspace's first directory";
-pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c Create a Tab (requires session)";
+pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c Create a Tab (requires connection)";
 pub(super) const DIRECTORY_PATH: &str = "Configure Workspace directory";
 pub(super) const DIRECTORY_INPUT_HINT: &str = "Enter the full path to an existing folder.";
 pub(super) const TEXT_HINTS: &str = "Esc cancel · Enter submit · Backspace delete · Ctrl+u clear";
@@ -192,7 +192,7 @@ impl SnapshotObserver {
     pub(super) fn connect(fixture: &Fixture) -> Result<Self, Box<dyn Error>> {
         let deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
-        let admitted = ClientSessionConnection::connect_before(
+        let admitted = ClientConnection::connect_before(
             fixture.site().client_socket_path(),
             cohort.identity(),
             deadline,

@@ -96,7 +96,7 @@ Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或
 
 所属实现测试覆盖基线/替换静默、准确 Client/身份/序号/类型去重、拒绝过期候选、Client 局部确认、静音策略、无效重载保留、有效重载取消和退役后无效果。
 
-在 `src/terminal_session/agent_notifications/tests.rs`、`src/terminal_session/agent_notifications/tests/generated.rs`、`src/notifications/tests.rs`、`src/tui_shell/tests/notification_too_small.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。真实根帧尺寸恢复用例不请求 OS 声音，验证隐藏卡片的效果保留与一次性结算。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/workbench_client/agent_notifications/tests.rs`、`src/workbench_client/agent_notifications/tests/generated.rs`、`src/notifications/tests.rs`、`src/tui_shell/tests/notification_too_small.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。真实根帧尺寸恢复用例不请求 OS 声音，验证隐藏卡片的效果保留与一次性结算。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
 

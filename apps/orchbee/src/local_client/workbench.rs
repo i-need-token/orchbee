@@ -104,7 +104,7 @@ impl LocalClient {
         wake: Option<BorrowedFd<'_>>,
     ) -> Result<WorkbenchSnapshotResult, SnapshotReadError> {
         if self.connection.is_none() {
-            return Err(SnapshotReadError::SessionUnavailable);
+            return Err(SnapshotReadError::ConnectionUnavailable);
         }
 
         let request_id = request.request_id.clone();
@@ -127,7 +127,7 @@ impl LocalClient {
         };
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(SnapshotReadError::SessionUnavailable);
+                return Err(SnapshotReadError::ConnectionUnavailable);
             };
             exchange_once(
                 connection,
@@ -192,7 +192,7 @@ impl LocalClient {
         caller_deadline: Option<Instant>,
     ) -> Result<WorkbenchPublicationResult, PublicationReadError> {
         if self.connection.is_none() {
-            return Err(PublicationReadError::SessionUnavailable);
+            return Err(PublicationReadError::ConnectionUnavailable);
         }
 
         let request_id = request.request_id.clone();
@@ -215,7 +215,7 @@ impl LocalClient {
         };
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(PublicationReadError::SessionUnavailable);
+                return Err(PublicationReadError::ConnectionUnavailable);
             };
             exchange_once(
                 connection,
@@ -279,7 +279,7 @@ impl LocalClient {
         deadline: Instant,
     ) -> Result<WorkbenchWorktreeListResult, WorktreeListReadError> {
         if self.connection.is_none() {
-            return Err(WorktreeListReadError::SessionUnavailable);
+            return Err(WorktreeListReadError::ConnectionUnavailable);
         }
 
         let request_id = request.request_id.clone();
@@ -291,7 +291,7 @@ impl LocalClient {
             .map_err(WorktreeListReadError::RequestNotSubmitted)?;
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(WorktreeListReadError::SessionUnavailable);
+                return Err(WorktreeListReadError::ConnectionUnavailable);
             };
             exchange_once(
                 connection,
@@ -362,7 +362,7 @@ impl LocalClient {
     ) -> WorkbenchTabCreateSubmission {
         if self.connection.is_none() {
             return WorkbenchTabCreateSubmission::DefinitelyNotSubmitted(
-                WorkbenchTabCreateNotSubmitted::SessionUnavailable,
+                WorkbenchTabCreateNotSubmitted::ConnectionUnavailable,
             );
         }
 
@@ -399,7 +399,7 @@ impl LocalClient {
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
                 return WorkbenchTabCreateSubmission::DefinitelyNotSubmitted(
-                    WorkbenchTabCreateNotSubmitted::SessionUnavailable,
+                    WorkbenchTabCreateNotSubmitted::ConnectionUnavailable,
                 );
             };
             exchange_once(
@@ -566,7 +566,7 @@ pub(crate) enum WorkbenchTabCreateSubmission {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchTabCreateNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
@@ -574,7 +574,9 @@ pub(crate) enum WorkbenchTabCreateNotSubmitted {
 impl fmt::Display for WorkbenchTabCreateNotSubmitted {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => {
+                formatter.write_str("local Client Connection is unavailable")
+            }
             Self::RequestEncoding(error) => {
                 write!(
                     formatter,
@@ -594,7 +596,7 @@ impl std::error::Error for WorkbenchTabCreateNotSubmitted {
         match self {
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
         }
     }
 }
@@ -850,7 +852,7 @@ fn validate_committed_tab_fields(
 
 #[derive(Debug)]
 pub(crate) enum SnapshotReadError {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
     Failed {
@@ -862,7 +864,9 @@ pub(crate) enum SnapshotReadError {
 impl fmt::Display for SnapshotReadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => {
+                formatter.write_str("local Client Connection is unavailable")
+            }
             Self::RequestEncoding(error) => {
                 write!(formatter, "OBWP snapshot request encoding failed: {error}")
             }
@@ -886,7 +890,7 @@ impl std::error::Error for SnapshotReadError {
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
             Self::Failed { reason, .. } => reason.source(),
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
         }
     }
 }
@@ -932,7 +936,7 @@ impl std::error::Error for SnapshotReadFailure {
 
 #[derive(Debug)]
 pub(crate) enum WorktreeListReadError {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
     Failed {
@@ -944,7 +948,9 @@ pub(crate) enum WorktreeListReadError {
 impl fmt::Display for WorktreeListReadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => {
+                formatter.write_str("local Client Connection is unavailable")
+            }
             Self::RequestEncoding(error) => {
                 write!(
                     formatter,
@@ -971,7 +977,7 @@ impl std::error::Error for WorktreeListReadError {
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
             Self::Failed { reason, .. } => reason.source(),
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
         }
     }
 }
@@ -1021,7 +1027,7 @@ impl std::error::Error for WorktreeListReadFailure {
 
 #[derive(Debug)]
 pub(crate) enum PublicationReadError {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
     Failed {
@@ -1033,7 +1039,9 @@ pub(crate) enum PublicationReadError {
 impl fmt::Display for PublicationReadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => {
+                formatter.write_str("local Client Connection is unavailable")
+            }
             Self::RequestEncoding(error) => {
                 write!(
                     formatter,
@@ -1060,7 +1068,7 @@ impl std::error::Error for PublicationReadError {
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
             Self::Failed { reason, .. } => reason.source(),
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
         }
     }
 }

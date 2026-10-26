@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_session::{WorkspaceCreationPhase, WorkspaceCreationPreview};
+use crate::workbench_client::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 use orchbee_workbench_protocol::SiteId;
 
 fn sidebar_display_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
@@ -33,7 +33,7 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                         KeyEvent::press(KeyCode::Char('b'), Modifiers::NONE),
                     ] {
                         let transition = view.decide(PrefixInput::Key(key));
-                        view.commit(transition, SessionActionDisposition::KeepNavigator);
+                        view.commit(transition, ClientActionDisposition::KeepNavigator);
                     }
                 }
                 let site = SiteId::parse(&format!("{:032x}", 1)).unwrap();

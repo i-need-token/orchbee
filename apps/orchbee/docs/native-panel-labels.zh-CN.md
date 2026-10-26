@@ -19,7 +19,7 @@ White_Space，包含 NEL、不包含 BOM；Rust、TypeScript 与 schema 证据�
 
 实现归属包括协议标签类型及 Presentation／动作契约、Server 的纯 Workbench authority、
 共享原生标签改名 carrier、CLI mutation 适配器，以及
-`terminal_session/workbench_projection.rs` 的显示投影。本参考需与这些 owner、独立的
+`workbench_client/workbench_projection.rs` 的显示投影。本参考需与这些 owner、独立的
 TypeScript 契约及 JSON schema 同步维护。
 
 ## 命令模型
@@ -61,7 +61,7 @@ revision 的矛盾，以及不可变回退标签或绑定变化仍按原规则�
 ## 证据与兼容性
 
 [Server 权威测试](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs)覆盖规范化设置/清除、
-无变化、重放、非目标保留、pending 创建、授权及容量。[原生投影轨迹](../src/terminal_session/workbench_projection/tests/label_evolution.rs)
+无变化、重放、非目标保留、pending 创建、授权及容量。[原生投影轨迹](../src/workbench_client/workbench_projection/tests/label_evolution.rs)
 覆盖自定义标签演进及不可变身份拒绝。这些维护中的测试不会针对同一 Session 运行两个原生 TUI。
 
 原生 Windows 进程验证必须使用专属 Session 与两个 TUI，检查全局显示收敛、设置/清除/无变化、

@@ -46,7 +46,9 @@ pub(in crate::cli) fn read(
         .map_err(|error| {
             failure(
                 match error.reason {
-                    MetadataExchangeReason::SessionUnavailable => FailureKind::ServiceUnavailable,
+                    MetadataExchangeReason::ConnectionUnavailable => {
+                        FailureKind::ServiceUnavailable
+                    }
                     MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
                     MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
                         FailureKind::Timeout

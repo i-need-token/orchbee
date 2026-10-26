@@ -1,7 +1,7 @@
 use std::num::NonZeroU64;
 
 use super::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen};
-use crate::terminal_session::state::{AttachmentKey, PaneKey, PaneRef};
+use crate::workbench_client::state::{AttachmentKey, PaneKey, PaneRef};
 use orchbee_terminal_protocol::{
     TerminalFrameRoute, TerminalInteraction, TerminalPixelGeometry, TerminalTextCursor,
     TerminalTextFrame,

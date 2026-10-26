@@ -1,6 +1,6 @@
 //! Active-Client topology bridges slow metadata reads without promoting a pending move to authority.
 use super::{Checkpoint, ProjectSummary, Row};
-use crate::terminal_session::{
+use crate::workbench_client::{
     NativeContextLocation, NativeContextTarget, SidebarNavigationProjection,
 };
 use orchbee_workbench_protocol::{MetadataTokens, WorkbenchRevision, configure_navigation};

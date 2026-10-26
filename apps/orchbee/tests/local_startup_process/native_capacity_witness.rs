@@ -464,7 +464,7 @@ struct Binding {
 /// the peer closes the socket; the Server releases the session and every
 /// attachment it owned on its own schedule.
 struct SessionPeer {
-    _admitted: ClientSessionConnection,
+    _admitted: ClientConnection,
     writer: DeadlineStream,
     reader: BufReader<DeadlineStream>,
     deadline: Rc<Cell<Instant>>,
@@ -482,7 +482,7 @@ impl SessionPeer {
         tag: u32,
         deadline: Instant,
     ) -> Result<Self, String> {
-        let admitted = ClientSessionConnection::connect_before(
+        let admitted = ClientConnection::connect_before(
             fixture.site().client_socket_path(),
             cohort.identity(),
             deadline,
@@ -1218,7 +1218,7 @@ fn coordinator(slot: usize, dedicated: &Binding, ctx: &LaneCtx<'_>) -> Result<()
 /// Burst: real `terminal read` invocations — each a transient session plus a
 /// transient attach — launched in parallel slots. The only legitimate busy is
 /// a typed failure document pinned to an owned capacity surface:
-/// `session-capacity` at the `admission` stage (the 32-session table) or
+/// `connection-capacity` at the `admission` stage (the 32-session table) or
 /// `service-unavailable` at the `viewer` stage (the 24-viewer table).
 /// `outcome-unknown` is a defect; every other exit code or document is a
 /// possible protocol failure and fails the witness.
@@ -1286,7 +1286,7 @@ fn burst(
                         counters.mark_warm_served(slot);
                         recovery.record_success(slot);
                     }
-                    Some(4) if kind == "session-capacity" && stage == "admission" => {
+                    Some(4) if kind == "connection-capacity" && stage == "admission" => {
                         bump(&counters.unavailable)
                     }
                     Some(4) if kind == "service-unavailable" && stage == "viewer" => {
@@ -2023,7 +2023,7 @@ fn c1_capacity_process_witness() -> TestResult {
                     ));
                 }
                 let per_op = (Instant::now() + EXCHANGE_TIMEOUT).min(fill_deadline);
-                match ClientSessionConnection::connect_before(&socket, cohort.identity(), per_op) {
+                match ClientConnection::connect_before(&socket, cohort.identity(), per_op) {
                     Ok(connection) => fills.push(connection),
                     Err(ConnectClientError::Rejected(RejectionReason::CapacityExceeded)) => {
                         thread::sleep(Duration::from_millis(100))
@@ -2038,7 +2038,7 @@ fn c1_capacity_process_witness() -> TestResult {
             }
             // Fresh bounded probe: one admission past the cap must be the
             // typed refusal — the fill budget is not reused after it served.
-            match ClientSessionConnection::connect_before(
+            match ClientConnection::connect_before(
                 &socket,
                 cohort.identity(),
                 Instant::now() + EXCHANGE_TIMEOUT,
@@ -2081,7 +2081,7 @@ fn c1_capacity_process_witness() -> TestResult {
                         Err(_) => break,
                     }
                 }
-                match ClientSessionConnection::connect_before(
+                match ClientConnection::connect_before(
                     &socket,
                     cohort.identity(),
                     Instant::now() + EXCHANGE_TIMEOUT,

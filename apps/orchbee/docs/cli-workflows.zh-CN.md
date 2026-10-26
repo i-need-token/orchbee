@@ -234,7 +234,7 @@ orchbee agent wait <session-id> --until ended --until failed
 `nextCursor` 令牌用 `--cursor` 继续。这些读取不提交任何 Workbench 修
 改命令或 provider 命令——不创建、不激活、不修改任何状态——已结束会
 话只在 Session 保留期间可查询。已关闭的终端绑定不可导航。
-`agent wait` 在一个持有的 Client Session 上轮询单个会话，直到某个
+`agent wait` 在一个持有的 Client Connection 上轮询单个会话，直到某个
 `--until` 条件命中或 `--timeout` 到达（默认 600000 毫秒）：状态条件
 要求 `fresh` 新鲜度，`fresh`/`stale`/`disconnected` 直接匹配观察，
 `--after-revision` 以首个返回的全局修订为栅栏。它在每次轮询采样当

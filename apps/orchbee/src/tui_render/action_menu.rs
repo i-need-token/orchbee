@@ -8,13 +8,13 @@ use crate::{
         format_binding_with_glyphs, join_key_labels,
     },
     localization::Locale,
-    terminal_session::ModalPresentation,
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_pointer::{
         HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
         ProjectedPointer,
     },
     tui_theme::{GlyphMode, Role, Theme},
+    workbench_client::ModalPresentation,
 };
 use ratatui::{
     Frame,
@@ -231,7 +231,7 @@ pub(super) fn render(
     let legacy = matches!(
         menu.source,
         crate::action_menu::MenuTarget::Workspace(
-            crate::terminal_session::NativeContextLocation::NoWorkspace
+            crate::workbench_client::NativeContextLocation::NoWorkspace
         )
     );
     let title = if menu.tabs.is_some() {

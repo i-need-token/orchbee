@@ -1,5 +1,5 @@
 //! Panel titles and their Agent state come from the exact-scope report observation.
-use crate::{terminal_session::PanelReportView, terminal_text::sanitize_terminal_text};
+use crate::{terminal_text::sanitize_terminal_text, workbench_client::PanelReportView};
 use orchbee_workbench_protocol::{MetadataState, PanelAgentState};
 
 /// Custom titles win over guarded metadata titles, then the creation label. Metadata tokens follow

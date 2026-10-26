@@ -7,9 +7,9 @@ use crate::{
     machine_picker::{Choice, SelectionOrigin, SelectionScope},
     machines::{Profile, Store},
     terminal_device::WindowDimensions,
-    terminal_session::{
-        ContextNavigationAdmission, NativeContextTarget, NativeStartupTarget, TerminalSession,
-        TerminalSessionView, TerminalStatus,
+    workbench_client::{
+        ContextNavigationAdmission, NativeContextTarget, NativeStartupTarget, TerminalStatus,
+        WorkbenchClient,
     },
 };
 use std::{
@@ -51,7 +51,7 @@ impl Drop for Attempt {
 }
 struct Candidate {
     profile: Option<Profile>,
-    session: TerminalSession,
+    session: WorkbenchClient,
     targeted: bool,
     deadline: Instant,
 }
@@ -99,7 +99,7 @@ pub(super) struct Manager {
     space_git: Option<bool>,
 }
 impl Manager {
-    pub(super) fn new(view: &mut ClientView, wakeup: crate::terminal_session::UiWakeup) -> Self {
+    pub(super) fn new(view: &mut ClientView, wakeup: crate::workbench_client::UiWakeup) -> Self {
         view.machines.available = true;
         Self {
             profiles: Vec::new(),
@@ -192,7 +192,7 @@ impl Manager {
         // Command admission and validated snapshots already wake this loop. Do not wait for
         // the independent, two-second metadata/Git collector to paint navigation changes.
         let navigation = match surface.active().view() {
-            Some(TerminalSessionView::Native(native)) => native.sidebar_navigation(),
+            Some(native) => native.sidebar_navigation(),
             _ => None,
         };
         change.redraw |= view
@@ -251,7 +251,7 @@ impl Manager {
                 crate::machine_spaces::read_metadata
             },
         ));
-        if let Some(TerminalSessionView::Native(native)) = surface.active().view()
+        if let Some(native) = surface.active().view()
             && view
                 .machines
                 .needs_agent_attention(native.machine_attention_version())
@@ -352,9 +352,9 @@ impl Manager {
                             client.set_submission_deadline(Some(startup_deadline));
                             match attempt.context.clone() {
                                 Some(context) => {
-                                    TerminalSession::start_target(client, context, geometry)
+                                    WorkbenchClient::start_target(client, context, geometry)
                                 }
-                                None => TerminalSession::start(client, geometry),
+                                None => WorkbenchClient::start(client, geometry),
                             }
                         })();
                         match candidate {
@@ -763,7 +763,7 @@ fn retained_frames_for_target(
     cached: &[Cached],
     candidate: Option<&Profile>,
     targeted: bool,
-) -> Option<crate::terminal_session::RetainedFrameBank> {
+) -> Option<crate::workbench_client::RetainedFrameBank> {
     if !targeted {
         return None;
     }
@@ -778,7 +778,7 @@ fn retained_frames_for_target(
 }
 
 fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
-    let Some(TerminalSessionView::Native(native)) = surface.view() else {
+    let Some(native) = surface.view() else {
         return Vec::new();
     };
     let Some(site) = native.navigation_site() else {
@@ -798,7 +798,7 @@ fn navigation(surface: &dyn TerminalSurface) -> Vec<Context> {
         .collect()
 }
 fn active_context(surface: &dyn TerminalSurface) -> Option<NativeContextTarget> {
-    let Some(TerminalSessionView::Native(native)) = surface.view() else {
+    let Some(native) = surface.view() else {
         return None;
     };
     let location = native
@@ -813,8 +813,8 @@ fn active_context(surface: &dyn TerminalSurface) -> Option<NativeContextTarget> 
 
 fn focused_member(
     surface: &dyn TerminalSurface,
-) -> Option<crate::terminal_session::NativeMemberTarget> {
-    let Some(TerminalSessionView::Native(native)) = surface.view() else {
+) -> Option<crate::workbench_client::NativeMemberTarget> {
+    let Some(native) = surface.view() else {
         return None;
     };
     native.focused_member()

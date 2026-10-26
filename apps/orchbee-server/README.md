@@ -13,7 +13,7 @@ defines the lifecycle, bounds and Windows evidence; Desktop receives no new cons
 
 The same-user OBLC metadata request reads this process's compiled version, retained expected
 cohort, PID, terminal protocol, implementation feature bits and actual managed/stopping mode.
-It runs before exact-cohort Client admission, creates no Session generation or Workbench/viewer
+It runs before exact-cohort Client admission, creates no Connection generation or Workbench/viewer
 state, acquires no shutdown record lease, and closes after one response. Existing candidate and
 handshake limits still apply, including while ordinary Client admission is stopping. These are
 diagnostic facts, never an operation grant or proof of future availability. The
@@ -60,7 +60,7 @@ implementation for Linux/macOS is part of this owner.
 
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
 navigation authority and private projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission
-OBCN carrier, local Human Client/Client Session admission, and an in-memory terminal coordinator. The emitted
+OBCN carrier, local Human Client/Client Connection admission, and an in-memory terminal coordinator. The emitted
 executable is named `orchbee-server`; it participates in the root Cargo verification gate and is
 consumed by bare Linux `orchbee` development cohorts, but not Desktop, packaging, an installer, or a service manager.
 
@@ -221,7 +221,7 @@ submissions into two bounded FIFO lanes under one queue lock — high for intera
 cleanup work, low for viewer observation — each capped at eight requests behind the one request
 possibly in flight. Ordinary submissions try-admit and receive immediate `Backpressure` when
 their lane is full — high-lane submissions also back off while a cleanup waiter is queued;
-only the two session-cleanup producers wait FIFO with priority over later try-admits. The owner dispatches at most four consecutive
+only the two connection-cleanup producers wait FIFO with priority over later try-admits. The owner dispatches at most four consecutive
 high-lane requests while the low lane is non-empty, then serves one low-lane request.
 `Unavailable` and `Backpressure` both mean that the addressed request did not cross the
 complete-write boundary. The [carrier scheduling model](docs/worker-carrier-model.md) owns
@@ -290,33 +290,33 @@ generations, bounded submission, serialized carrier validation, and generation-m
 [`orchbee-worker`](../orchbee-worker/README.md) application owns the connecting process lifecycle;
 its current runtime consumes authorized Launch/Start and read-only viewer requests through the Host broker.
 
-## Local Client Session service
+## Local Client Connection service
 
 When the private Client endpoint is selected, every same-user compatible Human Client connection
-creates one independent process-local Client Session generation. TUI, Web, Desktop, mobile, tab,
+creates one independent process-local Client Connection generation. TUI, Web, Desktop, mobile, tab,
 window, and renderer identity are intentionally absent: the endpoint admits one peer Client model.
-Server accepts up to thirty-two active Sessions and at most forty-eight total
-candidate/session handler threads. Each handshake has a two-second read/write timeout. One silent candidate therefore cannot
+Server accepts up to thirty-two active Connections and at most forty-eight total
+candidate/connection handler threads. Each handshake has a two-second read/write timeout. One silent candidate therefore cannot
 block another connection while a handler slot remains, and saturation closes excess candidates
-without allocating more threads. Handler slots and admitted-Session registrations are
+without allocating more threads. Handler slots and admitted-Connection registrations are
 lifetime-owned guards, so normal completion, faults, and unwinding release both bounds.
 
 An authenticated candidate receives a typed rejection for protocol/cohort incompatibility,
-malformed or wrong messages, timeout, or active-Session capacity. After completely writing
+malformed or wrong messages, timeout, or active-Connection capacity. After completely writing
 `ClientAccepted`, Server removes handshake timeouts and reads strict OBCS or OBWP on that same unbuffered
 stream. The private service grants its single local effective-user subject default-shell Create and
 Start, plus viewing and explicit acquisition of an exclusive input/resize controller for those terminals. It reads one request, invokes the Server-owned service, and writes the complete
-correlated result before reading another request from that Session. The result is committed before
-Client output; a stalled writer holds only its Session handler, never a coordinator or Worker lock.
+correlated result before reading another request from that Connection. The result is committed before
+Client output; a stalled writer holds only its Connection handler, never a coordinator or Worker lock.
 Idle reads have no deadline until the first byte; thereafter the whole record has two seconds,
 including large `OBCQ` paste records. Each
-complete Client write also has two seconds, including large OBSR records. Expiry retires that Session.
+complete Client write also has two seconds, including large OBSR records. Expiry retires that Connection.
 
 Create selects the current local Worker and validates any exact Worker constraint. Start resolves
-a successful deferred Create by its request ID across Sessions of this same subject. Server retains
+a successful deferred Create by its request ID across Connections of this same subject. Server retains
 the exact Worker generation and complete Host identity. Worker loss or replacement never authorizes
 retargeting, re-creation, or replay. EOF, malformed, wrong-direction, oversized, truncated, read, or
-write failure closes only the affected Session; generation-scoped cleanup preserves terminal state.
+write failure closes only the affected Connection; generation-scoped cleanup preserves terminal state.
 
 The private [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.md) owns
 Client framing and its connecting adapter. The independent
@@ -338,7 +338,7 @@ terminal binding state, bounded submission and correlated semantic results. Bare
 | Transitions  | `absent -> listening`; candidate `none -> pending -> admitted/rejected/timed-out`; Worker `none -> active(generation) -> none`; Server `listening -> stopped`. A second bind is rejected, and stale cleanup is an idempotent no-op against another generation.                                                                                                                       |
 | Dependencies | Rust standard-library process, filesystem, Unix socket, timeouts, threads, and I/O plus the private local-site protocol and kernel peer-credential crates. No terminal, child process, network socket, async runtime, persistence, environment lookup, or randomness.                                                                                                                |
 | Verification | Pure codec and registry tests; native same-user socket-pair tests on macOS and Linux; real Server and Worker process tests for bind, readiness, admission, duplicate and incompatible rejection, replacement after disconnect, Server loss, malformed peers, exact output, and cleanup bounds. These implementation traces do not constitute an exhaustive admission protocol proof. |
-| Limits       | This Worker evidence covers macOS and Linux under the same effective user. It does not establish Windows behavior, cross-user negative execution, production endpoint discovery, crash cleanup, service activation, Client Session semantics, terminal retention, or remote security.                                                                                                |
+| Limits       | This Worker evidence covers macOS and Linux under the same effective user. It does not establish Windows behavior, cross-user negative execution, production endpoint discovery, crash cleanup, service activation, Client Connection semantics, terminal retention, or remote security.                                                                                             |
 
 Within the three-generation exploration bound, `AdmissionUsesPreviousCursor` and
 `GenerationCursorChangesOnlyOnAdmission` independently check that each Worker admission copies and
@@ -386,9 +386,9 @@ record explored has since been superseded by the dual bounded lanes in the
 [carrier scheduling model](docs/worker-carrier-model.md); the wire-phase, ambiguity-boundary and
 settlement obligations are unchanged.
 
-## Local Client Session and OBCS modeling record
+## Local Client Connection and OBCS modeling record
 
-The Session model explores three Clients, two active Sessions, three handlers and bounded
+The Connection model explores three Clients, two active Connections, three handlers and bounded
 generations. OBCS stream-fault and correlation configurations include coalesced handshake/request,
 partial frames, stalled output, malformed direction, duplicate and distinct requests. Neither model
 proves terminal authorization, Worker dispatch, cancellation, replay, persistence or live relay.
@@ -396,16 +396,16 @@ The coordinator model and process tests below own the added effect boundary.
 
 ## Local Client viewer relay refinement
 
-The accepted local-terminal milestone now connects the Server's Client Sessions to the Worker's
+The accepted local-terminal milestone now connects the Server's Client Connections to the Worker's
 existing read-only viewer loop. The staged native LocalClient adapter consumes the viewer protocol. A process witness proves
 two independently admitted Clients receiving real Host projections through Server and Worker. The controller refinement below adds input/resize; bare Linux startup now consumes this relay.
 
-One admitted Session owns at most eight transient viewers on its existing ordered carrier. Attach
+One admitted Connection owns at most eight transient viewers on its existing ordered carrier. Attach
 references an accepted terminal Create in the same local subject; AttachBinding supplies an exact
 canonical binding selector. Server resolves the retained Host identity and current Worker/generation,
 allocates fresh request, attachment and cleanup identities, and pins that Worker handle. Clients
 cannot allocate authoritative runtime identities; every subsequent viewer/control action must echo
-one Server-issued attachment ID owned by the issuing Session. Each poll moves one complete opaque
+one Server-issued attachment ID owned by the issuing Connection. Each poll moves one complete opaque
 Host record; Server validates its envelope, selected attachment and exact feedback scope without
 decoding terminal presentation. Every viewer owns its own projection flight. Equal counters on two
 flights do not authenticate content: the explicit selector determines feedback ownership. A Poll also
@@ -419,7 +419,7 @@ rides its own acknowledgement flight rather than settling `FrameApplied`. Event 
 saturation closes only that viewer, and frame plus event bytes are released exactly once on every
 teardown path; a valid kind-53 event for an already-retired viewer is swallowed like a late frame.
 Attach commits before Client publication. Explicit detach releases only the selected viewer and its
-controller; Session disconnect or failed publication cleans all its viewers. These operations never
+controller; Connection disconnect or failed publication cleans all its viewers. These operations never
 terminate or retarget retained terminals. Unknown exchanges are not replayed. Reattachment receives
 a fresh attachment identity and requires a snapshot.
 
@@ -430,13 +430,13 @@ output and downgrades control as described by [terminal settlement](../orchbee/d
 
 No coordinator or registry lock spans Worker or Client I/O. Drop cleanup uses blocking admission to
 the existing one-entry Worker request queue, without waiting for a Client response or adding an
-unbounded queue. Retiring handlers retain their existing bounded Client Session/connection slots
+unbounded queue. Retiring handlers retain their existing bounded Client Connection slots
 until cleanup admission completes. The wire owner observes completion internally. A stopped carrier
 closes the broker and all its transient attachments. Worker responses allow twenty seconds for up
 to sixteen pending Host viewer/control detaches, two Attach exchanges, and result delivery; control
 writes retain their two-second limit. The one queued plus one in-flight bound requires a forty-six-second launch
 lease. Client record reads are idle until their first byte, then use a total two-second deadline;
-Client writes also have a total two-second deadline and retire only that Session on expiry.
+Client writes also have a total two-second deadline and retire only that Connection on expiry.
 
 An exact viewer/control ServerBusy response establishes known-unchanged terminal, viewer and
 controller effects. Carrier queue rejection precedes dispatch; an Attach Worker capacity rejection
@@ -447,11 +447,11 @@ Other unavailable, rejected or unknown results grant no authority to attempt aga
 
 ## Local terminal controller refinement
 
-The accepted milestone extends the Session viewer with explicit acquisition of one combined input
+The accepted milestone extends the Connection viewer with explicit acquisition of one combined input
 and resize controller per retained Host terminal. Server reserves the grant before Worker I/O;
-other Sessions cannot acquire while that grant is pending, active, or being cleaned up. A fresh
+other Connections cannot acquire while that grant is pending, active, or being cleaned up. A fresh
 Server-issued controller identity scopes a strictly increasing sequence shared by input and resize.
-Client-supplied identities must equal the selected viewer's grant in the issuing Session. Rejected non-controllers and stale
+Client-supplied identities must equal the selected viewer's grant in the issuing Connection. Rejected non-controllers and stale
 sequences never dispatch; valid submitted sequences are consumed even if delivery fails. Unknown
 effects are reported without replay, and authority loss never retargets a retained terminal.
 
@@ -462,7 +462,7 @@ increasing sequences. Only the Host's exact capability revision authorizes raw i
 1 through 4,096 bytes; acceptance means admission to Host's bounded input queue, not shell execution.
 Resize acknowledges the exact complete geometry. No new Host wire contract or VT owner is added.
 
-Host cleanup releases the control attachment before the viewer. Explicit OBCN Detach performs that order inside Worker; the later Server lease Drop sends an idempotent Release to settle its registry. Session Drop submits OBCN Release before Detach. The Server reservation
+Host cleanup releases the control attachment before the viewer. Explicit OBCN Detach performs that order inside Worker; the later Server lease Drop sends an idempotent Release to settle its registry. Connection Drop submits OBCN Release before Detach. The Server reservation
 remains occupied until generation-pinned cleanup completes or that Worker becomes unavailable;
 cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
 cleanup cannot clear a new grant. Failed or contradictory Host exchanges end the Worker connection;
@@ -517,34 +517,34 @@ inside them without enlargement.
 
 `RelayDeliveryIsolation.tla/.cfg` owns delivery isolation. Two viewers each have independent frame/history queues and one in-flight record per lane. Two source records and a one-slot queue expose both successful draining and overflow. An overflowing viewer closes without clearing its peer's work. Feedback must name the exact delivered record, history delivery preserves the frame flight, and a stalled viewer cannot disable Worker progress. This is a safety model; no network-delivery fairness is assumed.
 
-`Frame`/`History` map to relay enqueue, `DeliverFrame`/`DeliverHistory` to viewer delivery, feedback actions to acknowledgement, and `Close` to viewer-local cleanup. Exact bytes, production capacity, request IDs, attachment generations and codecs are checked by `local_terminal_service/viewer_session` and Worker carrier tests. Authority and cleanup ordering are owned by `SessionViewerOwnership`; these separate models do not prove their full product composition.
+`Frame`/`History` map to relay enqueue, `DeliverFrame`/`DeliverHistory` to viewer delivery, feedback actions to acknowledgement, and `Close` to viewer-local cleanup. Exact bytes, production capacity, request IDs, attachment generations and codecs are checked by `local_terminal_service/viewer_connection` and Worker carrier tests. Authority and cleanup ordering are owned by `ConnectionViewerOwnership`; these separate models do not prove their full product composition.
 
 The mutation suite accepts wrong-flight feedback and requires a counterexample. Run `node scripts/tla/run-models.mjs --models local-terminal-relay` and Server/Worker implementation tests.
 
-## Accepted Session Viewer routing modeling record
+## Accepted Connection Viewer routing modeling record
 
-`SessionViewerOwnership.tla/.cfg` checks two immutable viewer identities, two Sessions, two targets and two Worker epochs. Attach explores every Session/target assignment, including same-target contention. A controller grant remains reserved while its owner closes; controller release precedes viewer retirement, and stale cleanup cannot release a successor's grant. Control admission validates Session, target, viewer and Worker epoch together. Target disposal or Worker replacement closes affected bindings. Weak fairness of controller/viewer release establishes eventual retirement.
+`ConnectionViewerOwnership.tla/.cfg` checks two immutable viewer identities, two Connections, two targets and two Worker epochs. Attach explores every Connection/target assignment, including same-target contention. A controller grant remains reserved while its owner closes; controller release precedes viewer retirement, and stale cleanup cannot release a successor's grant. Control admission validates Connection, target, viewer and Worker epoch together. Target disposal or Worker replacement closes affected bindings. Weak fairness of controller/viewer release establishes eventual retirement.
 
-`Attach`, `Acquire`, `Control`, `Close` and the release actions map to `local_terminal_service/viewer_session`, `controller_session` and Worker carrier ownership. Viewer identities are never reused within the model. Capacity arithmetic, candidate attach failures, frame/history routing, wire validation and compound operation results belong to the existing service unit tests and `tests/client_process` traces. They are not exhaustive claims of this identity core. The relay model independently checks lane isolation.
+`Attach`, `Acquire`, `Control`, `Close` and the release actions map to `local_terminal_service/viewer_connection`, `controller_connection` and Worker carrier ownership. Viewer identities are never reused within the model. Capacity arithmetic, candidate attach failures, frame/history routing, wire validation and compound operation results belong to the existing service unit tests and `tests/client_process` traces. They are not exhaustive claims of this identity core. The relay model independently checks lane isolation.
 
-The maintained late-cleanup mutant must violate `StaleCleanupPreservesSuccessor`. Run `node scripts/tla/run-models.mjs --models session-viewer-routing` plus the owning Server tests.
+The maintained late-cleanup mutant must violate `StaleCleanupPreservesSuccessor`. Run `node scripts/tla/run-models.mjs --models connection-viewer-routing` plus the owning Server tests.
 
-## Accepted Session Viewer history read modeling record
+## Accepted Connection Viewer history read modeling record
 
 This accepted slice adds one one-shot retained-history read to an existing admitted viewer. It
-extends the same Session/Server/Worker/Host routing spine with a single correlated exchange and no
+extends the same Connection/Server/Worker/Host routing spine with a single correlated exchange and no
 new long-lived state. The [OBCS contract](../../schemas/client-server/README.md) owns the wire
 representation; the OBCN viewer section of the capability-node README owns the tag-6 encoding.
 
-| Field          | Accepted contract                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem        | A one-shot consumer (the native CLI) needs bounded retained scrollback plus visible rows without keeping a viewer, consuming the live feed, or inventing a second read path.                                                                                                                                                                                                                                                                                                  |
-| Inputs         | `read-rows` action: owned `attachmentId`, absolute `startRow`, `rowCount` 1–4096, exact pinned `revision`/`generation`, positive `requestSequence`, `maximumBytes` 112–8,388,608 bounding the OBRW payload. The Client computes `startRow`/`rowCount` from one validated frame (`K = min(N, S, 262144 / columns)`, `start = S - K`); Server/Worker treat the action as untrusted and re-validate every field.                                                                 |
-| Data and owner | `LocalTerminalSession` still owns the viewer entry and its pinned Worker handle. Server signs one fresh Worker `OperationId` per dispatch; that identity alone is the inner Host correlation and is never equated with the outer OBCS `requestId`. No per-request history state survives the exchange.                                                                                                                                                                        |
-| Outputs        | Exactly one of: complete correlated OBTP response record through OBNR/OBSR, `RowsRejected` with one of the nine closed reasons, or the existing explicit `Rejected`/`Unavailable` outcomes. A byte-budget overrun is a typed failure, never a partial success. `Empty` never answers `read-rows`.                                                                                                                                                                             |
-| Routing        | Server resolves the selector within the issuing Session (unowned → `terminal-unavailable`), revalidates the pinned Worker/generation/current-worker, then dispatches OBCN tag 6. The response record's Host correlation must equal this dispatch's Worker `OperationId`; role, kind, encoding, Host epoch, and attachment must match the request scope. The record bypasses frame-only `projection.receive`. Interleaved Host events still route to their owning attachments. |
-| Settlement     | Host `TypedFailure` maps to the closed `RowsRejected` reason set; a legal `RowsRejected` does not retire a healthy viewer. `RowsRejected` on a non-`ReadRows` operation, or a response `Record` in an invalid phase, is a protocol violation. No acknowledgement (`RowsApplied`) is sent for buffer reads, and no implicit retry, resend, or retargeting follows any failure.                                                                                                 |
-| Lifetime       | The exchange is bounded by the existing one-second Worker/Host budget inside the caller's deadline. Viewer slot release and detach/drop stay with the existing Session cleanup; nothing here extends viewer lifetime.                                                                                                                                                                                                                                                         |
+| Field          | Accepted contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem        | A one-shot consumer (the native CLI) needs bounded retained scrollback plus visible rows without keeping a viewer, consuming the live feed, or inventing a second read path.                                                                                                                                                                                                                                                                                                     |
+| Inputs         | `read-rows` action: owned `attachmentId`, absolute `startRow`, `rowCount` 1–4096, exact pinned `revision`/`generation`, positive `requestSequence`, `maximumBytes` 112–8,388,608 bounding the OBRW payload. The Client computes `startRow`/`rowCount` from one validated frame (`K = min(N, S, 262144 / columns)`, `start = S - K`); Server/Worker treat the action as untrusted and re-validate every field.                                                                    |
+| Data and owner | `LocalTerminalConnection` still owns the viewer entry and its pinned Worker handle. Server signs one fresh Worker `OperationId` per dispatch; that identity alone is the inner Host correlation and is never equated with the outer OBCS `requestId`. No per-request history state survives the exchange.                                                                                                                                                                        |
+| Outputs        | Exactly one of: complete correlated OBTP response record through OBNR/OBSR, `RowsRejected` with one of the nine closed reasons, or the existing explicit `Rejected`/`Unavailable` outcomes. A byte-budget overrun is a typed failure, never a partial success. `Empty` never answers `read-rows`.                                                                                                                                                                                |
+| Routing        | Server resolves the selector within the issuing Connection (unowned → `terminal-unavailable`), revalidates the pinned Worker/generation/current-worker, then dispatches OBCN tag 6. The response record's Host correlation must equal this dispatch's Worker `OperationId`; role, kind, encoding, Host epoch, and attachment must match the request scope. The record bypasses frame-only `projection.receive`. Interleaved Host events still route to their owning attachments. |
+| Settlement     | Host `TypedFailure` maps to the closed `RowsRejected` reason set; a legal `RowsRejected` does not retire a healthy viewer. `RowsRejected` on a non-`ReadRows` operation, or a response `Record` in an invalid phase, is a protocol violation. No acknowledgement (`RowsApplied`) is sent for buffer reads, and no implicit retry, resend, or retargeting follows any failure.                                                                                                    |
+| Lifetime       | The exchange is bounded by the existing one-second Worker/Host budget inside the caller's deadline. Viewer slot release and detach/drop stay with the existing Connection cleanup; nothing here extends viewer lifetime.                                                                                                                                                                                                                                                         |
 
 The action is additive and matched-cohort only: an older Worker rejects tag 6, and a same-cohort
 violation (wrong inner correlation, response record in the wrong phase, `RowsRejected` on another
@@ -556,7 +556,7 @@ the carrier bound, while `maximumBytes` bounds only the OBRW payload.
 ## Local terminal coordinator modeling record
 
 The accepted local milestone grants the Server's single effective-user subject default-shell
-Create and Start through admitted local Human Client Sessions. OBLC alone remains only transport
+Create and Start through admitted local Human Client Connections. OBLC alone remains only transport
 admission; this private service explicitly selects that policy after peer and cohort validation.
 No grant is inferred for another endpoint, remote identity, Worker peer, or renderer kind.
 
@@ -565,14 +565,14 @@ No grant is inferred for another endpoint, remote identity, Worker peer, or rend
 | Problem      | Connect admitted Client Create/Start intent to the existing Worker carrier without transferring placement authority, replaying effects, or losing retained bindings when a Client disconnects.                                                                                                                                                                                                                                                                                            |
 | Inputs       | Strict OBCS intent, the current admitted Worker identity/generation, and an adapter-supplied absolute lease expiry. No Client field becomes an operation, terminal, lease, generation, or fence.                                                                                                                                                                                                                                                                                          |
 | Data         | One Server-owned in-memory map of at most 1,024 create references for its single local subject; each retains exact placement, last authorization, launch mode, and pending, awaiting-start, started, unknown, or unavailable state. No eviction or durable recovery.                                                                                                                                                                                                                      |
-| Outputs      | A correlated OBCS result or one exact OBCN command. Missing Worker and unsatisfied constraints are effect-free. Start resolves a successful deferred Create across Sessions; unknown/missing creates cannot dispatch.                                                                                                                                                                                                                                                                     |
+| Outputs      | A correlated OBCS result or one exact OBCN command. Missing Worker and unsatisfied constraints are effect-free. Start resolves a successful deferred Create across Connections; unknown/missing creates cannot dispatch.                                                                                                                                                                                                                                                                  |
 | Invariants   | A checked monotonic 128-bit allocator never reuses operation identity across terminals or Worker generations. Each dispatched Start advances its terminal fence and uses a fresh lease. One terminal has at most one pending operation. No synchronous lock spans Worker I/O or Client output.                                                                                                                                                                                            |
 | Decisions    | Known create-reference collisions reject; full retained capacity and concurrent operations return server-busy. Same-geometry Start after confirmed deferred Start returns already-started without another command; different geometry rejects. Immediate creates reject Start. Worker replacement never retargets a retained binding.                                                                                                                                                     |
-| Model        | A pure prepare/complete state machine reserves a binding before effects and commits through exact results or explicit delivery failures. Independent Session output cannot block another Session’s next operation.                                                                                                                                                                                                                                                                        |
+| Model        | A pure prepare/complete state machine reserves a binding before effects and commits through exact results or explicit delivery failures. Independent Connection output cannot block another Connection’s next operation.                                                                                                                                                                                                                                                                  |
 | Transitions  | Prepare reserves state before carrier submission. Exact current success commits Host identity and geometry before Client publication. Known pre-delivery Start failure restores awaiting-start; ambiguous delivery or contradictory success freezes the binding as unknown. Previously confirmed Host identity survives failed or unknown Start. Client loss cannot cancel the submitted operation or remove the binding.                                                                 |
 | Dependencies | The pure coordinator consumes protocol values and explicit time/placement facts. A private service owns short mutex sections, wall-clock sampling, Worker-handle selection and one carrier call. The existing carrier owns wire serialization and complete-write classification.                                                                                                                                                                                                          |
 | Ownership    | Server owns subject policy, create references, placement, operation/lease/fence issuance and result commitment. Worker owns launch defaults, admission and Host effects. Host owns PTY/VT and retained execution. No new public or cross-workspace contract.                                                                                                                                                                                                                              |
-| Verification | Deterministic coordinator traces check allocation, pending exclusion, exact result commitment, unknown quarantine, capacity, geometry, and replacement. Socket/process traces check cross-Session Start, serialization, malformed peers and Client loss. The registered launch-authorization and coordinator models check their finite safety/progress claims.                                                                                                                            |
+| Verification | Deterministic coordinator traces check allocation, pending exclusion, exact result commitment, unknown quarantine, capacity, geometry, and replacement. Socket/process traces check cross-Connection Start, serialization, malformed peers and Client loss. The registered launch-authorization and coordinator models check their finite safety/progress claims.                                                                                                                         |
 | Limits       | Additive unshipped POSIX local authority only. The 1,024-record bound follows the accepted Worker generation limit and requires explicit retirement before production. Lease lifetime is forty-six seconds, derived from the carrier's one queued plus one in-flight exchange with a two-second write and twenty-second result deadline each; expiry can reject without retry. No replay ledger, fine-grained permissions, UI activation, restart reconciliation, or production recovery. |
 
 The coordinator's actual consumer is the post-admission OBCS handler. Its integrated witness is a
@@ -580,28 +580,28 @@ Client issuing Create and Start through the real Server, Worker, and Host proces
 missing user-visible boundary is TUI activation.
 
 [`LocalTerminalCoordinator`](formal/tla/LocalTerminalCoordinator.tla) checks one deferred binding,
-two peer Sessions, three operation identities and two Worker generations. Prepare maps to
+two peer Connections, three operation identities and two Worker generations. Prepare maps to
 IssueCreate/IssueStart, complete maps to exact/not-delivered/rejected/unknown/stale settlement, and each
-Session's independent publication can interleave another Session's operation. Progress assumes
+Connection's independent publication can interleave another Connection's operation. Progress assumes
 bounded carrier completion and weak fairness for settlement and publication/abandonment; it does
 not promise delivery to a disconnected Client. Geometry, capacity, type conversion and real PTY
 behavior belong to deterministic tests and the process witness.
 
-`RejectConcurrent` uses the other peer Session's one-outstanding-request slot as the bounded
+`RejectConcurrent` uses the other peer Connection's one-outstanding-request slot as the bounded
 correlation surrogate, queues an explicit `server-busy` result, and preserves the original
 reservation. `PublicationCopiesExactPredecessor` requires publication to copy and clear that exact
-Session's queued result while preserving every other Session. Exact OBCS request-ID echo remains
+Connection's queued result while preserving every other Connection. Exact OBCS request-ID echo remains
 deterministic runtime and codec evidence.
 
 ## Ownership
 
-This application owns local native Workbench authority, Workspace membership, private projection, Worker and Client registries, the OBCN carrier, terminal-intent coordination, and Session viewer/controller relay. The retained local Desktop composition has its own Workbench writer. Production Browser ingress remains a future capability with no replacement service introduced by legacy retirement.
+This application owns local native Workbench authority, Workspace membership, private projection, Worker and Client registries, the OBCN carrier, terminal-intent coordination, and Connection viewer/controller relay. The retained local Desktop composition has its own Workbench writer. Production Browser ingress remains a future capability with no replacement service introduced by legacy retirement.
 
 The importable authority boundary is `src/lib.rs`; `src/main.rs` composes the private binary.
 The exhaustive lateral directions are `local_site_service -> worker_registry`,
 `worker_obcn_carrier`, `local_client_service::start` and `local_terminal_service`;
-`local_client_service -> client_session_registry`, `local_terminal_service`, `workbench_service`
-and its private `application_session`; `workbench_service -> local_terminal_service`;
+`local_client_service -> client_connection_registry`, `local_terminal_service`, `workbench_service`
+and its private `application_connection`; `workbench_service -> local_terminal_service`;
 `local_terminal_service -> site_coordinator`, `WorkbenchAuthority`, `terminal_coordinator` value types, `worker_registry`
 and `worker_obcn_carrier`; `site_coordinator -> WorkbenchAuthority` and `terminal_coordinator`;
 `workbench_authority -> workbench_projection`; and `worker_registry -> worker_obcn_carrier`.
@@ -621,8 +621,8 @@ target/no-op evaluation. Both share command preflight; Move reuses the authority
 settled-command publication.
 LocalTerminalService's parent owns shared entropy acquisition; its `tab_create` child pins Worker
 placement under registry-then-Site locks, dispatches outside both, and settles both owners before returning the retained command result. Shared helpers are defined in parents; children do not import siblings.
-The service's `viewer_session` owns attachment lifetime; `controller_session` owns terminal
-reservation, Session grants, effect sequences and exact release; `projection` owns routing and
+The service's `viewer_connection` owns attachment lifetime; `controller_connection` owns terminal
+reservation, Connection grants, effect sequences and exact release; `projection` owns routing and
 feedback. Client `record_stream` owns post-admission I/O deadlines. Reverse and other lateral imports
 remain forbidden; tests do not widen production visibility.
 
@@ -637,7 +637,7 @@ Move requires the navigation grant and only the Site gate; `tab.create` addition
 the terminal-create grant and uses the composed path above. Binding viewer selection holds registry
 and Site locks, then samples the handle's active state; its internal canonical query uses OBCS
 subject admission and preserves Workbench-first failure precedence. I/O releases every gate; no automatic retry is added.
-The `application_session` runner dispatches exact OBCS/OBWP prefixes to separate semantic handlers
+The `application_connection` runner dispatches exact OBCS/OBWP prefixes to separate semantic handlers
 and imports only their contracts and standard-library I/O. A postcommit coordination failure closes
 the mixed carrier without fabricating a command result. The unpublished application library
 exposes the authority, Site grants and typed internal membership/exposure/preparation results; whole-projection writing
@@ -706,7 +706,7 @@ Ordinary `workspace.close` removes only the selected Workspace and its terminal 
 
 ## Windows Client view routing
 
-Transport admission remains surface-neutral. An admitted Windows Session may additionally publish one ephemeral interactive view under its Server-assigned generation identity. `client_view_registry` owns bounded routing, freshness and retained delivery receipts; `WorkbenchClientSession` supplies authenticated ownership and disconnect cleanup. Canonical Workbench authority and terminal carrier ownership stay separate. The [owning Client control contract](../orchbee/docs/windows-client-control.md) defines the wire, post-draw confirmation, lifecycle and evidence; deterministic Client-view lifecycle tests cover the implementation.
+Transport admission remains surface-neutral. An admitted Windows Connection may additionally publish one ephemeral interactive view under its Server-assigned generation identity. `client_view_registry` owns bounded routing, freshness and retained delivery receipts; `WorkbenchClientConnection` supplies authenticated ownership and disconnect cleanup. Canonical Workbench authority and terminal carrier ownership stay separate. The [owning Client control contract](../orchbee/docs/windows-client-control.md) defines the wire, post-draw confirmation, lifecycle and evidence; deterministic Client-view lifecycle tests cover the implementation.
 
 ## Workspace metadata reports
 
@@ -817,7 +817,7 @@ also disposable without claiming child exit. EOF transfers accepted cleanup to
 existing Site maintenance. Source read attachments remain owned until their last
 capture consumer, then detach; popup process/document cleanup remains Host-owned.
 
-The serial application dispatcher shares its connection viewer session between
+The serial application dispatcher shares its connection viewer owner between
 OBCS and editor OBWP requests through a local RefCell, with one borrow per request
 and no reentrant callback or cross-thread access. Grant/site/source/editor refusal
 precedes Create. Focused protocol and native Windows pipe traces judge source

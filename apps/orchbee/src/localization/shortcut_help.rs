@@ -18,7 +18,7 @@ pub(crate) enum ShortcutHelpGroup {
     Tab,
     Panel,
     Agent,
-    Session,
+    Client,
     Other,
 }
 
@@ -30,7 +30,7 @@ impl ShortcutHelpGroup {
             Self::Tab => 2,
             Self::Panel => 3,
             Self::Agent => 4,
-            Self::Session => 5,
+            Self::Client => 5,
             Self::Other => 6,
         }
     }
@@ -139,8 +139,8 @@ impl Locale {
             (Self::ZhCn, ShortcutHelpGroup::Panel) => "面板",
             (Self::EnUs, ShortcutHelpGroup::Agent) => "Agent",
             (Self::ZhCn, ShortcutHelpGroup::Agent) => "Agent",
-            (Self::EnUs, ShortcutHelpGroup::Session) => "Session",
-            (Self::ZhCn, ShortcutHelpGroup::Session) => "会话",
+            (Self::EnUs, ShortcutHelpGroup::Client) => "Client",
+            (Self::ZhCn, ShortcutHelpGroup::Client) => "客户端",
             (Self::EnUs, ShortcutHelpGroup::Other) => "Other",
             (Self::ZhCn, ShortcutHelpGroup::Other) => "其他",
         }
@@ -814,7 +814,7 @@ fn help_group(metadata: ActionMetadata<'_>) -> ShortcutHelpGroup {
         C::Tab => ShortcutHelpGroup::Tab,
         C::Pane => ShortcutHelpGroup::Panel,
         C::Agent => ShortcutHelpGroup::Agent,
-        C::Session => ShortcutHelpGroup::Session,
+        C::Client => ShortcutHelpGroup::Client,
         C::Navigation => match metadata.search_aliases.first() {
             Some(ActionSearchAlias::Workspace) => ShortcutHelpGroup::Workspace,
             Some(ActionSearchAlias::Tab) => ShortcutHelpGroup::Tab,
@@ -919,7 +919,7 @@ fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client_view::{ClientView, SessionActionDisposition};
+    use crate::client_view::{ClientActionDisposition, ClientView};
 
     fn view_with_help() -> ClientView {
         let mut view = ClientView::new(100);
@@ -929,14 +929,14 @@ mod tests {
                 crate::client_view::Modifiers::CTRL,
             ),
         ));
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
         let transition = view.decide(crate::client_view::PrefixInput::Key(
             crate::client_view::KeyEvent::press(
                 crate::client_view::KeyCode::Char('?'),
                 crate::client_view::Modifiers::NONE,
             ),
         ));
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
         view
     }
 
@@ -1144,14 +1144,14 @@ mod tests {
                 crate::client_view::Modifiers::CTRL,
             ),
         ));
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
         let transition = view.decide(crate::client_view::PrefixInput::Key(
             crate::client_view::KeyEvent::press(
                 crate::client_view::KeyCode::Char('?'),
                 crate::client_view::Modifiers::NONE,
             ),
         ));
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
 
         let entries = Locale::EnUs.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let workspace = entries
@@ -1177,7 +1177,7 @@ mod tests {
             let transition = view.decide(crate::client_view::PrefixInput::Key(
                 crate::client_view::KeyEvent::press(code, mods),
             ));
-            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            view.commit(transition, ClientActionDisposition::KeepNavigator);
         }
 
         fn open_help(view: &mut ClientView) {

@@ -38,7 +38,7 @@ struct WorkbenchPeer {
 impl WorkbenchPeer {
     fn connect(fixture: &Fixture, deadline: Instant) -> Result<Self, Box<dyn Error>> {
         let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
-        let admitted = ClientSessionConnection::connect_before(
+        let admitted = ClientConnection::connect_before(
             fixture.site().client_socket_path(),
             cohort.identity(),
             deadline,

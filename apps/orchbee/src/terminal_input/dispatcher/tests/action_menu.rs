@@ -26,11 +26,11 @@ struct Port {
     settings_capture: bool,
 }
 
-fn sidebar_context() -> crate::terminal_session::NativeContextTarget {
+fn sidebar_context() -> crate::workbench_client::NativeContextTarget {
     use orchbee_workbench_protocol::*;
-    crate::terminal_session::NativeContextTarget {
+    crate::workbench_client::NativeContextTarget {
         site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-        location: crate::terminal_session::NativeContextLocation::Workspace {
+        location: crate::workbench_client::NativeContextLocation::Workspace {
             workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
             terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 4)).unwrap(),
         },
@@ -125,7 +125,7 @@ fn sidebar_primary_cell(
                     crate::machine_picker::SidebarTarget::Context { machine, target },
                 ) => {
                     &selected.machine == machine
-                        && matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Context(row)) if row == target)
+                        && matches!(&selected.context, Some(crate::workbench_client::NativeStartupTarget::Context(row)) if row == target)
                 }
                 _ => false,
             };
@@ -196,7 +196,7 @@ fn revealed_disclosure(
 
 fn sidebar_project_target() -> crate::machine_picker::SidebarTarget {
     let target = sidebar_context();
-    let crate::terminal_session::NativeContextLocation::Workspace { .. } = target.location else {
+    let crate::workbench_client::NativeContextLocation::Workspace { .. } = target.location else {
         unreachable!()
     };
     crate::machine_picker::SidebarTarget::Project {
@@ -562,7 +562,7 @@ fn workspace_close_is_pointer_revealed_and_requests_the_existing_confirmation() 
         y = close_y + 1
     );
     dispatch_all(&mut dispatcher, &mut view, &mut port, click.as_bytes());
-    let crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } =
+    let crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } =
         sidebar_context().location
     else {
         unreachable!()
@@ -719,11 +719,11 @@ impl TerminalInputPort for Port {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         (owner == crate::tui_composition::NativeCaptureOwner::ActionMenu)
             .then(|| self.menu.input_context())
             .flatten()
-            .map(crate::terminal_session::NativeCaptureContext::ActionMenu)
+            .map(crate::workbench_client::NativeCaptureContext::ActionMenu)
     }
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.drag.clone()
@@ -841,13 +841,13 @@ impl TerminalInputPort for Port {
     }
     fn pointer_selection(
         &mut self,
-        _: &crate::terminal_session::state::PaneRef,
+        _: &crate::workbench_client::state::PaneRef,
         intent: crate::terminal_input::PointerSelectionIntent,
     ) -> crate::terminal_input::PointerSelectionAdmission {
         self.selections.push(intent);
         crate::terminal_input::PointerSelectionAdmission::Admitted
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         if self.focus_on_request
             && let ClientAction::FocusPanel(panel) = &action
         {
@@ -859,7 +859,7 @@ impl TerminalInputPort for Port {
                 .map(|p| p.record.clone());
         }
         self.calls.borrow_mut().push(Call::Action(action));
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 }
 
@@ -1321,7 +1321,7 @@ fn menu_prefix_split_reads_replace_help_and_capture_opening_and_decision_tails()
         let mut view = ClientView::new(120);
         view.commit(
             view.decide_action(ClientAction::OpenShortcutHelp),
-            SessionActionDisposition::KeepNavigator,
+            ClientActionDisposition::KeepNavigator,
         );
         dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[..split]);
         dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[split..]);

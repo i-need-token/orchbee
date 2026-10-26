@@ -1,6 +1,6 @@
 //! Menu hit authority extends over the pane beside a narrow keyboard-owned sidebar.
 use super::*;
-use crate::{localization::Locale, terminal_session::ModalPresentation, tui_theme::Theme};
+use crate::{localization::Locale, tui_theme::Theme, workbench_client::ModalPresentation};
 
 fn open_menu() -> (ClientView, Port, InputDispatcher) {
     let mut view = sidebar_view();

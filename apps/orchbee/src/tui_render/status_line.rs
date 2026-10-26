@@ -8,15 +8,15 @@ use crate::{
         format_binding_with_glyphs, join_key_labels,
     },
     localization::Locale,
-    terminal_session::{
-        NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
-        NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSessionView, NativeSetupStatus,
-        TakeoverStatus, TerminalSessionView,
-    },
     terminal_text::{display_width, sanitize_terminal_text},
     tui_composition::CaptureOwner,
     tui_layout::ViewportTier,
     tui_theme::{GlyphMode, Role, Theme},
+    workbench_client::{
+        NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
+        NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupStatus, TakeoverStatus,
+        WorkbenchClientView,
+    },
 };
 use ratatui::{
     Frame,
@@ -104,7 +104,7 @@ pub(super) fn render(
     recovery_status: bool,
     tier: ViewportTier,
     theme: &Theme,
-    session: Option<&TerminalSessionView<'_>>,
+    session: Option<&WorkbenchClientView<'_>>,
 ) -> Option<Rect> {
     if area.is_empty() {
         return None;
@@ -540,7 +540,7 @@ fn status_hints(
     capture_owner: Option<CaptureOwner>,
     indicator: Option<InputIndicator>,
     client_notice: Option<Notice>,
-    session: Option<&TerminalSessionView<'_>>,
+    session: Option<&WorkbenchClientView<'_>>,
     contexts: &[ContextIndicator],
     tier: ViewportTier,
     locale: Locale,
@@ -855,7 +855,7 @@ fn action_hint(
 
 fn status_actions(
     client_notice: Option<Notice>,
-    session: Option<&TerminalSessionView<'_>>,
+    session: Option<&WorkbenchClientView<'_>>,
 ) -> Vec<StatusAction> {
     if client_notice == Some(Notice::UnknownPrefix) {
         return vec![StatusAction::ShowHelp];
@@ -863,13 +863,13 @@ fn status_actions(
     if client_notice.is_some() {
         return Vec::new();
     }
-    let Some(TerminalSessionView::Native(native)) = session else {
+    let Some(native) = session else {
         return Vec::new();
     };
     native_status_actions(native)
 }
 
-fn native_status_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
+fn native_status_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
     if native.workspace_close_status().is_some() {
         return Vec::new();
     }
@@ -945,7 +945,7 @@ fn native_status_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
     }
 }
 
-fn native_phase_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
+fn native_phase_actions(native: &WorkbenchClientView<'_>) -> Vec<StatusAction> {
     if native.quick_workspace_recovery().is_some()
         || (native.phase() == NativeDisplayPhase::SelectedWithoutAttachment
             && native.selected_is_unbound()
@@ -1003,7 +1003,7 @@ fn native_phase_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
     }
 }
 
-fn focus_terminal_ended(native: &NativeSessionView<'_>) -> bool {
+fn focus_terminal_ended(native: &WorkbenchClientView<'_>) -> bool {
     native
         .focus_panel_id()
         .is_some_and(|panel| native.terminal_end(panel).is_some())

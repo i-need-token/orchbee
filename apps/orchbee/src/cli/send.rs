@@ -774,7 +774,7 @@ mod linux {
     /// input's fate undetermined — `outcome-unknown`, never a retry.
     fn classify_send(error: SubmissionError) -> Failure {
         match error {
-            SubmissionError::SessionUnavailable | SubmissionError::RequestEncoding(_) => {
+            SubmissionError::ConnectionUnavailable | SubmissionError::RequestEncoding(_) => {
                 Failure::new(FailureKind::InternalFailure)
             }
             SubmissionError::RequestNotSubmitted(_) => {

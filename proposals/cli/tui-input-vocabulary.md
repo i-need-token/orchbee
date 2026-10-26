@@ -280,7 +280,7 @@ below are preserved or generalized, not weakened:
   appears on the wire, and every Server-semantic outcome still resolves to exactly one
   `workbench.command` with a fresh request identity under the at-most-once mutation rule.
 
-This proposal does not change `native-tab-session.md`'s runtime input bounds, the confirmation
+This proposal does not change `workbench-client-runtime.md`'s runtime input bounds, the confirmation
 draw requirements, or any wire schema. Each accepted slice updates the owning app documentation
 in the same change.
 

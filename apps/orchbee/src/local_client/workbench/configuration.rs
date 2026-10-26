@@ -30,7 +30,7 @@ impl LocalClient {
         let connection = self
             .connection
             .as_mut()
-            .ok_or_else(|| before(MetadataExchangeReason::SessionUnavailable))?;
+            .ok_or_else(|| before(MetadataExchangeReason::ConnectionUnavailable))?;
         let attempt = exchange_once(
             connection,
             &self.clock,

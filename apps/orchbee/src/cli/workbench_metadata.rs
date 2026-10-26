@@ -54,7 +54,7 @@ fn exchange(
     signals.check_before(deadline)?;
     let reply = reply.map_err(|error| {
         Failure::new(match error.reason {
-            MetadataExchangeReason::SessionUnavailable => FailureKind::ServiceUnavailable,
+            MetadataExchangeReason::ConnectionUnavailable => FailureKind::ServiceUnavailable,
             MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
             MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => {
                 FailureKind::Timeout

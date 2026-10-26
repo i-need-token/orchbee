@@ -189,7 +189,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
         let agent = row(23);
         let selected = crate::machine_picker::Selection {
             machine: Choice::Local,
-            context: Some(crate::terminal_session::NativeStartupTarget::Agent(
+            context: Some(crate::workbench_client::NativeStartupTarget::Agent(
                 Box::new(agent.target.clone()),
             )),
         };
@@ -211,7 +211,7 @@ fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_p
             view.machines.observe_focus(
                 Choice::Local,
                 Some(agent.target.context.clone()),
-                Some(crate::terminal_session::NativeMemberTarget {
+                Some(crate::workbench_client::NativeMemberTarget {
                     tab: agent.target.tab.clone(),
                     panel: agent.target.panel.clone(),
                     presentation: agent.target.member.clone(),
@@ -402,14 +402,14 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        ) -> Option<crate::workbench_client::NativeCaptureContext> {
             use crate::{
-                terminal_session::{
+                tui_composition::NativeCaptureOwner,
+                tui_presentation::PresentationPhase,
+                workbench_client::{
                     AgentBoardEpisodeToken, AgentBoardInputContext, CaptureReadiness,
                     ConfirmationCaptureContext, NativeCaptureContext, WorkspaceCloseToken,
                 },
-                tui_composition::NativeCaptureOwner,
-                tui_presentation::PresentationPhase,
             };
 
             match (self.owner, owner) {
@@ -430,12 +430,9 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
                 _ => None,
             }
         }
-        fn apply_client_action(
-            &mut self,
-            action: ClientAction,
-        ) -> Option<SessionActionDisposition> {
+        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
             self.actions.push(action);
-            Some(SessionActionDisposition::KeepNavigator)
+            Some(ClientActionDisposition::KeepNavigator)
         }
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.extend_from_slice(bytes);
@@ -443,14 +440,14 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         }
         fn capture_workspace_confirmation_key_for(
             &mut self,
-            _: crate::terminal_session::WorkspaceCloseToken,
+            _: crate::workbench_client::WorkspaceCloseToken,
             _: ClientKey,
         ) -> bool {
             self.owner == 1
         }
         fn capture_agent_board_key_for(
             &mut self,
-            _: crate::terminal_session::AgentBoardEpisodeToken,
+            _: crate::workbench_client::AgentBoardEpisodeToken,
             _: crate::client_view::KeyEvent,
         ) -> bool {
             self.owner == 2

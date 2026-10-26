@@ -4,11 +4,11 @@
 
 The native Client treats `Ctrl+B Shift+X` (close the selected panel leaf) as a destructive intent
 that must be confirmed before it can reach the workbench carrier. This reference governs the
-panel-close confirmation extension of the [native Tab Session](native-tab-session.md) and the
+panel-close confirmation extension of the [native Tab Session](workbench-client-runtime.md) and the
 [native panel lifecycle](native-panel-lifecycle.md). Maintain it with
-`terminal_session/state/panel_close.rs`, `terminal_session/ui/panel_close.rs`,
+`workbench_client/state/panel_close.rs`, `workbench_client/ui/panel_close.rs`,
 `tui_render/panel_close.rs`, `localization/panel_close.rs`, and the receipt fields in
-`terminal_session/ui/tab_close.rs`.
+`workbench_client/ui/tab_close.rs`.
 
 A panel close is not a Tab close. The confirmed effect is exactly the existing
 `PanelRequestKind::Close` operation planned against the frozen leaf; the confirmation layer
@@ -65,12 +65,12 @@ complete-fit, draw-token and cancellation guards continue to authorize the close
 
 | Production surface                      | Model correspondence                                                                                                                                                                                 |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `terminal_session/state/panel_close.rs` | Armed/shown state, frozen `PanelCloseSelection`, token issuance, `confirmed_panel_selection`, `plan_panel_close_confirmation`, `begin_panel_close_exchange`, live-match and not-presented settlement |
-| `terminal_session/state/tab_close.rs`   | Cross-confirmation `settle_stale_close_confirmations` routing and carrier-retirement cancellation                                                                                                    |
-| `terminal_session/ui/panel_close.rs`    | `NativePanelCloseConfirmationView`, `request_panel_close_confirmation`, `confirm_panel_close`, `cancel_panel_close`, `capture_panel_confirmation_key`                                                |
-| `terminal_session/ui/tab_close.rs`      | `NativeDrawReceipt` typed `ModalPresentation` fields, `capture_confirmation_key` routing and stale settlement, exact-key tightening, `after_close_draw`/`invalidate_close_display` fan-out           |
-| `terminal_session/ui.rs`                | `NativeUi::tick` post-mutation stale settlement, `NativeSessionNotice::ConfirmationCancelled`                                                                                                        |
+| `workbench_client/state/panel_close.rs` | Armed/shown state, frozen `PanelCloseSelection`, token issuance, `confirmed_panel_selection`, `plan_panel_close_confirmation`, `begin_panel_close_exchange`, live-match and not-presented settlement |
+| `workbench_client/state/tab_close.rs`   | Cross-confirmation `settle_stale_close_confirmations` routing and carrier-retirement cancellation                                                                                                    |
+| `workbench_client/ui/panel_close.rs`    | `NativePanelCloseConfirmationView`, `request_panel_close_confirmation`, `confirm_panel_close`, `cancel_panel_close`, `capture_panel_confirmation_key`                                                |
+| `workbench_client/ui/tab_close.rs`      | `NativeDrawReceipt` typed `ModalPresentation` fields, `capture_confirmation_key` routing and stale settlement, exact-key tightening, `after_close_draw`/`invalidate_close_display` fan-out           |
+| `workbench_client/ui.rs`                | `NativeUi::tick` post-mutation stale settlement, `WorkbenchClientNotice::ConfirmationCancelled`                                                                                                      |
 | `tui_presentation.rs`                   | Shared pending/admitted/suspended presentation phase and owner-level refused/suspended geometry settlement                                                                                           |
 | `tui_render/panel_close.rs`             | Content-area overlay draw at preferred finite size, fit gate, typed `Presented`/`NotPresented` receipt                                                                                               |
 | `localization/panel_close.rs`           | `en-US`/`zh-CN` title, impact warning, raw action labels and key-hint labels                                                                                                                         |
-| `terminal_session/ui.rs`                | `ClientAction::ClosePanel` arm to `request_panel_close_confirmation`                                                                                                                                 |
+| `workbench_client/ui.rs`                | `ClientAction::ClosePanel` arm to `request_panel_close_confirmation`                                                                                                                                 |

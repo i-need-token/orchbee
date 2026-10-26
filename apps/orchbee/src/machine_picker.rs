@@ -7,7 +7,6 @@ use crate::{
     localization::Locale,
     machine_discovery::{Context, Observation, display_label},
     machines::{Profile, ProfileId},
-    terminal_session::{NativeContextTarget, NativeMemberTarget, NativeStartupTarget},
     terminal_text::{
         display_width, sanitize_terminal_text, truncate_display, truncate_display_start,
     },
@@ -23,6 +22,7 @@ use crate::{
         measure_key_hints, paint_row_interaction, render_frame_icon_action, render_key_hints,
     },
     tui_theme::{GlyphMode, Role, Theme},
+    workbench_client::{NativeContextTarget, NativeMemberTarget, NativeStartupTarget},
 };
 use ratatui::{
     Frame,
@@ -382,7 +382,7 @@ pub(crate) struct Picker {
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_updates: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_stale: Vec<Choice>,
-    native_navigation: Option<(Choice, crate::terminal_session::SidebarNavigationProjection)>,
+    native_navigation: Option<(Choice, crate::workbench_client::SidebarNavigationProjection)>,
     space_projection: Option<(Choice, Arc<crate::machine_spaces::Checkpoint>)>,
     editing_query: bool,
     current_member: Option<NativeMemberTarget>,
@@ -846,8 +846,8 @@ impl Picker {
         }
         if let Some(context) = &row.context {
             return Some(match &context.target.location {
-                crate::terminal_session::NativeContextLocation::NoWorkspace => return None,
-                crate::terminal_session::NativeContextLocation::Workspace {
+                crate::workbench_client::NativeContextLocation::NoWorkspace => return None,
+                crate::workbench_client::NativeContextLocation::Workspace {
                     workspace_id, ..
                 } => workspace_id.as_str(),
             });

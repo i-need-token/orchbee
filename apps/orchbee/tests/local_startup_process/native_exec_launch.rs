@@ -51,7 +51,7 @@ fn wait_proof(path: &Path, deadline: Instant) -> String {
     }
 }
 
-/// Admit one Client Session and replay the exact `workbench.command` the
+/// Admit one Client Connection and replay the exact `workbench.command` the
 /// staged CLI reported in its receipt — the identity is the receipt's own
 /// `source.requestId`, never a fixture-invented one.
 fn replay_command(
@@ -60,7 +60,7 @@ fn replay_command(
 ) -> Result<WorkbenchCommandOutcome, Box<dyn Error>> {
     let deadline = Instant::now() + SPAWN_DEADLINE;
     let cohort = NativeCohort::load(&fixture.cohort, deadline)?;
-    let admitted = ClientSessionConnection::connect_before(
+    let admitted = ClientConnection::connect_before(
         fixture.site().client_socket_path(),
         cohort.identity(),
         deadline,

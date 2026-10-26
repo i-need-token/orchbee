@@ -3,7 +3,7 @@ use crate::{
     local_client::LocalClient,
     machine_discovery::display_label,
     machine_picker::Choice,
-    terminal_session::{NativeContextLocation, NativeContextTarget},
+    workbench_client::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{

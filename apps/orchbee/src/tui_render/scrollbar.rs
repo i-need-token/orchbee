@@ -3,9 +3,9 @@
 use ratatui::{Frame, layout::Rect, widgets::Clear};
 
 use crate::{
-    terminal_session::NativeSessionView,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
+    workbench_client::WorkbenchClientView,
 };
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
@@ -16,7 +16,7 @@ pub(super) fn render(
     content: Rect,
     panel: &WorkbenchPanelId,
     pane_focused: bool,
-    native: &NativeSessionView<'_>,
+    native: &WorkbenchClientView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {

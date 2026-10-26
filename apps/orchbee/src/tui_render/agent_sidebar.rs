@@ -56,7 +56,7 @@ pub(super) struct RenderContext<'a> {
     pub(super) backend_status: SiteStatus<'a>,
     pub(super) theme: &'a Theme,
     pub(super) input: SidebarInput,
-    pub(super) creation: Option<crate::terminal_session::WorkspaceCreationPreview<'a>>,
+    pub(super) creation: Option<crate::workbench_client::WorkspaceCreationPreview<'a>>,
 }
 
 struct ActionsContext<'a> {

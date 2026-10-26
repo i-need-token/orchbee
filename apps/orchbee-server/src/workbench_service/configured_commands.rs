@@ -1,5 +1,5 @@
 //! Authenticated command admission coordinates existing execution and Client owners.
-use super::{WorkbenchClientSession, WorkbenchExecution};
+use super::{WorkbenchClientConnection, WorkbenchExecution};
 use crate::local_terminal_service::configured_commands::descriptor;
 use orchbee_local_site_runtime::{WindowsCustomCommandAction, WindowsCustomCommandEntry};
 use orchbee_workbench_protocol::{
@@ -12,7 +12,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
-impl WorkbenchClientSession<'_> {
+impl WorkbenchClientConnection<'_> {
     pub(super) fn configured_command(
         &self,
         request: ConfiguredCommandRequest,

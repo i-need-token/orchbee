@@ -12,8 +12,8 @@ render 行读取（1）、Client view 控制（2）、Agent 观察（4）和 liv
 Windows 时限适配器通过既有命名管道传输验证对端，写入一次请求，读取一个准确答复后
 丢弃候选连接，不发送 Client hello，也不进入应用阶段。调用者拥有五秒总预算和取消仲裁；
 部分进展不延长时限。只有连接失败保留连接前不存在的来源；连接后 EOF 绝不表示不存在。
-Windows Server 在同用户证明之后、cohort 相等及 Session 接纳之前响应，沿用既有候选
-及握手上限。该观察不授予操作能力、不创建 Session，也不改变停止状态。不增加 Linux／
+Windows Server 在同用户证明之后、cohort 相等及 Client Connection 接纳之前响应，沿用既有候选
+及握手上限。该观察不授予操作能力、不创建 Client Connection，也不改变停止状态。不增加 Linux／
 macOS 运行时适配器。[CLI 状态契约](../../apps/orchbee/docs/native-runtime-status.zh-CN.md)
 拥有公共比较／输出语义和证据，包括旧 Server 不兼容的处理。
 
@@ -39,17 +39,17 @@ activation mechanism、remote protocol 或 compatibility promise。
 
 每条 connection 只承载一条 Client 到 Server 的 handshake frame 和一条 Server 到 Client 的
 response frame。准入会结束 `OBLC` 阶段，并且不会消费下一协议阶段的 byte；之后同一 stream
-可以只作为 Client Session liveness attachment 保持打开，也可以由调用方用于另一个单独拥有的
+可以只作为 Client Connection liveness attachment 保持打开，也可以由调用方用于另一个单独拥有的
 semantic protocol。`OBLC` frame 包含固定 magic、unsigned big-endian protocol version、unsigned
 big-endian payload length，以及最多 256 byte payload。未知 magic、version、kind、enum value、
 缺少或多余 byte、oversized payload、零 generation、无效 UTF-8、空 cohort、非 ASCII cohort，
 或超过 64 byte 的 cohort 都会被拒绝。
 
-| 消息             | 字段与含义                                                                                                                  |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `ClientHello`    | 确切 executable cohort。kernel peer credential 提供本机 human identity；renderer form 与 Client-local view state 不在其中。 |
-| `ClientAccepted` | Server 为该确切 transport 分配的非零 process-local Client Session generation。它不授予 terminal 或 Workbench capability。   |
-| `Rejected`       | protocol/cohort 不兼容、超过容量、错误消息、malformed frame 或 timeout。拒绝不会改变任何已准入 Session。                    |
+| 消息             | 字段与含义                                                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `ClientHello`    | 确切 executable cohort。kernel peer credential 提供本机 human identity；renderer form 与 Client-local view state 不在其中。  |
+| `ClientAccepted` | Server 为该确切 transport 分配的非零 process-local Client Connection generation。它不授予 terminal 或 Workbench capability。 |
+| `Rejected`       | protocol/cohort 不兼容、超过容量、错误消息、malformed frame 或 timeout。拒绝不会改变任何已准入 Client Connection。           |
 
 Human Client 与 Worker contract 保持分离。本 crate 不包含 Worker identity、Worker capability
 advertisement、lease、fence、Host、terminal、renderer、Workspace、Tab、Panel 或 semantic-command
@@ -57,7 +57,7 @@ advertisement、lease、fence、Host、terminal、renderer、Workspace、Tab、P
 
 ## Connecting adapter
 
-`ClientSessionConnection::connect` 是真实 Rust Client-side consumer。它先在 effect 前验证 cohort，
+`ClientConnection::connect` 是真实 Rust Client-side consumer。它先在 effect 前验证 cohort，
 连接一条由调用方选择的 Unix socket，通过 `orchbee-local-peer-credentials` 证明 Server 具有相同
 effective user，应用两秒 read/write handshake timeout，只发送一条 hello，要求一条 accepted
 response，然后移除 handshake timeout 并保留 stream。
@@ -75,7 +75,7 @@ adapter 不发现 endpoint、不激活 service、不 retry、不启动 process �
 ## POSIX 有截止时间的连接准入
 
 已接受的懒激活流程需要调用方拥有一个覆盖连接与握手的截止时间。POSIX
-ClientSessionConnection::connect_before(endpoint, cohort, deadline) 在 Linux 与 macOS 提供该边界，
+ClientConnection::connect_before(endpoint, cohort, deadline) 在 Linux 与 macOS 提供该边界，
 apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 `connect` 保留独立的两秒握手超时。
 两个入口都不发现或激活 Site。macOS 原生验证覆盖同一 descriptor、poll、peer proof 与 handshake 路径；
 既有 `connect` 入口保持不变。
@@ -97,7 +97,7 @@ apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 `connec
 | Model        | 一次带期限的准入尝试依次经过连接、对端证明、部分 hello/response I/O 与阻塞模式恢复。受控实现测试在每个边界注入完成与过期。                                                                                       |
 | Transitions  | 已验证请求 → connecting → peer proof → writing → reading → decoded response → blocking restoration → accepted。无效输入、IO、peer 或响应失败，或观察到过期，都进入 failed 并释放候选连接。                       |
 | Dependencies | POSIX 原子 SOCK_CLOEXEC/SOCK_NONBLOCK、已有固定版本 Nix socket/poll wrapper、内核 peer credential、单调时钟与不变的 OBLC codec。                                                                                 |
-| Ownership    | 本 crate 拥有准入与候选连接清理；调用方选择截止时间并拥有已接受 stream。Server 拥有自身 Session，并独立观察连接丢失。                                                                                            |
+| Ownership    | 本 crate 拥有准入与候选连接清理；调用方选择截止时间并拥有已接受 stream。Server 拥有自身 Client Connection，并独立观察连接丢失。                                                                                  |
 | Verification | 确定性部分 I/O 与期限边界测试、Linux 与 macOS Unix-socket 接受/拒绝/静默/EOF/backlog 案例、下一阶段字节保留及既有连接回归。                                                                                      |
 | Correctness  | AD-01–AD-04 映射到下方具体适配器证据。本地期限观察提供有界失败，不假设外部连接/就绪/响应推进。不保留独立准入 TLA 模型。                                                                                          |
 | Limits       | 仅一次 POSIX 准入，不证明 service readiness、激活、OS 进程调度或 Server 清理时长。Adapter 无法抢占内核调用或调度，只能在可控制的边界及返回成功前检查截止时间。Windows 使用命名管道 adapter；不选择生产超时数值。 |
@@ -124,13 +124,13 @@ event 先于任何同时就绪的 socket readiness 判定。私有观察在边�
 
 ## Server 准入与上限
 
-Server 为每条 accepted connection 分配独立 generation，并最多准入三十二个 active Client Session。
-它最多保留四十八个 Client candidate/session thread，因此 silent handshake 不会制造无界工作；
+Server 为每条 accepted connection 分配独立 generation，并最多准入三十二个 active Client Connection。
+它最多保留四十八个 Client candidate/connection thread，因此 silent handshake 不会制造无界工作；
 超过该 transport bound 的 connection 会被关闭。在 transport bound 内的 candidate 超过三十二个
-Session admission limit 后会收到 typed capacity rejection。每条 handshake 都有两秒 read/write
+Client Connection admission limit 后会收到 typed capacity rejection。每条 handshake 都有两秒 read/write
 timeout。
 
-已交付的私有 Server 把 accepted unbuffered stream 保留为 Session carrier，并把 next-phase byte
+已交付的私有 Server 把 accepted unbuffered stream 保留为 Client Connection carrier，并把 next-phase byte
 交给由 [`orchbee-client-server-protocol`](../client-server-protocol/README.zh-CN.md) 单独拥有的 OBCS
 decoder。本 crate 既不定义也不解码该 phase。Server 的本机主体策略、fault handling 与
 generation-scoped cleanup 由其
@@ -140,7 +140,7 @@ generation-scoped cleanup 由其
 
 本 crate 只拥有 Client framing、handshake validation、connecting adapter，以及把 accepted byte
 stream 交给调用方；它既不定义也不解码下一 semantic phase。Server 拥有 listener 与 Client
-Session state。`orchbee-local-peer-credentials` 拥有 kernel same-user proof。
+Client Connection state。`orchbee-local-peer-credentials` 拥有 kernel same-user proof。
 `orchbee-local-site-protocol` 单独拥有 Worker handshake。endpoint discovery、lazy activation、
 公开 `orchbee` 集成、Workbench snapshot 与 command、terminal relay、controller policy、
 persistence、Windows named pipe、remote authentication 与 production service lifecycle 不在本

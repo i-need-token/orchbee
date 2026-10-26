@@ -5,7 +5,7 @@
 The native Client selects a Workspace in the connected local
 Session. Server owns navigation, membership, revision and terminal lifetime; the Client owns its active
 location and selection. This reference governs the context-selection extension to the
-[native Tab Session](native-tab-session.md). Maintain it with the Session reducer, transport,
+[native Tab Session](workbench-client-runtime.md). Maintain it with the Session reducer, transport,
 navigation rendering and their correctness evidence.
 
 `Ctrl+B [` and `Ctrl+B ]` cycle through real Workspaces in canonical display order, including empty Workspaces. Sorting and nullable Project membership never change location identity. Selection uses the Workspace/Context pair and restores this Client's surviving Tab/Panel memory, otherwise the first member or Empty. Entering or leaving Empty creates no terminal. Explicit `c` requires the Workspace's admitted directory and never falls back to home. Windows sidebar activation shares this Session selection owner; exact Site/location validation, Busy precedence and latest unadmitted target retention follow [machine navigation](machines.md#cross-machine-workspace-navigation). Windows [directory startup](native-directory-startup.md) may create the first Workspace only in an eligible empty Session. Other startup paths read and select existing membership before attachment.
@@ -174,7 +174,7 @@ legacy content without changing canonical focus. Removal landing on an empty can
 must release the old pane and controller authority before installation. Fresh peer-added membership
 requires a fresh attachment; visibility alone never grants input or recovers a live process.
 
-Maintain the concrete witnesses in `src/terminal_session/state/context_selection.rs`, `src/terminal_session/mailbox/tests/context_selection.rs`, `src/terminal_session/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/workbench_client/state/context_selection.rs`, `src/workbench_client/mailbox/tests/context_selection.rs`, `src/workbench_client/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
 

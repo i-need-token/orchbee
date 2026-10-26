@@ -7,13 +7,13 @@ impl Picker {
     pub(crate) fn observe_native_navigation(
         &mut self,
         machine: Choice,
-        navigation: Option<crate::terminal_session::SidebarNavigationProjection>,
+        navigation: Option<crate::workbench_client::SidebarNavigationProjection>,
     ) -> bool {
         let navigation = navigation.or_else(|| {
             // Carrier loss revokes speculation, not already validated topology. Keep
             // its revision floor until endpoint replacement explicitly forgets it.
             let (owner, known) = self.native_navigation.as_ref()?;
-            (owner == &machine).then(|| crate::terminal_session::SidebarNavigationProjection {
+            (owner == &machine).then(|| crate::workbench_client::SidebarNavigationProjection {
                 snapshot: std::sync::Arc::clone(&known.snapshot),
                 pending: None,
             })
@@ -93,7 +93,7 @@ impl Picker {
             return None;
         }
         checkpoint.rows.iter().find_map(|row| {
-            let crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } =
+            let crate::workbench_client::NativeContextLocation::Workspace { workspace_id, .. } =
                 &row.target.location
             else {
                 return None;

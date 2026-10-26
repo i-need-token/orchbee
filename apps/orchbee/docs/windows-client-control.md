@@ -6,7 +6,7 @@ Ordinary Workspace/Tab focus shares [Client selection memory](native-context-sel
 
 ## Identity and publication
 
-An authenticated Client Session may publish one interactive view. Its Client identity is the admitted nonzero Session generation encoded as 32 lowercase hexadecimal characters, scoped by Session. Server assigns it; generations never repeat during one Server lifetime. Ordinary CLI connections do not publish views. Synchronization has no caller-supplied Client identity and cannot acknowledge another Session's work.
+An authenticated Client Connection may publish one interactive view. Its Client identity is the admitted nonzero Client Connection generation encoded as 32 lowercase hexadecimal characters, scoped by Session. Server assigns it; generations never repeat during one Server lifetime. Ordinary CLI connections do not publish views. Synchronization has no caller-supplied Client identity and cannot acknowledge another Connection's work.
 
 The view reports its observed Workbench revision, phase (`starting`, `ready`, `busy`, `unavailable`) and a required nullable selection. Selection carries TerminalContext identity, required nullable Tab/Panel identities, an explicit zoom flag and the active Tab panel count (zero without a Tab, positive with a Tab). A Panel requires a Tab; zoom requires a Panel. A ready empty Workbench reports `selection: null`; an empty Workspace reports its real Context with null Tab/Panel. Neither state invents a Context identity. These are Client observations, not additional canonical Workbench fields.
 
@@ -36,7 +36,7 @@ Toggle resolution belongs to the TUI and is retained for the delivered operation
 | Caller timeout or Ctrl+C   | Stop only CLI waiting; query the retained operation identity                                                                                                                                                              |
 | Completed retention        | Keep completed observations for 60 seconds; only expired completed records may be reclaimed                                                                                                                               |
 
-There are at most 32 live views within the existing Client Session admission bound, one active command per Client and 256 retained control records. Capacity refusal never evicts pending or unexpired evidence. Delivered work remains owned until acknowledgement or disconnect. Server has no terminal-input, Git or global-focus side effect for a Client command.
+There are at most 32 live views within the existing Client Connection admission bound, one active command per Client and 256 retained control records. Capacity refusal never evicts pending or unexpired evidence. Delivered work remains owned until acknowledgement or disconnect. Server has no terminal-input, Git or global-focus side effect for a Client command.
 
 ## TUI execution
 
@@ -46,7 +46,7 @@ Local navigation or modal intent interrupts further remote steps. Already accept
 
 The lane stops, wakes blocked I/O and joins on TUI exit. Server Session cleanup removes publication and settles retained requests; managed Session stop joins those handlers. Client view/control state is volatile and does not survive Server restart.
 
-Before sending its first Synchronize, lane admission has one shared two-second budget. A transient local transport failure—an endpoint not yet present or refusing, an interrupted, reset or aborted connection, a broken pipe, would-block, timeout or handshake EOF—permits at most one retry with the original deadline and a fresh Server-assigned Session generation. Permission, configuration, protocol, rejection, unexpected-response, cancellation and request I/O setup failures stop immediately. After any Synchronize request is sent, every failure remains terminal for that lane: it does not transfer Client identity, replay a control, completion or mutation, or renew the deadline. This retry changes only prepublication admission; it does not weaken the registry's terminal Disconnect semantics for an admitted Session.
+Before sending its first Synchronize, lane admission has one shared two-second budget. A transient local transport failure—an endpoint not yet present or refusing, an interrupted, reset or aborted connection, a broken pipe, would-block, timeout or handshake EOF—permits at most one retry with the original deadline and a fresh Server-assigned Client Connection generation. Permission, configuration, protocol, rejection, unexpected-response, cancellation and request I/O setup failures stop immediately. After any Synchronize request is sent, every failure remains terminal for that lane: it does not transfer Client identity, replay a control, completion or mutation, or renew the deadline. This retry changes only prepublication admission; it does not weaken the registry's terminal Disconnect semantics for an admitted Connection.
 
 ## CLI routing and wire boundary
 

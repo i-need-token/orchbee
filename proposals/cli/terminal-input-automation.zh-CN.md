@@ -297,7 +297,7 @@ Exit code 沿用已交付表：`0` 成功；`1` 本地确定性结果（输入�
 阶段名在已交付集合（`cohort`、`runtime-base`、`runtime-directory`、`socket`、`discovery`、
 `admission`、`snapshot`、`platform`）上扩展 `attach`、`acquire`、`input`、`observe` 与
 `stream`。既有 kind——`invalid-usage`、`invalid-identifier`、`ambiguous`、`check-failed`、
-`session-capacity`、`protocol-invalid`、`incompatible`、`output-too-large`、`output-failed`——
+`connection-capacity`、`protocol-invalid`、`incompatible`、`output-too-large`、`output-failed`——
 不变适用。`ambiguous` 在本切片无生产者，因为终端 target 只接受类型化 ID。
 
 ## Session 状态机与预算

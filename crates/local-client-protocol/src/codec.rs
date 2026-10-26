@@ -48,7 +48,7 @@ impl ClientHello {
     }
 }
 
-/// Closed admission refusal reasons; a refusal grants no Client Session authority.
+/// Closed admission refusal reasons; a refusal grants no Client Connection authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RejectionReason {
     IncompatibleProtocol,
@@ -60,7 +60,7 @@ pub enum RejectionReason {
     Stopping,
 }
 
-/// One validated admission or lifecycle-control payload, without a Session state transition.
+/// One validated admission or lifecycle-control payload, without a Connection state transition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LocalClientMessage {
     ClientHello(ClientHello),

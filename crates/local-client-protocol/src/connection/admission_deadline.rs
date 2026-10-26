@@ -21,7 +21,7 @@ use nix::{
 };
 use orchbee_local_peer_credentials::require_same_effective_user;
 
-use super::{ClientSessionConnection, ConnectClientError};
+use super::{ClientConnection, ConnectClientError};
 use crate::{ClientHello, LocalClientMessage, read_message, write_message};
 
 pub(super) fn connect_before_cancellable(
@@ -29,7 +29,7 @@ pub(super) fn connect_before_cancellable(
     hello: ClientHello,
     expires_at: Instant,
     wake: Option<BorrowedFd<'_>>,
-) -> Result<ClientSessionConnection, ConnectClientError> {
+) -> Result<ClientConnection, ConnectClientError> {
     admit(endpoint, hello, expires_at, wake).map_err(translate_wake)
 }
 
@@ -38,7 +38,7 @@ fn admit(
     hello: ClientHello,
     expires_at: Instant,
     wake: Option<BorrowedFd<'_>>,
-) -> Result<ClientSessionConnection, ConnectClientError> {
+) -> Result<ClientConnection, ConnectClientError> {
     let deadline = Deadline {
         expires_at,
         now: &Instant::now,
@@ -141,12 +141,12 @@ fn finish_admission(
     stream: UnixStream,
     generation: NonZeroU64,
     deadline: Deadline<'_>,
-) -> Result<ClientSessionConnection, ConnectClientError> {
+) -> Result<ClientConnection, ConnectClientError> {
     deadline.remaining()?;
     stream.set_nonblocking(false)?;
     // Success linearizes after restoring the stream mode, not at frame arrival.
     deadline.remaining()?;
-    Ok(ClientSessionConnection { stream, generation })
+    Ok(ClientConnection { stream, generation })
 }
 
 /// The borrowed wake descriptor reported `POLLIN` — a provisional wake

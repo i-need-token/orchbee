@@ -131,7 +131,7 @@ fn settle(
 
 pub(super) fn exchange_failure(error: AgentExchangeError) -> Failure {
     let kind = match error {
-        AgentExchangeError::SessionUnavailable | AgentExchangeError::RequestEncoding(_) => {
+        AgentExchangeError::ConnectionUnavailable | AgentExchangeError::RequestEncoding(_) => {
             FailureKind::InternalFailure
         }
         AgentExchangeError::RequestNotSubmitted(error) => io_failure_kind(&error),

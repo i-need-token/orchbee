@@ -12,13 +12,9 @@ use ratatui::{
 };
 
 #[cfg(windows)]
-use crate::terminal_session::{AgentStartCatalogStatus, AgentStartPhase};
+use crate::workbench_client::{AgentStartCatalogStatus, AgentStartPhase};
 use crate::{
     localization::{Locale, ShellText},
-    terminal_session::{
-        AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardRow, NativeAgentBoardView,
-        PresentationPlacement,
-    },
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::place_overlay,
     tui_pointer::{
@@ -26,6 +22,10 @@ use crate::{
         ProjectedPointer,
     },
     tui_theme::{GlyphMode, Role, Theme},
+    workbench_client::{
+        AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardRow, NativeAgentBoardView,
+        PresentationPlacement,
+    },
 };
 use orchbee_agent_observation_protocol::{
     AgentLifecycle, AgentObservationFreshness, AgentSemanticStatus,
@@ -351,7 +351,7 @@ fn render_rows(
     text: ShellText,
     locale: Locale,
     board: &NativeAgentBoardView<'_>,
-    draw: &crate::terminal_session::AgentBoardActualDraw,
+    draw: &crate::workbench_client::AgentBoardActualDraw,
     (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) {
@@ -483,7 +483,7 @@ fn render_start_form(
     frame: &mut Frame<'_>,
     text: ShellText,
     board: &NativeAgentBoardView<'_>,
-    draw: &crate::terminal_session::AgentBoardActualDraw,
+    draw: &crate::workbench_client::AgentBoardActualDraw,
     layout: &StartFormLayout,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -723,7 +723,7 @@ fn render_start_footer_actions(
     row: Rect,
     text: ShellText,
     board: &NativeAgentBoardView<'_>,
-    draw: &crate::terminal_session::AgentBoardActualDraw,
+    draw: &crate::workbench_client::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
@@ -868,7 +868,7 @@ fn interaction_state(
 fn render_header_close(
     frame: &mut Frame<'_>,
     area: Rect,
-    draw: &crate::terminal_session::AgentBoardActualDraw,
+    draw: &crate::workbench_client::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> Option<Rect> {
@@ -907,7 +907,7 @@ fn render_footer_actions(
     row: Rect,
     text: ShellText,
     board: &NativeAgentBoardView<'_>,
-    draw: &crate::terminal_session::AgentBoardActualDraw,
+    draw: &crate::workbench_client::AgentBoardActualDraw,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
@@ -1011,7 +1011,7 @@ fn render_row(
     board: &NativeAgentBoardView<'_>,
     row: &AgentBoardRow,
     selected: bool,
-    target: crate::terminal_session::AgentBoardRowTarget,
+    target: crate::workbench_client::AgentBoardRowTarget,
     (theme, working_frame): (&Theme, usize),
     hits: &mut HitMapBuilder,
 ) {

@@ -355,7 +355,7 @@ fn rename_completed_response_past_caller_or_exchange_budget_retires_without_repl
                 deadline
             ),
             WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(
-                WorkbenchLabelRenameNotSubmitted::SessionUnavailable
+                WorkbenchLabelRenameNotSubmitted::ConnectionUnavailable
             )
         ));
         drop(client);
@@ -472,7 +472,7 @@ fn rename_retires_malformed_or_truncated_response_without_retry() -> TestResult 
                 deadline
             ),
             WorkbenchLabelRenameSubmission::DefinitelyNotSubmitted(
-                WorkbenchLabelRenameNotSubmitted::SessionUnavailable
+                WorkbenchLabelRenameNotSubmitted::ConnectionUnavailable
             )
         ));
         assert_eq!(client.generation(), None);

@@ -366,7 +366,7 @@ there is no mixed-version rollout, public compatibility promise, durable migrati
 
 The local unpublished Move extension is implemented in the schema, corpus, both bindings and Server.
 Native Workspace Client interaction is integrated with bounded Linux cohort evidence in the
-[native Session contract](../../apps/orchbee/docs/native-tab-session.md).
+[Workbench Client runtime contract](../../apps/orchbee/docs/workbench-client-runtime.md).
 It uses the existing OBWP v1 command envelope and navigation-mutation grant.
 The action is `tab.move { terminalContextId, tabId, direction }`, where direction is exactly
 `previous | next | first | last`. Previous/next swap with one adjacent Tab without wrapping;

@@ -11,15 +11,15 @@ use crate::{
         PrefixDesc,
     },
     localization::Locale,
-    terminal_session::{
-        ModalPresentation, NativeDisplayPhase, NativeLocationLabelStatus, NativeSetupDraftView,
-        NativeSetupStage, NativeSetupStatus, NativeSetupToken,
-    },
     terminal_text::sanitize_terminal_text,
     terminal_text::{display_width, truncate_display},
     tui_layout::centered_overlay,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl},
     tui_theme::{GlyphMode, Role, Theme},
+    workbench_client::{
+        ModalPresentation, NativeDisplayPhase, NativeLocationLabelStatus, NativeSetupDraftView,
+        NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+    },
 };
 use ratatui::{
     Frame,

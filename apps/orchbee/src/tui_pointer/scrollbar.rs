@@ -8,7 +8,7 @@ use crate::{
     client_view::{ClientAction, ClientView, Modifiers},
     terminal_input::{MouseAction, MouseButton, MouseEvent, PointerProbe, TerminalInputPort},
     terminal_scrollbar::ScrollbarSnapshot,
-    terminal_session::state::PaneRef,
+    workbench_client::state::PaneRef,
 };
 use ratatui::layout::Rect;
 

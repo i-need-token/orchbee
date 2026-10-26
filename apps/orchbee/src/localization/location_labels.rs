@@ -1,5 +1,5 @@
 use super::Locale;
-use crate::terminal_session::{NativeLocationLabelStatus, NativeLocationLabelTarget};
+use crate::workbench_client::{NativeLocationLabelStatus, NativeLocationLabelTarget};
 
 impl Locale {
     pub(crate) const fn workspace_name_required(self) -> &'static str {

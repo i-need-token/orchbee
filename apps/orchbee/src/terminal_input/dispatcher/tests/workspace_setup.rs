@@ -90,15 +90,15 @@ impl TerminalInputPort for SetupPort {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         if owner != crate::tui_composition::NativeCaptureOwner::Setup || !self.active {
             return None;
         }
-        Some(crate::terminal_session::NativeCaptureContext::Setup(
-            crate::terminal_session::SetupCaptureContext {
+        Some(crate::workbench_client::NativeCaptureContext::Setup(
+            crate::workbench_client::SetupCaptureContext {
                 token: self.token(),
                 phase: crate::tui_presentation::PresentationPhase::Admitted,
-                readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 stage: self.stage,
                 remaining_scalars: 512_usize.saturating_sub(self.text.chars().count()),
                 remaining_bytes: 4096_usize.saturating_sub(self.text.len()),
@@ -142,7 +142,7 @@ impl TerminalInputPort for SetupPort {
         self.focus.push(focused);
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.stage = match action {
             ClientAction::RequestProjectRename => NativeSetupStage::ProjectRename,
             ClientAction::RequestWorkspaceRename => NativeSetupStage::WorkspaceRename,
@@ -151,7 +151,7 @@ impl TerminalInputPort for SetupPort {
         self.active = true;
         self.token += 1;
         self.shown = false;
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 
     fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
@@ -224,7 +224,7 @@ impl TerminalInputPort for SetupPort {
         true
     }
 
-    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<SessionActionDisposition> {
+    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<ClientActionDisposition> {
         assert_eq!(token, self.token());
         if self.shown && self.complete && !self.fault {
             self.submissions.push(self.stage);
@@ -238,7 +238,7 @@ impl TerminalInputPort for SetupPort {
                 _ => self.active = false,
             }
         }
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 }
 

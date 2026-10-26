@@ -15,7 +15,7 @@ use std::{
 };
 
 use orchbee_local_client_protocol::{
-    ClientSessionConnection, LocalClientMessage, read_message, write_message,
+    ClientConnection, LocalClientMessage, read_message, write_message,
 };
 use orchbee_local_peer_credentials::require_same_effective_user;
 
@@ -52,7 +52,7 @@ fn connecting_adapter_authenticates_handshakes_and_observes_server_loss() -> io:
     });
 
     let mut connection =
-        ClientSessionConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
+        ClientConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
     assert_eq!(connection.generation().get(), 7);
     release_sender
         .send(())
@@ -116,7 +116,7 @@ fn accepted_connection_preserves_coalesced_next_phase_bytes() -> io::Result<()> 
     });
 
     let mut connection =
-        ClientSessionConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
+        ClientConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
     assert_eq!(connection.generation().get(), 11);
 
     let mut server_phase_bytes = [0_u8; SERVER_PHASE_BYTES.len()];

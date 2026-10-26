@@ -3,11 +3,11 @@
 ## 范围与归属
 
 原生 Client 将 `Ctrl+B Shift+X`（关闭当前选中的 panel 叶）视为破坏性意图，必须先经确认才能到达
-workbench 载波。本记录约束 [native Tab Session](native-tab-session.zh-CN.md) 与
+workbench 载波。本记录约束 [native Tab Session](workbench-client-runtime.zh-CN.md) 与
 [native panel 生命周期](native-panel-lifecycle.zh-CN.md) 的 panel 关闭确认扩展。维护时请同步
-`terminal_session/state/panel_close.rs`、`terminal_session/ui/panel_close.rs`、
+`workbench_client/state/panel_close.rs`、`workbench_client/ui/panel_close.rs`、
 `tui_render/panel_close.rs`、`localization/panel_close.rs`，以及
-`terminal_session/ui/tab_close.rs` 中的回执字段。
+`workbench_client/ui/tab_close.rs` 中的回执字段。
 
 panel 关闭不是 Tab 关闭。确认后的效果就是针对被冻结叶走既有 `PanelRequestKind::Close`
 操作；确认层绝不把它改写成 `CloseOperation` 或任何 Tab 级意图。
@@ -59,12 +59,12 @@ panel 关闭不是 Tab 关闭。确认后的效果就是针对被冻结叶走既
 
 | 生产面                                  | 模型对应                                                                                                                                                                      |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `terminal_session/state/panel_close.rs` | 武装/shown 状态、冻结的 `PanelCloseSelection`、token 签发、`confirmed_panel_selection`、`plan_panel_close_confirmation`、`begin_panel_close_exchange`、存活匹配与不可呈现结算 |
-| `terminal_session/state/tab_close.rs`   | 跨确认的 `settle_stale_close_confirmations` 路由与载波退役取消                                                                                                                |
-| `terminal_session/ui/panel_close.rs`    | `NativePanelCloseConfirmationView`、`request_panel_close_confirmation`、`confirm_panel_close`、`cancel_panel_close`、`capture_panel_confirmation_key`                         |
-| `terminal_session/ui/tab_close.rs`      | `NativeDrawReceipt` 类型化 `ModalPresentation` 字段、`capture_confirmation_key` 路由与 stale 结算、精确键收敛、`after_close_draw`/`invalidate_close_display` 分发             |
-| `terminal_session/ui.rs`                | `NativeUi::tick` 变更后 stale 结算、`NativeSessionNotice::ConfirmationCancelled`                                                                                              |
+| `workbench_client/state/panel_close.rs` | 武装/shown 状态、冻结的 `PanelCloseSelection`、token 签发、`confirmed_panel_selection`、`plan_panel_close_confirmation`、`begin_panel_close_exchange`、存活匹配与不可呈现结算 |
+| `workbench_client/state/tab_close.rs`   | 跨确认的 `settle_stale_close_confirmations` 路由与载波退役取消                                                                                                                |
+| `workbench_client/ui/panel_close.rs`    | `NativePanelCloseConfirmationView`、`request_panel_close_confirmation`、`confirm_panel_close`、`cancel_panel_close`、`capture_panel_confirmation_key`                         |
+| `workbench_client/ui/tab_close.rs`      | `NativeDrawReceipt` 类型化 `ModalPresentation` 字段、`capture_confirmation_key` 路由与 stale 结算、精确键收敛、`after_close_draw`/`invalidate_close_display` 分发             |
+| `workbench_client/ui.rs`                | `NativeUi::tick` 变更后 stale 结算、`WorkbenchClientNotice::ConfirmationCancelled`                                                                                            |
 | `tui_presentation.rs`                   | 共享 pending/admitted/suspended 呈现 phase，以及 owner 层 refused/suspended 几何结算                                                                                          |
 | `tui_render/panel_close.rs`             | 内容区覆盖层绘制（首选有限尺寸）、fit 门、类型化 `Presented`/`NotPresented` 回执                                                                                              |
 | `localization/panel_close.rs`           | `en-US`/`zh-CN` 标题、影响警示、原始操作标签与按键提示标签                                                                                                                    |
-| `terminal_session/ui.rs`                | `ClientAction::ClosePanel` 接入 `request_panel_close_confirmation`                                                                                                            |
+| `workbench_client/ui.rs`                | `ClientAction::ClosePanel` 接入 `request_panel_close_confirmation`                                                                                                            |

@@ -6,7 +6,7 @@
 
 ## 身份与发布
 
-经认证的 Client Session 可发布一个交互视图。Client 身份是已接纳的非零 Session generation，编码为 32 位小写十六进制，作用域为 Session。身份由 Server 分配，generation 在一次 Server 生命周期内不重复。普通 CLI 连接不发布视图。同步不接受调用者指定的 Client 身份，不能确认其他 Session 的操作。
+经认证的 Client Connection 可发布一个交互视图。Client 身份是已接纳的非零 Client Connection generation，编码为 32 位小写十六进制，作用域为 Session。身份由 Server 分配，generation 在一次 Server 生命周期内不重复。普通 CLI 连接不发布视图。同步不接受调用者指定的 Client 身份，不能确认其他 Connection 的操作。
 
 视图报告已观测 Workbench 修订、阶段（`starting`、`ready`、`busy`、`unavailable`）及必填可空的选择。选择包含 TerminalContext 身份、必填可空的 Tab／Panel 身份、显式缩放标记和活动 Tab 的 Panel 数（没有 Tab 时为零，有 Tab 时为正）。有 Panel 必须有 Tab；缩放必须有 Panel。就绪的空 Workbench 报告 `selection: null`；空 Workspace 报告其真实 Context，Tab／Panel 为 null。两种状态都不虚构 Context 身份。这些是 Client 观测，不是新增的规范 Workbench 字段。
 
@@ -36,7 +36,7 @@ toggle 由 TUI 解析，并为这次已投递操作保留解析结果。相同�
 | 调用者超时或 Ctrl+C | 仅停止 CLI 等待；查询保留的操作身份                                                                                                                                 |
 | 完成后保留          | 完成观测保留 60 秒；只能回收已过期的完成记录                                                                                                                        |
 
-在既有 Client Session 接纳上限内最多有 32 个运行中视图，每个 Client 一条活动命令，共 256 条保留控制记录。容量拒绝绝不逐出 pending 或未过期证据。已投递工作在确认或断开前持续有所有者。Server 执行 Client 命令不产生终端输入、Git 或全局焦点副作用。
+在既有 Client Connection 接纳上限内最多有 32 个运行中视图，每个 Client 一条活动命令，共 256 条保留控制记录。容量拒绝绝不逐出 pending 或未过期证据。已投递工作在确认或断开前持续有所有者。Server 执行 Client 命令不产生终端输入、Git 或全局焦点副作用。
 
 ## TUI 执行
 
@@ -46,7 +46,7 @@ toggle 由 TUI 解析，并为这次已投递操作保留解析结果。相同�
 
 TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清理移除发布并结算保留请求；受管 Session 停止会 join 这些 handler。Client 视图／控制状态易失，不跨 Server 重启保留。
 
-在发送第一条 Synchronize 前，通道准入共用一个两秒总预算。临时本地传输故障——端点尚不存在或拒绝连接、连接被中断／重置／终止、管道断开、would-block、超时或握手 EOF——最多允许一次重试，重试沿用原截止时间并使用 Server 新分配的 Session generation。权限、配置、协议、拒绝、意外响应、取消及请求 I/O 配置失败立即停止。一旦发出任何 Synchronize 请求，该通道之后的任意失败均为终止状态：不转移 Client 身份，不重放 control、completion 或 mutation，也不续期截止时间。该重试只改变发布前准入，不削弱 registry 对已接纳 Session 的终止性 Disconnect 语义。
+在发送第一条 Synchronize 前，通道准入共用一个两秒总预算。临时本地传输故障——端点尚不存在或拒绝连接、连接被中断／重置／终止、管道断开、would-block、超时或握手 EOF——最多允许一次重试，重试沿用原截止时间并使用 Server 新分配的 Client Connection generation。权限、配置、协议、拒绝、意外响应、取消及请求 I/O 配置失败立即停止。一旦发出任何 Synchronize 请求，该通道之后的任意失败均为终止状态：不转移 Client 身份，不重放 control、completion 或 mutation，也不续期截止时间。该重试只改变发布前准入，不削弱 registry 对已接纳 Connection 的终止性 Disconnect 语义。
 
 ## CLI 路由与线上边界
 

@@ -1,12 +1,12 @@
 use super::*;
 use crate::client_view::{
-    ClientAction, ClientView, KeyLabelGlyphs, Overlay, PrefixDesc, PrefixInput,
-    SessionActionDisposition, ShellCommand,
+    ClientAction, ClientActionDisposition, ClientView, KeyLabelGlyphs, Overlay, PrefixDesc,
+    PrefixInput, ShellCommand,
 };
 
 fn apply(view: &mut ClientView, input: PrefixInput) -> super::super::ClientTransition {
     let transition = view.decide(input);
-    view.commit(transition.clone(), SessionActionDisposition::KeepNavigator);
+    view.commit(transition.clone(), ClientActionDisposition::KeepNavigator);
     transition
 }
 

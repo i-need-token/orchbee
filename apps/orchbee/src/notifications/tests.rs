@@ -149,10 +149,10 @@ fn assert_card_shield(
 #[test]
 fn ordinary_status_notice_keeps_admission_open_while_blocking_surfaces_still_refuse() {
     use crate::client_view::{
-        KeyCode, KeyEvent, Modifiers, Notice, Overlay, PrefixInput, SessionActionDisposition,
+        ClientActionDisposition, KeyCode, KeyEvent, Modifiers, Notice, Overlay, PrefixInput,
     };
-    use crate::terminal_session::{NativeSessionView, TerminalSessionView};
-    let native = || TerminalSessionView::Native(NativeSessionView::notification_test_view());
+    use crate::workbench_client::WorkbenchClientView;
+    let native = || WorkbenchClientView::notification_test_view();
     let mut view = ClientView::new(120);
     assert!(available(&view, Some(native())));
 
@@ -167,7 +167,7 @@ fn ordinary_status_notice_keeps_admission_open_while_blocking_surfaces_still_ref
         KeyCode::Char('b'),
         Modifiers::CTRL,
     )));
-    view.commit(prefix, SessionActionDisposition::KeepNavigator);
+    view.commit(prefix, ClientActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
     assert!(!available(&view, Some(native())));
 
@@ -175,7 +175,7 @@ fn ordinary_status_notice_keeps_admission_open_while_blocking_surfaces_still_ref
         KeyCode::Char('w'),
         Modifiers::NONE,
     )));
-    view.commit(open, SessionActionDisposition::KeepNavigator);
+    view.commit(open, ClientActionDisposition::KeepNavigator);
     assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
     assert!(!available(&view, Some(native())));
 }

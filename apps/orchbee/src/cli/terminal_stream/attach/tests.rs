@@ -142,7 +142,7 @@ fn console_flush_gates_ack_and_paste_keeps_semantic_authority()
             columns: 8,
         };
         let result = {
-            let mut session = Session::new(
+            let mut controller = Controller::new(
                 connection.client.as_mut().unwrap(),
                 viewer,
                 controller,
@@ -151,11 +151,11 @@ fn console_flush_gates_ack_and_paste_keeps_semantic_authority()
                 &gate,
                 &mut display,
             );
-            session.focus(true).unwrap(); // No validated frame means no focus report.
-            session.poll().and_then(|()| {
-                session.focus(true)?;
-                session.paste("中\x02q".to_owned())?;
-                session.input(b"done").map_err(|(failure, _)| failure)?;
+            controller.focus(true).unwrap(); // No validated frame means no focus report.
+            controller.poll().and_then(|()| {
+                controller.focus(true)?;
+                controller.paste("中\x02q".to_owned())?;
+                controller.input(b"done").map_err(|(failure, _)| failure)?;
                 Ok(())
             })
         };

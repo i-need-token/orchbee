@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_session::{WorktreeEdit, WorktreeStage, WorktreeToken};
+use crate::workbench_client::{WorktreeEdit, WorktreeStage, WorktreeToken};
 
 struct Port {
     active: bool,
@@ -43,14 +43,14 @@ impl TerminalInputPort for Port {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         if owner != crate::tui_composition::NativeCaptureOwner::Worktree || !self.active {
             return None;
         }
-        Some(crate::terminal_session::NativeCaptureContext::Worktree(
-            crate::terminal_session::WorktreeCaptureContext {
+        Some(crate::workbench_client::NativeCaptureContext::Worktree(
+            crate::workbench_client::WorktreeCaptureContext {
                 token: self.token(),
-                readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                readiness: crate::workbench_client::CaptureReadiness::Interactive,
                 stage: self.stage,
                 remaining_bytes: 1024usize.saturating_sub(self.text.len()),
             },
@@ -61,14 +61,14 @@ impl TerminalInputPort for Port {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         match action {
             ClientAction::RequestWorktreeCreate => self.stage = WorktreeStage::Preparing,
             ClientAction::RequestWorktreeOpen => self.stage = WorktreeStage::Checkout,
             _ => return None,
         }
         self.active = true;
-        Some(SessionActionDisposition::DismissNavigator)
+        Some(ClientActionDisposition::DismissNavigator)
     }
     fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
         assert_eq!(token, self.token());

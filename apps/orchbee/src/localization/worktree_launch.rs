@@ -1,6 +1,6 @@
 //! Localized Worktree forms, retained receipts and progress hints.
 use super::Locale;
-use crate::terminal_session::{WorktreeMode, WorktreeNotice, WorktreeStage};
+use crate::workbench_client::{WorktreeMode, WorktreeNotice, WorktreeStage};
 mod removal;
 
 impl Locale {

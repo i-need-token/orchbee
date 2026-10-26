@@ -25,7 +25,7 @@ Server-side command, source and permission checks remain unchanged. Refusal feed
 command ID and distinguishes busy, stale source, changed command/configuration, permission,
 unavailability and unknown effects, with the corresponding wait, return-live, reload, reconnect or
 inspect-before-retry guidance. Controlled lane witnesses live in
-`src/terminal_session/client_control/lane/tests/configured_invocation.rs`; popup input, close and
+`src/workbench_client/client_control/lane/tests/configured_invocation.rs`; popup input, close and
 return behavior remains with the existing independent-popup owner.
 
 ## Reference and evidence

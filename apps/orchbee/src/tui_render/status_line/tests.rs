@@ -2,8 +2,8 @@ use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 use crate::{
     client_view::{
-        ClientAction, ClientView, KeyEvent, KeyLabelGlyphs, LabelStyle, Notice, PrefixAction,
-        PrefixInput, SessionActionDisposition,
+        ClientAction, ClientActionDisposition, ClientView, KeyEvent, KeyLabelGlyphs, LabelStyle,
+        Notice, PrefixAction, PrefixInput,
     },
     localization::Locale,
     tui_layout::ViewportTier,
@@ -127,7 +127,7 @@ fn paint_at_tier_with_locale(
 fn arm_prefix(view: &mut ClientView) {
     let prefix = view.bindings().prefix;
     let transition = view.decide(PrefixInput::Key(KeyEvent::press(prefix.code, prefix.mods)));
-    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    view.commit(transition, ClientActionDisposition::KeepNavigator);
     assert!(view.prefix_active());
 }
 
@@ -438,7 +438,7 @@ fn recoverable_status_receipt_requires_the_complete_raw_fact() {
 /// docked Compact sidebar; retrying is a separate hint on the effective rename binding.
 #[test]
 fn stale_rename_fact_fits_compact_content_and_retry_is_a_separate_rename_hint() {
-    use crate::terminal_session::{
+    use crate::workbench_client::{
         NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target, NativeSetupStatus,
     };
     let theme = Theme::rgb_test_dark();

@@ -1,7 +1,7 @@
 //! Painted keyboard/drag decisions share layout and packet fences.
 use super::*;
 use crate::{
-    client_view::SessionActionDisposition,
+    client_view::ClientActionDisposition,
     tui_layout::{DrawnSidebarWidth, SidebarWidth},
     tui_pointer::{
         FrameHitMap, GlobalChromeAction, HitLayer, HitMapBuilder, HitTarget, InteractionSpec,
@@ -16,11 +16,11 @@ struct Port {
     settings: usize,
 }
 impl TerminalInputPort for Port {
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         if action == ClientAction::OpenSettings {
             self.settings += 1;
         }
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.bytes.extend_from_slice(bytes);
@@ -198,7 +198,7 @@ fn sidebar_restore_uses_the_existing_toggle_on_exact_release() {
     let (mut dispatcher, mut view, mut port) = fixture();
     view.commit(
         view.decide_action(ClientAction::ToggleBusinessSidebar),
-        SessionActionDisposition::KeepNavigator,
+        ClientActionDisposition::KeepNavigator,
     );
     assert_eq!(
         view.sidebar_surface(),
@@ -241,7 +241,7 @@ fn sidebar_restore_release_revalidates_machine_availability() {
     let (mut dispatcher, mut view, mut port) = fixture();
     view.commit(
         view.decide_action(ClientAction::ToggleBusinessSidebar),
-        SessionActionDisposition::KeepNavigator,
+        ClientActionDisposition::KeepNavigator,
     );
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let rect = Rect::new(100, 39, 8, 1);

@@ -1,9 +1,9 @@
 //! Main-TUI transient notification state and noncapturing paint; transport stays in subscription.
 use crate::{
     client_view::ClientView,
-    terminal_session::TerminalSessionView,
     tui_composition::{ClientCaptureClaims, project_capture},
     tui_theme::{Role, Theme},
+    workbench_client::WorkbenchClientView,
 };
 use orchbee_workbench_protocol::{
     Notification, NotificationPosition as Position, NotificationSound,
@@ -121,8 +121,11 @@ impl State {
         }
     }
 }
-pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'_>>) -> bool {
-    let Some(TerminalSessionView::Native(native)) = session else {
+pub(crate) fn available(
+    view: &ClientView,
+    workbench_client: Option<WorkbenchClientView<'_>>,
+) -> bool {
+    let Some(native) = workbench_client else {
         return false;
     };
     let client_claims = ClientCaptureClaims::default();

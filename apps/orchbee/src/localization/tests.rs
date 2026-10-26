@@ -100,7 +100,7 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
 
     use crate::{
         action_menu::{MenuAction, MenuTarget, MenuUnavailable, TabMenuScope},
-        terminal_session::NativeCloseConfirmationKind,
+        workbench_client::NativeCloseConfirmationKind,
     };
     use orchbee_workbench_protocol::WorkbenchTabId;
 
@@ -263,12 +263,12 @@ fn falls_back_to_english_for_absent_other_and_non_unicode_values() {
 #[test]
 fn help_page_binding_dispatches_scroll_actions() {
     use crate::client_view::{
-        ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers, Overlay,
-        PrefixInput, SessionActionDisposition,
+        ClientAction, ClientActionDisposition, ClientTransition, ClientView, KeyCode, KeyEvent,
+        Modifiers, Overlay, PrefixInput,
     };
     fn press(view: &mut ClientView, input: KeyCode, mods: Modifiers) -> ClientTransition {
         let transition = view.decide(PrefixInput::Key(KeyEvent::press(input, mods)));
-        view.commit(transition.clone(), SessionActionDisposition::KeepNavigator);
+        view.commit(transition.clone(), ClientActionDisposition::KeepNavigator);
         transition
     }
 
@@ -295,8 +295,8 @@ fn help_page_binding_dispatches_scroll_actions() {
 #[test]
 fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
     use crate::client_view::{
-        ClientAction, ClientView, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, Modifiers,
-        PanelDirection, PrefixAction, PrefixInput, SessionActionDisposition,
+        ClientAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, KeyKind,
+        KeyLabelGlyphs, Modifiers, PanelDirection, PrefixAction, PrefixInput,
     };
     fn key(code: KeyCode, mods: Modifiers) -> PrefixInput {
         PrefixInput::Key(KeyEvent {
@@ -414,7 +414,7 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
 
         let mut view = ClientView::new(120);
         let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
-        view.commit(prefix, SessionActionDisposition::KeepNavigator);
+        view.commit(prefix, ClientActionDisposition::KeepNavigator);
         let transition = view.decide(key(code, Modifiers::NONE));
         assert_eq!(transition.action(), Some(expected), "Ctrl+B {code:?}");
     }
@@ -445,7 +445,7 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
 #[cfg(unix)]
 #[test]
 fn settled_setup_notices_never_hide_later_failures_or_retirement() {
-    use crate::terminal_session::{NativeSessionNotice, NativeSetupStatus};
+    use crate::workbench_client::{NativeSetupStatus, WorkbenchClientNotice};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for setup in [
             NativeSetupStatus::ProjectCreated,
@@ -454,9 +454,9 @@ fn settled_setup_notices_never_hide_later_failures_or_retirement() {
             NativeSetupStatus::NotApplied,
         ] {
             for notice in [
-                NativeSessionNotice::CreateNotCreated,
-                NativeSessionNotice::RenameNotRenamed,
-                NativeSessionNotice::LocalBusy,
+                WorkbenchClientNotice::CreateNotCreated,
+                WorkbenchClientNotice::RenameNotRenamed,
+                WorkbenchClientNotice::LocalBusy,
             ] {
                 assert_eq!(
                     locale.native_status_with_setup(
@@ -486,13 +486,13 @@ fn settled_setup_notices_never_hide_later_failures_or_retirement() {
 #[cfg(unix)]
 #[test]
 fn current_failure_keeps_the_known_setup_recovery_fact() {
-    use crate::terminal_session::{NativeSessionNotice, NativeSetupStatus};
+    use crate::workbench_client::{NativeSetupStatus, WorkbenchClientNotice};
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for setup in [
             NativeSetupStatus::CommittedNeedRefresh,
             NativeSetupStatus::OutcomeUnknown,
         ] {
-            let notice = NativeSessionNotice::LocalBusy;
+            let notice = WorkbenchClientNotice::LocalBusy;
             let status = locale.native_status_with_setup(
                 "phase".to_owned(),
                 false,
@@ -535,7 +535,7 @@ fn current_failure_keeps_the_known_setup_recovery_fact() {
 #[cfg(unix)]
 #[test]
 fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context() {
-    use crate::terminal_session::NativeSetupStatus;
+    use crate::workbench_client::NativeSetupStatus;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let setup = NativeSetupStatus::WorkspaceCreated;
         let eligible =
@@ -561,7 +561,7 @@ fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context
 #[cfg(unix)]
 #[test]
 fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
-    use crate::terminal_session::{NativeProjectionStatus, TerminalStatus};
+    use crate::workbench_client::{NativeProjectionStatus, TerminalStatus};
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
         assert_eq!(
@@ -583,7 +583,7 @@ fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
 #[cfg(unix)]
 #[test]
 fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
-    use crate::terminal_session::{
+    use crate::workbench_client::{
         NativeDisplayPhase, NativeDisplayRetirement, NativeProjectionStatus,
     };
 

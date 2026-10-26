@@ -76,12 +76,12 @@ impl TerminalInputPort for CopyPort {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         if action == ClientAction::EnterCopyMode {
             self.active = !self.refuse;
         }
         self.actions.push(action);
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
     fn copy_mode_active(&self) -> bool {
         self.active

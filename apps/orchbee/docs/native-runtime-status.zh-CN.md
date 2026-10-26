@@ -5,7 +5,7 @@
 本参考拥有 Windows `status server` 和 `status client` 读取当前程序的编译版本、操作系统、架构及无损可执行文件路径，并独立验证同目录原生 cohort。cohort 缺失、无效、无权限、超时或不可读时，明确输出不可用元数据。cohort 有效时，缺少 `release.json` 表示开发交付；已安装版本要求清单通过接纳，其 SHA-256 与独立安装目录名一致、版本与 Client 一致，并通过 cohort.json 摘要绑定独立验证的 cohort，进而报告实际安装的频道、版本、buildId 和清单标识。元数据损坏、移位或不可访问时，交付状态为未知，不猜测频道。配置的频道偏好相互独立。读取不联系 Server，也不更新文件。
 
 `status server` 只探测选中的隐式本地 Windows Session。它不启动 Server、不创建运行时目录
-或锁文件、不修复标记、不附着终端、不改变焦点，也不创建 Client Session。成功答复报告
+或锁文件、不修复标记、不附着终端、不改变焦点，也不创建 Client Connection。成功答复报告
 响应的同用户 Server 提供的事实，不复制查询 Client 的值，也不从管道名称推断这些事实。
 
 ## 观察模型
@@ -50,7 +50,7 @@ Server 观察不宣称同时发生。若 Server 探测本身耗尽预算，结�
 观察和 live handoff；托管停止支持来自实际托管生命周期所有者。
 
 只有 Windows Server 组合响应此新增请求。同用户证明和既有候选／握手上限在分派前适用。
-元数据只为报告诊断而绕过 cohort 相等检查和普通 Client Session 接纳；它不授予应用能力，
+元数据只为报告诊断而绕过 cohort 相等检查和普通 Client Connection 接纳；它不授予应用能力，
 也不进入后续应用阶段。普通接纳正在停止时，Server 仍可响应；元数据读取不申请关闭记录
 租约，也不创建停止请求。共享编解码保持平台无关；不增加 macOS／Linux 命令运行时。
 

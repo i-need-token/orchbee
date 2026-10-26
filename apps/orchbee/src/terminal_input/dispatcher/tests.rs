@@ -217,7 +217,7 @@ impl TerminalInputPort for UnavailablePort {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.0.borrow_mut().push(Call::Action(action));
         None
     }
@@ -235,12 +235,12 @@ impl TerminalInputPort for BoardOwnershipPort {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         (self.active && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
             || {
-                crate::terminal_session::NativeCaptureContext::AgentBoard(
-                    crate::terminal_session::AgentBoardInputContext::for_test(
-                        crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                crate::workbench_client::NativeCaptureContext::AgentBoard(
+                    crate::workbench_client::AgentBoardInputContext::for_test(
+                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -1517,9 +1517,9 @@ impl TerminalInputPort for LayoutChangedPort {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.0.borrow_mut().push(Call::Action(action));
-        Some(SessionActionDisposition::LayoutChanged)
+        Some(ClientActionDisposition::LayoutChanged)
     }
 }
 
@@ -1582,19 +1582,19 @@ impl TerminalInputPort for BoardPort {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         #[cfg(windows)]
         if owner == crate::tui_composition::NativeCaptureOwner::ActionMenu {
             return self
                 .action_menu
                 .input_context()
-                .map(crate::terminal_session::NativeCaptureContext::ActionMenu);
+                .map(crate::workbench_client::NativeCaptureContext::ActionMenu);
         }
         (self.owned.get() && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
             || {
-                crate::terminal_session::NativeCaptureContext::AgentBoard(
-                    crate::terminal_session::AgentBoardInputContext::for_test(
-                        crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                crate::workbench_client::NativeCaptureContext::AgentBoard(
+                    crate::workbench_client::AgentBoardInputContext::for_test(
+                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -1608,7 +1608,7 @@ impl TerminalInputPort for BoardPort {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         if action == ClientAction::ToggleAgentBoard {
             self.owned.set(!self.owned.get());
         } else {
@@ -1617,7 +1617,7 @@ impl TerminalInputPort for BoardPort {
             self.action_menu.cancel();
         }
         self.calls.borrow_mut().push(Call::Action(action));
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 
     #[cfg(windows)]
@@ -1642,11 +1642,11 @@ impl TerminalInputPort for BoardPort {
 
     fn capture_agent_board_key_for(
         &mut self,
-        episode: crate::terminal_session::AgentBoardEpisodeToken,
+        episode: crate::workbench_client::AgentBoardEpisodeToken,
         key: crate::client_view::KeyEvent,
     ) -> bool {
         if !self.owned.get()
-            || episode != crate::terminal_session::AgentBoardEpisodeToken::for_test(1)
+            || episode != crate::workbench_client::AgentBoardEpisodeToken::for_test(1)
         {
             return false;
         }
@@ -1663,10 +1663,10 @@ impl TerminalInputPort for BoardPort {
 
     fn agent_board_select(
         &mut self,
-        target: &crate::terminal_session::AgentBoardRowTarget,
+        target: &crate::workbench_client::AgentBoardRowTarget,
     ) -> bool {
-        let expected = crate::terminal_session::AgentBoardRowTarget::for_test(
-            crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+        let expected = crate::workbench_client::AgentBoardRowTarget::for_test(
+            crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
             target.session().clone(),
         );
         if !self.owned.get() || target != &expected {
@@ -1698,23 +1698,23 @@ impl TerminalInputPort for ConfirmationBoardPort {
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
-    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+    ) -> Option<crate::workbench_client::NativeCaptureContext> {
         match owner {
             crate::tui_composition::NativeCaptureOwner::PanelClose => {
-                Some(crate::terminal_session::NativeCaptureContext::PanelClose(
-                    crate::terminal_session::ConfirmationCaptureContext {
-                        token: crate::terminal_session::NativePanelCloseConfirmationToken::for_test(
+                Some(crate::workbench_client::NativeCaptureContext::PanelClose(
+                    crate::workbench_client::ConfirmationCaptureContext {
+                        token: crate::workbench_client::NativePanelCloseConfirmationToken::for_test(
                             2,
                         ),
                         phase: crate::tui_presentation::PresentationPhase::Admitted,
-                        readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                        readiness: crate::workbench_client::CaptureReadiness::Interactive,
                     },
                 ))
             }
             crate::tui_composition::NativeCaptureOwner::AgentBoard => {
-                Some(crate::terminal_session::NativeCaptureContext::AgentBoard(
-                    crate::terminal_session::AgentBoardInputContext::for_test(
-                        crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                Some(crate::workbench_client::NativeCaptureContext::AgentBoard(
+                    crate::workbench_client::AgentBoardInputContext::for_test(
+                        crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -1726,7 +1726,7 @@ impl TerminalInputPort for ConfirmationBoardPort {
 
     fn capture_panel_confirmation_key_for(
         &mut self,
-        _token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        _token: crate::workbench_client::NativePanelCloseConfirmationToken,
         key: crate::client_view::ClientKey,
     ) -> bool {
         self.calls.borrow_mut().push(Call::Confirmation(key));
@@ -1735,15 +1735,15 @@ impl TerminalInputPort for ConfirmationBoardPort {
 
     fn capture_agent_board_key_for(
         &mut self,
-        _episode: crate::terminal_session::AgentBoardEpisodeToken,
+        _episode: crate::workbench_client::AgentBoardEpisodeToken,
         _key: crate::client_view::KeyEvent,
     ) -> bool {
         true
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
         self.calls.borrow_mut().push(Call::Action(action));
-        Some(SessionActionDisposition::KeepNavigator)
+        Some(ClientActionDisposition::KeepNavigator)
     }
 }
 
@@ -1770,8 +1770,8 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
         ratatui::layout::Rect::new(0, 0, 10, 1),
         ratatui::layout::Rect::new(0, 0, 10, 1),
         crate::tui_pointer::InteractionTarget::AgentBoardRow(
-            crate::terminal_session::AgentBoardRowTarget::for_test(
-                crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+            crate::workbench_client::AgentBoardRowTarget::for_test(
+                crate::workbench_client::AgentBoardEpisodeToken::for_test(1),
                 session.clone(),
             ),
         ),
@@ -2012,7 +2012,7 @@ fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
     let hide_initial_sidebar = view.decide_action(ClientAction::ToggleBusinessSidebar);
     view.commit(
         hide_initial_sidebar,
-        crate::client_view::SessionActionDisposition::KeepNavigator,
+        crate::client_view::ClientActionDisposition::KeepNavigator,
     );
     assert_eq!(
         view.sidebar_surface(),
@@ -2254,11 +2254,11 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
         fn native_capture_context(
             &self,
             owner: crate::tui_composition::NativeCaptureOwner,
-        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        ) -> Option<crate::workbench_client::NativeCaptureContext> {
             (owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(|| {
-                crate::terminal_session::NativeCaptureContext::AgentBoard(
-                    crate::terminal_session::AgentBoardInputContext::for_test(
-                        crate::terminal_session::AgentBoardEpisodeToken::for_test(7),
+                crate::workbench_client::NativeCaptureContext::AgentBoard(
+                    crate::workbench_client::AgentBoardInputContext::for_test(
+                        crate::workbench_client::AgentBoardEpisodeToken::for_test(7),
                         crate::tui_presentation::PresentationPhase::Admitted,
                         true,
                     ),
@@ -2268,10 +2268,10 @@ fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet()
 
         fn capture_agent_board_key_for(
             &mut self,
-            episode: crate::terminal_session::AgentBoardEpisodeToken,
+            episode: crate::workbench_client::AgentBoardEpisodeToken,
             key: crate::client_view::KeyEvent,
         ) -> bool {
-            if episode != crate::terminal_session::AgentBoardEpisodeToken::for_test(7) {
+            if episode != crate::workbench_client::AgentBoardEpisodeToken::for_test(7) {
                 return false;
             }
             match key.normalized() {
@@ -2424,7 +2424,7 @@ impl TerminalInputPort for ModalLinkPort {
 
     fn pointer_selection(
         &mut self,
-        _pane: &crate::terminal_session::state::PaneRef,
+        _pane: &crate::workbench_client::state::PaneRef,
         intent: crate::terminal_input::PointerSelectionIntent,
     ) -> crate::terminal_input::PointerSelectionAdmission {
         self.selections.push(intent);
@@ -2443,7 +2443,7 @@ impl TerminalInputPort for ModalLinkPort {
 
 #[cfg(windows)]
 fn dispatcher_link_source(
-    pane: crate::terminal_session::state::PaneRef,
+    pane: crate::workbench_client::state::PaneRef,
 ) -> crate::terminal_link_activation::PaintedLinkSource {
     fn id(value: u128) -> String {
         format!("{value:032x}")
@@ -2701,8 +2701,8 @@ fn delivered_console_motion_survives_an_unavailable_vt_query_without_rearming_ca
     );
 }
 
-fn pane_ref() -> crate::terminal_session::state::PaneRef {
-    use crate::terminal_session::state::{AttachmentKey, PaneKey, PaneRef};
+fn pane_ref() -> crate::workbench_client::state::PaneRef {
+    use crate::workbench_client::state::{AttachmentKey, PaneKey, PaneRef};
     use orchbee_workbench_protocol::{WorkbenchPanelId, WorkbenchTabId};
     PaneRef::new(
         PaneKey::new(

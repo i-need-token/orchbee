@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_session::PanelReport;
+use crate::workbench_client::PanelReport;
 use serde_json::json;
 
 fn row() -> PanelReport {

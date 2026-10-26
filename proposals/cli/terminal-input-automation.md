@@ -335,7 +335,7 @@ New or extended vocabulary:
 Stage names extend the delivered set (`cohort`, `runtime-base`, `runtime-directory`, `socket`,
 `discovery`, `admission`, `snapshot`, `platform`) with `attach`, `acquire`, `input`, `observe`,
 and `stream`. The existing kinds — `invalid-usage`, `invalid-identifier`, `ambiguous`,
-`check-failed`, `session-capacity`, `protocol-invalid`, `incompatible`, `output-too-large`,
+`check-failed`, `connection-capacity`, `protocol-invalid`, `incompatible`, `output-too-large`,
 `output-failed` — apply unchanged. `ambiguous` has no producer in this slice because terminal
 targets accept only typed IDs.
 

@@ -1,5 +1,5 @@
 //! Cell raster images are retained content, clipped to one real Panel body.
-use crate::terminal_session::PaneGraphicsCanvas;
+use crate::workbench_client::PaneGraphicsCanvas;
 use orchbee_workbench_protocol::{PaneGraphicsCellPixels, PaneGraphicsLayer};
 use ratatui::{
     Frame,

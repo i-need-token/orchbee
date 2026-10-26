@@ -6,7 +6,7 @@
 	"responsibility": "Private bounded Rust handshake contract and connecting adapter that requests and completes the Client side of Server admission, then returns the unbuffered accepted stream to its caller for liveness observation or a separately owned subsequent protocol phase.",
 	"nonGoals": [
 		"Defining Worker identity, capability-node enrollment, Terminal Host, terminal relay, the post-admission semantic protocol, Workbench commands, renderer state, or service activation semantics.",
-		"Owning Server Client Session state, endpoint selection, listener lifecycle, process supervision, retry, persistence, or public command behavior.",
+		"Owning Server Client Connection state, endpoint selection, listener lifecycle, process supervision, retry, persistence, or public command behavior.",
 		"Providing public or cross-version compatibility, remote transport, encryption, multi-user authentication, or terminal payload framing."
 	]
 }

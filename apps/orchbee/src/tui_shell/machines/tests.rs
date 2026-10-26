@@ -30,7 +30,7 @@ impl crate::terminal_input::TerminalInputPort for Witness {
     fn apply_client_action(
         &mut self,
         action: crate::client_view::ClientAction,
-    ) -> Option<crate::client_view::SessionActionDisposition> {
+    ) -> Option<crate::client_view::ClientActionDisposition> {
         if let crate::client_view::ClientAction::FocusPanel(panel) = action {
             let target = self
                 .probe
@@ -45,12 +45,12 @@ impl crate::terminal_input::TerminalInputPort for Witness {
                 probe.focus = Some(target);
             }
         }
-        Some(crate::client_view::SessionActionDisposition::KeepNavigator)
+        Some(crate::client_view::ClientActionDisposition::KeepNavigator)
     }
 
     fn pointer_selection(
         &mut self,
-        _pane: &crate::terminal_session::state::PaneRef,
+        _pane: &crate::workbench_client::state::PaneRef,
         intent: PointerSelectionIntent,
     ) -> PointerSelectionAdmission {
         self.log
@@ -97,9 +97,9 @@ impl crate::terminal_input::TerminalInputPort for PixelSource {
     }
 }
 impl TerminalSurface for PixelSource {
-    fn retained_frame_bank(&self) -> Option<crate::terminal_session::RetainedFrameBank> {
+    fn retained_frame_bank(&self) -> Option<crate::workbench_client::RetainedFrameBank> {
         self.reads.set(self.reads.get() + 1);
-        Some(crate::terminal_session::RetainedFrameBank::default())
+        Some(crate::workbench_client::RetainedFrameBank::default())
     }
 }
 pub(super) fn profile() -> Profile {
@@ -119,7 +119,7 @@ pub(super) fn dimensions() -> WindowDimensions {
 }
 pub(super) fn setup() -> (Manager, ClientView, SurfaceSlot<'static>) {
     let mut view = ClientView::new(100);
-    let mut manager = Manager::new(&mut view, crate::terminal_session::UiWakeup::current());
+    let mut manager = Manager::new(&mut view, crate::workbench_client::UiWakeup::current());
     manager.refresh = Instant::now() + Duration::from_secs(60);
     manager.catalog_ok = true;
     manager.profiles = vec![profile()];
@@ -299,7 +299,7 @@ fn machine_pending_click_is_fenced_by_catalog_identity_before_queue_admission() 
                             "22222222222222222222222222222222",
                         )
                         .unwrap();
-                    crate::terminal_session::NativeContextLocation::Workspace {
+                    crate::workbench_client::NativeContextLocation::Workspace {
                         workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(
                             fixture_context_id.as_str(),
                         )
@@ -415,9 +415,9 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
     let tab = orchbee_workbench_protocol::WorkbenchTabId::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .unwrap();
     let pane = |panel: &str| {
-        crate::terminal_session::state::PaneRef::new(
-            crate::terminal_session::state::PaneKey::new(
-                crate::terminal_session::state::AttachmentKey::new(1, tab.clone()),
+        crate::workbench_client::state::PaneRef::new(
+            crate::workbench_client::state::PaneKey::new(
+                crate::workbench_client::state::AttachmentKey::new(1, tab.clone()),
                 orchbee_workbench_protocol::WorkbenchPanelId::parse(panel).unwrap(),
             ),
             0,

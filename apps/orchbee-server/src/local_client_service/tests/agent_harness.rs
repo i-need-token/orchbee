@@ -28,7 +28,7 @@ use crate::{
         RawObservation, RawPresence,
     },
     agent_service::{AgentPolicy, AgentService},
-    client_session_registry::ClientSessionRegistry,
+    client_connection_registry::ClientConnectionRegistry,
     local_terminal_service::LocalTerminalService,
     workbench_service::{WorkbenchPolicy, WorkbenchService},
     worker_registry::WorkerRegistry,
@@ -139,7 +139,7 @@ pub(crate) fn seeded(events: &[AgentObservationEvent]) -> io::Result<Arc<AgentSe
 }
 
 /// The denied-everything workbench policy used by the Agent fixtures — the
-/// admitted session only exercises the Agent arm.
+/// admitted connection only exercises the Agent arm.
 fn workbench(terminals: &Arc<LocalTerminalService>) -> WorkbenchService {
     WorkbenchService::new(
         WorkbenchPolicy {
@@ -184,7 +184,7 @@ impl AdmittedClient {
 pub(crate) fn admitted(agents: Arc<AgentService>, cohort: &str) -> io::Result<AdmittedClient> {
     let terminals = terminals();
     let workbench = workbench(&terminals);
-    let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
+    let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let slots = Arc::new(ConnectionSlots::new());
     let slot = slots.acquire().ok_or(io::ErrorKind::WouldBlock)?;
     let (mut client, server) = UnixStream::pair()?;
@@ -230,7 +230,7 @@ pub(crate) fn listen(
     let listener = UnixListener::bind(endpoint)?;
     #[cfg(unix)]
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
-    let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
+    let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
     let expected_cohort: Arc<str> = Arc::from(cohort);
     let terminals = terminals();

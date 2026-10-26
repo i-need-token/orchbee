@@ -24,7 +24,7 @@ use crate::{
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Observe the same-user Windows Server before exact-cohort Session admission.
+/// Observe the same-user Windows Server before exact-cohort Connection admission.
 /// The candidate never enters an application phase and is dropped before returning.
 #[cfg(windows)]
 pub fn exchange_server_metadata_before(
@@ -78,12 +78,12 @@ const _: () = assert!(UNIX_SOCKET_PATH_CAPACITY == 107);
 mod admission_deadline;
 
 #[derive(Debug)]
-pub struct ClientSessionConnection {
+pub struct ClientConnection {
     generation: std::num::NonZeroU64,
     stream: UnixStream,
 }
 
-impl ClientSessionConnection {
+impl ClientConnection {
     /// Admits one Unix connection within the caller's existing monotonic deadline.
     /// This neither selects a timeout nor activates, retries, or supervises a Site.
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -181,19 +181,19 @@ impl ClientSessionConnection {
 }
 
 #[cfg(unix)]
-impl AsFd for ClientSessionConnection {
+impl AsFd for ClientConnection {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.stream.as_fd()
     }
 }
 
-impl Read for ClientSessionConnection {
+impl Read for ClientConnection {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         self.stream.read(buffer)
     }
 }
 
-impl Write for ClientSessionConnection {
+impl Write for ClientConnection {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         self.stream.write(buffer)
     }
@@ -292,7 +292,7 @@ pub fn unix_socket_path_fits(path: &Path) -> bool {
         .is_some_and(|path| path.starts_with(r"\\.\pipe\") && path.len() <= 209)
 }
 #[cfg(windows)]
-impl ClientSessionConnection {
+impl ClientConnection {
     pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
         Self::connect_before(
             endpoint,
@@ -320,7 +320,7 @@ impl ClientSessionConnection {
     }
 }
 #[cfg(windows)]
-impl AsLocalIo for ClientSessionConnection {
+impl AsLocalIo for ClientConnection {
     fn as_local_io(&self) -> LocalIo<'_> {
         self.stream.as_local_io()
     }

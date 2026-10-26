@@ -39,8 +39,8 @@ use crate::terminal_input::{
     forward_or_report, route_pane_pointer,
 };
 #[cfg(any(not(windows), test))]
-use crate::terminal_session::NativeContextLocation;
-use crate::terminal_session::state::PaneRef;
+use crate::workbench_client::NativeContextLocation;
+use crate::workbench_client::state::PaneRef;
 
 #[cfg(windows)]
 mod chrome;
@@ -139,29 +139,29 @@ pub(crate) enum HitTarget {
         action: HelpControl,
     },
     TabClose {
-        token: crate::terminal_session::NativeCloseConfirmationToken,
+        token: crate::workbench_client::NativeCloseConfirmationToken,
         confirm: bool,
     },
     PanelClose {
-        token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        token: crate::workbench_client::NativePanelCloseConfirmationToken,
         confirm: bool,
     },
     Rename {
-        token: crate::terminal_session::NativeRenameDraftToken,
+        token: crate::workbench_client::NativeRenameDraftToken,
         submit: bool,
     },
     WorkspaceClose {
-        token: crate::terminal_session::WorkspaceCloseToken,
+        token: crate::workbench_client::WorkspaceCloseToken,
         confirm: bool,
     },
     /// A control actually painted by the Workspace setup owner.
     Setup {
-        token: crate::terminal_session::NativeSetupToken,
+        token: crate::workbench_client::NativeSetupToken,
         control: ModalControl,
     },
     #[cfg(windows)]
     Worktree {
-        token: crate::terminal_session::WorktreeToken,
+        token: crate::workbench_client::WorktreeToken,
         control: ModalControl,
     },
     #[cfg(windows)]
@@ -179,7 +179,7 @@ pub(crate) enum HitTarget {
         control: crate::native_settings::Control,
     },
     ListScroll(ListScrollTarget),
-    AgentBoardControl(crate::terminal_session::AgentBoardControlTarget),
+    AgentBoardControl(crate::workbench_client::AgentBoardControlTarget),
     #[cfg(windows)]
     SettingsButton,
     #[cfg(windows)]
@@ -214,7 +214,7 @@ pub(crate) enum HitTarget {
         content: Rect,
     },
     #[cfg(windows)]
-    PopupClose(crate::terminal_session::DrawnPopupClose),
+    PopupClose(crate::workbench_client::DrawnPopupClose),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
     #[cfg(windows)]
@@ -247,7 +247,7 @@ pub(crate) enum HitTarget {
         source: crate::terminal_scrollbar::ScrollbarSnapshot,
     },
     /// Exact painted incarnation and stable destination within that Panel.
-    Presentation(crate::terminal_session::DrawnPresentationTarget),
+    Presentation(crate::workbench_client::DrawnPresentationTarget),
     /// Empty members carry exact structural identity and no runtime incarnation.
     Unbound {
         selected: crate::terminal_input::PointerUnboundPane,
@@ -258,7 +258,7 @@ pub(crate) enum HitTarget {
     OverlaySurface,
     /// An Agent board row from one exact successfully presented Board view.
     /// Press-time selection validates this complete witness with the owner.
-    AgentBoardRow(crate::terminal_session::AgentBoardRowTarget),
+    AgentBoardRow(crate::workbench_client::AgentBoardRowTarget),
     #[cfg(windows)]
     MachineProjectRow {
         target: crate::machine_picker::SidebarTarget,
@@ -333,7 +333,7 @@ impl HitTarget {
             | Self::SidebarClose(target)
             | Self::CreateMenu(Some(target)) => Some(target.clone()),
             Self::MachineWorkspaceRow { selected, .. } => match &selected.context {
-                Some(crate::terminal_session::NativeStartupTarget::Context(target)) => {
+                Some(crate::workbench_client::NativeStartupTarget::Context(target)) => {
                     Some(SidebarTarget::Context {
                         machine: selected.machine.clone(),
                         target: target.clone(),

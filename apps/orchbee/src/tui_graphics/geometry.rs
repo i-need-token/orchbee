@@ -1,5 +1,5 @@
 //! Physical rectangles are clipped before lazy sampling of immutable source pixels.
-use crate::{terminal_graphics::placement, terminal_session::PaneGraphicsCanvas};
+use crate::{terminal_graphics::placement, workbench_client::PaneGraphicsCanvas};
 use orchbee_workbench_protocol::{PaneGraphicsCellPixels, SiteId};
 use ratatui::layout::Rect;
 

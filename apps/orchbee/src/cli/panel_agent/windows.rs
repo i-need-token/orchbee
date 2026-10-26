@@ -75,7 +75,7 @@ fn submit(
         Err(error) => {
             signals.check_before(deadline)?;
             return Err(Failure::new(match error.reason {
-                MetadataExchangeReason::SessionUnavailable => FailureKind::ServiceUnavailable,
+                MetadataExchangeReason::ConnectionUnavailable => FailureKind::ServiceUnavailable,
                 MetadataExchangeReason::Encoding => FailureKind::InternalFailure,
                 MetadataExchangeReason::Deadline => FailureKind::Timeout,
                 _ => FailureKind::TransportLoss,

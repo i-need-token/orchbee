@@ -5,11 +5,11 @@ use super::modal::{
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
-    terminal_session::{
-        ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
-    },
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
+    workbench_client::{
+        ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
+    },
 };
 use ratatui::{
     Frame,

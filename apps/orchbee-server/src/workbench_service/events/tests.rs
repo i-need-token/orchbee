@@ -45,7 +45,7 @@ fn snapshot(service: &WorkbenchService) -> Snapshot {
     };
     snapshot
 }
-fn execute(session: &WorkbenchClientSession<'_>, action: Action) -> Outcome {
+fn execute(session: &WorkbenchClientConnection<'_>, action: Action) -> Outcome {
     let request = SemanticEventsRequest {
         protocol_version: ProtocolVersion,
         request_id: id(91),
@@ -67,7 +67,10 @@ fn filter(kind: SemanticEventKind) -> SemanticEventFilter {
         condition: SemanticEventMatch::Any {},
     }
 }
-fn subscribe(session: &WorkbenchClientSession<'_>, after: Option<SemanticEventCursor>) -> Outcome {
+fn subscribe(
+    session: &WorkbenchClientConnection<'_>,
+    after: Option<SemanticEventCursor>,
+) -> Outcome {
     execute(
         session,
         Action::Subscribe {
@@ -95,8 +98,8 @@ fn tab(service: &WorkbenchService, label: &str) {
 fn semantic_events_connection_ownership_definition_and_baseline_do_not_replay() {
     let service = service(true, false);
     tab(&service, "before");
-    let first = service.client_session(NonZeroU64::new(1).unwrap());
-    let second = service.client_session(NonZeroU64::new(2).unwrap());
+    let first = service.client_connection(NonZeroU64::new(1).unwrap());
+    let second = service.client_connection(NonZeroU64::new(2).unwrap());
     assert!(matches!(
         subscribe(&first, None),
         Outcome::Opened {
@@ -193,7 +196,7 @@ fn semantic_events_connection_ownership_definition_and_baseline_do_not_replay() 
 #[test]
 fn semantic_events_wait_checks_match_before_deadline_and_gap_preserves_next_match() {
     let service = service(true, false);
-    let session = service.client_session(NonZeroU64::new(1).unwrap());
+    let session = service.client_connection(NonZeroU64::new(1).unwrap());
     subscribe(&session, None);
     tab(&service, "match");
     assert!(
@@ -261,7 +264,7 @@ fn command(
 #[test]
 fn semantic_events_real_workspace_commits_arrive_without_a_snapshot_poll() {
     let service = service(true, true);
-    let session = service.client_session(NonZeroU64::new(1).unwrap());
+    let session = service.client_connection(NonZeroU64::new(1).unwrap());
     execute(
         &session,
         Action::Subscribe {
@@ -332,7 +335,7 @@ fn semantic_events_real_workspace_commits_arrive_without_a_snapshot_poll() {
 #[test]
 fn semantic_events_denied_invalid_regex_and_foreign_cursor_leave_owner_vacant() {
     let denied = service(false, false);
-    let denied_session = denied.client_session(NonZeroU64::new(1).unwrap());
+    let denied_session = denied.client_connection(NonZeroU64::new(1).unwrap());
     // Policy refusal precedes Site or source inspection.
     let request = SemanticEventsRequest {
         protocol_version: ProtocolVersion,
@@ -352,7 +355,7 @@ fn semantic_events_denied_invalid_regex_and_foreign_cursor_leave_owner_vacant() 
     );
     assert!(denied_session.events.lock().unwrap().is_none());
     let service = service(true, false);
-    let session = service.client_session(NonZeroU64::new(1).unwrap());
+    let session = service.client_connection(NonZeroU64::new(1).unwrap());
     let mut cursor = service.terminals.event_journal().unwrap().head().unwrap();
     cursor.sequence = WorkbenchRevision::new(1);
     assert_eq!(

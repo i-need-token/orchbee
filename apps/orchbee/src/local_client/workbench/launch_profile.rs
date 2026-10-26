@@ -23,7 +23,7 @@ impl LocalClient {
         deadline: Instant,
     ) -> Result<WorkbenchLaunchProfileCatalogResult, LaunchProfileCatalogReadError> {
         if self.connection.is_none() {
-            return Err(LaunchProfileCatalogReadError::SessionUnavailable);
+            return Err(LaunchProfileCatalogReadError::ConnectionUnavailable);
         }
 
         let request_id = request.request_id.clone();
@@ -38,7 +38,7 @@ impl LocalClient {
             .map_err(LaunchProfileCatalogReadError::RequestNotSubmitted)?;
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
-                return Err(LaunchProfileCatalogReadError::SessionUnavailable);
+                return Err(LaunchProfileCatalogReadError::ConnectionUnavailable);
             };
             exchange_once(
                 connection,
@@ -131,7 +131,7 @@ impl LocalClient {
     ) -> WorkbenchLaunchProfileMutationSubmission {
         if self.connection.is_none() {
             return WorkbenchLaunchProfileMutationSubmission::DefinitelyNotSubmitted(
-                LaunchProfileMutationNotSubmitted::SessionUnavailable,
+                LaunchProfileMutationNotSubmitted::ConnectionUnavailable,
             );
         }
         let request_id = command.request_id.clone();
@@ -153,7 +153,7 @@ impl LocalClient {
         };
         let Some(connection) = self.connection.as_mut() else {
             return WorkbenchLaunchProfileMutationSubmission::DefinitelyNotSubmitted(
-                LaunchProfileMutationNotSubmitted::SessionUnavailable,
+                LaunchProfileMutationNotSubmitted::ConnectionUnavailable,
             );
         };
         let attempt = exchange_once(
@@ -294,7 +294,7 @@ pub(crate) enum WorkbenchLaunchProfileMutationSubmission {
 
 #[derive(Debug)]
 pub(crate) enum LaunchProfileMutationNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
@@ -302,7 +302,7 @@ pub(crate) enum LaunchProfileMutationNotSubmitted {
 impl fmt::Display for LaunchProfileMutationNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP launch-profile request encoding failed: {error}")
             }
@@ -317,7 +317,7 @@ impl fmt::Display for LaunchProfileMutationNotSubmitted {
 impl std::error::Error for LaunchProfileMutationNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }
@@ -385,7 +385,7 @@ impl std::error::Error for LaunchProfileOutcomeUnknownReason {
 
 #[derive(Debug)]
 pub(crate) enum LaunchProfileCatalogReadError {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
     Failed {
@@ -397,7 +397,7 @@ pub(crate) enum LaunchProfileCatalogReadError {
 impl fmt::Display for LaunchProfileCatalogReadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(
                     f,
@@ -421,7 +421,9 @@ impl fmt::Display for LaunchProfileCatalogReadError {
 impl std::error::Error for LaunchProfileCatalogReadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable | Self::RequestNotSubmitted(_) | Self::Failed { .. } => None,
+            Self::ConnectionUnavailable | Self::RequestNotSubmitted(_) | Self::Failed { .. } => {
+                None
+            }
             Self::RequestEncoding(error) => Some(error),
         }
     }

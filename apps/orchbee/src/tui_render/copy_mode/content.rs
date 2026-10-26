@@ -4,16 +4,16 @@ use ratatui::{Frame, layout::Rect, widgets::Clear};
 
 use crate::{
     terminal_copy_mode::{CopyModeCursor, CopyModeToken, CopyModeView, Surface},
-    terminal_session::{NativeSessionView, NativeViewportSurface},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_theme::{Role, Theme},
+    workbench_client::{NativeViewportSurface, WorkbenchClientView},
 };
 
 pub(in crate::tui_render) fn paint_surface(
     frame: &mut Frame<'_>,
     area: Rect,
     mode: CopyModeView<'_>,
-    native: &NativeSessionView<'_>,
+    native: &WorkbenchClientView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {

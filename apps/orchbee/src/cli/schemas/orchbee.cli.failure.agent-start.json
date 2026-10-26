@@ -33,7 +33,7 @@
 						"protocol-invalid",
 						"rejected",
 						"service-unavailable",
-						"session-capacity",
+						"connection-capacity",
 						"timeout",
 						"transport-loss"
 					]
@@ -164,7 +164,7 @@
 												"protocol-invalid",
 												"rejected",
 												"service-unavailable",
-												"session-capacity",
+												"connection-capacity",
 												"timeout",
 												"transport-loss"
 											]
@@ -1039,7 +1039,7 @@
 								"protocol-invalid",
 								"rejected",
 								"service-unavailable",
-								"session-capacity",
+								"connection-capacity",
 								"timeout",
 								"transport-loss"
 							]
@@ -1226,7 +1226,7 @@
 							"failure": {
 								"properties": {
 									"kind": {
-										"const": "session-capacity"
+										"const": "connection-capacity"
 									}
 								},
 								"required": ["kind"]

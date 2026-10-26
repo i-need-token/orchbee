@@ -147,13 +147,13 @@ fn narrow_bars_keep_a_whole_exit_and_never_publish_partial_controls() {
 
 #[test]
 fn three_cell_exit_is_complete_and_narrower_refusal_preserves_buffer_and_hits() {
-    use crate::client_view::{ClientAction, SessionActionDisposition};
+    use crate::client_view::{ClientAction, ClientActionDisposition};
     use ratatui::{Terminal, backend::TestBackend, style::Style};
 
     let resize_view = |width| {
         let mut view = ClientView::new(width);
         let transition = view.decide_action(ClientAction::EnterResizeMode);
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        view.commit(transition, ClientActionDisposition::KeepNavigator);
         assert!(view.resize_mode());
         view
     };

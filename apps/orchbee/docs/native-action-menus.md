@@ -52,7 +52,7 @@ empty compatibility slot require selecting or creating a Workspace first. Esc an
 parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged. The local adapter
 matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
 separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
-live in `src/terminal_session/ui/launch_profiles/tests.rs` and the adjacent menu suites.
+live in `src/workbench_client/ui/launch_profiles/tests.rs` and the adjacent menu suites.
 Sidebar Workspace/Project Delete and Tab Close/Resume intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
 The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Ungroup and color
@@ -447,9 +447,9 @@ Search witnesses cover effective-shortcut and localized-alias matching, nested n
 filtered identity and availability, grapheme Backspace, Ctrl+U clearing, query bounds and localized
 no-results presentation.
 
-Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_session/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/workbench_client/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
-`src/terminal_session/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement and
+`src/workbench_client/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement and
 cancelled episodes. `src/tui_render/action_menu/tests/sidebar.rs` covers stable probe-outcome row
 coordinates at window edges and complete duplicate/truncated Project suffixes in both locales.
 

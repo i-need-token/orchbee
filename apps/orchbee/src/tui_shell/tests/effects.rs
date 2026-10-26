@@ -46,7 +46,7 @@ impl TerminalInputPort for Surface {
     }
     fn click_workspace_close(
         &mut self,
-        _: crate::terminal_session::WorkspaceCloseToken,
+        _: crate::workbench_client::WorkspaceCloseToken,
         confirm: bool,
     ) {
         self.events.borrow_mut().push(Event::Confirmation(confirm));
@@ -114,7 +114,7 @@ fn partial_frame_retires_old_press_authority_without_receipt_effect_or_replay() 
         crate::tui_pointer::HitLayer::Overlay,
         ratatui::layout::Rect::new(10, 5, 8, 1),
         crate::tui_pointer::HitTarget::WorkspaceClose {
-            token: crate::terminal_session::WorkspaceCloseToken::for_test(1),
+            token: crate::workbench_client::WorkspaceCloseToken::for_test(1),
             confirm: true,
         },
         crate::tui_pointer::InteractionAvailability::Enabled,
@@ -174,7 +174,7 @@ fn partial_frame_retires_old_press_authority_without_receipt_effect_or_replay() 
     lease.block_frame_output();
 }
 impl super::super::TerminalSurface for Surface {
-    fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {
+    fn after_close_draw(&mut self, _receipt: crate::workbench_client::NativeDrawReceipt) {
         self.receipts.set(self.receipts.get() + 1);
     }
     fn after_draw(&mut self) {

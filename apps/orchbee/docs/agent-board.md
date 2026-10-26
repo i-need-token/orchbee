@@ -3,13 +3,13 @@
 ## Scope and ownership
 
 The Agent board is an input-capturing overlay in the
-[native Tab Session](native-tab-session.md) that lists Server-owned Agent sessions and jumps to an
+[native Tab Session](workbench-client-runtime.md) that lists Server-owned Agent sessions and jumps to an
 Agent's already-existing Panel. The Server owns every Agent fact — session identity, provider,
 status, canonical freshness, attention state and presentation bindings. The board is a Client
 projection, navigation and startup surface: rows never infer Agent state from terminal pixels,
 and the empty-state action hands a typed request to the private startup workflow rather than
 creating a Panel or synthesizing a session. Maintain this reference with the private
-`terminal_session/agent_board/` module, its narrow access points into `client_view`, `ui`,
+`workbench_client/agent_board/` module, its narrow access points into `client_view`, `ui`,
 `tui_render`, `tui_pointer` and the dispatcher, the OBAP read lane, and their correctness evidence.
 
 Each row uses the shared six-state presentation: a stationary white-to-gray breathing `●` for working (two seconds), a pulsing yellow `●` for attention, green `●` for succeeded, red `●` for failed/canceled/interrupted, gray `○` for idle and gray `•` for unknown. The Board shares the Sidebar animation phase; it also requests animation when only its own rows need it. ASCII and monochrome keep distinct outcome glyphs. A separate trailing blue dot reflects this Client’s unread observation. Reading clears only that dot; selected-row backgrounds preserve semantic foregrounds. Freshness remains a separate label.
@@ -146,6 +146,6 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, keyboard and pointer startup, current-draw cancellation, lost-worker recovery, close/cancel separation and both locales.
 
-Maintain the concrete witnesses in `src/terminal_session/agent_board/tests.rs`, `src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/workbench_client/agent_board/tests.rs`, `src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

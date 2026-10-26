@@ -184,7 +184,7 @@ revision 的全等回显，Host 可交付 clamp 后的窗口。`rows-applied` �
 未知或不归当前 Session 所有的 selector，在 Poll、反馈或 ReadRows 时返回 `terminal-unavailable`，Detach 时
 返回无副作用的 `detached`，Control 时返回 `viewer-unavailable`。同一 Session 重复附着同一个
 已解析的存活 runtime target 返回 `already-attached`；不同 target 可以共存。
-[Server 归属指南](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record)
+[Server 归属指南](../../apps/orchbee-server/README.md#accepted-connection-viewer-routing-modeling-record)
 定义容量优先级、disposal、generation fence 和 cleanup。Codec 校验语法，不判断运行时所有权。
 
 必需 selector 改变了尚未发布的 OBCS v1 请求形状。必须一起构建、部署和回滚精确匹配的

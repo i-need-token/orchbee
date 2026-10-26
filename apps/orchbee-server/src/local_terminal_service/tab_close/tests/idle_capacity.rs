@@ -146,7 +146,7 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
             assert_eq!(sessions.len(), 8);
             add_terminal(&service, 8);
         }
-        let mut session = service.session();
+        let mut session = service.client_connection();
         let attached = session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             client_id(2000 + u128::from(index)),
             ViewerAction::Attach {

@@ -65,13 +65,13 @@ operation boundaries:
 
 | Claim                                                                                                                   | Maintained evidence                                                                                                  |
 | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Explicit admission, captured geometry, frame-before-input and monotone receipts after exit                              | [`state/tests/control_takeover.rs`](../src/terminal_session/state/tests/control_takeover.rs)                         |
-| Refusal, unknown outcomes without resubmission, retained grants after resize/demand loss and UI delivery loss           | [`connection/native/tests/control_takeover.rs`](../src/terminal_session/connection/native/tests/control_takeover.rs) |
-| Draw/feedback restores input without replay; peer geometry never grants authority                                       | [`ui/tests/control_takeover.rs`](../src/terminal_session/ui/tests/control_takeover.rs)                               |
-| Pending reservations exclude competitors; late cleanup preserves replacement grants                                     | [Server reservation tests](../../orchbee-server/src/local_terminal_service/controller_session/tests.rs)              |
+| Explicit admission, captured geometry, frame-before-input and monotone receipts after exit                              | [`state/tests/control_takeover.rs`](../src/workbench_client/state/tests/control_takeover.rs)                         |
+| Refusal, unknown outcomes without resubmission, retained grants after resize/demand loss and UI delivery loss           | [`connection/native/tests/control_takeover.rs`](../src/workbench_client/connection/native/tests/control_takeover.rs) |
+| Draw/feedback restores input without replay; peer geometry never grants authority                                       | [`ui/tests/control_takeover.rs`](../src/workbench_client/ui/tests/control_takeover.rs)                               |
+| Pending reservations exclude competitors; late cleanup preserves replacement grants                                     | [Server reservation tests](../../orchbee-server/src/local_terminal_service/controller_connection/tests.rs)           |
 | Acknowledged detach precedes attach; failures cannot restore old authority; old input, resize and cleanup remain fenced | [Worker local-pipe tests](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                     |
 
-The retained [`SessionViewerOwnership`](../../orchbee-server/formal/tla/SessionViewerOwnership.tla)
+The retained [`ConnectionViewerOwnership`](../../orchbee-server/formal/tla/ConnectionViewerOwnership.tla)
 model separately checks shared Viewer/grant ownership and cleanup under its own bounds; it does
 not model the native handoff sequence. The implementation traces above do not establish exhaustive
 interleavings, fairness or crash recovery. Windows process evidence uses two native ConPTY Clients

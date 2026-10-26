@@ -119,7 +119,7 @@ impl LocalClient {
     ) -> Result<WorkbenchResponse, CloseExchangeError> {
         if self.connection.is_none() {
             return Err(CloseExchangeError::NotSubmitted(
-                WorkbenchTabCloseNotSubmitted::SessionUnavailable,
+                WorkbenchTabCloseNotSubmitted::ConnectionUnavailable,
             ));
         }
         let mut frame = Vec::new();
@@ -133,7 +133,7 @@ impl LocalClient {
         })?;
         let Some(connection) = self.connection.as_mut() else {
             return Err(CloseExchangeError::NotSubmitted(
-                WorkbenchTabCloseNotSubmitted::SessionUnavailable,
+                WorkbenchTabCloseNotSubmitted::ConnectionUnavailable,
             ));
         };
         let failure = match exchange_once(
@@ -288,14 +288,14 @@ enum CloseExchangeError {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchTabCloseNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
 impl fmt::Display for WorkbenchTabCloseNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP Close request encoding failed: {error}")
             }
@@ -309,7 +309,7 @@ impl fmt::Display for WorkbenchTabCloseNotSubmitted {
 impl std::error::Error for WorkbenchTabCloseNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }

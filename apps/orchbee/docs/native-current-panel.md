@@ -88,7 +88,7 @@ the existing cohort; they do not migrate saved data.
 
 Windows `panel process-info` resolves an explicit Panel to its primary terminal. With caller
 metadata it retains the exact validated terminal, including a child Presentation. With a Client
-it passively reads `Presentation { panelId }` before querying the Host: the native Session owns
+it passively reads `Presentation { panelId }` before querying the Host: the Workbench Client owns
 the selected Presentation, binding, attachment generation and pane incarnation. Missing local
 membership is unavailable, never a fallback to the primary. Existing process-info v2 already
 identifies the exact terminal and Presentation and remains closed.

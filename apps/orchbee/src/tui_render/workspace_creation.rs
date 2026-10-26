@@ -3,9 +3,9 @@
 use super::{Frame, Locale, Paragraph, Role, Span, Theme, tabs};
 use crate::{
     machine_picker::SidebarCommand,
-    terminal_session::WorkspaceCreationPreview,
     tui_layout::{PaneFrame, ShellAreas, native_terminal_area},
     tui_pointer::ProjectedPointer,
+    workbench_client::WorkspaceCreationPreview,
 };
 use ratatui::text::Line;
 

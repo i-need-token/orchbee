@@ -1,8 +1,8 @@
 //! One admitted local resize projection feeds both frame composition and viewport observations.
 use super::{Chrome, ClientView, HitMapBuilder, TerminalSurface};
 use crate::{
-    terminal_session::NativeDrawReceipt,
     tui_layout::{DividerDrag, DrawnSidebarWidth, ResizeProjection, SidebarWidthDrag},
+    workbench_client::NativeDrawReceipt,
 };
 use ratatui::{Frame, widgets::Clear};
 
@@ -25,9 +25,7 @@ pub(super) fn project(
     transport_allowed: bool,
 ) -> ResizeProjection {
     let native_claims = match surface.view() {
-        Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
-            native.capture_claims()
-        }
+        Some(native) => native.capture_claims(),
         _ => crate::tui_composition::NativeCaptureClaims::default(),
     };
     let allowed = transport_allowed
@@ -90,8 +88,7 @@ pub(super) fn render(
             );
         }
         let mut session = surface.view();
-        if let Some(crate::terminal_session::TerminalSessionView::Native(native)) = session.as_mut()
-        {
+        if let Some(native) = session.as_mut() {
             native.set_graphics_surface(graphics.cloned());
         }
         let receipt = crate::tui_render::render_terminal_shell_with_resize(

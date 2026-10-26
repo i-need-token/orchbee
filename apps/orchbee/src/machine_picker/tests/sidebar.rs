@@ -161,7 +161,7 @@ fn current_agent_defers_busy_and_noop_to_session_and_hidden_rows_cannot_activate
     picker.observe_focus(
         Choice::Local,
         Some(target.context),
-        Some(crate::terminal_session::NativeMemberTarget {
+        Some(crate::workbench_client::NativeMemberTarget {
             tab: target.tab,
             panel: target.panel,
             presentation: target.member,
@@ -289,7 +289,7 @@ fn unified_window_follows_the_exact_current_agent_before_its_owner_context() {
     picker.observe_focus(
         Choice::Local,
         Some(current.context.clone()),
-        Some(crate::terminal_session::NativeMemberTarget {
+        Some(crate::workbench_client::NativeMemberTarget {
             tab: current.tab.clone(),
             panel: current.panel.clone(),
             presentation: current.member.clone(),

@@ -895,7 +895,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         #[cfg(windows)]
         Family::Session,
         Family::TerminalTitle,
-        Family::TerminalSession,
+        Family::WorkbenchClient,
         Family::Notification,
         Family::Client,
         Family::Api,
@@ -1489,7 +1489,7 @@ fn wait_failure_kinds_map_to_their_exit_codes() {
         (FailureKind::ProtocolInvalid, "protocol-invalid", 5),
         (FailureKind::Rejected, "rejected", 3),
         (FailureKind::ServiceUnavailable, "service-unavailable", 4),
-        (FailureKind::SessionCapacity, "session-capacity", 4),
+        (FailureKind::ConnectionCapacity, "connection-capacity", 4),
         (FailureKind::Timeout, "timeout", 7),
         (FailureKind::TransportLoss, "transport-loss", 5),
     ];

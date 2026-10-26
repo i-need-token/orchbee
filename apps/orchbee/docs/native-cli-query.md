@@ -17,7 +17,7 @@ Sessions provide separate runtime endpoints and persisted state for independent 
 `--session <name>` selects that environment; `session list/attach/stop/delete` manages named
 Sessions, while `server start/diagnose/stop/config/reload-config` manages the selected Session's
 background service. An **Agent session** identifies one Agent conversation/runtime record and
-uses `--agent-session <id>` or an ordinary Agent target. A protocol **Client Session** identifies
+uses `--agent-session <id>` or an ordinary Agent target. A protocol **Client Connection** identifies
 one admitted connection; it is not a separate work environment.
 
 Use `orchbee server -h` to list service commands and `orchbee server stop -h` for confirmed
@@ -35,7 +35,7 @@ Only canonical CLI spellings are accepted. `ORCHBEE_SITE` remains a legacy envir
 below `ORCHBEE_SESSION`, preserving existing routes. Existing runtime names, scope hashes, catalogs,
 checkpoints and JSON schemas remain unchanged; machine fields such as `siteId` and schema IDs
 such as `orchbee.site.start` retain their existing protocol meaning. This terminology change
-does not make the Electron Desktop runtime a consumer of the native Session service.
+does not make the Electron Desktop runtime a consumer of the Session service.
 
 ## Schema versions for independent Agent status
 
@@ -647,7 +647,7 @@ cache, provider process, new Session, or canonical-session mutation is involved.
 `get`, `explain`, and `wait` accept the same positional target or explicit
 `--agent-session`/`--name`/`--panel` selector. Exact retained IDs take precedence over names; explicit
 IDs and opaque tokens that cannot name aliases or Panels go directly to the read. Other targets first send
-Resolve on the same admitted Client Session. Resolution and reads share the original
+Resolve on the same admitted Client Connection. Resolution and reads share the original
 deadline and signal owner, without a second admission or renewed budget. A wait bounds
 initial resolution by `min(remaining_ms, 5000)` and pins the resolved ID before
 polling; releasing, renaming or reusing an alias never retargets it. Success publishes
@@ -671,7 +671,7 @@ the same Client owner and emits the v4 Client control receipt without marking th
 ### Physical Agent wait and prompt
 
 Windows terminal-backed names use the report owner's exact physical binding and semantic history.
-The CLI holds one Client Session through admission, every bounded read and private interruptible
+The CLI holds one Client Connection through admission, every bounded read and private interruptible
 backoff, dropping it before signal arbitration. Each round refreshes Workbench membership, reads
 contiguous changes and revalidates the original selector and provider. Replacement, history loss,
 future cursors, transport loss and provider ABA fail explicitly; there is no reconnect or polling
@@ -716,7 +716,7 @@ accepts `@agent:<kind>` and complete-list `@agent:<n>` selectors. Bare names kee
 Server alias precedence; physical targets retain and revalidate their full binding.
 The canonical-session flow below describes that target path and other platforms.
 
-The CLI composes existing owners: one existing-only Client Session reads a Workbench
+The CLI composes existing owners: one existing-only Client Connection reads a Workbench
 snapshot, optionally resolves an alias, and gets the canonical Agent session. Only
 an active session's navigable, live presentation attachments may select a terminal.
 The join compares full presentation IDs against bound terminals in the snapshot;
@@ -756,7 +756,7 @@ bounded by the 256 KiB paste limit and the command's 64 KiB argv envelope. `--un
 and `--timeout` require `--wait`; Windows wait defaults to idle/done/blocked without a total
 timeout, and explicit finite timeouts are at most one hour. Without waiting, the budget is five seconds.
 
-One existing-only Client Session owns snapshot lookup, one resolved Agent identity,
+One existing-only Client Connection owns snapshot lookup, one resolved Agent identity,
 a canonical preflight Get, one paste-plus-Enter send, and any subsequent Gets. Preflight
 requires a live, fresh session with a known status and exactly one navigable terminal.
 Pending requests/needs-attention refuse with `agent-blocked` before any input. This is
@@ -1346,7 +1346,7 @@ under the same deadline. A `--text`/`--key` invocation has no materialization st
    for small UTF-8 content. `--paste` instead produces one paste record (256 KiB) with
    an optional separate Enter record. Repeated `--key` produces up to 64 semantic-key
    records in argument order; keys are protocol names, never canned escape strings.
-   The Client Session is fully released before the typed result is mapped or output
+   The Client Connection is fully released before the typed result is mapped or output
    prepared. The request is never retried, including after partial acceptance.
 3. **Answer** — the Server's `terminal.send.result` splits two axes the envelope reports
    verbatim: `inputStatus` (`accepted` means the Host queued the input record — never that a
@@ -1503,7 +1503,7 @@ sampled once at invocation entry: the preamble, admission, optional name resolut
 and OBAP read all share that ceiling, which is never refreshed between stages — a stage with
 no budget left never starts, and a step completing at or past the ceiling settles as the
 command's own timeout. They skip the Workbench snapshot read entirely. On the single
-admitted Client Session they resolve the target when necessary as described above,
+admitted Client Connection they resolve the target when necessary as described above,
 then perform one Agent Observation Protocol (OBAP) read exchange:
 
 Apple Silicon macOS development builds currently expose this path for `agent list` without
@@ -1520,7 +1520,7 @@ platform limits.
    list and 128 KiB for get/explain; a small refusal rides the ≤1 KiB bound. The frame's
    `requestId` must equal the issued identity and the result kind must match the issued
    operation — any mismatch is `protocol-invalid` stage `agent-read`.
-3. **Release** — the Client Session is fully dropped before the outcome is mapped or
+3. **Release** — the Client Connection is fully dropped before the outcome is mapped or
    output is prepared. An ambiguous post-submission outcome retires the session and is
    never replayed: no reconnect, no second admission, no retry.
 
@@ -1557,7 +1557,7 @@ timeout, protocol-invalid, and cancelled failures carry none. Agent reads observ
 canonical Agent sessions only; an `ended` session is reported, never resurrected, and
 `--include-ended` widens the page filter rather than the lifecycle itself.
 
-`agent wait` holds one admitted Client Session. Windows follows canonical changes as described
+`agent wait` holds one admitted Client Connection. Windows follows canonical changes as described
 in the Agent wait policy above and also reads current detail; Linux retains Get polling.
 Every exchange has a fresh request identity, and no historical fields overwrite current detail. One
 optional absolute monotonic deadline sampled at command start covers admission, every read, and
@@ -2094,7 +2094,7 @@ performs two further stages under the same 5-second deadline:
    possible, zero commands submitted), the snapshot supplies `siteId` and
    `expectedRevision`, and one fresh `WorkbenchRequestId` is generated.
 7. **Command** — exactly one `workbench.command` submission on the admitted session. The
-   Client Session is then fully released before the outcome is mapped or output prepared.
+   Client Connection is then fully released before the outcome is mapped or output prepared.
 
 The `expectedRevision` choice is the protocol's optimistic-concurrency contract: the Server
 compares the command's base revision to its current revision and rejects a mismatch without
@@ -2221,7 +2221,7 @@ restart, disable, recovery or repair commands (Windows stop/status are supported
 
 Exit codes: 0 success (empty lists included); 1 local config/output/internal determinate failure;
 2 usage/invalid target; 3 not-found/ambiguous/denied/rejected; 4 service-unavailable (including
-`session-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 7 `timeout`
+`connection-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 7 `timeout`
 (`terminal wait-output` deadline exhausted without a match, or the send source-stage shared
 deadline expiring during materialization); 8 outcome-unknown; 130 `cancelled` (a handled
 SIGINT-class interruption — a HUP/INT/QUIT/TERM during `terminal wait-output` or an eligible
@@ -2245,11 +2245,11 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | valid base with absent scope directory or absent `client.sock`                                                                            | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                               |
 | `ConnectClientError::ConnectFailed`                                                                                                       | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                               |
 | `ConnectClientError::Io`                                                                                                                  | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                               |
-| OBLC `Rejected(CapacityExceeded)`                                                                                                         | `session-capacity`                                                         | 4         | `{stage:"admission"}`                                                                               |
+| OBLC `Rejected(CapacityExceeded)`                                                                                                         | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                               |
 | OBLC `Rejected(HandshakeTimeout)`                                                                                                         | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                               |
 | `Rejected(IncompatibleProtocol                                                \| IncompatibleCohort)`, `Protocol(IncompatibleVersion)`    | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                               |
 | `Rejected(WrongMessage                                                        \| MalformedFrame)`, `UnexpectedResponse`, other `Protocol` | `protocol-invalid`                                                         | 5         | `{stage:"admission"}`                                                                               |
-| `RequestIoConfiguration`, `SessionUnavailable`, `RequestEncoding`                                                                         | `internal-failure`                                                         | 1         | omitted                                                                                             |
+| `RequestIoConfiguration`, `ConnectionUnavailable`, `RequestEncoding`                                                                      | `internal-failure`                                                         | 1         | omitted                                                                                             |
 | `SnapshotReadError::RequestNotSubmitted` (any cause)                                                                                      | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                                |
 | `Failed(Write                                                                 \| ResponseDeadline)`, `Failed(Response(Io))`               | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                                |
 | `Failed(Response(InvalidHeader                                                \| Contract))`, `UnexpectedResponse`                        | `protocol-invalid`                                                         | 5         | `{stage:"snapshot"}`                                                                                |
@@ -2269,7 +2269,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | launch-read `OutcomeUnknown(CorrelationMismatch)`                                                                                         | `protocol-invalid`                                                         | 5         | `{stage:"launch-read",reason:"correlation-mismatch"}`                                               |
 | launch-read outcome `Unavailable(ServerBusy)`                                                                                             | `service-unavailable`                                                      | 4         | `{stage:"launch-read"}`                                                                             |
 | `DefinitelyNotSubmitted::RequestNotSubmitted` (command)                                                                                   | `transport-loss`                                                           | 5         | `{stage:"command"}`                                                                                 |
-| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                                            | `internal-failure`                                                         | 1         | omitted                                                                                             |
+| `DefinitelyNotSubmitted::ConnectionUnavailable`/`RequestEncoding`                                                                         | `internal-failure`                                                         | 1         | omitted                                                                                             |
 | command `Rejected` precommit                                                                                                              | `rejected`                                                                 | 3         | `{stage:"command",reason,revision}`                                                                 |
 | command `Denied` precommit                                                                                                                | `denied`                                                                   | 3         | omitted                                                                                             |
 | command `Unavailable` precommit                                                                                                           | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                          |
@@ -2304,7 +2304,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | launch-profile mutation `ProfileUnavailable` (settled zero-change outcome on `delete`, `tab create --profile`, `panel split --profile`)   | `not-found`                                                                | 3         | `{resource:"launch-profile",target}` under the profile envelope                                     |
 | launch-profile mutation `ProfileAmbiguous` (settled zero-change outcome, same commands)                                                   | `ambiguous`                                                                | 3         | `{resource:"launch-profile",target,candidates≤8,totalCount}` under the profile envelope             |
 | send `RequestNotSubmitted` (the request provably never reached the wire)                                                                  | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                                    |
-| send `SessionUnavailable`/`RequestEncoding`                                                                                               | `internal-failure`                                                         | 1         | omitted                                                                                             |
+| send `ConnectionUnavailable`/`RequestEncoding`                                                                                            | `internal-failure`                                                         | 1         | omitted                                                                                             |
 | send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                                   |
 | `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope                                       | 3/4       | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                                |
 | `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope                                       | 5         | send result `recordsAccepted`, `acceptedEncodedBytes`, `cleanupStatus`                              |
@@ -2316,7 +2316,7 @@ the shell's `128 + signal` convention and is not a synthesized CLI result.
 | agent outcome `Rejected(ReadDenied)`                                                                                                      | `denied`                                                                   | 3         | `{stage:"agent-read",operation,reason:"read-denied"}`                                               |
 | agent list outcome `Rejected(CursorInvalid\|CursorStale)`                                                                                 | `rejected`                                                                 | 3         | `{stage:"agent-read",operation:"list",reason:"cursor-invalid"\|"cursor-stale"}`                     |
 | agent outcome `Unavailable`                                                                                                               | `service-unavailable`                                                      | 4         | `{stage:"agent-read",operation,reason:"runtime-unavailable"}`                                       |
-| agent `SessionUnavailable`/`RequestEncoding`                                                                                              | `internal-failure`                                                         | 1         | omitted                                                                                             |
+| agent `ConnectionUnavailable`/`RequestEncoding`                                                                                           | `internal-failure`                                                         | 1         | omitted                                                                                             |
 | send source validation: unopenable/non-regular path, terminal or unsupported stdin, empty, oversized                                      | `invalid-usage`                                                            | 2         | omitted (localized stderr names the declared option and concrete cause)                             |
 | send source deadline expired during materialization                                                                                       | `timeout` under `orchbee.cli.failure.source`                               | 7         | `{stage:"input",inputSource,timeoutMs}`                                                             |
 | eligible signal captured during send source materialization                                                                               | `cancelled` under `orchbee.cli.failure.source`                             | 128+signo | `{stage:"input",inputSource}`                                                                       |
@@ -2407,7 +2407,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability
   viewer attachment is the single sanctioned read-path side effect, held minimally and
-  released before output. At most one short-lived Client Session is held, and none survives
+  released before output. At most one short-lived Client Connection is held, and none survives
   into output.
 - A mutation submits at most one `workbench.command` per invocation under a fresh
   `WorkbenchRequestId`; it is never retried or replayed, and an ambiguous outcome is reported
@@ -2472,7 +2472,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Schema dictionary ↔ emitted envelopes                                                                                                                                                                             | every success/failure fixture validates; rejected variants fail                                   | schema contrast tests                                               |
 | API failure format: text/default failures keep stdout empty, `--format json` yields the envelope                                                                                                                  | caller-selected failure format on `api schema`/`api snapshot`                                     | `tests/cli_query.rs` + `src/cli` tests                              |
 | No Session on disk                                                                                                                                                                                                | `service-unavailable`, zero fs/process/lock mutation                                              | `tests/cli_query.rs`                                                |
-| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                                                    | `tests/local_startup_process`                                       |
+| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`connection-capacity`/unchanged structure                                                 | `tests/local_startup_process`                                       |
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                        | `tests/cli_query.rs`                                                |
 | Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                             | `tests/cli_query.rs`                                                |
 | Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, aged-pin re-pin, window mismatch, oversized                                           | retained-row projection success + typed failures                                                  | `tests/cli_query.rs`                                                |
@@ -2593,7 +2593,7 @@ retained Session ID or runtime name; only a definite not-found permits Panel fal
 Explicit Session/name selectors never fall back. A prefixed `@panel:` target selects a Panel
 without consulting aliases. Workbench owns Panel identity and its primary presentation;
 Agent state owns live, navigable presentation attachments. Hidden attachments remain eligible.
-The CLI reads one Workbench snapshot on the held Client Session and passes the primary
+The CLI reads one Workbench snapshot on the held Client Connection and passes the primary
 presentation ID to the existing OBAP names family. Its presentation selector resolves,
 assigns or releases under the Agent state fold: zero live matches is not-found, one is
 selected, and multiple sessions are ambiguous. Repeated attachments of one session count
@@ -2674,7 +2674,7 @@ completion, authentication, or atomic foreground ownership.
 
 `panel process-info [<panel-id> | --current] [--client <id>]` reads an exact Terminal's Windows Job. Positional and explicit Panel targets are exclusive; complete IDs and `@panel:<suffix>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
 
-One existing-only Client Session and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Session drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
+One existing-only Client Connection and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Session drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
 
 The JSON envelope is `orchbee.panel.process-info` v2; the schema catalog and bilingual help/completion ship with the command. Evidence covers implicit and explicit targets, conflicts before I/O, primary-versus-child selection, absent primary bindings, denied reads, wrong response identities, preserved Host errors, bounded output, viewer cleanup, and the real Windows Session/Worker/Host process route. The shared typed read is also the actual dependency for subsequent Agent launch/readiness work; it does not close those obligations by itself.
 
@@ -2783,7 +2783,7 @@ Source waits default to 30000 ms and recent80, with `--forever` for explicit unb
 They emit v3, or v4 with `--after`; existing output can match without a cursor. A match alone
 is not command completion. Reads and waits never take terminal control or change Client focus.
 
-Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline and its v3 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
+Windows `status server` reads actual Server build/protocol/cohort metadata before Client Connection admission; `status client` checks this executable offline and its v3 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
 
 ## Agent navigation
 
@@ -2791,7 +2791,7 @@ Windows `agent focus <target> [--client <id>]` resolves a canonical Session or t
 
 ## Windows Agent change pages
 
-`agent changes [--cursor <c>] [--limit <n>] [--format text|json]` reads one bounded page under the existing five-second total Agent read deadline. Omit cursor for a current-head checkpoint; use the returned opaque cursor for later reads. Limit is 1–100, default 50. No filtering, subscription, long poll or automatic replay occurs. It admits one Client Session, closes it before interruption arbitration and emits one result. Ctrl-C preserves the shared cancellation/finalization contract.
+`agent changes [--cursor <c>] [--limit <n>] [--format text|json]` reads one bounded page under the existing five-second total Agent read deadline. Omit cursor for a current-head checkpoint; use the returned opaque cursor for later reads. Limit is 1–100, default 50. No filtering, subscription, long poll or automatic replay occurs. It admits one Client Connection, closes it before interruption arbitration and emits one result. Ctrl-C preserves the shared cancellation/finalization contract.
 
 The `orchbee.agent.changes` version-1 envelope contains the canonical changes/current/reset-required outcome and the correlated Agent source. Reset-required is a visible loss-of-continuity result; rebuild the baseline. Invalid/foreign-boot cursor, read denial and runtime unavailability use the existing Agent failure family with operation changes. A page cannot exceed the requested limit. JSON retains typed facts and cursors; localized text shows status, revision and continuation. The Server owns retention, authentication and coherent history; CLI grammar/help/completion/schema/Skill expose this boundary. Other platform runtimes remain unavailable for this new command.
 

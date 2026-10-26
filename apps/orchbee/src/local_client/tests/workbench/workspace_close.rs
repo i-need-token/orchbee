@@ -596,19 +596,19 @@ fn workspace_close_broken_peer_marks_unknown_and_never_replays() -> TestResult {
                     deadline
                 ),
                 WorkbenchWorkspaceCloseSubmission::DefinitelyNotSubmitted(
-                    WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable
+                    WorkbenchWorkspaceCloseNotSubmitted::ConnectionUnavailable
                 )
             )),
             Family::Read => assert!(matches!(
                 client.submit_workbench_workspace_close_read(close_read(), None, deadline),
                 Err(WorkbenchWorkspaceCloseReadError::NotSubmitted(
-                    WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable
+                    WorkbenchWorkspaceCloseNotSubmitted::ConnectionUnavailable
                 ))
             )),
             Family::Resume => assert!(matches!(
                 client.submit_workbench_workspace_close_resume(resume(1), deadline),
                 WorkbenchWorkspaceCloseResumeSubmission::DefinitelyNotSubmitted(
-                    WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable
+                    WorkbenchWorkspaceCloseNotSubmitted::ConnectionUnavailable
                 )
             )),
         }

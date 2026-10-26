@@ -29,7 +29,7 @@ only where its adoption tests exercise the shared implementation.
 | Structured key hints               | [`hint.rs`](../src/tui_render/controls/hint.rs); `KeyHint`, `measure_key_hints`, and `render_key_hints` for persistent chrome; `measure_overlay_hints` and `render_overlay_hints` for overlay footers                                                                                                                               | [`hint/tests.rs`](../src/tui_render/controls/hint/tests.rs) plus [`settings/tests.rs`](../src/tui_render/settings/tests.rs), [`workspace_setup/tests.rs`](../src/tui_render/workspace_setup/tests.rs), and [`worktree_launch/tests.rs`](../src/tui_render/worktree_launch/tests.rs) |
 | Overlay query slot                 | [`query.rs`](../src/tui_render/controls/query.rs); `QueryField`, `render_query_field`, and `render_divider`                                                                                                                                                                                                                         | [`settings/tests.rs`](../src/tui_render/settings/tests.rs), [`help/tests.rs`](../src/tui_render/help/tests.rs), and [`machine_picker/tests/agents.rs`](../src/machine_picker/tests/agents.rs)                                                                                       |
 | Full-row interaction composition   | [`row.rs`](../src/tui_render/controls/row.rs); `RowTracks`, `RowContentBand`, and `RowFocusCue`                                                                                                                                                                                                                                     | [`controls/tests.rs`](../src/tui_render/controls/tests.rs) plus the Settings, Workspace setup, and Worktree renderer tests linked above                                                                                                                                             |
-| Recurring native modal composition | [`modal.rs`](../src/tui_render/modal.rs); `ModalLayout`, `SingleModalLayout`, and `ModalAction`                                                                                                                                                                                                                                     | [`modal/tests.rs`](../src/tui_render/modal/tests.rs), feature renderer tests, and the real [modal pointer round trip](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs)                                                                                                  |
+| Recurring native modal composition | [`modal.rs`](../src/tui_render/modal.rs); `ModalLayout`, `SingleModalLayout`, and `ModalAction`                                                                                                                                                                                                                                     | [`modal/tests.rs`](../src/tui_render/modal/tests.rs), feature renderer tests, and the real [modal pointer round trip](../src/workbench_client/ui/tests/modal_pointer_roundtrip.rs)                                                                                                  |
 
 The modal composition owns pure geometry, frame-local key labels and cursor placement, shared
 action and close painting, and exact pointer projection and publication. Each feature renderer owns
@@ -59,7 +59,7 @@ hints never do. Prose wraps within the final width, fields window their drafts, 
 whole trailing records. The Project and checkout pickers retain their 78/84-column preferences,
 fixed header and footer, and independently windowed rows; Settings retains its 92-column preference.
 The [modal witnesses](../src/tui_render/modal/tests.rs) cover width and control admission, while the
-[composed popup witness](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs) covers the
+[composed popup witness](../src/workbench_client/ui/tests/modal_pointer_roundtrip.rs) covers the
 Project-name flow, localized hierarchy, field cursor, fault/disabled treatment and suspended targets.
 
 All modal geometry, including complete hints, actions, fields, and the fixed three-cell close action,
@@ -631,7 +631,7 @@ and the whole leaf receives the terminal cells. An inactive leaf paints a locali
 and the focus binding — it never paints fabricated live content. Divider cells are collected during
 the walk and drawn once with junction glyphs (`├ ┤ ┬ ┴ ┼`) resolved from neighboring divider cells.
 
-Under a Client-local zoom (`Ctrl+B z`; the session contract lives in `native-tab-session.md`),
+Under a Client-local zoom (`Ctrl+B z`; the session contract lives in `workbench-client-runtime.md`),
 the drawn set narrows to the focused leaf: it renders across the whole content area and records
 the only pane hit region, while undrawn leaves still report their canonical leaf rectangles so
 their viewers stay alive. The focused leaf reports the whole content area to the wire so its
@@ -676,14 +676,14 @@ Whole-screen review follows `docs/tui/verification.md`: the current Workspace re
 independently of keyboard focus, ordinary sidebars expose only Settings at the bottom, complete lists omit redundant
 ranges, a single pane fills its panel, and split/zoom views share their frame and border titles. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
-`terminal_session/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
+`workbench_client/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
 occlusion, the first content row directly below the Tab strip, stable geometry and exact restoration in both
-locales and native/RGB themes. The [empty-workspace witnesses](../src/terminal_session/ui/tests/quick_workspace.rs)
+locales and native/RGB themes. The [empty-workspace witnesses](../src/workbench_client/ui/tests/quick_workspace.rs)
 check blank content, retained creation, Search and Settings targets, and absence of the Actions button across tiers.
-The [layout query witnesses](../src/terminal_session/ui/client_layout/tests.rs) pin bare, zoomed
-and split content geometry. The [report witnesses](../src/terminal_session/ui/tests/panel_reports.rs)
+The [layout query witnesses](../src/workbench_client/ui/client_layout/tests.rs) pin bare, zoomed
+and split content geometry. The [report witnesses](../src/workbench_client/ui/tests/panel_reports.rs)
 retain exact-scope reports in each leaf; the
-[Presentation witnesses](../src/terminal_session/ui/presentations/tests.rs) check the relocated arrows,
+[Presentation witnesses](../src/workbench_client/ui/presentations/tests.rs) check the relocated arrows,
 inert count and keyboard/pointer selection.
 The same viewport/chrome witnesses inject correlated terminal-exit records and check persistent
 status, retained first-row content, unchanged geometry and hidden ended cursors. Localized copy

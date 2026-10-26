@@ -1,6 +1,6 @@
 use super::Locale;
-use crate::terminal_session::{
-    NativeLocationLabelStatus, NativeSessionNotice, NativeSetupStage, NativeSetupStatus,
+use crate::workbench_client::{
+    NativeLocationLabelStatus, NativeSetupStage, NativeSetupStatus, WorkbenchClientNotice,
 };
 
 impl Locale {
@@ -37,9 +37,9 @@ impl Locale {
     #[cfg(windows)]
     pub(crate) const fn workspace_creation_progress(
         self,
-        phase: crate::terminal_session::WorkspaceCreationPhase,
+        phase: crate::workbench_client::WorkspaceCreationPhase,
     ) -> &'static str {
-        use crate::terminal_session::WorkspaceCreationPhase;
+        use crate::workbench_client::WorkspaceCreationPhase;
         match (self, phase) {
             (Self::EnUs, WorkspaceCreationPhase::Preparing) => "Creating workspace…",
             (Self::ZhCn, WorkspaceCreationPhase::Preparing) => "正在创建工作区…",
@@ -110,7 +110,7 @@ impl Locale {
         self,
         phase: String,
         retired: bool,
-        notice: Option<NativeSessionNotice>,
+        notice: Option<WorkbenchClientNotice>,
         setup: Option<NativeSetupStatus>,
         can_configure_directory: bool,
     ) -> String {

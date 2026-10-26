@@ -89,8 +89,6 @@ mod terminal_projection;
 #[cfg(any(unix, windows))]
 mod terminal_scrollbar;
 #[cfg(any(unix, windows))]
-mod terminal_session;
-#[cfg(any(unix, windows))]
 mod terminal_text;
 #[cfg(windows)]
 mod terminal_title;
@@ -119,6 +117,8 @@ mod tui_theme;
 mod windows_console_input;
 #[cfg(windows)]
 mod windows_signal;
+#[cfg(any(unix, windows))]
+mod workbench_client;
 #[cfg(windows)]
 mod worktree_destination;
 

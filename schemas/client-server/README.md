@@ -197,7 +197,7 @@ still route to their owning attachments; they are never mistaken for the respons
 An unknown or unowned selector returns `terminal-unavailable` for Poll, feedback, or ReadRows and
 effect-free `detached` for Detach. Control returns `viewer-unavailable`. A same-Session attachment to the same
 resolved live runtime target returns `already-attached`; different targets can coexist. The owning
-[Server guide](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record)
+[Server guide](../../apps/orchbee-server/README.md#accepted-connection-viewer-routing-modeling-record)
 defines capacity precedence, disposal, generation fencing, and cleanup. The codec validates syntax,
 not runtime ownership.
 

@@ -2,7 +2,6 @@
 use crate::{
     client_view::{ClientView, PanelDirection},
     localization::Locale,
-    terminal_session::NativeSessionView,
     terminal_text::display_width,
     tui_layout::DrawnResize,
     tui_pointer::{
@@ -10,6 +9,7 @@ use crate::{
         ResizeControl,
     },
     tui_theme::{Role, Theme},
+    workbench_client::WorkbenchClientView,
 };
 use ratatui::{Frame, layout::Rect, widgets::Clear};
 
@@ -86,7 +86,7 @@ struct ResizeGeometry {
 pub(super) fn render(
     frame: &mut Frame<'_>,
     view: &ClientView,
-    native: Option<&NativeSessionView<'_>>,
+    native: Option<&WorkbenchClientView<'_>>,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -106,7 +106,7 @@ pub(super) fn render(
         return;
     };
     let resize_target = native
-        .and_then(NativeSessionView::divider_source)
+        .and_then(WorkbenchClientView::divider_source)
         .map(|source| DrawnResize {
             source,
             viewport,

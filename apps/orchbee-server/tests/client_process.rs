@@ -17,7 +17,7 @@ use std::{
 };
 
 use orchbee_local_client_protocol::{
-    ClientHello, ClientSessionConnection, ConnectClientError, LocalClientMessage,
+    ClientConnection, ClientHello, ConnectClientError, LocalClientMessage,
     PROTOCOL_VERSION as CLIENT_PROTOCOL_VERSION, RejectionReason as ClientRejectionReason,
     read_message as read_client_message, write_message as write_client_message,
 };
@@ -125,7 +125,7 @@ fn active_session_capacity_is_typed_and_released_after_an_obcs_fault() -> TestRe
         sessions.push(connect_bounded_client(server.client_endpoint())?);
     }
     assert!(matches!(
-        ClientSessionConnection::connect(server.client_endpoint(), env!("CARGO_PKG_VERSION")),
+        ClientConnection::connect(server.client_endpoint(), env!("CARGO_PKG_VERSION")),
         Err(ConnectClientError::Rejected(
             ClientRejectionReason::CapacityExceeded
         ))
@@ -230,8 +230,8 @@ fn slow_duplicate_and_invalid_clients_do_not_consume_other_sessions() -> TestRes
     Ok(())
 }
 
-fn connect_client(endpoint: &Path) -> TestResult<ClientSessionConnection> {
-    ClientSessionConnection::connect(endpoint, env!("CARGO_PKG_VERSION"))
+fn connect_client(endpoint: &Path) -> TestResult<ClientConnection> {
+    ClientConnection::connect(endpoint, env!("CARGO_PKG_VERSION"))
         .map_err(|error| Box::new(error) as Box<dyn Error>)
 }
 
@@ -250,10 +250,10 @@ fn connect_bounded_client(endpoint: &Path) -> TestResult<(UnixStream, NonZeroU64
     }
 }
 
-fn wait_for_client_admission(endpoint: &Path) -> TestResult<ClientSessionConnection> {
+fn wait_for_client_admission(endpoint: &Path) -> TestResult<ClientConnection> {
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
-        match ClientSessionConnection::connect(endpoint, env!("CARGO_PKG_VERSION")) {
+        match ClientConnection::connect(endpoint, env!("CARGO_PKG_VERSION")) {
             Ok(connection) => return Ok(connection),
             Err(ConnectClientError::Rejected(ClientRejectionReason::CapacityExceeded))
                 if Instant::now() < deadline =>

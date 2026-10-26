@@ -15,8 +15,8 @@ one request, reads one exact response and drops the candidate. It never sends a 
 enters an application phase. The caller owns the five-second total and cancellation arbitration;
 partial progress never extends its deadline. Only connection failures preserve pre-connect absence
 provenance; EOF after connection is never absence. The Windows Server answers after same-user
-proof and before cohort equality/Session admission, under existing candidate and handshake bounds.
-This observation grants no operation capability, creates no Session and changes no shutdown state.
+proof and before cohort equality/Client Connection admission, under existing candidate and handshake bounds.
+This observation grants no operation capability, creates no Client Connection and changes no shutdown state.
 No Linux/macOS runtime adapter is added. The [CLI status contract](../../apps/orchbee/docs/native-runtime-status.md)
 owns public comparison/output semantics and evidence, including old-Server incompatibility.
 
@@ -46,18 +46,18 @@ English remains canonical.
 
 Each connection carries exactly one handshake frame from Client to Server and one response frame
 from Server to Client. Acceptance ends the `OBLC` phase without consuming bytes from the next
-protocol phase; the same stream may then remain only as the Client Session liveness attachment or
+protocol phase; the same stream may then remain only as the Client Connection liveness attachment or
 be used by its caller for a separately owned semantic protocol. An `OBLC` frame contains fixed
 magic, an unsigned big-endian protocol version, an unsigned big-endian payload length, and at most
 256 payload bytes. Unknown magic, version, kind, enum value, missing or extra bytes, oversized
 payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or a cohort over 64 bytes
 is rejected.
 
-| Message          | Fields and meaning                                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ClientHello`    | Exact executable cohort. Kernel peer credentials provide local human identity; renderer form and Client-local view state are absent.        |
-| `ClientAccepted` | One nonzero process-local Server Client Session generation assigned to this exact transport. It grants no terminal or Workbench capability. |
-| `Rejected`       | Incompatible protocol/cohort, capacity exceeded, wrong message, malformed frame, or timeout. Rejection changes no admitted Session.         |
+| Message          | Fields and meaning                                                                                                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ClientHello`    | Exact executable cohort. Kernel peer credentials provide local human identity; renderer form and Client-local view state are absent.           |
+| `ClientAccepted` | One nonzero process-local Server Client Connection generation assigned to this exact transport. It grants no terminal or Workbench capability. |
+| `Rejected`       | Incompatible protocol/cohort, capacity exceeded, wrong message, malformed frame, or timeout. Rejection changes no admitted Client Connection.  |
 
 Human Client and Worker contracts remain separate. This crate contains no Worker identity,
 Worker capability advertisement, lease, fence, Host, terminal, renderer, Workspace, Tab, Panel, or
@@ -65,7 +65,7 @@ semantic-command field.
 
 ## Connecting adapter
 
-`ClientSessionConnection::connect` is the real Rust Client-side consumer. It validates the cohort
+`ClientConnection::connect` is the real Rust Client-side consumer. It validates the cohort
 before effects, connects one caller-selected Unix socket, proves the Server has the same effective
 user through `orchbee-local-peer-credentials`, applies a two-second read and write handshake
 timeout, sends exactly one hello, requires one accepted response, then removes the handshake
@@ -84,7 +84,7 @@ render a TUI, or supervise Server lifetime. Bare Linux and macOS `orchbee` consu
 ## Deadline-bounded POSIX admission
 
 The accepted lazy-activation workflow needs a caller-owned deadline across connection and
-handshake. POSIX ClientSessionConnection::connect_before(endpoint, cohort, deadline) supplies that
+handshake. POSIX ClientConnection::connect_before(endpoint, cohort, deadline) supplies that
 boundary on Linux and macOS; apps/orchbee consumes it through private LocalClient::connect_before.
 Existing `connect` retains its separate two-second handshake timeouts. Neither entry discovers or
 activates a Site. Native macOS verification exercises the same descriptor, poll, peer-proof, and
@@ -108,7 +108,7 @@ and protocol failures never become absence. Neither variant permits this adapter
 | Model        | One deadline-bound admission attempt moves through connect, peer proof, partial hello/response I/O and blocking restoration. Controlled implementation tests inject completion and expiry at each boundary.                                                                                                                  |
 | Transitions  | Validated request → connecting → peer proof → writing → reading → decoded response → blocking restoration → accepted. Invalid input, IO, peer or response failure, or observed expiry ends in failed and releases the candidate.                                                                                             |
 | Dependencies | POSIX atomic SOCK_CLOEXEC/SOCK_NONBLOCK, existing pinned Nix socket/poll wrappers, kernel peer credentials, monotonic clock and the unchanged OBLC codec.                                                                                                                                                                    |
-| Ownership    | This crate owns admission and candidate cleanup; the caller owns deadline selection and the accepted stream. Server owns its Session and observes connection loss independently.                                                                                                                                             |
+| Ownership    | This crate owns admission and candidate cleanup; the caller owns deadline selection and the accepted stream. Server owns its Client Connection and observes connection loss independently.                                                                                                                                   |
 | Verification | Deterministic partial-I/O and deadline-boundary tests, Linux and macOS Unix-socket acceptance/rejection/silence/EOF/backlog cases, next-phase byte preservation and existing connect regressions.                                                                                                                            |
 | Correctness  | AD-01–AD-04 map to the concrete adapter witnesses below. Local deadline observation provides bounded failure without assuming external connect/readiness/response progress. No separate admission TLA model is retained.                                                                                                     |
 | Limits       | One POSIX admission, not service readiness, activation, OS process scheduling or Server cleanup timing. Kernel calls and scheduling cannot be preempted by this adapter; it checks the deadline at controllable boundaries and before success. Windows uses its named-pipe adapter. No production timeout value is selected. |
@@ -138,12 +138,12 @@ decides the outcome, including an unreachable or faulted wake source. `connect` 
 ## Server admission and bounds
 
 Server assigns every accepted connection an independent generation and admits up to thirty-two active
-Client Sessions. It reserves at most forty-eight total Client candidate/session threads, so silent
+Client Connections. It reserves at most forty-eight total Client candidate/connection threads, so silent
 handshakes cannot create unbounded work; a connection beyond that transport bound is closed. A
-candidate within the transport bound receives a typed capacity rejection after the thirty-two-session
+candidate within the transport bound receives a typed capacity rejection after the thirty-two-connection
 admission limit. Every handshake has a two-second read/write timeout.
 
-The delivered private Server retains the accepted unbuffered stream as the Session carrier and
+The delivered private Server retains the accepted unbuffered stream as the Client Connection carrier and
 passes its next-phase bytes to the separately owned
 [`orchbee-client-server-protocol`](../client-server-protocol/README.md) OBCS decoder. This crate
 neither defines nor decodes that phase. The Server's local subject policy, fault handling, and
@@ -154,7 +154,7 @@ generation-scoped cleanup are owned by its
 
 This crate owns only Client framing, handshake validation, the connecting adapter, and transfer of
 the accepted byte stream to its caller. It neither defines nor decodes the next semantic phase.
-Server owns listener and Client Session state. `orchbee-local-peer-credentials` owns kernel
+Server owns listener and Client Connection state. `orchbee-local-peer-credentials` owns kernel
 same-user proof. `orchbee-local-site-protocol` separately owns the Worker handshake. Endpoint
 discovery, lazy activation, public `orchbee` integration, Workbench snapshots and commands,
 terminal relay, controller policy, persistence, Windows named pipes, remote authentication, and

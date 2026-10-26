@@ -105,7 +105,7 @@ impl LocalClient {
     ) -> Result<WorkbenchResponse, WorkspaceCloseExchangeError> {
         if self.connection.is_none() {
             return Err(WorkspaceCloseExchangeError::NotSubmitted(
-                WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable,
+                WorkbenchWorkspaceCloseNotSubmitted::ConnectionUnavailable,
             ));
         }
         let mut frame = Vec::new();
@@ -121,7 +121,7 @@ impl LocalClient {
         })?;
         let Some(connection) = self.connection.as_mut() else {
             return Err(WorkspaceCloseExchangeError::NotSubmitted(
-                WorkbenchWorkspaceCloseNotSubmitted::SessionUnavailable,
+                WorkbenchWorkspaceCloseNotSubmitted::ConnectionUnavailable,
             ));
         };
         let failure = match exchange_once(
@@ -267,14 +267,14 @@ enum WorkspaceCloseExchangeError {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchWorkspaceCloseNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
 impl fmt::Display for WorkbenchWorkspaceCloseNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP Workspace Close request encoding failed: {error}")
             }
@@ -288,7 +288,7 @@ impl fmt::Display for WorkbenchWorkspaceCloseNotSubmitted {
 impl std::error::Error for WorkbenchWorkspaceCloseNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }

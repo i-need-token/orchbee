@@ -2,7 +2,7 @@
 use crate::{
     terminal_graphics::{Facts, Reply},
     terminal_lifecycle::{SynchronizedUpdateLease, graphics::delete},
-    terminal_session::{PaneGraphicsCanvas, PaneGraphicsDraw},
+    workbench_client::{PaneGraphicsCanvas, PaneGraphicsDraw},
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
 use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};

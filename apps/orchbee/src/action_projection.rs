@@ -30,7 +30,7 @@ impl<'a> ActionIdentity<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ActionCategory {
     Application,
-    Session,
+    Client,
     Workspace,
     Project,
     Tab,
@@ -294,7 +294,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             built_in("orchbee.native.prefix.dismiss", C::Input, NONE)
         }
         PrefixAction::Client(A::Exit) => {
-            built_in("orchbee.native.window.detach", C::Session, DETACH)
+            built_in("orchbee.native.window.detach", C::Client, DETACH)
         }
         #[cfg(windows)]
         PrefixAction::Client(A::FocusBusinessSidebar) => {
@@ -588,7 +588,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         ),
         A::AgentBoard => built_in("orchbee.native.agent-board.toggle", C::Agent, AGENT),
         A::ReleasePointer => built_in("orchbee.native.pointer-capture.toggle", C::Input, MOUSE),
-        A::Detach => built_in("orchbee.native.window.detach", C::Session, DETACH),
+        A::Detach => built_in("orchbee.native.window.detach", C::Client, DETACH),
     };
     MenuActionMetadata {
         action: projected,

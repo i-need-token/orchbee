@@ -1,10 +1,9 @@
 use std::time::Instant;
 
 use crate::client_view::{
-    ClientAction, ClientKey, ClientView, KeyCode, KeyKind, Modifiers, PrefixInput,
-    SessionActionDisposition, ShellCommand,
+    ClientAction, ClientActionDisposition, ClientKey, ClientView, KeyCode, KeyKind, Modifiers,
+    PrefixInput, ShellCommand,
 };
-use crate::terminal_session::NativeSetupStage;
 use crate::tui_composition::{
     CaptureOwner, ClientCaptureClaims, NativeCaptureOwner, client_chrome_overlay_allowed,
     project_capture,
@@ -13,6 +12,7 @@ use crate::tui_pointer::{
     CancelledModalEvent, FrameHitMap, InteractionTarget, MotionObservability, PointerOutcome,
     PointerState, PrimaryContract, ReleaseOwnership,
 };
+use crate::workbench_client::NativeSetupStage;
 
 use super::{
     DispatchOutcome, HostReply, ModeRequest, NativeRenameDraftToken, NativeRenameEdit,
@@ -100,7 +100,7 @@ enum ModalEpoch {
     Rename(NativeRenameDraftToken),
     Setup(NativeSetupToken),
     #[cfg(windows)]
-    Worktree(crate::terminal_session::WorktreeToken),
+    Worktree(crate::workbench_client::WorktreeToken),
 }
 
 struct ProjectedCaptureItem {
@@ -174,12 +174,12 @@ impl InputDispatcher {
     }
 
     fn modal_remaining(port: &mut (impl TerminalInputPort + ?Sized), epoch: ModalEpoch) -> usize {
-        use crate::terminal_session::NativeCaptureContext;
+        use crate::workbench_client::NativeCaptureContext;
 
         match epoch {
             ModalEpoch::Rename(token) => {
                 match port.native_capture_context(NativeCaptureOwner::Rename) {
-                    Some(crate::terminal_session::NativeCaptureContext::Rename(context))
+                    Some(crate::workbench_client::NativeCaptureContext::Rename(context))
                         if context.token == token =>
                     {
                         context.remaining_scalars
@@ -551,7 +551,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         let popup = if current == Some(CaptureOwner::Native(NativeCaptureOwner::Popup)) {
             match port.native_capture_context(NativeCaptureOwner::Popup) {
-                Some(crate::terminal_session::NativeCaptureContext::Popup(context)) => {
+                Some(crate::workbench_client::NativeCaptureContext::Popup(context)) => {
                     Some(context.id().clone())
                 }
                 _ => None,
@@ -841,7 +841,7 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
-        use crate::terminal_session::NativeCaptureContext;
+        use crate::workbench_client::NativeCaptureContext;
 
         let ProjectedCaptureItem { owner, item, now } = projected;
 
@@ -1733,7 +1733,7 @@ impl InputDispatcher {
                     }
                     crate::machine_picker::SidebarIntent::Help => {
                         let transition = view.decide_action(ClientAction::OpenShortcutHelp);
-                        view.commit(transition, SessionActionDisposition::KeepNavigator);
+                        view.commit(transition, ClientActionDisposition::KeepNavigator);
                         self.pointer.invalidate_map_with_port(port);
                     }
                     crate::machine_picker::SidebarIntent::Activate(selected) => {
@@ -2149,7 +2149,7 @@ impl InputDispatcher {
         let action = transition.action();
         #[cfg(windows)]
         if action == Some(ClientAction::DismissOnboarding) {
-            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            view.commit(transition, ClientActionDisposition::KeepNavigator);
             if view.onboarding.dismiss().is_err() {
                 view.startup_notice(crate::client_view::Notice::OnboardingSaveFailed);
             }
@@ -2230,7 +2230,7 @@ impl InputDispatcher {
                 return if board_action_handoff {
                     port.apply_client_action(action)
                 } else {
-                    Some(SessionActionDisposition::KeepNavigator)
+                    Some(ClientActionDisposition::KeepNavigator)
                 };
             }
             #[cfg(windows)]
@@ -2238,7 +2238,7 @@ impl InputDispatcher {
                 let disposition = if board_action_handoff {
                     port.apply_client_action(action.clone())?
                 } else {
-                    SessionActionDisposition::KeepNavigator
+                    ClientActionDisposition::KeepNavigator
                 };
                 if self.pointer.can_open_action_menu()
                     && !view.resize_mode()
@@ -2260,7 +2260,7 @@ impl InputDispatcher {
         });
         view.commit(
             transition,
-            applied.unwrap_or(SessionActionDisposition::KeepNavigator),
+            applied.unwrap_or(ClientActionDisposition::KeepNavigator),
         );
         #[cfg(windows)]
         if action == Some(ClientAction::FocusBusinessSidebar) {
@@ -2322,7 +2322,7 @@ impl InputDispatcher {
         {
             mode(ModeRequest::BracketedPaste(false))?;
         }
-        if layout_changed || applied.is_some_and(SessionActionDisposition::changes_layout) {
+        if layout_changed || applied.is_some_and(ClientActionDisposition::changes_layout) {
             after_layout(view, port)?;
             // Keyboard-driven layout changes stale the map the same way a
             // pointer navigation does.
@@ -2434,7 +2434,7 @@ impl InputDispatcher {
         port: &mut (impl TerminalInputPort + ?Sized),
         now: Instant,
     ) -> bool {
-        use crate::terminal_session::NativeCaptureContext;
+        use crate::workbench_client::NativeCaptureContext;
 
         let capture_changed = self.settle_capture_edge(view, port);
         let projected = Self::projected_capture(view, port);
@@ -2515,7 +2515,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         let choice_keys = choice_keys
             || worktree.is_some_and(|context| {
-                context.stage == crate::terminal_session::WorktreeStage::Checkout
+                context.stage == crate::workbench_client::WorktreeStage::Checkout
             });
         self.decoder.choice_keys(choice_keys);
         #[cfg(windows)]
@@ -2604,7 +2604,7 @@ impl InputDispatcher {
                     self.epoch = match self.epoch {
                         Some(ModalEpoch::Setup(_)) => {
                             match port.native_capture_context(NativeCaptureOwner::Setup) {
-                                Some(crate::terminal_session::NativeCaptureContext::Setup(
+                                Some(crate::workbench_client::NativeCaptureContext::Setup(
                                     context,
                                 )) => Some(ModalEpoch::Setup(context.token)),
                                 _ => None,
@@ -2613,7 +2613,7 @@ impl InputDispatcher {
                         #[cfg(windows)]
                         Some(ModalEpoch::Worktree(_)) => {
                             match port.native_capture_context(NativeCaptureOwner::Worktree) {
-                                Some(crate::terminal_session::NativeCaptureContext::Worktree(
+                                Some(crate::workbench_client::NativeCaptureContext::Worktree(
                                     context,
                                 )) => Some(ModalEpoch::Worktree(context.token)),
                                 _ => None,
@@ -2652,7 +2652,7 @@ impl InputDispatcher {
                     self.epoch = match epoch {
                         ModalEpoch::Setup(_) => {
                             match port.native_capture_context(NativeCaptureOwner::Setup) {
-                                Some(crate::terminal_session::NativeCaptureContext::Setup(
+                                Some(crate::workbench_client::NativeCaptureContext::Setup(
                                     context,
                                 )) => Some(ModalEpoch::Setup(context.token)),
                                 _ => None,
@@ -2661,7 +2661,7 @@ impl InputDispatcher {
                         #[cfg(windows)]
                         ModalEpoch::Worktree(_) => {
                             match port.native_capture_context(NativeCaptureOwner::Worktree) {
-                                Some(crate::terminal_session::NativeCaptureContext::Worktree(
+                                Some(crate::workbench_client::NativeCaptureContext::Worktree(
                                     context,
                                 )) => Some(ModalEpoch::Worktree(context.token)),
                                 _ => None,
@@ -2724,10 +2724,10 @@ impl InputDispatcher {
     fn apply_worktree_event(
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),
-        token: crate::terminal_session::WorktreeToken,
+        token: crate::workbench_client::WorktreeToken,
         event: ModalInputEvent,
     ) {
-        use crate::terminal_session::{
+        use crate::workbench_client::{
             CaptureReadiness, NativeCaptureContext, WorktreeEdit as E, WorktreeStage as S,
         };
         let Some(NativeCaptureContext::Worktree(context)) =
@@ -2806,7 +2806,7 @@ impl InputDispatcher {
         token: NativeSetupToken,
         event: ModalInputEvent,
     ) {
-        use crate::terminal_session::{CaptureReadiness, NativeCaptureContext};
+        use crate::workbench_client::{CaptureReadiness, NativeCaptureContext};
 
         let Some(NativeCaptureContext::Setup(context)) =
             port.native_capture_context(NativeCaptureOwner::Setup)

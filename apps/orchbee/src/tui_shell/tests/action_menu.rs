@@ -45,9 +45,9 @@ fn navigation_view(columns: u16) -> (ClientView, crate::machine_picker::SidebarT
     let contexts: Vec<_> = [1, 2]
         .into_iter()
         .map(|id| crate::machine_discovery::Context {
-            target: crate::terminal_session::NativeContextTarget {
+            target: crate::workbench_client::NativeContextTarget {
                 site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-                location: crate::terminal_session::NativeContextLocation::Workspace {
+                location: crate::workbench_client::NativeContextLocation::Workspace {
                     workspace_id: WorkbenchWorkspaceId::parse(&format!("{id:032x}")).unwrap(),
                     terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{id:032x}"))
                         .unwrap(),
@@ -192,7 +192,7 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
             let (mut view, target) = navigation_view(initial.columns);
             view.commit(
                 view.decide_action(ClientAction::FocusBusinessSidebar),
-                SessionActionDisposition::KeepNavigator,
+                ClientActionDisposition::KeepNavigator,
             );
             let mut surface = OrderedSurface::default();
             super::super::synchronize_viewport(

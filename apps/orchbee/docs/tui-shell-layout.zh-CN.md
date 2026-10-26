@@ -24,7 +24,7 @@
 | 结构化按键提示         | [`hint.rs`](../src/tui_render/controls/hint.rs)；常驻 chrome 使用 `KeyHint`、`measure_key_hints` 与 `render_key_hints`；覆盖层页脚使用 `measure_overlay_hints` 与 `render_overlay_hints`                                                                                                                               | [`hint/tests.rs`](../src/tui_render/controls/hint/tests.rs)，以及 [`settings/tests.rs`](../src/tui_render/settings/tests.rs)、[`workspace_setup/tests.rs`](../src/tui_render/workspace_setup/tests.rs) 与 [`worktree_launch/tests.rs`](../src/tui_render/worktree_launch/tests.rs) |
 | 覆盖层查询槽           | [`query.rs`](../src/tui_render/controls/query.rs)；`QueryField`、`render_query_field` 与 `render_divider`                                                                                                                                                                                                              | [`settings/tests.rs`](../src/tui_render/settings/tests.rs)、[`help/tests.rs`](../src/tui_render/help/tests.rs) 与 [`machine_picker/tests/agents.rs`](../src/machine_picker/tests/agents.rs)                                                                                        |
 | 整行交互组合           | [`row.rs`](../src/tui_render/controls/row.rs)；`RowTracks`、`RowContentBand` 与 `RowFocusCue`                                                                                                                                                                                                                          | [`controls/tests.rs`](../src/tui_render/controls/tests.rs)，以及上面链接的 Settings、Workspace setup 与 Worktree 渲染测试                                                                                                                                                          |
-| 重复使用的原生模态组合 | [`modal.rs`](../src/tui_render/modal.rs)；`ModalLayout`、`SingleModalLayout` 与 `ModalAction`                                                                                                                                                                                                                          | [`modal/tests.rs`](../src/tui_render/modal/tests.rs)、各特性渲染测试，以及真实的[模态指针往返测试](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs)                                                                                                                    |
+| 重复使用的原生模态组合 | [`modal.rs`](../src/tui_render/modal.rs)；`ModalLayout`、`SingleModalLayout` 与 `ModalAction`                                                                                                                                                                                                                          | [`modal/tests.rs`](../src/tui_render/modal/tests.rs)、各特性渲染测试，以及真实的[模态指针往返测试](../src/workbench_client/ui/tests/modal_pointer_roundtrip.rs)                                                                                                                    |
 
 模态组合拥有纯几何、帧内按键标签与光标定位、共享动作与关闭按钮绘制，以及精确指针投影和发布。
 各特性渲染器拥有自己的本地化内容、类型化 token 与 `HitTarget`、不可用原因、呈现阶段、效果及
@@ -49,7 +49,7 @@ Settings 的关闭、返回和子任务取消／确认采用相同规则。
 提示仅舍弃末尾的完整记录。项目与检出选择器保留 78/84 列首选宽度、固定头部和页脚，以及
 独立窗口化的行；Settings 保留 92 列首选宽度。
 [模态见证](../src/tui_render/modal/tests.rs) 覆盖宽度与控件准入，
-[完整弹窗见证](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs) 覆盖项目命名流程、
+[完整弹窗见证](../src/workbench_client/ui/tests/modal_pointer_roundtrip.rs) 覆盖项目命名流程、
 本地化层级、字段光标、错误／不可用处理和暂停时的目标。
 
 所有模态几何，包括完整提示、动作、字段和固定三列关闭动作，都必须在 `start_modal`、帧修改、
@@ -484,7 +484,7 @@ Enter 将打开的行。完整可见行随成功帧发布精确凭据。Esc／En
 伪造的 live 内容。divider 单元格在遍历过程中收集，最后按相邻 divider 单元格解析出交接字
 形（`├ ┤ ┬ ┴ ┼`）统一绘制一次。
 
-在 Client 本地 zoom（`Ctrl+B z`；session 契约见 `native-tab-session.md`）下，绘制
+在 Client 本地 zoom（`Ctrl+B z`；session 契约见 `workbench-client-runtime.md`）下，绘制
 集合收缩为焦点叶窗格：它在整个内容区渲染并记录唯一的 pane 命中区，而未绘制的叶子仍按
 其规范叶矩形上报，使其 viewer 保持存活。焦点叶子向线上上报整个内容区，使其终端收敛到
 放大尺寸；zoom 中不绘制 divider 单元格。绘制/命中集合与观测集合的这一分离是 zoom 唯一
@@ -519,13 +519,13 @@ surface 不得跳步。
 
 整屏评审遵循 `docs/tui/verification.md`：当前 Workspace 的标识独立于键盘焦点，普通侧栏底部只提供设置，完整列表省略冗余范围，单窗格占满面板，分屏和放大视图共用框架及边线标题。评审默认主题及两个内置
 RGB 主题、空／非空侧栏、导航、隐藏侧栏和分屏／放大场景。
-`terminal_session/ui/tests/viewport/chrome.rs` 在两种语言与原生／RGB 主题下验证末行内容、
+`workbench_client/ui/tests/viewport/chrome.rs` 在两种语言与原生／RGB 主题下验证末行内容、
 前缀覆盖、鼠标遮挡、紧接 Tab 下方的首行内容、几何稳定和精确恢复。
-[空工作区见证](../src/terminal_session/ui/tests/quick_workspace.rs)跨层级检查空白内容，以及保留的
-创建、搜索和设置目标，以及不存在“动作”按钮。[布局查询见证](../src/terminal_session/ui/client_layout/tests.rs)
+[空工作区见证](../src/workbench_client/ui/tests/quick_workspace.rs)跨层级检查空白内容，以及保留的
+创建、搜索和设置目标，以及不存在“动作”按钮。[布局查询见证](../src/workbench_client/ui/client_layout/tests.rs)
 固定无边框、放大及分屏的内容几何。
-[上报见证](../src/terminal_session/ui/tests/panel_reports.rs)验证每个叶子展示
-精确范围的上报；[Presentation 见证](../src/terminal_session/ui/presentations/tests.rs)检查移位后的箭头、
+[上报见证](../src/workbench_client/ui/tests/panel_reports.rs)验证每个叶子展示
+精确范围的上报；[Presentation 见证](../src/workbench_client/ui/presentations/tests.rs)检查移位后的箭头、
 不响应的数量及键盘／鼠标选择。
 同一 viewport/chrome 见证注入身份关联的终端退出记录，检查持续状态、保留的首行内容、
 不变的几何及结束后的隐藏光标。本地化文案检查覆盖两种语言的最大退出码／信号值、未知

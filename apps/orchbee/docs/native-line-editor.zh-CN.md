@@ -2,13 +2,13 @@
 
 ## 范围与归属
 
-终端会话的重命名、Workspace 初始化与设置草稿共享同一个纯单行编辑器核心，位于
+Workbench Client 的重命名、Workspace 初始化与设置草稿共享同一个纯单行编辑器核心，位于
 [`terminal_text/line_editor.rs`](../src/terminal_text/line_editor.rs)。
 它覆盖键盘规范分配给草稿字段的编辑词汇：插入（键入输入与原子粘贴共用同一条路径）、
 Backspace、Delete、Left、Right、Home/Ctrl+A、End/Ctrl+E、Ctrl+W 与 Ctrl+U。选择区、撤销历史、
 Ctrl+K 以及 Up/Down 重映射不属于此核心；消费者对未绑定按键保持忽略而非转发。
 
-编辑器是纯状态——没有 I/O、时钟、会话变更、终端读取或 ANSI 解析器。字符准入留在 typed-input
+编辑器是纯状态——没有 I/O、时钟、Client 变更、终端读取或 ANSI 解析器。字符准入留在 typed-input
 边界与各字段策略；核心从不过滤、规范化或改写所交付的文本。预填按字节精确保留协议合法的
 文本，包括 chrome 投影无法显示的标量，使草稿原值与取消路径保持忠实。渲染仍是消费者投影：
 `terminal_text` 拥有共享的净化文本与光标映射，重命名/Workspace 字段与设置各自拥有显示窗口。
@@ -38,7 +38,7 @@ grapheme 移动与删除使用已锁定于 1.13.3 的 `unicode-segmentation`；�
 剥离控制字符可能合并相邻的簇。不单独解析原始文本的前缀或序列中段切片。
 
 对重命名与 Workspace 初始化，
-[`field_window(editor, field_width)`](../src/terminal_session/state/field_window.rs) 在*可见*文本上
+[`field_window(editor, field_width)`](../src/workbench_client/state/field_window.rs) 在*可见*文本上
 按完整字素簇选择窗口。返回的窗口是可绘制文本加严格落在字段宽度内的光标列；零宽
 字段返回 `None` 而非伪造位置，宽于剩余空间的簇从不被拆分。
 

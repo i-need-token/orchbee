@@ -334,7 +334,7 @@ Client 见证。这些有限轨迹不是穷尽交错证明，仅通过核心或 
 | 依赖   | 尚未发布的 OBCS v1 值、保持不变的 OBCN/OBSR relay、现有 OBWP snapshot read，以及原生 Client 现有的绝对提交截止时间。                                                                                 |
 | 限制   | 同用户本机 target resolution，不接管控制权。Selection 模型不证明多个 viewer 路由、远程授权、持久化、重启后接管、选择 UI 或 Worker 持续可用。                                                         |
 
-[Session 路由所有者](../README.md#accepted-session-viewer-routing-modeling-record) 先回收精确
+[Session 路由所有者](../README.md#accepted-connection-viewer-routing-modeling-record) 先回收精确
 已知 Disposed 的条目，再执行容量限制。有空余容量时，同一 Session 重复解析到同一个存活 target，
 会在 Worker IPC 前返回 `already-attached`；不同 target 可以共存。在 target resolution 内，
 Registry 或 Site 锁中毒时返回 `server-busy`。
@@ -492,11 +492,11 @@ Site 冻结 cwd／环境／程序／来源，在联合提交与分发前准备�
 [authority-tests]: ../src/workbench_authority/tests.rs
 [authority-stateful]: ../src/workbench_authority/tests/stateful.rs
 [authority-process]: ../tests/client_process/workbench.rs
-[session-tests]: ../src/local_client_service/application_session/tests/workbench.rs
+[session-tests]: ../src/local_client_service/application_connection/tests/workbench.rs
 [Workspace-tests]: ../src/site_coordinator/tests/Workspace.rs
 [workspace-process]: ../tests/client_process/terminal_operations/workspace.rs
 [selection-tests]: ../src/site_coordinator/tests/terminal_selection.rs
-[viewer-tests]: ../src/local_terminal_service/viewer_session/tests.rs
+[viewer-tests]: ../src/local_terminal_service/viewer_connection/tests.rs
 [placement-tests]: ../src/workbench_authority/terminal_tab_create/tests/placement.rs
 [rename-process]: ../tests/client_process/tab_create/tab_rename.rs
 [create-process]: ../tests/client_process/tab_create.rs

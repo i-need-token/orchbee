@@ -165,9 +165,9 @@ target receipts cannot overwrite valid admission evidence.
 The framed peer asserts that ordinary Close never sends group Start and that neither path replays
 mutations. Snapshot fixtures retain Project metadata and shared checkout directories.
 
-Maintain witnesses in `src/terminal_session/state/tests/workspace_close.rs`,
-`src/terminal_session/connection/native/tests/workspace_close.rs`,
-`src/terminal_session/ui/tests/workspace_close.rs` and the local-client Close adapter suites.
+Maintain witnesses in `src/workbench_client/state/tests/workspace_close.rs`,
+`src/workbench_client/connection/native/tests/workspace_close.rs`,
+`src/workbench_client/ui/tests/workspace_close.rs` and the local-client Close adapter suites.
 Render evidence covers both locales, terminal-native and RGB themes, Standard, Compact, Minimal and
 refused geometries. The applicable repository gate remains authoritative; focused development uses
 `cargo test --locked -p orchbee --bin orchbee workspace_close` and the Project close-all carrier test.

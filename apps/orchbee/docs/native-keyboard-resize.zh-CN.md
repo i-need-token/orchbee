@@ -39,6 +39,6 @@ Windows Client 通过 `Ctrl+B P` 进入调整模式。普通方向键将附近�
 
 所属实现测试覆盖单一在途修改且不积压、准确完成来源、模式退出/替换、非活动目标纯度及本地成功前完成绘制。
 
-在 `src/terminal_session/client_control/tests.rs`、`src/terminal_session/ui.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/workbench_client/client_control/tests.rs`、`src/workbench_client/ui.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

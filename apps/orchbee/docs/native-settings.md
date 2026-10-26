@@ -180,7 +180,7 @@ A replacement Session/editor episode cannot inherit an old completion.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                                                                |
 | Inputs       | Frozen configuration identity, complete confirmed snapshot, exact source token, typed dirty patch, painted-row receipt, explicit save/reset intent.                                                           |
-| Authority    | Workbench Protocol owns values/bounds; Local Session Runtime owns the private record/lock/commit; the native Session and matched Desktop helper use that same store.                                          |
+| Authority    | Workbench Protocol owns values/bounds; Local Session Runtime owns the private record/lock/commit; the Workbench Client and matched Desktop helper use that same store.                                        |
 | State        | Newest effective runtime values, independently frozen draft basis, local changes, viewport/focus anchor and painted activation authority, one admitted exchange, and explicit refusal/unknown reconciliation. |
 | Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
 | Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
@@ -289,7 +289,7 @@ requires separate screenshot review.
 The [editor preview cases](../src/native_settings/tests/appearance.rs) cover every
 admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid
 color entry, conflict projection, unknown result and episode retirement. The
-[whole-frame cases](../src/terminal_session/ui/settings/tests/appearance.rs) drive
+[whole-frame cases](../src/workbench_client/ui/settings/tests/appearance.rs) drive
 the real Shell drawing boundary with an existing native terminal, both locales,
 80x24/120x40 and truecolor/256/16/monochrome capability. They compare background
 chrome, default and explicit program cells, cancellation, external updates and

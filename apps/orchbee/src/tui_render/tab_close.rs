@@ -6,13 +6,13 @@ use crate::{
     action_projection::ActionTone,
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
-    terminal_session::{
-        ModalPresentation, NativeCloseConfirmationToken, NativeCloseConfirmationView,
-        NativeCloseStatusToken,
-    },
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::Theme,
+    workbench_client::{
+        ModalPresentation, NativeCloseConfirmationToken, NativeCloseConfirmationView,
+        NativeCloseStatusToken,
+    },
 };
 use ratatui::{
     Frame,

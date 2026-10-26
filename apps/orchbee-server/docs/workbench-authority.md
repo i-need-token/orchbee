@@ -377,7 +377,7 @@ An admitted local Client selects an exact Site/Worker/logical Terminal binding f
 | Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                            |
 | Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                            |
 
-The [Session routing owner](../README.md#accepted-session-viewer-routing-modeling-record) first
+The [Session routing owner](../README.md#accepted-connection-viewer-routing-modeling-record) first
 reaps exact known-Disposed entries and enforces its capacity bound. With capacity available, a
 duplicate resolved live target in the same Session returns `already-attached` before Worker IPC;
 different targets can coexist. Within target resolution, poisoned registry or Site ownership returns
@@ -583,11 +583,11 @@ this receipt. An all-unbound Tab participates in checkpoint, selection and zero-
 [authority-tests]: ../src/workbench_authority/tests.rs
 [authority-stateful]: ../src/workbench_authority/tests/stateful.rs
 [authority-process]: ../tests/client_process/workbench.rs
-[session-tests]: ../src/local_client_service/application_session/tests/workbench.rs
+[session-tests]: ../src/local_client_service/application_connection/tests/workbench.rs
 [Workspace-tests]: ../src/site_coordinator/tests/Workspace.rs
 [workspace-process]: ../tests/client_process/terminal_operations/workspace.rs
 [selection-tests]: ../src/site_coordinator/tests/terminal_selection.rs
-[viewer-tests]: ../src/local_terminal_service/viewer_session/tests.rs
+[viewer-tests]: ../src/local_terminal_service/viewer_connection/tests.rs
 [placement-tests]: ../src/workbench_authority/terminal_tab_create/tests/placement.rs
 [rename-process]: ../tests/client_process/tab_create/tab_rename.rs
 [create-process]: ../tests/client_process/tab_create.rs

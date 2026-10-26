@@ -131,7 +131,7 @@ fn parked_attach_and_acquire_success_cannot_install_after_close_acceptance() {
         let (candidate_send, candidate_receive) = mpsc::sync_channel(1);
         let actor = Arc::clone(&service);
         let client = thread::spawn(move || {
-            let mut session = actor.session();
+            let mut session = actor.client_connection();
             let attached = session.execute(viewer_request(
                 100,
                 ViewerAction::Attach {

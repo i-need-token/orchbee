@@ -174,7 +174,7 @@ fn permanent(kind: io::ErrorKind) -> bool {
 }
 fn snapshot_error(error: SnapshotReadError) -> io::Error {
     match error {
-        SnapshotReadError::SessionUnavailable => io::ErrorKind::NotConnected.into(),
+        SnapshotReadError::ConnectionUnavailable => io::ErrorKind::NotConnected.into(),
         SnapshotReadError::RequestNotSubmitted(error) => error,
         SnapshotReadError::Failed {
             reason:

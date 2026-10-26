@@ -173,8 +173,8 @@ Client 会话的重连来源。此后的键盘或工具栏搜索能重新打开�
 
 所属实现测试覆盖输入包所有权、已接纳几何、拒绝过期查询/效果、释放前最后移动、效果顺序、最多一次提交和匹配的成功退出。
 
-在 `src/terminal_copy_mode/tests.rs`、`src/terminal_session/terminal_selection/tests.rs`、
-`src/terminal_session/ui/copy_mode/tests/mouse.rs`、`src/tui_render/copy_mode/tests.rs` 及相邻的
+在 `src/terminal_copy_mode/tests.rs`、`src/workbench_client/terminal_selection/tests.rs`、
+`src/workbench_client/ui/copy_mode/tests/mouse.rs`、`src/tui_render/copy_mode/tests.rs` 及相邻的
 状态、carrier、输入和渲染套件中维护实际证据。鼠标可见性套件在 120×40、80×24、Compact 和
 Minimal 尺寸下，以两种语言和原生／RGB 主题组合完整 shell。受控搜索完成检查主屏与备用屏幕的
 可见匹配字形及底栏上方的光标，覆盖键盘／工具栏搜索与重复搜索，以及宽单元格选择／拖动的坐标

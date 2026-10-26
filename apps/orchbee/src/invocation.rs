@@ -296,7 +296,7 @@ pub(crate) enum Family {
     Panel,
     Layout,
     Terminal,
-    TerminalSession,
+    WorkbenchClient,
     Worktree,
     LaunchProfile,
     Server,
@@ -330,7 +330,7 @@ impl Family {
             Self::Panel => "panel",
             Self::Layout => "layout",
             Self::Terminal => "terminal",
-            Self::TerminalSession => "terminal session",
+            Self::WorkbenchClient => "terminal session",
             Self::Worktree => "worktree",
             Self::LaunchProfile => "launch-profile",
             Self::TerminalTitle => "terminal title",
@@ -963,7 +963,7 @@ pub(crate) enum QueryCommand {
         lines: Option<u16>,
     },
     AgentExplain(AgentTarget),
-    /// `agent wait`: one held Client Session polls the canonical session
+    /// `agent wait`: one held Client Connection polls the canonical session
     /// document until a requested condition matches, the fence refuses, or
     /// the shared absolute deadline lands.
     AgentWait {

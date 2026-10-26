@@ -1,7 +1,7 @@
 use super::Locale;
 use crate::{
-    terminal_session::{NativeCloseConfirmationKind, NativeCloseStatusKind, NativeCloseStatusView},
     terminal_text::sanitize_terminal_text,
+    workbench_client::{NativeCloseConfirmationKind, NativeCloseStatusKind, NativeCloseStatusView},
 };
 
 impl Locale {
@@ -52,7 +52,7 @@ impl Locale {
     }
     pub(crate) fn close_set_status(
         self,
-        status: crate::terminal_session::state::CloseSetStatus,
+        status: crate::workbench_client::state::CloseSetStatus,
     ) -> String {
         let completed = status.completed;
         let remaining = status.total.saturating_sub(completed);

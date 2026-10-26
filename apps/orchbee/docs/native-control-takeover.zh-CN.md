@@ -57,13 +57,13 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 
 | 声明                                                                       | 维护中的证据                                                                                                         |
 | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`state/tests/control_takeover.rs`](../src/terminal_session/state/tests/control_takeover.rs)                         |
-| 拒绝、未知结果不重新提交、resize／demand 丢失及 UI 投递丢失后保留授权      | [`connection/native/tests/control_takeover.rs`](../src/terminal_session/connection/native/tests/control_takeover.rs) |
-| 绘制／反馈恢复输入且不重放；对端几何不授予权限                             | [`ui/tests/control_takeover.rs`](../src/terminal_session/ui/tests/control_takeover.rs)                               |
-| 待处理预留排除竞争者；迟到清理保留替代授权                                 | [Server 预留测试](../../orchbee-server/src/local_terminal_service/controller_session/tests.rs)                       |
+| 显式准入、捕获的几何、帧先于输入及退出后的单调回执                         | [`state/tests/control_takeover.rs`](../src/workbench_client/state/tests/control_takeover.rs)                         |
+| 拒绝、未知结果不重新提交、resize／demand 丢失及 UI 投递丢失后保留授权      | [`connection/native/tests/control_takeover.rs`](../src/workbench_client/connection/native/tests/control_takeover.rs) |
+| 绘制／反馈恢复输入且不重放；对端几何不授予权限                             | [`ui/tests/control_takeover.rs`](../src/workbench_client/ui/tests/control_takeover.rs)                               |
+| 待处理预留排除竞争者；迟到清理保留替代授权                                 | [Server 预留测试](../../orchbee-server/src/local_terminal_service/controller_connection/tests.rs)                    |
 | 确认 detach 后才 attach；失败不恢复旧权限；旧输入、resize 和清理继续受隔离 | [Worker 本地管道测试](../../orchbee-worker/src/host_connection/tests/controller_takeover.rs)                         |
 
-保留的 [`SessionViewerOwnership`](../../orchbee-server/formal/tla/SessionViewerOwnership.tla)
+保留的 [`ConnectionViewerOwnership`](../../orchbee-server/formal/tla/ConnectionViewerOwnership.tla)
 模型在自身边界内单独检查共享 Viewer／grant 归属和清理，不建模原生交接序列。
 上述实现轨迹不证明穷尽交错、公平性或崩溃恢复。Windows 进程证据使用两个尺寸不同的
 原生 ConPTY Client，验证程序身份连续且输入可双向交接。这些检查不代表真人

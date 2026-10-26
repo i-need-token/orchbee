@@ -37,7 +37,7 @@
 
 - `apps/orchbee-server/src` 不含任何 Agent 模块、schema 或所有权接缝；`apps/orchbee-server/src/lib.rs` 仅导出 Workbench authority 与 projection 类型。
 - `crates/workbench-protocol` 的 `Snapshot`、`Delta`、`Presentation`、`DeltaChange`、`WorkbenchProtocolDocument` 与 `WorkbenchPublicationDocument` 只携带 Workbench navigation 与 terminal-context 数据。`WorkbenchRequest` 恰好准入 `workbench.snapshot.read`、`workbench.command`、`workbench.tab-close.read`、`workbench.tab-close.resume` 与 `workbench.publication.read`。`apps/orchbee-server/src/workbench_projection.rs` 中的 Server publication journal 至多保留 `MAXIMUM_RESULT_PUBLICATIONS`（64）条已提交 publication。
-- `apps/orchbee-server/src/local_client_service/application_session.rs` 按四字节前缀对本地 Client 连接解复用：`OBCS`（终端控制帧）、`OBCQ`（paste 记录）与 `OBWP`（Workbench 请求）。任何其他前缀以 `UnknownProtocol` 终止会话。不存在 Agent 族分支。
+- `apps/orchbee-server/src/local_client_service/application_connection.rs` 按四字节前缀对本地 Client 连接解复用：`OBCS`（终端控制帧）、`OBCQ`（paste 记录）与 `OBWP`（Workbench 请求）。任何其他前缀以 `UnknownProtocol` 终止会话。不存在 Agent 族分支。
 - `apps/orchbee-worker` 在 `host_connection/viewers.rs` 中解码 `orchbee.agent.v1` 终端 application signal，仅用于按终端 epoch fencing 后丢弃；不存在任何 Agent 运行时、汇合或转发。`apps/orchbee-server`、`apps/orchbee-worker`、`crates/capability-node-protocol` 与 `crates/client-server-protocol` 中没有任何 Agent 引用。
 - `apps/orchbee`（原生 TUI/CLI 可执行文件）通过 `snapshot.read` 基线加 `publication.read` cursor 读取轮询 Workbench 状态，并在普通轮询上搭 250 ms publication probe；提示转化为 `PublicationDebt` 刷新需求。`tui_render.rs` 绘制一条静态本地化 `Agents` 侧栏行，不消费任何状态。原生 CLI 面无 Agent 命令。
 

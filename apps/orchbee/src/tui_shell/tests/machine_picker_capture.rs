@@ -9,8 +9,8 @@ use crate::{
     },
     machine_picker::{Choice, Control, Mode, PickerAction},
     terminal_input::InputDispatcher,
-    terminal_session::NativeMemberTarget,
     tui_theme::Theme,
+    workbench_client::NativeMemberTarget,
 };
 
 #[derive(Default)]

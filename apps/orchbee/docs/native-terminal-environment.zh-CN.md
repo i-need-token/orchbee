@@ -38,8 +38,8 @@ UTF-16 文本先完成组装，再编码为 UTF-8。高代理项跨读取边界�
 读取以 `InvalidData` 拒绝，并走已有的本地化界面失败路径；非法输入不会成为保存的标签或
 Shell payload。空闲轮询不会完成或替换待定高代理项。用户直接输入的 U+FFFD 仍是普通文本。
 `windows_console_input/records/tests/unicode.rs` 覆盖原生记录分段、无字符记录交错及有界 UTF-8
-重复尾部；`terminal_session/ui/tests/input_provenance.rs` 和
-`terminal_session/state/tests/location_labels.rs` 覆盖精确重命名请求、字素编辑、取消及位置标签
+重复尾部；`workbench_client/ui/tests/input_provenance.rs` 和
+`workbench_client/state/tests/location_labels.rs` 覆盖精确重命名请求、字素编辑、取消及位置标签
 发布。这些受控实现见证不提供穷尽 TLC 保证，也不能证明真实窗口的字形渲染效果。
 
 raw mode 保持 `ENABLE_VIRTUAL_TERMINAL_INPUT` 开启并关闭 cooked 处理。关闭 VT 输入会让
@@ -268,7 +268,7 @@ UTC 对齐把其墙钟值置于 `monotonic_before_ns` 与 `monotonic_after_ns` �
 
 帧与写器区间是嵌套观测，不是可以相加的独立成本。缓冲准备可能占据被测帧的大部分，
 却不一定占据完整运行的大部分。应计算已记录区间的并集及其占首个已记录样本开始到最后一个
-已记录样本结束范围的比例，而非整个进程或 Session 生命周期；未覆盖的墙钟时间保持未分类，
+已记录样本结束范围的比例，而非整个进程或 Workbench Client 生命周期；未覆盖的墙钟时间保持未分类，
 不能自动归为 idle、CPU 工作或阻塞。若没有额外观测，准备完成后的帧尾部仍包含
 diff、编码、记账与输出。
 

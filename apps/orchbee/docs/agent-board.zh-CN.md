@@ -2,12 +2,12 @@
 
 ## 范围与归属
 
-Agent 看板是 [native Tab Session](native-tab-session.md) 中一个捕获输入的覆盖层，用于列出
+Agent 看板是 [native Tab Session](workbench-client-runtime.md) 中一个捕获输入的覆盖层，用于列出
 Server 持有的 Agent 会话并跳转到 Agent 已存在的 Panel。Server 拥有一切 Agent 事实——会话
 身份、provider、状态、规范新鲜度、注意状态与 presentation 绑定。看板是 Client 投影、导航与
 启动界面：会话行绝不从终端像素推断 Agent 状态；空状态操作会把类型化请求交给私有启动流程，
 而不是创建 Panel 或伪造会话。本参考文
-档随私有 `terminal_session/agent_board/` 模块、其进入 `client_view`、`ui`、`tui_render`、
+档随私有 `workbench_client/agent_board/` 模块、其进入 `client_view`、`ui`、`tui_render`、
 `tui_pointer` 与 dispatcher 的窄访问点、OBAP 读取通道及它们的正确性证据一同维护。
 
 每行使用共享的六类状态展示：固定位置、两秒白灰呼吸的 `●` 表示工作中，明暗交替的黄色 `●` 表示等待关注，绿色 `●` 表示成功，红色 `●` 表示失败／取消／中断，灰色 `○` 表示空闲，灰色 `•` 表示未知。看板共用侧栏动画相位，也会在只有自身行需要动画时请求推进。ASCII 与单色模式保留可区分的结果字形。独立的尾部蓝点表示本 Client 的未读观测。查看只清除蓝点；选中行背景保留语义前景色。新鲜度仍单独标注。
@@ -116,6 +116,6 @@ worker 失联、Pending 或 Unknown 预留、已接受或部分接受输入，�
 
 所属实现测试覆盖同修订行组装、稳定视口锚点、过期或被取代的跳转、准确的非零面板落点、viewer 丢失、有界 lane 清理、精确 episode 输入隔离、首次绘制拒绝、已接纳界面的暂停与恢复、过期绘制拒绝、Client PATH 候选发现、键盘与指针启动、当前绘制取消、worker 失联 recovery、关闭／取消分离及两种语言。
 
-在 `src/terminal_session/agent_board/tests.rs`、`src/tui_render/agent_board.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/workbench_client/agent_board/tests.rs`、`src/tui_render/agent_board.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

@@ -494,7 +494,7 @@ fn divider_rejected_preview_preserves_the_draw_pointer_projection() {
 #[test]
 fn divider_lost_preview_restores_graphics_in_the_same_flushed_frame_without_another_event() {
     use crate::terminal_graphics::{Probe, Reply};
-    use crate::terminal_session::PaneGraphicsCanvas;
+    use crate::workbench_client::PaneGraphicsCanvas;
     use orchbee_workbench_protocol::{
         PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, TerminalPresentationId,
     };

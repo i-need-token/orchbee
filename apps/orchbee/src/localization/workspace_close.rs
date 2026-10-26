@@ -1,7 +1,7 @@
 use super::Locale;
 use crate::{
-    terminal_session::{WorkspaceCloseStatus, WorkspaceCloseStatusView},
     terminal_text::sanitize_terminal_text,
+    workbench_client::{WorkspaceCloseStatus, WorkspaceCloseStatusView},
 };
 impl Locale {
     pub(crate) const fn workspace_close_cancel_label(self) -> &'static str {

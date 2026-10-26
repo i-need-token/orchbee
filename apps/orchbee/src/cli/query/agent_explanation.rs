@@ -98,7 +98,7 @@ impl AgentReadExchange for ExplainRead {
                     .map_err(|error| {
                         terminal_agent::failure(
                             match error.reason {
-                                MetadataExchangeReason::SessionUnavailable => {
+                                MetadataExchangeReason::ConnectionUnavailable => {
                                     FailureKind::ServiceUnavailable
                                 }
                                 MetadataExchangeReason::Encoding => FailureKind::InternalFailure,

@@ -1,8 +1,8 @@
 use super::*;
 use crate::{
     localization::Locale,
-    terminal_session::{NativeViewportSurface, terminal_viewport::ViewportWindow},
     tui_theme::{ColorLevel, Role},
+    workbench_client::{NativeViewportSurface, terminal_viewport::ViewportWindow},
 };
 use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
 use ratatui::{Terminal, backend::TestBackend};

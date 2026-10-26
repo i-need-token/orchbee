@@ -190,10 +190,10 @@ fn an_admitted_connection_observes_runtime_unavailable_after_the_owner_drops() -
     Ok(())
 }
 
-/// A malformed OBAP record loudly ends the session — the demultiplexer never
+/// A malformed OBAP record loudly ends the connection — the demultiplexer never
 /// silently skips an unparseable record.
 #[test]
-fn a_malformed_obap_record_ends_the_session() -> io::Result<()> {
+fn a_malformed_obap_record_ends_the_connection() -> io::Result<()> {
     let agents = agent_harness::seeded(&[])?;
     let mut client = agent_harness::admitted(agents, "agent-test-cohort")?;
     let mut header = [0_u8; 12];

@@ -1,4 +1,4 @@
-//! Physical Agent waits hold one Client Session and consume contiguous semantic history.
+//! Physical Agent waits hold one Client Connection and consume contiguous semantic history.
 //! They never infer canonical outcomes or Client acknowledgements from terminal reports.
 use std::time::{Duration, Instant};
 

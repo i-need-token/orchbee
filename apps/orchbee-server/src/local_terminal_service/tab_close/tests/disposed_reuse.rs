@@ -18,7 +18,7 @@ fn client_id(value: u128) -> ClientRequestId {
 }
 
 fn viewer(
-    session: &mut crate::local_terminal_service::viewer_session::LocalTerminalSession<'_>,
+    session: &mut crate::local_terminal_service::viewer_connection::LocalTerminalConnection<'_>,
     action: ViewerAction,
 ) -> ViewerOutcome {
     let ServerMessage::TerminalViewerResult(result) = session.execute(
@@ -30,7 +30,7 @@ fn viewer(
 }
 
 fn acquire(
-    session: &mut crate::local_terminal_service::viewer_session::LocalTerminalSession<'_>,
+    session: &mut crate::local_terminal_service::viewer_connection::LocalTerminalConnection<'_>,
     attachment_id: &orchbee_client_server_protocol::ViewerId,
 ) -> ControlOutcome {
     let ServerMessage::TerminalControlResult(result) =
@@ -127,7 +127,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
                 }
             }
         });
-        let mut session = service.session();
+        let mut session = service.client_connection();
         let ViewerOutcome::Attached {
             attachment_id: old_attachment,
             ..

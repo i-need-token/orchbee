@@ -16,7 +16,7 @@ Panel 命令族使用位置 Panel 或 `--current`，拒绝旧 `--panel` 别名�
 `--session <name>` 选择该工作环境；`session list/attach/stop/delete` 管理命名会话，
 `server start/diagnose/stop/config/reload-config` 管理所选会话的后台服务。
 **Agent 会话** 标识一个 Agent 对话／运行时记录，通过 `--agent-session <id>` 或普通 Agent 目标选择。
-协议中的 **Client Session** 标识一次已准入的连接，不代表另一套工作环境。
+协议中的 **Client Connection** 标识一次已准入的连接，不代表另一套工作环境。
 
 用 `orchbee server -h` 查看服务命令，用 `orchbee server stop -h` 查看需确认的关闭操作及恢复选项。
 在 PowerShell 中，从可执行文件所在目录使用 `.\orchbee.exe server -h`；未加入 `PATH` 时，
@@ -515,7 +515,7 @@ version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。统一
 
 `get`、`explain` 和 `wait` 接受相同的位置目标或显式 `--agent-session`/`--name`/`--panel` 选择器。
 精确的保留会话 ID 优先于名称；显式 ID 与不可能是名称或 Panel 的不透明 token 直接读取。其余目标在
-同一个已接纳的 Client Session 上先发 Resolve。解析与读取共享原来的截止和信号所有者，
+同一个已接纳的 Client Connection 上先发 Resolve。解析与读取共享原来的截止和信号所有者，
 不二次接纳或续期。wait 的首次解析受 `min(remaining_ms, 5000)` 约束，固定解析结果后再轮询；
 释放、重命名或复用别名不会改变等待目标。成功结果只使用实际读取的 `agent-read` source；
 解析拒绝使用自身的 `agent-names` source 与失败 schema，绝不伪造未执行读取的来源。
@@ -534,7 +534,7 @@ Client／操作／视图、报告修订、可空 sequence／seen／status 和外
 ### 物理 Agent 等待与提示提交
 
 Windows 终端名称使用报告所有者的精确物理绑定和语义历史。CLI 在准入、各次有界读取与
-可中断退避间持有同一个 Client Session，并在信号裁决前释放。每轮刷新 Workbench 成员关系，
+可中断退避间持有同一个 Client Connection，并在信号裁决前释放。每轮刷新 Workbench 成员关系，
 读取连续变化，再验证原始选择器和 provider。替换、历史丢失、未来游标、传输失败和 provider
 ABA 明确失败；证据丢失后不重连或退化轮询。总期限不续期，迟到观察不能成功。
 
@@ -568,7 +568,7 @@ Windows 上，这些命令使用[Windows 统一 Agent 投影](#windows-统一-ag
 也接受 `@agent:<kind>` 和完整列表中的 `@agent:<n>`。裸名称仍优先匹配 Server 别名；
 物理目标在整个操作中保留并复核完整绑定。下方规范会话流程描述该类目标路径及其他平台。
 
-CLI 组合既有责任方：在一个仅连接既有 Session 的 Client Session 中读取 Workbench
+CLI 组合既有责任方：在一个仅连接既有 Session 的 Client Connection 中读取 Workbench
 快照，按需解析别名，再读取权威 Agent 会话。只有活动会话中可导航且存活的 presentation
 附件才能选中终端。关联时比较快照中已绑定终端的完整 presentation ID；不会将 Panel ID
 当成 presentation ID。显式或回退得到的 Panel 将关联限制在其主 presentation。
@@ -602,7 +602,7 @@ Server 仍验证终端当前绑定。
 命令 64 KiB argv 封套限制。`--until` 和 `--timeout` 要求 `--wait`；Windows 默认 idle/done/blocked 且无总超时，
 显式有限超时最长一小时。不等待时总预算为五秒。
 
-一个仅连接既有 Session 的 Client Session 负责快照查找、一次 Agent 身份解析、权威预检 Get、
+一个仅连接既有 Session 的 Client Connection 负责快照查找、一次 Agent 身份解析、权威预检 Get、
 一次 paste 加 Enter 发送以及后续 Get。预检要求会话存活、新鲜、状态已知且唯一绑定可导航
 终端。有待处理请求/needs-attention 时，在发送任何输入前以 `agent-blocked` 拒绝。这是
 采样预检，不会锁定 provider 后续状态或前台所有权。Server 在输入准入时仍验证终端绑定。
@@ -1107,7 +1107,7 @@ Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.
    较小的 UTF-8 内容沿用文本路径。`--paste` 改为生成一条粘贴记录（256 KiB）及
    可选的独立 Enter 记录。重复 `--key` 按参数顺序生成最多 64 条语义键记录；键
    使用协议名称，不是预制转义字符串。在映射类型化结果或准备输出之前完整释放
-   Client Session。包括部分接受在内，请求绝不重试。
+   Client Connection。包括部分接受在内，请求绝不重试。
 3. **应答** —— Server 的 `terminal.send.result` 拆分为 envelope 逐字报告的两条轴：
    `inputStatus`（`accepted` 表示 Host 已把输入记录入队——绝不表示子进程已读取或执行；
    `rejected`/`not-submitted` 表示该记录可证明从未到达队列；`unknown` 表示其可能
@@ -1228,7 +1228,7 @@ inputSource:"file"|"stdin"}`，仅超时另带 `timeoutMs`（配置的共享预�
 cohort → discovery → socket → admission 前导，但共享一个在调用入口采样一次的绝对
 5 秒命令预算：前导、准入、可选名称解析与 OBAP 读取共用同一个 ceiling，阶段之间绝不刷新——
 预算耗尽的后续阶段不会启动，在 ceiling 上或其后完成的步骤结算为命令自身的
-timeout。它们完全跳过 Workbench 快照读取。它们在唯一已准入的 Client Session 上
+timeout。它们完全跳过 Workbench 快照读取。它们在唯一已准入的 Client Connection 上
 必要时先完成上述名称解析，再执行一次 Agent Observation Protocol（OBAP）读取交换：
 
 Apple Silicon macOS 开发构建目前仅通过此路径提供不带 `--client` 的 `agent list`；`get`、
@@ -1244,7 +1244,7 @@ Apple Silicon macOS 开发构建目前仅通过此路径提供不带 `--client` 
    get/explain 以 128 KiB 为界；小型拒答走 ≤1 KiB 界限。帧的 `requestId` 必须
    等于所发身份，结果 kind 必须匹配所发 operation——任何失配均为
    `protocol-invalid`、stage `agent-read`。
-3. **释放**——Client Session 在任何结果映射或输出准备之前完全 drop。提交后
+3. **释放**——Client Connection 在任何结果映射或输出准备之前完全 drop。提交后
    不可判定的结果会 retire 该 session 且绝不重放：不重连、不二次准入、不重试。
 
 在 Linux 上，Agent 读取命令为整个 armed span 拥有一套独立、更窄的信号
@@ -1276,7 +1276,7 @@ source 只附在可信语义应答上——transport、timeout、protocol-invali
 cancelled 失败均不携带。Agent 读取只观察 Server 的 canonical Agent session；`ended` session
 被如实报告、绝不复活，`--include-ended` 放宽的是页过滤器而非生命周期本身。
 
-`agent wait` 持有一个已准入的 Client Session。Windows 按上述 Agent 等待策略读取规范
+`agent wait` 持有一个已准入的 Client Connection。Windows 按上述 Agent 等待策略读取规范
 变更及当前明细；Linux 保留 Get 轮询。每次交换都有新的请求身份，历史字段绝不覆盖
 当前明细。在命令开始时采样的可选绝对单调 deadline 覆盖准入、每次读取
 与每次退避；`--forever` 只省略该总期限；每轮在 `min(5 s, remaining total)` 下运行。两次未命中观察之间，循环睡一个
@@ -1740,7 +1740,7 @@ controller/viewer/resize 所有权。
    完全相同的语义解析（可能 `not-found`/`ambiguous`，此时提交零条命令），快照提供 `siteId`
    与 `expectedRevision`，并生成一个全新的 `WorkbenchRequestId`。
 7. **Command** —— 在已准入 session 上恰好提交一次 `workbench.command`。随后在任何结果
-   映射与输出准备之前完全释放 Client Session。
+   映射与输出准备之前完全释放 Client Connection。
 
 `expectedRevision` 的选择是协议的乐观并发契约：Server 将命令的 base revision 与当前
 revision 比对，不符即拒绝且不应用任何效果，故"读取一次并按该 revision 提交"就是被 admitted
@@ -1842,7 +1842,7 @@ close 失败 envelope 下报告为 `rejected`、`reason:"stale-generation"`，�
 ## 失败矩阵
 
 退出码：0 成功（含空表）；1 本地配置/输出/内部确定失败；2 usage/非法 target；3
-not-found/ambiguous/denied/rejected；4 service-unavailable（含 `session-capacity`）；5
+not-found/ambiguous/denied/rejected；4 service-unavailable（含 `connection-capacity`）；5
 transport-loss/protocol-invalid；6 incompatible；7 `timeout`（`terminal wait-output`
 期限耗尽未命中，或 send 源物化期间共享 deadline 到期）；8 outcome-unknown；130
 `cancelled`（被处理的 SIGINT 类中断——`terminal wait-output` 期间收到
@@ -1864,11 +1864,11 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | 合法基座下 scope 目录或 `client.sock` 不存在                                                                                        | `service-unavailable`                                                      | 4         | `{stage:"discovery"}`                                                                         |
 | `ConnectClientError::ConnectFailed`                                                                                                 | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                         |
 | `ConnectClientError::Io`                                                                                                            | `transport-loss`                                                           | 5         | `{stage:"admission"}`                                                                         |
-| OBLC `Rejected(CapacityExceeded)`                                                                                                   | `session-capacity`                                                         | 4         | `{stage:"admission"}`                                                                         |
+| OBLC `Rejected(CapacityExceeded)`                                                                                                   | `connection-capacity`                                                      | 4         | `{stage:"admission"}`                                                                         |
 | OBLC `Rejected(HandshakeTimeout)`                                                                                                   | `service-unavailable`                                                      | 4         | `{stage:"admission"}`                                                                         |
 | `Rejected(IncompatibleProtocol                                    \| IncompatibleCohort)`、`Protocol(IncompatibleVersion)`          | `incompatible`                                                             | 6         | `{stage:"admission"}`                                                                         |
 | `Rejected(WrongMessage                                            \| MalformedFrame)`、`UnexpectedResponse`、其余 `Protocol`        | `protocol-invalid`                                                         | 5         | `{stage:"admission"}`                                                                         |
-| `RequestIoConfiguration`、`SessionUnavailable`、`RequestEncoding`                                                                   | `internal-failure`                                                         | 1         | 省略                                                                                          |
+| `RequestIoConfiguration`、`ConnectionUnavailable`、`RequestEncoding`                                                                | `internal-failure`                                                         | 1         | 省略                                                                                          |
 | `SnapshotReadError::RequestNotSubmitted`（任何原因）                                                                                | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                          |
 | `Failed(Write                                                     \| ResponseDeadline)`、`Failed(Response(Io))`                     | `transport-loss`                                                           | 5         | `{stage:"snapshot"}`                                                                          |
 | `Failed(Response(InvalidHeader                                    \| Contract))`、`UnexpectedResponse`                              | `protocol-invalid`                                                         | 5         | `{stage:"snapshot"}`                                                                          |
@@ -1888,7 +1888,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | launch-read `OutcomeUnknown(CorrelationMismatch)`                                                                                   | `protocol-invalid`                                                         | 5         | `{stage:"launch-read",reason:"correlation-mismatch"}`                                         |
 | launch-read outcome `Unavailable(ServerBusy)`                                                                                       | `service-unavailable`                                                      | 4         | `{stage:"launch-read"}`                                                                       |
 | `DefinitelyNotSubmitted::RequestNotSubmitted`（command）                                                                            | `transport-loss`                                                           | 5         | `{stage:"command"}`                                                                           |
-| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                                      | `internal-failure`                                                         | 1         | 省略                                                                                          |
+| `DefinitelyNotSubmitted::ConnectionUnavailable`/`RequestEncoding`                                                                   | `internal-failure`                                                         | 1         | 省略                                                                                          |
 | command `Rejected` precommit                                                                                                        | `rejected`                                                                 | 3         | `{stage:"command",reason,revision}`                                                           |
 | command `Denied` precommit                                                                                                          | `denied`                                                                   | 3         | 省略                                                                                          |
 | command `Unavailable` precommit                                                                                                     | `service-unavailable`                                                      | 4         | `{stage:"command",reason}`                                                                    |
@@ -1923,7 +1923,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | launch-profile mutation `ProfileUnavailable`（`delete`、`tab create --profile`、`panel split --profile` 上零变更已 settle outcome） | `not-found`                                                                | 3         | `{resource:"launch-profile",target}`，属 profile envelope                                     |
 | launch-profile mutation `ProfileAmbiguous`（零变更已 settle outcome，同批命令）                                                     | `ambiguous`                                                                | 3         | `{resource:"launch-profile",target,candidates≤8,totalCount}`，属 profile envelope             |
 | send `RequestNotSubmitted`（请求可证明从未到达线缆）                                                                                | `transport-loss`                                                           | 5         | `{stage:"send"}`                                                                              |
-| send `SessionUnavailable`/`RequestEncoding`                                                                                         | `internal-failure`                                                         | 1         | 省略                                                                                          |
+| send `ConnectionUnavailable`/`RequestEncoding`                                                                                      | `internal-failure`                                                         | 1         | 省略                                                                                          |
 | send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                                 | `outcome-unknown`                                                          | 8         | `{stage:"send",requestId,reason}`                                                             |
 | `terminal.send.result` `Rejected`/`Unavailable`                                                                                     | 类型化应答，非失败 envelope                                                | 3/4       | send 结果 `reason`、`cleanupStatus`；`host-protocol-fault` 退出 5                             |
 | `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                           | 类型化应答，非失败 envelope                                                | 5         | send 结果 `recordsAccepted`、`acceptedEncodedBytes`、`cleanupStatus`                          |
@@ -1935,7 +1935,7 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | agent outcome `Rejected(ReadDenied)`                                                                                                | `denied`                                                                   | 3         | `{stage:"agent-read",operation,reason:"read-denied"}`                                         |
 | agent list outcome `Rejected(CursorInvalid\|CursorStale)`                                                                           | `rejected`                                                                 | 3         | `{stage:"agent-read",operation:"list",reason:"cursor-invalid"\|"cursor-stale"}`               |
 | agent outcome `Unavailable`                                                                                                         | `service-unavailable`                                                      | 4         | `{stage:"agent-read",operation,reason:"runtime-unavailable"}`                                 |
-| agent `SessionUnavailable`/`RequestEncoding`                                                                                        | `internal-failure`                                                         | 1         | 省略                                                                                          |
+| agent `ConnectionUnavailable`/`RequestEncoding`                                                                                     | `internal-failure`                                                         | 1         | 省略                                                                                          |
 | send 源校验：打不开/非 regular 路径、终端或不支持的 stdin、空、超限、非 UTF-8                                                       | `invalid-usage`                                                            | 2         | 省略（本地化 stderr 指明所声明选项与具体原因）                                                |
 | send 源物化期间共享 deadline 到期                                                                                                   | `timeout`，属 `orchbee.cli.failure.source`                                 | 7         | `{stage:"input",inputSource,timeoutMs}`                                                       |
 | send 源物化期间捕获合格信号                                                                                                         | `cancelled`，属 `orchbee.cli.failure.source`                               | 128+signo | `{stage:"input",inputSource}`                                                                 |
@@ -2015,7 +2015,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
   `--default-config`）绝不执行平台、运行、cohort 或 Session 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
   例外是 `terminal read`/`terminal wait-output`，其只读能力 viewer attachment 是唯一被
-  认可的读路径副作用，最小化持有并在输出前释放。至多持有一个短暂 Client Session，且绝不
+  认可的读路径副作用，最小化持有并在输出前释放。至多持有一个短暂 Client Connection，且绝不
   带入输出阶段。
 - Mutation 每次调用在全新 `WorkbenchRequestId` 下至多提交一次 `workbench.command`；绝不
   重试或重放，结果不可判定时报告 `outcome-unknown` 而非猜测。`terminal send` 对其唯一
@@ -2068,7 +2068,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | Schema 字典 ↔ 实际 envelope                                                                                                                                              | 每个成功/失败 fixture 通过校验；被拒变体不通过                                   | schema 对比测试                                                   |
 | API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                                                                                               | `api schema`/`api snapshot` 失败遵守调用方 format                                | `tests/cli_query.rs` + `src/cli` 测试                             |
 | 无 Session 磁盘状态                                                                                                                                                      | `service-unavailable`，零 fs/进程/锁变更                                         | `tests/cli_query.rs`                                              |
-| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`session-capacity`/结构不变                                                 | `tests/local_startup_process`                                     |
+| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`connection-capacity`/结构不变                                              | `tests/local_startup_process`                                     |
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                                                                           | 按矩阵 typed kind；绝不冒称真实 Server 证据                                      | `tests/cli_query.rs`                                              |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连                                               | `terminal read` 成功 + typed viewer-stage 失败                                   | `tests/cli_query.rs`                                              |
 | 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、过期重钉、窗口失配、超大 record                                              | 保留行投影成功 + typed 失败                                                      | `tests/cli_query.rs`                                              |
@@ -2181,7 +2181,7 @@ Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace�
 名称解析；只有明确未找到才回退到 Panel。显式 Session／名称不回退。带 `@panel:`
 前缀的目标直接选择 Panel，不查询名称。Workbench 拥有 Panel 身份及其主 presentation；
 Agent 状态拥有存活、可导航的 presentation 附件。隐藏附件仍可选。CLI 在持有的同一
-Client Session 上读取一次 Workbench 快照，将主 presentation ID 交给现有 OBAP 名称族。
+Client Connection 上读取一次 Workbench 快照，将主 presentation ID 交给现有 OBAP 名称族。
 其 presentation 选择器在 Agent 状态折叠内完成解析、分配或释放：零个存活匹配为未找到，
 一个为选中，多个会话为歧义。同一会话的重复附件只计一次。不分页、不取首个匹配，
 不推断终端文本，也不维护客户端名称表。
@@ -2247,7 +2247,7 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 `panel process-info [<panel-id> | --current] [--client <id>]` 读取精确 Terminal 的 Windows Job。位置参数与显式 Panel 目标互斥；完整 ID 和 `@panel:<suffix>` 使用现有 Panel 解析器及主绑定。没有显式选择器时，有效的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID` 保留调用者的精确主终端或子终端；部分或过期元数据失败。调用者元数据缺席时要求唯一当前 Client；`--client` 指定精确当前 Client 并忽略调用者元数据。Client 选择被动解析实际成员，并在发布前验证同一绑定及本地附着标识。[当前 Panel 契约](native-current-panel.zh-CN.md) 负责修订栅栏、期限和取消。成员不可用时不回退到主终端。
 
-一次仅接入既有 Session 的 Client Session 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
+一次仅接入既有 Session 的 Client Connection 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
 
 JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Session/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
@@ -2347,7 +2347,7 @@ Linux／Windows 读取使用 `--source` 和 `--lines`，默认 recent80。纯文
 时为 v4；未指定游标时既有输出也可匹配。匹配本身不表示命令完成。读取及等待不获取终端
 控制权，也不改变 Client 焦点。
 
-Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序，其 v3 JSON 会在 cohort 准入不可用时包含有界 I/O 诊断。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。显式选择的 Session 不存在时，会提示运行 `orchbee --session <name> server start`；未显式选择时提示 `orchbee server start`。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
+Windows `status server` 在 Client Connection 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序，其 v3 JSON 会在 cohort 准入不可用时包含有界 I/O 诊断。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。显式选择的 Session 不存在时，会提示运行 `orchbee --session <name> server start`；未显式选择时提示 `orchbee server start`。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
 
 ## Agent 导航
 
@@ -2355,7 +2355,7 @@ Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent
 
 ## Windows Agent 变更页
 
-`agent changes [--cursor <c>] [--limit <n>] [--format text|json]` 在现有五秒 Agent 读取总期限内读取一页有界变更。省略 cursor 获得当前头部检查点；将返回的不透明 cursor 用于后续读取。Limit 为 1–100，默认 50。不筛选、不订阅、不长轮询，也不自动重放。命令准入一个 Client Session，在中断仲裁前关闭它，并输出一个结果。Ctrl-C 保持共享取消/收尾契约。
+`agent changes [--cursor <c>] [--limit <n>] [--format text|json]` 在现有五秒 Agent 读取总期限内读取一页有界变更。省略 cursor 获得当前头部检查点；将返回的不透明 cursor 用于后续读取。Limit 为 1–100，默认 50。不筛选、不订阅、不长轮询，也不自动重放。命令准入一个 Client Connection，在中断仲裁前关闭它，并输出一个结果。Ctrl-C 保持共享取消/收尾契约。
 
 `orchbee.agent.changes` version-1 信封包含 canonical changes/current/reset-required 结果及关联 Agent source。Reset-required 明确表示连续性丢失，必须重建基线。无效/其他启动实例 cursor、禁止读取与运行时不可用使用现有 Agent 失败家族，operation 为 changes。返回页不得超过请求 limit。JSON 保留类型化事实与游标；本地化文本展示状态、revision 与续读信息。Server 拥有保留范围、认证及一致历史；CLI grammar/help/completion/schema/Skill 公开此边界。其他平台运行时暂不支持此新增命令。
 

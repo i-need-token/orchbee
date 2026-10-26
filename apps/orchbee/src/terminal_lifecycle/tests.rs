@@ -1838,8 +1838,8 @@ fn panic_cleans_partial_graphics_before_sync_and_discards_buffered_output() -> i
 fn actual_backend_graphics_write_failure_keeps_owned_cleanup_until_restoration() {
     use crate::{
         terminal_graphics::{Probe, Reply},
-        terminal_session::PaneGraphicsCanvas,
         tui_backend::ResizableBackend,
+        workbench_client::PaneGraphicsCanvas,
     };
     use orchbee_workbench_protocol::{
         PaneGraphicsLayer, PaneGraphicsPlacement, PaneGraphicsTarget, SiteId, WorkbenchPanelId,

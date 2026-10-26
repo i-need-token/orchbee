@@ -16,7 +16,7 @@ impl LocalClient {
     ) -> WorkbenchPanelInputSubmission {
         if self.connection.is_none() {
             return WorkbenchPanelInputSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelInputNotSubmitted::SessionUnavailable,
+                WorkbenchPanelInputNotSubmitted::ConnectionUnavailable,
             );
         }
         let command = request.0;
@@ -39,7 +39,7 @@ impl LocalClient {
         };
         let Some(connection) = self.connection.as_mut() else {
             return WorkbenchPanelInputSubmission::DefinitelyNotSubmitted(
-                WorkbenchPanelInputNotSubmitted::SessionUnavailable,
+                WorkbenchPanelInputNotSubmitted::ConnectionUnavailable,
             );
         };
         let attempt = exchange_once(
@@ -152,7 +152,7 @@ pub(crate) enum WorkbenchPanelInputSubmission {
 
 #[derive(Debug)]
 pub(crate) enum WorkbenchPanelInputNotSubmitted {
-    SessionUnavailable,
+    ConnectionUnavailable,
     RequestEncoding(WorkbenchWireError),
     RequestNotSubmitted(io::Error),
 }
@@ -160,7 +160,7 @@ pub(crate) enum WorkbenchPanelInputNotSubmitted {
 impl fmt::Display for WorkbenchPanelInputNotSubmitted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SessionUnavailable => f.write_str("local Client Session is unavailable"),
+            Self::ConnectionUnavailable => f.write_str("local Client Connection is unavailable"),
             Self::RequestEncoding(error) => {
                 write!(f, "OBWP panel-input request encoding failed: {error}")
             }
@@ -175,7 +175,7 @@ impl fmt::Display for WorkbenchPanelInputNotSubmitted {
 impl std::error::Error for WorkbenchPanelInputNotSubmitted {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SessionUnavailable => None,
+            Self::ConnectionUnavailable => None,
             Self::RequestEncoding(error) => Some(error),
             Self::RequestNotSubmitted(error) => Some(error),
         }

@@ -6,8 +6,8 @@ mod worker;
 use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
     machines::{Profile, ProfileId},
-    terminal_session::{NativeContextLocation, NativeContextTarget},
     terminal_text::sanitize_terminal_text,
+    workbench_client::{NativeContextLocation, NativeContextTarget},
 };
 use orchbee_workbench_protocol::{SiteId, Snapshot, WorkbenchProjectId, WorkbenchRevision};
 use policy::{Phase, Policy};

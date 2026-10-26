@@ -1,7 +1,7 @@
 use super::Locale;
-use crate::terminal_session::{
-    NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target, NativeSessionNotice,
-    NativeSetupStatus,
+use crate::workbench_client::{
+    NativeLocationLabelStatus as Status, NativeLocationLabelTarget as Target, NativeSetupStatus,
+    WorkbenchClientNotice,
 };
 
 #[test]
@@ -88,7 +88,7 @@ fn location_rename_recovery_preserves_its_target_without_offering_recovery_after
             assert!(retired.starts_with("retired"));
             assert!(retired.contains(locale.location_rename_committed_fact(target)));
             assert!(!retired.contains("Ctrl+B w"));
-            let notice = NativeSessionNotice::LocalBusy;
+            let notice = WorkbenchClientNotice::LocalBusy;
             let busy = locale.native_status_with_setup(
                 "live".to_owned(),
                 false,
@@ -110,7 +110,7 @@ fn later_errors_take_precedence_over_location_rename_success() {
         for status in [Status::Renamed, Status::Unchanged] {
             let setup = NativeSetupStatus::LocationLabel { target, status };
             for locale in [Locale::EnUs, Locale::ZhCn] {
-                let notice = NativeSessionNotice::CreateNotCreated;
+                let notice = WorkbenchClientNotice::CreateNotCreated;
                 assert_eq!(
                     locale.native_status_with_setup(
                         "live".to_owned(),

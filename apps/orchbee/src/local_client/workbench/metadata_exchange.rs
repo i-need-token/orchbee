@@ -2,7 +2,7 @@
 /// Exact failed exchange stage; it does not independently establish whether an effect occurred.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MetadataExchangeReason {
-    SessionUnavailable,
+    ConnectionUnavailable,
     Encoding,
     Deadline,
     NotSubmitted,
@@ -16,7 +16,7 @@ impl MetadataExchangeReason {
     /// Stable English diagnostic code for the failed exchange stage.
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
-            Self::SessionUnavailable => "session-unavailable",
+            Self::ConnectionUnavailable => "session-unavailable",
             Self::Encoding => "request-encoding",
             Self::Deadline => "request-deadline",
             Self::NotSubmitted => "request-not-submitted",

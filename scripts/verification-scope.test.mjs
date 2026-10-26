@@ -184,7 +184,7 @@ test('paired TUI standards and changed pairing receipts retain native ownership 
 	const selected = selectVerificationScope(
 		actual,
 		[
-			'apps/orchbee/src/terminal_session/ui/action_menus.rs',
+			'apps/orchbee/src/workbench_client/ui/action_menus.rs',
 			'docs/tui/terminal-environment.md',
 			'docs/zh-CN/tui/terminal-environment.md',
 			'scripts/documentation-pairing.json',

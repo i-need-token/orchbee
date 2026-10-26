@@ -41,7 +41,7 @@ System shell 仅在当前来源已证明为直接本地 Session 后使用原生�
 空兼容槽位中的配置选项要求先选择或创建 Workspace。Esc、既有父级返回、滚动、窄布局与
 绘制权限规则保持不变。本地适配器遵循 Desktop 的已保存配置语义；命令目录 ID 与 CLI
 `--profile` 保留各自既有的独立目录权威。配置解析、默认值不可变与菜单／渲染见证位于
-`src/terminal_session/ui/launch_profiles/tests.rs` 及相邻菜单测试套件。
+`src/workbench_client/ui/launch_profiles/tests.rs` 及相邻菜单测试套件。
 侧栏 Workspace／Project 删除与标签页关闭／继续关闭意图声明 `ActionTone::Destructive`；共享元数据
 与动作／行控件通过 `accent-destructive` 解析标签。标签页关闭确认使用相同意图色调。取消、元数据
 编辑、解散分组与颜色选项保持普通意图；红色调色板选项是值，不是破坏性意图。Pane 关闭保持既有
@@ -352,9 +352,9 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 搜索见证覆盖有效快捷键和本地化别名匹配、新建标签页子项命中、筛选后的动作身份及可用性、按字形簇
 退格、Ctrl+U 清空、查询长度上限，以及本地化无结果状态。
 
-在 `src/action_menu/tests.rs`、`src/terminal_session/ui/action_menus/tests.rs`、`src/terminal_input/dispatcher/tests/action_menu.rs`、`src/tui_render/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/action_menu/tests.rs`、`src/workbench_client/ui/action_menus/tests.rs`、`src/terminal_input/dispatcher/tests/action_menu.rs`、`src/tui_render/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
-`src/terminal_session/ui/action_menus/sidebar/tests.rs` 覆盖异步 token 替换与已取消轮次。
+`src/workbench_client/ui/action_menus/sidebar/tests.rs` 覆盖异步 token 替换与已取消轮次。
 `src/tui_render/action_menu/tests/sidebar.rs` 覆盖靠窗口边缘时不同探测结果的行坐标稳定性，
 以及两种语言下重名或截断 Project 的完整后缀。
 

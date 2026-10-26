@@ -74,11 +74,11 @@ impl WorkbenchService {
         }
     }
 
-    pub(crate) const fn client_session(
+    pub(crate) const fn client_connection(
         &self,
         generation: std::num::NonZeroU64,
-    ) -> WorkbenchClientSession<'_> {
-        WorkbenchClientSession {
+    ) -> WorkbenchClientConnection<'_> {
+        WorkbenchClientConnection {
             service: self,
             generation,
             #[cfg(windows)]
@@ -865,18 +865,18 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
     }
 }
 
-/// The authenticated Session, rather than a caller-controlled payload, owns view publication.
-pub(crate) struct WorkbenchClientSession<'a> {
+/// The authenticated Connection, rather than a caller-controlled payload, owns view publication.
+pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
     #[cfg(windows)]
     events: std::sync::Mutex<Option<events::Subscription>>,
 }
-impl WorkbenchClientSession<'_> {
-    pub(crate) fn execute_with_terminal_session(
+impl WorkbenchClientConnection<'_> {
+    pub(crate) fn execute_with_terminal_connection(
         &self,
         request: WorkbenchRequest,
-        session: &mut crate::local_terminal_service::LocalTerminalSession<'_>,
+        terminal_connection: &mut crate::local_terminal_service::LocalTerminalConnection<'_>,
     ) -> WorkbenchExecution {
         #[cfg(windows)]
         if let WorkbenchRequest::TerminalEditor(editor) = &request {
@@ -896,11 +896,11 @@ impl WorkbenchClientSession<'_> {
                 return WorkbenchExecution::Response(unavailable_or_denied(request, true));
             }
             return WorkbenchExecution::Response(WorkbenchResponse::TerminalEditor(
-                session.execute_editor(self.generation, editor.clone()),
+                terminal_connection.execute_editor(self.generation, editor.clone()),
             ));
         }
         #[cfg(not(windows))]
-        let _ = session;
+        let _ = terminal_connection;
         self.execute(request)
     }
 
@@ -1098,7 +1098,7 @@ impl WorkbenchClientSession<'_> {
         self.service.execute(request)
     }
 }
-impl Drop for WorkbenchClientSession<'_> {
+impl Drop for WorkbenchClientConnection<'_> {
     fn drop(&mut self) {
         #[cfg(windows)]
         self.service.terminals.disconnect_graphics(self.generation);

@@ -3,8 +3,8 @@
 use super::*;
 use crate::{
     terminal_input::InputDispatcher,
-    terminal_session::{NativeDrawReceipt, NativeSessionView, TerminalSessionView},
     tui_theme::Theme,
+    workbench_client::{NativeDrawReceipt, WorkbenchClientView},
 };
 use orchbee_local_site_runtime::{NativeNotificationDelivery, NativeNotificationSettings};
 use orchbee_workbench_protocol::{Notification, NotificationPosition, NotificationSound};
@@ -26,10 +26,8 @@ impl TerminalInputPort for Surface {
 }
 
 impl super::super::TerminalSurface for Surface {
-    fn view(&self) -> Option<TerminalSessionView<'_>> {
-        Some(TerminalSessionView::Native(
-            NativeSessionView::notification_test_view(),
-        ))
+    fn view(&self) -> Option<WorkbenchClientView<'_>> {
+        Some(WorkbenchClientView::notification_test_view())
     }
 
     fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
@@ -173,9 +171,7 @@ fn notification_waits_for_a_presentable_root_frame_before_painting_and_settling_
     let mut dispatcher = InputDispatcher::default();
     assert!(crate::notifications::available(
         &shell,
-        Some(TerminalSessionView::Native(
-            NativeSessionView::notification_test_view(),
-        )),
+        Some(WorkbenchClientView::notification_test_view(),),
     ));
     draw(
         &mut terminal,

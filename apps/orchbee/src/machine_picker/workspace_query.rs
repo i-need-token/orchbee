@@ -4,10 +4,10 @@ use super::{
     Row, Selection, Theme, agents::AgentAction, picker_interaction,
 };
 use crate::{
-    terminal_session::NativeContextLocation,
     terminal_text::{display_width, sanitize_terminal_text, unique_identity_suffix},
     tui_pointer::{HitLayer, HitMapBuilder},
     tui_render::controls::{ActionKind, QueryField, render_query_field},
+    workbench_client::NativeContextLocation,
 };
 use orchbee_workbench_protocol::SiteId;
 

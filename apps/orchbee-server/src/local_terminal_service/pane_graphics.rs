@@ -1,5 +1,5 @@
 //! Serial graphics preparation; canonical lock is held only for membership and atomic commit.
-use super::{LocalTerminalService, viewer_session::process_sampling::screen};
+use super::{LocalTerminalService, viewer_connection::process_sampling::screen};
 use orchbee_server::{
     DecodedGraphicsImage, PaneGraphicsAuthority, PaneGraphicsFrameCommit, PaneGraphicsOpen,
     PaneGraphicsOpenPreparation,

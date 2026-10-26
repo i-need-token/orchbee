@@ -20,12 +20,12 @@ use orchbee_local_client_protocol::{
 use orchbee_local_peer_credentials::require_same_effective_user;
 
 use crate::agent_service::{AgentPolicy, AgentService};
-use crate::client_session_registry::{ClientSessionAdmission, ClientSessionRegistry};
+use crate::client_connection_registry::{ClientConnectionAdmission, ClientConnectionRegistry};
 
 use crate::local_terminal_service::LocalTerminalService;
 use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 
-mod application_session;
+mod application_connection;
 #[cfg(windows)]
 mod managed_windows;
 #[cfg(windows)]
@@ -123,7 +123,7 @@ fn start_listener(
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     #[cfg(windows)]
     terminals.bind_agent_names(&agents)?;
-    let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
+    let registry = Arc::new(Mutex::new(ClientConnectionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
     let expected_cohort: Arc<str> = Arc::from(expected_cohort);
     let workbench = Arc::new(WorkbenchService::new(
@@ -153,7 +153,7 @@ fn start_listener(
 
 fn serve(
     listener: UnixListener,
-    registry: Arc<Mutex<ClientSessionRegistry>>,
+    registry: Arc<Mutex<ClientConnectionRegistry>>,
     connection_slots: Arc<ConnectionSlots>,
     expected_cohort: Arc<str>,
     terminals: Arc<LocalTerminalService>,
@@ -197,7 +197,7 @@ fn serve(
 
 fn handle_candidate(
     stream: UnixStream,
-    registry: &Arc<Mutex<ClientSessionRegistry>>,
+    registry: &Arc<Mutex<ClientConnectionRegistry>>,
     expected_cohort: &str,
     _connection_slot: ConnectionSlot,
     terminals: &LocalTerminalService,
@@ -217,7 +217,7 @@ fn handle_candidate(
 
 fn handle_candidate_control(
     mut stream: UnixStream,
-    registry: &Arc<Mutex<ClientSessionRegistry>>,
+    registry: &Arc<Mutex<ClientConnectionRegistry>>,
     expected_cohort: &str,
     _connection_slot: ConnectionSlot,
     terminals: &LocalTerminalService,
@@ -284,15 +284,16 @@ fn handle_candidate_control(
         Err(_poisoned) => return,
     };
     let generation = match admission {
-        ClientSessionAdmission::Accepted { generation } => generation,
-        ClientSessionAdmission::CapacityExceeded => {
+        ClientConnectionAdmission::Accepted { generation } => generation,
+        ClientConnectionAdmission::CapacityExceeded => {
             send_rejection(&mut stream, RejectionReason::CapacityExceeded);
             return;
         }
-        ClientSessionAdmission::GenerationExhausted => return,
+        ClientConnectionAdmission::GenerationExhausted => return,
     };
-    let _session_registration = ClientSessionRegistration::new(Arc::clone(registry), generation);
-    let workbench_session = workbench.client_session(generation);
+    let _connection_registration =
+        ClientConnectionRegistration::new(Arc::clone(registry), generation);
+    let workbench_connection = workbench.client_connection(generation);
     if write_message(
         &mut stream,
         &LocalClientMessage::ClientAccepted { generation },
@@ -309,12 +310,13 @@ fn handle_candidate_control(
     let Ok(mut records) = record_stream::ClientRecordStream::new(&stream) else {
         return;
     };
-    let session = std::cell::RefCell::new(terminals.session());
-    let _session_result = application_session::run_guarded(
+    let connection = std::cell::RefCell::new(terminals.client_connection());
+    let _connection_result = application_connection::run_guarded(
         &mut records,
-        |request| session.borrow_mut().execute(request),
+        |request| connection.borrow_mut().execute(request),
         |request| {
-            workbench_session.execute_with_terminal_session(request, &mut session.borrow_mut())
+            workbench_connection
+                .execute_with_terminal_connection(request, &mut connection.borrow_mut())
         },
         |request| match request {
             orchbee_agent_observation_protocol::AgentRequest::Changes(request) => agents
@@ -380,14 +382,14 @@ impl Drop for AgentRuntimeOwner {
     }
 }
 
-struct ClientSessionRegistration {
-    registry: Arc<Mutex<ClientSessionRegistry>>,
+struct ClientConnectionRegistration {
+    registry: Arc<Mutex<ClientConnectionRegistry>>,
     generation: std::num::NonZeroU64,
 }
 
-impl ClientSessionRegistration {
+impl ClientConnectionRegistration {
     const fn new(
-        registry: Arc<Mutex<ClientSessionRegistry>>,
+        registry: Arc<Mutex<ClientConnectionRegistry>>,
         generation: std::num::NonZeroU64,
     ) -> Self {
         Self {
@@ -397,7 +399,7 @@ impl ClientSessionRegistration {
     }
 }
 
-impl Drop for ClientSessionRegistration {
+impl Drop for ClientConnectionRegistration {
     fn drop(&mut self) {
         let mut registry = match self.registry.lock() {
             Ok(registry) => registry,

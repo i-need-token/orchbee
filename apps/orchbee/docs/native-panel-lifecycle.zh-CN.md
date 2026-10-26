@@ -25,13 +25,13 @@ Server 通过类型化放置让终端创建共用 Split 实现。Split 分配五
 
 本地 Client 对每个被接受的操作最多放行一次结构性面板变更——拆分、移动或关闭选中叶子——经由本地
 carrier 传输，并通过 UI 信箱结算其类型化结果。本规范管辖
-[native Tab Session](native-tab-session.zh-CN.md) 的面板操作扩展，以及为每个可见叶子持有一条
+[native Tab Session](workbench-client-runtime.zh-CN.md) 的面板操作扩展，以及为每个可见叶子持有一条
 附着 incarnation 的 pane 成员集合。维护时请与
-`terminal_session/state/panel.rs`、`terminal_session/mailbox/panel.rs`、
-`terminal_session/ui/panel.rs`、`terminal_session/state.rs` 与
-`terminal_session/state/membership.rs` 中的 pane 记录与调和机制、
-`terminal_session/workbench_projection.rs` 中的投影验证器、
-`terminal_session/connection/native/panel.rs` 中的本地执行器以及 local-client workbench 面板
+`workbench_client/state/panel.rs`、`workbench_client/mailbox/panel.rs`、
+`workbench_client/ui/panel.rs`、`workbench_client/state.rs` 与
+`workbench_client/state/membership.rs` 中的 pane 记录与调和机制、
+`workbench_client/workbench_projection.rs` 中的投影验证器、
+`workbench_client/connection/native/panel.rs` 中的本地执行器以及 local-client workbench 面板
 模块保持一致。
 
 Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、存在选中叶子、结构变更槽空闲且前向
@@ -108,11 +108,11 @@ setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保�
 
 | 运行时所有者                                  | 证据义务                                                       |
 | --------------------------------------------- | -------------------------------------------------------------- |
-| `terminal_session/state/panel.rs` 与成员状态  | 接纳排他、准确结果关联、保留提交、过期输入保留、合法后续叶修复 |
-| `terminal_session/mailbox/panel.rs`           | FIFO 交接、最多一次提交和准确的不明结果                        |
-| `terminal_session/connection/native/panel.rs` | 实际结果校验、类型化 attach 失败及有界清理                     |
-| `terminal_session/workbench_projection`       | 准确下一修订及后续发布校验、选择和 Empty 安装                  |
-| `terminal_session/state/tests.rs` 及生成测试  | Pane incarnation 隔离、替换和错误 pane 负向控制                |
+| `workbench_client/state/panel.rs` 与成员状态  | 接纳排他、准确结果关联、保留提交、过期输入保留、合法后续叶修复 |
+| `workbench_client/mailbox/panel.rs`           | FIFO 交接、最多一次提交和准确的不明结果                        |
+| `workbench_client/connection/native/panel.rs` | 实际结果校验、类型化 attach 失败及有界清理                     |
+| `workbench_client/workbench_projection`       | 准确下一修订及后续发布校验、选择和 Empty 安装                  |
+| `workbench_client/state/tests.rs` 及生成测试  | Pane incarnation 隔离、替换和错误 pane 负向控制                |
 
 `PaneIncarnationFencing` 仅抽象最后一项身份/清理边界。实际几何、载荷、操作回执和完整面板生命周期组合由这些实现套件负责。
 
@@ -120,7 +120,7 @@ setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保�
 
 `PaneIncarnationFencing.tla/.cfg` 检查两个逻辑 pane、每个 pane 最多两个 incarnation、两个选择 anchor、一个排队命令和一个执行 flight。`Mint`/`Depart`/`Cleanup` 对应成员替换与退役；`Admit`/`Start`/`Complete` 保留捕获的 pane、incarnation 和 anchor；`Draw` 只消费当前帧。清理、启动和完成采用弱公平。模型检查帧/效果属于当前身份、迟到清理保留后继实例，以及离开中的成员最终收敛。
 
-`terminal_session/state/tests/generated.rs` 用生产 reducer 执行 `ReincarnationFence`。`state/tests.rs` 的 `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` 与 `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` 覆盖错误 incarnation 和错误 pane 的效果。Mailbox、connection、workbench-projection 测试负责面板操作结果、回执关联、成员修复、绘制确认和失败处理。这些详细组合由实现测试支撑，不属于 TLC 穷举声明。
+`workbench_client/state/tests/generated.rs` 用生产 reducer 执行 `ReincarnationFence`。`state/tests.rs` 的 `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` 与 `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` 覆盖错误 incarnation 和错误 pane 的效果。Mailbox、connection、workbench-projection 测试负责面板操作结果、回执关联、成员修复、绘制确认和失败处理。这些详细组合由实现测试支撑，不属于 TLC 穷举声明。
 
 维护中的变异控制删除完成身份检查，必须触发 `FramesAreCurrent` 或 `EffectsUseCurrentIncarnation`。运行 `node scripts/tla/run-models.mjs --models native-client-pane-membership` 及所属 Cargo 测试。
 

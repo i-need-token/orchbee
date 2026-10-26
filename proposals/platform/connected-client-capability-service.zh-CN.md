@@ -65,7 +65,7 @@ Workspace 创建及显式首目录配置；终端启动仍为独立显式动作�
 [原生位置标签](../../apps/orchbee/docs/native-location-labels.zh-CN.md) 增加 Project 和 Workspace
 重命名控制，并保留终端执行。Desktop 迁移仍属独立工作。
 
-[显式 Session Viewer 路由基础](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record) 支持
+[显式 Session Viewer 路由基础](../../apps/orchbee-server/README.md#accepted-connection-viewer-routing-modeling-record) 支持
 多个 viewer 共享一个有序 Client Session，精确选择附件，并各自保留帧与 controller 状态。
 其所有者维护实现与可执行正确性论证。Server 侧 Panel 分割和聚合多终端 Tab Close 已有已接受的
 权威、模型及 Linux 进程证据。Linux 原生 Client panel layout/focus 现已通过严格 projection 和本地

@@ -32,7 +32,7 @@ const cases = [
 		/Action property UnknownIsTerminalEvidence is violated/u,
 	],
 	[
-		'session-viewer-routing',
+		'connection-viewer-routing',
 		'late cleanup releases successor',
 		'after == IF s.grant[target] = v THEN 0 ELSE s.grant[target]',
 		'after == 0',

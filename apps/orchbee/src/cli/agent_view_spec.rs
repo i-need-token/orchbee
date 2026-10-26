@@ -43,7 +43,7 @@ impl Answer {
         let status = match &self.observation {
             Observation::Unknown(_) => 8,
             Observation::ExchangeFailed(reason) => match reason {
-                MetadataExchangeReason::SessionUnavailable => 4,
+                MetadataExchangeReason::ConnectionUnavailable => 4,
                 MetadataExchangeReason::Encoding => 1,
                 MetadataExchangeReason::Deadline | MetadataExchangeReason::ResponseDeadline => 7,
                 _ => 5,

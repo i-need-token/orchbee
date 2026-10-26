@@ -1,7 +1,7 @@
 //! Capturing navigator paint; stable rows and their proofs publish in one frame.
 use super::{
     Clear, ClientView, Constraint, Frame, HitLayer, HitMapBuilder, HitTarget, Layout, Line, Locale,
-    NativeRefreshStatus, NativeSessionView, Paragraph, Rect, Role, ShellText, Theme, contexts,
+    NativeRefreshStatus, Paragraph, Rect, Role, ShellText, Theme, WorkbenchClientView, contexts,
     native_tab, overlay_block, place_overlay, tabs,
 };
 use crate::{
@@ -23,7 +23,7 @@ pub(super) fn render(
     text: ShellText,
     locale: Locale,
     view: &ClientView,
-    native: Option<&NativeSessionView<'_>>,
+    native: Option<&WorkbenchClientView<'_>>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> Option<Rect> {

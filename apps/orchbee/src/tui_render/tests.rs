@@ -4,8 +4,8 @@ use ratatui::{Terminal, backend::TestBackend};
 
 use crate::{
     client_view::{
-        BackendAction, ClientView, KeyCode, KeyEvent, Modifiers, PrefixInput,
-        SessionActionDisposition,
+        BackendAction, ClientActionDisposition, ClientView, KeyCode, KeyEvent, Modifiers,
+        PrefixInput,
     },
     localization::Locale,
     tui_layout::ViewportTier,
@@ -53,7 +53,7 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
 fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let notice =
-            locale.native_notice(crate::terminal_session::NativeSessionNotice::MenuUnavailable);
+            locale.native_notice(crate::workbench_client::WorkbenchClientNotice::MenuUnavailable);
         for status in [notice.clone(), format!("{notice} · recovery")] {
             for shell_notice in [
                 None,
@@ -230,10 +230,10 @@ fn sidebar_status_keeps_canonical_whole_hints_and_drops_oversized_facts() {
 fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
     use crate::{
         action_menu::{ActionMenu, MenuAction, MenuUnavailable},
-        terminal_session::ModalPresentation,
         terminal_text::display_width,
         tui_pointer::{HitMapBuilder, HitTarget},
         tui_theme::{Role, Theme},
+        workbench_client::ModalPresentation,
     };
     use ratatui::{
         TerminalOptions, Viewport,
@@ -522,7 +522,7 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
             view.machines.available = true;
             if view.sidebar_surface() != SidebarSurface::Hidden {
                 let transition = view.decide_action(ClientAction::ToggleBusinessSidebar);
-                view.commit(transition, SessionActionDisposition::KeepNavigator);
+                view.commit(transition, ClientActionDisposition::KeepNavigator);
             }
             assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
 
@@ -784,7 +784,7 @@ fn prefix(view: &mut ClientView, input: PrefixInput) {
 
 fn commit(view: &mut ClientView, input: PrefixInput) {
     let transition = view.decide(input);
-    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    view.commit(transition, ClientActionDisposition::KeepNavigator);
 }
 
 #[test]
@@ -839,7 +839,7 @@ fn unconnected_guidance_remains_readable_beside_the_overlay_sidebar_in_both_loca
             );
             for fact in [
                 locale.shell().shell_only_detail,
-                locale.shell().no_client_session,
+                locale.shell().no_client_connection,
             ] {
                 let complete: String = fact.chars().filter(|c| !c.is_whitespace()).collect();
                 assert!(exposed.contains(&complete), "{width} {locale:?}: {fact}");
@@ -1144,7 +1144,7 @@ use orchbee_terminal_protocol::{
 };
 use ratatui::layout::Rect;
 
-use crate::terminal_session::NativeViewportSurface;
+use crate::workbench_client::NativeViewportSurface;
 
 #[cfg(windows)]
 #[test]
@@ -1189,9 +1189,9 @@ fn keyboard_copy_preserves_first_and_last_served_rows_without_history_chrome() {
 fn history_window(
     texts: &[&str],
     columns: u16,
-) -> crate::terminal_session::terminal_viewport::ViewportWindow {
+) -> crate::workbench_client::terminal_viewport::ViewportWindow {
     use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
-    crate::terminal_session::terminal_viewport::ViewportWindow {
+    crate::workbench_client::terminal_viewport::ViewportWindow {
         graphics_present: false,
         route: TerminalRowWindowRoute {
             attachment_id: AttachmentId::from_bytes([7; 16]).unwrap(),
@@ -1575,12 +1575,12 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
         terminal_input::{
             MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
         },
-        terminal_session::PopupView,
         tui_pointer::{
             HitMapBuilder, HitTarget, InteractionTarget, MotionObservability, PointerOutcome,
             PointerState, PrimaryContract,
         },
         tui_theme::{GlyphSet, Theme},
+        workbench_client::PopupView,
     };
     use orchbee_workbench_protocol::{PluginPopupSize, WorkbenchRequestId};
     use ratatui::{layout::Rect, widgets::Paragraph};
@@ -1769,9 +1769,9 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
 fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
     use crate::{
         terminal_projection::TerminalProjection,
-        terminal_session::PopupView,
         tui_pointer::HitMapBuilder,
         tui_theme::{ColorLevel, Theme},
+        workbench_client::PopupView,
     };
     use orchbee_workbench_protocol::{
         PluginPopupSize, TerminalDisplayAppearance, UserPreferencesValues, WorkbenchRequestId,
@@ -1826,7 +1826,7 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
                             closing: false,
                         };
                         let area = Rect::new(0, 0, width, height);
-                        let (outer, inner) = crate::terminal_session::popup_geometry(
+                        let (outer, inner) = crate::workbench_client::popup_geometry(
                             popup.width,
                             popup.height,
                             area,
@@ -1892,7 +1892,7 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
 #[cfg(windows)]
 #[test]
 fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets() {
-    use crate::{terminal_session::PopupView, tui_pointer::HitMapBuilder};
+    use crate::{tui_pointer::HitMapBuilder, workbench_client::PopupView};
     use orchbee_workbench_protocol::WorkbenchRequestId;
     use ratatui::{layout::Rect, widgets::Paragraph};
 

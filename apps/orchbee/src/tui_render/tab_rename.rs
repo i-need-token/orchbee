@@ -5,10 +5,10 @@ use super::modal::{
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
-    terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
     terminal_text::{sanitize_terminal_text, truncate_display},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
+    workbench_client::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
 };
 use ratatui::{
     Frame,

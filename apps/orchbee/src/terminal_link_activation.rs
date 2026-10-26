@@ -19,4 +19,4 @@ pub(crate) use crate::terminal_content::{
 };
 pub(crate) use lane::{Admission, Driver, Notice};
 pub(crate) use plugin::{Activation, Error, Invocation, Selection};
-pub(crate) use reader::ReadSession;
+pub(crate) use reader::ReadAttachment;
