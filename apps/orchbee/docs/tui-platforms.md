@@ -63,6 +63,12 @@ Local activation retains the admitted runtime directory on every platform. Remem
 storage derives its cache path only inside the Windows adapter; the Unix adapter returns the
 typed `PositionStorage` refusal without reading Windows environment variables or inventing a path.
 
+Activation restore feedback is one optional typed fact on every platform, consumed by the same
+TUI notice and CLI warning projections. The Windows reader retains its activation-generation
+checks and I/O failures. The Unix reader reports an unsupported capability without probing storage;
+activation continues with no restore notice. Capability absence never hides a supported reader's
+I/O failure or fabricates a recovered or empty checkpoint.
+
 ## Admission and unsupported outcomes
 
 Unsupported optional actions are absent from menus and shortcut discovery. The sidebar omits

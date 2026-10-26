@@ -55,6 +55,10 @@ Unix 适配器向真实非阻塞管道写入一个保持可读的字节，并保
 本地激活在所有平台保留已准入的运行时目录。记忆位置存储只在 Windows 适配器内推导
 缓存路径；Unix 适配器返回类型化 `PositionStorage` 拒绝，不读取 Windows 环境变量，也不伪造路径。
 
+激活恢复反馈在所有平台都是同一个可选的类型化事实，由同一套 TUI 提示和 CLI 警告投影消费。
+Windows 读取器保留激活代次检查与 I/O 失败。Unix 读取器不探测存储，直接报告能力不支持；
+激活继续执行且没有恢复提示。能力缺失不会掩盖受支持读取器的 I/O 失败，也不会伪造已恢复或空检查点。
+
 ## 准入与不支持结果
 
 不支持的可选操作不出现在菜单与快捷键发现中。无目录输入能力时，侧栏省略新建工作区。
@@ -96,4 +100,4 @@ OS、模拟器／版本、几何、locale、主题和能力，覆盖共享导航
 以及缺失适配的本地化拒绝。远程连接失败或 Windows 检查都不能证明 macOS 或 Linux 通过。
 [TUI 验证](../../../docs/zh-CN/tui/verification.md)管理证据类别。
 
-<!-- documentation-pairing: english-sha256=25c754787c60cf514f33b429980fb2f1e3d3e8b99e02f11ff8c49f9cd1b90062 zh-cn-sha256=e5012a423aa228e0bc9b886e4fed75ff9f99fd96ab653a9d5bf5520bd78e8c82 -->
+<!-- documentation-pairing: english-sha256=6343ee586580484997a1e02e2006b26ac77e3ab6529d6e180e2baa82863dc437 zh-cn-sha256=013b2a6aeafd8ffe04c098cfd8ebdab59e00b039d159cfa47e3fba5d4ff5129d -->

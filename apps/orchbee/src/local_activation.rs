@@ -12,6 +12,8 @@ use orchbee_local_runtime::{
 };
 use std::{io, path::PathBuf, thread, time::Instant};
 
+mod restore_feedback;
+
 #[cfg(windows)]
 mod windows_selection;
 #[cfg(windows)]
@@ -115,7 +117,6 @@ pub(crate) struct StartedSession {
     pub(crate) runtime_base: PathBuf,
     /// The admitted canonical runtime, used for per-Session Client preferences.
     pub(crate) runtime_directory: PathBuf,
-    #[cfg(windows)]
     pub(crate) restore_notice: Option<orchbee_local_runtime::CheckpointRestoreNotice>,
 }
 
@@ -210,20 +211,17 @@ pub(crate) fn activate_local_session(
         #[cfg(windows)]
         _named_catalog.as_ref(),
     )?;
+    let restore_notice = match restore_feedback::read(&session) {
+        Ok(notice) => notice.map_err(runtime_failure)?,
+        Err(restore_feedback::Unsupported) => None,
+    };
     Ok(StartedSession {
         client,
         spawned,
         scope: scope_text,
         runtime_base: base,
         runtime_directory: session.runtime_directory().to_owned(),
-        #[cfg(windows)]
-        restore_notice: session
-            .checkpoint_restore_notice(
-                &std::env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .ok_or_else(|| runtime_failure(io::ErrorKind::NotFound.into()))?,
-            )
-            .map_err(runtime_failure)?,
+        restore_notice,
     })
 }
 

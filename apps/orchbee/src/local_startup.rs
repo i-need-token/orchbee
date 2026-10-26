@@ -63,19 +63,15 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
     // is exactly the `StartupFailure` it always derived.
     let started =
         local_activation::activate_local_session(deadline).map_err(|failure| failure.failure)?;
-    #[cfg(windows)]
     let allow_startup_directory = !matches!(
         started.restore_notice,
         Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty)
     );
-    #[cfg(not(windows))]
-    let allow_startup_directory = false;
     let directory = crate::workbench_client::StartupDirectory::new(
         startup_cwd.as_deref(),
         locale,
         allow_startup_directory && crate::tui_capabilities::Capability::DirectoryInput.available(),
     );
-    #[cfg(windows)]
     let notice = started.restore_notice.map(|notice| match notice {
         orchbee_local_runtime::CheckpointRestoreNotice::Recovered => {
             crate::client_view::Notice::CheckpointRecovered
@@ -84,8 +80,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
             crate::client_view::Notice::CheckpointEmpty
         }
     });
-    #[cfg(not(windows))]
-    let notice = None;
     let mut client = started.client;
     client.set_submission_deadline(Some(deadline));
     let mut workbench_client = WorkbenchClient::start_local(
