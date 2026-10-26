@@ -44,7 +44,6 @@ fn run_local(_command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
 
 #[cfg(any(unix, windows))]
 pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, Failure> {
-    #[cfg(not(windows))]
     if matches!(
         command,
         AgentIntegrationCommand::List {
@@ -52,8 +51,7 @@ pub(super) fn run_local(command: &AgentIntegrationCommand) -> Result<Prepared, F
             ..
         }
     ) {
-        return Err(Failure::new(FailureKind::ServiceUnavailable)
-            .details(stage_reason_details("platform", "unsupported-platform")));
+        super::execution::admit(super::execution::Capability::IntegrationOutdated)?;
     }
     let adapter_source = match command {
         AgentIntegrationCommand::List { adapter_source, .. }

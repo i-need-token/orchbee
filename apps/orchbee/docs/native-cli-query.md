@@ -1123,6 +1123,10 @@ binary's version aliases, nested help and missing stop confirmation with an unus
 the existing stop receipt witnesses retain the lifecycle safety checks.
 
 On Windows, `--default-config` must be the sole root argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
+The shared process router preserves this path before locale selection. Its named native ports
+retain Windows Session selection and Unix rejection of unavailable runtime routes; offline
+discovery continues to ignore Session selection. Integration `--outdated-only` admission also
+runs before signal registration and context inspection, retaining its existing Windows capability.
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or
 queries a Session; loading it is explicit and does not modify a shell profile.

@@ -1604,7 +1604,6 @@ fn name_value_block(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
 /// sections. Field names render verbatim like `config check`; hint text
 /// comes from the locale, and every fact streams through the shared detail
 /// writer into the bounded sink.
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) fn agent_doctor(
     out: &mut Bounded,
     result: &Value,
@@ -1678,7 +1677,6 @@ pub(crate) fn agent_doctor(
 /// The closing conclusion: a provider is ready with both its executable and
 /// hook present; an installed provider whose hook is absent, disabled or
 /// outdated needs `enable`; any other hook state needs `explain`.
-#[cfg(any(target_os = "linux", windows))]
 fn doctor_summary(result: &Value, locale: Locale) -> String {
     let mut counts = [0; 4];
     let mut enable = None;
@@ -1712,7 +1710,6 @@ fn doctor_summary(result: &Value, locale: Locale) -> String {
 /// text rendering — `providers.<id>.<field>` rows name their provider and
 /// `asset.roots[<i>]` rows name their root path (or `origin` when the path
 /// is not UTF-8). Mirrors the subjects the emitter cited.
-#[cfg(any(target_os = "linux", windows))]
 fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
     let mut subjects = Vec::new();
     for row in hint["evidence"].as_array().into_iter().flatten() {
@@ -1740,7 +1737,6 @@ fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
 
 /// One doctor fact cell: `state`, with its `reason` when present. Detail
 /// fields stay in the JSON document.
-#[cfg(any(target_os = "linux", windows))]
 fn doctor_fact(fact: &Value) -> String {
     let state = fact["state"].as_str().unwrap_or("unknown");
     fact["reason"]
@@ -1868,7 +1864,7 @@ mod terminal_list_tests {
     }
 }
 
-#[cfg(all(test, any(target_os = "linux", windows)))]
+#[cfg(test)]
 mod doctor_summary_tests {
     use super::doctor_summary;
     use crate::localization::Locale;

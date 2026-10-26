@@ -38,10 +38,6 @@ impl ArmedSignals {
         platform::ArmedSignals::arm().map(Self)
     }
 
-    pub(crate) fn arm_interrupts() -> Result<Self, platform::ArmError> {
-        platform::ArmedSignals::arm_interrupts().map(Self)
-    }
-
     pub(crate) fn finish(self) -> Result<Finish, platform::SignalError> {
         platform::finish(self.0).map(|cancelled| match cancelled {
             None => Finish::Clear,

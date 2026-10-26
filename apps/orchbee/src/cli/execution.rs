@@ -13,6 +13,7 @@ pub(super) enum Capability {
     RuntimeInspection,
     TerminalInput,
     AgentPrompt,
+    IntegrationOutdated,
     TerminalRun,
     WorkspaceGroupClose,
     WorktreeOperation,
@@ -61,6 +62,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::RuntimeInspection
         | Capability::TerminalInput
         | Capability::AgentPrompt
+        | Capability::IntegrationOutdated
         | Capability::TerminalRun
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation

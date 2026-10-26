@@ -9,6 +9,7 @@ mod console_interrupt;
 mod execution;
 mod input_source;
 mod installation;
+pub(crate) mod invocation_route;
 pub(crate) mod machines;
 pub(crate) mod notification;
 pub(crate) mod operation;

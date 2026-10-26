@@ -30,6 +30,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::TerminalInput
         | Capability::AgentPrompt
         | Capability::TerminalRun
+        | Capability::IntegrationOutdated
         | Capability::CanonicalAgentList
         | Capability::Reports
         | Capability::AgentManifests

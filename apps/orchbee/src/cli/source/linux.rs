@@ -602,9 +602,6 @@ fn read_bounded_at(
     Ok(bytes)
 }
 
-#[cfg(test)]
-mod tests;
-
 /// Preserve the native finish result while the facade constructs the shared stage outcome.
 pub(super) fn finish(
     signals: ArmedSignals,
@@ -626,3 +623,12 @@ impl SignalWatch for super::ArmedSignals {
         SignalWatch::take(&mut self.0)
     }
 }
+
+impl super::ArmedSignals {
+    pub(in crate::cli) fn arm_interrupts() -> Result<Self, ArmError> {
+        ArmedSignals::arm_interrupts().map(Self)
+    }
+}
+
+#[cfg(test)]
+mod tests;

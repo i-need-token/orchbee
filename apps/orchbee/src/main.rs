@@ -87,39 +87,23 @@ const _: fn(localization::Locale, bool) -> Result<(), tui_shell::TuiFailure> = t
 
 fn main() -> ExitCode {
     let selected = parse_selected_request(env::args_os().skip(1));
-    #[cfg(windows)]
     if let Ok(selected) = &selected
-        && matches!(&selected.request, invocation::Request::DefaultConfig)
+        && let Some(output) = cli::invocation_route::offline_default_config(&selected.request)
     {
         // The canonical template is locale-neutral. Keep this sole offline route ahead of every
         // environment read, including locale selection.
-        return emit(cli::default_config(Locale::EnUs), Locale::EnUs);
+        return emit(output, Locale::EnUs);
     }
     let locale = select_locale(|name| env::var_os(name));
     if let Ok(selected) = &selected
-        && !matches!(
-            selected.request,
-            invocation::Request::RootHelp
-                | invocation::Request::Help(_)
-                | invocation::Request::Version
-                | invocation::Request::Skill
-                | invocation::Request::Completion(_)
-                | invocation::Request::Query {
-                    command: invocation::QueryCommand::ApiSchema { .. },
-                    ..
-                }
-        )
-        && !cfg!(windows)
-        && (selected.availability == invocation::grammar::Availability::Windows
-            || selected.session.is_some())
+        && let Err(failure) = cli::invocation_route::admit(selected)
     {
-        return emit(cli::unsupported_platform(selected.format, locale), locale);
+        return emit(
+            cli::failure_output(failure, selected.format, locale),
+            locale,
+        );
     }
-    let parsed = selected.map(|selected| {
-        #[cfg(windows)]
-        local_activation::select_session(selected.session);
-        selected.request
-    });
+    let parsed = selected.map(cli::invocation_route::prepare);
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         return match local_startup::run(locale, *mouse) {

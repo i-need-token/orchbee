@@ -1,24 +1,18 @@
 //! Unavailable source acquisition returns before registering signals or observing input.
 use crate::cli::{Failure, FailureKind, SourceFinalization, input_source::SourceFailure};
-use orchbee_local_ipc::LocalIo;
 use std::{io, time::Instant};
 
 pub(super) type ArmError = io::Error;
 pub(super) type SignalError = io::Error;
 
-pub(crate) trait SignalWatch {
-    fn poll_fd(&self) -> Option<LocalIo<'_>>;
-    fn take(&mut self) -> io::Result<Option<i32>>;
-}
+// No source guard can be constructed here. Shared materialization may only pass the
+// opaque borrow to the rejecting acquisition ports; there is no native wake to expose.
+pub(crate) trait SignalWatch {}
 
 pub(super) enum ArmedSignals {}
 
 impl ArmedSignals {
     pub(super) fn arm() -> io::Result<Self> {
-        Err(io::ErrorKind::Unsupported.into())
-    }
-
-    pub(super) fn arm_interrupts() -> io::Result<Self> {
         Err(io::ErrorKind::Unsupported.into())
     }
 
@@ -31,15 +25,7 @@ pub(super) fn finish(signals: ArmedSignals) -> io::Result<Option<(i32, SourceFin
     match signals {}
 }
 
-impl SignalWatch for super::ArmedSignals {
-    fn poll_fd(&self) -> Option<LocalIo<'_>> {
-        match self.0 {}
-    }
-
-    fn take(&mut self) -> io::Result<Option<i32>> {
-        match self.0 {}
-    }
-}
+impl SignalWatch for super::ArmedSignals {}
 
 fn unavailable() -> SourceFailure {
     SourceFailure::Standard(Failure::new(FailureKind::ServiceUnavailable).details(
