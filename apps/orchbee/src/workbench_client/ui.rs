@@ -1347,7 +1347,7 @@ impl WorkbenchClientUi {
             history_positions: history_positions::Coordinator::default(),
             effects: super::terminal_effects::Queue::default(),
             terminal_effect: None,
-            clipboard: super::terminal_clipboard::Writer::default(),
+            clipboard: super::terminal_clipboard::Writer::new(),
 
             pending_draws: Vec::new(),
             poll_cursor: 0,

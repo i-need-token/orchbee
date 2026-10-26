@@ -411,7 +411,7 @@ fn run_prepared_surface(
         .set_focus_reporting(true)
         .map_err(TuiFailure::Runtime)?;
 
-    let mut system_notifications = crate::notifications::system::SystemNotifications::default();
+    let mut system_notifications = crate::notifications::system::SystemNotifications::new();
     let mut surface = SurfaceSlot::Owned(terminal_input);
     let run_result = run_surface_loop(
         &mut terminal,
@@ -474,7 +474,7 @@ fn run_prepared_surface(
         // output first; mode restoration still sends its own control bytes.
         modes.discard_frame_output();
     }
-    drop(system_notifications);
+    system_notifications.finish();
     drop(terminal);
     drop(surface);
     measurement_recorder

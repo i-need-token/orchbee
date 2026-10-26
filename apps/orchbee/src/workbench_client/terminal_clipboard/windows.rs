@@ -17,6 +17,10 @@ pub(in crate::workbench_client) struct Writer {
     task: Option<JoinHandle<()>>,
 }
 impl Writer {
+    pub(in crate::workbench_client) fn new() -> Self {
+        Self::default()
+    }
+
     pub(in crate::workbench_client) fn submit(&mut self, job: Job) {
         if self.stop.load(Ordering::Acquire) {
             return;

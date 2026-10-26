@@ -255,13 +255,7 @@ impl Receipt {
     }
 
     pub(crate) fn accepted(&self) -> bool {
-        matches!(
-            self.result.outcome(),
-            TerminalSendOutcome::Accepted {
-                cleanup: SendCleanupStatus::Confirmed,
-                ..
-            }
-        )
+        self.verdict() == SendVerdict::Quiet
     }
 
     pub(crate) fn verdict(&self) -> SendVerdict {

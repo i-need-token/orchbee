@@ -112,12 +112,14 @@ fn startup_preference_writer_flushes_latest_complete_record_before_join() {
     let root = Root(std::env::temp_dir().join(format!("orchbee-startup-preference-{nonce:032x}")));
     fs::create_dir(&root.0).unwrap();
     let path = root.0.join("position");
-    let lock = orchbee_local_runtime::PrivateCache::acquire(&path).unwrap();
-    let mut writer = Writer::start(path.clone()).unwrap();
-    writer.publish(position(1));
-    writer.publish(position(2));
-    writer.publish(position(2));
-    drop(lock);
+    let writer = {
+        let _lock = orchbee_local_runtime::PrivateCache::acquire(&path).unwrap();
+        let mut writer = Writer::start(path.clone()).unwrap();
+        writer.publish(position(1));
+        writer.publish(position(2));
+        writer.publish(position(2));
+        writer
+    };
     drop(writer);
     let raw = orchbee_local_runtime::PrivateCache::read_existing(&path, FILE, MAXIMUM_BYTES)
         .unwrap()

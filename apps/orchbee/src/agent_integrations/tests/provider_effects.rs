@@ -95,7 +95,7 @@ fn make_dirs() -> Dirs {
     let home = root.join("home");
     let parent = home.join(".orchbee/agent-observation-adapters");
     let dirs = Dirs {
-        capsule_root: parent.join(&"a".repeat(64)),
+        capsule_root: parent.join("a".repeat(64)),
         target: home.join("managed-target"),
         provider_cfg: home.join("provider.cfg"),
         cohort_dir: root.join("cohort"),

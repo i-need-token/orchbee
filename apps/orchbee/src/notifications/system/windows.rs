@@ -20,6 +20,16 @@ pub(crate) struct SystemNotifications {
     task: Option<JoinHandle<()>>,
 }
 impl SystemNotifications {
+    /// Construct the same lazy native owner without starting its notification thread.
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Join the native owner at the caller's settled resource-release boundary.
+    pub(crate) fn finish(self) {
+        drop(self);
+    }
+
     pub(crate) fn submit(&mut self, message: Notification) -> io::Result<()> {
         crate::tui_capabilities::Capability::SystemNotification.require()?;
         if self.sender.is_none() {

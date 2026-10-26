@@ -5,6 +5,10 @@ use super::super::terminal_effects::{Job, Outcome};
 pub(in crate::workbench_client) struct Writer;
 
 impl Writer {
+    pub(in crate::workbench_client) fn new() -> Self {
+        Self
+    }
+
     pub(in crate::workbench_client) fn submit(&mut self, job: Job) {
         job.dispatch_clipboard(|_text| Outcome::Unsupported);
     }
