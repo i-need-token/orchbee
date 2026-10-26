@@ -1123,5 +1123,12 @@ impl std::fmt::Display for Disconnect {
 }
 impl std::error::Error for Disconnect {}
 
+/// A typed peer rejection retires this carrier; an outer profile owner must not retry around it.
+pub(crate) fn terminal_failure(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(|source| source.is::<Disconnect>())
+}
+
 #[cfg(test)]
 mod tests;

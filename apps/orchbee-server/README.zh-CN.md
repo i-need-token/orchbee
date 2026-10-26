@@ -575,8 +575,22 @@ TUI 将已准入的 OBLC v1 连接升级为一条 OBWP v1 carrier。请求和订
 dispatcher 执行有限请求，并在 mailbox 和业务锁外写入。最多 64 条活跃 stream 和 64 个显式
 lane，另有根 lane 1。保留请求／响应的 reservation 共用 32 MiB 预算，保守计入编码副本。
 每条内部记录最多 24 MiB 加 12 字节 header。decoder 存储和当前解码记录另有有界临时分配；
-reservation 计数不是精确进程堆上限。Client 命令队列和输出队列也有固定上限。
+reservation 计数不是精确进程堆上限。增量 decoder 输入上限为 32 MiB，几何容量增长也受该上限
+约束；大 frame 出队后，空或最多 16 KiB 的后缀会替换超过 64 KiB 的多余容量，不把大 buffer
+作为空闲 scratch 保留。Client 命令队列和输出队列也有固定上限。
 预算耗尽返回类型化 Capacity 失败，不会无界缓存。
+
+在该总量内，Client 为应用进展验证预留一条 stream 和 256 KiB；普通消费者最多接纳 63 条
+stream，保留记录上限为 32 MiB 减 256 KiB。五秒未收到获接纳的应用进展后，唯一 actor 排队
+一个既有只读 `TerminalLaunchRead`。其合法非零目标可以不存在；即便返回 Found，响应也受
+OBCS 的 63 KiB payload 加八字节 header 上限约束。Server 按既有三倍记录长度预留预算，
+此结果最多计 193560 字节。decoder 和临时解析值仍有独立上界；此 reservation 不是整堆测量。
+stream 分配与 FIFO 入队共用用户命令锁，保留递增 open ID。两秒总期限从 probe 创建时开始，
+包含排队和写入时间。只有匹配 stream ID、请求身份、实际 handoff generation 且完整合法的
+Result 能结算它。其他 stream 和已退休 probe 回复不能续期。尚无在途 probe 时，获接纳的
+应用 frame 推迟下一次空闲探测。失败只表示无法确认进展：撤回投影，沿普通连接恢复路径处理，
+不重放已提交 mutation。Server 容量耗尽仍返回类型化 Capacity；控制预留不保证穿透过载 peer。
+SSH keepalive 本身不代表应用进展。这是每连接一个存活性采样，不是每功能的业务状态轮询。
 
 提交信号先于快照捕获注册。捕获期间并发提交会留下更高的信号 revision，dispatcher 在休眠
 前再次求值。状态 stream 先发快照，再发送变化后的完整值；Client 将待消费状态合并为一个值。
@@ -591,6 +605,12 @@ reservation 计数不是精确进程堆上限。Client 命令队列和输出队�
 无响应 socket 会关闭；仅在 socket 还能接收完整 frame 时才能交付类型化 disconnect。
 其他 Client 和提交发布不等待该 socket。多路复用 dispatcher 不支持长语义 Wait；
 直接 CLI Wait 保留原有有界契约。
+
+Workspace metadata 过期为同一 dispatcher 提供准确的 owner 下次期限。维护先取得 Session 锁，
+再采样单调时间、提交已到期状态并返回下一期限。dispatcher 在等待前求值相应失效提示；
+socket I/O 和等待期间不持业务锁。即便仅 TTL 改变、token 值相等，Report 的通用提交通知
+也会重新计算期限。没有 Workbench 状态时没有期限；退休或维护失败会关闭 carrier，
+不会不断重试已过去的期限。因此纯 metadata 消费者无需用周期读取驱动过期。
 
 Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重连、取消、ID 和订阅重建。
 交接前取消的请求为未提交；一旦写入可能开始，传输丢失即为 OutcomeUnknown，绝不重放请求。
@@ -607,8 +627,11 @@ Client actor 同时 poll carrier 与本地命令唤醒 stream，拥有物理重�
 既有 relay／所有权模型没有覆盖这个连接／订阅新边界。
 
 `local_client_service/multiplex/tests.rs` 的受控实现轨迹检查捕获期间提交、不读取的 peer 与
-仍进展的 peer 并存、事件 cursor 排他，以及迟到 lane 清理保留兄弟 owner。Client 传输轨迹检查取消后的迟到
-回复、真实事件溢出／gap／快照交付和总 reservation 拒绝；配置恢复检查不重放结果未知的
+仍进展的 peer 并存、事件 cursor 排他、迟到 lane 清理保留兄弟 owner、同值提前 TTL 上报后
+的空闲到期，以及维护失败不形成已过期限重试循环。Client 传输轨迹检查取消后的迟到
+回复、真实事件溢出／gap／快照交付和总 reservation 拒绝。受控空闲 probe 轨迹持续发送
+无关推送及旧 probe 回复直至固定期限，随后验证只恢复订阅、不重放未结算 Reload。
+配置恢复检查不重放结果未知的
 reload。控制轨迹让 UI 样本变化与投递竞态，消费准确 completion 后接纳下一命令。
 来源丢失轨迹让已完成 capture 经真实订阅读取失败出口回收，再验证兄弟任务可以启动；
 它使用受控 job，不是 OS Host 集成见证。视图生命周期轨迹区分兄弟与发布者清理。协议 codec 测试拒绝不可信长度、版本、身份和 tag。修改这些声明时运行
@@ -680,7 +703,7 @@ Create/Open 在异步准备后需要新建 Workspace 时，按来源当前成员
 
 ## Workspace 元数据上报
 
-[Workspace 元数据模型](../orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理既有 会话 锁内的临时 token 值、各来源序号栅栏及单调 TTL。独立的 OBWP 31/32 RPC 以读取权限准入查询、以导航管理权限准入上报，不创建拓扑账本项、不改变权威修订，也不要求终端 Worker。上报在 token／来源／资源容量限制下保持原子性；旧序号不刷新过期时间。重启后状态为空，已关闭 Workspace 的身份在下一次元数据操作时清理。通用元数据事件仍需单独集成。
+[Workspace 元数据模型](../orchbee/docs/windows-workspace-metadata.zh-CN.md) 管理既有 会话 锁内的临时 token 值、各来源序号栅栏及单调 TTL。独立的 OBWP 31/32 RPC 以读取权限准入查询、以导航管理权限准入上报，不创建拓扑账本项、不改变权威修订，也不要求终端 Worker。上报在 token／来源／资源容量限制下保持原子性；旧序号不刷新过期时间。重启后状态为空，已关闭 Workspace 的身份在下一次元数据操作时清理。上报和过期发布到语义 journal；已准入 dispatcher 在 owner 最早 TTL 期限唤醒。
 
 Panel 展示上报通过 OBWP 33/34 在 会话 锁内运行，使用读取／导航权限及精确主绑定守卫。[状态模型](docs/workbench-authority.zh-CN.md#panel-展示元数据) 负责按终端保存的临时来源、字段优先级、tokens 和过期。
 
@@ -786,4 +809,4 @@ GUI、TUI／模拟器或完整 cohort 验收。Client overlay 和公开 CLI 入�
 
 规范分割比例由原生 Client 共享并保存在 checkpoint v6，catalog v5 负责准入。[检查点契约](docs/workbench-checkpoint.zh-CN.md) 负责版本 1–5 的严格迁移；[共享比例契约](docs/shared-split-ratios.zh-CN.md) 负责比例修改、投影与兼容性。
 
-<!-- documentation-pairing: english-sha256=1f99d5413a634f0236b6d97ee175dd6c59b29521ec4d3e53adf73b00bcf678dd zh-cn-sha256=5ce313a5ec2a789538d5780cddd4e43fda78c849b6d083503dee338eb5a84c4f -->
+<!-- documentation-pairing: english-sha256=bf234dcac5290d4e0ce107d64fd540e2232139bc1880aa8102a110c03d8f5f26 zh-cn-sha256=27ba2b1dfe11e55dc9d3a03e8c2d4c730ba8a3a0f483deb30709401ff61301bf -->

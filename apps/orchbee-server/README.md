@@ -662,8 +662,28 @@ business locks. There are at most 64 active streams and 64 explicit lanes, plus 
 Retained request/response reservations share a 32 MiB budget; they conservatively include
 encoded copies. Individual inner records are at most 24 MiB plus their 12-byte header. Decoder
 storage and one currently decoded record have separate bounded transient allocations; the
-reservation count is not an exact process heap bound. A Client command queue and output queue
+reservation count is not an exact process heap bound. Incremental decoder input is capped at
+32 MiB with capped geometric capacity growth; after a large frame leaves, an empty or at-most-16-KiB
+suffix replaces excess capacity above 64 KiB. The large buffer is not retained as idle scratch.
+A Client command queue and output queue
 also have fixed bounds. A full budget produces a typed Capacity failure, never unbounded buffering.
+
+Within that total, the Client reserves one stream and 256 KiB for application-progress validation;
+ordinary consumers admit at most 63 streams and 32 MiB minus 256 KiB of retained records. After
+five seconds without accepted application progress, the sole actor queues one existing read-only
+`TerminalLaunchRead`. Its valid nonzero target need not exist; even a Found result is bounded by
+the OBCS maximum of 63 KiB payload plus eight header bytes. The Server charges its existing
+three-times-record reservation (at most 193560 bytes for this result). Decoder and temporary
+parsed values remain separately bounded; this reservation is not a whole-heap measurement.
+Stream allocation and FIFO enqueue share the user-command lock, preserving increasing open IDs.
+The two-second total deadline starts at probe creation, including queue and write time. Only its
+matching stream ID, request identity, actual handoff generation and valid complete Result settle
+it. Other streams and retired probe replies cannot renew that deadline. Before a probe is pending,
+accepted application frames postpone the next idle probe. Failure means progress cannot be confirmed:
+withdraw projections and use ordinary connection recovery without replaying submitted mutations.
+Server capacity exhaustion still returns typed Capacity; the control reservation does not promise
+passage through an overloaded peer. SSH keepalive alone is not application progress. This is one
+connection liveness sample, not per-feature business-state polling.
 
 The commit signal is registered before snapshot capture. A commit concurrent with capture leaves
 a newer signal revision, so the dispatcher reevaluates before sleeping. State streams send a
@@ -683,6 +703,14 @@ SlowConsumer. Each output record has a two-second write bound. An unresponsive s
 a typed disconnect is delivered only when the socket can still accept a complete frame. Other
 Clients and commit publication do not wait for that socket. Long semantic Wait requests are
 unsupported on the multiplexed dispatcher; direct CLI Wait retains its existing bounded contract.
+
+Workspace metadata expiry supplies an exact next-owner deadline to that same dispatcher. Under
+the Session gate, maintenance samples monotonic time after acquiring the lock, commits due expiry,
+and returns the next deadline. The dispatcher evaluates resulting invalidations before waiting;
+it holds no business lock across socket I/O or the wait. A Report's generic commit notification
+recomputes the deadline even when only TTL changes and token values remain equal. Missing
+Workbench state has no deadline; retirement or maintenance failure closes the carrier rather than
+retrying a past deadline. Pure metadata consumers therefore need no periodic read to drive expiry.
 
 The Client actor polls its carrier and a local command wake stream together. It owns physical
 reconnect, cancellation, IDs and subscription reconstruction. A request cancelled before handoff
@@ -706,9 +734,12 @@ connection/subscription boundary.
 
 Controlled implementation traces in `local_client_service/multiplex/tests.rs` check a commit during
 capture, an undrained peer alongside a progressing peer, exclusive event cursors, and late lane
-cleanup preserving a sibling.
+cleanup preserving a sibling, idle metadata expiry after a same-value earlier-TTL report, and
+maintenance failure without a past-deadline retry loop.
 Client transport traces check cancelled late replies, actual event overflow/gap/snapshot delivery
-and aggregate reservation refusal; configuration recovery checks that an uncertain reload is not
+and aggregate reservation refusal. A controlled idle-probe trace keeps unrelated pushes and an
+old probe reply flowing until the fixed deadline, then verifies subscription-only recovery and no
+replay of an unsettled Reload. Configuration recovery checks that an uncertain reload is not
 replayed. Control traces race a changed UI sample with delivery, consume its exact completion,
 and admit the next command. A source-loss trace holds a completed capture through the real
 subscription read failure and verifies that a sibling can start; it uses a controlled job, not
@@ -784,7 +815,7 @@ Transport admission remains surface-neutral. An admitted Windows Connection may 
 
 ## Workspace metadata reports
 
-The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) owns transient token values, per-source sequence fences and monotonic TTL under the existing Session gate. The separate OBWP 31/32 RPC uses read permission for queries and navigation permission for reports, without creating topology ledger entries, changing canonical revision or requiring a terminal Worker. Reports are atomic across token/source/resource limits; stale sequences do not refresh expiry. State is absent after restart, and closed Workspace identities are pruned at the next metadata operation. Generic metadata events remain a separate integration.
+The [Workspace metadata model](../orchbee/docs/windows-workspace-metadata.md) owns transient token values, per-source sequence fences and monotonic TTL under the existing Session gate. The separate OBWP 31/32 RPC uses read permission for queries and navigation permission for reports, without creating topology ledger entries, changing canonical revision or requiring a terminal Worker. Reports are atomic across token/source/resource limits; stale sequences do not refresh expiry. State is absent after restart, and closed Workspace identities are pruned at the next metadata operation. Reports and expiry publish to the semantic journal; admitted dispatchers wake at the earliest owned TTL deadline.
 
 Panel presentation reports use OBWP 33/34 under the Session gate, with read/navigation permissions and exact primary-binding guards. The [state model](docs/workbench-authority.md#panel-presentation-metadata) owns transient per-terminal sources, field priority, tokens and expiry.
 

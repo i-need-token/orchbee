@@ -7,9 +7,11 @@ Workspace 元数据是外部上报的临时展示数据。Workbench 权威在既
 元数据、Git 状态或配置。重启后元数据为空。重命名和移动保留 Workspace 身份；
 关闭的 Workspace 身份在下一次元数据观察或上报前清理。
 
-持续消费者是 `workspace report-metadata`、Workspace list/get 及其自动化客户端。
-通用元数据／过期事件、附加会话快照和 TUI token 模板仍有各自的集成义务；本契约不以查询
-代替事件订阅或模板渲染。Panel 展示和 Agent 上报仍归各自的语义所有者负责。
+持续消费者是 `workspace report-metadata`、Workspace list/get、自动化客户端及 TUI Workspace
+collector。上报和过期通过既有语义 journal 发布。共享 Client dispatcher 在 Session 锁内维护
+owner 最早的 TTL 期限，并在锁外等待；同值 TTL 变化仍通过上报的通用提交通知唤醒它。
+无需用周期 TUI metadata 读取驱动过期。附加会话快照和 token 渲染保留各自契约。
+Panel 展示和 Agent 上报仍归各自的语义所有者负责。
 
 ## 命令与规范化
 
@@ -94,4 +96,4 @@ CLI 集成还要求以进程检查覆盖修订改变、取消及结果不确定�
 交付匹配的 cohort 组件。回滚匹配代码即可撤销，无需持久化迁移或修改用户配置。
 不得从拓扑检查点恢复临时序号／TTL 状态。
 
-<!-- documentation-pairing: english-sha256=37e3ab942339bc6e953d05bf22856b4f4138bc80897b2c054cfd591975212755 zh-cn-sha256=2034729b4ce9a3861b6217a24e9c62620c6b910653c8b43c06826418f549035d -->
+<!-- documentation-pairing: english-sha256=954cfa52e5caf8b4aff42139d6c88f2cba34b5d28cdf391be3446edf2ec57b75 zh-cn-sha256=fa8e5141d81c9b86cb2599824835f9ca1ffe72c4f745c9e17de6dc3d3b18d8ab -->

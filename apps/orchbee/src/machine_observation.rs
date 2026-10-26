@@ -22,6 +22,13 @@ const FRESH_FOR: Duration = Duration::from_secs(10);
 // Host process titles and optional external Git observations have no committed notification source.
 // Only collectors requesting those observations sample; canonical metadata follows invalidations.
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
+// Failed admission/reads retry independently of successful state subscriptions. This is bounded
+// recovery backoff, never a periodic read of a successful canonical checkpoint.
+fn retry_after(failures: &mut u8) -> Duration {
+    let delay = Duration::from_millis((500_u64 << (*failures).min(6)).min(30_000));
+    *failures = failures.saturating_add(1);
+    delay
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Observation<T> {
     Loading,
@@ -131,6 +138,9 @@ struct Entry<T> {
     next: Option<Instant>,
     watch: Option<ChangeSubscription>,
     watch_started: bool,
+    watch_retry: Option<Instant>,
+    watch_failures: u8,
+    read_failures: u8,
     waiting_snapshot: bool,
     /// A publication arriving during a read requires another complete read afterwards.
     changed: bool,
@@ -174,7 +184,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
         read: Reader<T>,
     ) -> Vec<(Choice, Observation<T>)> {
         self.reconcile(&sources, now);
-        self.observe_changes();
+        self.observe_changes(now);
         let wakeup = self.wakeup.clone();
         self.tick_jobs(now, |source, deadline| {
             Job::start(source, deadline, read, wakeup.clone())
@@ -200,6 +210,9 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                     next: Some(now),
                     watch: None,
                     watch_started: false,
+                    watch_retry: None,
+                    watch_failures: 0,
+                    read_failures: 0,
                     waiting_snapshot: false,
                     changed: false,
                 });
@@ -212,17 +225,22 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
             }
         }
     }
-    fn observe_changes(&mut self) {
+    fn observe_changes(&mut self, now: Instant) {
         for entry in &mut self.entries {
-            if !entry.watch_started {
+            if !entry.watch_started && entry.watch_retry.is_none_or(|retry| now >= retry) {
                 entry.watch_started = true;
                 entry.waiting_snapshot = true;
                 entry.next = None;
                 // Enqueue registration before any domain read. A publication concurrent with
                 // capture/read remains in this mailbox until the next UI drain.
                 match entry.connection.watch_changes() {
-                    Ok(watch) => entry.watch = Some(watch),
+                    Ok(watch) => {
+                        entry.watch = Some(watch);
+                        entry.watch_retry = None;
+                    }
                     Err(_) => {
+                        entry.watch_started = false;
+                        entry.watch_retry = Some(now + retry_after(&mut entry.watch_failures));
                         entry.waiting_snapshot = true;
                         entry.observation = Observation::Unavailable;
                     }
@@ -232,11 +250,12 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 let Some(watch) = &entry.watch else { break };
                 match watch.poll() {
                     Ok(Some(ChangeEvent::Published)) => {
+                        entry.watch_failures = 0;
                         entry.waiting_snapshot = false;
                         entry.changed = true;
                         self.hinted.push(entry.choice.clone());
                     }
-                    Ok(Some(ChangeEvent::Reset)) | Err(_) => {
+                    result @ (Ok(Some(ChangeEvent::Reset)) | Err(_)) => {
                         // A completed old read must not reinstall pre-gap/pre-reconnect state.
                         if let Some(job) = entry.job.take() {
                             job.stop();
@@ -247,6 +266,12 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                         entry.next = None;
                         entry.observed = None;
                         entry.observation = Observation::Unavailable;
+                        if result.is_err() {
+                            entry.watch = None;
+                            entry.watch_started = false;
+                            entry.watch_retry = Some(now + retry_after(&mut entry.watch_failures));
+                            break;
+                        }
                     }
                     Ok(None) => break,
                 }
@@ -263,15 +288,17 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                 let mut job = entry.job.take().expect("finished job");
                 entry.observation = match job.task.take().expect("owned job").join() {
                     Ok(Completed { at, rows: Ok(rows) }) => {
+                        entry.read_failures = 0;
                         entry.observed = Some(at);
+                        entry.next = self.sample_external.then_some(now + SAMPLE_INTERVAL);
                         Observation::Ready(rows)
                     }
                     _ => {
                         entry.observed = None;
+                        entry.next = Some(now + retry_after(&mut entry.read_failures));
                         Observation::Unavailable
                     }
                 };
-                entry.next = self.sample_external.then_some(now + SAMPLE_INTERVAL);
             }
         }
         let mut active =
@@ -296,7 +323,7 @@ impl<T: Clone + Send + Sync + 'static> Collector<T> {
                     }
                     Err(()) => {
                         entry.observation = Observation::Unavailable;
-                        entry.next = self.sample_external.then_some(now + SAMPLE_INTERVAL);
+                        entry.next = Some(now + retry_after(&mut entry.read_failures));
                     }
                 }
             }

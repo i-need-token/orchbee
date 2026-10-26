@@ -620,6 +620,14 @@ A local wake stream makes command/cancel admission interrupt the same readiness 
 frames. No channel polling timer is used for delivery. The [Server delivery contract](../orchbee-server/README.md#multiplexed-client-delivery)
 owns framing, bounds, gap recovery and the finite model's exact claims and exclusions.
 
+Saved-machine observers promote their bootstrap connection before publishing an origin. Discovery
+keeps one state subscription; Agent/Workspace collectors register invalidations before their first
+read and retire prior jobs on reset. Metadata reads follow commits and owner expiry, while Host
+process titles and requested external Git state retain sampling. One carrier-wide application
+progress probe bounds idle freshness; SSH keepalive is insufficient. Failed registration or reads
+use bounded failure backoff, not successful-state polling. A failed remote observer retains its
+background guard until both collectors have withdrawn cached sources and subscriptions.
+
 | Consumer                                                                                              | Shared-carrier behavior                                                                                                                                                                                                   |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Window title, configuration, Settings                                                                 | UI-owned state subscriptions; configuration reload and preference writes are asynchronous one-shot requests. No forwarding thread.                                                                                        |

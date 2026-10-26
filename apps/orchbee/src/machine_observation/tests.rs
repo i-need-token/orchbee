@@ -306,6 +306,144 @@ fn pending<T: Send + Sync + 'static>(
         task: Some(task),
     }
 }
+
+#[test]
+fn failed_subscription_admission_and_first_read_recover_without_successful_state_polling()
+-> io::Result<()> {
+    use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
+    use orchbee_workbench_protocol::{
+        MultiplexMessage, StreamMode, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotResult,
+        WorkbenchSnapshotUnavailableReason, read_multiplex_message, read_workbench_request,
+    };
+    use std::sync::mpsc;
+    fn read_revision(
+        client: &mut LocalClient,
+        deadline: Instant,
+        cancel: Cancellation<'_>,
+    ) -> Result<Arc<u64>, ()> {
+        snapshot(client, deadline, cancel).map(|snapshot| Arc::new(snapshot.revision.value()))
+    }
+    let request = WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&id(1)).unwrap(),
+    });
+    let (full, filled) = mpsc::sync_channel(1);
+    let (closed, released) = mpsc::sync_channel(1);
+    let server = FakeServer::start(move |mut peer| {
+        admit(&mut peer, 1)?;
+        let mut last = None;
+        for _ in 0..63 {
+            last = Some(read_open(&mut peer)?.id);
+        }
+        full.send(()).unwrap();
+        assert!(
+            matches!(read_multiplex_message(&mut peer)?, MultiplexMessage::StreamClose { stream_id, .. } if Some(stream_id) == last)
+        );
+        closed.send(()).unwrap();
+        for (mode, available) in [
+            (StreamMode::Invalidations, true),
+            (StreamMode::Request, false),
+            (StreamMode::Request, true),
+        ] {
+            let open = read_open(&mut peer)?;
+            assert_eq!(open.mode, mode);
+            let WorkbenchRequest::SnapshotRead(request) =
+                read_workbench_request(&mut io::Cursor::new(&open.request)).unwrap()
+            else {
+                panic!("snapshot read");
+            };
+            respond(
+                &mut peer,
+                &open,
+                &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome: if available {
+                        WorkbenchSnapshotOutcome::Available {
+                            snapshot: crate::machine_agents::tests::fixture(),
+                        }
+                    } else {
+                        WorkbenchSnapshotOutcome::Unavailable {
+                            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                        }
+                    },
+                }),
+                1,
+            )?;
+        }
+        loop {
+            match read_multiplex_message(&mut peer) {
+                Ok(MultiplexMessage::StreamClose { .. } | MultiplexMessage::LaneClose { .. }) => {}
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                value => panic!("successful canonical state must stay idle: {value:?}"),
+            }
+        }
+    })?;
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .map_err(io::Error::other)?
+        .into_multiplexed()?;
+    let mut held = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while held.len() < 63 {
+        match client.origin().subscribe(&request, StreamMode::State) {
+            Ok(stream) => held.push(stream),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline);
+                thread::yield_now();
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    filled.recv_timeout(Duration::from_secs(2)).unwrap();
+    let source = Connection::from_origin(client.origin(), client.operation_clock());
+    let mut collector = Collector::<u64>::default();
+    let now = Instant::now();
+    assert_eq!(
+        collector.tick(sources(&source, 1), now, read_revision)[0].1,
+        Observation::Unavailable
+    );
+    let retry = collector.entries[0]
+        .watch_retry
+        .expect("capacity failure schedules bounded admission recovery");
+    assert!(retry > now);
+    drop(held.pop());
+    released.recv_timeout(Duration::from_secs(2)).unwrap();
+    // Leave room for the subscription and its one-shot domain read after admission succeeds.
+    drop(held.pop());
+    loop {
+        collector.tick(sources(&source, 1), retry, read_revision);
+        if collector.entries[0].read_failures > 0 {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        thread::yield_now();
+    }
+    let retry_read = collector.entries[0]
+        .next
+        .expect("failed first read schedules recovery");
+    assert!(retry_read > retry);
+    assert_eq!(collector.entries[0].observation, Observation::Unavailable);
+    loop {
+        let values = collector.tick(sources(&source, 1), retry_read, read_revision);
+        if matches!(values[0].1, Observation::Ready(_)) {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        thread::yield_now();
+    }
+    assert_eq!(collector.entries[0].watch_failures, 0);
+    assert_eq!(collector.entries[0].read_failures, 0);
+    let values = collector.tick(
+        sources(&source, 1),
+        retry_read + Duration::from_secs(3),
+        read_revision,
+    );
+    assert!(matches!(values[0].1, Observation::Ready(_)));
+    assert!(collector.entries[0].job.is_none());
+    assert_eq!(collector.entries[0].next, None);
+    drop((held, collector, source, client));
+    server.finish()
+}
 #[test]
 fn independent_agent_and_workspace_pools_bound_eight_jobs_and_join_both_on_retirement()
 -> io::Result<()> {

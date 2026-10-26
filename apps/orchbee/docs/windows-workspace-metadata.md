@@ -8,11 +8,13 @@ SessionCoordinator gate. It does not change canonical topology, Agent lifecycle,
 metadata, Git state or configuration. Restart starts with empty metadata. Rename and move preserve Workspace identity;
 closed Workspace identities are pruned before the next metadata observation or report.
 
-The recurring consumers are `workspace report-metadata`, Workspace list/get and their
-automation clients. General metadata/expiry events, auxiliary session snapshots and TUI token
-templates have separate integration obligations; this contract does not substitute a query
-for an event subscription or template renderer. Panel presentation and Agent reports retain
-their separate semantic owners.
+The recurring consumers are `workspace report-metadata`, Workspace list/get, their automation
+clients and the TUI Workspace collector. Reports and expiry publish through the existing semantic
+journal. The shared Client dispatcher maintains the earliest owned TTL deadline under the Session
+gate and waits outside that lock; a same-value TTL change still wakes it through the report's
+generic commit notification. No periodic TUI metadata read is needed to drive expiry. Auxiliary
+session snapshots and token rendering retain their own contracts. Panel presentation and Agent
+reports retain their separate semantic owners.
 
 ## Command and normalization
 

@@ -191,6 +191,9 @@ fn state_coalescing_releases_the_connection_budget_and_overrun_is_typed() {
             orchbee_workbench_protocol::MultiplexDisconnectReason::Capacity
         ))
     ));
+    assert!(terminal_failure(&error));
+    assert!(!terminal_failure(&io::ErrorKind::TimedOut.into()));
+    assert!(!terminal_failure(&io::ErrorKind::ConnectionAborted.into()));
     budget.store(0, Ordering::Release);
     let budget = Arc::new(AtomicUsize::new(health::RESERVED_BYTES));
     let streams = Arc::new(AtomicUsize::new(health::RESERVED_STREAMS));

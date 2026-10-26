@@ -32,6 +32,12 @@ stream ID 跨 lane 递增，在同一物理连接内不复用。每代订阅从 
 tag 和零身份均拒绝。增量解码限制部分输入，避免等待不完整 frame 时阻塞取消／命令唤醒。
 `src/multiplex/tests.rs` 检查部分／相邻 frame 和畸形准入，不证明 Server 资源所有权或交付顺序。
 
+Client 实现在上述 64 条 stream 中预留一条，并在总预算内预留 256 KiB，供有界空闲进展读取
+使用，不改变线版本或记录 kind。Decoder 输入及临时解析 frame 的上限与保留 stream 队列
+分开。增量输入容量采用几何增长，但不超过 32 MiB。完整大记录出队后，空或最多 16 KiB 的
+后缀会替换超过 64 KiB 的容量，既保留相邻部分 header，也不保留旧的大 scratch 分配。
+既有相邻记录轨迹覆盖这次释放。
+
 ## 共享用户偏好
 
 [通用偏好契约](docs/user-preferences.zh-CN.md) 拥有 GUI/TUI 清单、默认值、校验、
@@ -231,4 +237,4 @@ Windows cohort 的整链见证。
 
 `CloseOperationRead` 与 `CloseOperationResult` 在既有 intent 大小上限内使用 OBWP 61/62。它们按原始请求 ID 读取保留 Close，精确关联 会话／request／operation，并使用封闭的 Workspace／Tab／Panel 目标。此读取不创建状态，并保留墓碑。Rust、TypeScript 和 JSON Schema 共享命令语料；[CLI 操作状态](../../apps/orchbee/docs/native-operation-status.zh-CN.md) 负责调用及恢复。
 
-<!-- documentation-pairing: english-sha256=d9f8e5f0656762338bdc6c9529651e5d0c17b97a3fc77c6eb134aa72b70c68ac zh-cn-sha256=3a142c4f2f091ef206f5b307036ff921a4cb8a33142d002ff10fc7487596a47b -->
+<!-- documentation-pairing: english-sha256=ac2a01c47803f6cad030cf447649fbb92b09c5710dad93b67b824960c80d9350 zh-cn-sha256=ae23136a6f3e1975122ebc19281e91422269dd945aa716f295e645ae226638af -->

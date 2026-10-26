@@ -37,6 +37,13 @@ and permits cancellation/command wakeups without blocking on an incomplete frame
 `src/multiplex/tests.rs` exercise partial/adjacent frames and malformed admission; they do not prove
 Server resource ownership or delivery ordering.
 
+The Client implementation reserves one of those 64 streams and 256 KiB within the total budget
+for its bounded idle progress read; this changes no wire version or record kind. Decoder input
+and transient parsed frames have separate limits from retained stream queues. Incremental input
+capacity grows geometrically only up to 32 MiB. After a complete large record leaves, empty or
+at-most-16-KiB suffixes replace capacity above 64 KiB, preserving a partial adjacent header without
+keeping the old large scratch allocation. The existing adjacent-record trace covers this release.
+
 ## Shared user preferences
 
 [The common preference contract](docs/user-preferences.md) owns the GUI/TUI inventory,

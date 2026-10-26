@@ -89,6 +89,14 @@ pub(super) struct Manager {
     spaces: crate::machine_spaces::Collector,
     space_git: Option<bool>,
 }
+impl Drop for Manager {
+    fn drop(&mut self) {
+        // Drop UI-held source/watch clones before Discovery cancels its background guards.
+        // Cancelled reader jobs keep and release any remaining carrier clones on their threads.
+        self.agents.clear();
+        self.spaces.clear();
+    }
+}
 impl Manager {
     pub(super) fn new(view: &mut ClientView, wakeup: crate::workbench_client::UiWakeup) -> Self {
         view.machines.available = true;
@@ -192,7 +200,7 @@ impl Manager {
             focused_member(surface.active()),
         );
         // Command admission and validated snapshots already wake this loop. Do not wait for
-        // the independent, two-second metadata/Git collector to paint navigation changes.
+        // metadata's push-driven reads or external Git/Host sampling to paint navigation changes.
         let navigation = match surface.active().view() {
             Some(native) => native.sidebar_navigation(),
             _ => None,
@@ -254,6 +262,9 @@ impl Manager {
                 crate::machine_spaces::read_metadata
             },
         ));
+        // Failed observers retain their background transport guard until both collectors have
+        // dropped cached origins/subscriptions. Remaining cancelled jobs dispose on their threads.
+        self.discovery.finish_retirement();
         if let Some(native) = surface.active().view()
             && view
                 .machines

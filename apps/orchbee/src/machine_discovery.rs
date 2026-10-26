@@ -158,6 +158,7 @@ struct Entry {
     policy: Policy,
     worker: Option<Worker>,
     ready: Option<Ready>,
+    retiring: bool,
 }
 impl Entry {
     fn observation(&self, now: Instant) -> Observation {
@@ -190,10 +191,7 @@ impl Entry {
             Event::Failed { permanent, at } => {
                 self.ready = None;
                 self.policy.fail(permanent, at);
-                if let Some(worker) = &self.worker {
-                    // Retire cached origins before the worker releases its last tunnel owner.
-                    worker.cancel();
-                }
+                self.retiring = true;
             }
             Event::Reset => {
                 self.ready = None;
@@ -228,6 +226,7 @@ impl Discovery {
                     policy: Policy::new(now),
                     worker: None,
                     ready: None,
+                    retiring: false,
                 });
             }
         }
@@ -259,9 +258,21 @@ impl Discovery {
                     entry.ready = None;
                     entry.policy.fail(false, now);
                 }
+                entry.retiring = false;
             }
         }
         self.start_due(now, Worker::start);
+    }
+    /// The manager acknowledges after both collectors have retired cached source/watch owners.
+    /// Until then a failed worker keeps its last carrier/tunnel guard on the background thread.
+    pub(crate) fn finish_retirement(&mut self) {
+        for entry in &self.entries {
+            if entry.retiring
+                && let Some(worker) = &entry.worker
+            {
+                worker.cancel();
+            }
+        }
     }
     fn start_due(
         &mut self,

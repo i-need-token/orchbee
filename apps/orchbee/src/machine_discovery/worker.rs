@@ -66,7 +66,8 @@ impl Worker {
                     *worker_latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Update {
                         generation,
                         event: Event::Failed {
-                            permanent: permanent(error.kind()),
+                            permanent: permanent(error.kind())
+                                || crate::local_client::multiplex::terminal_failure(&error),
                             at: Instant::now(),
                         },
                     });

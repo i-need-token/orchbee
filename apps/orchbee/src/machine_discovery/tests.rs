@@ -172,20 +172,32 @@ fn observer(endpoint: std::path::PathBuf, generation: u64) -> io::Result<Worker>
     })
 }
 #[test]
-fn denied_or_uncorrelated_native_snapshot_requires_attention_without_automatic_retry()
--> io::Result<()> {
-    for wrong_identity in [false, true] {
+fn terminal_subscription_refusals_require_attention_without_automatic_retry() -> io::Result<()> {
+    for refusal in 0..4 {
         let server = FakeServer::start(move |mut stream| {
             admit(&mut stream, 1)?;
             let open = read_open(&mut stream)?;
             assert_eq!(open.mode, StreamMode::State);
+            if refusal >= 2 {
+                write_multiplex_message(
+                    &mut stream,
+                    &MultiplexMessage::Disconnect {
+                        reason: if refusal == 2 {
+                            orchbee_workbench_protocol::MultiplexDisconnectReason::Capacity
+                        } else {
+                            orchbee_workbench_protocol::MultiplexDisconnectReason::SlowConsumer
+                        },
+                    },
+                )?;
+                return drain_close(&mut stream);
+            }
             let WorkbenchRequest::SnapshotRead(read) =
                 read_workbench_request(&mut io::Cursor::new(&open.request))
                     .map_err(io::Error::other)?
             else {
                 panic!("observer sent a mutation");
             };
-            let request_id = if wrong_identity {
+            let request_id = if refusal == 1 {
                 orchbee_workbench_protocol::WorkbenchRequestId::parse(
                     "11111111111111111111111111111111",
                 )
@@ -281,6 +293,7 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
 -> io::Result<()> {
     let (gap, send_gap) = std::sync::mpsc::sync_channel(1);
     let (fresh, send_fresh) = std::sync::mpsc::sync_channel(1);
+    let (fail, send_failure) = std::sync::mpsc::sync_channel(1);
     let server = FakeServer::start(move |mut stream| {
         admit(&mut stream, 1)?;
         let open = read_open(&mut stream)?;
@@ -318,6 +331,14 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
                 sequence: NonZeroU64::new(2).unwrap(),
                 kind: StreamFrameKind::Snapshot,
                 record,
+            },
+        )?;
+        send_failure.recv_timeout(Duration::from_secs(2)).unwrap();
+        write_multiplex_message(
+            &mut stream,
+            &MultiplexMessage::StreamClose {
+                stream_id: open.id,
+                reason: orchbee_workbench_protocol::StreamCloseReason::Unsupported,
             },
         )?;
         drain_close(&mut stream)
@@ -365,6 +386,20 @@ fn native_observer_withdraws_on_gap_keeps_its_worker_and_cancels_without_snapsho
         d.observations(Instant::now())[0].1,
         Observation::Online(_)
     ));
+    let cached_source = d.connection(&p, Instant::now()).unwrap();
+    fail.send(()).unwrap();
+    let failure = next_update(d.entries[0].worker.as_ref().unwrap());
+    assert!(matches!(failure.event, Event::Failed { .. }));
+    d.entries[0].accept(failure);
+    d.tick(Instant::now());
+    assert!(d.entries[0].ready.is_none());
+    assert!(
+        !d.entries[0].worker.as_ref().unwrap().cancelled(),
+        "failure publication must retain the background guard until cached consumers retire"
+    );
+    drop(cached_source);
+    d.finish_retirement();
+    assert!(d.entries[0].worker.as_ref().unwrap().cancelled());
     let cancelled = Instant::now();
     drop(d);
     assert!(cancelled.elapsed() < Duration::from_secs(2));

@@ -318,6 +318,14 @@ impl MultiplexDecoder {
         if self.bytes.len().saturating_add(bytes.len()) > MAXIMUM_MULTIPLEX_BYTES {
             return Err(invalid());
         }
+        // Preserve amortized growth without letting capacity cross the admitted input bound.
+        let required = self.bytes.len() + bytes.len();
+        if required > self.bytes.capacity() {
+            let target = required
+                .max(self.bytes.capacity().saturating_mul(2))
+                .min(MAXIMUM_MULTIPLEX_BYTES);
+            self.bytes.reserve_exact(target - self.bytes.len());
+        }
         self.bytes.extend_from_slice(bytes);
         if self.bytes.len() >= HEADER_BYTES {
             payload_length(&self.bytes[..HEADER_BYTES])?;
@@ -335,6 +343,11 @@ impl MultiplexDecoder {
         let kind = u16::from_be_bytes([self.bytes[6], self.bytes[7]]);
         let message = decode(kind, &self.bytes[HEADER_BYTES..length])?;
         self.bytes.drain(..length);
+        // A decoded payload now belongs to the delivery budget. Do not retain a second large
+        // allocation as idle scratch; copying at most one read chunk preserves any next header.
+        if self.bytes.capacity() > 64 * 1024 && self.bytes.len() <= 16 * 1024 {
+            self.bytes = self.bytes.as_slice().to_vec();
+        }
         Ok(Some(message))
     }
     pub fn is_empty(&self) -> bool {

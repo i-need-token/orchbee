@@ -134,14 +134,14 @@ admission and application frames pass unchanged through that stream. Neither end
 fabricates an accepted generation or bypasses Server cohort admission. Remote
 terminal input, layout, metadata and control keep their existing semantic owners.
 
-A transport guard retained by Client origins owns its listener, relay task and
-SSH Jobs, including secondary query/control lanes. Each lane has bounded buffers;
-backpressure pauses reads instead of dropping bytes. EOF retires that lane, and
-no submitted frame is replayed. Dropping the last guard cancels and joins the
-relay and settles children. The remote stdio adapter likewise owns and settles
-its binary reader/writer Jobs. Disconnecting a Client does not stop the remote
-Session or terminal processes. No port forwarding, host-key acceptance, credentials
-storage, remote installation or POSIX implementation is added.
+A transport guard retained by Client origins owns its listener, relay task and SSH Jobs.
+The observer promotes its initial admission before cloning any retained or published origin;
+secondary query/control lanes are logical scopes on that carrier. Buffers are bounded and
+backpressure pauses reads. The connection actor owns replacement admission after EOF and never
+replays submitted frames. Final retirement cancels and joins relay work and settles children.
+The remote stdio adapter likewise owns and settles its binary reader/writer Jobs. Disconnecting
+a Client does not stop the remote Session or terminal processes. No port forwarding, host-key
+acceptance, credentials storage, remote installation or POSIX implementation is added.
 
 The picker owns keyboard and mouse input while open. Escape cancels; Enter and
 click choose an exact painted identity. Resizing or catalog replacement invalidates
@@ -181,27 +181,31 @@ catalog input suspends all discovery without changing the current terminal surfa
 Renaming preserves connection identity. No observer creates a terminal, claims
 control, changes focus, starts a Session or installs software.
 
-An observer uses the admitted persistent tunnel and reads native Workbench
-snapshots every two seconds with a five-second read deadline. A bounded
-summary retains Session/revision, project/workspace/Tab counts and up to eight
-preview labels of 80 scalars each, alongside the bounded context identities and
-labels used by workspace navigation below. A fresh successful native snapshot
-means Online; a saved profile or SSH process alone does not. An observation older
-than ten seconds is shown as stale and is not offered for connection reuse.
+An observer uses one Workbench state subscription on the admitted persistent tunnel. It accepts
+the initial correlated snapshot and subsequent pushed values; it does not reread every two seconds.
+The bounded summary retains Session/revision, project/workspace/Tab counts, at most eight preview
+labels of 80 scalars each, and the context identities and labels used by workspace navigation.
+A successful snapshot means Online only while the shared connection's application-progress deadline
+remains current. A saved profile, running SSH process or SSH keepalive alone is insufficient.
+The [carrier contract](../../orchbee-server/README.md#multiplexed-client-delivery) owns the single
+five-second-idle/two-second-total read probe and its resource and correlation bounds. An expired
+progress deadline is Stale and cannot supply a reusable connection. Gap/Disconnected withdraw the
+summary and retain the same observer while the actor rebuilds its subscription; only a fresh
+snapshot restores Online.
 
 Workspace navigation and its count include nonempty legacy compatibility content without
 inventing a canonical Workspace ID. Empty compatibility slots are omitted; empty canonical
 Workspaces remain visible. The same policy governs local sidebar checkpoints and remote summaries.
 
 Transitions are Waiting -> Connecting -> Online, or Connecting/Online ->
-Reconnecting/Attention. Transient failure retries after 500 milliseconds,
+Reconnecting/Attention. Bootstrap transport failure retries after 500 milliseconds,
 doubling up to 120 seconds; 60 seconds continuously online resets that history.
 Authentication, host-trust, unsupported/malformed protocol, absent installation
-and denied snapshots enter Attention without automatic retries. Explicit selection
+denied snapshots and typed terminal carrier rejections enter Attention without automatic retries. Explicit selection
 can request another attempt. Catalog generations fence all results, including a
 removed/re-added ID; a one-slot mailbox coalesces observations without an unbounded
 history. An admitted observer retains its transport through failure delivery; the UI
-clears its cached origin before acknowledging retirement. The observer clears its
+clears its cached origin and both collectors retire their cached sources/subscriptions before acknowledging retirement. The observer clears its
 mailbox and releases its last transport guard on its own thread. Profile limits bound observers; shutdown cancels every worker before joins.
 
 The centered machine picker is a capturing overlay. Its mode controls are
@@ -220,7 +224,7 @@ map. Release and each bounded wheel step revalidate the source against live stat
 a changed episode, query, filter, order or catalog fails closed, while copy, status,
 theme and pointer-only refreshes do not change semantic authority. Explicit
 selection waits at most 60 seconds for a fresh observer, reuses its admitted origin
-on a separate native lane, and commits only a drawable candidate. Selection
+on a logical lane of the same carrier, and commits only a drawable candidate. Selection
 failure, expiry or Escape preserves the current surface. Escape cancels the
 selection, while discovery of enabled profiles continues. Retry applies only to
 observations, never submitted terminal input or Client mutations. The workspace
@@ -329,21 +333,21 @@ Presentations retain their own identity. Labels are sanitized display data.
 Rows carry machine, Session, context, Tab, Panel, Presentation and complete physical
 binding; no name or row number grants navigation authority.
 
-At most four observation jobs run concurrently. Each job owns a separately
-admitted lane, a five-second total budget and one result slot; reads are bounded
-to 4096 bound Presentations and 8 MiB of serialized physical, report and metadata rows, with a
-two-second cooldown. Each Agent source also keeps one separately admitted semantic-event
-subscription for Agent detection, Agent status and pane exit. A matching event, gap or fresh
-subscription starts that source's next read immediately, or right after its in-flight read; the
-attached machine's hint also expedites the Session's Agent attention and Panel report reads. Agent
-event hints and completed Agent reads signal the existing UI wakeup, avoiding an extra input-poll
-interval before starting the read or painting its result. Notifications may coalesce; snapshots
-and owned job completion remain authoritative. The
-hint never replaces a read: the cooldown remains the fallback, and a failed subscription retries
-after ten seconds. Hiding the last Agent read consumer
-cancels pending jobs. Removed/disabled/replaced sources discard their results;
-freshness expires ten seconds after worker completion, including time spent
-waiting for the UI to consume the result. Only explicit activation opens a terminal.
+At most four observation jobs run concurrently. Each job owns a logical lane, a five-second
+budget and one result slot; reads admit at most 4096 bound Presentations and 8 MiB of serialized
+physical, report and metadata rows. Each source registers one shared-carrier invalidation stream
+before its first read and waits for an accepted initial snapshot. A commit during a read schedules
+another complete read. Gap/Disconnected retire even a completed old job before consuming results,
+withdraw observations and wait for a fresh subscription snapshot; coalesced reset/snapshot delivery
+still preserves retirement. Source identity includes the carrier, not just the saved choice.
+Registration or read failure retries only while failed, starting at 500 milliseconds and doubling
+to at most 30 seconds; successful canonical checkpoints have no periodic fallback. Agent Host
+process titles and requested external Git state have no notification source, so those observations
+retain a two-second sampling cooldown and ten-second age from job completion. Completed reads
+signal the UI wakeup; invalidations are consumed in the existing UI tick with at most the existing
+50-millisecond input wait, without an extra forwarding thread. Attached-machine hints also expedite
+Agent attention and Panel report reads. Hiding the last consumer cancels jobs and subscriptions;
+removed/disabled/replaced sources discard their results. Only explicit activation opens a terminal.
 The candidate revalidates the selected snapshot and physical checkpoint, starts
 at the exact member, and checks the returned Host identity before taking control.
 No terminal creation or unrelated attachment precedes that selection. Old
@@ -690,7 +694,8 @@ controlled implementation traces, not exhaustive TLC assurance or real multi-Cli
 
 Agent and workspace observations share the bounded job lifecycle, with separate
 four-job pools (at most eight combined), five-second operation budgets,
-ten-second freshness, cancellation and joined disposal. Rendering performs no
+cancellation and joined disposal. Pure metadata follows commit/expiry invalidations and the
+carrier progress deadline; external Host/Git sampling retains its ten-second freshness. Rendering performs no
 I/O. Workspaces and their expanded Agent children share one Client scroll window. Resolved row
 heights and gaps determine focus reveal, the final page, wheel flushing and
 exact hit rectangles; one wheel flush advances at most a viewport. Changed

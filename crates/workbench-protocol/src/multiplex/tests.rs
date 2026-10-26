@@ -43,6 +43,26 @@ fn partial_and_adjacent_records_preserve_boundaries_and_identities() {
         assert_eq!(decoded, messages);
         assert!(decoder.is_empty());
     }
+    let large = MultiplexMessage::StreamFrame {
+        stream_id: MultiplexStreamId::new(3).unwrap(),
+        sequence: NonZeroU64::MIN,
+        kind: StreamFrameKind::Snapshot,
+        record: vec![7; 512 * 1024],
+    };
+    let mut bytes = encode_multiplex_message(&large).unwrap();
+    let tail = encode_multiplex_message(&messages[4]).unwrap();
+    bytes.extend_from_slice(&tail[..7]);
+    let mut decoder = MultiplexDecoder::default();
+    decoder.push(&bytes).unwrap();
+    assert_eq!(decoder.next_message().unwrap(), Some(large));
+    assert!(
+        decoder.bytes.capacity() <= 64 * 1024,
+        "a delivered payload cannot leave its large scratch allocation resident"
+    );
+    decoder.push(&tail[7..]).unwrap();
+    assert_eq!(decoder.next_message().unwrap(), Some(messages[4].clone()));
+    assert!(decoder.is_empty());
+    assert!(decoder.bytes.capacity() <= 64 * 1024);
 }
 
 #[test]

@@ -547,6 +547,12 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 的 timer 交付。[Server 交付契约](../orchbee-server/README.zh-CN.md#client-多路复用交付)
 负责 frame、上限、gap 恢复和有限模型的准确声明与排除范围。
 
+已保存机器观察器在公开 origin 前升级 bootstrap 连接。发现保留一条状态订阅；Agent／Workspace
+collector 在首次读取前注册失效提示，并在 reset 时退休旧 job。Metadata 读取跟随提交与 owner
+到期，Host 进程标题和按需外部 Git 状态保留采样。每条 carrier 共用一个应用进展探测限制空闲
+新鲜度；SSH keepalive 不足以证明进展。注册或读取失败时采用有界失败退避，不轮询成功状态。
+失败远端观察器保留后台守卫，直到两个 collector 都撤掉缓存来源和订阅。
+
 | 消费者                                                                             | 共享 carrier 行为                                                                                                                                   |
 | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 窗口标题、配置、Settings                                                           | UI 拥有状态订阅；配置 reload 和偏好写入是异步一次性请求，没有转发线程。                                                                             |
@@ -926,4 +932,4 @@ Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin acti
 
 Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。
 
-<!-- documentation-pairing: english-sha256=a0d4068b832ab22aa97723dd1af4e6e0e0d53ee925afef1e387960b05a9fafcf zh-cn-sha256=075e69e7daff621001a4ea0b28df3b173a243a63011489fe1af56499b09320de -->
+<!-- documentation-pairing: english-sha256=2b9c285af9b0c9ac9488cfb0b4e01f9e04facc5cf44946b8535b5ba108db7a80 zh-cn-sha256=956c30e1c86eeb4aff00bd2719a123106646b7c7ccec044cf790551ae195def5 -->
