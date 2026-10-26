@@ -151,8 +151,9 @@ impl PluginRegistry {
         let component = component(&id);
         let config = self.root.join("config").join(&component);
         let state = self.root.join("state").join(component);
-        drop(PrivateCache::acquire(&config).map_err(storage)?);
-        drop(PrivateCache::acquire(&state).map_err(storage)?);
+        // Each statement releases its cache guard before acquiring the next directory.
+        PrivateCache::acquire(&config).map_err(storage)?;
+        PrivateCache::acquire(&state).map_err(storage)?;
         Ok((config, state))
     }
     pub fn mutate(&self, mutation: PluginRegistryMutation) -> Result<PluginRegistryResult, Error> {

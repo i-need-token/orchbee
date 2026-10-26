@@ -299,7 +299,7 @@ impl ModeCheckedLocalSessionRendezvous {
         let status = fstat(fd)?;
         if SFlag::from_bits_truncate(status.st_mode) != SFlag::S_IFREG
             || status.st_uid != self.expected_uid
-            || u32::from(status.st_mode & 0o7777) != LOCK_FILE_MODE
+            || permission_bits(status.st_mode) != LOCK_FILE_MODE
             || status.st_nlink != 1
             || status.st_size != 0
         {
@@ -401,9 +401,9 @@ impl ModeCheckedLocalSessionRendezvous {
             Ok(status) => Ok(EntryObservation::Present {
                 kind: EntryKind::of(status.st_mode),
                 owner_matches: status.st_uid == self.expected_uid,
-                mode: u32::from(status.st_mode & 0o7777),
+                mode: permission_bits(status.st_mode),
                 size: status.st_size.max(0) as u64,
-                link_count: u64::from(status.st_nlink),
+                link_count: normalized_link_count(status.st_nlink),
             }),
             Err(Errno::ENOENT) => Ok(EntryObservation::Absent),
             Err(error) => Err(error.into()),
@@ -733,8 +733,16 @@ fn require_owner(status: &FileStat, path: &Path, expected_uid: u32) -> Result<()
 }
 
 // Native stat field widths differ across Unix platforms; normalize losslessly.
+fn permission_bits(mode: impl Into<u32>) -> u32 {
+    mode.into() & 0o7777
+}
+
+fn normalized_link_count(link_count: impl Into<u64>) -> u64 {
+    link_count.into()
+}
+
 fn require_mode(mode: impl Into<u32>, path: &Path, expected: u32) -> Result<(), RendezvousError> {
-    let actual = mode.into() & 0o7777;
+    let actual = permission_bits(mode);
     if actual == expected {
         return Ok(());
     }
@@ -750,7 +758,7 @@ fn require_single_link(
     kind: LockKind,
     path: &Path,
 ) -> Result<(), RendezvousError> {
-    let actual = link_count.into();
+    let actual = normalized_link_count(link_count);
     if actual == 1 {
         return Ok(());
     }
