@@ -12,7 +12,7 @@ Agent 启动、已保存机器的管理与中继、配置报告的准备、结�
 
 Agent 投影读取、精确终端元数据、Client 注意力解释及保留的 Client 交换共用协议与渲染所有者。借用原生中断不会再次注册处理器，也不会替换 Unix 取消机制。投影能力准入先于副作用；Unix canonical Agent 读取保留当前选择器及 `AgentListCursor`，投影后端则解析自己的游标。
 
-Workspace 组关闭、Worktree 操作及来源查询的请求准备、保留观察和打开后聚焦收据均归共享 workflow 所有。能力准入先于字面路径解析与 operation ID 生成。Windows 路径解码仍是显式操作数语法；在其他 host 上编译此解码器不代表启用该平台的文件系统或 Git 操作。Client 聚焦观察失败或被取消，不会抹去已完成的规范操作。
+Workspace 组关闭、Worktree 操作及来源查询的请求准备、保留观察和打开后聚焦收据均归共享 workflow 所有。能力准入先于字面路径解析与 operation ID 生成。Windows 路径解码仍是显式操作数语法；在其他 host 上编译此解码器不代表启用该平台的文件系统或 Git 操作。Client 聚焦观察失败或被取消，不会抹去已完成的规范操作。规范终端读取／等待、Worktree 列表、启动配置目录及关闭状态分类也在共享所有者中编译；Linux 和 Windows 保留既有查询路径，macOS 则在发现运行时或注册信号之前拒绝。
 
 Client 导航／交换、可复用布局和直接终端成员创建共用选择、协议交换、恢复与收据展示。原生文档输入和可执行文件查找仍通过 Windows 端口，不可用命令在准备副作用前拒绝。现有 Linux Workbench mutation 路径继续准入；共享其收据引擎不代表在 macOS 准入该路径。
 
@@ -2505,4 +2505,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=9bebbcab1df15f275661ba2b9a6a54149ae45237391a2e0c7c8aa8293b75c2df zh-cn-sha256=927691b5a560c13b6ac607b9609bff193517660b9171cb20a9a585734ed9d27a -->
+<!-- documentation-pairing: english-sha256=e2da535fdee00c47d9949ca2003c67e77e2ab58fb33ec2fe654044d9e39ecac3 zh-cn-sha256=4d29f97b8430ff6338fb290d42cb8a5c72f11cf7fa40b58d12e0a5902d3dac62 -->

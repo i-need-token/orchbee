@@ -8,6 +8,7 @@ pub(super) enum Capability {
     CanonicalAgentRead,
     AgentNames,
     RetainedCloseOperation,
+    CanonicalWorkbenchRead,
     WorkspaceGroupClose,
     WorktreeOperation,
     ClientControl,
@@ -50,6 +51,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::CanonicalAgentRead
         | Capability::AgentNames
         | Capability::RetainedCloseOperation
+        | Capability::CanonicalWorkbenchRead
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation
         | Capability::ClientControl

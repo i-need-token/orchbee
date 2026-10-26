@@ -24,6 +24,7 @@ pub(crate) fn read_output(
     selection: OutputSelection,
     ansi: bool,
 ) -> Result<(serde_json::Value, Projection), Failure> {
+    crate::cli::execution::admit(crate::cli::execution::Capability::CanonicalWorkbenchRead)?;
     let (mut client, deadline, snapshot) = snapshot_session()?;
     let source = super::super::results::snapshot_source(&snapshot);
     let target = match target {
