@@ -520,9 +520,9 @@ fn reload_publishes_valid_candidates_and_retains_previous_state_on_load_or_apply
 }
 
 #[test]
-fn missing_default_resets_keys_and_restart_requirements_compare_against_startup() {
+fn missing_default_resets_keys_without_requiring_restart() {
     let fixture = Fixture::new();
-    fixture.write("[terminal]\ndefault_shell='cmd.exe'\n[session]\nresume_agents_on_restore=false");
+    fixture.write("[terminal]\ndefault_shell='cmd.exe'");
     let registry = Registry::default();
     registry.initialize(&fixture.settings(false)).unwrap();
     std::fs::remove_file(fixture.file()).unwrap();
@@ -530,8 +530,8 @@ fn missing_default_resets_keys_and_restart_requirements_compare_against_startup(
     else {
         panic!("reset defaults");
     };
-    assert_eq!(snapshot.restart_required, [Restart::ResumeAgents]);
-    fixture.write("[terminal]\ndefault_shell='cmd.exe'\n[session]\nresume_agents_on_restore=false");
+    assert!(snapshot.restart_required.is_empty());
+    fixture.write("[terminal]\ndefault_shell='cmd.exe'");
     let Outcome::Reloaded { snapshot, .. } = registry.execute(&request(Action::Reload), |_| true)
     else {
         panic!("return to startup");

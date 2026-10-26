@@ -1,17 +1,8 @@
-# Kitty 键盘回滚对齐
+# 键盘回滚
 
-## 参考范围
+## 范围
 
-本契约采用 2026-08-27 观察到的 Kitty 提交
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中主屏幕的逐行、逐页、顶部和底部键盘回滚入口。
-Kitty 的 `kitty/options/definition.py` 绑定 `kitty_mod+up`、`kitty_mod+down`、
-`kitty_mod+page_up`、`kitty_mod+page_down`、`kitty_mod+home` 和 `kitty_mod+end`；`kitty_mod`
-默认为 `ctrl+shift`。其 `kitty/screen.c` 翻页操作按可见行数减一移动，从而保留一行上下文。
-
-对齐声明覆盖这六个主要绑定、它们的主屏幕准入、方向与边界，以及翻页时的一行重叠。它不声明与
-Kitty 额外的 `kitty_mod+j/k` 或 macOS Command 别名、每个 Action 的多个绑定、键盘驱动的平滑逐行动画、
-像素时长调节、命令输出分页或备用屏幕应用行为一致。Orchbee 的每个 Action 仍只有一个可自定义的有效
-绑定，因此别名可以替换默认值，但不能在本目录中与默认值并存。
+主屏幕历史导航使用 `Ctrl+Shift+Up`、`Ctrl+Shift+Down`、`Ctrl+Shift+PageUp`、`Ctrl+Shift+PageDown`、`Ctrl+Shift+Home` 和 `Ctrl+Shift+End`。逐页移动保留一行上下文。每个 Action 有一个可自定义的有效绑定。不包含额外别名、键盘驱动平滑动画、命令输出分页或备用屏幕应用行为。
 
 ## 领域契约
 

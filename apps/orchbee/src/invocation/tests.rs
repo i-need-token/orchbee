@@ -7015,7 +7015,12 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
             "--right-click=panel",
         ],
         vec!["panel", "input", "--current", "--right-click=pane"],
-        vec!["panel", "input", "--current", "--right-click=herdr"],
+        vec![
+            "panel",
+            "input",
+            "--current",
+            "--right-click=invalid-target",
+        ],
         vec!["panel", "input", "--current", "--right-click="],
         vec!["panel", "input", "--current", "--right-click=Panel"],
         vec![

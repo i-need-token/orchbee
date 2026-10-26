@@ -31,7 +31,7 @@ fn target(
 }
 
 #[test]
-fn pinned_herdr_navigation_orders_distance_overlap_center_then_traversal() {
+fn navigation_orders_distance_overlap_center_then_traversal() {
     // Independent hand-computed rectangles exercise each lexicographic decision.
     let source = panel(1, Some(rect(30, 10, 20, 20)));
     let near = panel(2, Some(rect(51, 27, 4, 3)));

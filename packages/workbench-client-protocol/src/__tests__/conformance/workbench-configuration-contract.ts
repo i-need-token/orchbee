@@ -70,9 +70,7 @@ const ConfigurationSnapshotSchema = z.strictObject({
 	defaultShell: bounded(4096, 0).refine((value) => !/\p{Cc}/u.test(value)),
 	shellMode: z.enum(['auto', 'login', 'non_login']),
 	restartRequired: z
-		.array(
-			z.enum(['terminal.default_shell', 'terminal.shell_mode', 'session.resume_agents_on_restore']),
-		)
+		.array(z.enum(['terminal.default_shell', 'terminal.shell_mode']))
 		.max(3)
 		.refine((values) => new Set(values).size === values.length)
 		.readonly(),

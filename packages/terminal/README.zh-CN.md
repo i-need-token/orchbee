@@ -199,14 +199,11 @@ Terminal Host 为权威。缺少策略来源等同于 `false`。
 处置，都会恢复普通的跟随底部状态。无障碍行、链接、搜索、选择、滚动条与隐藏输入几何都消费
 同一个已提交可见窗口。
 
-选定的差分行为参考是 Warp 修订 `086dade63ff7327426d6276d57f85b3f2f313af0`，范围仅限
-`app/src/terminal/cli_agent.rs`、`app/src/terminal/view.rs` 与
-`app/src/terminal/model/blockgrid.rs` 所表达的可见尾部思路。Orchbee 保留 Host 投影行窗口架构；
-Warp 的 block 模型、功能开关机制、像素几何、光标策略和鼠标行为不属于该声明。确定性策略测试
+Host 投影行窗口拥有可见尾部策略。确定性策略测试
 覆盖每种内容信号与无操作边界；投影终端测试覆盖精确窗口准入、光标重映射、失败回退、运行时
 关闭、备用屏幕与应用鼠标排除，以及向手动历史的交接。
 
-选定的差分行为参考是 Ghostty 源码修订 `9c3ec931d64561a8407dde7ac984ce156ae91539`，具体包括 `Surface.scrollCallback`、`Termio.scrollViewport` 与 `PageList.scroll`，并单独与本地 ZeroGH 0.1 (1) 构建进行交互检查。对齐范围覆盖进度与滚轮呈现：输出推进时，有效固定的主屏幕视口会继续接纳历史移动；每个已准入的整行滚轮增量都会在下一次渲染前提交所得视口，不增加客户端自有的快照、transform、缓动曲线或合成惯性。Orchbee 仍保留 Host 投影的行窗口架构；精确像素、传输延迟、操作系统惯性事件及备用屏幕应用输入不属于该差分声明。
+主屏幕视口与滚轮呈现遵循以下规则：输出推进时，有效固定的主屏幕视口会继续接纳历史移动；每个已准入的整行滚轮增量都会在下一次渲染前提交所得视口，不增加客户端自有的快照、transform、缓动曲线或合成惯性。Orchbee 仍保留 Host 投影的行窗口架构；精确像素、传输延迟、操作系统惯性事件及备用屏幕应用输入由各自的宿主与传输契约约束。
 
 滚轮像素、行与页增量会累积到能够产生完整终端行。每个已准入的主屏幕移动随后委托给与编程式导航相同的 Host 权威历史意图工作流，下一份已提交行窗口会立即替换规范 Canvas。客户端不增加动画阶段；只有平台继续提供滚轮事件时才存在惯性。逐行、逐页、到底部、滚动条、搜索显露及选择自动滚动导航都遵循同一即时呈现规则。
 
@@ -223,28 +220,28 @@ Warp 的 block 模型、功能开关机制、像素几何、光标策略和鼠�
 通过受控时钟和 Worker 验证通知、激活、工厂及中止监听器的重入；这些本地轨迹不引入新协议，
 也不构成穷尽模型检查的声明。
 
-上一个和下一个提示符导航遵循有界的 [Kitty 对齐契约](docs/kitty-prompt-navigation-alignment.zh-CN.md)。它从当前可见顶部开始，通过通用缓冲区通道按最近优先顺序扫描 Host 编写的 OSC 133 行类别，并且只有主屏幕、固定快照、选中的可见锚点或同一意图的修订滞后修复锚点，以及本地历史意图仍为当前时才会提交。每次调用最多接纳 16 MiB 编码行窗口。缺少标记、备用屏幕使用、到达边界、来源耗尽、替换、取消以及过时或不可用读取都会保持视口不变。该包不会注入 Shell Integration，也不会从终端文本推断提示符。
+上一个和下一个提示符导航遵循有界的 [Kitty 对齐契约](docs/prompt-navigation.zh-CN.md)。它从当前可见顶部开始，通过通用缓冲区通道按最近优先顺序扫描 Host 编写的 OSC 133 行类别，并且只有主屏幕、固定快照、选中的可见锚点或同一意图的修订滞后修复锚点，以及本地历史意图仍为当前时才会提交。每次调用最多接纳 16 MiB 编码行窗口。缺少标记、备用屏幕使用、到达边界、来源耗尽、替换、取消以及过时或不可用读取都会保持视口不变。该包不会注入 Shell Integration，也不会从终端文本推断提示符。
 
 已聚焦终端的逐行、逐页、顶部和底部快捷键遵循有界的
-[Kitty 键盘回滚对齐](docs/kitty-keyboard-scrollback-alignment.zh-CN.md)。终端仅在主屏幕上接纳它们，
+[键盘回滚](docs/keyboard-scrollback.zh-CN.md)。终端仅在主屏幕上接纳它们，
 翻页时保留 Kitty 的一行重叠，并把每个请求委托给现有的 Host 权威历史意图工作流。到达边界会产生
 不变的本地结果；备用屏幕快捷键仍留给终端应用。
 
 可见键盘 Hints 遵循有界的
-[Kitty 键盘 Hints 对齐](docs/kitty-keyboard-hints-alignment.zh-CN.md)。每次调用只读取固定的可见行窗口，
+[Kitty 键盘 Hints 对齐](docs/keyboard-hints.zh-CN.md)。每次调用只读取固定的可见行窗口，
 排除被视口边缘截断的逻辑行，并最多为 512 个允许的 URL、路径、文件位置与小写十六进制 hash
 添加标签。overlay 在选择或取消前拥有标签按键事件。`ProjectedTerminal` 返回选中的类型化目标；
 应用负责打开 URL，或通过普通 paste 边界插入精确文本。
 
 上一条命令输出的准备遵循有界的
-[Kitty 命令输出查看器对齐](docs/kitty-command-output-viewer-alignment.zh-CN.md)。一次主屏幕调用会捕获
+[命令输出查看器](docs/command-output-viewer.zh-CN.md)。一次主屏幕调用会捕获
 通用缓冲区的精确 generation 与 revision，从新到旧扫描 Host 编写的 OSC 133 提示符行，并只把已写入的
 输出语义 cell 作为不可变纯文本 document 返回。软换行保持连接，硬行变成换行符。取消、过时、淘汰、
 缺少 Shell Integration、备用屏幕使用、畸形页面、传输失败与 16 MiB 聚合来源上限都保持为类型化结果，
 且绝不发布局部内容。应用拥有查看器、搜索、复制 Action 与剪贴板效果。
 
 完整保留历史的准备遵循有界的
-[Kitty 回滚历史查看器对齐](docs/kitty-scrollback-viewer-alignment.zh-CN.md)。一次主屏幕调用会从一个精确
+[Kitty 回滚历史查看器对齐](docs/scrollback-viewer.zh-CN.md)。一次主屏幕调用会从一个精确
 generation 与 revision 开始，按从旧到新顺序读取 text-detail 行、连接软换行、保留硬边界，并返回一份
 带有捕获可见顶部精确 UTF-16 偏移的不可变纯文本 document。取消、过时、淘汰、备用屏幕使用、畸形页面、
 传输失败与 16 MiB 聚合来源上限都不会发布前缀。应用拥有的 terminal-text viewer 提供搜索、初始定位、

@@ -18,7 +18,7 @@ export const PanelAgentStateSchema = z.enum([
 	'error',
 	'unknown',
 ]);
-const PanelAgentDispositionSchema = z.enum(['applied', 'ignored', 'deferred']);
+const PanelAgentDispositionSchema = z.enum(['applied', 'ignored']);
 const trim = (value: string) => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
 const label = z.string().refine((value) => trim(value).length > 0);
 const normalizedLabel = label.refine((value) => trim(value) === value);
@@ -142,54 +142,12 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 ]);
-const PanelAgentReferenceSchema = z
-	.strictObject({ kind: z.enum(['id', 'path']), value: z.string() })
-	.refine(
-		(ref) =>
-			ref.value.length > 0 &&
-			!/\p{Cc}/u.test(ref.value) &&
-			new TextEncoder().encode(ref.value).byteLength <= (ref.kind === 'id' ? 512 : 4096),
-	)
-	.readonly();
-const officialPairs: ReadonlySet<string> = new Set([
-	'herdr:pi/pi',
-	'herdr:omp/omp',
-	'herdr:mastracode/mastracode',
-	'herdr:opencode/opencode',
-	'herdr:kilo/kilo',
-	'herdr:kimi/kimi',
-	'herdr:claude/claude',
-	'herdr:codex/codex',
-	'herdr:copilot/copilot',
-	'herdr:devin/devin',
-	'herdr:droid/droid',
-	'herdr:qodercli/qodercli',
-	'herdr:cursor/cursor',
-	'herdr:grok/grok',
-	'herdr:hermes/hermes',
-	'herdr:qwen/qwen',
-	'herdr:letta/letta',
-	'herdr:antigravity_cli/agy',
-]);
-const PanelAgentSessionSchema = z
-	.strictObject({
-		source: z.string(),
-		agent: normalizedLabel,
-		reference: PanelAgentReferenceSchema,
-	})
-	.refine(
-		(session) =>
-			officialPairs.has(`${session.source}/${session.agent}`) &&
-			(session.reference.kind === 'id' || session.agent === 'pi' || session.agent === 'omp'),
-	)
-	.readonly();
 export const PanelAgentViewSchema = z
 	.strictObject({
 		agent: normalizedLabel.nullable(),
 		state: PanelAgentStateSchema,
 		authoritySource: z.string().nullable(),
 		message: z.string().nullable(),
-		session: PanelAgentSessionSchema.nullable(),
 	})
 	.refine(
 		(view) =>
@@ -361,8 +319,6 @@ const screenExplanation = z
 		visibleIdle: z.boolean(),
 		visibleBlocker: z.boolean(),
 		visibleWorking: z.boolean(),
-		screenDetectionSkipped: z.boolean(),
-		screenDetectionSkipReason: z.string().nullable(),
 		skipStateUpdate: z.boolean(),
 		skippedUpdateReason: z.string().nullable(),
 		fallbackReason: z.string().nullable(),
@@ -377,27 +333,12 @@ const screenExplanation = z
 	})
 	.refine((e) => {
 		const noFlags = !e.visibleIdle && !e.visibleBlocker && !e.visibleWorking;
-		if (e.screenDetectionSkipped) {
-			return (
-				e.manifest === undefined &&
-				e.screenDetectionSkipReason === 'full-lifecycle-hook-authority' &&
-				e.manifestSource === null &&
-				e.manifestVersion === null &&
-				e.matchedRule === null &&
-				e.evaluatedRules.length === 0 &&
-				noFlags &&
-				!e.skipStateUpdate &&
-				e.skippedUpdateReason === null &&
-				e.fallbackReason === null
-			);
-		}
 		let winner: z.infer<typeof detectionRule> | null = null;
 		for (const evaluated of e.evaluatedRules) {
 			if (evaluated.matched && (winner === null || evaluated.rule.priority > winner.priority))
 				winner = evaluated.rule;
 		}
 		if (
-			e.screenDetectionSkipReason !== null ||
 			!(
 				(e.manifest !== undefined &&
 					e.manifestSource === e.manifest.source &&
@@ -431,14 +372,6 @@ const screenExplanation = z
 		);
 	})
 	.readonly();
-const fullLifecyclePairs: ReadonlySet<string> = new Set([
-	'herdr:pi/pi',
-	'herdr:omp/omp',
-	'herdr:mastracode/mastracode',
-	'herdr:opencode/opencode',
-	'herdr:kilo/kilo',
-	'herdr:kimi/kimi',
-]);
 const terminalExplanation = z
 	.strictObject({
 		binding: TerminalAgentBindingSchema,
@@ -452,17 +385,8 @@ const terminalExplanation = z
 				rootPid: z.int().min(1).max(4294967295),
 				agentPid: z.int().min(1).max(4294967295).nullable(),
 			})
-			.readonly()
-			.nullable(),
+			.readonly(),
 	})
-	.refine((t) =>
-		t.explanation.screenDetectionSkipped
-			? t.sample === null &&
-				t.view.agent === t.explanation.agent &&
-				t.view.state === t.explanation.state &&
-				fullLifecyclePairs.has(`${t.view.authoritySource}/${t.explanation.agent}`)
-			: t.sample !== null,
-	)
 	.readonly();
 const PresentationAgentRowSchema = z
 	.strictObject({

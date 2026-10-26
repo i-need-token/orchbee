@@ -194,7 +194,7 @@ impl Subscription {
         if let Some(reason) = self.pending_failure {
             return Err(reason);
         }
-        // Herdr emits an already-matching Agent state captured by Subscribe before future changes.
+        // Emit an already-matching Agent state captured by Subscribe before future changes.
         for probe in &mut self.probes {
             let sequence = self
                 .probe_sequence

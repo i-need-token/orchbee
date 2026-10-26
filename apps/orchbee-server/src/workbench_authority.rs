@@ -23,8 +23,8 @@ use crate::workbench_projection::{
 
 mod checkpoint;
 pub use checkpoint::{
-    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, ManagedAgentRestart, PreparedWorkbenchRestoreBinding,
-    WorkbenchCheckpoint, WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
+    MAXIMUM_WORKBENCH_CHECKPOINT_BYTES, PreparedWorkbenchRestoreBinding, WorkbenchCheckpoint,
+    WorkbenchCheckpointError, WorkbenchRestoreError, WorkbenchRestoreTarget,
 };
 mod agent_reports;
 mod panel_agent;
@@ -301,10 +301,6 @@ pub struct WorkbenchAuthority {
         orchbee_workbench_protocol::TerminalPresentationId,
         orchbee_workbench_protocol::WorkbenchDirectoryPath,
     >,
-    pending_agent_sessions: BTreeMap<
-        orchbee_workbench_protocol::TerminalPresentationId,
-        orchbee_workbench_protocol::PanelAgentSession,
-    >,
 }
 
 impl WorkbenchAuthority {
@@ -337,7 +333,6 @@ impl WorkbenchAuthority {
             panel_metadata: panel_metadata::PanelMetadata::default(),
             panel_agent: panel_agent::PanelAgents::default(),
             plugin_panes: plugin_panes::Membership::default(),
-            pending_agent_sessions: BTreeMap::new(),
             restart_directories: BTreeMap::new(),
         })
     }

@@ -9,7 +9,6 @@
 检查点保留可选 Project 成员关系、Project 标签、全局本地目录路径、Workspace 及其显示顺序、终端上下文、有序 Tab、分组、固定状态、
 分屏结构及比例、Panel 输入策略及 Presentation 标签，同时保留 Launch Profile 定义和分配高水位，
 包括已删除 ID。主／子 Presentation 均保留结构，但不携带终端绑定或启动失败。
-同时保留已校验的外部 provider 引用，详见 [Agent 重启引用](agent-restart-reference.zh-CN.md)。
 
 它不保留运行进程、Site／Worker 身份、控制权、租约、Client 视图／焦点／zoom、请求结果、发布
 游标、未完成操作、Agent 状态或终端历史；这些恢复责任属于各自运行时所有者。检查点从不授权
@@ -20,7 +19,7 @@
 | 操作       | 前提                                                                                         | 结果与不变式                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 捕获       | 权威未退役；已提交对象图有效；每个 Directory 和已绑定 Presentation 都属于传入的本地 Worker。 | 一个有界检查点；源权威不变；移除进程绑定和 Worker 身份。                                                       |
-| 解码       | 严格当前 version 1 文档、字节有界、规范化导航、配置图、计数器及 provider 引用有效。          | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
+| 解码       | 严格当前 version 1 文档、字节有界、规范化导航、配置图、计数器有效。                          | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
 | 重建       | 调用者传入新启动的 Site 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile Site 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
@@ -33,7 +32,7 @@
 ### 当前规范化导航
 
 读写器仅使用标识 `orchbee.workbench.checkpoint`、数字版本 `version: 1`。
-所有保留字段均必填，包括 `agentSessions`、`terminalDirectories`、`managedNames`、
+所有保留字段均必填，包括 `terminalDirectories`、
 `projectOrder` 和 `workspaceOrder`。`checkpoint/navigation.rs` 仅有一个 DTO，保存按身份排序的
 全局 `directories`、`projects`、`workspaces` 数组。Project 记录含 `projectId` 和 `label`；
 Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryId` 和 `path`，重建时
@@ -47,9 +46,7 @@ Workspace 的 `projectId` 必填且可为 null。Directory 记录含 `directoryI
 现存标为版本 2–7 的文件，包括此前写入器生成的版本 7，都会变为不可读；修改版本标记不是受支持的转换。
 下述托管恢复策略会保留这些文件。
 
-规范分割比例继续保留，见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／Presentation
-声明含 `presentationId`、`name` 和 `providerId`，并要求匹配的已准入官方 provider 引用，见
-[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。`lastIdentity` 与每个 Profile 的
+规范分割比例继续保留，见[共享比例](shared-split-ratios.zh-CN.md)。`lastIdentity` 与每个 Profile 的
 `counter` 都是规范化、非零的 32 字符小写十六进制数。所有 Presentation 绑定为 `null`，
 `customLabel` 必填且可为 null。
 `checkpoint/contexts.rs` 拥有保留对象图形状：Tab 的 `automaticLabel` 和 `groupId`、Panel 的
@@ -107,23 +104,19 @@ Server 在打开 store 和清理 pending 文件前准入完整的 durable 形状
 `WorkbenchCheckpoint` 是已准入配置值：私有对象图校验身份不会成为可运行权威，只有使用新 Site
 及已准入 Worker 重建后才产生新的权威。
 
-启动 IPC 前，协调器准备所有新 shell／provider 预留和 Workbench 绑定。分发前失败尚无 Host／终端，终止创建所拥有的 Worker 并确认退出。每个准备请求仅分发、结算一次；失败／未知结果保持显式，不自动重试。保留目录优先于 Workspace／home 默认值；保存／配置目录缺失时回退到 Worker home。初始几何为 80x24、单元格 8x16，直到调整尺寸。主、子成员恢复不新增 Tab。期限到达时未分发请求结算不可用。后续启动失败停止维护，请求自有 Host／终端关闭，确认 Worker／传输退出并停止观察。未确认清理保留恢复状态；仅终止 Worker 不证明 Host 清理。
+启动 IPC 前，协调器准备所有新 shell 预留和 Workbench 绑定。分发前失败尚无 Host／终端，终止创建所拥有的 Worker 并确认退出。每个准备请求仅分发、结算一次；失败／未知结果保持显式，不自动重试。保留目录优先于 Workspace／home 默认值；保存／配置目录缺失时回退到 Worker home。初始几何为 80x24、单元格 8x16，直到调整尺寸。主、子成员恢复不新增 Tab。期限到达时未分发请求结算不可用。后续启动失败停止维护，请求自有 Host／终端关闭，确认 Worker／传输退出并停止观察。未确认清理保留恢复状态；仅终止 Worker 不证明 Host 清理。
 
 正常停止在请求和后台操作收敛后、释放 Worker 前保存。编码或发布失败阻止释放，保持停止失败；此前
 有效存档仍保留，被移走的无效原件仍在 raw 归档中。正常停止先结算唯一后台保存者，再捕获最新目录并发布最终存档，最后才释放
-Worker；延迟的后台写不能覆盖最终存档。新物理创建只播种保留的 provider 引用，不恢复存活 Agent
-状态或来源权威。Client／历史恢复仍属独立任务。已完成托管名称在新物理创建及引用播种之后、Client 发布之前恢复；
-普通名称和待完成启动不恢复。正常捕获将当前 Names 声明与精确物理引用组合。启动失败时的激活标记
+Worker；延迟的后台写不能覆盖最终存档。新物理创建建立终端绑定。Client／历史恢复仍属独立任务。启动失败时的激活标记
 仍遵循既有恢复语义。
 
 ## 运行中保存模型
 
-Windows 托管 Server 在终端恢复及引用／名称播种完成后拥有唯一后台保存者。它观察已提交的
-Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓存目录及当前精确代际的 provider
-resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃控制者状态。待办工作只有一份最新
+Windows 托管 Server 在终端恢复完成后拥有唯一后台保存者。它观察已提交的
+Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓存目录。payload 不包含终端屏幕、历史、Agent 对话或活跃控制者状态。待办工作只有一份最新
 快照，不使用无界队列。
-当全部保留副本都无效时，保存者在内存中保留准确的初始空 checkpoint，不发布该基线。之后只有布局、
-已缓存目录或 provider 引用发生变化，使完整 checkpoint 不同时，自动发布才可替换无效槽位。
+当全部保留副本都无效时，保存者在内存中保留准确的初始空 checkpoint，不发布该基线。之后只有布局或已缓存目录发生变化，使完整 checkpoint 不同时，自动发布才可替换无效槽位。
 该抑制仅适用于无人参与的后台保存。显式 `server stop --confirm` 表示确认当前工作区，因此其最新 final
 捕获即使仍是空状态也可以发布；存储 owner 会在提交前归档被替换的无效原始字节。
 
@@ -136,7 +129,7 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 
 确定性测试通过独立对象图预期覆盖捕获／重建、嵌套分屏及子 Presentation、Profile 重映射、
 删除身份后的分配、外部所有权、损坏、重复／未知字段、绑定注入、对象图错误和大小限制。
-当前形状夹具保留未分组成员关系、显示顺序、未使用／共享 Directory、Agent 引用、cwd 和托管名称。
+当前形状夹具保留未分组成员关系、显示顺序、未使用／共享 Directory、cwd。
 严格夹具覆盖字段缺失与不兼容版本。原生存储和 Server 加载证据验证无效副本的回退／空恢复提示及
 准确字节保留，其中包含此前的版本 7 文档。直接 Server 准入也验证在 durable catalog 不受支持时
 保留 pending 文件。
@@ -147,5 +140,4 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 替换受阻时必须保留旧字节和运行中的终端，直到显式重试成功；无效副本必须保留准确原始字节，
 产生声明的回退／空恢复提醒，且不得绕过 Site owner 准入。缓存捕获测试覆盖物理替换、乱序采样与
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。
-原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录及 provider resume 引用；真实 provider
-连续性、机器重启及交互负载仍须单独提供证据。
+原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录；机器重启及交互负载仍须单独提供证据。

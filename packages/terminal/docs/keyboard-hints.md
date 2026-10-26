@@ -1,19 +1,8 @@
-# Kitty keyboard-hints alignment
+# Keyboard hints
 
-## Reference scope
+## Scope
 
-This contract adopts the common visible-text selection workflow of Kitty's hints kitten at commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`, observed on 2026-08-27. Kitty's
-`kitty/options/definition.py` exposes keyboard entry points for visible URLs, paths, hashes, and
-`path:line` locations, while `kittens/hints/main.py` owns matching, labels, filtering, and result
-handling.
-
-Orchbee projects those frequent target families into one semantic Action instead of reproducing
-Kitty's kitten process or multi-key map tree. The parity claim covers keyboard labels over currently
-visible text, prefix filtering, cancellation, URL opening, and exact-text insertion for paths,
-file locations, and hashes. It does not claim Kitty's configurable regular expressions, alphabets,
-offsets, custom processors or programs, multiple selection, mouse selection, clipboard modes,
-line/word/IP modes, editor launch, filesystem opening, or arbitrary URL actions.
+One semantic Action selects visible URLs, paths, file locations and hashes using keyboard labels and prefix filtering. It supports cancellation, URL opening and exact-text insertion. Configurable matchers, custom processors, multiple selection, mouse selection, clipboard modes, editor launch and arbitrary programs are excluded.
 
 ## Domain contract
 
@@ -59,10 +48,7 @@ a later replacement cannot relabel that completed effect as cancelled.
 
 Workbench owns `terminal.hints.open`; Web registers the projected-terminal implementation and
 projects it into the terminal context menu, Action search, shortcut Settings, and localized result
-feedback. Apple and Standard platforms default to `Mod+Shift+O`. This deliberately differs from
-Kitty's `kitty_mod+e` URL entry because Standard `Ctrl+Shift+E` already owns Split Below and the
-current shortcut catalog supports one effective binding per Action rather than Kitty's aliases and
-multi-key maps.
+feedback. Apple and Standard platforms default to `Mod+Shift+O`. Standard `Ctrl+Shift+E` already owns Split Below. The catalog admits one effective binding per Action.
 
 Adding this Action extends Web's strict device-local shortcut record from version 8 to version 9.
 The version-9 reader migrates an exact v8 catalog and defaults, rejects a new-default conflict,

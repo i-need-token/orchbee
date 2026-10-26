@@ -57,7 +57,6 @@ fn restored(
         {"presentationId":primary,"path":"C:/primary"},
         {"presentationId":format!("{:032x}",1001),"path":"C:/child"}
     ]);
-    document["agentSessions"] = json!([{"presentationId":primary,"session":{"source":"herdr:grok","agent":"grok","reference":{"kind":"id","value":"resume"}}}]);
 
     let placement = WorkerPlacement {
         worker_id: WorkerId::from_bytes([10; 16]).unwrap(),

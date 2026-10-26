@@ -45,12 +45,6 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
         description: "Optional root directory for created worktrees.",
     },
     WindowsUserConfigOption {
-        path: "session.resume_agents_on_restore",
-        default: "true",
-        choices: "true, false",
-        description: "Resume Agents when restoring a Session.",
-    },
-    WindowsUserConfigOption {
         path: "update.channel",
         default: "stable",
         choices: "stable, preview",
@@ -207,9 +201,6 @@ const DEFAULT_CONFIG: &str = r#"[terminal]
 default_shell = ""
 shell_mode = "auto"
 focus_new_panel = true
-
-[session]
-resume_agents_on_restore = true
 
 [update]
 channel = "stable"

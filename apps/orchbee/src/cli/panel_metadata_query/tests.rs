@@ -182,7 +182,6 @@ fn actual_report_context_selects_guarded_metadata_without_rewriting_canonical_fi
                 state: orchbee_workbench_protocol::PanelAgentState::Blocked,
                 authority_source: Some(authority.into()),
                 message: Some("中文\n\u{1b}[31m".into()),
-                session: None,
             },
         ));
         let metadata = doc.value(&panel);

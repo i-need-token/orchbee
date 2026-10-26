@@ -89,55 +89,18 @@ TerminalStatus uses read-only request/result kinds 27/28 and the same request/sm
 
 ## Report input values
 
-`report_values` owns normalization and validated input values for native Agent reports. It
-has no report state, permissions, frame assignment, deadline, provider execution or I/O. The
-native CLI consumes its provider catalog and report-label normalizer; native process-name
-preprocessing remains a separate CLI policy. Report state/session/clear/release handlers and
-their query/TUI consumers are separate integration obligations, not delivered by these values.
+`report_values` owns report-label normalization and full-u64 source sequences. It has no report
+state, permissions, provider execution or I/O. Recognized labels use the report form (`claude`,
+`agy`, `copilot`, `qwen`), independently of canonical provider IDs. Unknown labels retain trimmed
+original content; normalization never removes internal controls or truncates identity. The exact
+catalog lookup does not trim, lowercase, strip suffixes or recognize bare `agent`; callers own those
+policies. Report normalization strips one recognized suffix before taking the last nonempty path
+component. Native process lookup retains its separate suffix and bare-`agent` policy.
 
-The compatibility reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, Windows
-report-label and `agent_resume` behavior. Recognized labels use the report form (`claude`,
-`agy`, `copilot`, `qwen`), independently of native canonical provider IDs. Unknown labels retain
-trimmed original content; normalization never removes internal controls or truncates identity.
-The metadata CLI retains its existing stricter guard bound until its wire contract is extended.
-The catalog's exact lookup operation does not strip suffixes, trim, lowercase or recognize bare
-`agent`; callers own those input policies. Report normalization strips one recognized suffix
-before taking the last nonempty path component. The same catalog serves native process lookup
-without changing that caller's existing suffix or bare-`agent` behavior.
-
-Only the exact 18 official source/Agent pairs admit provider references. Source names are
-untrusted data, not authentication. Six pairs have full lifecycle reports, four are identity-only,
-and the remaining eight use native state observations. Other pairs are custom reports and
-cannot claim official resumability. An ID is nonempty, control-free and at most 512 UTF-8 bytes;
-a path has the same text requirements with a 4096-byte bound and must pass the caller's absolute
-path capability. No trimming, filesystem access or path canonicalization occurs. pi/omp prefer
-a valid path, then fall back to a valid ID; other official pairs use only the ID. Invalid or
-unsupported references produce absence, matching report no-op input semantics. Reference fields
-are private, and untrusted deserialization must go through the same checked constructors with
-the destination's path capability; a text-only deserialize cannot establish path validity.
-
-The Windows resume planner returns literal argument vectors for a valid source/Agent/reference
-combination. It handles each provider's resume syntax, including `cursor-agent.cmd`, omp and
-Copilot equals arguments, and Letta's `default:AGENT` form. It does not execute the vector,
-interpret a shell, or treat an Orchbee canonical Session ID as provider identity. The eight
-recognized start sources are startup/resume/clear/compact/branch/new/fork/select; unknown input
-normalizes to absence. Report sequences carry the full unsigned 64-bit decimal domain as closed
-strings and are distinct from JavaScript-safe canonical Agent revisions. Sequence ordering and
-ownership transitions remain the Server's responsibility. Native-state reservation is a separate
-predicate: Qwen reserves native state while accepting identity-only reports. Likewise `branch`
-is valid start input but not full-lifecycle reanchor eligibility. Provider/start-source replacement
-eligibility is a separate predicate and never replaces the Server's current-owner, process,
-generation and sequence checks.
-
-Decision tests cover every official pair and resume vector, foreign source/Agent pairs,
-identity-only/full-lifecycle distinctions, ID/path precedence and byte/control boundaries,
-invalid path fallback, unknown start sources, and full-u64 Serde rejection. The native CLI's
-alias/custom-label and process-recognition checks protect the integrated consumer. These checks
-prove normalization and planning only, not running provider sessions or complete report parity.
-
-The closed provider-reference kind enum also decodes `id`/`path` for the Workbench report result
-binding. This does not add context-free deserialization of `AgentProviderSessionReference`; the
-private validated value still requires its constructor and the caller's platform path predicate.
+All report sources are custom data and confer no provider Session or lifecycle authority. Sequences
+encode the full unsigned 64-bit domain as canonical decimal strings, independently of JavaScript-safe
+canonical Agent revisions. Ordering belongs to the Server. Existing tests cover alias/custom-label
+normalization, process recognition and full-u64 serialization boundaries.
 
 ## Native process input rules
 

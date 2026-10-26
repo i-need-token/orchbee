@@ -10,11 +10,9 @@ pub(super) fn resolve(
     let Some(flag) = arguments.next() else {
         return load().map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e));
     };
-    if flag != "--resume-agents-on-restore" {
+    if flag != "--manifest-check" {
         return Err(io::ErrorKind::InvalidInput.into());
     }
-    let resume_agents_on_restore = boolean(arguments.next())?;
-    flag_value(&mut arguments, "--manifest-check")?;
     let manifest_check = boolean(arguments.next())?;
     flag_value(&mut arguments, "--manifest-check-source")?;
     let manifest_check_source = match arguments
@@ -56,7 +54,6 @@ pub(super) fn resolve(
         explicit,
         manifest_check,
         manifest_check_source,
-        resume_agents_on_restore,
         ..WindowsUserSettings::default()
     })
 }

@@ -57,14 +57,9 @@ pub struct WorkbenchRestoreTarget {
     presentation_id: TerminalPresentationId,
     working_directory: Option<WorkbenchDirectoryPath>,
     restored_directory: Option<WorkbenchDirectoryPath>,
-    agent_session: Option<orchbee_workbench_protocol::PanelAgentSession>,
 }
 
 impl WorkbenchRestoreTarget {
-    #[must_use]
-    pub fn agent_session(&self) -> Option<&orchbee_workbench_protocol::PanelAgentSession> {
-        self.agent_session.as_ref()
-    }
     #[must_use]
     pub fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
         &self.terminal_context_id
@@ -103,23 +98,6 @@ impl PreparedWorkbenchRestoreBinding<'_> {
 }
 
 impl WorkbenchAuthority {
-    /// Suppress a duplicate resume only while its exact restore target is still unbound.
-    /// No published topology or live report is changed.
-    pub fn suppress_duplicate_restore_reference(
-        &mut self,
-        target: &mut WorkbenchRestoreTarget,
-    ) -> Result<(), WorkbenchRestoreError> {
-        if !self
-            .restoration_targets(&target.local_worker)?
-            .contains(target)
-        {
-            return Err(WorkbenchRestoreError::TargetChanged);
-        }
-        self.pending_agent_sessions.remove(&target.presentation_id);
-        target.agent_session = None;
-        Ok(())
-    }
-
     pub fn restoration_targets(
         &self,
         local_worker: &WorkerId,
@@ -151,10 +129,6 @@ impl WorkbenchAuthority {
                                     .restart_directories
                                     .get(&presentation.presentation_id)
                                     .cloned(),
-                                agent_session: self
-                                    .pending_agent_sessions
-                                    .get(&presentation.presentation_id)
-                                    .cloned(),
                             });
                         }
                     },
@@ -179,10 +153,6 @@ impl WorkbenchAuthority {
         }
         if binding.worker_id != target.local_worker {
             return Err(WorkbenchRestoreError::ForeignWorker);
-        }
-        if self.pending_agent_sessions.get(&target.presentation_id) != target.agent_session.as_ref()
-        {
-            return Err(WorkbenchRestoreError::TargetChanged);
         }
         if self.restart_directories.get(&target.presentation_id)
             != target.restored_directory.as_ref()

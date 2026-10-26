@@ -2,12 +2,7 @@
 
 ## 已接受行为与参考
 
-Windows 脚本需要观察真实 Workspace、Tab、Panel、worktree、Agent 和 Client 变化，
-或等待指定变化，不能轮询无关的当前快照后编造历史。本项实现既有完整 CLI 对齐授权中的
-R089／R090。参考为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的
-`api/schema/events.rs`、`api/event_hub.rs`、`api/subscriptions.rs` 和 `api/wait.rs`。
-其订阅包含 26 种语义事件以及输出匹配、滚动探测。实际 `events.wait` 只接受 Agent 状态匹配；
-仅有更广的 schema 不能证明其他等待变体能执行。
+Windows 脚本通过有所有者的事件流观察真实 Workspace、Tab、Panel、worktree、Agent 和 Client 变化，或等待指定变化。当前快照不能代替保留历史。
 
 原生命名与载荷遵循规范 Workspace／Tab／Panel 身份，以及 Client 本地焦点和 viewport 所有权。
 Panel 对应参考的 Pane；来源可明确指定子 Presentation。原生明确类型回执及结构化终端行
@@ -66,8 +61,7 @@ Wait 先检查已准入基线，再检查截止时间。CLI wait 使用一个过
 要求当前准确的 Client／来源观察，并沿用既有只读 Client control 路径，保留请求、成员关系及
 内容版本关联。不会用新附着 viewer 的底部 viewport 代替所选 Client 的 viewport。
 
-Herdr 实际输出来源为 recent、recent-unwrapped、visible 及 detection。原生 visible 表示所选
-Client 的 viewport；recent-unwrapped 合并已证明的软换行；detection 读取真实实时屏幕。
+visible 表示所选 Client 的 viewport；recent-unwrapped 合并已证明的软换行；detection 读取真实实时屏幕。
 原生 history 是额外的保留滚动历史来源。纯文本与 SGR 读取共用物理来源／版本准入；SGR 从
 有效 cell 样式生成，不宣称是历史 PTY 输入字节的精确副本。
 

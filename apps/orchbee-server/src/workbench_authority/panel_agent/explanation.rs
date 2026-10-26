@@ -2,8 +2,7 @@
 use super::{Failure, Outcome, ReportMembership, TerminalAgentBinding, WorkbenchAuthority};
 use orchbee_agent_observation_protocol::{AgentLaunchBinding, AgentReportProvider};
 use orchbee_workbench_protocol::{
-    AgentScreenExplanation, PanelAgentAction, PanelAgentRequest, PanelAgentView,
-    TerminalAgentExplanation, WorkbenchRevision,
+    PanelAgentAction, PanelAgentRequest, PanelAgentView, WorkbenchRevision,
 };
 use std::time::Instant;
 
@@ -15,38 +14,6 @@ pub struct TerminalAgentExplainContext {
     pub report_revision: WorkbenchRevision,
     pub view: PanelAgentView,
     pub provider: AgentReportProvider,
-    pub full_lifecycle_authority: bool,
-}
-impl TerminalAgentExplainContext {
-    pub fn skipped(&self) -> Option<TerminalAgentExplanation> {
-        self.full_lifecycle_authority
-            .then(|| TerminalAgentExplanation {
-                binding: self.binding.clone(),
-                view: self.view.clone(),
-                sample: None,
-                explanation: AgentScreenExplanation {
-                    manifest: None,
-                    agent: self
-                        .view
-                        .agent
-                        .clone()
-                        .expect("full authority has an Agent"),
-                    state: self.view.state,
-                    manifest_source: None,
-                    manifest_version: None,
-                    matched_rule: None,
-                    visible_idle: false,
-                    visible_blocker: false,
-                    visible_working: false,
-                    screen_detection_skipped: true,
-                    screen_detection_skip_reason: Some("full-lifecycle-hook-authority".into()),
-                    skip_state_update: false,
-                    skipped_update_reason: None,
-                    fallback_reason: None,
-                    evaluated_rules: vec![],
-                },
-            })
-    }
 }
 impl WorkbenchAuthority {
     pub fn prepare_terminal_agent_explain(
@@ -63,7 +30,7 @@ impl WorkbenchAuthority {
             binding: binding.clone(),
             after_sequence: None,
         };
-        let result = self.panel_agent(probe, facts, now, |_| false);
+        let result = self.panel_agent(probe, facts, now);
         let (workbench_revision, report_revision, view) = match result.outcome {
             Outcome::Observed {
                 workbench_revision,
@@ -89,7 +56,7 @@ impl WorkbenchAuthority {
             .get(&super::key(logical))
             .filter(|resource| resource.physical == *physical)
             .ok_or(Failure::Unavailable)?;
-        let (provider, full_lifecycle_authority) = resource.reports.explanation_owner();
+        let provider = resource.reports.explanation_owner();
         Ok(TerminalAgentExplainContext {
             binding: binding.clone(),
             physical: physical.clone(),
@@ -97,7 +64,6 @@ impl WorkbenchAuthority {
             report_revision,
             view,
             provider: provider.ok_or(Failure::Unavailable)?,
-            full_lifecycle_authority,
         })
     }
 }

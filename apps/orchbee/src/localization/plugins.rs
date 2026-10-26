@@ -139,8 +139,8 @@ impl Locale {
             ),
             C::PluginLink => (
                 "orchbee plugin link <path> [--enabled|--disabled] [--format text|json]",
-                "Register a local manifest file or a directory containing orchbee-plugin.toml (herdr-plugin.toml is also accepted). Registration does not run plugin commands or start a session.",
-                "注册本地清单文件，或包含 orchbee-plugin.toml 的目录；也接受 herdr-plugin.toml。注册不运行插件命令，也不启动会话。",
+                "Register a local manifest file or a directory containing orchbee-plugin.toml. Registration does not run plugin commands or start a session.",
+                "注册本地清单文件，或包含 orchbee-plugin.toml 的目录。注册不运行插件命令，也不启动会话。",
             ),
             C::PluginUnlink => (
                 "orchbee plugin unlink <plugin-id> [--format text|json]",

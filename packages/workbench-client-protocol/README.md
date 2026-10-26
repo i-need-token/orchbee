@@ -314,10 +314,10 @@ last change against the current head/state; Rust correlation additionally proves
 coverage. This is transient report state, separate from canonical Agent revisions and Client `done`.
 
 Physical `explain` uses the same exact binding and read permission. Its `explained` result keeps
-current report view separate from raw screen-rule prediction, with required nullable manifest,
-winner, skip/fallback and capture fields. Rust/TypeScript enforce first-highest-priority selection,
-state/flag coherence, evidence bounds and full-lifecycle skip/source consistency. Unknown providers
-refuse; known providers without manifests use explicit idle fallback. The existing 512 KiB result
+current report view separate from raw screen-rule prediction, with a required physical sample and
+required nullable manifest, winner and publication skip/fallback fields. Rust/TypeScript enforce
+first-highest-priority selection, state/flag coherence and evidence bounds. Unknown providers
+refuse; known providers without matching state evidence use explicit unknown fallback. The existing 512 KiB result
 limit applies. This unpublished cohort changes together; canonical OBAP explanations remain separate.
 
 Active rule provenance extends physical Explain with an optional `manifest` object: source

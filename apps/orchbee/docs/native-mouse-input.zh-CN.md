@@ -338,8 +338,7 @@ pane 绝不接收选择字节；其普通主键手势遵循
 处理。已捕获的同 cell motion 会去重；视口外的非 release 事件只有在 motion tracking 且有键
 按住时才上报，并夹到边缘 cell。legacy `Default` 拒绝超过 222 的坐标而不回绕；
 `Utf8` 把坐标编码为 codepoint；SGR 使用 `M`/`m` 结尾；URXVT 使用十进制形式。
-仅有 cell 坐标的输入在 pane 请求 `SgrPixels`（`?1016`）时使用 SGR cell，与 Herdr
-的 cell 回退一致；它不虚构 pixel 位置，也不在宿主捕获中启用 `?1016`。
+仅有 cell 坐标的输入在 pane 请求 `SgrPixels`（`?1016`）时使用 SGR cell，不虚构 pixel 位置，也不在宿主捕获中启用 `?1016`。
 
 字节投递复用既有 `forward` 路径，包括其 `Controlling` 检查、只读拒绝与确认语义。
 有 attachment 的 pane 可以获得本地读取焦点而不拥有输入权限；未绑定叶的 press 只聚焦而不发送

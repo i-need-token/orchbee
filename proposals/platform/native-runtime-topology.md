@@ -1013,8 +1013,7 @@ implementation.
    and `TERM_PROGRAM=ghostty`, without old product or caller-transient variables.
 9. TUI uses a full-screen alternate screen, Orchbee business sidebar, Workbench tabs/panels, and a
    real terminal, collapsing the sidebar on narrow layouts. Ratatui/Crossterm and the documented
-   `Ctrl+B` prefix map are the initial implementation contract. HERDR and tmux/Zellij are research
-   references only; no source or assets are copied.
+   `Ctrl+B` prefix map are the initial implementation contract.
 10. Bare `orchbee` is TTY-only, connects first, and uses one per-user activation lock when the Site
     is absent. Concurrent invocations converge on one Server/Worker cohort and each creates a TUI;
     Host stays lazy. Success is silent when fast, delayed startup has localized progress, one total

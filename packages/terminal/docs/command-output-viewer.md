@@ -1,18 +1,8 @@
-# Kitty command-output viewer alignment
+# Command-output viewer
 
-## Reference scope
+## Scope
 
-This contract adopts Kitty's frequent `show_last_command_output` workflow at commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`, observed on 2026-08-27. Kitty maps
-`kitty_mod+g` in `kitty/options/definition.py`; `kitty/window.py` extracts the last shell-command
-output; and `kitty/boss.py` sends ANSI text to a configurable external pager in an overlay window.
-
-Orchbee adopts the single-action workflow, shell-semantic boundary, searchable read-only view,
-copyability, cancellation, and `Ctrl+Shift+G` default. It deliberately uses an application-owned
-viewer so the same interaction can work across Desktop, Web, and later mobile clients. The parity
-claim excludes Kitty's external pager process, pager configuration and environment, ANSI styling,
-separate pager history, full-scrollback browsing, first/last-visited/non-empty output variants, and
-arbitrary program launch.
+A focused-terminal Action uses shell-semantic boundaries to prepare a searchable, read-only and copyable view of the last command output. `Ctrl+Shift+G` opens the application-owned viewer; cancellation and closure restore terminal focus. External pager processes, pager configuration, ANSI styling, separate pager history, other output variants and arbitrary program launch are excluded.
 
 ## Domain contract
 
@@ -68,7 +58,7 @@ Surface searches a live Host buffer and cannot own an immutable prepared text sn
 ## Binding and persistence
 
 Apple and Standard platforms both default Show Last Command Output to `Ctrl+Shift+G`, matching
-Kitty's default `kitty_mod+g` when Kitty's modifier is its default Control+Shift. The binding applies
+the physical Control+Shift chord. The binding applies
 to a focused terminal and is projected into the terminal context menu, Action search, shortcut
 Settings, and localized reference text.
 

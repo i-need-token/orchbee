@@ -12,7 +12,6 @@ use support::{Fixture, assert_closed, bound_snapshot_reply, peer, resolve_reply,
 fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales() {
     for case in [
         "rules",
-        "full",
         "fallback",
         "manifest",
         "wrong-binding",
@@ -28,7 +27,6 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
             ))
             .unwrap();
             let name = match case {
-                "full" => "explain-full-lifecycle-skips-screen",
                 "fallback" => "explain-detected-provider-behind-custom-label",
                 "manifest" | "en" | "zh" => "explain-manifest-local-override",
                 _ => "explain-first-priority-tie",
@@ -143,10 +141,7 @@ fn physical_explanation_pins_binding_preserves_evidence_and_escapes_both_locales
             assert_eq!(document["version"], 1);
             assert_eq!(document["source"]["kind"], "panel-agent-explain");
             assert_eq!(document["result"]["kind"], "terminal-found");
-            assert_eq!(
-                document["result"]["terminal"]["explanation"]["screenDetectionSkipped"],
-                case == "full"
-            );
+            assert!(document["result"]["terminal"]["sample"].is_object());
         }
     }
 }

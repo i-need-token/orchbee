@@ -1,12 +1,12 @@
 # TUI Input System and Interaction Vocabulary Extension
 
-| Field              | Value                                                                                                                                                                                                                                                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Draft proposed for product-owner acceptance. Nothing here is accepted yet; every new binding, mode, gesture rule, and wire request is marked provisional and takes effect only through the same acceptance path as the parent contract                                                                            |
-| Owner              | Product command experience and the maintainers of the Rust `orchbee` Client TUI input path, the Server semantic-command boundary, and the terminal protocol                                                                                                                                                       |
-| Parent design      | [`native-command-surface.md`](native-command-surface.md) owns the accepted TUI Client contract and the `Ctrl+B` initial map; [`native-runtime-topology.md`](../platform/native-runtime-topology.md) owns the shared Workbench document and the Client View boundary                                               |
-| Decision authority | The product owner decides the second-level input structure, the provisional key tables, each wire admission request, and the mouse-capture policy. Astra's research verdict already excludes floating panes, plugin systems, configurable keymap files, tmux session semantics, and client-side tiling from scope |
-| Exit condition     | An accepted slice of this vocabulary lands in the owning app documentation, input implementation, and tests; this proposal is then retired or reduced to the still-unaccepted remainder                                                                                                                           |
+| Field              | Value                                                                                                                                                                                                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status             | Draft proposed for product-owner acceptance. Nothing here is accepted yet; every new binding, mode, gesture rule, and wire request is marked provisional and takes effect only through the same acceptance path as the parent contract                                                                                   |
+| Owner              | Product command experience and the maintainers of the Rust `orchbee` Client TUI input path, the Server semantic-command boundary, and the terminal protocol                                                                                                                                                              |
+| Parent design      | [`native-command-surface.md`](native-command-surface.md) owns the accepted TUI Client contract and the `Ctrl+B` initial map; [`native-runtime-topology.md`](../platform/native-runtime-topology.md) owns the shared Workbench document and the Client View boundary                                                      |
+| Decision authority | The product owner decides the second-level input structure, the provisional key tables, each wire admission request, and the mouse-capture policy. Astra's research verdict already excludes floating panes, plugin systems, configurable keymap files, multiplexer session semantics, and client-side tiling from scope |
+| Exit condition     | An accepted slice of this vocabulary lands in the owning app documentation, input implementation, and tests; this proposal is then retired or reduced to the still-unaccepted remainder                                                                                                                                  |
 
 Simplified Chinese review translation:
 [tui-input-vocabulary.zh-CN.md](tui-input-vocabulary.zh-CN.md).
@@ -104,11 +104,11 @@ effect such as `MouseInput`, `SetHistoryDemand`, or `SelectionGesture`, or a pur
 view or session transition. The second level is therefore a Client-local input concern only —
 the wire and the Server contract never see it.
 
-- **(a) Second prefix under `Ctrl+B` (tmux-style extension).** A first-level key arms a named
+- **(a) Second prefix under `Ctrl+B`.** A first-level key arms a named
   sub-prefix, a second key fires the action. Keeps every sequence at two keystrokes and adds no
   visible state, but each sub-prefix is another magic letter to memorize, a dangling armed prefix
   needs its own timeout/dismiss rules, and grouping is invisible until help is open.
-- **(b) Explicit mode family (Zellij-style).** A prefix key enters a named mode with a visible
+- **(b) Explicit mode family.** A prefix key enters a named mode with a visible
   indicator; inside the mode the whole keyboard is rebound to that domain until Escape. Modes
   reuse the same letters per domain, absorb large low-frequency domains cheaply, and make
   repeated operations efficient. The cost is modal risk: a user who forgets the mode is lost
@@ -252,7 +252,7 @@ Existing wire already covers `MouseInput`, `FocusInput`, `SetHistoryDemand`, `Re
 
 ## Non-goals
 
-- Floating panes, plugin systems, configurable keymap files, tmux session semantics, and
+- Floating panes, plugin systems, configurable keymap files, multiplexer session semantics, and
   client-side tiling are excluded by the standing research verdict.
 - No code changes in this proposal; implementation lands in its own slices after acceptance.
 - No new Server semantics are designed here beyond the explicitly listed wire-gap requests.

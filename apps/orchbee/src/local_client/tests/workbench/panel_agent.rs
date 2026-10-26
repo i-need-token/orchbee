@@ -28,7 +28,7 @@ fn panel_agent_report_correlation_uncertainty_and_no_replay() -> TestResult {
             },
         };
         let expected = request.clone();
-        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"siteId":id(2),"outcome":{"kind":"reported","panelId":id(3),"workbenchRevision":"5","reportRevision":"1","disposition":"applied","changed":true,"view":{"agent":"custom-agent","state":"working","authoritySource":"custom","message":null,"session":null},"binding":{"workerId":id(4),"terminalId":id(5)}}});
+        let mut reply = serde_json::json!({"protocolVersion":1,"requestId":id(1),"siteId":id(2),"outcome":{"kind":"reported","panelId":id(3),"workbenchRevision":"5","reportRevision":"1","disposition":"applied","changed":true,"view":{"agent":"custom-agent","state":"working","authoritySource":"custom","message":null},"binding":{"workerId":id(4),"terminalId":id(5)}}});
         match case {
             8 => reply["outcome"]["binding"]["terminalId"] = serde_json::json!(id(99)),
             1 => reply["requestId"] = serde_json::json!(id(90)),

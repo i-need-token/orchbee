@@ -81,9 +81,6 @@ pub struct AgentScreenExplanation {
     pub visible_idle: bool,
     pub visible_blocker: bool,
     pub visible_working: bool,
-    pub screen_detection_skipped: bool,
-    #[serde(deserialize_with = "nullable")]
-    pub screen_detection_skip_reason: Option<String>,
     pub skip_state_update: bool,
     #[serde(deserialize_with = "nullable")]
     pub skipped_update_reason: Option<String>,
@@ -107,20 +104,7 @@ impl AgentScreenExplanation {
         {
             return Err(ContractError::InvalidDocument);
         }
-        let valid = if self.screen_detection_skipped {
-            self.screen_detection_skip_reason.as_deref() == Some("full-lifecycle-hook-authority")
-                && self.manifest.is_none()
-                && self.manifest_source.is_none()
-                && self.manifest_version.is_none()
-                && self.matched_rule.is_none()
-                && self.evaluated_rules.is_empty()
-                && !self.visible_idle
-                && !self.visible_blocker
-                && !self.visible_working
-                && !self.skip_state_update
-                && self.skipped_update_reason.is_none()
-                && self.fallback_reason.is_none()
-        } else {
+        let valid = {
             let mut winner: Option<&AgentDetectionRule> = None;
             for evaluated in &self.evaluated_rules {
                 if evaluated.matched && winner.is_none_or(|w| evaluated.rule.priority > w.priority)
@@ -128,18 +112,16 @@ impl AgentScreenExplanation {
                     winner = Some(&evaluated.rule);
                 }
             }
-            self.screen_detection_skip_reason.is_none()
-                && (self.manifest.as_ref().is_some_and(|m| {
-                    m.valid()
-                        && self.manifest_source.as_deref() == Some(m.source.as_str())
-                        && (m.source != super::AgentManifestSource::RemoteCache
-                            || self.manifest_version == m.cached_remote_version)
-                }) || (self.manifest.is_none()
-                    && self.manifest_source.as_deref() == Some("bundled"))
-                    || (self.manifest_source.is_none()
-                        && self.manifest.is_none()
-                        && self.manifest_version.is_none()
-                        && self.evaluated_rules.is_empty()))
+            (self.manifest.as_ref().is_some_and(|m| {
+                m.valid()
+                    && self.manifest_source.as_deref() == Some(m.source.as_str())
+                    && (m.source != super::AgentManifestSource::RemoteCache
+                        || self.manifest_version == m.cached_remote_version)
+            }) || (self.manifest.is_none() && self.manifest_source.as_deref() == Some("bundled"))
+                || (self.manifest_source.is_none()
+                    && self.manifest.is_none()
+                    && self.manifest_version.is_none()
+                    && self.evaluated_rules.is_empty()))
                 && self.matched_rule.as_ref() == winner
                 && self.state == winner.map_or(PanelAgentState::Unknown, |r| r.state)
                 && (!self.visible_idle || self.state == PanelAgentState::Idle)
@@ -189,8 +171,7 @@ pub struct TerminalAgentExplanation {
     pub binding: AgentLaunchBinding,
     pub view: PanelAgentView,
     pub explanation: AgentScreenExplanation,
-    #[serde(deserialize_with = "nullable")]
-    pub sample: Option<AgentDetectionSample>,
+    pub sample: AgentDetectionSample,
 }
 impl TerminalAgentExplanation {
     pub(super) fn valid(&self) -> bool {
@@ -198,20 +179,9 @@ impl TerminalAgentExplanation {
             .is_ok()
             && self.view.valid()
             && self.explanation.validate().is_ok()
-            && if self.explanation.screen_detection_skipped {
-                self.sample.is_none() && self.view.agent.as_ref() == Some(&self.explanation.agent)
-                    && self.view.state == self.explanation.state
-                    && self.view.authority_source.as_ref().is_some_and(|source| {
-                        orchbee_agent_observation_protocol::agent_report_source_policy(source, &self.explanation.agent)
-                            == orchbee_agent_observation_protocol::AgentReportSourcePolicy::FullLifecycle
-                    })
-            } else {
-                self.sample.as_ref().is_some_and(|s| {
-                    s.frame_sequence.value() > 0
-                        && s.frame_generation.value() > 0
-                        && s.root_pid > 0
-                        && s.agent_pid != Some(0)
-                })
-            }
+            && self.sample.frame_sequence.value() > 0
+            && self.sample.frame_generation.value() > 0
+            && self.sample.root_pid > 0
+            && self.sample.agent_pid != Some(0)
     }
 }

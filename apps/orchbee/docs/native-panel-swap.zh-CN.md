@@ -75,9 +75,9 @@ not-submitted 或 unknown，不重复整个控制命令。
 
 ## 证据与兼容性
 
-Herdr 参考版本 `e0507237ad8d41f60aece10d00ef29ce2339ca34` 提供两种交换模式、同 Tab
+Panel 交换提供两种交换模式、同 Tab
 原子交换、成功后聚焦来源及无变化语义。公开身份、Client 路由、错误信封及进程生命周期内的
-canonical 状态仍遵循原生契约，不声明 wire 兼容或 Herdr 会话持久化。
+canonical 状态仍遵循原生契约。
 
 独立树排列／逆变换测试检查完整叶子与固定拓扑的变化范围，包括嵌套树、元数据、保留请求
 重放及提交拒绝。协议一致性覆盖 Rust、TypeScript 和 JSON schema。传输用例拒绝跨动作回执

@@ -175,7 +175,7 @@ fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_par
                 outcome:PanelAgentOutcome::Observed {
                     workbench_revision:WorkbenchRevision::new(12), report_revision:WorkbenchRevision::new(3),
                     observation:Box::new(serde_json::from_value(json!({"binding":binding,"sequence":"0","changes":[],
-                        "view":{"agent":if case == "no-agent" {Value::Null} else {json!("pi")},"state":"unknown","authoritySource":null,"message":null,"session":null}})).unwrap()),
+                        "view":{"agent":if case == "no-agent" {Value::Null} else {json!("pi")},"state":"unknown","authoritySource":null,"message":null}})).unwrap()),
                 },
             })).unwrap();
             if case == "primary" {
@@ -301,7 +301,7 @@ fn unified_agent_selectors_complete_before_resolving_or_submitting_focus() {
                             serde_json::from_value(
                                 json!({"binding":binding,"sequence":"4","changes":[],
                         "view":{"agent":if case == "physical-only" { "pi" } else { "grok-build" },
-                            "state":"idle","authoritySource":null,"message":null,"session":null}}),
+                            "state":"idle","authoritySource":null,"message":null}}),
                             )
                             .unwrap(),
                         ),

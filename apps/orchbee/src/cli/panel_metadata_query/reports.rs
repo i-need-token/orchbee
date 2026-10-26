@@ -265,7 +265,6 @@ pub(super) fn fixture(
                     state: orchbee_workbench_protocol::PanelAgentState::Unknown,
                     authority_source: None,
                     message: None,
-                    session: None,
                 });
                 (
                     panel_id.clone(),

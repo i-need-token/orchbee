@@ -116,11 +116,7 @@
 					"maxItems": 3,
 					"uniqueItems": true,
 					"items": {
-						"enum": [
-							"terminal.default_shell",
-							"terminal.shell_mode",
-							"session.resume_agents_on_restore"
-						]
+						"enum": ["terminal.default_shell", "terminal.shell_mode"]
 					}
 				},
 				"defaultShell": {

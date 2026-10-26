@@ -480,45 +480,6 @@ mod process_samples {
         ));
     }
     #[test]
-    fn process_confirmation_activates_deferred_lifecycle_and_departure_clears_it() {
-        use orchbee_workbench_protocol::PanelAgentDisposition;
-        let (mut site, target, mut sample) = fixture();
-        let snapshot = site.workbench.as_ref().unwrap().snapshot().clone();
-        let PanelNode::Panel {
-            panel_id,
-            primary_presentation,
-            ..
-        } = &snapshot.terminal_contexts[0].tabs[0].root
-        else {
-            panic!("panel")
-        };
-        for (n,report) in [
-            serde_json::json!({"kind":"state","source":"herdr:pi","agent":"pi","state":"blocked","message":"approval","sequence":"2","agentSessionId":"provider-session"}),
-            serde_json::json!({"kind":"session","source":"herdr:pi","agent":"pi","sequence":"1","agentSessionId":"provider-session","sessionStartSource":"startup"}),
-        ].into_iter().enumerate() {
-            let request=PanelAgentRequest{protocol_version:ProtocolVersion,request_id:WorkbenchRequestId::parse(&format!("{:032x}",810+n)).unwrap(),site_id:snapshot.site_id.clone(),
-                action:PanelAgentAction::Report {panel_id:panel_id.clone(),expected_binding:primary_presentation.binding.clone().unwrap(),report:Box::new(serde_json::from_value(report).unwrap())}};
-            assert!(matches!(site.panel_agent(request,Instant::now()).unwrap().outcome,PanelAgentOutcome::Reported{disposition:PanelAgentDisposition::Deferred,..}));
-        }
-        assert_eq!(read(&mut site).1.authority_source, None);
-        let now = Instant::now();
-        assert!(site.observe_host_process(target, &sample, now, now));
-        let (revision, view) = read(&mut site);
-        assert_eq!(view.authority_source.as_deref(), Some("herdr:pi"));
-        assert_eq!(view.state, PanelAgentState::Blocked);
-        assert!(view.session.is_some());
-        let next = now + Duration::from_millis(1);
-        assert!(site.observe_host_process(target, &sample, next, next));
-        assert_eq!(read(&mut site).0, revision);
-        sample.processes.pop();
-        let next = next + Duration::from_millis(1);
-        assert!(site.observe_host_process(target, &sample, next, next));
-        let view = read(&mut site).1;
-        assert_eq!(view.agent, None);
-        assert_eq!(view.authority_source, None);
-        assert_eq!(view.session, None);
-    }
-    #[test]
     fn screen_grace_idle_hold_missing_samples_and_generation_reset() {
         use crate::agent_screen::Detection;
         let (mut site, target, mut sample) = fixture();
@@ -623,69 +584,6 @@ mod process_samples {
         let after = read(&mut site);
         assert_eq!(after.1.agent, before.1.agent);
         assert_eq!(after.1.state, PanelAgentState::Idle);
-    }
-    #[test]
-    fn process_only_query_cannot_consume_screen_republication_after_clear() {
-        use crate::agent_screen::Detection;
-        let (mut site, target, sample) = fixture();
-        let origin = Instant::now() - Duration::from_secs(10);
-        let working = Detection {
-            state: PanelAgentState::Working,
-            skip: false,
-            visible_working: true,
-            visible_idle: false,
-            visible_blocker: false,
-        };
-        // Seed presence only: visible Working no longer waits for the startup grace.
-        assert!(site.observe_host_process(target, &sample, origin, origin));
-        let snapshot = site.workbench.as_ref().unwrap().snapshot().clone();
-        let PanelNode::Panel {
-            panel_id,
-            primary_presentation,
-            ..
-        } = &snapshot.terminal_contexts[0].tabs[0].root
-        else {
-            panic!("panel")
-        };
-        let send = |site: &mut SiteCoordinator, report: serde_json::Value| {
-            let request = PanelAgentRequest {
-                protocol_version: ProtocolVersion,
-                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 901)).unwrap(),
-                site_id: snapshot.site_id.clone(),
-                action: PanelAgentAction::Report {
-                    panel_id: panel_id.clone(),
-                    expected_binding: primary_presentation.binding.clone().unwrap(),
-                    report: Box::new(serde_json::from_value(report).unwrap()),
-                },
-            };
-            assert!(matches!(
-                site.panel_agent(request, Instant::now()).unwrap().outcome,
-                PanelAgentOutcome::Reported { .. }
-            ));
-        };
-        send(
-            &mut site,
-            serde_json::json!({"kind":"session","source":"herdr:pi","agent":"pi","sequence":"1","agentSessionId":"full","sessionStartSource":"startup"}),
-        );
-        send(
-            &mut site,
-            serde_json::json!({"kind":"state","source":"herdr:pi","agent":"pi","sequence":"2","agentSessionId":"full","state":"blocked"}),
-        );
-        let at = Instant::now();
-        assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
-        assert_eq!(read(&mut site).1.state, PanelAgentState::Blocked);
-        send(
-            &mut site,
-            serde_json::json!({"kind":"clear","source":"herdr:pi","sequence":"3"}),
-        );
-        let at = Instant::now();
-        assert!(site.observe_host_process(target, &sample, at, at));
-        assert_eq!(read(&mut site).1.state, PanelAgentState::Unknown);
-        let at = Instant::now();
-        assert!(site.observe_host_screen(target, &sample, Some(working), at, at));
-        let (_, view) = read(&mut site);
-        assert_eq!(view.state, PanelAgentState::Working);
-        assert_eq!(view.authority_source, None);
     }
     #[test]
     fn workspace_terminal_directory_follows_only_the_first_tab_exact_physical_owner() {

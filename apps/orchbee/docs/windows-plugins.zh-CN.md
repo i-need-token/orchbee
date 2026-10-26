@@ -6,7 +6,7 @@
 
 `plugin link` 在语法解析阶段校验路径写法；只有最终执行的 CLI 在完整语法和路由准入之后、访问插件目录之前，才展开用户主目录或当前目录路径。已保存机器的发送端和中继保留原始参数，不使用自身进程上下文展开路径。盘符绝对路径保持字面值。主目录写法（`~`、`~/`、`~\`）依次选择执行进程中首个可用来源：非空的 `USERPROFILE`，其次是 `HOMEDRIVE` 与 `HOMEPATH`，最后是 `HOME`。已选中的非空来源格式错误时不回退。其他相对路径使用该进程的当前目录。所需上下文无效时仍返回普通用法错误，不创建插件目录或运行时目录。
 
-local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录参数优先解析 `orchbee-plugin.toml`，仅当其缺失时使用 `herdr-plugin.toml`；也可直接指定清单文件。导入 Herdr 元数据不代表兼容 Herdr 专用可执行文件或 API 调用。标识符去除首尾空白，区分大小写，最多 120 个 ASCII 字符；插件 ID 允许字母、数字、冒号、点、下划线和连字符，action ID 不允许点。参数保留为独立 argv 元素。未知字段、重复条目 ID、无效命令和无效平台名称均在登记前拒绝。
+local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录参数解析 `orchbee-plugin.toml`；也可直接指定清单文件。标识符去除首尾空白，区分大小写，最多 120 个 ASCII 字符；插件 ID 允许字母、数字、冒号、点、下划线和连字符，action ID 不允许点。参数保留为独立 argv 元素。未知字段、重复条目 ID、无效命令和无效平台名称均在登记前拒绝。
 
 清单最多 128 KiB，目录最多 32 项且不超过 1 MiB。条目保留规范源路径、启用状态和最后一份有效清单。读取会刷新清单；源缺失或无效时保留检查元数据并明确警告，不能据此授权执行。条目平台列表优先于插件列表；均缺省时允许 Windows。其他平台标签仅为元数据。
 
@@ -25,7 +25,7 @@ local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录�
 
 调用在同一个十秒期限内先推导上下文。显式 Client 优先于继承的调用者身份；否则从规范快照中的精确调用者绑定选择终端成员，或由唯一当前 Client 选择观察到的成员。多个当前 Client 需指定 `--client`；没有调用者且没有当前 Client 时按全局动作调用，不编造选区。Ready 和稳定 Busy 视图可读。补充信息期间规范成员、元数据、Client 选区及成员代际必须保持一致，否则不提交动作。运行时 cwd 与 Agent 观察属于该精确成员；该成员显式上报的 Agent 名称及非 unknown 状态优先，否则采用唯一观察到的 provider 及聚合状态；缺失的观察保持空值。工作区 cwd 优先采用观察到的 Pane cwd，再取工作区目录。Worktree 使用现有只读查询，不绕过信任，保留原生字段 `workerId`、`repositoryRoot`、`commonDirectory`、`repositoryName`、`checkoutPath`、`linked`；不可用时保持缺失。显式非 null 上下文字段覆盖推导的展示字段，但不选择或授权任何目标。API 调用不抓取 Client 选中文字，调用者显式提供 `selectedText`，与参考 API 一致。
 
-Server 在解析调用前要求读取、终端创建和生命周期权限。确认 Session、action 唯一且源有效、已启用、支持 Windows 后，固定 argv、源 cwd 和环境。Worker 在插件根目录执行独立参数；显式 shell 命令保留自身 shell 语义。相对程序从插件根目录解析，再使用 Windows PATH/PATHEXT。原生上下文通过 `ORCHBEE_PLUGIN_CONTEXT_JSON` 及插件 ID/root/action/config/state 路径、`ORCHBEE_BIN_PATH`、可选 workspace/tab/Pane ID 和链接字段提供。受管 Worker 用自身 Session 路由覆盖 runtime base/scope。这些是 Orchbee 变量和 API 语义，Herdr 专属脚本可能需要调整。安装本次字段前会清除继承的插件/终端身份。
+Server 在解析调用前要求读取、终端创建和生命周期权限。确认 Session、action 唯一且源有效、已启用、支持 Windows 后，固定 argv、源 cwd 和环境。Worker 在插件根目录执行独立参数；显式 shell 命令保留自身 shell 语义。相对程序从插件根目录解析，再使用 Windows PATH/PATHEXT。原生上下文通过 `ORCHBEE_PLUGIN_CONTEXT_JSON` 及插件 ID/root/action/config/state 路径、`ORCHBEE_BIN_PATH`、可选 workspace/tab/Pane ID 和链接字段提供。受管 Worker 用自身 Session 路由覆盖 runtime base/scope。安装本次字段前会清除继承的插件/终端身份。
 
 每个 Worker 生命周期最多拥有 32 个并发命令和 200 条日志。每个命令保留线程及 Windows Job，在 CLI 断开后继续运行。保留期内相同操作 ID 返回原回执，不同意图产生冲突；已淘汰日志不构成持久重放记录。CLI 在回复不确定时不重新提交修改。启动回执只确认受理，不确认执行成功。日志包含序号、起止时间、退出码、类型化失败、stdout/stderr 和显式截断标记。每路原始输出保留 64 KiB，超出后继续排空；无效 UTF-8 用替换字符解码。文本输出转义控制字符。优先淘汰最旧的已完成日志，运行中的命令保留归属。命令结束后提供输出。
 
@@ -74,7 +74,7 @@ any-motion capture。
 
 ## 交付与证据
 
-原生已接通目录、action 调用、保留日志及托管源码安装/卸载。插件 Pane 生命周期如下。公开 `terminal link-activate` 和原生 TUI 点击路径通过共享边界，按顺序调用已启用的 Windows 链接处理器并带上精确点击终端上下文；CLI 的读取围栏、无匹配／拒绝／未知回执和限制属于 [原生 CLI 查询](native-cli-query.zh-CN.md#激活终端链接)，指针／来源归属属于[原生鼠标输入](native-mouse-input.zh-CN.md#链接激活)。目录接受不代表命令已执行。参照固定 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`，主要为 `cli/plugin.rs`、`app/api/plugins/manifest.rs` 和 `persist/plugin_registry.rs`。
+原生已接通目录、action 调用、保留日志及托管源码安装/卸载。插件 Pane 生命周期如下。公开 `terminal link-activate` 和原生 TUI 点击路径通过共享边界，按顺序调用已启用的 Windows 链接处理器并带上精确点击终端上下文；CLI 的读取围栏、无匹配／拒绝／未知回执和限制属于 [原生 CLI 查询](native-cli-query.zh-CN.md#激活终端链接)，指针／来源归属属于[原生鼠标输入](native-mouse-input.zh-CN.md#链接激活)。目录接受不代表命令已执行。
 
 定向证据覆盖解析上限、标识符/路径碰撞、源不可用时保留条目、缺失目录只读、目录原子转换及真实 Windows CLI 回执。测试夹具拥有并回收临时路径。完整 Windows 视觉/provider/多 Client 与全量回归验收另行执行。
 
@@ -98,7 +98,7 @@ Server 串行拥有临时观察 viewer，以及结果不明的清理，直到精
 
 ## 终端 Pane 创建
 
-`plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed|overlay]` 通过规范创建流程生成真实终端 Tab 或分屏。清单提供默认布局和标题；`--target-pane` 选择分屏目标，`--direction right|down` 控制方向，`--workspace` 选择 Tab 的目标 Workspace。默认聚焦；`--no-focus`、`--client`、`--cwd`、重复 `--env`、几何尺寸与超时沿用现有创建控制。默认目录为 Server 解析的插件根目录，不受普通 shell 的 cwd 配置影响；即使覆盖 cwd，清单程序仍相对插件根目录解析。原生回执使用 `orchbee.creation.result` v1，区分规范创建与 Client 聚焦结果。 zoomed 布局通过一次受视图版本约束的 Client Zoom 请求强制聚焦（即使指定 `--no-focus`）；其 v1 回执增加 `postCreate.requested.zoom=true`，聚焦及放大的合并结果保留在 `postCreate.focus`。选区变化或 Client 回执丢失仍保留创建回执，不会重新创建终端。与 Herdr 一致，split/zoomed 忽略 `--workspace`，tab 忽略 `--target-pane`。
+`plugin pane open --plugin ID --entrypoint ID [--placement tab|split|zoomed|overlay]` 通过规范创建流程生成真实终端 Tab 或分屏。清单提供默认布局和标题；`--target-pane` 选择分屏目标，`--direction right|down` 控制方向，`--workspace` 选择 Tab 的目标 Workspace。默认聚焦；`--no-focus`、`--client`、`--cwd`、重复 `--env`、几何尺寸与超时沿用现有创建控制。默认目录为 Server 解析的插件根目录，不受普通 shell 的 cwd 配置影响；即使覆盖 cwd，清单程序仍相对插件根目录解析。原生回执使用 `orchbee.creation.result` v1，区分规范创建与 Client 聚焦结果。 zoomed 布局通过一次受视图版本约束的 Client Zoom 请求强制聚焦（即使指定 `--no-focus`）；其 v1 回执增加 `postCreate.requested.zoom=true`，聚焦及放大的合并结果保留在 `postCreate.focus`。选区变化或 Client 回执丢失仍保留创建回执，不会重新创建终端。split/zoomed 忽略 `--workspace`，tab 忽略 `--target-pane`。
 
 CLI 提交目录标识，不提交程序执行权限。Server 受理时重新检查已启用、源有效且支持 Windows 的入口，在终端预留前冻结 argv、cwd 与受保护的插件环境。重放使用保留的规范请求。显式程序／profile 与插件 Pane 选择互斥；Workspace 启动和子终端创建拒绝此选择器。CLI 和 Server 保留程序／argv 标识；允许绝对 `.cmd`/`.bat` 入口，由 Host 使用系统命令处理器执行，禁用 AutoRun 与延迟展开。batch 参数编码保护元字符及百分号字面值，脚本自己负责其后续参数展开。含 NUL/CR/LF 的参数、不支持的 verbatim 路径写法或超过 8191 字节的编码命令行，在 Host 创建 PTY／进程前失败；规范创建回执仍保留已受理的启动。独立 popup 布局使用下文单独的 popup 生命周期。`plugin pane focus <pane-id> [--client ID] [--timeout MS]` 和 `plugin pane close <pane-id> [--timeout MS]` 先读取 Server 所有的成员记录。精确 Presentation／绑定及规范修订号必须与 CLI 快照一致；普通、重新绑定或过期目标在产生效果前拒绝。close 提交一次修订号围栏下的原生 Panel 关闭并返回其保留生命周期回执；focus 沿用 Client 选择与视图围栏。投递结果未知时不重试；稍后发生的取消保留已取得的回执并返回非零退出码。
 
@@ -112,7 +112,7 @@ Overlay 在创建前通过被动读取固定源 Client 实际选中的主或子 
 
 Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plugin-pane`、correlation 固定为实际创建请求，并在 reservation 前冻结到已有受保护启动环境。上下文描述 placement 在创建前选定的来源；不提供可执行文件、目录策略、Worker 或终端权限。未携带该字段的已有请求保持原有接纳。不会新增上下文存储或 replay 查询；冻结启动 intent 拥有上下文生命周期。Rust、TypeScript 与 JSON 对端需成套部署。独立 popup 的几何、reservation、exposure、输入和关闭使用下文的生命周期。
 
-冻结于 `e0507237` 的 Herdr 基线在 split／zoomed 上下文中选择显式目标 Pane，在 Tab 上下文中选择目的 Workspace 记住的焦点。CLI 从已解析的规范创建命令推导来源，不使用显示标签或待执行导航 intent。Overlay 保留原始选中的主／子成员。已有私有上下文使用原生调用来源／关联约定。两边基线的 Pane 启动都不会自动复制选中文本。
+CLI 在 split／zoomed 上下文中选择显式目标 Pane，在 Tab 上下文中选择目的 Workspace 记住的焦点。CLI 从已解析的规范创建命令推导来源，不使用显示标签或待执行导航 intent。Overlay 保留原始选中的主／子成员。已有私有上下文使用原生调用来源／关联约定。Pane 启动都不会自动复制选中文本。
 
 | 创建来源             | 观察与缺省策略                                                                                                  |
 | -------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -121,13 +121,13 @@ Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plu
 | 非活动上下文中的 Tab | 精确观察 Client 以只读方式记住的活动 Tab 和布局焦点；核对规范父级成员后观察该 Panel 的主成员                    |
 | 空或 headless 目的地 | 可用时提供规范 Workspace 标签、cwd 和 worktree；省略未知 Tab、焦点和物理事实，不猜测树中的第一个成员            |
 
-Client 拥有记住的 Tab／焦点；Session 拥有规范成员和标签；已有物理收集器拥有经核实的 cwd／Agent 观察及临时 viewer 清理。后台布局探测仅将规范 Panel 用作查询锚点，不将它当作焦点 fallback。非活动上下文中的原生子终端选择未由这些只读记忆契约暴露，因此后台来源为规范主成员，对齐 Herdr 每个 Pane 一个终端的模型。
+Client 拥有记住的 Tab／焦点；Session 拥有规范成员和标签；已有物理收集器拥有经核实的 cwd／Agent 观察及临时 viewer 清理。后台布局探测仅将规范 Panel 用作查询锚点，不将它当作焦点 fallback。非活动上下文中的原生子终端选择未由这些只读记忆契约暴露，因此后台来源为规范主成员。
 
 来源流程依次解析规范目标、观察精确记忆／成员、收集物理事实、重新读取后台 Tab／焦点及原始 Client，最后提交已有的单次创建请求。所有阶段共用创建 deadline 和取消所有者。父级错误、revision 过时、记住的 Tab／焦点或原始 Client 变化均在创建前拒绝；读取不会导航、聚焦、zoom、启动或重试 mutation。来源上下文仍为显示数据，不能改变 plugin-root cwd、program／argv 或 Worker 权限。聚焦证据必须覆盖不同显式目标、记住的 Tab 和 Pane 都不是首项的非活动目的地、当前／调用者子成员保留、空／headless 缺省，以及变化或无效记忆时拒绝。这些检查证明原生 Windows CLI 传输和有主观察投影，不证明已部署 Host／模拟器验收。
 
 ## 独立终端 popup
 
-Windows 支持独立插件 popup 终端及原生关闭入口。冻结的 Herdr 基线在当前 Pane 区域上方创建一个独立终端，不改变规范 Tab／分屏成员；外框宽高默认各占可用区域的一半，支持单元格数和 1–100 百分比，并在终端结束后关闭。popup 的按键和粘贴先于普通绑定处理：Escape 和配置的前缀键属于其中的程序。区域外鼠标事件不能激活底下布局。原生标题栏关闭按钮是额外的明确关闭入口。它使用共享的三单元格 `[x]` 操作，只有普通主键按下与匹配释放都解析到同一个已绘制 popup 请求时才会激活；过期或已替换目标不会产生效果，关闭开始后该操作会禁用。在周围空白背景上普通左键按下并匹配释放，会调用精确 popup 的同一个已绘制关闭目标。带修饰键的点击和滚轮不会关闭；移入 popup、失焦或几何变化会取消手势。
+Windows 支持独立插件 popup 终端及原生关闭入口。popup 在当前 Pane 区域上方创建一个独立终端，不改变规范 Tab／分屏成员；外框宽高默认各占可用区域的一半，支持单元格数和 1–100 百分比，并在终端结束后关闭。popup 的按键和粘贴先于普通绑定处理：Escape 和配置的前缀键属于其中的程序。区域外鼠标事件不能激活底下布局。原生标题栏关闭按钮是额外的明确关闭入口。它使用共享的三单元格 `[x]` 操作，只有普通主键按下与匹配释放都解析到同一个已绘制 popup 请求时才会激活；过期或已替换目标不会产生效果，关闭开始后该操作会禁用。在周围空白背景上普通左键按下并匹配释放，会调用精确 popup 的同一个已绘制关闭目标。带修饰键的点击和滚轮不会关闭；移入 popup、失焦或几何变化会取消手势。
 
 既有终端协调器负责身份分配和独立 Terminal Create；popup 不预留隐藏 Tab、Panel 或 Presentation。一个独立且已认证的 Client 连接最多持有一个 popup；Session 最多保留 32 个 popup 所有者，含清理不确定项。Server 在预留之前解析已启用的 Windows 目录入口，冻结 argv、插件根 cwd、受保护环境及已验证的来源展示上下文。调用输入只有选择器、有界上下文、可选 cwd 和普通启动环境，不能提供受保护环境或物理身份。UI 另按精确 Client／视图版本和来源成员准入一个 popup。来源身份复用完整 Client Presentation selection：已绑定 attachment generation／incarnation，或未绑定 selection generation；帧和滚动更新不改变成员身份。尺寸是有类型的单元格数或百分比；省略时先采用清单值，再采用半区域默认值。外框居中并限制在至少 6×4 单元格，原生边框内容宽高各减两个单元格。视口过小时暂停 popup 输入和尺寸调整，不把终端缩成零。
 
@@ -145,6 +145,6 @@ Windows 支持独立插件 popup 终端及原生关闭入口。冻结的 Herdr �
 
 `plugin pane open --placement popup [--width CELLS|PERCENT%] [--height CELLS|PERCENT%]` 使用清单尺寸默认值，可由参数覆盖。popup 布局在产生效果前拒绝规范几何、target、Workspace 和 direction 覆盖。`popup close [--client ID] [--timeout MS]` 即使从无规范 Pane 的终端调用，也按 Client 定位。两者使用 `orchbee.popup.result` v1；通用 Client control 使用 v1。打开完成要求已接纳帧及完成绘制；关闭完成等待已知物理释放。没有 popup 时关闭返回 `hadPopup=false`，保留其他对话框。
 
-私有 Workbench 插件协议提供连接归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Session 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Session 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；不宣称 Herdr RPC 名称或 Desktop 功能相同。不引入新 Host 能力、依赖、进程框架或持久化存储。
+私有 Workbench 插件协议提供连接归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Session 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Session 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；Desktop 功能支持属于独立范围。不引入新 Host 能力、依赖、进程框架或持久化存储。
 
 定向验收覆盖重复准入、来源／目录拒绝时不启动、规范布局不变、丢失启动／关闭答复、完整身份释放、连接退休、尺寸、已解码按键／粘贴／鼠标归属、实际 Ratatui 组合绘制和原生 Windows CLI 传输。测试拥有其根目录、管道、线程和 Job，直到最后消费者结束。定向 fixture 证据不代表已部署 Host／终端模拟器验收；最终集成需通过更广的 Windows 验收流程。

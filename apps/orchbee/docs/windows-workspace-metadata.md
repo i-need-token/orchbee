@@ -5,8 +5,7 @@
 Workspace metadata is transient, externally reported display data. The Workbench authority
 owns its values, source sequence high-water marks and monotonic expiry under the existing
 SiteCoordinator gate. It does not change canonical topology, Agent lifecycle, terminal OSC
-metadata, Git state or configuration. Restart starts with empty metadata, as in pinned
-Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`. Rename and move preserve Workspace identity;
+metadata, Git state or configuration. Restart starts with empty metadata. Rename and move preserve Workspace identity;
 closed Workspace identities are pruned before the next metadata observation or report.
 
 The recurring consumers are `workspace report-metadata`, Workspace list/get and their

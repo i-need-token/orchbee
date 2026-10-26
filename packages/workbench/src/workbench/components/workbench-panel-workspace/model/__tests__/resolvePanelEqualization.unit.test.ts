@@ -6,7 +6,7 @@ import type { PanelSplitOrientation } from '../panel-layout-types';
 import { resolvePanelEqualization } from '../resolvePanelEqualization';
 
 describe('resolvePanelEqualization', () => {
-	it("matches Kitty's same-axis proportional equalization", () => {
+	it('equalizes same-axis Panel extents proportionally', () => {
 		const root = split(
 			'split-root',
 			'horizontal',

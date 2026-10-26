@@ -245,9 +245,9 @@ Rust／TypeScript 校验最后变化与当前头部／状态一致，Rust 关联
 这些是瞬态报告状态，与规范 Agent 修订及 Client `done` 分离。
 
 物理 `explain` 使用相同的精确绑定和读取权限。`explained` 结果分别保留当前上报视图与原始
-屏幕规则判断，清单、胜出规则、跳过/回退原因和采样字段均必填且可为空。Rust/TypeScript
-校验最高优先级首条胜出规则、状态/标记一致性、证据上限及完整生命周期跳过/来源一致性。
-未知 provider 拒绝；没有清单的已知 provider 明确回退为空闲。沿用 512 KiB 结果上限。
+屏幕规则判断，包含必填的物理样本，以及必填但可为空的清单、胜出规则和发布跳过/回退原因。Rust/TypeScript
+校验最高优先级首条胜出规则、状态/标记一致性与证据上限。
+未知 provider 拒绝；没有匹配状态证据的已知 provider 明确回退为未知。沿用 512 KiB 结果上限。
 这份未发布 cohort 一起变更；规范 OBAP 解释保持独立。
 
 生效规则来源为物理 Explain 增加可选 `manifest` 对象：来源（`bundled`、`local-override`、

@@ -196,7 +196,7 @@ never publish partial output. The prepared document remains immutable while lite
 case-insensitive search, Enter/Shift+Enter navigation, native text selection, and the separate
 `terminal.output.copy` Action operate locally. The viewer traps focus, restores terminal focus on
 close, and deliberately does not launch an external pager or re-render ANSI styling. See the
-[Kitty alignment contract](../../packages/terminal/docs/kitty-command-output-viewer-alignment.md)
+[Kitty alignment contract](../../packages/terminal/docs/command-output-viewer.md)
 and the `projected-terminal.text-viewer` experience component.
 
 `Ctrl+Shift+H` opens the complete retained primary-screen history through that same private viewer.
@@ -204,7 +204,7 @@ The exact snapshot projector joins soft wraps, preserves hard row boundaries, re
 visible-top offset, and publishes either one complete document or a typed empty/unavailable result.
 Command-output and scrollback preparation replace each other before publication; their immutable
 documents retain source-specific copy Actions. See the
-[Kitty scrollback-viewer contract](../../packages/terminal/docs/kitty-scrollback-viewer-alignment.md).
+[Kitty scrollback-viewer contract](../../packages/terminal/docs/scrollback-viewer.md).
 
 Prompt navigation and text-viewer preparation each own a replace-latest coordinator for one Action
 registration lifetime. Ownership changes before cancellation invokes observers, so a replacement

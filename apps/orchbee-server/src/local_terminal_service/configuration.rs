@@ -6,10 +6,9 @@ use orchbee_local_site_runtime::{
 use orchbee_workbench_protocol::{
     ConfigurationAction as Action, ConfigurationDiagnostic, ConfigurationDiagnosticDisposition,
     ConfigurationDiagnostics, ConfigurationFailure as Failure, ConfigurationOutcome as Outcome,
-    ConfigurationRequest, ConfigurationRestart as Restart, ConfigurationResult,
-    ConfigurationShellMode, ConfigurationSnapshot, ContractError,
-    MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SiteId, WorkbenchRequestId,
-    WorkbenchResponse, WorkbenchRevision,
+    ConfigurationRequest, ConfigurationResult, ConfigurationShellMode, ConfigurationSnapshot,
+    ContractError, MAXIMUM_CONFIGURATION_DIAGNOSTICS_OMITTED, ProtocolVersion, SiteId,
+    WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
 };
 use std::sync::Mutex;
 
@@ -74,7 +73,7 @@ impl Registry {
         let diagnostics = protocol_diagnostics(&current.diagnostics).ok_or_else(|| {
             std::io::Error::other("Configuration diagnostics exceed protocol bounds")
         })?;
-        let initial = snapshot(startup, &current.settings, diagnostics, 0);
+        let initial = snapshot(&current.settings, diagnostics, 0);
         preflight_publication(&Outcome::Current {
             snapshot: initial.clone(),
         })
@@ -179,7 +178,7 @@ impl Registry {
             let Some(revision) = frozen.snapshot.revision.value().checked_add(1) else {
                 return Outcome::failed(Failure::RevisionExhausted);
             };
-            snapshot(&frozen.startup, &candidate.settings, diagnostics, revision)
+            snapshot(&candidate.settings, diagnostics, revision)
         } else {
             frozen.snapshot.clone()
         };
@@ -251,15 +250,10 @@ fn preflight_publication(outcome: &Outcome) -> Result<(), ContractError> {
 }
 
 fn snapshot(
-    startup: &WindowsUserSettings,
     current: &WindowsUserSettings,
     diagnostics: ConfigurationDiagnostics,
     revision: u64,
 ) -> ConfigurationSnapshot {
-    let mut restart_required = Vec::new();
-    if startup.resume_agents_on_restore != current.resume_agents_on_restore {
-        restart_required.push(Restart::ResumeAgents);
-    }
     ConfigurationSnapshot {
         revision: WorkbenchRevision::new(revision),
         diagnostics,
@@ -288,7 +282,7 @@ fn snapshot(
                 ConfigurationShellMode::NonLogin
             }
         },
-        restart_required,
+        restart_required: Vec::new(),
     }
 }
 

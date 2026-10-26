@@ -102,7 +102,7 @@ Windows 普通模块检查按解码后的绝对 file URL 验证完整固定引�
 
 Kilo 是 Windows 原生托管集成，沿用 OpenCode 的受保护模块归属、载荷身份、截止时间、取消和回执规则。可发现入口是非空绝对 KILO_CONFIG_DIR 下的 plugin/orchbee-agent-observation.js，否则使用 XDG_CONFIG_HOME/kilo，再否则使用 USERPROFILE/.config/kilo。显式根目录无效时拒绝且不回退；doctor 共用此解析。启用发布不可变 capsule 和精确标记的引导文件；禁用仅删除归属已证实的入口。不改变提供方命令、项目配置或认证。Kilo 在其他平台仍为手动管理。本地安装不会覆盖 KILO_PURE，也不代表已完成真实认证任务。
 
-共享 OpenCode 家族规范化器接收不可信的事件/回调对象，仅返回规范观察身份和枚举。创建/删除事件接受 sessionID 或旧版 info.id；提供的身份必须合法且一致。其他事件必须提供 sessionID。当前状态对象映射 busy/retry/idle；Kilo 还接受固定 Herdr 的旧版状态字符串，将 offline 请求映射为问题。聊天和工具回调从不检查或修改输出/参数。未知结构静默忽略。内容、路径、提示词、输出或权限决策均不跨过此边界。
+共享 OpenCode 家族规范化器接收不可信的事件/回调对象，仅返回规范观察身份和枚举。创建/删除事件接受 sessionID 或旧版 info.id；提供的身份必须合法且一致。其他事件必须提供 sessionID。当前状态对象映射 busy/retry/idle；Kilo 还接受旧版状态字符串，将 offline 请求映射为问题。聊天和工具回调从不检查或修改输出/参数。未知结构静默忽略。内容、路径、提示词、输出或权限决策均不跨过此边界。
 
 每个插件实例拥有最多 64 个待完成规范观察的 FIFO。发送串行、尽力而为，受现有传输边界约束。溢出后停止接收直到重新加载，并丢弃排队后缀；正在发送的一项可以完成。dispose 使用相同停止规则。不在丢失未知生命周期证据后恢复发送，也不伪造完成。传输失败静默处理，不阻断后续已接收发送。确定性测试覆盖规范化、身份歧义、顺序、溢出、失败和释放；真实 Node 引导文件/Windows 私有管道见证覆盖安装到发送。这些受控见证不证明已完成认证提供方任务。
 
@@ -139,8 +139,7 @@ Qoder 使用相同的 Windows 发布流程，但 JSON 形状不同。provider `q
 
 集成 `antigravity-cli` 使用可执行文件 `agy` 和规范 Agent 身份 `antigravity`。
 它编辑文档规定的 `USERPROFILE/.gemini/config/hooks.json`；这是与其他 Antigravity 产品形态共享的
-全局定制位置。不把未经验证的 Herdr 专用配置覆盖当作 provider 实际加载的路径。
-其他设置和插件位置仍由 provider 管理。
+全局定制位置。其他设置和插件位置仍由 provider 管理。
 
 此集成仅拥有 `orchbee-agent-observation` 命名块，且必须通过精确固定启动器和唯一的
 `PreInvocation` 处理器证明归属。其他命名块保留为不透明的原始 JSON；复制到其他名称下的命令不归
@@ -267,7 +266,6 @@ PreToolUse、PostToolUse、PermissionRequest 和 Stop。各自超时 10 秒，
 
 仅精确事件名与有效 session_id 发出 session-identified。重复身份保留轮次
 状态。不推断 prompt_id、内容、按 cwd 查找的会话、空闲、权限决定或完成。
-这与固定 Herdr 的身份覆盖一致，但不复制其有歧义的目录列表回退。
 本地配置产物检查不证明有效策略或正在执行的 Agent 任务。
 
 纯集合所有权测试、隔离的公开安装／修复／拒绝／移除和 doctor 检查，以及

@@ -10,8 +10,7 @@ The Server owns canonical-state export/import, target executable/cohort compatib
 endpoint publication, client disconnection and the final live-handoff result. This transport slice
 alone is not a public `server.live_handoff` implementation or proof of process handoff.
 
-The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, Unix live handoff: clients
-disconnect, terminal processes survive, and precommit failure restores the original owner.
+Live handoff disconnects clients, preserves terminal processes and restores the original owner after precommit failure.
 Windows uses the already persistent Worker/Host instead of Unix descriptor transfer. Neither
 cold checkpoint restore nor automatic reconnection represents this operation.
 

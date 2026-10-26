@@ -101,8 +101,6 @@ pub struct PluginManifest {
     #[serde(default)]
     pub min_orchbee_version: Option<String>,
     #[serde(default)]
-    pub min_herdr_version: Option<String>,
-    #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
     pub platforms: Option<Vec<PluginPlatform>>,
@@ -202,7 +200,6 @@ impl PluginManifest {
         text(&mut self.name, 256)?;
         text(&mut self.version, 120)?;
         optional(&mut self.description)?;
-        optional(&mut self.min_herdr_version)?;
         if let Some(required) = &mut self.min_orchbee_version {
             text(required, 120)?;
             let numbers = required

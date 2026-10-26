@@ -2,7 +2,7 @@
 
 ## Scope and reference
 
-The native Client owns whether it has presented an Agent observation to its user. Canonical Agent lifecycle, semantic status and freshness stay Server-owned. Focus never changes them. Herdr reference `e0507237` separates per-Client acknowledgement in `src/client/shell/endpoint_agent_state.rs` from legacy shared Pane seen state. Adopt Client-local ownership; CLI projections must select a Client rather than invent a global focus.
+The native Client owns whether it has presented an Agent observation to its user. Canonical Agent lifecycle, semantic status and freshness stay Server-owned. Focus never changes them. Acknowledgement belongs to each Client; CLI projections must select a Client rather than invent a global focus.
 
 ## Host focus input model
 
@@ -21,7 +21,7 @@ Focus loss forbids acknowledgement. Unknown focus does not establish an OS fact;
 
 ## Client observation and acknowledgement model
 
-The Windows Client owns at most 512 Agent summaries and their acknowledged state versions. A version combines the canonical observation generation with the revision of the latest meaningful state change for that session. Status, freshness, lifecycle and generation changes advance that version; unrelated Agent changes and attachment-only metadata do not. Initial complete baseline observations begin seen, matching Herdr. Later versions remain unseen until successfully presented. Canonical status and pending requests are never rewritten.
+The Windows Client owns at most 512 Agent summaries and their acknowledged state versions. A version combines the canonical observation generation with the revision of the latest meaningful state change for that session. Status, freshness, lifecycle and generation changes advance that version; unrelated Agent changes and attachment-only metadata do not. Initial complete baseline observations begin seen. Later versions remain unseen until successfully presented. Canonical status and pending requests are never rewritten.
 
 A background read lane drains retained changes and obtains a coherent session list under one five-second deadline. Align the list revision with the drained journal head before publishing the round; retry alignment only within a fixed work bound, retain at most 512 changes, and reject incomplete or spliced evidence. The same read lane infrastructure serves the Agent board through a separate owned handle. Only one attention round is outstanding. No endpoint I/O runs on the UI thread. Cancellation, retirement and Drop interrupt the lane, disconnect and join its worker.
 
@@ -35,7 +35,7 @@ A background read lane drains retained changes and obtains a coherent session li
 | Failed, stale, overlaid, zero-sized or scrollback paint | No acknowledgement.                                                                                                              |
 | Known outer focus loss                                  | No acknowledgement even if output is painted.                                                                                    |
 
-Unknown outer focus follows Herdr's compatibility fallback: a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; hidden zoom siblings and Agent board summaries do not count as viewed panes. All actually visible panes may acknowledge, independently in each Client. Query consumers must distinguish unavailable observation from seen or unseen.
+When outer focus is unknown, a complete valid paint may acknowledge until the host reports loss. This is not an operating-system foreground guarantee; supported focus reporting supplies the stronger distinction. A focus event alone does not acknowledge. Pane identity, current presentation binding and exact observation versions are checked again after drawing; hidden zoom siblings and Agent board summaries do not count as viewed panes. All actually visible panes may acknowledge, independently in each Client. Query consumers must distinguish unavailable observation from seen or unseen.
 
 The renderer returns bounded concrete paint proofs; a receipt for an earlier snapshot cannot acknowledge a newer event. Acknowledgement may request one follow-up redraw to remove the unseen indicator, without starting an unbounded redraw loop. Evidence covers two independent Clients, rapid intervening transitions, metadata-only changes, resets, focus loss, stale receipts, hidden/overlaid panes and reader shutdown. The Client query below exposes this observation without acknowledging it.
 
@@ -96,10 +96,8 @@ effects. Wait/prompt conditions consume state evidence independently of acknowle
 Targeted correctness checks cover deterministic baseline/change/replacement/quiet-update traces,
 two independent in-memory Clients, stale and mismatched paint proofs, coherent batch bounds and
 ordered protocol correlation. Two live Windows Clients and process/paint/query integration remain
-part of the final combined acceptance. The fixed reference is Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `client/shell/endpoint_agent_state.rs` and
-`app/api_helpers.rs`; no authenticated-provider, OS foreground, full visual or unbounded proof is
-implied by these bounded witnesses.
+part of the final combined acceptance. These bounded witnesses do not establish authenticated-provider, OS foreground, full visual
+or unbounded correctness.
 
 The existing connection-scoped ClientView lane routes `agent-attention` reads to one explicit, caller-derived or uniquely discovered Client. An intent names 1–100 unique Agent session IDs. `attention-read` completes immediately from one coherent Client snapshot, without navigation, input, focus changes or acknowledgement. Reads may complete while an overlay makes the Client busy; one-delivery, freshness, exact view revision, deadline and receipt-capacity rules still apply.
 

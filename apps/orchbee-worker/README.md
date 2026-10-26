@@ -848,7 +848,7 @@ drive-relative paths are rejected. Inherited `GIT_*` variables cannot redirect r
 applies only to this command's source repository; global config is never changed.
 
 Create checks an existing local branch before choosing checkout or `-b` with base; base
-is ignored for an existing branch, matching Herdr. Open selects one registered checkout
+is ignored for an existing branch. Open selects one registered checkout
 by path or branch. InspectRemove observes registration and dirty state. Remove rechecks
 common-directory identity, excludes the main checkout and invokes Git's dirty/force
 policy without deleting the branch or using a recursive filesystem fallback. Checkout

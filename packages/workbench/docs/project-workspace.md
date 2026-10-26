@@ -99,15 +99,9 @@ schemes, malformed percent escapes, and non-UTF-8 decoded bytes are ignored. Acc
 percent-decoded before replacing `currentCwd`; an ignored value preserves the prior current CWD,
 while a reported `null` clears it. Metadata never changes `launchCwd`.
 
-This policy is a narrow behavioral parity projection from Warp revision
-`086dade63ff7327426d6276d57f85b3f2f313af0`. Title state, override, reset, and persistence were
-reviewed in `app/src/terminal/model/terminal_model.rs`, `app/src/pane_group/mod.rs`, and
-`app/src/workspace/view.rs`; OSC title and CWD normalization were reviewed in
-`app/src/terminal/model/ansi/mod.rs`. Deterministic scenarios cover natural-title normalization,
+Deterministic scenarios cover natural-title normalization,
 custom override, hidden natural updates, reset, persistence, local hostname matching, URI decoding,
-and rejection classes. Warp's in-band-command title suppression and SSH-block CWD suppression are
-outside the parity scope because Orchbee's projected metadata currently exposes no equivalent
-trusted command or SSH fact; this policy does not guess either state.
+and rejection classes. Projected metadata supplies no trusted command-execution or SSH state, so the policy does not suppress title or CWD updates on that basis.
 
 ## Decisions and transitions
 

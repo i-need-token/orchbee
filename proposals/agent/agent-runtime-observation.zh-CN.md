@@ -517,8 +517,7 @@ device-scoped notification command。
   hidden-pane running、attention、completion 与 failure、多个 mux client、unrelated Tab、stale
   observation、navigation、missing target、localization、accessibility 与 reduced motion。
 - 不选择 Lean，因为第一阶段除了由 stateful test 和受控轨迹 覆盖的 reducer 与 projection invariant 外，
-  没有关键 universal pure transformation。Warp、Ghostty、Claude Code 与 Codex 都不是 Orchbee 产品策略的
-  differential reference implementation。
+  没有关键 universal pure transformation。Orchbee 拥有自身产品策略。
 - Native 操作系统显示、notification-center persistence 与 focus transfer 仍属于 platform integration
   limit。除非 human 在当前请求中明确授权该精确测试，否则继续排除 manual-only native-window focus test。
 
@@ -672,8 +671,7 @@ Consequential 与 Modeled 切片：
 
 ## 已接受的易失变化流授权
 
-2026-08-29，同一 active requester 以 Orchbee 产品与架构 decision owner 身份明确授权了受 Herdr 启发的
-外围观察工程。这一 Consequential 与 Modeled 切片接受以下更窄契约：
+2026-08-29，同一 active requester 以 Orchbee 产品与架构 decision owner 身份明确授权了外围观察工程。这一 Consequential 与 Modeled 切片接受以下更窄契约：
 
 1. `@orchbee/agent` 拥有一个内存 journal，保留最近 512 个已应用的 canonical runtime transition。每条
    record 包含全局单调 runtime revision、canonical transition kind 与去内容化的当前 Session summary。

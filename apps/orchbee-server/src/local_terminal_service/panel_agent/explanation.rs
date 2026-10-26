@@ -28,9 +28,7 @@ impl LocalTerminalService {
     pub(super) fn explain_panel_agent(&self, request: &PanelAgentRequest) -> PanelAgentResult {
         let prepare = || -> Result<Outcome, Failure> {
             let (context, target) = self.explanation_context(request)?;
-            let explanation = if let Some(skipped) = context.skipped() {
-                skipped
-            } else {
+            let explanation = {
                 let captured = self.request_agent_explanation(target.clone(), context.provider)?;
                 let (after, after_target) = self.explanation_context(request)?;
                 if after != context || after_target != target {
@@ -40,7 +38,7 @@ impl LocalTerminalService {
                     binding: context.binding.clone(),
                     view: context.view.clone(),
                     explanation: captured.explanation,
-                    sample: Some(captured.sample),
+                    sample: captured.sample,
                 }
             };
             Ok(Outcome::Explained {

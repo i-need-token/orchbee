@@ -37,7 +37,6 @@ fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() 
                 state: orchbee_workbench_protocol::PanelAgentState::Unknown,
                 authority_source: None,
                 message: None,
-                session: None,
             }),
         },
     });
@@ -59,7 +58,6 @@ fn panel_agent_receipts_survive_late_interrupt_and_validate_the_public_schema() 
     for disposition in [
         PanelAgentDisposition::Applied,
         PanelAgentDisposition::Ignored,
-        PanelAgentDisposition::Deferred,
     ] {
         if let Observation::Server(reply) = &mut answer.observation
             && let PanelAgentOutcome::Reported {

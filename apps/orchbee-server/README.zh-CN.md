@@ -27,8 +27,7 @@ CLI 行为和证据；[本机 Client 协议](../../crates/local-client-protocol/
 
 ## 托管 Windows Site 停止
 
-托管 Server 在 Workbench 已提交变化后以 500ms 防抖自动保存，每 30 秒补存已缓存目录及 provider
-resume 引用。保留三份有效存档，不保存终端屏幕。启动时恢复最新有效存档；不可读副本保留并向
+托管 Server 在 Workbench 已提交变化后以 500ms 防抖自动保存，每 30 秒补存已缓存目录。保留三份有效存档，不保存终端屏幕。启动时恢复最新有效存档；不可读副本保留并向
 Client 提醒，全部副本无效时明确提示空工作区。[checkpoint 契约](docs/workbench-checkpoint.zh-CN.md)
 拥有捕获、确切物理目录围栏及恢复；Site owner 的启动准入仍由 runtime 判定。
 

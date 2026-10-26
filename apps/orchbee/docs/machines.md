@@ -3,7 +3,6 @@
 The native Windows Client owns saved SSH machine profiles. The six `machine`
 commands manage labels, SSH targets, explicit remote Session names, and enabled
 state. OpenSSH owns credentials, keys, host trust, and SSH configuration.
-Reference behavior is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`.
 
 ## Catalog and transitions
 
@@ -221,8 +220,7 @@ obligations.
 Evidence must exercise retry timing/stability, permanent refusals, concurrency,
 profile replacement and corrupt catalogs, coalescing and cancellation, actual
 read-only snapshot frames, stale-source refusal and rendered localized overview.
-The reference scope is Herdr e0507237, endpoint supervisor and saved SSH transport;
-local IPC fixtures do not establish remote SSH authentication or network recovery.
+Local IPC fixtures do not establish remote SSH authentication or network recovery.
 
 ## Cross-machine workspace navigation
 
@@ -344,10 +342,8 @@ Evidence must cover bounded complete reads, revision/membership/physical identit
 mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
 Live terminal-title tokens and real SSH/OS visual acceptance remain
-separate obligations. Herdr's list and aggregate sidebar enumerate physical panes,
-not unattached canonical sessions. The native canonical Agent list and per-Session
-Agent board already retain those sessions; cross-machine aggregation of them is
-an architectural extension, not a Herdr replacement gap.
+separate obligations. The native canonical Agent list and per-Session Agent board retain unattached canonical
+sessions. Cross-machine aggregation of those sessions remains a separate capability.
 
 ## Agent metadata, view controls and navigation
 

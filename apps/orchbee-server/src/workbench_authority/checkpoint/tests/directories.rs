@@ -14,7 +14,6 @@ fn checkpoint_requires_strict_directory_rows() {
             match fault {
                 0 => {
                     v.as_object_mut().unwrap().remove("terminalDirectories");
-                    v.as_object_mut().unwrap().remove("managedNames");
                 }
                 1 => v["terminalDirectories"] = Value::Null,
                 2 => v["version"] = json!(2),

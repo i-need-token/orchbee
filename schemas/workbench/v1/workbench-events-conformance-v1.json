@@ -592,16 +592,8 @@
 							"report": {
 								"agent": "pi",
 								"state": "working",
-								"authoritySource": "herdr:pi",
-								"message": null,
-								"session": {
-									"source": "herdr:pi",
-									"agent": "pi",
-									"reference": {
-										"kind": "path",
-										"value": "C:\\session.json"
-									}
-								}
+								"authoritySource": "custom:pi",
+								"message": null
 							},
 							"exited": false
 						}

@@ -291,14 +291,6 @@ fn connect_or_activate(
                     std::ffi::OsStr::new("--local-site"),
                     site.runtime_directory().as_os_str(),
                     #[cfg(windows)]
-                    std::ffi::OsStr::new("--resume-agents-on-restore"),
-                    #[cfg(windows)]
-                    std::ffi::OsStr::new(if settings.resume_agents_on_restore {
-                        "true"
-                    } else {
-                        "false"
-                    }),
-                    #[cfg(windows)]
                     std::ffi::OsStr::new("--manifest-check"),
                     #[cfg(windows)]
                     std::ffi::OsStr::new(if settings.manifest_check {

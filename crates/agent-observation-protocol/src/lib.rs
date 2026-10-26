@@ -73,13 +73,7 @@ pub use read::{
 #[cfg(test)]
 mod tests;
 
-pub use report_values::{
-    AgentProviderSessionReference, AgentProviderSessionReferenceKind, AgentReportProvider,
-    AgentReportSequence, AgentReportSourcePolicy, AgentSessionStartSource,
-    MAXIMUM_PROVIDER_SESSION_ID_BYTES, MAXIMUM_PROVIDER_SESSION_PATH_BYTES,
-    agent_report_allows_session_replacement, agent_report_reserves_native_state,
-    agent_report_source_policy, normalize_agent_report_label, windows_agent_resume_argv,
-};
+pub use report_values::{AgentReportProvider, AgentReportSequence, normalize_agent_report_label};
 
 mod process_identity;
 pub use process_identity::{

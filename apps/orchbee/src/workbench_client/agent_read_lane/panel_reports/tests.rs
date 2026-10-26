@@ -70,7 +70,7 @@ fn panel_read_lane_joins_guards_and_refuses_either_revision_fence_or_wrong_bindi
                     let WorkbenchRequest::PanelAgent(request) = request else { panic!("report after metadata and last fence") };
                     let PanelAgentAction::ReadPresentations { presentation_ids } = request.action else { panic!("read only") };
                     assert_eq!(presentation_ids, if step == 1 { vec![s.panels[0].presentation_id.clone()] } else { vec![] });
-                    let panels = if step == 1 { json!([{"panelId":s.panels[0].panel_id,"binding":s.panels[0].binding,"report":{"agent":"grok","state":"blocked","authoritySource":"custom","message":"approval","session":null}}]) } else { json!([]) };
+                    let panels = if step == 1 { json!([{"panelId":s.panels[0].panel_id,"binding":s.panels[0].binding,"report":{"agent":"grok","state":"blocked","authoritySource":"custom","message":"approval"}}]) } else { json!([]) };
                     let presentations: Vec<_> = panels.as_array().unwrap().iter().map(|panel| json!({"presentationId":s.panels[0].presentation_id,"panel":panel})).collect();
                     let result: PanelAgentResult = serde_json::from_value(json!({"protocolVersion":1,"requestId":request.request_id,"siteId":request.site_id,"outcome":{"kind":"presentations-read","workbenchRevision":"5","reportRevision":if fault==2 && step==3 {"2"} else {"1"},"presentations":presentations}})).unwrap();
                     WorkbenchResponse::PanelAgent(result)

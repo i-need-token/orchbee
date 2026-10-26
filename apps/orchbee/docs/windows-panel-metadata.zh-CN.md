@@ -33,8 +33,7 @@
 显式提供的 `--agent` 裁剪首尾空白后必须非空。已识别的上报别名和可执行路径规范化为上报
 标签（例如 `claude`、`agy`、`copilot`、`qwen`）；未知标签保留裁剪后的大小写和内容。
 Agent 守卫不会被截断或移除内部控制字符：超出现有 80 标量且无控制字符的通信契约时，
-在连接前失败。自定义标签的这一限制仍与 Herdr 的上报输入有差异，需在完整 Agent 上报
-能力中继续补齐。原生进程 provider ID 保留独立的识别契约。
+在连接前失败。原生进程 provider ID 保留独立的识别契约。
 
 一次已有 Session 准入和快照共享可取消的五秒期限。只解析一次所请求成员的绑定（默认主项），并作为 `expectedBinding`
 提交；Server 拒绝已变化的绑定。未绑定 Panel 在提交前失败。命令只提交一次，不启动 Session、
@@ -53,7 +52,7 @@ Server 在 Session 锁内按读取权限读取、按导航权限上报。读取�
 协议／owner 测试覆盖原子变更、重放和 TTL；Rust／TypeScript／JSON 共享用例覆盖边界和畸形
 输入；命名管道测试检查包括绑定在内的精确关联、应答丢失、期限和不重放。解析、回执、本地化
 及 shell 语法检查覆盖 CLI 投影。TUI 渲染及通用事件仍是独立集成义务；
-下述查询投影已消费当前 Server 上报。仅此命令不代表完整 Herdr Panel／Agent 对齐或 Desktop 支持。
+下述查询投影已消费当前 Server 上报。仅此命令不代表 Desktop 支持。
 
 ## 查询观察模型
 
@@ -71,21 +70,19 @@ Panel 和可空绑定；见[当前成员信息增强](native-current-panel.zh-CN
 `tokens`、原始来源 `presentations`、守卫 `context`（`agent`、`authoritySource`）及计算出的
 `presentation`（title、displayAgent、stateLabels）。同级 `reportedAgent` 包含自身 `source`
 （Session、Workbench、上报修订号及上报读取请求 ID）、同一逻辑 `binding`，以及 `view`（Agent 标签、
-状态、权威来源、消息及可选外部 provider 会话引用）。未绑定行的 binding/view 为 null；已绑定
+状态、权威来源及消息）。未绑定行的 binding/view 为 null；已绑定
 但没有上报的终端给出明确 unknown 视图。守卫使用真实 Server 上报视图，缺失事实保留 null，
 永不满足守卫。不得用通用观察类别、用户命名或规范 provider ID 替代上下文。
-单独上报原生会话身份不会伪造进程或上报权威。
+自定义上报不会授予规范 Agent 会话身份。
 
 收集器是读取工作流，不是另一个上报负责人。Host 样本不可用时，Server 元数据及上报仍可读取。
 Agent Get 使用唯一且存活的主绑定；Agent 已结束、未绑定、多义或成员关系随后变化时，连同终端
-样本一起丢弃两者。上报不会替换独立观察到的 OSC 标题、规范 label、状态或就绪性。外部 provider
-引用与规范观察 Session ID 独立，查询不会执行引用。自动 Host 进程生产、关联名称、provider
-恢复／持久化及 TUI 发布仍是独立集成义务。
+样本一起丢弃两者。上报不会替换独立观察到的 OSC 标题、规范 label、状态或就绪性。Host 进程观察、名称与 TUI 发布各自由其真实所有者维护。
 
 Windows Panel list/get 输出 v1，current 输出 v1，Agent Get 输出 v1（带 `--client` 时为 v1）。
 每个 Panel 行和非 null 的 Agent terminal 必须包含 metadata 与 reportedAgent。前序元数据版本
 保留 null 守卫上下文并拒绝 reportedAgent；更早版本同时拒绝 metadata，原有闭合形状仍被接受。
-本地化文本转义有效元数据、上报详情、消息和外部引用。目录列出当前文档与命令路径。
+本地化文本转义有效元数据、上报详情和消息。目录列出当前文档与命令路径。
 
 接纳时将元数据与上报编码行的合计大小限制在既有 CLI 8 MiB 输出预算内。元数据接纳后，上报
 仅使用剩余行预算；每批在扩展状态前校验。最终封套仍单独受限。超限或不一致读取不输出部分

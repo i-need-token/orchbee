@@ -34,7 +34,7 @@ fn panel_policy_has_a_closed_domain_and_an_omitted_default() {
     for invalid in [
         json!(null),
         json!("pane"),
-        json!("herdr"),
+        json!("invalid-target"),
         json!(""),
         json!(false),
         json!(1),

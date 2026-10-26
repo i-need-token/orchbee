@@ -577,7 +577,6 @@ fn enrich(stream: &mut orchbee_local_ipc::LocalStream, bad: u8) -> io::Result<bo
                                 agent,
                                 state: PanelAgentState::Working,
                                 message: None,
-                                session: None,
                             }),
                         },
                     }

@@ -129,7 +129,7 @@ pub(super) fn parse(
         })
         .transpose()?;
     let report = if verb == "clear-agent-authority" {
-        // API-only Herdr operation: omitted and explicitly empty source are distinct.
+        // Omitted and explicitly empty source select distinct clear operations.
         PanelAgentReport::Clear {
             source: options.output_source.clone(),
             sequence,

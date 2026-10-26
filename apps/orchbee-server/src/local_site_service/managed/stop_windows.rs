@@ -71,7 +71,7 @@ pub(super) fn run(
         owners.terminals.start_close_maintenance()?;
         owners
             .terminals
-            .launch_checkpoint_terminals(restored, &owners.agents, startup_deadline)?;
+            .launch_checkpoint_terminals(restored, startup_deadline)?;
         owners
             .terminals
             .start_process_observer_with_settings(settings, true)?;
@@ -79,7 +79,6 @@ pub(super) fn run(
         owners.checkpoint_saver = Some(super::checkpoint_windows::autosave::Saver::start(
             Arc::clone(&owners.checkpoint_store),
             Arc::clone(&owners.terminals),
-            Arc::clone(&owners.agents),
             worker,
             owners.suppress_initial_empty,
         )?);
@@ -87,7 +86,6 @@ pub(super) fn run(
             owners.site.client_socket_path(),
             cohort,
             Arc::clone(&owners.terminals),
-            Arc::clone(&owners.agents),
             Arc::clone(&shutdown),
         )
     })();
@@ -199,7 +197,7 @@ fn settle(
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         let bytes = owners
             .terminals
-            .checkpoint(&worker, &owners.agents, deadline)
+            .checkpoint(&worker, deadline)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;
         super::checkpoint_windows::autosave::publish_final(&owners.checkpoint_store, &bytes)
             .map_err(|error| failure(StopPhase::BackgroundJobs, error))?;

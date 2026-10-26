@@ -1,16 +1,8 @@
-# Kitty 提示符导航对齐
+# 提示符导航
 
-## 参考范围
+## 范围
 
-本契约只采用 2026-08-27 观察到的 Kitty 提交
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中的上一个和下一个提示符导航。参考行为由 Kitty
-的 `kitty/screen.c` 中 `scroll_to_prompt` 实现定义；默认绑定由
-`kitty/options/definition.py` 定义为 `kitty_mod+z` 和 `kitty_mod+x`，其中 `kitty_mod` 默认是
-`ctrl+shift`。
-
-对齐声明覆盖从当前可见顶部跳到请求方向上最近的严格 `PROMPT_START` 行，且仅限主屏幕。它不声明
-与 Kitty 的持久记忆上次提示符行为、可配置提示符数量、滚动偏移、像素滚动、命令输出分页器、自动
-Shell Integration 注入或备用屏幕行为一致。
+在主屏幕上，上一个／下一个导航从当前可见顶部跳到请求方向上最近的严格 `PROMPT_START` 行。默认键为 `Ctrl+Shift+Z` 和 `Ctrl+Shift+X`。不包含持久提示符记忆、可配置提示符数量、滚动偏移、像素滚动、输出分页器、自动注入 Shell Integration 或备用屏幕导航。
 
 ## 领域契约
 
@@ -31,7 +23,7 @@ Shell Integration 注入或备用屏幕行为一致。
 修订与总行数仍为当前值，本地历史意图时期仍匹配，且选中的锚点权威未改变时，才会提交目标。可见
 锚点要求可见 Host 快照与当前 Host 快照准确匹配。临时锚点要求本地意图时期、生成、总行数和当前
 视口边界一致；每次调用仍扫描最新 Host 修订。该临时值仅用于修复修订滞后，且永远不会取代当前
-物理视口，因此并未实现 Kitty 的记忆上次提示符状态。提交请求现有保留历史视口所有者显露目标行；
+物理视口，因此并未实现 持久记忆上次提示符状态。提交请求现有保留历史视口所有者显露目标行；
 它不会修改 Host 历史或提示符语义。
 
 ## 决策与不变量
@@ -62,7 +54,7 @@ Shell Integration 注入或备用屏幕行为一致。
 
 Workbench 拥有语义 Action `terminal.history.prompt-previous` 和
 `terminal.history.prompt-next`。Web 使用替换最新的历史导航执行方式注册它们，并暴露终端聚焦快捷键。
-Apple 与标准平台的默认值都是 `Ctrl+Shift+Z` 和 `Ctrl+Shift+X`，从而匹配固定 Kitty 默认值，且不会
+Apple 与标准平台的默认值都是 `Ctrl+Shift+Z` 和 `Ctrl+Shift+X`，不会
 把 Apple `Mod` 映射为 Command。只有当 Action 在已聚焦主屏幕终端可用时才会消费绑定。短暂的视口
 flight 或 Host 历史刷新期间，如果物理锚点快照准确，则调用使用当前物理锚点。如果只有物理修订
 滞后，而生成、总行数、视口边界与历史意图时期仍匹配，则可从同一意图的临时锚点重新扫描最新

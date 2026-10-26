@@ -1,17 +1,8 @@
-# Kitty prompt-navigation alignment
+# Prompt navigation
 
-## Reference scope
+## Scope
 
-This contract adopts only previous- and next-prompt navigation from Kitty commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`, observed on 2026-08-27. The reference behavior is
-defined by Kitty's `scroll_to_prompt` implementation in `kitty/screen.c`; its default bindings are
-defined in `kitty/options/definition.py` as `kitty_mod+z` and `kitty_mod+x`, where `kitty_mod`
-defaults to `ctrl+shift`.
-
-The parity claim covers a main-screen jump from the current visible top to the nearest strict
-`PROMPT_START` row in the requested direction. It does not claim parity for Kitty's durable
-remembered-last-prompt behavior, configurable prompt count, scroll offset, pixel scrolling,
-command-output pager, automatic shell-integration injection, or alternate-screen behavior.
+On the primary screen, previous/next navigation jumps from the current visible top to the nearest strict `PROMPT_START` row in the requested direction. Defaults are `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Durable prompt memory, configurable prompt counts, scroll offsets, pixel scrolling, output pagers, automatic shell-integration injection and alternate-screen navigation are excluded.
 
 ## Domain contract
 
@@ -36,7 +27,7 @@ the local history-intent epoch still matches, and the selected anchor authority 
 visible anchor requires an exact visible/current Host snapshot match. A transient anchor requires
 the same local intent epoch, generation, total rows, and current viewport bounds; every invocation
 still scans the latest Host revision. The transient value is only revision-lag repair and is never
-used instead of a current physical viewport, so it does not implement Kitty's remembered-last-prompt
+used instead of a current physical viewport, so it does not implement remembered-last-prompt
 state. The commit asks the existing retained-history viewport owner to reveal the target row; it does
 not mutate Host history or prompt semantics.
 
@@ -76,8 +67,7 @@ preserving nearest-first order. A single row that cannot fit the remaining sourc
 Workbench owns the semantic Actions `terminal.history.prompt-previous` and
 `terminal.history.prompt-next`. Web registers them with replace-latest history-navigation
 execution and exposes terminal-focused shortcuts. Both Apple and Standard defaults are
-`Ctrl+Shift+Z` and `Ctrl+Shift+X`, matching the pinned Kitty defaults without mapping Apple `Mod` to
-Command. The binding is consumed only while the Action is available on a focused primary-screen
+`Ctrl+Shift+Z` and `Ctrl+Shift+X`, without mapping Apple `Mod` to Command. The binding is consumed only while the Action is available on a focused primary-screen
 terminal. During a transient viewport flight or Host history refresh, an invocation uses the
 current physical anchor when its snapshot is exact. If only the physical revision is lagging, it may
 instead rescan the latest revision from the same-intent transient anchor while generation, total

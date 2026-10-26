@@ -434,7 +434,7 @@ pub(in crate::cli) fn render_report(
         return Ok(());
     }
     let labels = locale.cli_reported_agent_fields();
-    for (label, value) in labels[..4].iter().zip([
+    for (label, value) in labels.iter().zip([
         &view["agent"],
         &view["state"],
         &view["authoritySource"],
@@ -443,15 +443,6 @@ pub(in crate::cli) fn render_report(
         out.write(format_args!(
             "{label}: {}\n",
             super::escape::escape(value.as_str().unwrap_or("-"))
-        ))?;
-    }
-    let reference = &view["session"]["reference"];
-    if !reference.is_null() {
-        out.write(format_args!(
-            "{}: {} {}\n",
-            labels[4],
-            super::escape::escape(reference["kind"].as_str().expect("typed reference kind")),
-            super::escape::escape(reference["value"].as_str().expect("typed reference value"))
         ))?;
     }
     Ok(())

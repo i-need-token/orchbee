@@ -15,7 +15,7 @@ successful root frame alone is not a successful notification-card draw.
 
 ## Boundaries and evidence
 
-Herdr reference is `e0507237ad8d41f60aece10d00ef29ce2339ca34`, especially `server/headless/notifications.rs`: Client delivery policy is distinct from Server fallback policy. Native custom notifications honor Client delivery policy and omitted-position inheritance. Automatic Agent notifications are specified below; clipboard policy, custom audio and target navigation remain separate alignment work. Matched private cohorts upgrade/roll back together. No new persisted format, dependency version or unbounded queue is introduced.
+Client delivery policy is distinct from Server fallback policy. Native custom notifications honor Client delivery policy and omitted-position inheritance. Automatic Agent notifications are specified below; clipboard policy, custom audio and target navigation remain separate alignment work. Matched private cohorts upgrade/roll back together. No new persisted format, dependency version or unbounded queue is introduced.
 
 Focused evidence covers sanitizer boundaries, independent protocol validation, registry expiry/replay/fanout/backpressure, actual Windows CLI pipes, shutdown, Unicode corner rendering, idle expiry and preservation of input ownership. This does not establish authenticated provider, physical Windows visual/audio or final full-regression acceptance.
 

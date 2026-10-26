@@ -35,7 +35,7 @@ fn incomplete_wrong_channel_aliasing_and_unbounded_releases_are_rejected() {
         ("channel", json!("preview")),
         ("platform", json!("linux-x86_64")),
         ("schemaVersion", json!(2)),
-        ("product", json!("herdr")),
+        ("product", json!("another-product")),
         ("version", json!("a\nb")),
     ] {
         let mut changed = original.clone();

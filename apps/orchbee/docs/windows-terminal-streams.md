@@ -159,4 +159,4 @@ Stream timeouts use a stream-specific diagnostic; refusals retain the controller
 not imply that previously delivered input was undone. Scripted evidence does not replace final
 acceptance against the packaged Windows runtime.
 
-Direct attach owns a fixed Ctrl+B/q escape independently of main-TUI key profiles. The pinned Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` parser in `src/client/attach.rs` has the same fixed escape (its parser is Unix-only); it does not read the configurable main-TUI prefix. Configurable attach is therefore not a missing Herdr parity capability. This does not waive extended-key, graphics, pixel-input or Windows visual acceptance obligations.
+Direct attach owns a fixed Ctrl+B/q escape independently of main-TUI key profiles. Extended-key, graphics, pixel-input and Windows visual acceptance remain separate verification obligations.

@@ -3,9 +3,7 @@ use super::{
     WorkbenchAuthority,
     report_membership::{BindingKey, ReportMembership, key},
 };
-use orchbee_agent_observation_protocol::{
-    AgentReportProvider as Provider, AgentReportSourcePolicy, agent_report_source_policy,
-};
+use orchbee_agent_observation_protocol::AgentReportProvider as Provider;
 use orchbee_workbench_protocol::{
     MAXIMUM_METADATA_TOKEN_KEYS, MAXIMUM_PANEL_METADATA_SOURCES,
     MetadataReportDisposition as Disposition, MetadataSource, MetadataTokenKey, MetadataTokenValue,
@@ -182,11 +180,7 @@ impl PanelMetadata {
         let mut updated = next.sources.get(source).cloned().unwrap_or_default();
         if let Some(seq) = sequence {
             updated.sequence = Some(seq);
-            if let Some(agent) = metadata_agent(
-                source.as_str(),
-                patch.agent.as_ref().map(|v| v.as_str()),
-                patch.applies_to_source.as_ref().map(|v| v.as_str()),
-            ) {
+            if let Some(agent) = metadata_agent(patch.agent.as_ref().map(|v| v.as_str())) {
                 updated.sequence_agent = Some(agent);
             }
         }
@@ -417,10 +411,7 @@ impl WorkbenchAuthority {
                         disposition,
                     },
                 };
-                if self
-                    .panel_agent
-                    .blocks_metadata(binding, source.as_str(), patch)
-                {
+                if self.panel_agent.blocks_metadata(binding, patch) {
                     return Ok(reported(
                         WorkbenchRevision::new(self.panel_metadata.revision),
                         Disposition::Stale,
@@ -445,15 +436,8 @@ impl WorkbenchAuthority {
 #[cfg(test)]
 mod tests;
 
-fn official(source: &str, agent: Provider) -> bool {
-    agent_report_source_policy(source, agent.report_label()) != AgentReportSourcePolicy::Custom
-}
-fn metadata_agent(source: &str, agent: Option<&str>, applies: Option<&str>) -> Option<Provider> {
-    agent.and_then(Provider::lookup).or_else(|| {
-        Provider::ALL.into_iter().find(|agent| {
-            official(source, *agent) || applies.is_some_and(|source| official(source, *agent))
-        })
-    })
+fn metadata_agent(agent: Option<&str>) -> Option<Provider> {
+    agent.and_then(Provider::lookup)
 }
 pub(super) struct PreparedMetadataExit {
     key: BindingKey,
@@ -476,17 +460,12 @@ impl PanelMetadata {
             return Ok(None);
         };
         let mut next = prior.clone();
-        next.sources.retain(|source, record| {
+        next.sources.retain(|_, record| {
             let clear = record.presentation.as_ref().is_some_and(|p| {
-                let official = official(source.as_str(), agent)
-                    || p.applies_to_source
-                        .as_ref()
-                        .is_some_and(|s| official(s.as_str(), agent));
-                let matches = official
-                    || p.agent
-                        .as_ref()
-                        .is_some_and(|a| a.as_str() == agent.report_label());
-                matches && (official || record.reported_at.is_some_and(|at| at <= observed_at))
+                p.agent
+                    .as_ref()
+                    .is_some_and(|a| a.as_str() == agent.report_label())
+                    && record.reported_at.is_some_and(|at| at <= observed_at)
             });
             if clear {
                 record.presentation = None;

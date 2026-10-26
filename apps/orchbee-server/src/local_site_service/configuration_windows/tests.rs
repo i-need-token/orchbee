@@ -5,14 +5,12 @@ fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
     for (text, expected) in [("true", true), ("false", false)] {
         let settings = resolve(
             [
-                "--resume-agents-on-restore",
-                text,
                 "--manifest-check",
-                "true",
+                text,
                 "--manifest-check-source",
-                "default",
+                "file",
                 "--configuration-file",
-                "",
+                "C:/snapshot/config.toml",
                 "--configuration-file-explicit",
                 "false",
                 "--default-shell",
@@ -25,7 +23,7 @@ fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
             || panic!("committed startup must not reload configuration"),
         )
         .unwrap();
-        assert_eq!(settings.resume_agents_on_restore, expected);
+        assert_eq!(settings.manifest_check, expected);
         assert_eq!(settings.shell.mode().as_str(), "login");
         assert_eq!(
             std::path::Path::new(settings.shell.executable()),
@@ -38,11 +36,11 @@ fn immutable_snapshot_does_not_reread_mutable_file_or_environment() {
 fn direct_startup_validates_the_shared_settings_owner() {
     assert!(
         !resolve(std::iter::empty(), || Ok(WindowsUserSettings {
-            resume_agents_on_restore: false,
+            manifest_check: false,
             ..WindowsUserSettings::default()
         }))
         .unwrap()
-        .resume_agents_on_restore
+        .manifest_check
     );
     let error = resolve(std::iter::empty(), || {
         Err(WindowsSettingsError::new("file", "invalid-toml"))
@@ -56,11 +54,11 @@ fn direct_startup_validates_the_shared_settings_owner() {
 fn private_argument_is_closed_and_never_falls_back() {
     for args in [
         vec!["--unknown", "true"],
-        vec!["--resume-agents-on-restore"],
-        vec!["--resume-agents-on-restore", "FALSE"],
-        vec!["--resume-agents-on-restore", ""],
-        vec!["--resume-agents-on-restore", " false "],
-        vec!["--resume-agents-on-restore", "false", "extra"],
+        vec!["--manifest-check"],
+        vec!["--manifest-check", "FALSE"],
+        vec!["--manifest-check", ""],
+        vec!["--manifest-check", " false "],
+        vec!["--manifest-check", "false", "extra"],
     ] {
         assert_eq!(
             resolve(args.into_iter().map(OsString::from), || panic!(
@@ -75,7 +73,7 @@ fn private_argument_is_closed_and_never_falls_back() {
     assert!(
         resolve(
             [
-                OsString::from("--resume-agents-on-restore"),
+                OsString::from("--manifest-check"),
                 OsString::from_wide(&[0xd800])
             ]
             .into_iter(),

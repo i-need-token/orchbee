@@ -113,7 +113,7 @@ Navigation 保留按身份排序的成员关系，以及可选的完整 `workspa
 成员关系、Directory 引用、终端绑定、worktree 关联和 Client 本地选中身份不变。新建 Workspace
 追加到显式顺序末尾；Close 移除已提交关闭的身份。检查点捕获／恢复保留并验证顺序。
 
-参考行为为 Herdr `e0507237` R020/R021：原始插入边界、按调用者顺序收集不连续块、原子验证和逻辑选择保留。
+移动使用原始插入边界、按调用者顺序收集不连续块、原子验证和逻辑选择保留。
 原生公开操作为 `workspace move <target> --insert-index N` 及 `workspace move-block <targets...> [--before target]`。
 Windows CLI 与 TUI 消费该共享顺序，筛选列表保持对应子序列。通用 moved／reordered 事件交付属于
 独立事件流所有者，仍是明确的集成义务；排序回执不是事件送达证据。
@@ -415,9 +415,7 @@ Workbench 准备候选 Tab／Panel／Presentation、发布、身份及待完成�
 
 Site 锁是唯一写入者，并在准入后采样时间。此 reducer 不含 I/O、后台过期计时器、持久化、
 规范拓扑变更或通知事件。读写 DTO 及确定性 owner 测试覆盖替换、选择性清除、逐字段优先级、
-守卫、序号重放、TTL 边界、原子容量失败、修订号耗尽以及主／子绑定生命周期。兼容参考是
-Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的展示和 token 行为；provider 状态权威、
-可恢复会话和 TUI 渲染仍是独立消费者。元数据上报不会建立 Agent 权威，也不会修改 OSC 终端标题。
+守卫、序号重放、TTL 边界、原子容量失败、修订号耗尽以及主／子绑定生命周期。provider 状态权威和 TUI 渲染仍是独立消费者。元数据上报不会建立 Agent 权威，也不会修改 OSC 终端标题。
 公开 CLI 集成需要通信层和查询投影；仅 owner 本身不代表 CLI 已对齐。
 
 [Agent 上报模型](agent-report-model.zh-CN.md) 拥有显式上报转换、有界物理代际注册表和 Windows
@@ -439,7 +437,7 @@ Tab 创建与排序接纳子 Presentation。Split 包装完整来源 Panel 和�
 
 Workbench 的已绑定结构操作接受规范分组元数据和固定前缀。Tab 创建省略 placement 时在末尾追加一个未分组／未固定 Tab；typed placement 也支持相对目标创建、组尾创建、原子新组加 Tab 及精确单 Tab 复制。Panel 分屏、移动、交换及迁移保留完整既有 Panel 内容与存续 Tab／分组元数据；移除最后一个 Panel 时移除其 Tab，移到新 Tab 时创建未分组／未固定目标。除新组创建时的清理外，空分组仍是独立元数据。没有显式 Tab placement 的结构操作不隐式固定、取消固定、分组或取消分组。
 
-Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在分配修订之前返回不变。候选必须保留固定前缀及每个分组的连续成员，否则保留 `tab-move-order-conflict`，不修改状态或退役权威。这是 Herdr 精确移除／插入语义之上的 Orchbee 元数据约束（固定 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，`workspace.rs::move_tab`）；Herdr 本身不定义这些分组／固定语义。请求重放、上下文 Close 栅栏、Site 完整成员组合、容量及回滚沿用既有所有者，不发生进程操作。
+Tab Move 先根据原方向或原始插入边界确定精确置换；no-op 在分配修订之前返回不变。候选必须保留固定前缀及每个分组的连续成员，否则保留 `tab-move-order-conflict`，不修改状态或退役权威。请求重放、上下文 Close 栅栏、Site 完整成员组合、容量及回滚沿用既有所有者，不发生进程操作。
 
 证据通过独立移除／插入及连续区间参考算法比较完整记录，覆盖合法／非法位置、全部方向、所有插入边界、修订耗尽时的 no-op、精确拒绝重放及后续合法操作。恢复后的分组／固定 Site 组合，以及保留子项的创建／分屏／布局／迁移仍是必要集成见证。Rust／TypeScript／线路 schema 和原生失败分类同时接纳新原因。原生索引失败采用 v2，schema v1 保持封闭；方向操作仅针对新拒绝使用专用 v2 信封。匹配协议／Server／Client 的启用或源码回滚不补偿已提交顺序。原生分组／固定创建 UI 由[原生分组](../../orchbee/docs/native-tab-groups.zh-CN.md)覆盖；未绑定生命周期及真实 Windows 多 Client TUI 验收仍为独立义务。
 

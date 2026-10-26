@@ -95,8 +95,7 @@ Windows `terminal clear <terminal>` clears one exact bound primary or child term
 in an existing Session. It preserves the cursor's complete soft-wrapped prompt line,
 removes preceding history and other output, clears selection and returns the viewport
 to the active screen. An alternate screen is refused without changing content.
-Terminal modes, title, working directory and child process remain intact. This follows
-the pinned Herdr `pane.clear` implementation, rather than injecting terminal input.
+Terminal modes, title, working directory and child process remain intact. Clearing never injects terminal input.
 
 The public terminal control action `clear` names an admitted read viewer. The Server
 checks its current Session exposure, exact physical binding and Worker generation,
@@ -184,7 +183,7 @@ Without OSC 8, complete mapped text rows are read only as needed to prove the
 whitespace-delimited token across verified soft wraps, including token ends
 outside the requested viewport. Missing neighboring context triggers a bounded
 extension; hard row boundaries and Unicode whitespace stop the token. Verified
-wide spacer heads add no text. Plain detection follows pinned Herdr: lowercase
+wide spacer heads add no text. Plain detection uses lowercase
 http/https prefixes, trailing quotes/punctuation trimmed, balanced round/square/
 curly closers retained, and a click outside the resulting URL yields no link.
 The reference shared8192-cell inspection budget includes selected physical
@@ -259,7 +258,7 @@ input. Motion names are `line-end`, `first-non-blank`, `next-word-start`,
 `previous-word-start`, `next-word-end`, `next-big-word-start`,
 `previous-big-word-start`, `next-big-word-end`, `previous-paragraph` and
 `next-paragraph`. Both word classes cross verified soft wraps; hard rows insert
-whitespace. Ordinary words distinguish whitespace, tmux ASCII punctuation
+whitespace. Ordinary words distinguish whitespace, ASCII punctuation
 (excluding underscore), and other characters; big words distinguish only
 whitespace. Results remain at whole glyph heads, including wide tails and
 combining text. Line end is the last character after hard-row padding trim;
@@ -442,7 +441,7 @@ joins and the final canonical/Client consistency checks. Queries never activate 
 Session, change associations, navigate, launch a terminal or write Git configuration.
 Git cleanup remains owned by the existing Worker read task. External filesystem
 changes are not fenced: these are sequential live observations, not an atomic Git
-snapshot or Herdr's cached membership. `unavailable` never means “not a repository.”
+snapshot. `unavailable` never means “not a repository.”
 
 Workspace list/get use schema version 1. The catalog exposes the current documents and command paths. Other query versions retain their existing contracts. Verification
 covers main and linked checkouts, Workspace directories inside a checkout, missing
@@ -568,8 +567,7 @@ owner/storage guards pass. See the
 Pending deletion also survives loss of temporary metadata and remains resumable by the same delete
 command. Listing remains read-only. The runtime base itself is not implicitly recreated.
 
-Background and clean-stop checkpoints preserve layouts, Launch Profiles, sampled per-terminal cwd
-and unique provider resume references. Startup selects the newest valid copy, retains corrupt bytes,
+Background and clean-stop checkpoints preserve layouts, Launch Profiles, sampled per-terminal cwd. Startup selects the newest valid copy, retains corrupt bytes,
 and warns when it falls back or opens an empty workspace. Live Agent state, terminal history and
 screen contents are excluded. Live Host adoption remains separate work.
 
@@ -582,12 +580,11 @@ returns a canonical session ID or an exact terminal target, testing exact sessio
 `--agent-session <id>`, `--name <alias>` or `--panel <id|@panel:0x<hex>>` for explicit selection; exactly one selector is
 required. Names match `[a-z][a-z0-9_-]{0,31}` and are case-sensitive. They are unique,
 sharing a 512-entry cap across canonical names, terminal names and pending launches, and released when the session ends, is removed, or the
-Session runtime is disposed. Only admitted completed managed names can return after Session restart.
+Session runtime is disposed. Names are transient and do not survive Session restart.
 
 Windows terminal-backed names require a reported, detected or retained provider identity; an
 ordinary unnamed shell does not qualify. Their target carries presentation ID, creation generation,
-Host epoch and terminal ID. A first provider reference upgrades ownership; a changed provider or
-known reference, proven release/exit, removal or physical replacement clears the name. Intermediate
+Host epoch and terminal ID. A changed provider, proven release/exit, removal or physical replacement clears the name. Intermediate
 report changes are reconciled at commit, so A → B → A cannot revive an old alias. Missing process
 observations alone do not clear it. Hook arrival does not silently convert a terminal alias into a
 canonical session alias.
@@ -601,9 +598,7 @@ session ID. Child terminal reads never borrow the primary panel's report. Named 
 `attach` route through the exact physical binding and existing terminal owners. Physical
 `explain` returns v1 fresh screen diagnostics or v1 with active rule provenance; semantic `wait`/`prompt`, focus and `get --client`
 use their physical observation/Client contracts without inventing canonical sessions;
-completed managed names restore onto fresh bindings after enabled provider resume. Ordinary manual names
-and pending reservations do not survive a cold restart. Same-provider reference changes and renaming
-preserve restored management. Clearing its name removes only its matching owned persisted resume seed.
+terminal names and pending reservations do not survive a cold restart. Renaming preserves the current managed identity; clearing releases its current name.
 
 All three commands admit `--format text|json`. The embedded success schemas are
 `orchbee.agent.names` version 1 (with separate pending reservations), and
@@ -658,7 +653,7 @@ Ordinary waits may match a retained transient; current observation remains separ
 
 Prompt preflight rejects blocked state, verifies a known provider against the actual foreground
 process chain and rereads the exact semantic/physical target before submitting. A known live provider
-with unknown report state may receive input, matching fixed Herdr's prompt admission. Existing send
+with unknown report state may receive input. Existing send
 owns paste/Enter, the Windows Codex boundary, input cleanup and delivery evidence. It is invoked once.
 For prompt waits, the pre-send sequence checkpoints the activity gate. Prior working or a later
 working/blocked change opens it within five seconds (or the shorter total); message/reference changes
@@ -676,7 +671,6 @@ the original send result. Tests cover state gates, quiet updates, transient vers
 provider/physical changes, fences, bounded timeouts, receipt preservation and real Windows input.
 Generated tests cover 32 seeds and 6,400 status pages, shrinking failures to replayable traces;
 this projection checks retained status and activity gating, excluding release events and Client attention.
-The scope follows fixed Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` wait and prompt handlers;
 Client attention, authenticated-provider behavior and final full acceptance remain separate evidence.
 
 ## Agent terminal operations
@@ -755,7 +749,7 @@ or an unchanged completed outcome cannot satisfy this gate. Gate expiry is
 `prompt-stalled`; an earlier caller deadline is `wait-deadline`. Subsequent read errors,
 end, timeout or cancellation do not erase the confirmed submission. An already-working
 Agent may complete its existing turn; a matching result does not identify the prompt's
-own turn. Polling can miss transitions and does not claim Herdr event replay.
+own turn. Polling can miss transitions and does not replay events.
 
 On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequence. Right is a non-character boundary that flushes Codex's paste-burst buffer and clears its Enter suppression window. It neither embeds escape bytes in prompt text nor guesses delivery speed with a fixed delay. Other providers retain paste, Enter; ordinary `terminal send --paste --enter` adds no boundary key. Receipts report the actual three or two records. Stopping before Right or Enter reports only the accepted prefix, never retries the suffix and never starts observation. This boundary does not establish an empty composer, foreground ownership or provider readiness.
 
@@ -2606,8 +2600,7 @@ authentication. It does not create canonical Agent state or establish readiness.
 
 Parent edges only connect sampled processes whose parent creation time is no later
 than the child's. Traversal is bounded by the sample size and detects cycles; a reused
-parent PID cannot manufacture an ancestor. This adopts Herdr's Windows ancestor-chain
-selection intent from `e0507237`, within Orchbee's retained Job, without global scans
+parent PID cannot manufacture an ancestor. Ancestor-chain selection stays within Orchbee's retained Job, without global scans
 or the Git Bash environment-marker escape fallback. Ambiguity stays explicit rather
 than looking like an available shell. No POSIX foreground process group is claimed.
 
@@ -2646,7 +2639,7 @@ Expected Host refusals use `orchbee.cli.failure.process-info` v1 with the bounde
 
 ## Windows Session stop
 
-The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories and provider restart references every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells or selected provider resumes. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
+The managed Windows Server saves committed Workbench changes after a 500ms debounce, refreshes sampled per-terminal directories every 30 seconds, and performs a fresh final save before clean-stop terminal disposal. A later admitted start restores layout/Launch Profiles and launches fresh default shells. Saved terminal cwd precedes workspace/home defaults; a missing saved directory falls back to Worker home. Save failure retains preceding valid snapshots, invalid originals and live terminals; explicitly retry after resolving the failure. Startup retains unreadable snapshots and falls back to an older valid copy, or opens an empty workspace with a warning when none remain valid. The owning [checkpoint contract](../../orchbee-server/docs/workbench-checkpoint.md) defines compatibility and recovery limits. Old processes, live Agent state, Client views, terminal screens and history are not restored.
 
 `server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` stops the existing managed Windows Session without activating one. The ID is a nonzero lowercase 128-bit value, generated once if omitted; `--retry` requires it. The CLI issues one start/retry request, then only status reads. `--detach` returns the admitted attempt immediately; otherwise one absolute deadline (65000 ms by default, 1–3600000 ms) covers runtime/cohort admission, request and polling. Cancellation or timeout stops waiting, never rolls back the admitted shutdown. Every runtime answer retains the request ID so `server stop-status <id>` can query it. Status is a fact document, not a second mutation. The `orchbee.site.stop` v1 envelope distinguishes stopped, pending, failed, busy, not-recorded, unmanaged and unavailable/unknown transport outcomes. Every answer includes `wait`: `null` when no wait disposition exists, or detached, timed-out or cancelled for the applicable pending/transport outcome. Known Server failures preserve attempt, phase, cause and per-attempt disposal count. Only the matching strict stopped activation record plus a free existing lifetime lock proves completion; disappearance, invalid records and a different ID never do. A later start consumes this receipt; not-recorded cannot disprove an earlier stop. Linux/macOS return unsupported-platform without runtime effects.
 
@@ -2684,7 +2677,7 @@ The schema owner resolves the embedded ID and prepares the entire bounded docume
 
 The dedicated `orchbee.cli.failure.schema-export` version 1 document carries `write-failed`, a closed phase, the literal destination and nullable retained temporary path; it exits 1. It appears on stdout only with `--format json`, alongside a localized stderr diagnostic. No provider, terminal, canonical Workbench state or runtime identity is changed. A process crash may leave a recognizable unpublished sibling temporary; publication does not claim power-loss durability for the parent directory.
 
-Maintained Windows process checks cover Unicode/space and relative paths, full and selected schemas, replacement, grammar/unknown-ID isolation, absent parents, directories, a locked destination preserving its previous bytes, schema-valid failure output and absence of normal cleanup residue. Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` `src/cli/api.rs` supplies the selected file-export capability; Orchbee keeps its own schema envelope and complete-file publication.
+Maintained Windows process checks cover Unicode/space and relative paths, full and selected schemas, replacement, grammar/unknown-ID isolation, absent parents, directories, a locked destination preserving its previous bytes, schema-valid failure output and absence of normal cleanup residue. File export uses the Orchbee schema envelope and complete-file publication.
 
 ## Windows Panel layout queries
 
@@ -2860,8 +2853,6 @@ The same-author regressions cover parser refusal, independent wire goldens, malf
 The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched primary reads and both final revision fences. [Current Panel](native-current-panel.md#current-member-enrichment) instead checks the exact resolved member's ID, Panel and binding. Panel list/get v1 and current v1 expose their metadata directly; Windows Agent Get v1 retains metadata and source-attributed `reportedAgent` in its terminal `inspection`. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct.
 
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
-
-Windows Session restart resumes retained official provider references by default, once per distinct source/Agent/reference kind/value. Set ORCHBEE_RESUME_AGENTS_ON_RESTORE=false before activation to start ordinary shells and retain references; only exact true/false values are accepted. Existing Sessions are unaffected. The Server reads SystemRoot to resolve system Windows PowerShell and inherits PATH for provider program discovery. Shell launch is not provider readiness. See the Server [restart model](../../orchbee-server/docs/agent-restart-reference.md) for failure, deduplication and remaining restoration boundaries.
 
 ## Installed Agent detection manifests
 

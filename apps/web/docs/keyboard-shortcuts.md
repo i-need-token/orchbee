@@ -61,95 +61,26 @@ those surfaces owns another binding copy.
 | `terminal.selection.select-all`               | Focused terminal                  | `Cmd+A`                  | `Ctrl+Shift+A`         |
 | `terminal.clear`                              | Focused terminal                  | `Cmd+K`                  | `Ctrl+Shift+L`         |
 
-The new-Tab, active-terminal close, active-panel maximization, right-split, down-split, and paste
-defaults adopt Warp's [documented desktop conventions](https://docs.warp.dev/getting-started/keyboard-shortcuts)
-as observed on 2026-08-22; this is a pinned default-key selection, not a broader behavior or
-visual-parity claim. Previous- and next-Tab defaults use the corresponding Warp bindings at
-revision `086dade63ff7327426d6276d57f85b3f2f313af0`. Apple All search uses `Cmd+Shift+F`, leaving
+The application registers separate defaults for new Tab, active-terminal close, Panel maximization, splits, paste and Tab navigation. Apple All search uses `Cmd+Shift+F`, leaving
 the familiar `Cmd+K` to clear only the focused terminal. Standard Clear uses `Ctrl+Shift+L`;
 Standard defaults deliberately leave unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available
 to the shell, terminal applications, and multiplexers. A user may deliberately record another
 supported custom chord. Product conflicts remain prohibited even when an Action is temporarily
 unavailable.
 
-Previous- and next-prompt navigation preserve Kitty's exact `Ctrl+Shift+Z` and `Ctrl+Shift+X`
-defaults at revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`. They use explicit Control on
-Apple as well as Standard platforms, not the platform `Mod` abstraction. The behavior and bounded
-Host-row contract are owned by the terminal package's
-[Kitty prompt-navigation alignment](../../../packages/terminal/docs/kitty-prompt-navigation-alignment.md).
+Prompt navigation uses physical `Ctrl+Shift+Z` and `Ctrl+Shift+X`. Line, page, top and bottom history navigation uses `Ctrl+Shift+Arrow/Page/Home/End`, with one row of page overlap. Each Action has one customizable effective binding. The terminal package owns [Prompt navigation](../../../packages/terminal/docs/prompt-navigation.md) and [Keyboard scrollback](../../../packages/terminal/docs/keyboard-scrollback.md).
 
-Line, page, top, and bottom history navigation likewise preserve Kitty's primary
-`kitty_mod+Arrow/Page/Home/End` bindings at that revision. Both platforms use explicit
-`Ctrl+Shift`; Kitty's additional macOS Command and `J`/`K` aliases remain available only by
-replacing an effective custom binding because this catalog owns one binding per Action. Page
-movement retains Kitty's one-row overlap. The behavior and bounded Host-row contract are owned by
-the terminal package's
-[Kitty keyboard-scrollback alignment](../../../packages/terminal/docs/kitty-keyboard-scrollback-alignment.md).
+Application font increase, decrease and reset use `Mod+=`, `Mod+-` and `Mod+0`; Mod is Command on Apple and Control on Standard. Visible keyboard hints use `Mod+Shift+O`, leaving Standard `Ctrl+Shift+E` for Split Below. [Keyboard hints](../../../packages/terminal/docs/keyboard-hints.md) owns targets, effects and cancellation.
 
-The three application-wide font-size defaults project Kitty's macOS `cmd+equal`, `cmd+minus`, and
-`cmd+0` entry points from revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`. Standard
-platforms use the same physical keys through `Mod`, producing `Ctrl+=`, `Ctrl+-`, and `Ctrl+0`.
-This is a deliberately bounded common-key projection: Kitty's keypad, shifted-plus, and Backspace
-aliases are excluded until the shortcut model can retain more than one binding per Action.
+Show Last Command Output and Show Scrollback use physical `Ctrl+Shift+G` and `Ctrl+Shift+H` on both platforms and open immutable text viewers. [Command-output viewer](../../../packages/terminal/docs/command-output-viewer.md) and [Scrollback viewer](../../../packages/terminal/docs/scrollback-viewer.md) own extraction, search, copying, cancellation and focus restoration.
 
-Visible keyboard Hints use `Mod+Shift+O` on both platforms. The unified binding avoids Standard
-`Ctrl+Shift+E`, which already owns Split Below, while retaining a single discoverable Action for
-Kitty's frequent visible URL, path, file-location, and hash selection workflow. Detection, effects,
-cancellation, and exclusions are owned by the terminal package's
-[Kitty keyboard-hints alignment](../../../packages/terminal/docs/kitty-keyboard-hints-alignment.md).
+Active-Tab movement uses `Ctrl+Shift+,` and `Ctrl+Shift+.`. Cyclic Panel focus uses `Ctrl+Shift+]` and `Ctrl+Shift+[` in canonical depth-first leaf order within the current Tab, wrapping with at least two Panels. Positional focus uses `Ctrl+Shift+1` through `Ctrl+Shift+0`, where `0` means ten; missing positions never clamp. Apple `Command+digit` remains Tab selection.
 
-Show Last Command Output preserves Kitty's `Ctrl+Shift+G` default at revision
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` on both platforms. It opens an immutable viewer
-for the latest bounded shell-integration output; the extraction, search, copying, cancellation,
-and exclusion contracts are owned by the terminal package's
-[Kitty command-output-viewer alignment](../../../packages/terminal/docs/kitty-command-output-viewer-alignment.md).
+Visible Panel focus and swap use `Ctrl+Shift+F7` and `Ctrl+Shift+F8`. Two Panels select the other Panel immediately; larger layouts use a source-excluding alphanumeric selector. Workbench owns order, multi-character labels, stale cancellation and Action delegation. Set Tab Title uses Apple `Shift+Cmd+I` and Standard `Ctrl+Shift+Alt+T`, sharing one semantic Action with menus and Action search.
 
-Show Scrollback preserves Kitty's `Ctrl+Shift+H` default at the same revision on both platforms.
-It opens one immutable document containing the complete retained primary-screen history and starts
-at the terminal's captured visible top. Exact extraction, wrap projection, search, source-specific
-copying, cancellation, and exclusions are owned by the terminal package's
-[Kitty scrollback-viewer alignment](../../../packages/terminal/docs/kitty-scrollback-viewer-alignment.md).
+Resize Panel uses Apple `Cmd+R` and Standard `Ctrl+Shift+R`. The modal uses `W` wider, `N` narrower, `T` taller, `S` shorter, `R` reset and Escape exit. Steps are five percentage points, doubled by Control, retaining at least five percent per branch; reset gives every split equal child weights.
 
-Active-Tab movement preserves Kitty's `Ctrl+Shift+,` and `Ctrl+Shift+.` defaults at revision
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` on both platforms. Workbench keeps explicit
-Control on Apple because Kitty's `kitty_mod` default is Control+Shift there too; the movement
-model below defines the adopted behavior beyond the key selection.
-
-Cyclic Panel focus preserves Kitty's `Ctrl+Shift+]` next and `Ctrl+Shift+[` previous defaults at
-that revision on both platforms. Workbench keeps explicit Control on Apple, traverses canonical
-depth-first Panel-leaf order inside the current Tab, and wraps only when at least two Panels exist.
-
-Positional Panel focus preserves Kitty's physical `Ctrl+Shift+1` through `Ctrl+Shift+0` defaults at
-that revision on both platforms, where `0` means position ten. Workbench maps them to exact
-one-based canonical depth-first Panel-leaf positions inside the current Tab. It deliberately omits
-Kitty's macOS `Command+digit` aliases because those remain Tab-selection bindings, and it does not
-clamp a missing position to the last Panel.
-
-Visible Panel focus and swap preserve Kitty's `Ctrl+Shift+F7` and `Ctrl+Shift+F8` defaults at that
-revision on both platforms. A two-Panel Tab selects its sole other Panel immediately. Three or more
-Panels enter Workbench's exact source-excluding alphanumeric selector; Workbench owns target order,
-multi-character labels, stale-session cancellation, and delegation to its existing focus and swap
-Actions.
-
-Set Tab Title preserves Kitty's `Shift+Cmd+I` Apple default and `Ctrl+Shift+Alt+T` Standard
-default at that revision. Workbench uses one semantic Action for shortcut dispatch, Action search,
-and the invoked Tab's context menu; the title model below defines the adopted editor and reset
-behavior.
-
-Resize Active Panel preserves Kitty's macOS `cmd+r` resize-mode entry point at revision
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`; Standard uses `Ctrl+Shift+R` so the unshifted
-shell chord remains available. The shared modal adopts Kitty's `W` wider, `N` narrower, `T`
-taller, `S` shorter, `R` reset, Control-modified larger step, and Escape exit vocabulary. Orchbee
-uses geometry-independent five-percentage-point steps, doubles that step with Control, retains at
-least five percent for each branch, and resets every split in the captured Tab to equal weights.
-
-Equalize Panels adopts Kitty revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`'s
-`splits.py::equalize_biases` semantics: same-axis nested Panels receive equal normalized extents,
-while a perpendicular subtree counts as one unit on its parent's axis and is equalized recursively
-on its own axis. Apple uses Ghostty's `Control+Command+=` convention at revision
-`9c3ec931d64561a8407dde7ac984ce156ae91539`; Standard uses `Ctrl+Alt+=` because Kitty's example
-`Ctrl+Shift+E` already belongs to Split Below. This one-shot operation is distinct from resize
-mode's `R`, which resets each binary split to equal child weights.
+Equalize Panels uses Apple `Control+Command+=` and Standard `Ctrl+Alt+=`. Same-axis nested Panels receive equal normalized extents; a perpendicular subtree counts as one parent-axis unit and is recursively equalized on its own axis. This differs from resize mode's `R`, which gives each binary split equal child weights.
 
 ## Terminal paste routing
 
@@ -189,17 +120,10 @@ Main-owned clipboard text, produces no Action status, and delegates text/image p
 terminal adapter. Action routing never reads image bytes or expands the Desktop clipboard-read
 contract beyond bounded plain text.
 
-Directional panel focus adopts Ghostty's Apple `Command+Option+Arrow` and Standard
-`Control+Alt+Arrow` convention at revision `91f66da24527fa02d92b5fd0b41cd020f553a64c`, also
-cross-checked against Warp revision `086dade63ff7327426d6276d57f85b3f2f313af0`. The binding
+Directional Panel focus uses Apple `Command+Option+Arrow` and Standard `Control+Alt+Arrow`. The binding
 selection is the only application-level concern here; Workbench owns spatial neighbor resolution.
 
-Directional Panel movement adopts Kitty revision
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`'s current-layout neighbor selection, outer-edge
-no-op, and Splits leaf exchange. Orchbee adds Shift to its existing focus chord, producing Apple
-`Command+Option+Shift+Arrow` and Standard `Ctrl+Alt+Shift+Arrow`. Bare `Shift+Arrow` remains
-available to shell selection. Kitty's forward/backward defaults are reserved for cyclic focus rather
-than movement; forward/backward/to-top movement cycles and numeric movement are excluded.
+Directional Panel movement adds Shift to the existing focus chords and uses the current weighted-rectangle neighbor. It swaps leaves while preserving source focus and never wraps at an outer edge.
 
 Commands without an effective binding do not render an empty shortcut affordance. Reset,
 new-child-terminal, split-left, and split-above remain intentionally unbound in this catalog.
@@ -266,12 +190,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   focuses the new terminal through the existing handoff, and preserves the source session. Ordinary
   New Tab keeps its Workspace/default CWD. Environment, executable, foreground process, output,
   attachment, SSH state, and remote-shell directory discovery are never cloned.
-- **Reference and evidence:** This bounded behavior follows Kitty revision
-  `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`'s `new_tab_with_cwd` target selection, while using
-  trusted terminal metadata instead of a process-CWD request. Resolver, runtime, Action, menu,
-  shortcut, Settings, and exact Desktop `terminal-parity/FS-15-current-directory-tab`
-  tests cover the adopted path; Kitty session membership, command arguments, remote control, and its
-  example mapping are excluded.
+- **Evidence:** Resolver, runtime, Action, menu, shortcut, Settings and exact Desktop `terminal-parity/FS-15-current-directory-tab` tests cover target selection and current-directory Tab creation from trusted terminal metadata.
 
 ### Adjacent Tab selection model
 
@@ -306,7 +225,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   pinned partitions, group membership, selection, and active identity.
 - **Outputs and transitions:** Within the active Tab's pinned or unpinned partition, backward and
   forward delegate one relative move. Crossing that partition's first or last boundary delegates
-  `last` or `first`, matching Kitty's circular movement without violating the pinned-prefix
+  `last` or `first`, preserving circular movement without violating the pinned-prefix
   invariant. A missing active Tab, a partition with fewer than two Tabs, or a missing lower Action
   is unavailable and preserves the key event. The prepared lower Action owns the synchronous
   commit and result.
@@ -317,9 +236,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   fallback mutation.
 - **Decisions and reference scope:** An interior Tab delegates `previous` or `next`; the first or
   last Tab of a multi-Tab pin partition delegates `last` or `first`; every unavailable state yields
-  no decision. This adopts Kitty's active-Tab direction, circular boundary, and exact defaults at
-  revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`. Kitty's lack of pinned partitions and groups,
-  cross-window movement, drag behavior, animation, and visual parity are excluded.
+  no decision. Movement retains active-Tab direction, circular boundaries and the exact defaults above; numeric, first/last, remote-control and cross-window movement are excluded.
 - **Verification:** Pure resolver tests cover missing, singleton, interior, both boundaries, both
   pinned partitions, and a missing active identity. Prepared-Action tests cover execution-time
   re-resolution, lower registration removal, unchanged active identity, and exact lower input.
@@ -343,11 +260,7 @@ stale source, invalid order, or missing lower Action is unavailable and leaves t
   from the current snapshot. Switching active Tabs while the editor is open cannot redirect the
   write; removal of either identity blocks it. Dynamic metadata remains recorded while custom text
   is visible, and reset never manufactures a fallback or writes terminal-owned metadata.
-- **Decisions and reference scope:** This adopts Kitty revision
-  `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` for the two exact defaults, editing initialized with
-  the current title, and blank reset. Orchbee uses its shared localized modal and durable shared
-  document rather than Kitty's native dialog; window-title editing, remote control, multiple
-  simultaneous bindings, and visual parity are excluded.
+- **Decisions:** Each platform has one default chord. A shared localized modal starts with the current title, blank submission resets it, and the durable shared document retains the result. Window-title editing, remote control and multiple simultaneous bindings are excluded.
 - **Verification:** Model tests cover custom/natural priority, equal-value custom locking, reset, and
   shared-document persistence. Action and React tests cover active and explicit targets, stale
   rejection, keyboard/context/Action-search entry points, blank reset, focus restoration, and
@@ -574,8 +487,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host conne
 | Invalid current data never consults another key                                                               | Storage corruption and strict-shape tests                                                                                    |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
-focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full
-Warp compatibility. The manual Desktop native-window focus test is excluded from autonomous
+focus, and keyboard events. They do not claim operating-system global-shortcut behavior. The manual Desktop native-window focus test is excluded from autonomous
 verification.
 
 ## Maintenance checks

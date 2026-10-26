@@ -86,9 +86,7 @@ Manifest 或它们的组合中，但必须无需逆向分析渲染页面即可�
 
 ## 视觉组合
 
-对于 Desktop 和宽屏浏览器表面，ChatGPT 当前的 Web/Desktop 设置组合是外壳、密度、层级和
-设置项行处理的主要视觉参考。这是设计方向，不是像素级一致声明或运行时依赖。实现时必须使用
-Orchbee 的语义 Token 和共享原语。
+Desktop 和宽屏浏览器的设置表面使用下述外壳、密度、层级与设置项行结构，并由 Orchbee 的语义 Token 和共享原语实现。
 
 - 在宽视口中使用一个居中、有边界且四周留有呼吸空间的表面。只有可用空间需要时才向视口
   扩展；不要让普通设置目录看起来像另一个 Workbench 画布。
@@ -269,16 +267,6 @@ Orchbee 的语义 Token 和共享原语。
 
 ## 参考资料
 
-ChatGPT 是主要视觉组合输入。Cursor、Warp 和 Zed 继续作为行为与架构输入。它们都不是
-Orchbee 行为的兼容目标或权威来源。
+本标准定义 Orchbee 设置的组合、行为与架构。
 
-- [ChatGPT：Updating your visual experience](https://help.openai.com/en/articles/11958281)
-- [ChatGPT：Data Controls FAQ](https://help.openai.com/en/articles/7730893-data-controls-faq)
-- [ChatGPT：Memory FAQ](https://help.openai.com/en/articles/8590148-memory-faq)
-- [Zed：Designing and Building the New Settings UI](https://zed.dev/blog/settings-ui)
-- [Zed：Configuring Zed](https://zed.dev/docs/configuring-zed)
-- [Cursor：Keyboard Shortcuts](https://docs.cursor.com/advanced/keyboard-shortcuts)
-- [Cursor：Rules](https://prod.cursor.com/help/customization/rules)
-- [Warp：Settings Sync](https://docs.warp.dev/terminal/more-features/settings-sync)
-- [Warp：Keyboard Shortcuts](https://docs.warp.dev/getting-started/keyboard-shortcuts)
 - [WAI-ARIA Authoring Practices：Switch Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/switch/)

@@ -4,9 +4,6 @@ use super::{
     agent_reports::{Author, Event, Reports},
     report_membership::{BindingKey, ReportMembership, key},
 };
-use orchbee_agent_observation_protocol::{
-    AgentProviderSessionReference as Reference, AgentSessionStartSource as Start,
-};
 use orchbee_capability_node_protocol::{HostTerminalIdentity, WorkerGeneration};
 use orchbee_workbench_protocol::{
     PanelAgentAction as Action, PanelAgentFailure as Failure, PanelAgentOutcome as Outcome,
@@ -19,17 +16,14 @@ use std::{collections::BTreeMap, time::Instant};
 const MAXIMUM_RESOURCES: usize = 4096;
 const MAXIMUM_BYTES: usize = 32 * 1024 * 1024;
 mod explanation;
-mod managed_clear;
 pub use explanation::TerminalAgentExplainContext;
 mod observation;
 mod semantic;
-pub use managed_clear::PreparedManagedAgentClear;
 
 /// Pure name-ownership observation; never grants canonical Agent authority.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct TerminalAgentNameOwner {
     pub agent: Option<String>,
-    pub reference: Option<Reference>,
     pub clear: bool,
 }
 
@@ -57,72 +51,6 @@ pub(super) struct PanelAgents {
     origin: Option<Instant>,
 }
 impl PanelAgents {
-    pub(super) fn has_restart_session(&self, binding: &PresentationBinding) -> bool {
-        self.resources
-            .get(&key(binding))
-            .is_some_and(|resource| resource.reports.view().session.is_some())
-    }
-
-    pub(super) fn checkpoint_session(
-        &self,
-        physical: &TerminalAgentBinding,
-    ) -> Option<Option<orchbee_workbench_protocol::PanelAgentSession>> {
-        self.resources
-            .get(&key(&physical.binding))
-            .filter(|resource| &resource.physical == physical)
-            .map(|resource| resource.reports.view().session)
-    }
-
-    pub(super) fn seed_sessions(
-        &mut self,
-        seeds: Vec<(
-            TerminalAgentBinding,
-            orchbee_workbench_protocol::PanelAgentSession,
-        )>,
-        now: Instant,
-    ) -> Result<(), Failure> {
-        let mut prepared = BTreeMap::new();
-        let mut bytes = self.bytes;
-        for (physical, session) in seeds {
-            let id = key(&physical.binding);
-            if let Some(current) = self.resources.get(&id) {
-                if current.physical != physical {
-                    return Err(Failure::BindingChanged);
-                }
-                continue;
-            }
-            let reports = Reports::from_restart_session(&session).ok_or(Failure::InvalidRequest)?;
-            let candidate = Resource::prepare(physical, reports, 0, None)?;
-            let added = candidate.bytes;
-            bytes = bytes
-                .checked_add(added)
-                .filter(|n| *n <= MAXIMUM_BYTES)
-                .ok_or(Failure::ResourceLimit)?;
-            if prepared.insert(id, candidate).is_some() {
-                return Err(Failure::BindingChanged);
-            }
-        }
-        if prepared.is_empty() {
-            return Ok(());
-        }
-        if self.resources.len() + prepared.len() > MAXIMUM_RESOURCES {
-            return Err(Failure::ResourceLimit);
-        }
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or(Failure::RevisionExhausted)?;
-        self.time(now)?;
-        for (id, mut resource) in prepared {
-            resource.explicit_revision = revision;
-            self.resources.insert(id, resource);
-        }
-        self.bytes = bytes;
-        self.revision = revision;
-        self.origin.get_or_insert(now);
-        Ok(())
-    }
-
     fn time(&self, now: Instant) -> Result<u64, Failure> {
         self.time_from(now, now)
     }
@@ -180,19 +108,9 @@ fn retained_bytes(reports: &Reports) -> Result<usize, Failure> {
         reports.admitted_bytes().map(|bytes| bytes + 256)
     }
 }
-fn event(report: &Report, absolute: fn(&str) -> bool) -> Result<Event, Failure> {
+fn event(report: &Report) -> Result<Event, Failure> {
     let author =
         |source: &str, agent: &str| Author::new(source, agent).ok_or(Failure::InvalidRequest);
-    let reference = |source: &str, agent: &str, id: &Option<String>, path: &Option<String>| {
-        let normalized = orchbee_agent_observation_protocol::normalize_agent_report_label(agent)?;
-        Reference::from_report(
-            source,
-            &normalized,
-            id.as_deref(),
-            path.as_deref(),
-            absolute,
-        )
-    };
     Ok(match report {
         Report::State {
             source,
@@ -200,28 +118,14 @@ fn event(report: &Report, absolute: fn(&str) -> bool) -> Result<Event, Failure> 
             state,
             message,
             sequence,
-            agent_session_id,
-            agent_session_path,
+            ..
         } => Event::State {
             author: author(source, agent)?,
             status: *state,
             message: message.clone(),
             sequence: *sequence,
-            reference: reference(source, agent, agent_session_id, agent_session_path),
         },
-        Report::Session {
-            source,
-            agent,
-            sequence,
-            agent_session_id,
-            agent_session_path,
-            session_start_source,
-        } => Event::Session {
-            author: author(source, agent)?,
-            sequence: *sequence,
-            reference: reference(source, agent, agent_session_id, agent_session_path),
-            start: session_start_source.as_deref().and_then(Start::normalize),
-        },
+        Report::Session { .. } => Event::Session,
         Report::Clear { source, sequence } => Event::Clear {
             source: source.clone(),
             sequence: *sequence,
@@ -303,10 +207,9 @@ impl WorkbenchAuthority {
         request: PanelAgentRequest,
         facts: &[TerminalAgentBinding],
         now: Instant,
-        absolute: fn(&str) -> bool,
     ) -> PanelAgentResult {
         let outcome = self
-            .panel_agent_outcome(&request, facts, now, absolute)
+            .panel_agent_outcome(&request, facts, now)
             .unwrap_or_else(|reason| Outcome::Failed { reason });
         PanelAgentResult {
             protocol_version: ProtocolVersion,
@@ -320,7 +223,6 @@ impl WorkbenchAuthority {
         request: &PanelAgentRequest,
         facts: &[TerminalAgentBinding],
         now: Instant,
-        absolute: fn(&str) -> bool,
     ) -> Result<Outcome, Failure> {
         serialize_workbench_request(&WorkbenchRequest::PanelAgent(request.clone()))
             .map_err(|_| Failure::InvalidRequest)?;
@@ -471,8 +373,7 @@ impl WorkbenchAuthority {
                 let prior = self.panel_agent.resources.get(&key);
                 let current = prior.map_or_else(Reports::default, |r| r.reports.clone());
                 let before_view = current.view();
-                let transition =
-                    current.transition(event(report, absolute)?, self.panel_agent.time(now)?);
+                let transition = current.transition(event(report)?, self.panel_agent.time(now)?);
                 let mut candidate =
                     Resource::prepare((*physical).clone(), transition.next, 0, prior)?;
                 let (next_bytes, bytes) = if transition.changed {
@@ -573,13 +474,9 @@ impl PanelAgents {
     pub(super) fn blocks_metadata(
         &self,
         binding: &PresentationBinding,
-        source: &str,
         patch: &orchbee_workbench_protocol::PanelMetadataPatch,
     ) -> bool {
-        use orchbee_agent_observation_protocol::{
-            AgentReportProvider as Provider, AgentReportSourcePolicy as Policy,
-            agent_report_source_policy,
-        };
+        use orchbee_agent_observation_protocol::AgentReportProvider as Provider;
         let Some(exited) = self
             .resources
             .get(&key(binding))
@@ -592,10 +489,6 @@ impl PanelAgents {
             .as_ref()
             .and_then(|a| Provider::lookup(a.as_str()))
             == Some(exited)
-            || agent_report_source_policy(source, exited.report_label()) != Policy::Custom
-            || patch.applies_to_source.as_ref().is_some_and(|source| {
-                agent_report_source_policy(source.as_str(), exited.report_label()) != Policy::Custom
-            })
     }
 }
 impl WorkbenchAuthority {

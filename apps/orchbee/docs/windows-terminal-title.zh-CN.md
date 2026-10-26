@@ -16,7 +16,7 @@ Server 拥有一个临时覆盖值及单调修订，与 Panel 标签独立。没
 
 ## 契约与证据
 
-匹配私有 cohort 新增 OBWP kind 43/44，整体升级/回退。`orchbee.terminal.title` v1 是封闭公开回执，无新增持久化迁移。Herdr 参照为 `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `cli.rs`、`config/window_title.rs` 和 `server/headless.rs`；入队不等于显示确认。[Windows 标题 API](https://learn.microsoft.com/en-us/windows/console/setconsoletitle) 负责物理宿主行为。
+匹配私有 cohort 新增 OBWP kind 43/44，整体升级/回退。`orchbee.terminal.title` v1 是封闭公开回执，无新增持久化迁移。入队不等于显示确认。[Windows 标题 API](https://learn.microsoft.com/en-us/windows/console/setconsoletitle) 负责物理宿主行为。
 
 定向检查覆盖 Unicode/控制字符边界、重放/焦点/过期/容量轨迹、独立 Rust/TypeScript/JSON 一致性、真实 Windows CLI 管道回执、取消、生命周期恢复/失败及语法/帮助/补全。这些证据不替代最终 provider、多 Client、物理终端或全量回归验收。
 
@@ -24,6 +24,6 @@ Server 拥有一个临时覆盖值及单调修订，与 Panel 标签独立。没
 
 Windows `[ui] window_title` 默认为 `{hostname}: {workspace}`。支持 `{hostname}`、`{workspace}`、`{tab}`、`{pane}`（手动 Panel 覆盖标签）、`{terminal_title}`（去除活动前缀的焦点终端标题），允许变量名周围空白，`{{`/`}}` 表示字面花括号。缺失值为空。显式空模板是合法的自动写入禁用方式。非空括号/变量语法错误、类型错误或超过 4096 个 UTF-8 字节时，仅该叶字段回退到 `{hostname}: {workspace}` 并发出有界配置警告，不丢弃其他设置。最终渲染先移除控制字符、截取 200 个 Unicode 标量，再 trim；结果为空使用 `Orchbee`。
 
-Session 按已接纳配置和 OS 主机名渲染，使用前台监听者提供的有界展示上下文。Windows 上 Orchbee 查询 OS 名称；固定版本 Herdr 读取 `COMPUTERNAME`，因此覆盖该环境变量不会更改 Orchbee 主机名变量。这些字符串不授予导航或终端权限。UI 每次 tick 更新选择标签及精确的实时焦点帧；过期/未绑定帧不提供终端标题。显式 CLI 覆盖在重载和选择变化后继续优先。Clear 移除覆盖并调度最新配置标题，禁用时使用回退标题。禁用自动标题保持宿主上一次标题。投递修订与 API 回执修订独立；空闲重复渲染被抑制，提升为前台时重新应用当前策略。
+Session 按已接纳配置和 OS 主机名渲染，使用前台监听者提供的有界展示上下文。Windows 上 Orchbee 查询 OS 名称；覆盖 `COMPUTERNAME` 不会更改 Orchbee 主机名变量。这些字符串不授予导航或终端权限。UI 每次 tick 更新选择标签及精确的实时焦点帧；过期/未绑定帧不提供终端标题。显式 CLI 覆盖在重载和选择变化后继续优先。Clear 移除覆盖并调度最新配置标题，禁用时使用回退标题。禁用自动标题保持宿主上一次标题。投递修订与 API 回执修订独立；空闲重复渲染被抑制，提升为前台时重新应用当前策略。
 
 `server reload-config` 无需重启终端即可发布标题变更。`server config` v1 暴露有效 `windowTitle` 及已接纳诊断记录；`config check` v1 暴露同一警告，并保留针对有效模板的可空语法诊断。私有监听请求现在要求有界四字段 `context`，匹配 cohort 同步升级/回退。不新增 live-handoff 或持久化覆盖。

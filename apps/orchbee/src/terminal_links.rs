@@ -237,7 +237,7 @@ pub(crate) fn resolve(
     })
 }
 
-// Pinned Herdr's http(s), whitespace and edge policy, implemented in linear time
+// HTTP(S), whitespace and edge policy, implemented in linear time
 // even for long runs of unmatched closers. Coordinates never derive from widths
 // guessed from Unicode: the caller retains authoritative whole-cell mappings.
 fn url_range(text: &str, clicked: usize) -> Option<Range<usize>> {

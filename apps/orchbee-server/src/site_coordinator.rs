@@ -152,12 +152,7 @@ impl SiteCoordinator {
         #[cfg(windows)]
         let release = matches!(&request.action, orchbee_workbench_protocol::PanelAgentAction::Report { report, .. }
             if matches!(report.as_ref(), orchbee_workbench_protocol::PanelAgentReport::Release { .. }));
-        let result = self
-            .workbench
-            .as_mut()?
-            .panel_agent(request, &facts, now, |path| {
-                std::path::Path::new(path).is_absolute()
-            });
+        let result = self.workbench.as_mut()?.panel_agent(request, &facts, now);
         #[cfg(windows)]
         if let orchbee_workbench_protocol::PanelAgentOutcome::Reported {
             binding,

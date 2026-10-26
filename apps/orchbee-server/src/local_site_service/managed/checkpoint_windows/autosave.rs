@@ -1,5 +1,5 @@
 //! One managed writer. Disk I/O never runs on a Client request or under the Site gate.
-use crate::{agent_service::AgentService, local_terminal_service::LocalTerminalService};
+use crate::local_terminal_service::LocalTerminalService;
 use orchbee_local_site_runtime::WindowsSessionStore;
 use orchbee_server::WorkbenchCheckpoint;
 use orchbee_workbench_protocol::{WorkbenchRevision, WorkerId};
@@ -72,12 +72,11 @@ impl Saver {
     pub(in crate::local_site_service::managed) fn start(
         store: Arc<Mutex<WindowsSessionStore>>,
         terminals: Arc<LocalTerminalService>,
-        agents: Arc<AgentService>,
         worker: WorkerId,
         suppress_initial_empty: bool,
     ) -> io::Result<Self> {
         let mut suppressed_payload = if suppress_initial_empty {
-            let (_, bytes) = terminals.cached_checkpoint(&worker, &agents)?;
+            let (_, bytes) = terminals.cached_checkpoint(&worker)?;
             Some(bytes)
         } else {
             None
@@ -98,7 +97,7 @@ impl Saver {
                     if !schedule.ready(now) {
                         return Ok(false);
                     }
-                    let (revision, bytes) = terminals.cached_checkpoint(&worker, &agents)?;
+                    let (revision, bytes) = terminals.cached_checkpoint(&worker)?;
                     schedule.captured(revision, now);
                     if !publish_for_kind(
                         &store,

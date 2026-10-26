@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveTerminalMetadataObservation } from '../resolve-terminal-metadata-observation';
 
 describe('terminal metadata policy', () => {
-	it('matches Warp OSC 7 hostname and percent-decoding rules', () => {
+	it('validates OSC 7 hostname and percent-decoding rules', () => {
 		expect(
 			resolveTerminalMetadataObservation(
 				{

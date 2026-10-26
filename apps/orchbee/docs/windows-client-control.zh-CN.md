@@ -83,7 +83,7 @@ Starting/unavailable 视图不能产生成功的视口观察；精确视图修�
 
 Server 注册表确定性地拥有获准代次、Client 样本、单调时间、排队/交付命令及完成观察。认证 carrier 是适配器。TUI 拥有有序语义步骤，连接通道拥有传输/join，CLI 拥有选择、一次提交及有界等待。所有者不写入他人的私有状态。受控/生成注册表与控制器测试覆盖这些流程，不另设 TLA 模型；时长、容量及序列化由具体实现检查。
 
-证据必须覆盖所有者隔离、两个 Client、过期／冻结 UI、修订变化、不重放投递、重复／冲突身份、容量／过期、部分执行、人工输入干扰、断开和停止。生成式有状态轨迹保留缩减反例。共享 Rust／TypeScript／schema 夹具和 frame 上限建立有界契约一致性。受控 Windows ConPTY 轨迹必须展示 CLI 选择到达指定 Client 且成功绘制，另一 Client 不变。Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 focus／zoom handler 是选定行为参考；独立 Client 路由属于 Orchbee 架构。同作者检查不代表独立复核。
+证据必须覆盖所有者隔离、两个 Client、过期／冻结 UI、修订变化、不重放投递、重复／冲突身份、容量／过期、部分执行、人工输入干扰、断开和停止。生成式有状态轨迹保留缩减反例。共享 Rust／TypeScript／schema 夹具和 frame 上限建立有界契约一致性。受控 Windows ConPTY 轨迹必须展示 CLI 选择到达指定 Client 且成功绘制，另一 Client 不变。同作者检查不代表独立复核。
 
 ### 指定目标的缩放切换
 
@@ -101,7 +101,7 @@ Server 注册表确定性地拥有获准代次、Client 样本、单调时间、
 
 找到邻居后，将其一次性固定为精确的目标 Panel。现有的有序选择和绘制确认执行该固定目标，回执保留原始方向意图。后续 tick、视口变化、状态查询和重放都不会再次执行方向移动。`direction-focused` 携带目标 Panel 和观测视图；目标必须区别于来源，并匹配要求的上下文、Tab 和最低版本。即使找到的邻居已经获得焦点，也在绘制后返回此结果。保留缩放状态。本地打断和成员丢失沿用已有 rejected/incomplete 语义，不激活操作系统窗口。
 
-两种新完成结果沿用普通有界帧 25/26。Rust、TypeScript 和 JSON Schema 拒绝未知变体和字段；语义校验器拒绝意图不符的方向结果、以来源充当目标、视图不符以及过期的来源版本。Server 保留原始操作，不自行解析几何。维护的控制器和注册表见证覆盖无邻居纯度、固定目标、绘制顺序、打断和回执重放。Windows ConPTY 证据覆盖精确 Client 隔离及非活动来源行为。固定版本 Herdr 的方向聚焦处理器提供无邻居行为参考；Orchbee 保留自己的单元格布局和认证 Client 路由。
+两种新完成结果沿用普通有界帧 25/26。Rust、TypeScript 和 JSON Schema 拒绝未知变体和字段；语义校验器拒绝意图不符的方向结果、以来源充当目标、视图不符以及过期的来源版本。Server 保留原始操作，不自行解析几何。维护的控制器和注册表见证覆盖无邻居纯度、固定目标、绘制顺序、打断和回执重放。Windows ConPTY 证据覆盖精确 Client 隔离及非活动来源行为。无邻居时保留当前选择；单元格布局与认证 Client 路由仍由 Orchbee 拥有。
 
 `panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。Server 将比例提交到共享 Workbench 状态及 checkpoint v1；所有 Client 按各自视口尺寸投影。Client 焦点、zoom 与控制权仍独立。参见[布局契约](windows-client-layout.zh-CN.md)。
 
@@ -162,7 +162,7 @@ Presentation 当前已知的 attention 版本，包括隐藏兄弟，以及外�
 保留的 rejected／incomplete 结果继续描述已经发生的导航。Agent 聚焦保留精确主体／成员／
 物理画面校验，不激活操作系统窗口，也不发送终端输入。
 
-此行为参照固定 Herdr `e0507237` 的 Pane 聚焦及 Workspace／Tab 切换确认。弹层打开时的 Workspace／Tab 导航仍是独立的待补项。定向控制器与 attention 测试覆盖外层失焦、同一目标、当前版本范围、方向解析／
+弹层打开时的 Workspace／Tab 导航仍是独立的待补项。定向控制器与 attention 测试覆盖外层失焦、同一目标、当前版本范围、方向解析／
 无邻居、人类输入、期限及重放；完整 Windows 验收仍留到最后。
 
 ## Panel 聚焦模式退出

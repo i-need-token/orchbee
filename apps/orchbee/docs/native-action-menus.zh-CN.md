@@ -238,7 +238,7 @@ GUI 的分组编辑器已绘制带勾选状态的颜色单选项及调色板预�
 | 模型     | 捕获、绘制、目标失效、自有/外部导航、取消、前提和一次动作转交的有限安全状态机                                                                                                                                                                                                        |
 | 依赖     | 现有原生 membership、终端状态、输入解码器、hit map、布局、本地化和动作 owner；新增条件删除 wire 动作仍由 Server 拥有；无新依赖或持久数据                                                                                                                                             |
 | 归属     | NativeUi 管准入与目标导航；确定性菜单管选择和绘制权限；ClientView 管本地视图决策；仅 InputDispatcher 应用 shell、模式和布局副作用；仅原操作 owner 执行变更                                                                                                                           |
-| 参考范围 | 当前 OrchBee 动作的可发现性，不声称完整 Herdr 菜单对齐                                                                                                                                                                                                                               |
+| 参考范围 | 当前 Orchbee 动作的可发现性                                                                                                                                                                                                                                                          |
 
 `MenuTarget::Project` 携带 `WorkbenchProjectId`，不使用标签或行索引。
 准入冻结完整的规范 Project；仅当其 ID 与当前 Workspace 的 Project 匹配时，

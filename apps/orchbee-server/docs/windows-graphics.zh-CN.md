@@ -2,10 +2,7 @@
 
 ## 已接受的结果与所有权
 
-既有 Windows CLI 替换授权包括真实的 Panel 图形 set、clear、information 和分帧 stream
-（R078–R081）。参考行为固定为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的
-`app/api/pane_graphics.rs`、`api/server/pane_graphics_stream.rs` 和 `app/pane_graphics.rs`。
-仅有公开包装不能证明渲染器可用。本次不增加 Desktop、macOS 或 Linux 运行时。
+Windows 支持 Panel 图形 set、clear、information 和分帧 stream。渲染器可用性需要端到端证据。Desktop、macOS 和 Linux 运行时扩展不属于此边界。
 
 Site 按规范 Panel 与 Presentation 身份拥有临时图层。既有导航管理权限准入视觉写入，读取
 权限准入信息和有界资源读取。图形不写 PTY 输入，也不改变终端滚动历史。Client 拥有真实

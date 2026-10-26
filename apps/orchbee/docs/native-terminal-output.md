@@ -32,7 +32,6 @@ cells, preserves Unicode, separates hard rows with newlines, and terminates none
 a newline. A selected fragment can start or end inside a wrapped logical line; the result exposes
 those edge facts. Limits count physical rows before joining, never guessed logical lines.
 
-The source vocabulary follows Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`.
 Orchbee's viewer starts at the live screen: another Client's private scroll position is not shared
 state. Only the current authoritative projection is returned; an older cached Windows screen is
 not substituted for a blank screen. ANSI snapshots and source-selected waits are separate consumers
@@ -102,9 +101,8 @@ height for visible/detection, or the explicit/default recent limit. `windowTrunc
 observations count validated samples that finished a match pass, including visible-frame samples.
 The offline `api schema` catalog publishes this current closed schema.
 
-Pinned Herdr waits also search text lines, map recent to recent-unwrapped, and permit an absent
-total deadline. Its raw switch only forwards a stripping field that the read handler ignores;
-there is no raw PTY-byte matcher to reproduce. No inert compatibility switch is added. Windows
+Waits search text lines, map recent to recent-unwrapped, and permit an absent total deadline.
+Windows
 process checks, controlled clock/cancellation evidence and actual terminal waits must validate the
 source and lifetime rules. This workflow uses implementation tests.
 
@@ -124,7 +122,7 @@ result fails completely. Raw export and JSON content have identical UTF-8 bytes 
 
 The source range still comes from the acknowledged frame. Visible ANSI uses that frame's validated
 cell styles; recent sources request a render row window at exactly its revision and generation.
-Zero lines require no row read. Following pinned Herdr behavior, detection remains a text projection
+Zero lines require no row read. Detection remains a text projection
 even with ANSI selected. Styled blank cells are content: trim only unstyled padding and trailing
 unstyled blank rows, then apply visible line tails. Recent line budgets remain physical and apply
 before joining. Wide continuation and spacer cells never duplicate a grapheme or insert a spacer
@@ -138,7 +136,7 @@ graphemes stay intact. Control characters carried inside cell strings, including
 rows, are escaped as data under the same output bound. Only
 generated SGR sequences and row separators are terminal controls: no cursor movement, terminal-mode
 change, OSC, hyperlink or graphics replay is generated. This is a synthesized styled snapshot,
-not original PTY bytes. The inert Herdr raw switch is not added.
+not original PTY bytes.
 
 ## Render observation boundary
 

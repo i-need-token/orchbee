@@ -280,11 +280,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -336,7 +336,7 @@
 							"sourceError": "invalid-source",
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -371,7 +371,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -408,7 +408,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -452,7 +452,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -561,11 +561,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -622,11 +622,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -683,11 +683,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -744,11 +744,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -807,11 +807,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -837,7 +837,7 @@
 									"kind": "updated",
 									"report": {
 										"version": 1,
-										"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+										"catalogUrl": "https://example.com/agent-detection/index.toml",
 										"checkedUnixSeconds": 1790610000,
 										"agents": [
 											{
@@ -1226,7 +1226,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -1263,7 +1263,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -1301,7 +1301,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -1339,7 +1339,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -1377,7 +1377,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -1422,7 +1422,7 @@
 						"kind": "updated",
 						"report": {
 							"version": 1,
-							"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+							"catalogUrl": "https://example.com/agent-detection/index.toml",
 							"checkedUnixSeconds": 1790610000,
 							"agents": [
 								{
@@ -1544,11 +1544,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": "invalid-source",
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -1598,11 +1598,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -1660,11 +1660,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -1722,11 +1722,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -1787,11 +1787,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -1848,11 +1848,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{
@@ -1911,11 +1911,11 @@
 							}
 						],
 						"maintenance": {
-							"sourceUrl": "https://herdr.dev/agent-detection/index.toml",
+							"sourceUrl": "https://example.com/agent-detection/index.toml",
 							"sourceError": null,
 							"lastUpdate": {
 								"version": 1,
-								"catalogUrl": "https://herdr.dev/agent-detection/index.toml",
+								"catalogUrl": "https://example.com/agent-detection/index.toml",
 								"checkedUnixSeconds": 1790610000,
 								"agents": [
 									{

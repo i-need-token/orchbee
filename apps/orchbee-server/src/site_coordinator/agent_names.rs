@@ -11,39 +11,6 @@ use std::{
 };
 
 impl SiteCoordinator {
-    pub(crate) fn prepare_managed_name_clear(
-        &mut self,
-        claim: &crate::agent_service::ManagedNameClaim,
-    ) -> Result<
-        orchbee_server::PreparedManagedAgentClear<'_>,
-        crate::agent_service::PreparedUnavailable,
-    > {
-        use crate::agent_service::PreparedUnavailable;
-        let fact = self
-            .agent_registration_snapshot()
-            .map_err(|_| PreparedUnavailable)?
-            .into_iter()
-            .find(|fact| {
-                fact.presentation_id() == &claim.binding.presentation
-                    && fact.identity() == claim.binding.host
-                    && fact.worker_id() == claim.binding.carrier.worker_id
-                    && fact.worker_generation() == claim.binding.carrier.generation
-            })
-            .ok_or(PreparedUnavailable)?;
-        let physical = TerminalAgentBinding {
-            binding: fact.binding().clone(),
-            worker_generation: fact.worker_generation(),
-            identity: fact.identity(),
-        };
-        self.workbench
-            .as_mut()
-            .ok_or(PreparedUnavailable)?
-            .prepare_managed_agent_clear(
-                &physical,
-                claim.owned_session.as_ref().ok_or(PreparedUnavailable)?,
-            )
-            .map_err(|_| PreparedUnavailable)
-    }
     pub(crate) fn bind_agent_names(&mut self, agents: &Arc<AgentService>) -> io::Result<()> {
         if let Some(existing) = &self.agent_names {
             if !Weak::ptr_eq(existing, &Arc::downgrade(agents)) {

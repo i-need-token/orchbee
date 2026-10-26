@@ -69,7 +69,7 @@ The catalog exposes the current documents and command paths.
 
 ## Evidence and compatibility
 
-Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` supplies optional current targeting, default
+Terminal creation supports optional current targeting, default
 no-focus, explicit focus/no-focus and split-ratio behavior. Native IDs, Client routing, numeric
 creation labels, f64 normalization and volatile Client ratios remain explicit native
 contracts. Panel right-click policy is owned separately; dynamic positional naming and persistent

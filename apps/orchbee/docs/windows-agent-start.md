@@ -149,8 +149,7 @@ Timeout, cancellation and release do not kill the Agent. If release is not confi
 `agent names` and the terminal before retrying. Never replay an uncertain reserve, complete or
 send automatically. `agent names` v1 lists committed bindings and separate pending reservations;
 their combined Server capacity is 512. Resolve/rename/clear refuse reserved names or terminals
-with `launch-pending` (names failure v1). Cold restart drops ordinary names and pending reservations. Completed managed names with an
-admitted provider reference restore onto fresh terminals only when Agent resume is enabled.
+with `launch-pending` (names failure v1). Cold restart drops all names and pending reservations.
 Closing a terminal retires its pending reservation. A committed name follows the canonical
 session lifecycle: detaching a still-live session keeps its name until end/removal or explicit
 `agent rename <name> --clear`; detachment alone does not prove the provider session ended.
@@ -168,11 +167,7 @@ combined runtime separately. TLA model execution is not required for this Window
 
 ## Inspecting completed startup
 
-Windows Agent Get v1 (v1 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Completed managed names and provider intent survive clean restart through
-[checkpoint version 1](../../orchbee-server/docs/agent-canonical-model.md#managed-name-restart).
-Restored physical Get v1 reports active provider ownership with its own read source, without an old
-Session, reservation or new interactive-readiness claim. Clearing a restored name also clears only its
-matching owned persisted resume reference; later independent reports remain.
+Windows Agent Get v1 (v1 with a selected Client) includes `management` with its own read source, sampled canonical revision and `state`. The Server retains active startup identity only after accepted Complete; manual naming remains unmanaged. Active means that launch was confirmed interactive, independently of later work, attention, freshness or OS focus. Name clear, end/removal/disposal, provider mismatch and exact physical-binding retirement/replacement clear the managed record. Renaming preserves it. Managed names are transient and are not restored from checkpoints.
 
 Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v1. Successful Start v1 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path infers trust prompts from screen text.
 

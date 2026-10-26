@@ -754,8 +754,7 @@ Git 执行具有 30 秒工作预算、64 KiB stdout 上限及 2 KiB 诊断保留
 契约；拒绝 UNC／device 及盘符相对路径。继承的 `GIT_*` 变量不能重定向仓库、
 index 或配置。显式信任只作用于本命令的源仓库，绝不修改全局配置。
 
-Create 检查已有本地分支，再选择检出或使用 `-b` 与 base；已有分支忽略 base，与
-Herdr 一致。Open 按路径或分支选择一个已登记 checkout。InspectRemove 观测登记及
+Create 检查已有本地分支，再选择检出或使用 `-b` 与 base；已有分支忽略 base。Open 按路径或分支选择一个已登记 checkout。InspectRemove 观测登记及
 脏状态。Remove 复查公共目录身份、排除主 checkout，并调用 Git 的 dirty／force 策略，
 不删除分支，也不使用递归文件系统回退删除。Checkout 和公共目录事实是规范化观测，
 不是对其他 Git 进程或文件系统写入者的事务。变更后观测失败保留可能发生的副作用，

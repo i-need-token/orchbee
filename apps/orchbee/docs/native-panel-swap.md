@@ -87,10 +87,9 @@ adds no persistent journal or restart recovery guarantee. The schema catalog des
 
 ## Evidence and compatibility
 
-Herdr reference `e0507237ad8d41f60aece10d00ef29ce2339ca34` supplies the two swap modes, same-Tab
+Panel swap supports the two swap modes, same-Tab
 atomic exchange, successful source focus and no-op behavior. Native public identities, Client
-routing, error envelopes and process-lifetime canonical state remain native contracts; wire-level
-compatibility and Herdr session persistence are not claimed.
+routing, error envelopes and process-lifetime canonical state remain native contracts.
 
 Independent tree permutation/involution tests check the complete leaf and fixed topology footprint,
 including nested trees, metadata, retained replay and commit refusals. Protocol conformance runs

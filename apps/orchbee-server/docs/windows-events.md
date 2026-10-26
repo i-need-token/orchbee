@@ -2,13 +2,7 @@
 
 ## Accepted behavior and reference
 
-Windows scripts must observe actual Workspace, Tab, Panel, worktree, Agent and Client changes,
-or wait for a specific change, without polling an unrelated current snapshot and inventing history.
-This implements the existing full CLI parity authorization for R089/R090. The reference is Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `api/schema/events.rs`, `api/event_hub.rs`,
-`api/subscriptions.rs` and `api/wait.rs`. Its subscription includes 26 semantic kinds plus output
-match and scroll probes. Its actual `events.wait` accepts only Agent status matches; the broader
-schema alone does not prove that other wait variants execute.
+Windows scripts observe actual Workspace, Tab, Panel, worktree, Agent and Client changes, or wait for a specific change through the owned event stream. Current snapshots cannot substitute for retained history.
 
 Native names and payloads follow canonical Workspace/Tab/Panel identities and Client-local focus
 and viewport ownership. A Panel is the reference Pane; a source may explicitly identify a child
@@ -79,8 +73,7 @@ and scroll probes require a current exact Client/source observation and use the 
 Client control path, preserving request, membership and content-version correlation. They never
 substitute a newly attached viewer's bottom viewport for the selected Client's viewport.
 
-Herdr's actual output sources are recent, recent-unwrapped, visible and detection. Native visible
-means the selected Client viewport, recent-unwrapped joins proven soft wraps, and detection reads
+Visible means the selected Client viewport, recent-unwrapped joins proven soft wraps, and detection reads
 the actual live screen. Native history is an additional retained-scrollback source. Plain and SGR
 reads share physical source/version admission; SGR is synthesized from validated cell styles rather
 than claiming an exact copy of historical PTY input bytes.

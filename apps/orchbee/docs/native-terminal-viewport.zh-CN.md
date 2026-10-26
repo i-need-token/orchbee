@@ -280,8 +280,6 @@ Tab 或 Workspace 导航期间，`ui/navigation_draw.rs` 会在新选中的 Tab 
 最新意图、取消、失败、过期结果和物理替换。视口证据使用共享 shell／窗格几何投影。
 这些是实现轨迹，不提供穷尽 TLC 保证或物理绘制时序证据。真实宿主验收逐帧采样同标签、
 跨标签和跨工作区点击，检查临时导航器及错误目标内容。
-Herdr 源码 `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/app/actions.rs` 和
-`src/workspace.rs` 为直接选择提供参考，不建立时序或源码等价声明。
 
 ## 呈现
 
@@ -336,9 +334,8 @@ Herdr 源码 `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/app/actions.rs`
 鼠标上报保持原样：chrome 事件不进入程序。键盘等价入口仍为 `Ctrl+B PageUp`、PageUp/PageDown、
 Home、End 和 Esc。
 
-比较参考为 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/ui/scrollbar.rs` 和
-`src/client/shell/mouse.rs`：右侧轨道、抓取偏移及有界滚动。这不是源码等价移植；Orchbee
-保留自己的 read/ACK 权威与取消策略。
+滚动条使用右侧轨道、抓取偏移及有界滚动。
+read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 证据：`terminal_scrollbar/tests` 覆盖整数边界；`tui_pointer/tests/scrollbar` 覆盖手势／取消
 及所有鼠标追踪模式；`ui/tests/viewport/scrollbar` 覆盖组合主题／语言绘制、原生准入、解码后

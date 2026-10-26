@@ -33,7 +33,7 @@ owns catalog encoding, path admission and replacement; the Server owns when shut
 ## Managed Windows Site shutdown
 
 The managed Server automatically saves committed Workbench changes after a 500ms debounce and
-refreshes cached directories and provider resume references every 30 seconds. It retains three
+refreshes cached directories every 30 seconds. It retains three
 valid snapshots and excludes terminal screens. Startup restores the newest valid snapshot;
 unreadable copies are retained and reported to the Client, including an explicit empty-workspace
 notice if every copy is invalid. The [checkpoint contract](docs/workbench-checkpoint.md) owns

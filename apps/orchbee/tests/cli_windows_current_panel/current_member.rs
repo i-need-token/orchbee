@@ -114,7 +114,7 @@ fn report(stream: &mut LocalStream, case: &str, primary: bool, unbound: bool, fe
     let view = if unbound {
         Value::Null
     } else {
-        json!({"agent":"codex","state":"blocked","authoritySource":"selected-hook","message":"selected message","session":null})
+        json!({"agent":"codex","state":"blocked","authoritySource":"selected-hook","message":"selected message"})
     };
     let rows = if fence {
         vec![]

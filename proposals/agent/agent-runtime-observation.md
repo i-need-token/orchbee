@@ -570,8 +570,7 @@ Selected correctness evidence:
   Tabs, stale observation, navigation, missing targets, localization, accessibility, and reduced
   motion.
 - Lean is not selected because phase one has no critical universal pure transformation beyond the
-  reducer and projection invariants covered by stateful tests and controlled traces. Warp, Ghostty, Claude Code,
-  and Codex are not differential reference implementations for Orchbee's product policy.
+  reducer and projection invariants covered by stateful tests and controlled traces. Orchbee owns its product policy.
 - Native operating-system display, notification-center persistence, and focus transfer remain
   platform integration limits. The manual-only native-window focus test remains excluded unless a
   human explicitly authorizes that exact test in the active request.
@@ -748,7 +747,7 @@ while acting as Orchbee product and architecture decision owner:
 
 ## Accepted volatile change-feed authorization
 
-On 2026-08-29, the same active requester explicitly authorized Herdr-inspired peripheral
+On 2026-08-29, the same active requester explicitly authorized peripheral
 observation engineering while acting as Orchbee product and architecture decision owner. This
 consequential and modeled slice accepts the following narrower contract:
 

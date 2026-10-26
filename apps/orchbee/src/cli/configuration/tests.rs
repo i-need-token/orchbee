@@ -6,8 +6,6 @@ fn explicit_creation_wins_over_shared_file_policy() {
         settings: WindowsUserSettings {
             cwd: Some((WindowsDirectoryPolicy::Explicit, Some(r"C:\项目".into()))),
             worktree_root: Some(r"C:\worktrees".into()),
-            resume_agents_on_restore: false,
-            resume_agents_on_restore_source: "file",
             ..WindowsUserSettings::default()
         },
         diagnostics: WindowsSettingsDiagnostics::default(),
@@ -24,8 +22,6 @@ fn explicit_creation_wins_over_shared_file_policy() {
     assert_eq!(directory, CreationDirectory::Current);
     assert!(options.cwd.is_none());
     let details = settings.check_details();
-    assert_eq!(details["resumeAgentsOnRestore"], false);
-    assert_eq!(details["resumeAgentsOnRestoreSource"], "file");
     assert_eq!(details["worktreeDirectory"], r"C:\worktrees");
 }
 
@@ -36,10 +32,10 @@ fn shared_path_budget_matches_wire_and_cli_failure_preserves_field() {
         orchbee_workbench_protocol::MAXIMUM_DIRECTORY_PATH_BYTES
     );
     let error = Error::from(WindowsSettingsError::new(
-        "session.resume_agents_on_restore",
+        "update.manifest_check",
         "wrong-type",
     ));
-    assert_eq!(error.field, "session.resume_agents_on_restore");
+    assert_eq!(error.field, "update.manifest_check");
     assert_eq!(error.reason, "wrong-type");
 }
 

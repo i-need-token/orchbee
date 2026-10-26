@@ -1,21 +1,8 @@
-# Kitty scrollback-viewer alignment
+# Scrollback viewer
 
-## Reference scope
+## Scope
 
-This contract adopts Kitty's frequent `show_scrollback` workflow at commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`, observed on 2026-08-27. Kitty maps
-`kitty_mod+h` in `kitty/options/definition.py`; `kitty/window.py` prepares the retained screen and
-history as ANSI text with wrap markers and a visible-top input line; and `kitty/boss.py` starts a
-configured pager in an overlay window.
-
-Orchbee adopts one focused-terminal Action, the `Ctrl+Shift+H` default, a frozen view of all
-currently retained primary-screen text, initial positioning at the terminal's visible top, literal
-search, native text selection, copy, cancellation, and focus restoration. It extends the existing
-application-owned immutable terminal-text viewer so the workflow remains available across Desktop,
-Web, and later mobile clients. The parity claim excludes arbitrary pager or editor processes,
-pager configuration and environment, ANSI styling, external pipes, a second pager-history store,
-history beyond Terminal Host retention, cursor-position placeholders, and simultaneous terminal
-input while the modal viewer is open.
+One focused-terminal Action opens a frozen view of retained primary-screen text at the visible top with `Ctrl+Shift+H`. The application-owned viewer supports literal search, native text selection, copy, cancellation and focus restoration. External pager/editor processes, ANSI styling, pipes, a second history store, history beyond Host retention and simultaneous terminal input are excluded.
 
 ## Change authorization and ownership
 
@@ -27,7 +14,7 @@ device-local shortcut migration. The application-owned clipboard capability rema
 clipboard writer.
 
 The accepted outcome is a complete immutable plain-text view of one retained snapshot. Non-goals
-are the excluded Kitty pager capabilities above, changing retention, mutating startup files,
+are the excluded pager capabilities above, changing retention, mutating startup files,
 scrolling or selecting the live terminal, and adding another modal interaction implementation.
 
 ## Domain model
@@ -87,8 +74,7 @@ enabled only for an open scrollback text document and an available clipboard wri
 
 ## Binding and persistence
 
-Apple and Standard platforms both default Show Scrollback to `Ctrl+Shift+H`, matching Kitty's
-default `kitty_mod+h` when Kitty's modifier is its default Control+Shift. The binding applies only
+Apple and Standard platforms both default Show Scrollback to `Ctrl+Shift+H`. The binding applies only
 to a focused terminal and is projected into the terminal context menu, Action search, shortcut
 Settings, and localized reference text. Viewer-owned focus suppresses terminal shortcuts.
 

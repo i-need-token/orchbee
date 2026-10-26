@@ -14,8 +14,8 @@ fn resolve(value: &str, variables: &[(&str, &str)]) -> Result<WorkbenchDirectory
 }
 
 #[test]
-fn pinned_herdr_local_operand_cases_preserve_caller_and_home_ownership() {
-    // Herdr e0507237 cli/worktree.rs::normalize_path_arg and worktree.rs::expand_tilde_path:
+fn local_operands_preserve_caller_and_home_ownership() {
+    // Relative operands belong to the caller; tilde expansion belongs to its user home:
     // common supported Windows spellings; malformed context refusal is an explicit stricter boundary.
     for (input, expected) in [
         (r"C:\literal $HOME %VAR%", r"C:\literal $HOME %VAR%"),

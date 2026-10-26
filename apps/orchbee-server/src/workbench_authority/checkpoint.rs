@@ -1,4 +1,4 @@
-//! Private retained configuration and provider restart intent, without physical runtime authority.
+//! Private retained configuration and terminal directories, without physical runtime authority.
 
 use std::{collections::BTreeSet, fmt};
 
@@ -13,13 +13,10 @@ use serde::{Deserialize, Serialize};
 use super::{WorkbenchAuthority, catalog_serialized_size, identity};
 use crate::workbench_projection::WorkbenchProjectionStore;
 
-mod agent_sessions;
 mod contexts;
 use contexts::StoredContext;
 mod navigation;
 use navigation::StoredNavigation;
-mod managed_names;
-pub use managed_names::ManagedAgentRestart;
 mod directories;
 mod restore;
 pub use restore::{PreparedWorkbenchRestoreBinding, WorkbenchRestoreError, WorkbenchRestoreTarget};
@@ -37,9 +34,7 @@ pub enum WorkbenchCheckpointError {
     InvalidIdentity,
     InvalidCatalog,
     TerminalBinding,
-    InvalidAgentSession,
     InvalidTerminalDirectory,
-    InvalidManagedName,
 }
 
 impl fmt::Display for WorkbenchCheckpointError {
@@ -68,10 +63,6 @@ impl fmt::Display for WorkbenchCheckpointError {
             }
             Self::InvalidTerminalDirectory => {
                 formatter.write_str("invalid checkpoint terminal directory")
-            }
-            Self::InvalidAgentSession => formatter.write_str("invalid checkpoint Agent session"),
-            Self::InvalidManagedName => {
-                formatter.write_str("invalid checkpoint managed Agent name")
             }
         }
     }
@@ -137,9 +128,7 @@ struct Checkpoint {
     navigation: StoredNavigation,
     terminal_contexts: Vec<StoredContext>,
     profiles: Vec<StoredProfile>,
-    agent_sessions: Vec<agent_sessions::StoredAgentSession>,
     terminal_directories: Vec<directories::StoredDirectory>,
-    managed_names: Vec<ManagedAgentRestart>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -153,41 +142,17 @@ struct StoredProfile {
 impl WorkbenchAuthority {
     /// Captures committed configuration without changing this authority or authorizing effects.
     pub fn checkpoint(&self, local_worker: &WorkerId) -> Result<Vec<u8>, WorkbenchCheckpointError> {
-        self.checkpoint_with_agents(local_worker, &[])
-    }
-
-    /// Physical evidence is supplied under the Site gate, never reconstructed from saved data.
-    pub fn checkpoint_with_agents(
-        &self,
-        local_worker: &WorkerId,
-        facts: &[super::TerminalAgentBinding],
-    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
-        self.checkpoint_with_terminal_directories(local_worker, facts, &[])
+        self.checkpoint_with_terminal_directories(local_worker, &[])
     }
 
     /// The runtime supplies directory observations after exact physical-generation fencing.
     pub fn checkpoint_with_terminal_directories(
         &self,
         local_worker: &WorkerId,
-        facts: &[super::TerminalAgentBinding],
         observed: &[(
             orchbee_workbench_protocol::PresentationBinding,
             WorkbenchDirectoryPath,
         )],
-    ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
-        self.checkpoint_with_managed_agents(local_worker, facts, observed, &[])
-    }
-
-    /// Names supplies only completed claims already fenced against these physical facts.
-    pub fn checkpoint_with_managed_agents(
-        &self,
-        local_worker: &WorkerId,
-        facts: &[super::TerminalAgentBinding],
-        observed: &[(
-            orchbee_workbench_protocol::PresentationBinding,
-            WorkbenchDirectoryPath,
-        )],
-        managed: &[ManagedAgentRestart],
     ) -> Result<Vec<u8>, WorkbenchCheckpointError> {
         if self.retired {
             return Err(WorkbenchCheckpointError::RetiredAuthority);
@@ -195,8 +160,6 @@ impl WorkbenchAuthority {
         validate_catalog(&self.catalog)?;
         // Serialization alone does not validate the shared graph. Validate before recursion.
         let projection = validate_projection(self.snapshot().clone())?;
-        let agent_sessions = agent_sessions::capture(self, local_worker, facts)?;
-        managed_names::validate(managed, &agent_sessions)?;
         let terminal_directories = directories::capture(self, local_worker, observed)?;
         let mut snapshot = projection.snapshot().clone();
         for context in &mut snapshot.terminal_contexts {
@@ -235,9 +198,7 @@ impl WorkbenchAuthority {
                 .map(StoredContext::from)
                 .collect(),
             profiles,
-            agent_sessions,
             terminal_directories,
-            managed_names: managed.to_vec(),
         };
         let encoded = serde_json::to_vec(&checkpoint)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
@@ -262,10 +223,6 @@ pub struct WorkbenchCheckpoint {
 }
 
 impl WorkbenchCheckpoint {
-    /// Immutable intent is consumed by native startup planning before reconstruction.
-    pub fn managed_names(&self) -> &[ManagedAgentRestart] {
-        &self.checkpoint.managed_names
-    }
     pub fn parse(encoded: &[u8]) -> Result<Self, WorkbenchCheckpointError> {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
@@ -296,12 +253,6 @@ impl WorkbenchCheckpoint {
         authority.projection = parts.projection;
         authority.last_identity = self.checkpoint.last_identity.0;
         authority.catalog = parts.catalog;
-        authority.pending_agent_sessions = self
-            .checkpoint
-            .agent_sessions
-            .into_iter()
-            .map(|row| (row.presentation_id, row.session))
-            .collect();
         authority.restart_directories = self
             .checkpoint
             .terminal_directories
@@ -360,8 +311,6 @@ fn checkpoint_parts(
         &checkpoint.profiles,
         checkpoint.last_identity,
     )?;
-    agent_sessions::validate(&checkpoint.agent_sessions, projection.snapshot())?;
-    managed_names::validate(&checkpoint.managed_names, &checkpoint.agent_sessions)?;
     directories::validate(&checkpoint.terminal_directories, projection.snapshot())?;
     Ok(CheckpointParts {
         projection,

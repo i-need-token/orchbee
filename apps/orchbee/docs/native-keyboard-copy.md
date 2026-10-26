@@ -33,9 +33,7 @@ necessary rather than the ordinary return-at-tail path.
 
 Use the visible application cursor only when its exact screen, Host epoch, generation, revision
 and columns match the admitted surface and its absolute row is in that surface. Otherwise start
-at its bottom-left cell. This initial-position projection is adopted from local Herdr revision
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/client/shell/copy_mode.rs`; this is not a complete
-Herdr compatibility claim. Normalize movement to complete displayed glyphs.
+at its bottom-left cell. Normalize movement to complete displayed glyphs.
 
 Copy mode takes its coordinates from the complete admitted row window or alternate-screen frame,
 independently of the ordinary live crop. Its local display reserves the permanent outer footer and,

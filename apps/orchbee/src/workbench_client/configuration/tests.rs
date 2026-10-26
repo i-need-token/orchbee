@@ -448,7 +448,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
             }],
             omitted_count: 0,
         };
-        warning.restart_required = vec![ConfigurationRestart::ResumeAgents];
+        warning.restart_required = vec![ConfigurationRestart::DefaultShell];
         write_workbench_response(
             &mut stream,
             &WorkbenchResponse::Configuration(ConfigurationResult {
@@ -546,7 +546,7 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
         };
         assert_eq!(current.action, ConfigurationAction::Current);
         let mut baseline = snapshot(1, "[keys]\nprefix='ctrl+b'");
-        baseline.restart_required = vec![ConfigurationRestart::ResumeAgents];
+        baseline.restart_required = vec![ConfigurationRestart::DefaultShell];
         write_workbench_response(
             &mut stream,
             &WorkbenchResponse::Configuration(ConfigurationResult {

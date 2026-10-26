@@ -260,7 +260,6 @@
 				"name",
 				"version",
 				"min_orchbee_version",
-				"min_herdr_version",
 				"description",
 				"platforms",
 				"build",
@@ -293,18 +292,6 @@
 							"type": "string",
 							"minLength": 1,
 							"maxLength": 120
-						}
-					]
-				},
-				"min_herdr_version": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"type": "string",
-							"minLength": 1,
-							"maxLength": 4096
 						}
 					]
 				},

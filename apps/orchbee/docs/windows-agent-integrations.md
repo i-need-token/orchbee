@@ -110,7 +110,7 @@ Windows regular-module inspection validates the entire fixed bootstrap against i
 
 Kilo is a Windows-managed native integration with the same guarded module ownership, payload-identity, deadline, cancellation and receipt rules as OpenCode. Its discovered entry is plugin/orchbee-agent-observation.js under a nonempty absolute KILO_CONFIG_DIR, otherwise XDG_CONFIG_HOME/kilo, otherwise USERPROFILE/.config/kilo. Invalid explicit roots refuse without fallback; doctor shares this resolution. Enable publishes the immutable capsule and exact marked bootstrap; disable removes only the proven entry. No provider command, project configuration or authentication is changed. Other platforms remain manual-only for Kilo. Local installation does not override KILO_PURE or establish an authenticated task.
 
-The shared OpenCode-family normalizer consumes untrusted event/callback objects and returns only canonical observation identities and enums. Created/deleted events accept sessionID or legacy info.id; supplied IDs must be valid and agree. Other events require sessionID. Current status objects map busy/retry/idle; Kilo also accepts the pinned Herdr legacy status strings and maps its offline request to a question. Chat and tool callbacks never inspect or alter their output/arguments. Unknown shapes are silent. No content, path, prompt, output or permission decision crosses this boundary.
+The shared OpenCode-family normalizer consumes untrusted event/callback objects and returns only canonical observation identities and enums. Created/deleted events accept sessionID or legacy info.id; supplied IDs must be valid and agree. Other events require sessionID. Current status objects map busy/retry/idle; Kilo also accepts legacy status strings and maps its offline request to a question. Chat and tool callbacks never inspect or alter their output/arguments. Unknown shapes are silent. No content, path, prompt, output or permission decision crosses this boundary.
 
 Each plugin instance owns a FIFO of at most 64 outstanding normalized observations. Delivery is serial, best effort and bounded by the existing transport. At overflow it stops admission until reload and discards the queued suffix; an in-flight send may finish. Dispose uses the same stop rule. It never resumes after dropping unknown lifecycle evidence or fabricates completion. Transport failure is silent and does not poison later admitted sends. Deterministic tests cover normalization, identity ambiguity, ordering, overflow, failure and disposal; a real Node bootstrap/private Windows pipe witness covers installation through delivery. These controlled witnesses do not prove authenticated provider work.
 
@@ -150,8 +150,7 @@ PowerShell 5.1/7 and cmd. Source contracts: [Qoder hooks](https://docs.qoder.com
 
 Integration `antigravity-cli` uses executable `agy` and canonical Agent identity `antigravity`.
 It edits the documented `USERPROFILE/.gemini/config/hooks.json`, a global customization location
-shared with other Antigravity surfaces. An unverified Herdr-specific configuration override is not
-treated as a provider-effective path. Other settings and plugin locations remain provider-owned.
+shared with other Antigravity surfaces. Other settings and plugin locations remain provider-owned.
 
 Only the `orchbee-agent-observation` named block belongs to this integration, and its exact fixed
 launcher plus single `PreInvocation` handler must prove ownership. Other named blocks remain opaque
@@ -291,8 +290,7 @@ metadata preservation, cancellation and recovery rules remain shared.
 
 Only exact event names and valid session_id emit session-identified. Repeated
 identity preserves turn state. No prompt_id, content, cwd-based session search,
-idle, permission decision or completion is inferred. This matches the pinned
-Herdr identity coverage without its ambiguous directory-list fallback. Local
+idle, permission decision or completion is inferred. Local
 artifact inspection does not establish effective policy or a live Agent task.
 
 Pure set-ownership tests, isolated public installation/repair/refusal/removal and

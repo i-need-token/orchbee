@@ -133,8 +133,7 @@ Workspace/Project membership, Directory references, terminal bindings, worktree 
 Client-local selected IDs unchanged. New Workspace creation appends to an explicit order; Close
 removes the committed closed ID. Checkpoint capture/restore retains and validates ordering.
 
-Reference behavior is Herdr `e0507237` R020/R021: original insertion boundaries, caller-ordered
-noncontiguous blocks, atomic validation, and preserved logical selection. Native public operations
+Moves use original insertion boundaries, caller-ordered noncontiguous blocks, atomic validation and preserved logical selection. Native public operations
 are `workspace move <target> --insert-index N` and `workspace move-block <targets...> [--before target]`.
 Their Windows CLI and TUI consumers use this shared order, including filtered-list subsequences.
 Generic moved/reordered event delivery belongs to the separate event-stream owner and remains an
@@ -467,9 +466,7 @@ The Site gate is the single writer and samples time after admission. This reduce
 background expiry timer, durable storage, canonical topology mutation or notification event.
 Read/report DTOs and the deterministic owner tests cover replacement, selective clearing,
 per-field precedence, guards, sequence replay, TTL boundaries, atomic capacity failures,
-revision exhaustion and primary/child binding lifetime. Compatibility targets Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34` presentation/token behavior; provider state authority,
-resumable sessions and TUI rendering remain separate consumers. A metadata report never creates
+revision exhaustion and primary/child binding lifetime. Provider state authority and TUI rendering remain separate consumers. A metadata report never creates
 an Agent authority or changes OSC terminal title. Public CLI integration requires the carrier and
 query projection; the owner alone does not establish CLI parity.
 
@@ -510,9 +507,7 @@ placement do not implicitly pin, unpin, group or ungroup a Tab.
 For Tab Move, the existing direction or original insertion boundary first determines one exact
 permutation. No-op returns unchanged before revision allocation. The candidate must retain a pinned
 prefix and contiguous members for every group; otherwise `tab-move-order-conflict` is retained
-without mutation or retirement. This is an Orchbee metadata constraint over Herdr's exact
-remove/insert semantics (pinned `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `workspace.rs::move_tab`);
-Herdr does not define these group/pin semantics. Request replay, context-Close fences, all-member
+without mutation or retirement. Request replay, context-Close fences, all-member
 Site composition, capacity and rollback retain their existing owners. No process operation occurs.
 
 Evidence compares complete records against independent remove/insert and contiguous-span oracles,

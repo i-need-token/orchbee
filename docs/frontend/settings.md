@@ -106,10 +106,7 @@ Forms standard; it is not a container for the Settings catalog.
 
 ## Visual composition
 
-For Desktop and wide browser surfaces, ChatGPT's current Web/Desktop Settings composition is the
-primary visual reference for shell, density, hierarchy, and row treatment. This is a design
-direction rather than a pixel-parity claim or runtime dependency. Implement it with Orchbee's
-semantic tokens and shared primitives.
+Desktop and wide browser Settings surfaces use the shell, density, hierarchy and row treatment below, implemented with Orchbee's semantic tokens and shared primitives.
 
 - Use one centered, bounded surface with visible breathing room on a wide viewport. Expand toward
   the viewport only as available space requires; do not make an ordinary Settings catalog feel like
@@ -335,16 +332,6 @@ or scope-ambiguous behavior.
 
 ## References
 
-ChatGPT is the primary visual-composition input. Cursor, Warp, and Zed remain behavior and
-architecture inputs. None is a compatibility target or authority for Orchbee behavior.
+This standard defines the composition, behavior and architecture of Orchbee Settings.
 
-- [ChatGPT: Updating your visual experience](https://help.openai.com/en/articles/11958281)
-- [ChatGPT: Data Controls FAQ](https://help.openai.com/en/articles/7730893-data-controls-faq)
-- [ChatGPT: Memory FAQ](https://help.openai.com/en/articles/8590148-memory-faq)
-- [Zed: Designing and Building the New Settings UI](https://zed.dev/blog/settings-ui)
-- [Zed: Configuring Zed](https://zed.dev/docs/configuring-zed)
-- [Cursor: Keyboard Shortcuts](https://docs.cursor.com/advanced/keyboard-shortcuts)
-- [Cursor: Rules](https://prod.cursor.com/help/customization/rules)
-- [Warp: Settings Sync](https://docs.warp.dev/terminal/more-features/settings-sync)
-- [Warp: Keyboard Shortcuts](https://docs.warp.dev/getting-started/keyboard-shortcuts)
 - [WAI-ARIA Authoring Practices: Switch Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/switch/)

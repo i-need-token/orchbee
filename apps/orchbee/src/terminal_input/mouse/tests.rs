@@ -1,6 +1,6 @@
 //! The byte-level contract: every row of the design's encoding table is one
 //! expectation, cross-checked against pinned ghostty-vt `mouse_encode.zig`,
-//! the Host's `input_encoding` remap, and herdr's `encode.rs`.
+//! and the Host's `input_encoding` remap.
 
 use super::{
     MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute, decode_sgr,
@@ -319,7 +319,7 @@ fn contract_rows() {
     // 16. Wheel → cursor arrows: three per tick, SS3 vs CSI.
     assert_eq!(encode_cursor_arrows(true, 3, true), b"\x1bOA\x1bOA\x1bOA");
     assert_eq!(encode_cursor_arrows(false, 3, false), b"\x1b[B\x1b[B\x1b[B");
-    // 17. Cell input uses the Herdr SGR fallback even in pixel format.
+    // 17. Cell input uses the SGR cell fallback even in pixel format.
     assert_eq!(
         encode(
             &event(MouseAction::Press, Some(MouseButton::Left), 0, 0),
@@ -508,7 +508,7 @@ fn fresh_routing_matches_tracking_matrix_without_adopting_gesture_tails() {
 
 #[test]
 fn pixel_request_preserves_cell_fallback_tracking_release_and_dedup() {
-    // Pinned Herdr's independent cell oracle: cell (4,6) produces (5,7),
+    // Cell-coordinate oracle: cell (4,6) produces (5,7),
     // not its separately tested exact pixel position (48,139).
     let mut last = None;
     let hover = event(MouseAction::Motion, None, 4, 6);

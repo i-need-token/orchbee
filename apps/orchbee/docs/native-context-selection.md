@@ -97,7 +97,7 @@ the query neither visits the target nor changes navigation, attachments or termi
 `state/navigation_memory.rs` owns volatile, Client-private selection history. Each exact location
 holds its last Tab ID and each visited Tab's last Panel ID. Labels, ordinals and terminal bindings
 are not keys. The Session is fixed by the owning Session; this history is neither Server state nor
-persistent storage. Herdr's Workspace active Tab and Tab layout focus are the reference behavior.
+persistent storage.
 
 | Input                           | Guard and result                                                                                                                                                                                                     |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

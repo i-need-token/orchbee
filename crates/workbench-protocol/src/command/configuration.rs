@@ -30,8 +30,6 @@ pub enum ConfigurationRestart {
     DefaultShell,
     #[serde(rename = "terminal.shell_mode")]
     ShellMode,
-    #[serde(rename = "session.resume_agents_on_restore")]
-    ResumeAgents,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -42,7 +42,7 @@ fn panel_agent_input_preserves_labels_messages_references_and_full_sequences() {
         if agent == custom.trim() && seq.get() == 7)
     );
     assert!(
-        matches!(report(&["panel", "report-agent-session", "@panel:0xabc", "--source=herdr:pi",
+        matches!(report(&["panel", "report-agent-session", "@panel:0xabc", "--source=custom:pi",
         "--agent=pi", "--session-start-source= NEW ", "--agent-session-path=C:/session"]),
         PanelAgentReport::Session { session_start_source: Some(start), agent_session_path: Some(path), .. }
         if start == " NEW " && path == "C:/session")

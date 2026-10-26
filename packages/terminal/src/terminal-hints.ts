@@ -25,7 +25,7 @@ export type TerminalHintChoiceResult =
 	| { readonly hint: TerminalHint; readonly kind: 'selected' }
 	| { readonly kind: 'cancelled' | 'empty' | 'stale' | 'unavailable' };
 
-/** Detect the bounded common subset of Kitty-style targets in screen order. */
+/** Detect bounded URL, path, file-location and hash targets in screen order. */
 export function detectTerminalHints(
 	rows: readonly TerminalBufferRow[],
 	currentDirectory = '',

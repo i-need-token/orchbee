@@ -562,24 +562,16 @@ eligibility, changing screen or generation, resizing, or disposing restores ordi
 bottom-following state. Accessibility rows, links, search, selection, the scrollbar, and hidden
 input geometry all consume the same committed visible window.
 
-The selected differential behavior reference is Warp revision
-`086dade63ff7327426d6276d57f85b3f2f313af0`, limited to the visible-tail idea represented by
-`app/src/terminal/cli_agent.rs`, `app/src/terminal/view.rs`, and
-`app/src/terminal/model/blockgrid.rs`. Orchbee retains its Host-projected row-window architecture;
-Warp's block model, feature-flag machinery, pixel geometry, cursor policy, and mouse behavior are
-outside this claim. Deterministic policy tests cover every content signal and no-op boundary;
+The Host-projected row window owns the visible-tail policy. Deterministic policy tests cover every content signal and no-op boundary;
 projected-terminal tests cover exact-window admission, cursor remapping, failure fallback, runtime
 disablement, alternate-screen and application-mouse exclusion, and transfer to manual history.
 
-The selected differential behavior reference is Ghostty source revision
-`9c3ec931d64561a8407dde7ac984ce156ae91539`, specifically `Surface.scrollCallback`,
-`Termio.scrollViewport`, and `PageList.scroll`, with a separate interaction check against the local
-ZeroGH 0.1 (1) build. The parity scope covers progress and wheel presentation: a valid pinned
+Primary-screen viewport progress and wheel presentation follow these rules: a valid pinned
 primary-screen viewport continues accepting history motion while output advances, and each admitted
 whole-row wheel delta commits the resulting viewport before the next render without a client-owned
 snapshot, transform, easing curve, or synthetic momentum. Orchbee retains its Host-projected
 row-window architecture; exact pixels, transport latency, operating-system momentum events, and
-alternate-screen application input remain outside this differential claim.
+alternate-screen application input remain governed by their respective host and transport contracts.
 
 Wheel pixel, line, and page deltas accumulate until they produce whole terminal rows. Each admitted
 primary-screen movement then delegates to the same Host-authoritative history-intent workflow as
@@ -603,23 +595,23 @@ without receiving search input. [Search controller tests](src/search/__tests__/p
 exercise notification, activation, factory, and abort-listener reentry with a controlled clock and
 Worker; these local traces do not add a protocol or an exhaustive model-checking claim.
 
-Previous- and next-prompt navigation follows the bounded [Kitty alignment contract](docs/kitty-prompt-navigation-alignment.md). It scans Host-authored OSC 133 row classes from the current visible top through the general-buffer lane, nearest first, and commits only while the primary screen, pinned snapshot, selected visible or same-intent revision-lag repair anchor, and local history intent remain current. Each invocation admits at most 16 MiB of encoded row windows. Missing marks, alternate-screen use, bounds, source exhaustion, replacement, cancellation, and stale or unavailable reads leave the viewport unchanged. The package does not inject shell integration or infer prompts from terminal text.
+Previous- and next-prompt navigation follows the bounded [Kitty alignment contract](docs/prompt-navigation.md). It scans Host-authored OSC 133 row classes from the current visible top through the general-buffer lane, nearest first, and commits only while the primary screen, pinned snapshot, selected visible or same-intent revision-lag repair anchor, and local history intent remain current. Each invocation admits at most 16 MiB of encoded row windows. Missing marks, alternate-screen use, bounds, source exhaustion, replacement, cancellation, and stale or unavailable reads leave the viewport unchanged. The package does not inject shell integration or infer prompts from terminal text.
 
 Focused-terminal line, page, top, and bottom shortcuts follow the bounded
-[Kitty keyboard-scrollback alignment](docs/kitty-keyboard-scrollback-alignment.md). The terminal
+[Keyboard scrollback](docs/keyboard-scrollback.md). The terminal
 admits them only on the primary screen, preserves Kitty's one-row overlap for page movement, and
 delegates every request to the existing Host-authoritative history-intent workflow. A boundary is
 an unchanged local result; alternate-screen shortcuts remain available to the terminal application.
 
 Visible keyboard Hints follow the bounded
-[Kitty keyboard-hints alignment](docs/kitty-keyboard-hints-alignment.md). One invocation reads only
+[Keyboard hints](docs/keyboard-hints.md). One invocation reads only
 the pinned visible row window, excludes logical lines clipped by a viewport edge, and labels at most
 512 permitted URLs, paths, file locations, and lowercase hexadecimal hashes. The overlay owns label
 key events until selection or cancellation. `ProjectedTerminal` returns the selected typed target;
 the application owns URL opening or exact-text insertion through the normal paste boundary.
 
 Last-command output preparation follows the bounded
-[Kitty command-output viewer alignment](docs/kitty-command-output-viewer-alignment.md). One primary-
+[Kitty command-output viewer alignment](docs/command-output-viewer.md). One primary-
 screen invocation captures the exact general-buffer generation and revision, scans Host-authored
 OSC 133 prompt rows newest-first, and returns only written output-semantic cells as an immutable
 plain-text document. Soft wraps remain joined; hard rows become line feeds. Cancellation,
@@ -628,7 +620,7 @@ failure, and the 16 MiB aggregate source limit remain typed outcomes and never p
 content. The application owns the viewer, search, Copy Action, and clipboard effect.
 
 Complete retained-history preparation follows the bounded
-[Kitty scrollback-viewer alignment](docs/kitty-scrollback-viewer-alignment.md). One primary-screen
+[Scrollback viewer](docs/scrollback-viewer.md). One primary-screen
 invocation reads text-detail rows oldest-first from one exact generation and revision, joins soft
 wraps, preserves hard boundaries, and returns an immutable plain-text document with the exact
 UTF-16 offset of the captured visible top. Cancellation, staleness, eviction, alternate-screen use,

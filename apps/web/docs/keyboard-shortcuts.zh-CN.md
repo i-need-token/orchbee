@@ -56,71 +56,21 @@
 | `terminal.selection.select-all`               | 聚焦终端               | `Cmd+A`                  | `Ctrl+Shift+A`         |
 | `terminal.clear`                              | 聚焦终端               | `Cmd+K`                  | `Ctrl+Shift+L`         |
 
-新建标签页、关闭活动终端、活动面板最大化、向右分屏、向下分屏和粘贴的默认键采用 2026-08-22 观察到的 Warp [桌面端文档约定](https://docs.warp.dev/getting-started/keyboard-shortcuts)；这里只固定选择默认按键，不主张更广泛的行为或视觉一致性。上一个和下一个标签页的默认键使用 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 中的对应绑定。Apple 的全部搜索使用 `Cmd+Shift+F`，把熟悉的 `Cmd+K` 留给且只留给已聚焦终端的清除操作。标准平台的清除使用 `Ctrl+Shift+L`；标准默认值特意保留未加 Shift 的 `Ctrl+B/T/W/K/F/D/E/V/A/L` 与 `Ctrl+C`，供 shell、终端应用和多路复用器使用。用户可以主动录入其他受支持的自定义组合键。即使某个 Action 暂时不可用，产品内冲突仍然不允许出现。
+应用为新建标签页、关闭活动终端、面板最大化、分屏、粘贴与标签页导航注册独立默认键。Apple 的全部搜索使用 `Cmd+Shift+F`，把熟悉的 `Cmd+K` 留给且只留给已聚焦终端的清除操作。标准平台的清除使用 `Ctrl+Shift+L`；标准默认值特意保留未加 Shift 的 `Ctrl+B/T/W/K/F/D/E/V/A/L` 与 `Ctrl+C`，供 shell、终端应用和多路复用器使用。用户可以主动录入其他受支持的自定义组合键。即使某个 Action 暂时不可用，产品内冲突仍然不允许出现。
 
-上一个和下一个提示符导航保留 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的精确默认键 `Ctrl+Shift+Z` 与 `Ctrl+Shift+X`。Apple 与标准平台都使用显式 Control，而不是平台 `Mod` 抽象。行为与有界 Host 行契约由终端包的 [Kitty 提示符导航对齐](../../../packages/terminal/docs/kitty-prompt-navigation-alignment.zh-CN.md)所有。
+提示符导航使用物理 `Ctrl+Shift+Z` 与 `Ctrl+Shift+X`；历史逐行、逐页、顶部及底部导航使用 `Ctrl+Shift+Arrow/Page/Home/End`，逐页保留一行重叠。每个 Action 只有一个可自定义的有效绑定。领域规则由终端包的[提示符导航](../../../packages/terminal/docs/prompt-navigation.zh-CN.md)与[键盘回滚](../../../packages/terminal/docs/keyboard-scrollback.zh-CN.md)维护。
 
-逐行、逐页、顶部和底部历史导航同样保留该修订版中 Kitty 的主要
-`kitty_mod+Arrow/Page/Home/End` 绑定。两个平台都使用显式 `Ctrl+Shift`；因为本目录为每个 Action
-拥有一个绑定，Kitty 额外的 macOS Command 和 `J`/`K` 别名只能通过替换有效自定义绑定来使用。翻页
-保留 Kitty 的一行重叠。行为与有界 Host 行契约由终端包的
-[Kitty 键盘回滚对齐](../../../packages/terminal/docs/kitty-keyboard-scrollback-alignment.zh-CN.md)所有。
+应用字体大小增大、减小与重置使用 `Mod+=`、`Mod+-` 和 `Mod+0`；Apple 的 Mod 为 Command，标准平台为 Control。可见键盘提示使用 `Mod+Shift+O`，让标准平台 `Ctrl+Shift+E` 继续用于向下分屏；目标、效果与取消由[键盘提示](../../../packages/terminal/docs/keyboard-hints.zh-CN.md)维护。
 
-三个应用范围字号默认值投影自 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`
-中的 macOS `cmd+equal`、`cmd+minus` 和 `cmd+0` 入口。标准平台通过 `Mod` 使用相同物理按键，
-得到 `Ctrl+=`、`Ctrl+-` 和 `Ctrl+0`。这是有意限定的常用按键投影：在快捷键模型能够为每个
-Action 保留多个绑定之前，不包含 Kitty 的小键盘、Shift 加号和 Backspace 别名。
+显示上一条命令输出与显示回滚缓冲区在两个平台分别使用物理 `Ctrl+Shift+G` 和 `Ctrl+Shift+H`，打开不可变文本查看器。[命令输出查看器](../../../packages/terminal/docs/command-output-viewer.zh-CN.md)与[回滚缓冲区查看器](../../../packages/terminal/docs/scrollback-viewer.zh-CN.md)维护提取、搜索、复制、取消及焦点恢复。
 
-可见键盘 Hints 在两个平台都使用 `Mod+Shift+O`。这个统一绑定避开已由向下拆分拥有的标准平台
-`Ctrl+Shift+E`，同时为 Kitty 常用的可见 URL、路径、文件位置与 hash 选择工作流保留一个可发现
-Action。检测、效果、取消与排除项由终端包的
-[Kitty 键盘 Hints 对齐](../../../packages/terminal/docs/kitty-keyboard-hints-alignment.zh-CN.md)所有。
+活动 Tab 移动使用 `Ctrl+Shift+,` 与 `Ctrl+Shift+.`。Panel 循环聚焦使用 `Ctrl+Shift+]` 与 `Ctrl+Shift+[`，沿当前 Tab 的规范深度优先叶节点顺序移动，至少两个 Panel 时回绕。位置聚焦使用 `Ctrl+Shift+1` 至 `Ctrl+Shift+0`，其中 `0` 表示位置十；缺失位置不夹取。Apple `Command+digit` 保留用于 Tab 选择。
 
-“显示上一条命令输出”在两个平台都保留 Kitty 修订版
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的 `Ctrl+Shift+G` 默认键。它会为最新的有界
-shell 集成输出打开不可变查看器；提取、搜索、复制、取消与排除契约由终端包的
-[Kitty 命令输出查看器对齐](../../../packages/terminal/docs/kitty-command-output-viewer-alignment.zh-CN.md)所有。
+Panel 可视聚焦与交换使用 `Ctrl+Shift+F7` 与 `Ctrl+Shift+F8`。两个 Panel 时立即选中另一 Panel；更多 Panel 使用排除来源的字母数字选择器。Workbench 拥有顺序、多字符标签、过期取消及 Action 委托。Tab 标题编辑在 Apple 使用 `Shift+Cmd+I`，标准平台使用 `Ctrl+Shift+Alt+T`，与菜单及 Action 搜索共用语义 Action。
 
-“显示回滚历史”在两个平台都保留 Kitty 同一修订版的 `Ctrl+Shift+H` 默认键。它会打开一份包含完整
-主屏幕保留历史的不可变 document，并从终端捕获的可见顶部开始呈现。精确提取、换行投影、搜索、
-按来源复制、取消与排除项由终端包的
-[Kitty 回滚历史查看器对齐](../../../packages/terminal/docs/kitty-scrollback-viewer-alignment.zh-CN.md)所有。
+调整 Panel 在 Apple 使用 `Cmd+R`，标准平台使用 `Ctrl+Shift+R`。模态框使用 `W` 变宽、`N` 变窄、`T` 变高、`S` 变矮、`R` 重置与 Escape 退出；普通步进为五个百分点，Control 加倍，每分支保留至少百分之五，重置使每个 split 子权重相等。
 
-活动标签页移动在两个平台都保留 Kitty 修订版
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的 `Ctrl+Shift+,` 与 `Ctrl+Shift+.` 默认键。
-Workbench 在 Apple 平台仍使用显式 Control，因为 Kitty 的 `kitty_mod` 默认值在该平台同样是
-Control+Shift；按键选择以外采用的行为由下方移动模型定义。
-
-Panel 循环聚焦在两个平台都保留该修订版中“下一个”的 `Ctrl+Shift+]` 与“上一个”的
-`Ctrl+Shift+[` 默认键。Workbench 在 Apple 平台仍使用显式 Control，只遍历当前 Tab 的规范深度优先
-Panel 叶节点顺序，并且仅在至少存在两个 Panel 时回绕。
-
-Panel 按位置聚焦在两个平台都保留该修订版的物理 `Ctrl+Shift+1` 到 `Ctrl+Shift+0` 默认键，其中
-`0` 表示位置十。Workbench 把它们映射到当前 Tab 内规范深度优先 Panel 叶节点顺序的一基精确位置。
-它刻意省略 Kitty 的 macOS `Command+digit` 别名，因为这些组合键继续用于选择 Tab，也不会把缺失位置
-钳制到最后一个 Panel。
-
-Panel 可视聚焦与交换在两个平台都保留该修订版的 `Ctrl+Shift+F7` 与 `Ctrl+Shift+F8` 默认键。
-双 Panel Tab 会立即选择唯一的另一 Panel。三个或更多 Panel 会进入 Workbench 的精确、排除源的
-字母数字选择器；目标顺序、多字符标签、陈旧会话取消，以及对现有聚焦与交换 Action 的委托均由
-Workbench 拥有。
-
-设置 Tab 标题保留该修订版中 Apple 的 `Shift+Cmd+I` 默认键与标准平台的
-`Ctrl+Shift+Alt+T` 默认键。Workbench 使用同一个语义 Action 处理快捷键分发、Action 搜索和被调用
-Tab 的上下文菜单；下方标题模型定义采纳的编辑器与重置行为。
-
-“调整活动面板大小”保留 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中 macOS
-的 `cmd+r` 调整模式入口；标准平台使用 `Ctrl+Shift+R`，从而为 shell 保留未加 Shift 的组合键。
-共享模态框采用 Kitty 的 `W` 变宽、`N` 变窄、`T` 变高、`S` 变矮、`R` 重置、Control 修饰的大步幅
-以及 Escape 退出词汇。Orchbee 使用不依赖几何尺寸的五个百分点步幅，按住 Control 时翻倍，为每个
-分支至少保留百分之五，并把捕获标签页中的每个分割重置为等权重。
-
-“均分面板”采用 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中
-`splits.py::equalize_biases` 的语义：同轴嵌套 Panel 获得相等的规范化范围；垂直子树在父轴上计为一个
-单元，并在自身轴上递归均分。Apple 使用 Ghostty 修订版
-`9c3ec931d64561a8407dde7ac984ce156ae91539` 的 `Control+Command+=` 约定；标准平台使用
-`Ctrl+Alt+=`，因为 Kitty 示例中的 `Ctrl+Shift+E` 已属于“向下拆分”。这一单次操作不同于调整大小
-模式的 `R`；后者会把每个二叉 split 重置为子节点等权重。
+Panel 均分在 Apple 使用 `Control+Command+=`，标准平台使用 `Ctrl+Alt+=`。同轴嵌套 Panel 获得相等的规范化长度，垂直子树在父轴计为一个单元并沿自身轴递归均分。这与调整模式 `R` 对每个二叉 split 设置相等子权重不同。
 
 ## 终端粘贴路由
 
@@ -155,9 +105,9 @@ Promise 结算前始终处于等待状态。Paste Action 会快照并等待该 P
 文本、不产生 Action 状态，并把文本/图片优先级委托给终端适配器。Action 路由绝不读取
 图片字节，也不会把 Desktop 剪贴板读取契约扩展到有界纯文本之外。
 
-方向面板聚焦采用 Ghostty 在修订版 `91f66da24527fa02d92b5fd0b41cd020f553a64c` 中的 Apple `Command+Option+Arrow` 与标准平台 `Control+Alt+Arrow` 约定，并与 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 交叉核对。此处只负责应用层绑定选择；空间邻居解析由 Workbench 所有。
+方向面板聚焦使用 Apple `Command+Option+Arrow` 与标准平台 `Control+Alt+Arrow`。此处只负责应用层绑定选择；空间邻居解析由 Workbench 所有。
 
-方向 Panel 移动采用 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的当前布局邻居选择、外侧边缘空操作和 Splits 叶节点交换。Orchbee 在现有焦点组合键上增加 Shift，形成 Apple `Command+Option+Shift+Arrow` 与标准平台 `Ctrl+Alt+Shift+Arrow`。无修饰的 `Shift+Arrow` 仍供 shell 选择使用。Kitty 的 forward/backward 默认键保留给循环聚焦，而不是移动；forward/backward/to-top 移动循环与数值移动不在范围内。
+方向 Panel 移动在现有焦点键上增加 Shift，使用当前带权矩形邻居；只交换叶节点并保留源焦点，外侧边缘不循环。
 
 没有有效绑定的命令不渲染空的快捷键提示。“重置”“新建子终端”“向左分屏”和“向上分屏”在本目录中仍然有意保持未绑定。允许用户为初始未绑定命令创建可空绑定不在本模型范围内。
 
@@ -193,7 +143,7 @@ Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会�
 - **数据与所有权：** Workbench 捕获正在显示的主 Presentation 或子 Presentation 标识，并读取其最新可信非空 `currentCwd`，缺失时回退到同一 Presentation 的 `launchCwd`。Workbench 仍是 Tab 与 Presentation 的唯一写入者；Host 仍对观测 CWD 和进程启动具有权威性。
 - **转换与重新校验：** 执行会重新校验终端上下文、Tab、Panel 与 Presentation，再解析同一终端的最新 CWD，并用显式启动目录创建一个普通终端 Tab。缺少 CWD、标识陈旧或 Host capability 不可用时，该 Action 不可用、不创建任何内容，并保留按键事件。
 - **不变量与排除项：** 成功会分配不同的 Tab、Panel 与 Presentation 标识，通过现有交接聚焦新终端，并保留源 session。普通新建 Tab 继续使用其 Workspace/默认 CWD。绝不复制 environment、executable、前台进程、output、attachment、SSH 状态或远程 shell 目录发现结果。
-- **参考与证据：** 这一有界行为遵循 Kitty revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的 `new_tab_with_cwd` 目标选择，但使用可信终端元数据而不是进程 CWD 请求。解析器、runtime、Action、菜单、快捷键、Settings、精确 Desktop `terminal-parity/FS-15-current-directory-tab` 测试覆盖采纳路径；Kitty session membership、命令参数、remote control 及其示例映射均排除。
+- **证据：** 解析器、runtime、Action、菜单、快捷键、Settings 与精确 Desktop `terminal-parity/FS-15-current-directory-tab` 测试覆盖基于可信终端元数据选择并创建当前目录 Tab 的路径。
 
 ### 相邻标签页选择模型
 
@@ -211,15 +161,13 @@ Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会�
   `@orchbee/tab-strip` 仍是标签页顺序、固定分区、组成员关系、选择与活动标识的唯一所有者和写入者。
 - **输出与转换：** 在活动标签页所属的固定或未固定分区内，backward 与 forward 委托一次相对移动。
   越过该分区的第一个或最后一个边界时会委托 `last` 或 `first`，从而在不破坏固定前缀不变量的前提下
-  匹配 Kitty 的循环移动。缺少活动标签页、分区内少于两个标签页或缺少下层 Action 时不可用，并保留
+  保持循环移动。缺少活动标签页、分区内少于两个标签页或缺少下层 Action 时不可用，并保留
   按键事件。预备好的下层 Action 拥有同步提交与结果。
 - **不变量与重新校验：** 同一个活动标签页保持活动和选中；每个标签页标识仍精确存在一次；固定标签页
   仍组成连续前缀；所有分组副作用遵循现有 `TabModel` 移动转换。可用性与执行都会从当前快照解析，
   因此陈旧标识或注册绝不会触发直接兜底修改。
 - **决策与参考范围：** 分区内部的标签页委托 `previous` 或 `next`；多标签页固定分区中的第一个或
-  最后一个标签页委托 `last` 或 `first`；所有不可用状态都不产生决策。这里采用 Kitty 修订版
-  `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的活动标签页方向、循环边界和精确默认键。
-  Kitty 不具备的固定分区与分组、跨窗口移动、拖动行为、动画及视觉一致性不在范围内。
+  最后一个标签页委托 `last` 或 `first`；所有不可用状态都不产生决策。移动保持活动 Tab 方向、循环边界和上述精确默认值；数字、首末、远程控制与跨窗口移动不在范围内。
 - **验证：** 纯解析器测试覆盖缺失、单例、中间位置、两个边界、两个固定分区及缺失活动标识。
   预备 Action 测试覆盖执行时重新解析、下层注册移除、活动标识不变与精确下层输入。快捷键、设置、
   Action 搜索及 Desktop 轨迹覆盖两个默认键、禁用时继续传递、自定义绑定、可见发现、最终顺序、焦点
@@ -239,10 +187,7 @@ Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会�
 - **不变量与重新校验：** 打开与提交都会分别从当前快照解析精确上下文和 Tab。编辑器打开期间切换活动
   Tab 不会重定向写入；任一标识被移除都会阻止操作。自定义文本可见时仍会记录动态元数据，重置绝不会
   制造后备值或写入终端拥有的元数据。
-- **决策与参考范围：** 这里采用 Kitty 修订版
-  `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的两个精确默认键、以当前标题初始化编辑及空值重置。
-  Orchbee 使用共享本地化模态框与持久共享文档，而不是 Kitty 原生对话框；窗口标题编辑、远程控制、
-  多个同时生效的绑定及视觉一致性不在范围内。
+- **决策：** 两个平台各有一个默认键。共享本地化模态框预填当前标题，空白提交重置，结果由持久共享文档保存；窗口标题编辑、远程控制及同时存在多个绑定不在范围内。
 - **验证：** 模型测试覆盖自定义/自然标题优先级、等值自定义锁定、重置与共享文档持久化。Action 与
   React 测试覆盖活动和显式目标、陈旧拒绝、快捷键/上下文菜单/Action 搜索入口、空值重置、焦点恢复及
   终端输入不变。设置、存储校验和精确 Desktop `terminal-parity/FS-11-tab-title` 轨迹覆盖两个默认键与
@@ -392,7 +337,7 @@ Browser Preview 和 Electron 各自针对自己的源本地存储创建并销毁
 | 快捷键设置可查找本地化文本、输入的按键别名与精确录制和弦，且不会编辑绑定 | 纯发现解析器与转换测试，以及渲染后的搜索/捕获集成测试                                                       |
 | 无效当前记录不会读取其他键                                               | 存储损坏与严格形状测试                                                                                      |
 
-测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。
+测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为。手动 Desktop 原生窗口焦点测试不包含在自动验证中。
 
 ## 维护检查
 

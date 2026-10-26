@@ -97,7 +97,7 @@ fn report_reply(stream: &mut LocalStream, case: &str, turn: u64, count: u64) {
     let mut panels: Vec<_> = panel_ids.iter().map(|panel| {
         let n = u64::from_str_radix(panel.as_str(), 16).unwrap();
         json!({"panelId":panel,"binding":{"workerId":"6f7263686265652d6c6f63616c2d7631","terminalId":id(n+200)},
-            "report":{"agent":"codex","state":"blocked","authoritySource":"hook-a","message":"中文\n\u{1b}[31m","session":null}})
+            "report":{"agent":"codex","state":"blocked","authoritySource":"hook-a","message":"中文\n\u{1b}[31m"}})
     }).collect();
     if !panels.is_empty() {
         match case {

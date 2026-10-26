@@ -102,11 +102,10 @@ why Agent observations may not arrive (no provider execution, no socket connect,
 Windows `agent explain` also resolves names and Panels to exact physical terminal bindings.
 Canonical sessions retain `orchbee.agent.explain` v1; physical terminals use v2 with the effective
 report view and a separate fresh screen-rule evaluation. The result includes manifest source/version,
-the first highest-priority winner, every rule match and bounded region evidence. Live full lifecycle
-authority returns an explicit screen-skipped result without a Host read. One admission and five-second
+the first highest-priority winner, every rule match and bounded region evidence. One admission and five-second
 CLI budget cover resolution/read; Server queue/read work has a four-second budget. Binding or report
 context changes refuse without retry. No input, controller acquisition or focus action is performed.
-Windows startup selects local overrides, eligible cached remote rules, then bundled rules. Physical v3 adds actual path, cached version, shadowing and typed warnings; v2 remains closed for legacy/no-manifest/skipped results. Windows `server agent-manifests`, `server reload-agent-manifests` and `server agent-manifests-status` expose the installed snapshot and retained live-reload receipts. Explicit `server update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. Managed release Sessions check automatically at startup and every thirty minutes when `update.manifest_check` is enabled; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
+Windows startup selects local overrides, eligible cached remote rules, then bundled rules. Physical v3 adds actual path, cached version, shadowing and typed warnings; v2 remains closed for legacy/no-manifest results. Windows `server agent-manifests`, `server reload-agent-manifests` and `server agent-manifests-status` expose the installed snapshot and retained live-reload receipts. Explicit `server update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. Managed release Sessions check automatically at startup and every thirty minutes when `update.manifest_check` is enabled; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
 
 Windows `panel create-terminal` starts an unbound primary or exact member, or appends a child
 without splitting the Panel. It preserves literal launch options, returns retained pending/final
@@ -237,7 +236,7 @@ observable until its Tab/Panel is explicitly closed. If every registered Session
 running the executable again automatically starts a fresh generation and restores the existing
 checkpoint. Live or uncertain old owners block startup; current recovery does not adopt a live Host.
 `session list` v2 reports guarded cold eligibility as `recoverable`. Continuous Workbench checkpoints
-retain layout changes, sampled terminal directories, and provider resume references without screen
+retain layout changes and sampled terminal directories without screen
 contents; see the [Windows Workbench checkpoint contract](../orchbee-server/docs/workbench-checkpoint.md).
 `config check --format json` checks local cohort/runtime inputs without starting one.
 
@@ -941,7 +940,7 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. See [native themes](docs/native-themes.md).
 
-`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. `[session] resume_agents_on_restore` controls Agent resume on the next Session start, default true; the exact true/false environment override wins. `config check` JSON v3 reports its effective value and source. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
+`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 
 ## Windows terminal observation stream
 

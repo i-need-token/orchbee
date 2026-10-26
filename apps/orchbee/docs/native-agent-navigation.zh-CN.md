@@ -69,8 +69,7 @@ Client 必须报告 Ready 或 Busy；Starting 和 Unavailable 在 Agent 查询�
 
 Client 执行既有顺序导航，成功绘制后完成，包括目标已经聚焦的情况。显式 Agent 聚焦成功时
 确认所选 Tab 中当前已知的 Agent 版本，包括被缩放隐藏的主面板，即使外层焦点为 false。
-这是与固定 Herdr `app/agents.rs` 的 `mark_active_tab_seen` 一致的显式命令效果，并非自动
-绘制规则。只读 attention 和普通绘制保持既有限制。在同一 UI 边界消费当前快照；之后的
+此确认属于显式命令效果。只读 attention 和普通绘制保持既有限制。在同一 UI 边界消费当前快照；之后的
 状态变化仍未读。目标状态不可读时不能宣称成功；无关观察来源不可用时不会提供虚构确认。
 不增加 provider 输入或操作系统窗口激活。
 

@@ -66,7 +66,7 @@ fn configured_shell_resolves_absolute_or_path_names_without_fallback() {
 }
 
 #[test]
-fn windows_login_modes_follow_the_pinned_herdr_shell_name_partition() {
+fn windows_login_modes_follow_the_shell_name_partition() {
     let fixture = Fixture::new();
     for name in [
         "sh",

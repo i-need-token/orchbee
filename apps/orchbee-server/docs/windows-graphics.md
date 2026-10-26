@@ -2,11 +2,7 @@
 
 ## Accepted outcome and ownership
 
-The standing Windows CLI replacement authorization includes real Panel graphics set, clear,
-information and framed streams (R078–R081). Reference behavior is pinned to Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`, `app/api/pane_graphics.rs`,
-`api/server/pane_graphics_stream.rs` and `app/pane_graphics.rs`. Public wrappers alone do not
-establish a working renderer. Desktop, macOS and Linux runtime additions are outside this change.
+Windows supports Panel graphics set, clear, information and framed streams. A working renderer requires end-to-end evidence. Desktop, macOS and Linux runtime additions are outside this boundary.
 
 The Site owns ephemeral layers by canonical Panel and Presentation identity. Its existing
 navigation-management grant admits visual writes; its read grant admits information and bounded

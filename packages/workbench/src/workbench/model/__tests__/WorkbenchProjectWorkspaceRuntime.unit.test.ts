@@ -719,7 +719,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('system');
 	});
 
-	it('keeps Warp-style natural and custom titles separate from launch metadata', () => {
+	it('keeps natural and custom titles separate from launch metadata', () => {
 		const runtime = createManagedRuntime();
 		const context = runtime.getActiveTerminalContext();
 		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];

@@ -85,7 +85,7 @@ Workspace 资源 scope 内的显式 Directory
 
 当 `<host>` 与 ASCII 不区分大小写的比较下的可信终端机主机名匹配时，仅接受 OSC 7 当前目录值 `file://<host>/<percent-encoded-absolute-path>`。空主机、`localhost`、其他主机、非文件方案、格式错误的转义百分比和 non-UTF-8 解码字节将被忽略。接受的路径在替换 `currentCwd` 之前进行百分比解码；忽略的值保留先前的当前 CWD，而报告的 `null` 则将其清除。元数据永远不会改变 `launchCwd`。
 
-该策略是从 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 提炼出的窄行为对等投影。标题状态、覆盖、重置与持久化已在 `app/src/terminal/model/terminal_model.rs`、`app/src/pane_group/mod.rs` 和 `app/src/workspace/view.rs` 中审查；OSC 标题与 CWD 规范化已在 `app/src/terminal/model/ansi/mod.rs` 中审查。确定性场景覆盖自然标题规范化、自定义覆盖、隐藏的自然更新、重置、持久化、本地主机名匹配、URI 解码和拒绝类别。Warp 的带内命令标题抑制与 SSH 块 CWD 抑制不在对等范围内，因为 Orchbee 的投影元数据目前没有公开等价的可信命令或 SSH 事实；本策略不会猜测任一状态。
+确定性场景覆盖自然标题规范化、自定义覆盖、隐藏的自然更新、重置、持久化、本地主机名匹配、URI 解码和拒绝类别。Orchbee 投影元数据不暴露可信的命令执行或 SSH 状态，因此不会据此抑制标题或 CWD 更新。
 
 ## 决策和转变
 

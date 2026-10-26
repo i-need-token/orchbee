@@ -7,9 +7,7 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Value, json};
 
-mod agent_sessions;
 mod directories;
-mod managed_names;
 mod navigation;
 mod restore;
 mod split_ratios;
@@ -381,9 +379,7 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
         "navigation",
         "terminalContexts",
         "profiles",
-        "agentSessions",
         "terminalDirectories",
-        "managedNames",
     ] {
         assert!(
             restore(&changed(|value| {

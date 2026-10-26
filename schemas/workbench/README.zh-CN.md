@@ -525,8 +525,8 @@ Directory ID 在全局 Directory 池中解析，与 Project 成员关系无关�
 Panel 报告准入 idle、working、blocked、done、error 和 unknown。Done 与 error 要求显式状态上报，屏幕规则不能断言结果。Client 已读确认独立存在，绝不把 idle 转换成完成。共享语料包含显式 done/error 请求及 unknown 回退解释。
 
 物理 `explain` 使用相同的精确绑定和读取权限。`explained` 结果分别保留当前上报视图与原始
-屏幕规则判断，清单、胜出规则、跳过/回退原因和采样字段均必填且可为空。Rust/TypeScript
-校验最高优先级首条胜出规则、状态/标记一致性、证据上限及完整生命周期跳过/来源一致性。
+屏幕规则判断，包含必填的物理样本，以及必填但可为空的清单、胜出规则和发布跳过/回退原因。Rust/TypeScript
+校验最高优先级首条胜出规则、状态/标记一致性与证据上限。
 未知 provider 拒绝；没有匹配状态证据的已知 provider 明确回退为未知。沿用 512 KiB 结果上限。
 这份未发布 cohort 一起变更；规范 OBAP 解释保持独立。
 

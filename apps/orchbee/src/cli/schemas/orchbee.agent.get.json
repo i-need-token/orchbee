@@ -1,3166 +1,3614 @@
 {
-	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.agent.get",
-	"title": "orchbee agent get envelope",
-	"$defs": {
-		"agentReadSource": {
-			"type": "object",
-			"required": ["kind", "requestId"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "agent-read"
-				},
-				"requestId": {
-					"$ref": "#/$defs/hexId"
-				}
-			}
-		},
-		"safeInteger": {
-			"type": "integer",
-			"minimum": 0,
-			"maximum": 9007199254740991
-		},
-		"positiveInteger": {
-			"type": "integer",
-			"minimum": 1,
-			"maximum": 9007199254740991
-		},
-		"opaqueId": {
-			"type": "string",
-			"pattern": "^[0-9A-Za-z._:-]{1,128}$"
-		},
-		"hexId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"not": {
-				"const": "00000000000000000000000000000000"
-			}
-		},
-		"providerId": {
-			"type": "string",
-			"pattern": "^[0-9a-z]([0-9a-z.-]{0,62}[0-9a-z])?$"
-		},
-		"capability": {
-			"enum": [
-				"activity",
-				"approvals",
-				"authentication",
-				"progress",
-				"questions",
-				"sessionLifecycle",
-				"subagents",
-				"turnLifecycle"
-			]
-		},
-		"activity": {
-			"enum": [
-				"command",
-				"compacting",
-				"editing",
-				"other",
-				"retrying",
-				"subagent",
-				"thinking",
-				"tool"
-			]
-		},
-		"visibility": {
-			"enum": ["hidden", "unknown", "visible"]
-		},
-		"fidelity": {
-			"enum": ["basic", "heuristic", "rich"]
-		},
-		"freshness": {
-			"enum": ["disconnected", "fresh", "stale"]
-		},
-		"observationSource": {
-			"enum": ["heuristic", "hook", "native", "terminal"]
-		},
-		"turnPhase": {
-			"enum": ["queued", "waiting-external", "working"]
-		},
-		"attentionKind": {
-			"enum": ["approval", "authentication", "question", "unclassified"]
-		},
-		"outcomeKind": {
-			"enum": ["canceled", "failed", "interrupted", "succeeded"]
-		},
-		"lifecycle": {
-			"enum": ["ended", "live"]
-		},
-		"executionLocation": {
-			"type": "object",
-			"required": ["executionLocationId"],
-			"additionalProperties": false,
-			"properties": {
-				"executionLocationId": {
-					"$ref": "#/$defs/opaqueId"
-				}
-			}
-		},
-		"presentationAttachment": {
-			"type": "object",
-			"required": ["generation", "navigable", "presentationId", "visibility"],
-			"additionalProperties": false,
-			"properties": {
-				"generation": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"navigable": {
-					"type": "boolean"
-				},
-				"presentationId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"visibility": {
-					"$ref": "#/$defs/visibility"
-				}
-			}
-		},
-		"observation": {
-			"type": "object",
-			"required": ["fidelity", "freshness", "generation", "sequence", "source"],
-			"additionalProperties": false,
-			"properties": {
-				"fidelity": {
-					"$ref": "#/$defs/fidelity"
-				},
-				"freshness": {
-					"$ref": "#/$defs/freshness"
-				},
-				"generation": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"sequence": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"source": {
-					"$ref": "#/$defs/observationSource"
-				}
-			}
-		},
-		"turnState": {
-			"type": "object",
-			"required": ["kind"],
-			"oneOf": [
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "unknown"
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "idle"
-						}
-					}
-				},
-				{
-					"required": ["activity", "phase", "turnId"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "active"
-						},
-						"activity": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/activity"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"phase": {
-							"$ref": "#/$defs/turnPhase"
-						},
-						"turnId": {
-							"$ref": "#/$defs/opaqueId"
-						}
-					}
-				}
-			]
-		},
-		"attentionRequest": {
-			"type": "object",
-			"required": ["actionPath", "kind", "requestId", "turnId"],
-			"additionalProperties": false,
-			"properties": {
-				"actionPath": {
-					"const": "navigate-only"
-				},
-				"kind": {
-					"$ref": "#/$defs/attentionKind"
-				},
-				"requestId": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"turnId": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/opaqueId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			}
-		},
-		"turnOutcome": {
-			"type": "object",
-			"required": ["eventId", "kind", "turnId"],
-			"additionalProperties": false,
-			"properties": {
-				"eventId": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"kind": {
-					"$ref": "#/$defs/outcomeKind"
-				},
-				"turnId": {
-					"$ref": "#/$defs/opaqueId"
-				}
-			}
-		},
-		"semanticStatus": {
-			"type": "object",
-			"required": ["kind"],
-			"oneOf": [
-				{
-					"required": ["count"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "needs-attention"
-						},
-						"count": {
-							"$ref": "#/$defs/positiveInteger"
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "failed"
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "succeeded"
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "canceled"
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "interrupted"
-						}
-					}
-				},
-				{
-					"required": ["activity", "phase"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "working"
-						},
-						"activity": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/activity"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"phase": {
-							"$ref": "#/$defs/turnPhase"
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "idle"
-						}
-					}
-				},
-				{
-					"required": ["activityHint"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "unknown"
-						},
-						"activityHint": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/activity"
-								},
-								{
-									"type": "null"
-								}
-							]
-						}
-					}
-				},
-				{
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "ended"
-						}
-					}
-				}
-			]
-		},
-		"sessionDetail": {
-			"type": "object",
-			"required": ["snapshot", "status"],
-			"additionalProperties": false,
-			"properties": {
-				"snapshot": {
-					"type": "object",
-					"required": [
-						"activityHint",
-						"capabilities",
-						"executionLocation",
-						"lastOutcome",
-						"lifecycle",
-						"observation",
-						"parentSessionId",
-						"pendingRequests",
-						"presentationAttachments",
-						"providerId",
-						"sessionId",
-						"turn"
-					],
-					"additionalProperties": false,
-					"properties": {
-						"activityHint": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/activity"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"capabilities": {
-							"type": "array",
-							"maxItems": 10,
-							"items": {
-								"$ref": "#/$defs/capability"
-							},
-							"uniqueItems": true
-						},
-						"executionLocation": {
-							"$ref": "#/$defs/executionLocation"
-						},
-						"lastOutcome": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/turnOutcome"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"lifecycle": {
-							"$ref": "#/$defs/lifecycle"
-						},
-						"observation": {
-							"$ref": "#/$defs/observation"
-						},
-						"parentSessionId": {
-							"oneOf": [
-								{
-									"$ref": "#/$defs/opaqueId"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"pendingRequests": {
-							"type": "array",
-							"maxItems": 128,
-							"items": {
-								"$ref": "#/$defs/attentionRequest"
-							}
-						},
-						"presentationAttachments": {
-							"type": "array",
-							"maxItems": 32,
-							"items": {
-								"$ref": "#/$defs/presentationAttachment"
-							}
-						},
-						"providerId": {
-							"$ref": "#/$defs/providerId"
-						},
-						"sessionId": {
-							"$ref": "#/$defs/opaqueId"
-						},
-						"turn": {
-							"$ref": "#/$defs/turnState"
-						}
-					}
-				},
-				"status": {
-					"$ref": "#/$defs/semanticStatus"
-				}
-			}
-		},
-		"clientView": {
-			"type": "object",
-			"required": [
-				"clientId",
-				"operationId",
-				"phase",
-				"outerFocused",
-				"focused",
-				"attentionRevision",
-				"state",
-				"stateChangeRevision",
-				"seen",
-				"status"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"clientId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"operationId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"phase": {
-					"enum": ["starting", "ready", "busy", "unavailable"]
-				},
-				"outerFocused": {
-					"type": ["boolean", "null"]
-				},
-				"focused": {
-					"type": "boolean"
-				},
-				"attentionRevision": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"state": {
-					"enum": ["current", "missing", "stale"]
-				},
-				"stateChangeRevision": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/safeInteger"
-						}
-					]
-				},
-				"seen": {
-					"type": ["boolean", "null"]
-				},
-				"status": {
-					"enum": [
-						null,
-						"idle",
-						"done",
-						"error",
-						"blocked",
-						"working",
-						"unknown",
-						"ended",
-						"stale",
-						"disconnected"
-					]
-				}
-			},
-			"if": {
-				"properties": {
-					"state": {
-						"const": "current"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"seen": {
-						"type": "boolean"
-					},
-					"stateChangeRevision": {
-						"$ref": "#/$defs/safeInteger"
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"seen": {
-						"type": "null"
-					},
-					"stateChangeRevision": {
-						"type": "null"
-					}
-				}
-			}
-		},
-		"runtimeProcess_id": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"runtimeProcess_positiveDecimal": {
-			"type": "string",
-			"pattern": "^[1-9][0-9]*$"
-		},
-		"runtimeProcess_terminal": {
-			"type": "object",
-			"required": ["terminalId", "workerId", "boundTo"],
-			"additionalProperties": false,
-			"properties": {
-				"terminalId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"workerId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"boundTo": {
-					"type": "object",
-					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
-					"additionalProperties": false,
-					"properties": {
-						"presentationId": {
-							"$ref": "#/$defs/runtimeProcess_id"
-						},
-						"panelId": {
-							"$ref": "#/$defs/runtimeProcess_id"
-						},
-						"tabId": {
-							"$ref": "#/$defs/runtimeProcess_id"
-						},
-						"terminalContextId": {
-							"$ref": "#/$defs/runtimeProcess_id"
-						}
-					}
-				}
-			}
-		},
-		"runtimeProcess_snapshotSource": {
-			"type": "object",
-			"required": ["kind", "siteId", "revision"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "workbench-snapshot"
-				},
-				"siteId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"revision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				}
-			}
-		},
-		"runtimeProcess_process": {
-			"type": "object",
-			"required": [
-				"pid",
-				"parentPid",
-				"creationTime",
-				"image",
-				"commandLine",
-				"currentDirectory",
-				"argv",
-				"providerId"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"pid": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4294967295
-				},
-				"parentPid": {
-					"oneOf": [
-						{
-							"type": "integer",
-							"minimum": 1,
-							"maximum": 4294967295
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"creationTime": {
-					"$ref": "#/$defs/runtimeProcess_positiveDecimal"
-				},
-				"image": {
-					"type": ["string", "null"],
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000]*$"
-				},
-				"commandLine": {
-					"type": ["string", "null"],
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000]*$"
-				},
-				"currentDirectory": {
-					"type": ["string", "null"],
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000]*$"
-				},
-				"argv": {
-					"type": ["array", "null"],
-					"maxItems": 4096,
-					"items": {
-						"type": "string",
-						"maxLength": 4096,
-						"pattern": "^[^\\u0000]*$"
-					}
-				},
-				"providerId": {
-					"type": ["string", "null"],
-					"pattern": "^[0-9A-Za-z._:-]{1,128}$"
-				}
-			}
-		},
-		"runtimeProcess_source": {
-			"type": "object",
-			"required": [
-				"kind",
-				"siteId",
-				"snapshotRevision",
-				"requestId",
-				"hostRequestId",
-				"hostEpoch",
-				"attachmentId",
-				"hostTerminalId"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "terminal-process-query"
-				},
-				"siteId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"snapshotRevision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"requestId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"hostRequestId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"hostEpoch": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"attachmentId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"hostTerminalId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				}
-			}
-		},
-		"managed_agentManagement": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["phase"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "unmanaged"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["phase", "reservation", "blocked"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "pending"
-						},
-						"reservation": {
-							"$ref": "#/$defs/managed_launchReservation"
-						},
-						"blocked": {
-							"type": "boolean"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["phase", "reservationId", "providerId", "binding"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "active"
-						},
-						"reservationId": {
-							"$ref": "#/$defs/managed_obapRequestId"
-						},
-						"providerId": {
-							"$ref": "#/$defs/managed_providerId"
-						},
-						"binding": {
-							"$ref": "#/$defs/managed_launchBinding"
-						}
-					}
-				}
-			]
-		},
-		"managed_launchReservation": {
-			"type": "object",
-			"required": [
-				"reservationId",
-				"name",
-				"providerId",
-				"binding",
-				"remainingMs",
-				"settleRemainingMs"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"reservationId": {
-					"$ref": "#/$defs/managed_obapRequestId"
-				},
-				"name": {
-					"$ref": "#/$defs/managed_agentName"
-				},
-				"providerId": {
-					"$ref": "#/$defs/managed_providerId"
-				},
-				"binding": {
-					"$ref": "#/$defs/managed_launchBinding"
-				},
-				"remainingMs": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 300000
-				},
-				"settleRemainingMs": {
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 3000
-				}
-			}
-		},
-		"managed_obapRequestId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"managed_agentName": {
-			"type": "string",
-			"pattern": "^[a-z][a-z0-9_-]{0,31}$"
-		},
-		"managed_providerId": {
-			"type": "string",
-			"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
-			"maxLength": 64
-		},
-		"managed_launchBinding": {
-			"type": "object",
-			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
-			"additionalProperties": false,
-			"properties": {
-				"presentationId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
-				},
-				"generation": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"hostEpoch": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
-				},
-				"hostTerminalId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
-				}
-			}
-		},
-		"agentTerminal_terminalObservation": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["state", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"state": {
-							"const": "unavailable"
-						},
-						"reason": {
-							"const": "terminal-unavailable"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["state", "frame", "processes"],
-					"additionalProperties": false,
-					"properties": {
-						"state": {
-							"const": "observed"
-						},
-						"frame": {
-							"type": "object",
-							"required": [
-								"hostEpoch",
-								"attachmentId",
-								"sequence",
-								"generation",
-								"revision",
-								"columns",
-								"rows",
-								"alternateScreen",
-								"scrollbackRows",
-								"title",
-								"currentDirectory"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"hostEpoch": {
-									"$ref": "#/$defs/agentTerminal_terminalProcessId"
-								},
-								"attachmentId": {
-									"$ref": "#/$defs/agentTerminal_terminalProcessId"
-								},
-								"sequence": {
-									"type": "string",
-									"pattern": "^[1-9][0-9]{0,19}$",
-									"format": "orchbee-uint64"
-								},
-								"generation": {
-									"type": "string",
-									"pattern": "^[1-9][0-9]{0,19}$",
-									"format": "orchbee-uint64"
-								},
-								"revision": {
-									"type": "string",
-									"pattern": "^(0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"columns": {
-									"type": "integer",
-									"minimum": 1,
-									"maximum": 4096
-								},
-								"rows": {
-									"type": "integer",
-									"minimum": 1,
-									"maximum": 4096
-								},
-								"alternateScreen": {
-									"type": "boolean"
-								},
-								"scrollbackRows": {
-									"type": "string",
-									"pattern": "^(0|[1-9][0-9]{0,19})$",
-									"format": "orchbee-uint64"
-								},
-								"title": {
-									"type": ["string", "null"],
-									"maxLength": 16384
-								},
-								"currentDirectory": {
-									"type": ["string", "null"],
-									"maxLength": 16384
-								}
-							}
-						},
-						"processes": {
-							"oneOf": [
-								{
-									"type": "object",
-									"required": ["state", "source", "result"],
-									"additionalProperties": false,
-									"properties": {
-										"state": {
-											"const": "observed"
-										},
-										"source": {
-											"$ref": "#/$defs/agentTerminal_terminalProcessSource"
-										},
-										"result": {
-											"type": "object",
-											"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
-											"additionalProperties": false,
-											"properties": {
-												"terminal": {
-													"$ref": "#/$defs/agentTerminal_terminalProcessTerminal"
-												},
-												"scope": {
-													"const": "windows-job"
-												},
-												"rootPid": {
-													"type": "integer",
-													"minimum": 1,
-													"maximum": 4294967295
-												},
-												"processes": {
-													"type": "array",
-													"maxItems": 64,
-													"items": {
-														"$ref": "#/$defs/agentTerminal_terminalProcessProcess"
-													}
-												},
-												"foreground": {
-													"type": "object",
-													"required": ["kind", "pid", "providerId"],
-													"additionalProperties": false,
-													"properties": {
-														"kind": {
-															"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
-														},
-														"pid": {
-															"type": ["integer", "null"],
-															"minimum": 1,
-															"maximum": 4294967295
-														},
-														"providerId": {
-															"type": ["string", "null"],
-															"pattern": "^[0-9A-Za-z._:-]{1,128}$"
-														}
-													},
-													"oneOf": [
-														{
-															"properties": {
-																"kind": {
-																	"const": "agent-chain"
-																},
-																"pid": {
-																	"type": "integer"
-																},
-																"providerId": {
-																	"type": "string"
-																}
-															}
-														},
-														{
-															"properties": {
-																"kind": {
-																	"const": "root"
-																},
-																"pid": {
-																	"type": "integer"
-																},
-																"providerId": {
-																	"type": "null"
-																}
-															}
-														},
-														{
-															"properties": {
-																"kind": {
-																	"const": "ambiguous"
-																},
-																"pid": {
-																	"type": "null"
-																},
-																"providerId": {
-																	"type": "null"
-																}
-															}
-														},
-														{
-															"properties": {
-																"kind": {
-																	"const": "unavailable"
-																},
-																"pid": {
-																	"type": "null"
-																},
-																"providerId": {
-																	"type": "null"
-																}
-															}
-														}
-													]
-												}
-											}
-										}
-									}
-								},
-								{
-									"type": "object",
-									"required": ["state", "reason"],
-									"additionalProperties": false,
-									"properties": {
-										"state": {
-											"const": "unavailable"
-										},
-										"reason": {
-											"const": "process-unavailable"
-										}
-									}
-								}
-							]
-						}
-					}
-				}
-			]
-		},
-		"agentTerminal_terminalProcessId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$"
-		},
-		"agentTerminal_terminalProcessSource": {
-			"type": "object",
-			"required": [
-				"kind",
-				"siteId",
-				"snapshotRevision",
-				"requestId",
-				"hostRequestId",
-				"hostEpoch",
-				"attachmentId",
-				"hostTerminalId"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "terminal-process-query"
-				},
-				"siteId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"snapshotRevision": {
-					"type": "string",
-					"pattern": "^(0|[1-9][0-9]*)$"
-				},
-				"requestId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"hostRequestId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"hostEpoch": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"attachmentId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"hostTerminalId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				}
-			}
-		},
-		"agentTerminal_terminalProcessTerminal": {
-			"type": "object",
-			"required": ["terminalId", "workerId", "boundTo"],
-			"additionalProperties": false,
-			"properties": {
-				"terminalId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"workerId": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessId"
-				},
-				"boundTo": {
-					"type": "object",
-					"required": ["presentationId", "panelId", "tabId", "terminalContextId"],
-					"additionalProperties": false,
-					"properties": {
-						"presentationId": {
-							"$ref": "#/$defs/agentTerminal_terminalProcessId"
-						},
-						"panelId": {
-							"$ref": "#/$defs/agentTerminal_terminalProcessId"
-						},
-						"tabId": {
-							"$ref": "#/$defs/agentTerminal_terminalProcessId"
-						},
-						"terminalContextId": {
-							"$ref": "#/$defs/agentTerminal_terminalProcessId"
-						}
-					}
-				}
-			}
-		},
-		"agentTerminal_terminalProcessProcess": {
-			"type": "object",
-			"required": [
-				"pid",
-				"parentPid",
-				"creationTime",
-				"image",
-				"commandLine",
-				"currentDirectory",
-				"argv",
-				"providerId"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"pid": {
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 4294967295
-				},
-				"parentPid": {
-					"oneOf": [
-						{
-							"type": "integer",
-							"minimum": 1,
-							"maximum": 4294967295
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"creationTime": {
-					"$ref": "#/$defs/agentTerminal_terminalProcessPositiveDecimal"
-				},
-				"image": {
-					"type": ["string", "null"],
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000]*$"
-				},
-				"commandLine": {
-					"type": ["string", "null"],
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000]*$"
-				},
-				"currentDirectory": {
-					"type": ["string", "null"],
-					"maxLength": 4096,
-					"pattern": "^[^\\u0000]*$"
-				},
-				"argv": {
-					"type": ["array", "null"],
-					"maxItems": 4096,
-					"items": {
-						"type": "string",
-						"maxLength": 4096,
-						"pattern": "^[^\\u0000]*$"
-					}
-				},
-				"providerId": {
-					"type": ["string", "null"],
-					"pattern": "^[0-9A-Za-z._:-]{1,128}$"
-				}
-			}
-		},
-		"agentTerminal_terminalProcessPositiveDecimal": {
-			"type": "string",
-			"pattern": "^[1-9][0-9]*$"
-		},
-		"agentTerminal": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [
-				"terminalId",
-				"source",
-				"cwd",
-				"cwdSource",
-				"foregroundCwd",
-				"terminalTitle",
-				"terminalTitleStripped",
-				"terminalObservation"
-			],
-			"properties": {
-				"cwd": {
-					"type": ["string", "null"],
-					"maxLength": 16384
-				},
-				"cwdSource": {
-					"enum": [null, "terminal-frame", "root-process"]
-				},
-				"foregroundCwd": {
-					"type": ["string", "null"],
-					"maxLength": 4096
-				},
-				"terminalTitle": {
-					"type": ["string", "null"],
-					"maxLength": 16384
-				},
-				"terminalTitleStripped": {
-					"type": ["string", "null"],
-					"maxLength": 16384
-				},
-				"terminalObservation": {
-					"$ref": "#/$defs/agentTerminal_terminalObservation"
-				},
-				"terminalId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"source": {
-					"$ref": "#/$defs/runtimeProcess_snapshotSource"
-				},
-				"metadata": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/panelMetadata"
-						},
-						{
-							"$ref": "#/$defs/reportedPanelMetadata"
-						}
-					]
-				},
-				"reportedAgent": {
-					"$ref": "#/$defs/reportedAgent"
-				}
-			},
-			"if": {
-				"required": ["terminalObservation"],
-				"properties": {
-					"terminalObservation": {
-						"type": "object",
-						"properties": {
-							"state": {
-								"enum": ["unbound", "unavailable"]
-							}
-						}
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"cwd": {
-						"type": "null"
-					},
-					"cwdSource": {
-						"type": "null"
-					},
-					"foregroundCwd": {
-						"type": "null"
-					},
-					"terminalTitle": {
-						"type": "null"
-					},
-					"terminalTitleStripped": {
-						"type": "null"
-					}
-				}
-			}
-		},
-		"windowsProjectedAgentTerminal": {
-			"$ref": "#/$defs/agentTerminal",
-			"required": ["metadata", "reportedAgent"]
-		},
-		"metadataIdentity": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"not": {
-				"const": "00000000000000000000000000000000"
-			}
-		},
-		"metadataRevision": {
-			"type": "string",
-			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-			"maxLength": 20,
-			"format": "orchbee-uint64"
-		},
-		"metadataSource": {
-			"type": "string",
-			"pattern": "^[a-zA-Z0-9:._-]{1,80}$(?![\\s\\S])"
-		},
-		"metadataKey": {
-			"type": "string",
-			"pattern": "^[a-zA-Z0-9_-]{1,32}$(?![\\s\\S])"
-		},
-		"metadataValue": {
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 80,
-			"not": {
-				"pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
-			},
-			"allOf": [
-				{
-					"not": {
-						"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
-					}
-				}
-			]
-		},
-		"metadataTokens": {
-			"type": "object",
-			"maxProperties": 32,
-			"propertyNames": {
-				"$ref": "#/$defs/metadataKey"
-			},
-			"additionalProperties": {
-				"$ref": "#/$defs/metadataValue"
-			}
-		},
-		"metadataBinding": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["workerId", "terminalId"],
-			"properties": {
-				"workerId": {
-					"$ref": "#/$defs/metadataIdentity"
-				},
-				"terminalId": {
-					"$ref": "#/$defs/metadataIdentity"
-				}
-			}
-		},
-		"metadataLabels": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [],
-			"properties": {
-				"idle": {
-					"$ref": "#/$defs/metadataValue"
-				},
-				"working": {
-					"$ref": "#/$defs/metadataValue"
-				},
-				"blocked": {
-					"$ref": "#/$defs/metadataValue"
-				},
-				"done": {
-					"$ref": "#/$defs/metadataValue"
-				},
-				"unknown": {
-					"$ref": "#/$defs/metadataValue"
-				},
-				"error": {
-					"$ref": "#/$defs/metadataValue"
-				}
-			}
-		},
-		"metadataField": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["value", "order"],
-			"properties": {
-				"value": {
-					"$ref": "#/$defs/metadataValue"
-				},
-				"order": {
-					"$ref": "#/$defs/metadataRevision",
-					"not": {
-						"const": "0"
-					}
-				}
-			}
-		},
-		"metadataFieldLabels": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [],
-			"properties": {
-				"idle": {
-					"$ref": "#/$defs/metadataField"
-				},
-				"working": {
-					"$ref": "#/$defs/metadataField"
-				},
-				"blocked": {
-					"$ref": "#/$defs/metadataField"
-				},
-				"done": {
-					"$ref": "#/$defs/metadataField"
-				},
-				"unknown": {
-					"$ref": "#/$defs/metadataField"
-				},
-				"error": {
-					"$ref": "#/$defs/metadataField"
-				}
-			}
-		},
-		"metadataPresentation": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "agent", "appliesToSource", "title", "displayAgent", "stateLabels"],
-			"properties": {
-				"source": {
-					"$ref": "#/$defs/metadataSource"
-				},
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataValue"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"appliesToSource": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataSource"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"title": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataField"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"displayAgent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataField"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"stateLabels": {
-					"$ref": "#/$defs/metadataFieldLabels"
-				}
-			},
-			"anyOf": [
-				{
-					"required": ["title"],
-					"properties": {
-						"title": {
-							"$ref": "#/$defs/metadataField"
-						}
-					}
-				},
-				{
-					"required": ["displayAgent"],
-					"properties": {
-						"displayAgent": {
-							"$ref": "#/$defs/metadataField"
-						}
-					}
-				},
-				{
-					"required": ["stateLabels"],
-					"properties": {
-						"stateLabels": {
-							"type": "object",
-							"minProperties": 1
-						}
-					}
-				}
-			]
-		},
-		"panelMetadata": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
-			"properties": {
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
-					"properties": {
-						"siteId": {
-							"$ref": "#/$defs/metadataIdentity"
-						},
-						"workbenchRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"metadataRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"requestIds": {
-							"type": "array",
-							"minItems": 2,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/metadataIdentity"
-							}
-						}
-					}
-				},
-				"binding": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataBinding"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"tokens": {
-					"$ref": "#/$defs/metadataTokens"
-				},
-				"presentations": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"$ref": "#/$defs/metadataPresentation"
-					}
-				},
-				"context": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["agent", "authoritySource"],
-					"properties": {
-						"agent": {
-							"type": "null"
-						},
-						"authoritySource": {
-							"type": "null"
-						}
-					}
-				},
-				"presentation": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["title", "displayAgent", "stateLabels"],
-					"properties": {
-						"title": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/metadataValue"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"displayAgent": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/metadataValue"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"stateLabels": {
-							"$ref": "#/$defs/metadataLabels"
-						}
-					}
-				}
-			},
-			"if": {
-				"properties": {
-					"binding": {
-						"type": "null"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"tokens": {
-						"type": "object",
-						"maxProperties": 0
-					},
-					"presentations": {
-						"type": "array",
-						"maxItems": 0
-					},
-					"presentation": {
-						"type": "object",
-						"properties": {
-							"title": {
-								"type": "null"
-							},
-							"displayAgent": {
-								"type": "null"
-							},
-							"stateLabels": {
-								"type": "object",
-								"maxProperties": 0
-							}
-						}
-					}
-				}
-			}
-		},
-		"reportIdentity": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"not": {
-				"const": "00000000000000000000000000000000"
-			}
-		},
-		"reportBinding": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"workerId": {
-					"$ref": "#/$defs/reportIdentity"
-				},
-				"terminalId": {
-					"$ref": "#/$defs/reportIdentity"
-				}
-			},
-			"required": ["workerId", "terminalId"]
-		},
-		"reportNormalizedAgent": {
-			"type": "string",
-			"minLength": 1,
-			"not": {
-				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
-			}
-		},
-		"reportState": {
-			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
-		},
-		"reportReference": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"enum": ["id", "path"]
-				},
-				"value": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096,
-					"not": {
-						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
-					}
-				}
-			},
-			"required": ["kind", "value"]
-		},
-		"reportSession": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"source": {
-					"type": "string"
-				},
-				"agent": {
-					"$ref": "#/$defs/reportNormalizedAgent"
-				},
-				"reference": {
-					"$ref": "#/$defs/reportReference"
-				}
-			},
-			"required": ["source", "agent", "reference"]
-		},
-		"reportView": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/reportNormalizedAgent"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/reportState"
-				},
-				"authoritySource": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"message": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"session": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/reportSession"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"required": ["agent", "state", "authoritySource", "message", "session"]
-		},
-		"reportedPanelMetadata": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "binding", "tokens", "presentations", "context", "presentation"],
-			"properties": {
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "metadataRevision", "requestIds"],
-					"properties": {
-						"siteId": {
-							"$ref": "#/$defs/metadataIdentity"
-						},
-						"workbenchRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"metadataRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"requestIds": {
-							"type": "array",
-							"minItems": 2,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/metadataIdentity"
-							}
-						}
-					}
-				},
-				"binding": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/metadataBinding"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"tokens": {
-					"$ref": "#/$defs/metadataTokens"
-				},
-				"presentations": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"$ref": "#/$defs/metadataPresentation"
-					}
-				},
-				"context": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["agent", "authoritySource"],
-					"properties": {
-						"agent": {
-							"anyOf": [
-								{
-									"type": "null"
-								},
-								{
-									"$ref": "#/$defs/reportNormalizedAgent"
-								}
-							]
-						},
-						"authoritySource": {
-							"type": ["string", "null"]
-						}
-					}
-				},
-				"presentation": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["title", "displayAgent", "stateLabels"],
-					"properties": {
-						"title": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/metadataValue"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"displayAgent": {
-							"anyOf": [
-								{
-									"$ref": "#/$defs/metadataValue"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"stateLabels": {
-							"$ref": "#/$defs/metadataLabels"
-						}
-					}
-				}
-			},
-			"if": {
-				"properties": {
-					"binding": {
-						"type": "null"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"tokens": {
-						"type": "object",
-						"maxProperties": 0
-					},
-					"presentations": {
-						"type": "array",
-						"maxItems": 0
-					},
-					"presentation": {
-						"type": "object",
-						"properties": {
-							"title": {
-								"type": "null"
-							},
-							"displayAgent": {
-								"type": "null"
-							},
-							"stateLabels": {
-								"type": "object",
-								"maxProperties": 0
-							}
-						}
-					}
-				}
-			}
-		},
-		"reportedAgent": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "binding", "view"],
-			"properties": {
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestIds"],
-					"properties": {
-						"siteId": {
-							"$ref": "#/$defs/metadataIdentity"
-						},
-						"workbenchRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						},
-						"requestIds": {
-							"type": "array",
-							"minItems": 2,
-							"uniqueItems": true,
-							"items": {
-								"$ref": "#/$defs/metadataIdentity"
-							}
-						},
-						"reportRevision": {
-							"$ref": "#/$defs/metadataRevision"
-						}
-					}
-				},
-				"binding": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/reportBinding"
-						}
-					]
-				},
-				"view": {
-					"anyOf": [
-						{
-							"type": "null"
-						},
-						{
-							"$ref": "#/$defs/reportView"
-						}
-					]
-				}
-			},
-			"if": {
-				"properties": {
-					"binding": {
-						"type": "null"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"view": {
-						"type": "null"
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"view": {
-						"$ref": "#/$defs/reportView"
-					}
-				}
-			}
-		},
-		"nameTarget": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["kind", "sessionId"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "session"
-						},
-						"sessionId": {
-							"$ref": "#/$defs/sessionId"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["kind", "binding"],
-					"additionalProperties": false,
-					"properties": {
-						"kind": {
-							"const": "terminal"
-						},
-						"binding": {
-							"$ref": "#/$defs/launchBinding"
-						}
-					}
-				}
-			]
-		},
-		"launchBinding": {
-			"type": "object",
-			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
-			"additionalProperties": false,
-			"properties": {
-				"presentationId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
-				},
-				"generation": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"hostEpoch": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
-				},
-				"hostTerminalId": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
-				}
-			}
-		},
-		"opaqueIdentity": {
-			"type": "string",
-			"pattern": "^[A-Za-z0-9._:-]{1,128}$"
-		},
-		"namedTerminal": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": [
-				"terminalId",
-				"source",
-				"cwd",
-				"cwdSource",
-				"foregroundCwd",
-				"terminalTitle",
-				"terminalTitleStripped",
-				"terminalObservation",
-				"presentationId",
-				"panelId"
-			],
-			"properties": {
-				"cwd": {
-					"type": ["string", "null"],
-					"maxLength": 16384
-				},
-				"cwdSource": {
-					"enum": [null, "terminal-frame", "root-process"]
-				},
-				"foregroundCwd": {
-					"type": ["string", "null"],
-					"maxLength": 4096
-				},
-				"terminalTitle": {
-					"type": ["string", "null"],
-					"maxLength": 16384
-				},
-				"terminalTitleStripped": {
-					"type": ["string", "null"],
-					"maxLength": 16384
-				},
-				"terminalObservation": {
-					"$ref": "#/$defs/agentTerminal_terminalObservation"
-				},
-				"terminalId": {
-					"$ref": "#/$defs/runtimeProcess_id"
-				},
-				"source": {
-					"$ref": "#/$defs/runtimeProcess_snapshotSource"
-				},
-				"metadata": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/panelMetadata"
-						},
-						{
-							"$ref": "#/$defs/reportedPanelMetadata"
-						}
-					]
-				},
-				"reportedAgent": {
-					"$ref": "#/$defs/reportedAgent"
-				},
-				"presentationId": {
-					"$ref": "#/$defs/opaqueIdentity"
-				},
-				"panelId": {
-					"$ref": "#/$defs/opaqueIdentity"
-				}
-			},
-			"if": {
-				"required": ["terminalObservation"],
-				"properties": {
-					"terminalObservation": {
-						"type": "object",
-						"properties": {
-							"state": {
-								"enum": ["unbound", "unavailable"]
-							}
-						}
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"cwd": {
-						"type": "null"
-					},
-					"cwdSource": {
-						"type": "null"
-					},
-					"foregroundCwd": {
-						"type": "null"
-					},
-					"terminalTitle": {
-						"type": "null"
-					},
-					"terminalTitleStripped": {
-						"type": "null"
-					}
-				}
-			}
-		},
-		"canonicalInspection": {
-			"type": "object",
-			"required": ["kind", "revision", "session", "client", "runtime", "management", "terminal"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "found"
-				},
-				"revision": {
-					"$ref": "#/$defs/safeInteger"
-				},
-				"session": {
-					"$ref": "#/$defs/sessionDetail"
-				},
-				"client": {
-					"oneOf": [
-						{
-							"anyOf": [
-								{
-									"$ref": "#/$defs/clientView"
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						{
-							"$ref": "#/$defs/unsupported"
-						}
-					]
-				},
-				"runtime": {
-					"oneOf": [
-						{
-							"anyOf": [
-								{
-									"oneOf": [
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "unavailable"
-												},
-												"reason": {
-													"enum": [
-														"session-ended",
-														"unbound",
-														"ambiguous-primary",
-														"binding-changed",
-														"terminal-unavailable",
-														"process-unavailable"
-													]
-												}
-											},
-											"required": ["kind", "reason"],
-											"additionalProperties": false
-										},
-										{
-											"type": "object",
-											"properties": {
-												"kind": {
-													"const": "observed"
-												},
-												"source": {
-													"$ref": "#/$defs/runtimeProcess_source"
-												},
-												"processInfo": {
-													"type": "object",
-													"required": ["terminal", "scope", "rootPid", "processes", "foreground"],
-													"additionalProperties": false,
-													"properties": {
-														"terminal": {
-															"$ref": "#/$defs/runtimeProcess_terminal"
-														},
-														"scope": {
-															"const": "windows-job"
-														},
-														"rootPid": {
-															"type": "integer",
-															"minimum": 1,
-															"maximum": 4294967295
-														},
-														"processes": {
-															"type": "array",
-															"maxItems": 64,
-															"items": {
-																"$ref": "#/$defs/runtimeProcess_process"
-															}
-														},
-														"foreground": {
-															"type": "object",
-															"required": ["kind", "pid", "providerId"],
-															"additionalProperties": false,
-															"properties": {
-																"kind": {
-																	"enum": ["agent-chain", "root", "ambiguous", "unavailable"]
-																},
-																"pid": {
-																	"type": ["integer", "null"],
-																	"minimum": 1,
-																	"maximum": 4294967295
-																},
-																"providerId": {
-																	"type": ["string", "null"],
-																	"pattern": "^[0-9A-Za-z._:-]{1,128}$"
-																}
-															},
-															"oneOf": [
-																{
-																	"properties": {
-																		"kind": {
-																			"const": "agent-chain"
-																		},
-																		"pid": {
-																			"type": "integer"
-																		},
-																		"providerId": {
-																			"type": "string"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"kind": {
-																			"const": "root"
-																		},
-																		"pid": {
-																			"type": "integer"
-																		},
-																		"providerId": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"kind": {
-																			"const": "ambiguous"
-																		},
-																		"pid": {
-																			"type": "null"
-																		},
-																		"providerId": {
-																			"type": "null"
-																		}
-																	}
-																},
-																{
-																	"properties": {
-																		"kind": {
-																			"const": "unavailable"
-																		},
-																		"pid": {
-																			"type": "null"
-																		},
-																		"providerId": {
-																			"type": "null"
-																		}
-																	}
-																}
-															]
-														}
-													}
-												},
-												"promptReady": {
-													"type": "boolean"
-												}
-											},
-											"required": ["kind", "source", "processInfo", "promptReady"],
-											"additionalProperties": false
-										}
-									]
-								},
-								{
-									"const": "unknown"
-								}
-							]
-						},
-						{
-							"$ref": "#/$defs/unsupported"
-						}
-					]
-				},
-				"management": {
-					"oneOf": [
-						{
-							"anyOf": [
-								{
-									"type": "object",
-									"required": ["source", "revision", "state"],
-									"additionalProperties": false,
-									"properties": {
-										"source": {
-											"$ref": "#/$defs/agentReadSource"
-										},
-										"revision": {
-											"$ref": "#/$defs/safeInteger"
-										},
-										"state": {
-											"$ref": "#/$defs/managed_agentManagement"
-										}
-									}
-								},
-								{
-									"const": "unknown"
-								}
-							]
-						},
-						{
-							"$ref": "#/$defs/unsupported"
-						}
-					]
-				},
-				"terminal": {
-					"oneOf": [
-						{
-							"anyOf": [
-								{
-									"anyOf": [
-										{
-											"type": "null"
-										},
-										{
-											"$ref": "#/$defs/agentTerminal"
-										}
-									]
-								},
-								{
-									"type": "null"
-								},
-								{
-									"const": "unknown"
-								}
-							]
-						},
-						{
-							"$ref": "#/$defs/unsupported"
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"terminal": {
-								"anyOf": [
-									{
-										"type": "null"
-									},
-									{
-										"$ref": "#/$defs/agentTerminal"
-									}
-								]
-							}
-						}
-					},
-					"then": {
-						"required": ["runtime", "terminal", "management"],
-						"oneOf": [
-							{
-								"properties": {
-									"runtime": {
-										"required": ["kind", "reason"],
-										"properties": {
-											"kind": {
-												"const": "unavailable"
-											},
-											"reason": {
-												"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
-											}
-										}
-									},
-									"terminal": {
-										"type": "null"
-									}
-								}
-							},
-							{
-								"properties": {
-									"runtime": {
-										"required": ["kind", "reason"],
-										"properties": {
-											"kind": {
-												"const": "unavailable"
-											},
-											"reason": {
-												"enum": ["terminal-unavailable", "process-unavailable"]
-											}
-										}
-									},
-									"terminal": {
-										"$ref": "#/$defs/windowsProjectedAgentTerminal"
-									}
-								}
-							},
-							{
-								"properties": {
-									"runtime": {
-										"required": ["kind"],
-										"properties": {
-											"kind": {
-												"const": "observed"
-											}
-										}
-									},
-									"terminal": {
-										"$ref": "#/$defs/windowsProjectedAgentTerminal"
-									}
-								}
-							}
-						]
-					}
-				}
-			]
-		},
-		"sessionId": {
-			"$ref": "#/$defs/opaqueIdentity"
-		},
-		"terminalManagementState": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["phase"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "unmanaged"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["phase", "providerId"],
-					"additionalProperties": false,
-					"properties": {
-						"phase": {
-							"const": "active"
-						},
-						"providerId": {
-							"type": "string",
-							"pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
-							"maxLength": 64
-						}
-					}
-				}
-			]
-		},
-		"physical_session": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"source": {
-					"type": "string"
-				},
-				"agent": {
-					"$ref": "#/$defs/physical_normalizedAgent"
-				},
-				"reference": {
-					"$ref": "#/$defs/physical_reference"
-				}
-			},
-			"required": ["source", "agent", "reference"]
-		},
-		"physical_terminalBinding": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
-			"properties": {
-				"presentationId": {
-					"$ref": "#/$defs/physical_identity"
-				},
-				"generation": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"hostEpoch": {
-					"$ref": "#/$defs/physical_identity"
-				},
-				"hostTerminalId": {
-					"$ref": "#/$defs/physical_identity"
-				}
-			}
-		},
-		"physical_semanticChange": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["sequence", "agent", "state"],
-			"properties": {
-				"sequence": {
-					"$ref": "#/$defs/physical_revision",
-					"not": {
-						"const": "0"
-					}
-				},
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_normalizedAgent"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/physical_state"
-				}
-			}
-		},
-		"physical_state": {
-			"enum": ["idle", "working", "blocked", "done", "error", "unknown"]
-		},
-		"physical_semanticObservation": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["binding", "sequence", "changes", "view"],
-			"properties": {
-				"binding": {
-					"$ref": "#/$defs/physical_terminalBinding"
-				},
-				"sequence": {
-					"$ref": "#/$defs/physical_revision"
-				},
-				"changes": {
-					"type": "array",
-					"maxItems": 128,
-					"items": {
-						"$ref": "#/$defs/physical_semanticChange"
-					}
-				},
-				"view": {
-					"$ref": "#/$defs/physical_view"
-				}
-			}
-		},
-		"physical_identity": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"not": {
-				"const": "00000000000000000000000000000000"
-			}
-		},
-		"physical_normalizedAgent": {
-			"type": "string",
-			"minLength": 1,
-			"not": {
-				"pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
-			}
-		},
-		"physical_view": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"agent": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_normalizedAgent"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"state": {
-					"$ref": "#/$defs/physical_state"
-				},
-				"authoritySource": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"message": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"session": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physical_session"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"required": ["agent", "state", "authoritySource", "message", "session"]
-		},
-		"physical_reference": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"enum": ["id", "path"]
-				},
-				"value": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096,
-					"not": {
-						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
-					}
-				}
-			},
-			"required": ["kind", "value"]
-		},
-		"physical_revision": {
-			"type": "string",
-			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-			"maxLength": 20,
-			"format": "orchbee-uint64"
-		},
-		"terminalSemantic": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["source", "observation"],
-			"properties": {
-				"source": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["siteId", "workbenchRevision", "reportRevision", "requestId"],
-					"properties": {
-						"siteId": {
-							"$ref": "#/$defs/physical_identity"
-						},
-						"workbenchRevision": {
-							"$ref": "#/$defs/physical_revision"
-						},
-						"reportRevision": {
-							"$ref": "#/$defs/physical_revision"
-						},
-						"requestId": {
-							"$ref": "#/$defs/physical_identity"
-						}
-					}
-				},
-				"observation": {
-					"$ref": "#/$defs/physical_semanticObservation"
-				}
-			}
-		},
-		"physicalClient_revision": {
-			"title": "WorkbenchRevision",
-			"type": "string",
-			"minLength": 1,
-			"maxLength": 20,
-			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
-			"format": "orchbee-uint64"
-		},
-		"physicalClient_phase": {
-			"enum": ["starting", "ready", "busy", "unavailable"]
-		},
-		"physicalClient_terminalContextId": {
-			"$ref": "#/$defs/hexId"
-		},
-		"physicalClient_tabId": {
-			"$ref": "#/$defs/hexId"
-		},
-		"physicalClient_panelId": {
-			"$ref": "#/$defs/hexId"
-		},
-		"physicalClient_selection": {
-			"type": "object",
-			"properties": {
-				"terminalContextId": {
-					"$ref": "#/$defs/physicalClient_terminalContextId"
-				},
-				"tabId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClient_tabId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"panelId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClient_panelId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"zoomed": {
-					"type": "boolean"
-				},
-				"panelCount": {
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 65535
-				}
-			},
-			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
-			"additionalProperties": false
-		},
-		"physicalClient_view": {
-			"type": "object",
-			"properties": {
-				"workbenchRevision": {
-					"$ref": "#/$defs/physicalClient_revision"
-				},
-				"phase": {
-					"$ref": "#/$defs/physicalClient_phase"
-				},
-				"selection": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClient_selection"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"splitRevision": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClient_revision"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"required": ["workbenchRevision", "phase", "selection"],
-			"additionalProperties": false
-		},
-		"physicalClient_clientId": {
-			"type": "string",
-			"pattern": "^[0-9a-f]{32}$",
-			"not": {
-				"const": "00000000000000000000000000000000"
-			}
-		},
-		"physicalClient_requestId": {
-			"$ref": "#/$defs/hexId"
-		},
-		"physicalClientView": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"clientId": {
-					"$ref": "#/$defs/physicalClient_clientId"
-				},
-				"operationId": {
-					"$ref": "#/$defs/physicalClient_requestId"
-				},
-				"view": {
-					"$ref": "#/$defs/physicalClient_view"
-				},
-				"reportRevision": {
-					"$ref": "#/$defs/physicalClient_revision"
-				},
-				"sequence": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClient_revision"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"seen": {
-					"type": ["boolean", "null"]
-				},
-				"status": {
-					"enum": [null, "idle", "done", "error", "working", "blocked", "unknown"]
-				},
-				"outerFocused": {
-					"type": ["boolean", "null"]
-				}
-			},
-			"required": [
-				"clientId",
-				"operationId",
-				"view",
-				"reportRevision",
-				"sequence",
-				"seen",
-				"status",
-				"outerFocused"
-			]
-		},
-		"clientTerminalInspection": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["kind", "target", "terminal", "management", "semantic", "clientView"],
-			"properties": {
-				"kind": {
-					"const": "terminal-found"
-				},
-				"target": {
-					"$ref": "#/$defs/nameTarget",
-					"properties": {
-						"kind": {
-							"const": "terminal"
-						}
-					}
-				},
-				"terminal": {
-					"$ref": "#/$defs/namedTerminal"
-				},
-				"management": {
-					"type": "object",
-					"required": ["source", "state"],
-					"additionalProperties": false,
-					"properties": {
-						"source": {
-							"$ref": "#/$defs/agentReadSource"
-						},
-						"state": {
-							"$ref": "#/$defs/terminalManagementState"
-						}
-					}
-				},
-				"semantic": {
-					"$ref": "#/$defs/terminalSemantic"
-				},
-				"clientView": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/physicalClientView"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			}
-		},
-		"agentProjectionSource": {
-			"type": "object",
-			"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "canonicalRevision"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "agent-projection"
-				},
-				"siteId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"workbenchRevision": {
-					"$ref": "#/$defs/physical_revision"
-				},
-				"reportRevision": {
-					"$ref": "#/$defs/physical_revision"
-				},
-				"canonicalRevision": {
-					"$ref": "#/$defs/safeInteger"
-				}
-			}
-		},
-		"projectionCanonicalSummary": {
-			"type": "object",
-			"required": [
-				"executionLocation",
-				"lifecycle",
-				"observation",
-				"parentSessionId",
-				"pendingRequestCount",
-				"presentationAttachments",
-				"providerId",
-				"sessionId",
-				"status"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"executionLocation": {
-					"$ref": "#/$defs/executionLocation"
-				},
-				"lifecycle": {
-					"$ref": "#/$defs/lifecycle"
-				},
-				"observation": {
-					"$ref": "#/$defs/observation"
-				},
-				"parentSessionId": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/opaqueId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"pendingRequestCount": {
-					"type": "integer",
-					"minimum": 0,
-					"maximum": 128
-				},
-				"presentationAttachments": {
-					"type": "array",
-					"maxItems": 32,
-					"items": {
-						"$ref": "#/$defs/presentationAttachment"
-					}
-				},
-				"providerId": {
-					"$ref": "#/$defs/providerId"
-				},
-				"sessionId": {
-					"$ref": "#/$defs/opaqueId"
-				},
-				"status": {
-					"$ref": "#/$defs/semanticStatus"
-				}
-			}
-		},
-		"projectionAgentTerminal": {
-			"type": "object",
-			"required": ["binding", "provider", "state", "sequence"],
-			"additionalProperties": false,
-			"properties": {
-				"binding": {
-					"$ref": "#/$defs/launchBinding"
-				},
-				"provider": {
-					"type": "string",
-					"minLength": 1
-				},
-				"state": {
-					"enum": ["done", "error", "idle", "blocked", "working", "unknown"]
-				},
-				"sequence": {
-					"$ref": "#/$defs/physical_revision"
-				}
-			}
-		},
-		"projectionAgentPlacement": {
-			"type": "object",
-			"required": [
-				"panelId",
-				"presentationId",
-				"terminalId",
-				"terminalContextId",
-				"workspaceId",
-				"tabId"
-			],
-			"additionalProperties": false,
-			"properties": {
-				"panelId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"presentationId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"terminalId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"terminalContextId": {
-					"$ref": "#/$defs/hexId"
-				},
-				"workspaceId": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/hexId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"tabId": {
-					"$ref": "#/$defs/hexId"
-				}
-			}
-		},
-		"projectedAgent": {
-			"type": "object",
-			"required": ["provider", "status", "source", "canonical", "terminal", "placement", "cwd"],
-			"additionalProperties": false,
-			"properties": {
-				"provider": {
-					"type": "string",
-					"minLength": 1
-				},
-				"status": {
-					"enum": ["unknown", "idle", "working", "blocked", "done", "error", "ended"]
-				},
-				"source": {
-					"enum": ["canonical", "terminal", "both"]
-				},
-				"canonical": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/projectionCanonicalSummary"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"terminal": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/projectionAgentTerminal"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"placement": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/projectionAgentPlacement"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"cwd": {
-					"type": ["string", "null"]
-				}
-			},
-			"if": {
-				"properties": {
-					"source": {
-						"const": "canonical"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"canonical": {
-						"$ref": "#/$defs/projectionCanonicalSummary"
-					},
-					"terminal": {
-						"type": "null"
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "terminal"
-							}
-						}
-					},
-					"then": {
-						"required": ["placement"],
-						"properties": {
-							"canonical": {
-								"type": "null"
-							},
-							"terminal": {
-								"$ref": "#/$defs/projectionAgentTerminal"
-							},
-							"placement": {
-								"$ref": "#/$defs/projectionAgentPlacement"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "both"
-							}
-						}
-					},
-					"then": {
-						"required": ["placement"],
-						"properties": {
-							"canonical": {
-								"$ref": "#/$defs/projectionCanonicalSummary"
-							},
-							"terminal": {
-								"$ref": "#/$defs/projectionAgentTerminal"
-							},
-							"placement": {
-								"$ref": "#/$defs/projectionAgentPlacement"
-							}
-						}
-					}
-				}
-			]
-		},
-		"projectedInspection": {
-			"oneOf": [
-				{
-					"$ref": "#/$defs/canonicalInspection"
-				},
-				{
-					"$ref": "#/$defs/clientTerminalInspection"
-				}
-			]
-		},
-		"projectedGetResult": {
-			"type": "object",
-			"required": ["kind", "agent", "inspection"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "projected"
-				},
-				"agent": {
-					"oneOf": [
-						{
-							"$ref": "#/$defs/projectedAgent"
-						},
-						{
-							"$ref": "#/$defs/unsupported"
-						}
-					]
-				},
-				"inspection": {
-					"$ref": "#/$defs/projectedInspection"
-				}
-			}
-		},
-		"unsupported": {
-			"type": "object",
-			"properties": {
-				"kind": {
-					"const": "unsupported"
-				}
-			},
-			"required": ["kind"],
-			"additionalProperties": false
-		}
-	},
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.agent.get"
-		},
-		"version": {
-			"const": 1
-		},
-		"source": {
-			"oneOf": [
-				{
-					"$ref": "#/$defs/agentProjectionSource"
-				},
-				{
-					"$ref": "#/$defs/agentReadSource"
-				}
-			]
-		},
-		"result": {
-			"$ref": "#/$defs/projectedGetResult"
-		}
-	}
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "orchbee.agent.get",
+  "title": "orchbee agent get envelope",
+  "$defs": {
+    "agentReadSource": {
+      "type": "object",
+      "required": [
+        "kind",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "agent-read"
+        },
+        "requestId": {
+          "$ref": "#/$defs/hexId"
+        }
+      }
+    },
+    "safeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "opaqueId": {
+      "type": "string",
+      "pattern": "^[0-9A-Za-z._:-]{1,128}$"
+    },
+    "hexId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "providerId": {
+      "type": "string",
+      "pattern": "^[0-9a-z]([0-9a-z.-]{0,62}[0-9a-z])?$"
+    },
+    "capability": {
+      "enum": [
+        "activity",
+        "approvals",
+        "authentication",
+        "progress",
+        "questions",
+        "sessionLifecycle",
+        "subagents",
+        "turnLifecycle"
+      ]
+    },
+    "activity": {
+      "enum": [
+        "command",
+        "compacting",
+        "editing",
+        "other",
+        "retrying",
+        "subagent",
+        "thinking",
+        "tool"
+      ]
+    },
+    "visibility": {
+      "enum": [
+        "hidden",
+        "unknown",
+        "visible"
+      ]
+    },
+    "fidelity": {
+      "enum": [
+        "basic",
+        "heuristic",
+        "rich"
+      ]
+    },
+    "freshness": {
+      "enum": [
+        "disconnected",
+        "fresh",
+        "stale"
+      ]
+    },
+    "observationSource": {
+      "enum": [
+        "heuristic",
+        "hook",
+        "native",
+        "terminal"
+      ]
+    },
+    "turnPhase": {
+      "enum": [
+        "queued",
+        "waiting-external",
+        "working"
+      ]
+    },
+    "attentionKind": {
+      "enum": [
+        "approval",
+        "authentication",
+        "question",
+        "unclassified"
+      ]
+    },
+    "outcomeKind": {
+      "enum": [
+        "canceled",
+        "failed",
+        "interrupted",
+        "succeeded"
+      ]
+    },
+    "lifecycle": {
+      "enum": [
+        "ended",
+        "live"
+      ]
+    },
+    "executionLocation": {
+      "type": "object",
+      "required": [
+        "executionLocationId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "executionLocationId": {
+          "$ref": "#/$defs/opaqueId"
+        }
+      }
+    },
+    "presentationAttachment": {
+      "type": "object",
+      "required": [
+        "generation",
+        "navigable",
+        "presentationId",
+        "visibility"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "navigable": {
+          "type": "boolean"
+        },
+        "presentationId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility"
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "required": [
+        "fidelity",
+        "freshness",
+        "generation",
+        "sequence",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "fidelity": {
+          "$ref": "#/$defs/fidelity"
+        },
+        "freshness": {
+          "$ref": "#/$defs/freshness"
+        },
+        "generation": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "sequence": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "source": {
+          "$ref": "#/$defs/observationSource"
+        }
+      }
+    },
+    "turnState": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "idle"
+            }
+          }
+        },
+        {
+          "required": [
+            "activity",
+            "phase",
+            "turnId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "active"
+            },
+            "activity": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/activity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "phase": {
+              "$ref": "#/$defs/turnPhase"
+            },
+            "turnId": {
+              "$ref": "#/$defs/opaqueId"
+            }
+          }
+        }
+      ]
+    },
+    "attentionRequest": {
+      "type": "object",
+      "required": [
+        "actionPath",
+        "kind",
+        "requestId",
+        "turnId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "actionPath": {
+          "const": "navigate-only"
+        },
+        "kind": {
+          "$ref": "#/$defs/attentionKind"
+        },
+        "requestId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "turnId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "turnOutcome": {
+      "type": "object",
+      "required": [
+        "eventId",
+        "kind",
+        "turnId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "kind": {
+          "$ref": "#/$defs/outcomeKind"
+        },
+        "turnId": {
+          "$ref": "#/$defs/opaqueId"
+        }
+      }
+    },
+    "semanticStatus": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "count"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "needs-attention"
+            },
+            "count": {
+              "$ref": "#/$defs/positiveInteger"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "failed"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "succeeded"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "canceled"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "interrupted"
+            }
+          }
+        },
+        {
+          "required": [
+            "activity",
+            "phase"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "working"
+            },
+            "activity": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/activity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "phase": {
+              "$ref": "#/$defs/turnPhase"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "idle"
+            }
+          }
+        },
+        {
+          "required": [
+            "activityHint"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            },
+            "activityHint": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/activity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "ended"
+            }
+          }
+        }
+      ]
+    },
+    "sessionDetail": {
+      "type": "object",
+      "required": [
+        "snapshot",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "snapshot": {
+          "type": "object",
+          "required": [
+            "activityHint",
+            "capabilities",
+            "executionLocation",
+            "lastOutcome",
+            "lifecycle",
+            "observation",
+            "parentSessionId",
+            "pendingRequests",
+            "presentationAttachments",
+            "providerId",
+            "sessionId",
+            "turn"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "activityHint": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/activity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capabilities": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "$ref": "#/$defs/capability"
+              },
+              "uniqueItems": true
+            },
+            "executionLocation": {
+              "$ref": "#/$defs/executionLocation"
+            },
+            "lastOutcome": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/turnOutcome"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lifecycle": {
+              "$ref": "#/$defs/lifecycle"
+            },
+            "observation": {
+              "$ref": "#/$defs/observation"
+            },
+            "parentSessionId": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/opaqueId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pendingRequests": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {
+                "$ref": "#/$defs/attentionRequest"
+              }
+            },
+            "presentationAttachments": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/presentationAttachment"
+              }
+            },
+            "providerId": {
+              "$ref": "#/$defs/providerId"
+            },
+            "sessionId": {
+              "$ref": "#/$defs/opaqueId"
+            },
+            "turn": {
+              "$ref": "#/$defs/turnState"
+            }
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/semanticStatus"
+        }
+      }
+    },
+    "clientView": {
+      "type": "object",
+      "required": [
+        "clientId",
+        "operationId",
+        "phase",
+        "outerFocused",
+        "focused",
+        "attentionRevision",
+        "state",
+        "stateChangeRevision",
+        "seen",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "operationId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "phase": {
+          "enum": [
+            "starting",
+            "ready",
+            "busy",
+            "unavailable"
+          ]
+        },
+        "outerFocused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "focused": {
+          "type": "boolean"
+        },
+        "attentionRevision": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "state": {
+          "enum": [
+            "current",
+            "missing",
+            "stale"
+          ]
+        },
+        "stateChangeRevision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/safeInteger"
+            }
+          ]
+        },
+        "seen": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            null,
+            "idle",
+            "done",
+            "error",
+            "blocked",
+            "working",
+            "unknown",
+            "ended",
+            "stale",
+            "disconnected"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "state": {
+            "const": "current"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "seen": {
+            "type": "boolean"
+          },
+          "stateChangeRevision": {
+            "$ref": "#/$defs/safeInteger"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "seen": {
+            "type": "null"
+          },
+          "stateChangeRevision": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "runtimeProcess_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "runtimeProcess_positiveDecimal": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "runtimeProcess_terminal": {
+      "type": "object",
+      "required": [
+        "terminalId",
+        "workerId",
+        "boundTo"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "terminalId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "workerId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "boundTo": {
+          "type": "object",
+          "required": [
+            "presentationId",
+            "panelId",
+            "tabId",
+            "terminalContextId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presentationId": {
+              "$ref": "#/$defs/runtimeProcess_id"
+            },
+            "panelId": {
+              "$ref": "#/$defs/runtimeProcess_id"
+            },
+            "tabId": {
+              "$ref": "#/$defs/runtimeProcess_id"
+            },
+            "terminalContextId": {
+              "$ref": "#/$defs/runtimeProcess_id"
+            }
+          }
+        }
+      }
+    },
+    "runtimeProcess_snapshotSource": {
+      "type": "object",
+      "required": [
+        "kind",
+        "siteId",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "workbench-snapshot"
+        },
+        "siteId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      }
+    },
+    "runtimeProcess_process": {
+      "type": "object",
+      "required": [
+        "pid",
+        "parentPid",
+        "creationTime",
+        "image",
+        "commandLine",
+        "currentDirectory",
+        "argv",
+        "providerId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "parentPid": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creationTime": {
+          "$ref": "#/$defs/runtimeProcess_positiveDecimal"
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]*$"
+        },
+        "commandLine": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]*$"
+        },
+        "currentDirectory": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]*$"
+        },
+        "argv": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^[^\\u0000]*$"
+          }
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9A-Za-z._:-]{1,128}$"
+        }
+      }
+    },
+    "runtimeProcess_source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "siteId",
+        "snapshotRevision",
+        "requestId",
+        "hostRequestId",
+        "hostEpoch",
+        "attachmentId",
+        "hostTerminalId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "terminal-process-query"
+        },
+        "siteId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "snapshotRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "requestId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "hostRequestId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "hostEpoch": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "attachmentId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "hostTerminalId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        }
+      }
+    },
+    "managed_agentManagement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "phase"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "phase": {
+              "const": "unmanaged"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "phase",
+            "reservation",
+            "blocked"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "phase": {
+              "const": "pending"
+            },
+            "reservation": {
+              "$ref": "#/$defs/managed_launchReservation"
+            },
+            "blocked": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "phase",
+            "reservationId",
+            "providerId",
+            "binding"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "phase": {
+              "const": "active"
+            },
+            "reservationId": {
+              "$ref": "#/$defs/managed_obapRequestId"
+            },
+            "providerId": {
+              "$ref": "#/$defs/managed_providerId"
+            },
+            "binding": {
+              "$ref": "#/$defs/managed_launchBinding"
+            }
+          }
+        }
+      ]
+    },
+    "managed_launchReservation": {
+      "type": "object",
+      "required": [
+        "reservationId",
+        "name",
+        "providerId",
+        "binding",
+        "remainingMs",
+        "settleRemainingMs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reservationId": {
+          "$ref": "#/$defs/managed_obapRequestId"
+        },
+        "name": {
+          "$ref": "#/$defs/managed_agentName"
+        },
+        "providerId": {
+          "$ref": "#/$defs/managed_providerId"
+        },
+        "binding": {
+          "$ref": "#/$defs/managed_launchBinding"
+        },
+        "remainingMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000
+        },
+        "settleRemainingMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3000
+        }
+      }
+    },
+    "managed_obapRequestId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "managed_agentName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+    },
+    "managed_providerId": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+      "maxLength": 64
+    },
+    "managed_launchBinding": {
+      "type": "object",
+      "required": [
+        "presentationId",
+        "generation",
+        "hostEpoch",
+        "hostTerminalId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "presentationId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "not": {
+            "const": "00000000000000000000000000000000"
+          }
+        },
+        "generation": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "hostEpoch": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "not": {
+            "const": "00000000000000000000000000000000"
+          }
+        },
+        "hostTerminalId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "not": {
+            "const": "00000000000000000000000000000000"
+          }
+        }
+      }
+    },
+    "agentTerminal_terminalObservation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "const": "unavailable"
+            },
+            "reason": {
+              "const": "terminal-unavailable"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "state",
+            "frame",
+            "processes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "const": "observed"
+            },
+            "frame": {
+              "type": "object",
+              "required": [
+                "hostEpoch",
+                "attachmentId",
+                "sequence",
+                "generation",
+                "revision",
+                "columns",
+                "rows",
+                "alternateScreen",
+                "scrollbackRows",
+                "title",
+                "currentDirectory"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "hostEpoch": {
+                  "$ref": "#/$defs/agentTerminal_terminalProcessId"
+                },
+                "attachmentId": {
+                  "$ref": "#/$defs/agentTerminal_terminalProcessId"
+                },
+                "sequence": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,19}$",
+                  "format": "orchbee-uint64"
+                },
+                "generation": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,19}$",
+                  "format": "orchbee-uint64"
+                },
+                "revision": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]{0,19})$",
+                  "format": "orchbee-uint64"
+                },
+                "columns": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4096
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4096
+                },
+                "alternateScreen": {
+                  "type": "boolean"
+                },
+                "scrollbackRows": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]{0,19})$",
+                  "format": "orchbee-uint64"
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 16384
+                },
+                "currentDirectory": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 16384
+                }
+              }
+            },
+            "processes": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "state",
+                    "source",
+                    "result"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "observed"
+                    },
+                    "source": {
+                      "$ref": "#/$defs/agentTerminal_terminalProcessSource"
+                    },
+                    "result": {
+                      "type": "object",
+                      "required": [
+                        "terminal",
+                        "scope",
+                        "rootPid",
+                        "processes",
+                        "foreground"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "terminal": {
+                          "$ref": "#/$defs/agentTerminal_terminalProcessTerminal"
+                        },
+                        "scope": {
+                          "const": "windows-job"
+                        },
+                        "rootPid": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 4294967295
+                        },
+                        "processes": {
+                          "type": "array",
+                          "maxItems": 64,
+                          "items": {
+                            "$ref": "#/$defs/agentTerminal_terminalProcessProcess"
+                          }
+                        },
+                        "foreground": {
+                          "type": "object",
+                          "required": [
+                            "kind",
+                            "pid",
+                            "providerId"
+                          ],
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "agent-chain",
+                                "root",
+                                "ambiguous",
+                                "unavailable"
+                              ]
+                            },
+                            "pid": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ],
+                              "minimum": 1,
+                              "maximum": 4294967295
+                            },
+                            "providerId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "pattern": "^[0-9A-Za-z._:-]{1,128}$"
+                            }
+                          },
+                          "oneOf": [
+                            {
+                              "properties": {
+                                "kind": {
+                                  "const": "agent-chain"
+                                },
+                                "pid": {
+                                  "type": "integer"
+                                },
+                                "providerId": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            {
+                              "properties": {
+                                "kind": {
+                                  "const": "root"
+                                },
+                                "pid": {
+                                  "type": "integer"
+                                },
+                                "providerId": {
+                                  "type": "null"
+                                }
+                              }
+                            },
+                            {
+                              "properties": {
+                                "kind": {
+                                  "const": "ambiguous"
+                                },
+                                "pid": {
+                                  "type": "null"
+                                },
+                                "providerId": {
+                                  "type": "null"
+                                }
+                              }
+                            },
+                            {
+                              "properties": {
+                                "kind": {
+                                  "const": "unavailable"
+                                },
+                                "pid": {
+                                  "type": "null"
+                                },
+                                "providerId": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "state",
+                    "reason"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "state": {
+                      "const": "unavailable"
+                    },
+                    "reason": {
+                      "const": "process-unavailable"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "agentTerminal_terminalProcessId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "agentTerminal_terminalProcessSource": {
+      "type": "object",
+      "required": [
+        "kind",
+        "siteId",
+        "snapshotRevision",
+        "requestId",
+        "hostRequestId",
+        "hostEpoch",
+        "attachmentId",
+        "hostTerminalId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "terminal-process-query"
+        },
+        "siteId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "snapshotRevision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "requestId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "hostRequestId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "hostEpoch": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "attachmentId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "hostTerminalId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        }
+      }
+    },
+    "agentTerminal_terminalProcessTerminal": {
+      "type": "object",
+      "required": [
+        "terminalId",
+        "workerId",
+        "boundTo"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "terminalId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "workerId": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessId"
+        },
+        "boundTo": {
+          "type": "object",
+          "required": [
+            "presentationId",
+            "panelId",
+            "tabId",
+            "terminalContextId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presentationId": {
+              "$ref": "#/$defs/agentTerminal_terminalProcessId"
+            },
+            "panelId": {
+              "$ref": "#/$defs/agentTerminal_terminalProcessId"
+            },
+            "tabId": {
+              "$ref": "#/$defs/agentTerminal_terminalProcessId"
+            },
+            "terminalContextId": {
+              "$ref": "#/$defs/agentTerminal_terminalProcessId"
+            }
+          }
+        }
+      }
+    },
+    "agentTerminal_terminalProcessProcess": {
+      "type": "object",
+      "required": [
+        "pid",
+        "parentPid",
+        "creationTime",
+        "image",
+        "commandLine",
+        "currentDirectory",
+        "argv",
+        "providerId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "parentPid": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creationTime": {
+          "$ref": "#/$defs/agentTerminal_terminalProcessPositiveDecimal"
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]*$"
+        },
+        "commandLine": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]*$"
+        },
+        "currentDirectory": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "pattern": "^[^\\u0000]*$"
+        },
+        "argv": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 4096,
+          "items": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^[^\\u0000]*$"
+          }
+        },
+        "providerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9A-Za-z._:-]{1,128}$"
+        }
+      }
+    },
+    "agentTerminal_terminalProcessPositiveDecimal": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "agentTerminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "terminalId",
+        "source",
+        "cwd",
+        "cwdSource",
+        "foregroundCwd",
+        "terminalTitle",
+        "terminalTitleStripped",
+        "terminalObservation"
+      ],
+      "properties": {
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 16384
+        },
+        "cwdSource": {
+          "enum": [
+            null,
+            "terminal-frame",
+            "root-process"
+          ]
+        },
+        "foregroundCwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "terminalTitle": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 16384
+        },
+        "terminalTitleStripped": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 16384
+        },
+        "terminalObservation": {
+          "$ref": "#/$defs/agentTerminal_terminalObservation"
+        },
+        "terminalId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "source": {
+          "$ref": "#/$defs/runtimeProcess_snapshotSource"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/panelMetadata"
+            },
+            {
+              "$ref": "#/$defs/reportedPanelMetadata"
+            }
+          ]
+        },
+        "reportedAgent": {
+          "$ref": "#/$defs/reportedAgent"
+        }
+      },
+      "if": {
+        "required": [
+          "terminalObservation"
+        ],
+        "properties": {
+          "terminalObservation": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "unbound",
+                  "unavailable"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "cwd": {
+            "type": "null"
+          },
+          "cwdSource": {
+            "type": "null"
+          },
+          "foregroundCwd": {
+            "type": "null"
+          },
+          "terminalTitle": {
+            "type": "null"
+          },
+          "terminalTitleStripped": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "windowsProjectedAgentTerminal": {
+      "$ref": "#/$defs/agentTerminal",
+      "required": [
+        "metadata",
+        "reportedAgent"
+      ]
+    },
+    "metadataIdentity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "metadataRevision": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]{0,19})$",
+      "maxLength": 20,
+      "format": "orchbee-uint64"
+    },
+    "metadataSource": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9:._-]{1,80}$(?![\\s\\S])"
+    },
+    "metadataKey": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,32}$(?![\\s\\S])"
+    },
+    "metadataValue": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "not": {
+        "pattern": "[^\\u0020-\\u007e\\u00a0-\\uD7FF\\uE000-\\uFFFF𐀀-􏿿]"
+      },
+      "allOf": [
+        {
+          "not": {
+            "pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$"
+          }
+        }
+      ]
+    },
+    "metadataTokens": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": {
+        "$ref": "#/$defs/metadataKey"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/metadataValue"
+      }
+    },
+    "metadataBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workerId",
+        "terminalId"
+      ],
+      "properties": {
+        "workerId": {
+          "$ref": "#/$defs/metadataIdentity"
+        },
+        "terminalId": {
+          "$ref": "#/$defs/metadataIdentity"
+        }
+      }
+    },
+    "metadataLabels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "idle": {
+          "$ref": "#/$defs/metadataValue"
+        },
+        "working": {
+          "$ref": "#/$defs/metadataValue"
+        },
+        "blocked": {
+          "$ref": "#/$defs/metadataValue"
+        },
+        "done": {
+          "$ref": "#/$defs/metadataValue"
+        },
+        "unknown": {
+          "$ref": "#/$defs/metadataValue"
+        },
+        "error": {
+          "$ref": "#/$defs/metadataValue"
+        }
+      }
+    },
+    "metadataField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "order"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/metadataValue"
+        },
+        "order": {
+          "$ref": "#/$defs/metadataRevision",
+          "not": {
+            "const": "0"
+          }
+        }
+      }
+    },
+    "metadataFieldLabels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "idle": {
+          "$ref": "#/$defs/metadataField"
+        },
+        "working": {
+          "$ref": "#/$defs/metadataField"
+        },
+        "blocked": {
+          "$ref": "#/$defs/metadataField"
+        },
+        "done": {
+          "$ref": "#/$defs/metadataField"
+        },
+        "unknown": {
+          "$ref": "#/$defs/metadataField"
+        },
+        "error": {
+          "$ref": "#/$defs/metadataField"
+        }
+      }
+    },
+    "metadataPresentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "agent",
+        "appliesToSource",
+        "title",
+        "displayAgent",
+        "stateLabels"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/metadataSource"
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/metadataValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appliesToSource": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/metadataSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/metadataField"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayAgent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/metadataField"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stateLabels": {
+          "$ref": "#/$defs/metadataFieldLabels"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "title"
+          ],
+          "properties": {
+            "title": {
+              "$ref": "#/$defs/metadataField"
+            }
+          }
+        },
+        {
+          "required": [
+            "displayAgent"
+          ],
+          "properties": {
+            "displayAgent": {
+              "$ref": "#/$defs/metadataField"
+            }
+          }
+        },
+        {
+          "required": [
+            "stateLabels"
+          ],
+          "properties": {
+            "stateLabels": {
+              "type": "object",
+              "minProperties": 1
+            }
+          }
+        }
+      ]
+    },
+    "panelMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "binding",
+        "tokens",
+        "presentations",
+        "context",
+        "presentation"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "siteId",
+            "workbenchRevision",
+            "metadataRevision",
+            "requestIds"
+          ],
+          "properties": {
+            "siteId": {
+              "$ref": "#/$defs/metadataIdentity"
+            },
+            "workbenchRevision": {
+              "$ref": "#/$defs/metadataRevision"
+            },
+            "metadataRevision": {
+              "$ref": "#/$defs/metadataRevision"
+            },
+            "requestIds": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/metadataIdentity"
+              }
+            }
+          }
+        },
+        "binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/metadataBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokens": {
+          "$ref": "#/$defs/metadataTokens"
+        },
+        "presentations": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/metadataPresentation"
+          }
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent",
+            "authoritySource"
+          ],
+          "properties": {
+            "agent": {
+              "type": "null"
+            },
+            "authoritySource": {
+              "type": "null"
+            }
+          }
+        },
+        "presentation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title",
+            "displayAgent",
+            "stateLabels"
+          ],
+          "properties": {
+            "title": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/metadataValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "displayAgent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/metadataValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stateLabels": {
+              "$ref": "#/$defs/metadataLabels"
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "binding": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tokens": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "presentations": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "presentation": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "null"
+              },
+              "displayAgent": {
+                "type": "null"
+              },
+              "stateLabels": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "reportIdentity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "reportBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workerId": {
+          "$ref": "#/$defs/reportIdentity"
+        },
+        "terminalId": {
+          "$ref": "#/$defs/reportIdentity"
+        }
+      },
+      "required": [
+        "workerId",
+        "terminalId"
+      ]
+    },
+    "reportNormalizedAgent": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+      }
+    },
+    "reportState": {
+      "enum": [
+        "idle",
+        "working",
+        "blocked",
+        "done",
+        "error",
+        "unknown"
+      ]
+    },
+    "reportView": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/reportNormalizedAgent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/reportState"
+        },
+        "authoritySource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "agent",
+        "state",
+        "authoritySource",
+        "message"
+      ]
+    },
+    "reportedPanelMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "binding",
+        "tokens",
+        "presentations",
+        "context",
+        "presentation"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "siteId",
+            "workbenchRevision",
+            "metadataRevision",
+            "requestIds"
+          ],
+          "properties": {
+            "siteId": {
+              "$ref": "#/$defs/metadataIdentity"
+            },
+            "workbenchRevision": {
+              "$ref": "#/$defs/metadataRevision"
+            },
+            "metadataRevision": {
+              "$ref": "#/$defs/metadataRevision"
+            },
+            "requestIds": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/metadataIdentity"
+              }
+            }
+          }
+        },
+        "binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/metadataBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokens": {
+          "$ref": "#/$defs/metadataTokens"
+        },
+        "presentations": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/metadataPresentation"
+          }
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent",
+            "authoritySource"
+          ],
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/reportNormalizedAgent"
+                }
+              ]
+            },
+            "authoritySource": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "presentation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title",
+            "displayAgent",
+            "stateLabels"
+          ],
+          "properties": {
+            "title": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/metadataValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "displayAgent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/metadataValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stateLabels": {
+              "$ref": "#/$defs/metadataLabels"
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "binding": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tokens": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "presentations": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "presentation": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "null"
+              },
+              "displayAgent": {
+                "type": "null"
+              },
+              "stateLabels": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "reportedAgent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "binding",
+        "view"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "siteId",
+            "workbenchRevision",
+            "reportRevision",
+            "requestIds"
+          ],
+          "properties": {
+            "siteId": {
+              "$ref": "#/$defs/metadataIdentity"
+            },
+            "workbenchRevision": {
+              "$ref": "#/$defs/metadataRevision"
+            },
+            "requestIds": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/metadataIdentity"
+              }
+            },
+            "reportRevision": {
+              "$ref": "#/$defs/metadataRevision"
+            }
+          }
+        },
+        "binding": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/reportBinding"
+            }
+          ]
+        },
+        "view": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/reportView"
+            }
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "binding": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "view": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "view": {
+            "$ref": "#/$defs/reportView"
+          }
+        }
+      }
+    },
+    "nameTarget": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "sessionId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "session"
+            },
+            "sessionId": {
+              "$ref": "#/$defs/sessionId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "binding"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "terminal"
+            },
+            "binding": {
+              "$ref": "#/$defs/launchBinding"
+            }
+          }
+        }
+      ]
+    },
+    "launchBinding": {
+      "type": "object",
+      "required": [
+        "presentationId",
+        "generation",
+        "hostEpoch",
+        "hostTerminalId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "presentationId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "not": {
+            "const": "00000000000000000000000000000000"
+          }
+        },
+        "generation": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "hostEpoch": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "not": {
+            "const": "00000000000000000000000000000000"
+          }
+        },
+        "hostTerminalId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "not": {
+            "const": "00000000000000000000000000000000"
+          }
+        }
+      }
+    },
+    "opaqueIdentity": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    },
+    "namedTerminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "terminalId",
+        "source",
+        "cwd",
+        "cwdSource",
+        "foregroundCwd",
+        "terminalTitle",
+        "terminalTitleStripped",
+        "terminalObservation",
+        "presentationId",
+        "panelId"
+      ],
+      "properties": {
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 16384
+        },
+        "cwdSource": {
+          "enum": [
+            null,
+            "terminal-frame",
+            "root-process"
+          ]
+        },
+        "foregroundCwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "terminalTitle": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 16384
+        },
+        "terminalTitleStripped": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 16384
+        },
+        "terminalObservation": {
+          "$ref": "#/$defs/agentTerminal_terminalObservation"
+        },
+        "terminalId": {
+          "$ref": "#/$defs/runtimeProcess_id"
+        },
+        "source": {
+          "$ref": "#/$defs/runtimeProcess_snapshotSource"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/panelMetadata"
+            },
+            {
+              "$ref": "#/$defs/reportedPanelMetadata"
+            }
+          ]
+        },
+        "reportedAgent": {
+          "$ref": "#/$defs/reportedAgent"
+        },
+        "presentationId": {
+          "$ref": "#/$defs/opaqueIdentity"
+        },
+        "panelId": {
+          "$ref": "#/$defs/opaqueIdentity"
+        }
+      },
+      "if": {
+        "required": [
+          "terminalObservation"
+        ],
+        "properties": {
+          "terminalObservation": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "unbound",
+                  "unavailable"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "cwd": {
+            "type": "null"
+          },
+          "cwdSource": {
+            "type": "null"
+          },
+          "foregroundCwd": {
+            "type": "null"
+          },
+          "terminalTitle": {
+            "type": "null"
+          },
+          "terminalTitleStripped": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "canonicalInspection": {
+      "type": "object",
+      "required": [
+        "kind",
+        "revision",
+        "session",
+        "client",
+        "runtime",
+        "management",
+        "terminal"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "found"
+        },
+        "revision": {
+          "$ref": "#/$defs/safeInteger"
+        },
+        "session": {
+          "$ref": "#/$defs/sessionDetail"
+        },
+        "client": {
+          "oneOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/clientView"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/unsupported"
+            }
+          ]
+        },
+        "runtime": {
+          "oneOf": [
+            {
+              "anyOf": [
+                {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "unavailable"
+                        },
+                        "reason": {
+                          "enum": [
+                            "session-ended",
+                            "unbound",
+                            "ambiguous-primary",
+                            "binding-changed",
+                            "terminal-unavailable",
+                            "process-unavailable"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "observed"
+                        },
+                        "source": {
+                          "$ref": "#/$defs/runtimeProcess_source"
+                        },
+                        "processInfo": {
+                          "type": "object",
+                          "required": [
+                            "terminal",
+                            "scope",
+                            "rootPid",
+                            "processes",
+                            "foreground"
+                          ],
+                          "additionalProperties": false,
+                          "properties": {
+                            "terminal": {
+                              "$ref": "#/$defs/runtimeProcess_terminal"
+                            },
+                            "scope": {
+                              "const": "windows-job"
+                            },
+                            "rootPid": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 4294967295
+                            },
+                            "processes": {
+                              "type": "array",
+                              "maxItems": 64,
+                              "items": {
+                                "$ref": "#/$defs/runtimeProcess_process"
+                              }
+                            },
+                            "foreground": {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "pid",
+                                "providerId"
+                              ],
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "agent-chain",
+                                    "root",
+                                    "ambiguous",
+                                    "unavailable"
+                                  ]
+                                },
+                                "pid": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": 1,
+                                  "maximum": 4294967295
+                                },
+                                "providerId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "pattern": "^[0-9A-Za-z._:-]{1,128}$"
+                                }
+                              },
+                              "oneOf": [
+                                {
+                                  "properties": {
+                                    "kind": {
+                                      "const": "agent-chain"
+                                    },
+                                    "pid": {
+                                      "type": "integer"
+                                    },
+                                    "providerId": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                {
+                                  "properties": {
+                                    "kind": {
+                                      "const": "root"
+                                    },
+                                    "pid": {
+                                      "type": "integer"
+                                    },
+                                    "providerId": {
+                                      "type": "null"
+                                    }
+                                  }
+                                },
+                                {
+                                  "properties": {
+                                    "kind": {
+                                      "const": "ambiguous"
+                                    },
+                                    "pid": {
+                                      "type": "null"
+                                    },
+                                    "providerId": {
+                                      "type": "null"
+                                    }
+                                  }
+                                },
+                                {
+                                  "properties": {
+                                    "kind": {
+                                      "const": "unavailable"
+                                    },
+                                    "pid": {
+                                      "type": "null"
+                                    },
+                                    "providerId": {
+                                      "type": "null"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "promptReady": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "source",
+                        "processInfo",
+                        "promptReady"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                {
+                  "const": "unknown"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/unsupported"
+            }
+          ]
+        },
+        "management": {
+          "oneOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "source",
+                    "revision",
+                    "state"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "source": {
+                      "$ref": "#/$defs/agentReadSource"
+                    },
+                    "revision": {
+                      "$ref": "#/$defs/safeInteger"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/managed_agentManagement"
+                    }
+                  }
+                },
+                {
+                  "const": "unknown"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/unsupported"
+            }
+          ]
+        },
+        "terminal": {
+          "oneOf": [
+            {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/$defs/agentTerminal"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "const": "unknown"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/unsupported"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "terminal": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/$defs/agentTerminal"
+                  }
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "runtime",
+              "terminal",
+              "management"
+            ],
+            "oneOf": [
+              {
+                "properties": {
+                  "runtime": {
+                    "required": [
+                      "kind",
+                      "reason"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "unavailable"
+                      },
+                      "reason": {
+                        "enum": [
+                          "session-ended",
+                          "unbound",
+                          "ambiguous-primary",
+                          "binding-changed"
+                        ]
+                      }
+                    }
+                  },
+                  "terminal": {
+                    "type": "null"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "runtime": {
+                    "required": [
+                      "kind",
+                      "reason"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "unavailable"
+                      },
+                      "reason": {
+                        "enum": [
+                          "terminal-unavailable",
+                          "process-unavailable"
+                        ]
+                      }
+                    }
+                  },
+                  "terminal": {
+                    "$ref": "#/$defs/windowsProjectedAgentTerminal"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "runtime": {
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "observed"
+                      }
+                    }
+                  },
+                  "terminal": {
+                    "$ref": "#/$defs/windowsProjectedAgentTerminal"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sessionId": {
+      "$ref": "#/$defs/opaqueIdentity"
+    },
+    "terminalManagementState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "phase"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "phase": {
+              "const": "unmanaged"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "phase",
+            "providerId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "phase": {
+              "const": "active"
+            },
+            "providerId": {
+              "type": "string",
+              "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+              "maxLength": 64
+            }
+          }
+        }
+      ]
+    },
+    "physical_terminalBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presentationId",
+        "generation",
+        "hostEpoch",
+        "hostTerminalId"
+      ],
+      "properties": {
+        "presentationId": {
+          "$ref": "#/$defs/physical_identity"
+        },
+        "generation": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "hostEpoch": {
+          "$ref": "#/$defs/physical_identity"
+        },
+        "hostTerminalId": {
+          "$ref": "#/$defs/physical_identity"
+        }
+      }
+    },
+    "physical_semanticChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "agent",
+        "state"
+      ],
+      "properties": {
+        "sequence": {
+          "$ref": "#/$defs/physical_revision",
+          "not": {
+            "const": "0"
+          }
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physical_normalizedAgent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/physical_state"
+        }
+      }
+    },
+    "physical_state": {
+      "enum": [
+        "idle",
+        "working",
+        "blocked",
+        "done",
+        "error",
+        "unknown"
+      ]
+    },
+    "physical_semanticObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding",
+        "sequence",
+        "changes",
+        "view"
+      ],
+      "properties": {
+        "binding": {
+          "$ref": "#/$defs/physical_terminalBinding"
+        },
+        "sequence": {
+          "$ref": "#/$defs/physical_revision"
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/physical_semanticChange"
+          }
+        },
+        "view": {
+          "$ref": "#/$defs/physical_view"
+        }
+      }
+    },
+    "physical_identity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "physical_normalizedAgent": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "^[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]|[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]$(?![\\s\\S])"
+      }
+    },
+    "physical_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physical_normalizedAgent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/physical_state"
+        },
+        "authoritySource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "agent",
+        "state",
+        "authoritySource",
+        "message"
+      ]
+    },
+    "physical_revision": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]{0,19})$",
+      "maxLength": 20,
+      "format": "orchbee-uint64"
+    },
+    "terminalSemantic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "observation"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "siteId",
+            "workbenchRevision",
+            "reportRevision",
+            "requestId"
+          ],
+          "properties": {
+            "siteId": {
+              "$ref": "#/$defs/physical_identity"
+            },
+            "workbenchRevision": {
+              "$ref": "#/$defs/physical_revision"
+            },
+            "reportRevision": {
+              "$ref": "#/$defs/physical_revision"
+            },
+            "requestId": {
+              "$ref": "#/$defs/physical_identity"
+            }
+          }
+        },
+        "observation": {
+          "$ref": "#/$defs/physical_semanticObservation"
+        }
+      }
+    },
+    "physicalClient_revision": {
+      "title": "WorkbenchRevision",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20,
+      "pattern": "^(?:0|[1-9][0-9]{0,19})$",
+      "format": "orchbee-uint64"
+    },
+    "physicalClient_phase": {
+      "enum": [
+        "starting",
+        "ready",
+        "busy",
+        "unavailable"
+      ]
+    },
+    "physicalClient_terminalContextId": {
+      "$ref": "#/$defs/hexId"
+    },
+    "physicalClient_tabId": {
+      "$ref": "#/$defs/hexId"
+    },
+    "physicalClient_panelId": {
+      "$ref": "#/$defs/hexId"
+    },
+    "physicalClient_selection": {
+      "type": "object",
+      "properties": {
+        "terminalContextId": {
+          "$ref": "#/$defs/physicalClient_terminalContextId"
+        },
+        "tabId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicalClient_tabId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "panelId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicalClient_panelId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "zoomed": {
+          "type": "boolean"
+        },
+        "panelCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "terminalContextId",
+        "tabId",
+        "panelId",
+        "zoomed",
+        "panelCount"
+      ],
+      "additionalProperties": false
+    },
+    "physicalClient_view": {
+      "type": "object",
+      "properties": {
+        "workbenchRevision": {
+          "$ref": "#/$defs/physicalClient_revision"
+        },
+        "phase": {
+          "$ref": "#/$defs/physicalClient_phase"
+        },
+        "selection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicalClient_selection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "splitRevision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicalClient_revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "workbenchRevision",
+        "phase",
+        "selection"
+      ],
+      "additionalProperties": false
+    },
+    "physicalClient_clientId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "physicalClient_requestId": {
+      "$ref": "#/$defs/hexId"
+    },
+    "physicalClientView": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/physicalClient_clientId"
+        },
+        "operationId": {
+          "$ref": "#/$defs/physicalClient_requestId"
+        },
+        "view": {
+          "$ref": "#/$defs/physicalClient_view"
+        },
+        "reportRevision": {
+          "$ref": "#/$defs/physicalClient_revision"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicalClient_revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seen": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            null,
+            "idle",
+            "done",
+            "error",
+            "working",
+            "blocked",
+            "unknown"
+          ]
+        },
+        "outerFocused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "clientId",
+        "operationId",
+        "view",
+        "reportRevision",
+        "sequence",
+        "seen",
+        "status",
+        "outerFocused"
+      ]
+    },
+    "clientTerminalInspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "terminal",
+        "management",
+        "semantic",
+        "clientView"
+      ],
+      "properties": {
+        "kind": {
+          "const": "terminal-found"
+        },
+        "target": {
+          "$ref": "#/$defs/nameTarget",
+          "properties": {
+            "kind": {
+              "const": "terminal"
+            }
+          }
+        },
+        "terminal": {
+          "$ref": "#/$defs/namedTerminal"
+        },
+        "management": {
+          "type": "object",
+          "required": [
+            "source",
+            "state"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/agentReadSource"
+            },
+            "state": {
+              "$ref": "#/$defs/terminalManagementState"
+            }
+          }
+        },
+        "semantic": {
+          "$ref": "#/$defs/terminalSemantic"
+        },
+        "clientView": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/physicalClientView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "agentProjectionSource": {
+      "type": "object",
+      "required": [
+        "kind",
+        "siteId",
+        "workbenchRevision",
+        "reportRevision",
+        "canonicalRevision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "agent-projection"
+        },
+        "siteId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "workbenchRevision": {
+          "$ref": "#/$defs/physical_revision"
+        },
+        "reportRevision": {
+          "$ref": "#/$defs/physical_revision"
+        },
+        "canonicalRevision": {
+          "$ref": "#/$defs/safeInteger"
+        }
+      }
+    },
+    "projectionCanonicalSummary": {
+      "type": "object",
+      "required": [
+        "executionLocation",
+        "lifecycle",
+        "observation",
+        "parentSessionId",
+        "pendingRequestCount",
+        "presentationAttachments",
+        "providerId",
+        "sessionId",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "executionLocation": {
+          "$ref": "#/$defs/executionLocation"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "observation": {
+          "$ref": "#/$defs/observation"
+        },
+        "parentSessionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pendingRequestCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 128
+        },
+        "presentationAttachments": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/presentationAttachment"
+          }
+        },
+        "providerId": {
+          "$ref": "#/$defs/providerId"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "status": {
+          "$ref": "#/$defs/semanticStatus"
+        }
+      }
+    },
+    "projectionAgentTerminal": {
+      "type": "object",
+      "required": [
+        "binding",
+        "provider",
+        "state",
+        "sequence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "binding": {
+          "$ref": "#/$defs/launchBinding"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "done",
+            "error",
+            "idle",
+            "blocked",
+            "working",
+            "unknown"
+          ]
+        },
+        "sequence": {
+          "$ref": "#/$defs/physical_revision"
+        }
+      }
+    },
+    "projectionAgentPlacement": {
+      "type": "object",
+      "required": [
+        "panelId",
+        "presentationId",
+        "terminalId",
+        "terminalContextId",
+        "workspaceId",
+        "tabId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "panelId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "presentationId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "terminalId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "terminalContextId": {
+          "$ref": "#/$defs/hexId"
+        },
+        "workspaceId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/hexId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tabId": {
+          "$ref": "#/$defs/hexId"
+        }
+      }
+    },
+    "projectedAgent": {
+      "type": "object",
+      "required": [
+        "provider",
+        "status",
+        "source",
+        "canonical",
+        "terminal",
+        "placement",
+        "cwd"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "unknown",
+            "idle",
+            "working",
+            "blocked",
+            "done",
+            "error",
+            "ended"
+          ]
+        },
+        "source": {
+          "enum": [
+            "canonical",
+            "terminal",
+            "both"
+          ]
+        },
+        "canonical": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/projectionCanonicalSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "terminal": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/projectionAgentTerminal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "placement": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/projectionAgentPlacement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "source": {
+            "const": "canonical"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "canonical": {
+            "$ref": "#/$defs/projectionCanonicalSummary"
+          },
+          "terminal": {
+            "type": "null"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "terminal"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "placement"
+            ],
+            "properties": {
+              "canonical": {
+                "type": "null"
+              },
+              "terminal": {
+                "$ref": "#/$defs/projectionAgentTerminal"
+              },
+              "placement": {
+                "$ref": "#/$defs/projectionAgentPlacement"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "both"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "placement"
+            ],
+            "properties": {
+              "canonical": {
+                "$ref": "#/$defs/projectionCanonicalSummary"
+              },
+              "terminal": {
+                "$ref": "#/$defs/projectionAgentTerminal"
+              },
+              "placement": {
+                "$ref": "#/$defs/projectionAgentPlacement"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "projectedInspection": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/canonicalInspection"
+        },
+        {
+          "$ref": "#/$defs/clientTerminalInspection"
+        }
+      ]
+    },
+    "projectedGetResult": {
+      "type": "object",
+      "required": [
+        "kind",
+        "agent",
+        "inspection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "projected"
+        },
+        "agent": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/projectedAgent"
+            },
+            {
+              "$ref": "#/$defs/unsupported"
+            }
+          ]
+        },
+        "inspection": {
+          "$ref": "#/$defs/projectedInspection"
+        }
+      }
+    },
+    "unsupported": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unsupported"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "source",
+    "result"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "orchbee.agent.get"
+    },
+    "version": {
+      "const": 1
+    },
+    "source": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/agentProjectionSource"
+        },
+        {
+          "$ref": "#/$defs/agentReadSource"
+        }
+      ]
+    },
+    "result": {
+      "$ref": "#/$defs/projectedGetResult"
+    }
+  }
 }

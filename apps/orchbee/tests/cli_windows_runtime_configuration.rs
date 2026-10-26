@@ -73,7 +73,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
                 }
                 .into(),
                 restart_required: if case == "restart" {
-                    vec![ConfigurationRestart::ResumeAgents]
+                    vec![ConfigurationRestart::DefaultShell]
                 } else {
                     Vec::new()
                 },

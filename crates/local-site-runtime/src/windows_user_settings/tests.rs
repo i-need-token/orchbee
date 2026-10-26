@@ -195,13 +195,9 @@ impl Fixture {
     fn file(&self) -> PathBuf {
         self.0.join("config.toml")
     }
-    fn read(
-        &self,
-        value: Option<OsString>,
-    ) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
+    fn read(&self) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
         read_windows_user_settings(|key| match key {
             "ORCHBEE_CONFIG_FILE" => Some(self.file().into_os_string()),
-            "ORCHBEE_RESUME_AGENTS_ON_RESTORE" => value.clone(),
             _ => None,
         })
     }
@@ -236,22 +232,7 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
             "worktrees.directory",
             "invalid-path",
         ),
-        ("session = 1", "session", "wrong-type"),
-        (
-            "[session]\nresume_agents_on_restore = 'false'",
-            "session.resume_agents_on_restore",
-            "wrong-type",
-        ),
-        (
-            "[session]\nresume_agents_on_restore = 0",
-            "session.resume_agents_on_restore",
-            "wrong-type",
-        ),
-        (
-            "[session]\nunknown = false",
-            "session.unknown",
-            "unknown-key",
-        ),
+        ("[update]\nunknown = false", "update.unknown", "unknown-key"),
     ] {
         let admitted = parse(text, Path::new(r"C:\config\config.toml"), &|_| None).unwrap();
         assert!(
@@ -264,87 +245,12 @@ fn parsed_field_failures_warn_without_exposing_values_and_duplicate_toml_is_fata
         assert!(!format!("{:?}", admitted.diagnostics).contains("DO-NOT-ECHO"));
     }
     let error = parse(
-        "[session]\nresume_agents_on_restore = true\nresume_agents_on_restore = false",
+        "[update]\nmanifest_check = true\nmanifest_check = false",
         Path::new(r"C:\config\config.toml"),
         &|_| None,
     )
     .unwrap_err();
     assert_eq!((error.field, error.reason), ("file", "invalid-toml"));
-}
-
-#[test]
-fn defaults_file_and_environment_precedence_are_complete() {
-    let absent = read_windows_user_settings(|_| None).unwrap();
-    assert!(absent.resume_agents_on_restore);
-    assert_eq!(absent.resume_agents_on_restore_source, "default");
-    let fixture = Fixture::new();
-    for (body, value, source) in [
-        ("", true, "default"),
-        ("[session]", true, "default"),
-        ("[session]\nresume_agents_on_restore = false", false, "file"),
-        ("[session]\nresume_agents_on_restore = true", true, "file"),
-    ] {
-        std::fs::write(fixture.file(), body).unwrap();
-        let settings = fixture.read(None).unwrap();
-        assert_eq!(
-            (
-                settings.resume_agents_on_restore,
-                settings.resume_agents_on_restore_source
-            ),
-            (value, source)
-        );
-        for (override_value, expected) in [("true", true), ("false", false)] {
-            let settings = fixture.read(Some(override_value.into())).unwrap();
-            assert_eq!(
-                (
-                    settings.resume_agents_on_restore,
-                    settings.resume_agents_on_restore_source
-                ),
-                (expected, "environment")
-            );
-        }
-    }
-    for value in ["", "1", "FALSE", " false "] {
-        assert_eq!(
-            fixture.read(Some(value.into())).unwrap_err(),
-            WindowsSettingsError::new("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-boolean")
-        );
-    }
-    use std::os::windows::ffi::OsStringExt;
-    assert_eq!(
-        fixture
-            .read(Some(OsString::from_wide(&[0xd800])))
-            .unwrap_err()
-            .reason,
-        "invalid-boolean"
-    );
-    std::fs::write(
-        fixture.file(),
-        "[session]\nresume_agents_on_restore='secret'",
-    )
-    .unwrap();
-    let admitted = fixture.read(Some("true".into())).unwrap();
-    assert!(admitted.resume_agents_on_restore);
-    assert_eq!(admitted.resume_agents_on_restore_source, "environment");
-    assert_eq!(
-        admitted.diagnostics.items()[0].field,
-        "session.resume_agents_on_restore"
-    );
-
-    std::fs::write(fixture.file(), "[session]\nresume_agents_on_restore=true").unwrap();
-    let reloaded = read_windows_user_settings_at(Some(&fixture.file()), true, |name| {
-        (name == "ORCHBEE_RESUME_AGENTS_ON_RESTORE").then(|| "false".into())
-    })
-    .unwrap();
-    assert!(!reloaded.resume_agents_on_restore);
-    assert_eq!(reloaded.resume_agents_on_restore_source, "environment");
-    assert_eq!(
-        read_windows_user_settings_at(Some(&fixture.file()), true, |name| {
-            (name == "ORCHBEE_RESUME_AGENTS_ON_RESTORE").then(|| "invalid".into())
-        })
-        .unwrap_err(),
-        WindowsSettingsError::new("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-boolean")
-    );
 }
 
 #[test]
@@ -357,16 +263,16 @@ fn file_bounds_missing_locations_and_no_creation_are_preserved() {
     assert!(!settings.exists);
     assert_eq!(settings.path, Some(fixture.0.join("Orchbee/config.toml")));
     assert_eq!(std::fs::read_dir(&fixture.0).unwrap().count(), 0);
-    assert_eq!(fixture.read(None).unwrap_err().reason, "missing");
+    assert_eq!(fixture.read().unwrap_err().reason, "missing");
     std::fs::write(fixture.file(), vec![b' '; LIMIT as usize]).unwrap();
-    assert!(fixture.read(None).is_ok());
+    assert!(fixture.read().is_ok());
     std::fs::write(fixture.file(), vec![b' '; LIMIT as usize + 1]).unwrap();
-    assert_eq!(fixture.read(None).unwrap_err().reason, "too-large");
+    assert_eq!(fixture.read().unwrap_err().reason, "too-large");
     std::fs::write(fixture.file(), [0xff]).unwrap();
-    assert_eq!(fixture.read(None).unwrap_err().reason, "invalid-utf8");
+    assert_eq!(fixture.read().unwrap_err().reason, "invalid-utf8");
     std::fs::remove_file(fixture.file()).unwrap();
     std::fs::create_dir(fixture.file()).unwrap();
-    assert_eq!(fixture.read(None).unwrap_err().reason, "not-file");
+    assert_eq!(fixture.read().unwrap_err().reason, "not-file");
     std::fs::remove_dir(fixture.file()).unwrap();
     for value in ["", "relative", "C:relative", r"\\server\share\config.toml"] {
         assert_eq!(
@@ -415,7 +321,7 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
 fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     let fixture = Fixture::new();
     std::fs::write(fixture.file(), "[update]\nmanifest_check=false\n").unwrap();
-    let initial = fixture.read(None).unwrap();
+    let initial = fixture.read().unwrap();
     assert!(!initial.manifest_check);
     assert_eq!(initial.manifest_check_source, "file");
     assert!(initial.explicit);
@@ -426,7 +332,7 @@ fn manifest_check_is_strict_defaulted_and_reload_keeps_the_frozen_location() {
     assert_eq!(next.manifest_check_source, "file");
     for text in ["[update]\nmanifest_check='false'", "[update]\nunknown=true"] {
         std::fs::write(fixture.file(), text).unwrap();
-        let admitted = fixture.read(None).unwrap();
+        let admitted = fixture.read().unwrap();
         assert!(admitted.manifest_check);
         assert!(!admitted.diagnostics.is_empty());
     }
@@ -689,11 +595,6 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     assert_eq!(admitted.update_channel_source, "file");
     assert_eq!(admitted.manifest_check, defaults.manifest_check);
     assert_eq!(admitted.manifest_check_source, "file");
-    assert_eq!(
-        admitted.resume_agents_on_restore,
-        defaults.resume_agents_on_restore
-    );
-    assert_eq!(admitted.resume_agents_on_restore_source, "file");
     assert_eq!(admitted.cwd, None);
     assert_eq!(admitted.worktree_root, None);
     assert_eq!(admitted.path, Some(PathBuf::from(r"C:\config.toml")));

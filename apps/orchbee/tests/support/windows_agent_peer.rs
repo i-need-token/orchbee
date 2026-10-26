@@ -1118,7 +1118,6 @@ pub(super) fn snapshot_after_metadata(
                                 state: PanelAgentState::Unknown,
                                 authority_source: None,
                                 message: None,
-                                session: None,
                             });
                             PresentationAgentRow {
                                 presentation_id: id.clone(),
@@ -1165,7 +1164,6 @@ pub(super) fn snapshot_after_metadata(
                             state: PanelAgentState::Unknown,
                             authority_source: None,
                             message: None,
-                            session: None,
                         });
                         PanelAgentRow {
                             panel_id: id.clone(),

@@ -23,7 +23,7 @@ released after the last consumer.
 
 Host editor creation consumes the capture: an exclusively created document must
 remain owned by the editor runtime through confirmed Job containment and thread
-joining. This capture boundary alone is not a public editor or Herdr parity claim;
+joining. This capture boundary alone does not establish public editor support;
 upstream Worker authorization and live-Client overlay integration remain.
 Document reservation owns an open canonical temporary
 directory and a generated leaf name before creating a file. Materialization uses
@@ -1103,15 +1103,7 @@ process and VT state rather than shell consumption of a particular input. Activi
 remains fail-conservative: the token saturates, its exhausted bit prevents an ABA match, and the
 cache remains permanently `unknown`.
 
-This reclassification follows the default close-confirmation decision at pinned Ghostty revision
-`9c3ec931d64561a8407dde7ac984ce156ae91539`: `Surface.needsConfirmQuit` reads the current
-`Terminal.cursorIsAtPrompt()` result instead of permanently remembering prior input. Orchbee adopts
-that current semantic-prompt behavior, but retains its independent platform-process precedence,
-maps platform-query failure to `unknown`, and transports a sampled three-state observation through
-the Host protocol. Ghostty's `always`/`false` configuration modes, read-only special case, direct
-synchronous call timing, native window composition, and lifecycle policy are outside this reference
-scope. Without shell integration, Orchbee retains its platform fallback rather than Ghostty's
-always-not-at-prompt result.
+Close confirmation reclassifies the current prompt state without permanently remembering prior input. Independent platform-process observation retains precedence, query failure maps to `unknown`, and the Host protocol transports a sampled three-state observation. Without shell integration, platform fallback remains available.
 
 Sampling takes `projection -> terminal`; activity-affecting input takes `projection -> input`;
 reader commits take `terminal`; and the writer accounts completion under `input` alone. No path

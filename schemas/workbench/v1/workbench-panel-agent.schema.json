@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "urn:orchbee:schema:workbench-panel-agent:v1",
-	"$comment": "Bindings additionally enforce UTF-8 reference byte bounds, official source/reference eligibility, view consistency, unique Panel IDs and encoded limits. Windows Server validates provider path absoluteness before publication. Title bindings additionally enforce unique presentation IDs and 64 KiB UTF-8 title bytes.",
+	"$comment": "Bindings additionally enforce normalized Agent labels, view consistency, unique Panel IDs and encoded limits. Title bindings additionally enforce unique presentation IDs and 64 KiB UTF-8 title bytes.",
 	"oneOf": [
 		{
 			"$ref": "#/$defs/request"
@@ -382,40 +382,6 @@
 				}
 			]
 		},
-		"reference": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"enum": ["id", "path"]
-				},
-				"value": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 4096,
-					"not": {
-						"pattern": "[\\u0000-\\u001f\\u007f-\\u009f]"
-					}
-				}
-			},
-			"required": ["kind", "value"]
-		},
-		"session": {
-			"type": "object",
-			"additionalProperties": false,
-			"properties": {
-				"source": {
-					"type": "string"
-				},
-				"agent": {
-					"$ref": "#/$defs/normalizedAgent"
-				},
-				"reference": {
-					"$ref": "#/$defs/reference"
-				}
-			},
-			"required": ["source", "agent", "reference"]
-		},
 		"view": {
 			"type": "object",
 			"additionalProperties": false,
@@ -452,19 +418,9 @@
 							"type": "null"
 						}
 					]
-				},
-				"session": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/session"
-						},
-						{
-							"type": "null"
-						}
-					]
 				}
 			},
-			"required": ["agent", "state", "authoritySource", "message", "session"]
+			"required": ["agent", "state", "authoritySource", "message"]
 		},
 		"row": {
 			"type": "object",
@@ -541,7 +497,7 @@
 							"$ref": "#/$defs/binding"
 						},
 						"disposition": {
-							"enum": ["applied", "ignored", "deferred"]
+							"enum": ["applied", "ignored"]
 						},
 						"changed": {
 							"type": "boolean"
@@ -693,7 +649,7 @@
 							"$ref": "#/$defs/binding"
 						},
 						"disposition": {
-							"enum": ["applied", "ignored", "deferred"]
+							"enum": ["applied", "ignored"]
 						},
 						"changed": {
 							"type": "boolean"
@@ -1004,8 +960,6 @@
 				"visibleIdle",
 				"visibleBlocker",
 				"visibleWorking",
-				"screenDetectionSkipped",
-				"screenDetectionSkipReason",
 				"skipStateUpdate",
 				"skippedUpdateReason",
 				"fallbackReason",
@@ -1077,12 +1031,6 @@
 				"visibleWorking": {
 					"type": "boolean"
 				},
-				"screenDetectionSkipped": {
-					"type": "boolean"
-				},
-				"screenDetectionSkipReason": {
-					"enum": ["full-lifecycle-hook-authority", null]
-				},
 				"skipStateUpdate": {
 					"type": "boolean"
 				},
@@ -1140,204 +1088,57 @@
 					"$ref": "#/$defs/screenExplanation"
 				},
 				"sample": {
-					"oneOf": [
-						{
-							"type": "object",
-							"required": [
-								"frameSequence",
-								"frameGeneration",
-								"frameRevision",
-								"rootPid",
-								"agentPid"
-							],
-							"additionalProperties": false,
-							"properties": {
-								"frameSequence": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameGeneration": {
-									"allOf": [
-										{
-											"$ref": "#/$defs/revision"
-										},
-										{
-											"not": {
-												"const": "0"
-											}
-										}
-									]
-								},
-								"frameRevision": {
+					"type": "object",
+					"required": ["frameSequence", "frameGeneration", "frameRevision", "rootPid", "agentPid"],
+					"additionalProperties": false,
+					"properties": {
+						"frameSequence": {
+							"allOf": [
+								{
 									"$ref": "#/$defs/revision"
 								},
-								"rootPid": {
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"frameGeneration": {
+							"allOf": [
+								{
+									"$ref": "#/$defs/revision"
+								},
+								{
+									"not": {
+										"const": "0"
+									}
+								}
+							]
+						},
+						"frameRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"rootPid": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4294967295
+						},
+						"agentPid": {
+							"oneOf": [
+								{
 									"type": "integer",
 									"minimum": 1,
 									"maximum": 4294967295
 								},
-								"agentPid": {
-									"oneOf": [
-										{
-											"type": "integer",
-											"minimum": 1,
-											"maximum": 4294967295
-										},
-										{
-											"type": "null"
-										}
-									]
+								{
+									"type": "null"
 								}
-							}
-						},
-						{
-							"type": "null"
+							]
 						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipped": {
-										"const": true
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"then": {
-						"properties": {
-							"sample": {
-								"type": "null"
-							},
-							"explanation": {
-								"properties": {
-									"manifestSource": {
-										"type": "null"
-									},
-									"manifestVersion": {
-										"type": "null"
-									},
-									"matchedRule": {
-										"type": "null"
-									},
-									"skippedUpdateReason": {
-										"type": "null"
-									},
-									"fallbackReason": {
-										"type": "null"
-									},
-									"visibleIdle": {
-										"const": false
-									},
-									"visibleBlocker": {
-										"const": false
-									},
-									"visibleWorking": {
-										"const": false
-									},
-									"skipStateUpdate": {
-										"const": false
-									},
-									"screenDetectionSkipReason": {
-										"const": "full-lifecycle-hook-authority"
-									},
-									"evaluatedRules": {
-										"maxItems": 0,
-										"type": "array"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
-					},
-					"else": {
-						"properties": {
-							"sample": {
-								"type": "object",
-								"required": [
-									"frameSequence",
-									"frameGeneration",
-									"frameRevision",
-									"rootPid",
-									"agentPid"
-								],
-								"additionalProperties": false,
-								"properties": {
-									"frameSequence": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameGeneration": {
-										"allOf": [
-											{
-												"$ref": "#/$defs/revision"
-											},
-											{
-												"not": {
-													"const": "0"
-												}
-											}
-										]
-									},
-									"frameRevision": {
-										"$ref": "#/$defs/revision"
-									},
-									"rootPid": {
-										"type": "integer",
-										"minimum": 1,
-										"maximum": 4294967295
-									},
-									"agentPid": {
-										"oneOf": [
-											{
-												"type": "integer",
-												"minimum": 1,
-												"maximum": 4294967295
-											},
-											{
-												"type": "null"
-											}
-										]
-									}
-								}
-							},
-							"explanation": {
-								"properties": {
-									"screenDetectionSkipReason": {
-										"type": "null"
-									}
-								},
-								"type": "object"
-							}
-						},
-						"type": "object"
 					}
 				}
-			]
+			}
 		},
 		"manifestInfo": {
 			"type": "object",

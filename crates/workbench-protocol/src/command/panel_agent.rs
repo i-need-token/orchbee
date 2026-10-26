@@ -3,11 +3,7 @@ use crate::{
     ContractError, PresentationBinding, ProtocolVersion, SiteId, TerminalPresentationId,
     WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
 };
-use orchbee_agent_observation_protocol::{
-    AgentProviderSessionReference as Reference, AgentProviderSessionReferenceKind as ReferenceKind,
-    AgentReportSequence, AgentReportSourcePolicy, agent_report_source_policy,
-    normalize_agent_report_label,
-};
+use orchbee_agent_observation_protocol::{AgentReportSequence, normalize_agent_report_label};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
 mod explanation;
@@ -56,7 +52,6 @@ pub enum PanelAgentState {
 pub enum PanelAgentDisposition {
     Applied,
     Ignored,
-    Deferred,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -217,37 +212,6 @@ impl PanelAgentRequest {
         }
     }
 }
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PanelAgentReference {
-    pub kind: ReferenceKind,
-    pub value: String,
-}
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PanelAgentSession {
-    pub source: String,
-    pub agent: String,
-    pub reference: PanelAgentReference,
-}
-impl PanelAgentSession {
-    fn valid(&self) -> bool {
-        if normalize_agent_report_label(&self.agent).as_deref() != Some(&self.agent)
-            || agent_report_source_policy(&self.source, &self.agent)
-                == AgentReportSourcePolicy::Custom
-        {
-            return false;
-        }
-        match self.reference.kind {
-            ReferenceKind::Id => Reference::id(&self.reference.value).is_some(),
-            // Platform absoluteness is proved by the reporting Server before publication.
-            ReferenceKind::Path => {
-                matches!(self.agent.as_str(), "pi" | "omp")
-                    && Reference::path(&self.reference.value, |_| true).is_some()
-            }
-        }
-    }
-}
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PanelAgentView {
@@ -258,8 +222,6 @@ pub struct PanelAgentView {
     pub authority_source: Option<String>,
     #[serde(deserialize_with = "nullable")]
     pub message: Option<String>,
-    #[serde(deserialize_with = "nullable")]
-    pub session: Option<PanelAgentSession>,
 }
 impl PanelAgentView {
     pub(super) fn valid(&self) -> bool {
@@ -268,7 +230,6 @@ impl PanelAgentView {
             .is_none_or(|agent| !agent.is_empty() && agent.trim() == agent)
             && (self.authority_source.is_none() || self.agent.is_some())
             && (self.message.is_none() || self.authority_source.is_some())
-            && self.session.as_ref().is_none_or(PanelAgentSession::valid)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

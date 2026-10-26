@@ -948,7 +948,7 @@ prototype 后确定，但 measurement contract 不能推迟到实施以后。
    caller-transient variable。
 9. TUI 使用全屏 alternate screen、Orchbee 业务 sidebar、Workbench tab/panel 与真实 terminal；窄
    layout 折叠 sidebar。Ratatui/Crossterm 和已记录的 `Ctrl+B` prefix map 是首版 implementation
-   contract。HERDR 与 tmux/Zellij 仅是研究参考，不复制源码或 asset。
+   contract。
 10. 裸 `orchbee` 只在 TTY 运行，先尝试连接；Site 不存在时使用一个 per-user activation lock。
     并发 invocation 收敛到一个 Server/Worker cohort，各自创建 TUI；Host 保持 lazy。成功足够快时
     不输出，延迟时显示本地化进度，一个 monotonic total deadline 显式失败；Client 绝不 kill 或

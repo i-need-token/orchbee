@@ -97,7 +97,7 @@ fn source_reports(
             json!({"kind":"read-presentations","presentationIds":[id(presentation)]})
         }
     );
-    let report=binding.as_ref().map(|_|json!({"agent":"codex","state":"blocked","authoritySource":"selected-hook","message":"waiting","session":null}));
+    let report=binding.as_ref().map(|_|json!({"agent":"codex","state":"blocked","authoritySource":"selected-hook","message":"waiting"}));
     let outcome = if fence {
         json!({"kind":"read","workbenchRevision":"12","reportRevision":"5","panels":[]})
     } else {

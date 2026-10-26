@@ -332,8 +332,6 @@ landing, latest intent, cancellation, failure, stale results and physical replac
 witness uses the shared shell/pane geometry projection. These are implementation traces, not
 exhaustive TLC assurance or physical paint timing. Real-host acceptance samples same-tab,
 cross-tab and cross-workspace clicks frame by frame for transient navigation and wrong-target content.
-Herdr source `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/app/actions.rs` and
-`src/workspace.rs`, informs direct selection; it does not establish timing or source parity.
 
 ## Rendering
 
@@ -400,9 +398,8 @@ mouse reporting remain intact: chrome
 events never reach the program. Keyboard equivalents remain `Ctrl+B PageUp`, PageUp/PageDown,
 Home, End and Esc.
 
-The comparison reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`,
-`src/ui/scrollbar.rs` and `src/client/shell/mouse.rs`: right-side track, grab offset and bounded
-scrolling. This is not source parity; Orchbee retains its own read/ACK authority and cancellation.
+The scrollbar uses a right-side track, grab offset and bounded scrolling.
+Its read/ACK authority and cancellation remain owned by Orchbee.
 
 Evidence: `terminal_scrollbar/tests` covers integer bounds; `tui_pointer/tests/scrollbar` covers
 gesture/cancellation and every mouse-tracking mode; `ui/tests/viewport/scrollbar` covers composed

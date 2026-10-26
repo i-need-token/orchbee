@@ -44,7 +44,7 @@ fn idle_never_satisfies_completion_and_explicit_outcomes_do_not_require_a_client
     assert_eq!(result.conditions, [AgentWaitCondition::Done]);
 }
 
-// The report-state projection of fixed Herdr e0507237's wait.rs: ordinary waits retain
+// Ordinary report-state waits retain
 // the last eligible event; prompt settlement requires activity and current resting state.
 // Client done/release events and wall-clock scheduling are outside this pure oracle.
 #[test]

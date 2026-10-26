@@ -4,8 +4,16 @@ use serde_json::json;
 
 fn row() -> PanelReport {
     PanelReport {
-        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null,"session":null})).unwrap()),
-        metadata: serde_json::from_value(json!({"title":null,"displayAgent":"审核 Agent","stateLabels":{"blocked":"等待确认"}})).unwrap(),
+        report: Some(
+            serde_json::from_value(
+                json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null}),
+            )
+            .unwrap(),
+        ),
+        metadata: serde_json::from_value(
+            json!({"title":null,"displayAgent":"审核 Agent","stateLabels":{"blocked":"等待确认"}}),
+        )
+        .unwrap(),
         tokens: serde_json::from_value(json!({"branch":"feature"})).unwrap(),
     }
 }

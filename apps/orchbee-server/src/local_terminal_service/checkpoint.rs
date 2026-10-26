@@ -12,14 +12,9 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-mod resume;
 
 pub(crate) struct CheckpointRestore {
     pending: Vec<PendingOperation>,
-    managed: Vec<(
-        orchbee_server::ManagedAgentRestart,
-        orchbee_workbench_protocol::PanelAgentSession,
-    )>,
 }
 
 impl LocalTerminalService {
@@ -39,7 +34,6 @@ impl LocalTerminalService {
     pub(crate) fn cached_checkpoint(
         &self,
         worker: &WorkerId,
-        agents: &crate::agent_service::AgentService,
     ) -> io::Result<(orchbee_workbench_protocol::WorkbenchRevision, Vec<u8>)> {
         let workers = self
             .workers
@@ -58,7 +52,7 @@ impl LocalTerminalService {
             return Err(io::Error::other("checkpoint Worker changed"));
         }
         let directories = coordinator.cached_checkpoint_directories(&targets);
-        let bytes = coordinator.checkpoint_with_agent_sessions(worker, agents, &directories)?;
+        let bytes = coordinator.checkpoint_with_terminal_directories(worker, &directories)?;
         Ok((revision, bytes))
     }
 
@@ -66,7 +60,6 @@ impl LocalTerminalService {
     pub(crate) fn from_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,
-        resume_agents: bool,
     ) -> io::Result<(Self, CheckpointRestore)> {
         let handle = workers
             .lock()
@@ -80,34 +73,23 @@ impl LocalTerminalService {
         ))
         .map_err(io::Error::other)?;
         let site = random_site_id()?;
-        let saved_names = checkpoint
-            .as_ref()
-            .map(|checkpoint| checkpoint.managed_names().to_vec())
-            .unwrap_or_default();
-        let mut authority = match checkpoint {
+        let authority = match checkpoint {
             Some(checkpoint) => checkpoint
                 .reconstruct(site, &owner)
                 .map_err(io::Error::other)?,
             None => WorkbenchAuthority::new(site).map_err(io::Error::other)?,
         };
-        let plans = resume::prepare(&mut authority, &owner, resume_agents)?;
+        let targets = authority
+            .restoration_targets(&owner)
+            .map_err(io::Error::other)?;
         let mut service = Self::from_workbench(workers, Some(authority));
         let coordinator = service
             .coordinator
             .get_mut()
             .map_err(|_| io::Error::other("coordinator failed"))?;
         let expiry = lease_expiry().ok_or_else(|| io::Error::other("restore lease unavailable"))?;
-        let mut pending = Vec::with_capacity(plans.len());
-        let mut managed = Vec::new();
-        for (target, launch) in plans {
-            if launch.is_some()
-                && let Some(claim) = saved_names
-                    .iter()
-                    .find(|claim| &claim.presentation_id == target.presentation_id())
-                && let Some(session) = target.agent_session()
-            {
-                managed.push((claim.clone(), session.clone()));
-            }
+        let mut pending = Vec::with_capacity(targets.len());
+        for target in targets {
             let reference = create_reference()
                 .ok_or_else(|| io::Error::other("restore request identity unavailable"))?;
             let cwd = target
@@ -116,18 +98,17 @@ impl LocalTerminalService {
                 .map(|p| orchbee_client_server_protocol::WorkingDirectory::parse(p.as_str()))
                 .transpose()
                 .map_err(io::Error::other)?;
-            pending
-                .push(*coordinator.prepare_checkpoint_terminal(
-                    &target, reference, worker, expiry, launch, cwd,
-                )?);
+            pending.push(
+                *coordinator
+                    .prepare_checkpoint_terminal(&target, reference, worker, expiry, None, cwd)?,
+            );
         }
-        Ok((service, CheckpointRestore { pending, managed }))
+        Ok((service, CheckpointRestore { pending }))
     }
 
     pub(crate) fn launch_checkpoint_terminals(
         &self,
         restore: CheckpointRestore,
-        agents: &crate::agent_service::AgentService,
         deadline: Instant,
     ) -> io::Result<()> {
         let handle = self
@@ -158,33 +139,11 @@ impl LocalTerminalService {
                     placement(workers.request_handle().as_ref()),
                 )
                 .map_err(|_| io::Error::other("restore settlement failed"))?;
-            coordinator.seed_checkpoint_agent_sessions()?;
-        }
-        if !restore.managed.is_empty() {
-            super::agent_drain_read::agent_drain_finish(
-                &self.workers,
-                &self.coordinator,
-                agents,
-                deadline,
-                std::time::Duration::from_millis(25),
-                |coordinator, _| {
-                    let facts = coordinator
-                        .terminal_name_facts()
-                        .map_err(|_| crate::agent_service::PreparedUnavailable)?;
-                    agents.restore_managed_names(&restore.managed, &facts)
-                },
-            )
-            .map_err(|_| io::Error::other("managed Agent name restoration unavailable"))?;
         }
         Ok(())
     }
 
-    pub(crate) fn checkpoint(
-        &self,
-        worker: &WorkerId,
-        agents: &crate::agent_service::AgentService,
-        deadline: Instant,
-    ) -> io::Result<Vec<u8>> {
+    pub(crate) fn checkpoint(&self, worker: &WorkerId, deadline: Instant) -> io::Result<Vec<u8>> {
         let (revision, targets) = self
             .coordinator
             .lock()
@@ -218,6 +177,6 @@ impl LocalTerminalService {
         if coordinator.checkpoint_observation_targets()? != (revision, targets) {
             return Err(io::Error::other("checkpoint physical membership changed"));
         }
-        coordinator.checkpoint_with_agent_sessions(worker, agents, &directories)
+        coordinator.checkpoint_with_terminal_directories(worker, &directories)
     }
 }

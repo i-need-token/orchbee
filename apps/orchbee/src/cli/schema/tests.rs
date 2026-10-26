@@ -104,7 +104,7 @@ fn plugin_catalog_requires_current_provenance() {
     let schema: Value =
         serde_json::from_str(super::document("orchbee.plugin.registry").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
-    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":"list","result":{"kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"min_herdr_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
+    let mut receipt = json!({"schema":"orchbee.plugin.registry","version":1,"source":{"kind":"local-configuration"},"operation":"list","result":{"kind":"catalog","catalog":{"revision":1,"changed":false,"plugins":[{"manifestPath":"C:/source/orchbee-plugin.toml","pluginRoot":"C:/source","enabled":true,"warning":null,"manifest":{"id":"tools","name":"Tools","version":"1","min_orchbee_version":null,"description":null,"platforms":null,"build":[],"startup":[],"actions":[],"events":[],"panes":[],"link_handlers":[]}}]}}});
     assert!(!validator.is_valid(&receipt));
     receipt["result"]["catalog"]["plugins"][0]["source"] = Value::Null;
     assert!(validator.is_valid(&receipt));
@@ -508,7 +508,7 @@ fn unified_agent_get_physical_inspection_requires_current_management_and_semanti
         "binding": binding.clone(),
         "sequence":"4",
         "changes":[],
-        "view":{"agent":"codex","state":"idle","authoritySource":null,"message":null,"session":null}
+        "view":{"agent":"codex","state":"idle","authoritySource":null,"message":null}
     }))
     .unwrap();
     let document = Projection::UnifiedAgentInspection(Box::new(Inspection {
@@ -580,8 +580,6 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         "exists": false,
         "newCwd": "follow",
         "worktreeDirectory": null,
-        "resumeAgentsOnRestore": true,
-        "resumeAgentsOnRestoreSource": "default",
         "manifestCheck": true,
         "manifestCheckSource": "default",
         "defaultShell": "",
@@ -655,7 +653,6 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
         ("file", "invalid-toml"),
         ("ORCHBEE_CONFIG_FILE", "invalid-path"),
         ("APPDATA", "invalid-path"),
-        ("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-boolean"),
     ] {
         fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
         assert!(full_validator.is_valid(&fatal), "{field}: {reason}");
@@ -663,11 +660,11 @@ fn configuration_admits_bounded_warnings_and_requires_current_fields() {
     for (field, reason) in [
         ("keys", "invalid-binding"),
         ("ui.toast", "wrong-type"),
-        ("session.resume_agents_on_restore", "wrong-type"),
+        ("update.manifest_check", "wrong-type"),
         ("file", "invalid-boolean"),
         ("terminal.new_cwd", "invalid-path"),
         ("worktrees.directory", "invalid-path"),
-        ("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid-path"),
+        ("ORCHBEE_CONFIG_FILE", "invalid-path"),
     ] {
         fatal["result"]["checks"][5]["details"] = json!({"field":field,"reason":reason});
         assert!(

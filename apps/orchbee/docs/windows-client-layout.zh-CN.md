@@ -16,7 +16,7 @@
 
 导航使用未缩放的外框叶矩形，不使用扣除标题后的内容矩形，也不使用归一化拓扑坐标。候选必须完全位于指定方向，并在垂直于该方向的轴上有正重叠。依次选择边缘距离最小、重叠最大、二倍中心距离最小、规范遍历顺序最前者。坐标相加前扩大整数类型。源几何为空或隐藏时明确标记不可用。
 
-观测包含源 Panel 的四个可为 null 的邻居。方向边缘通过比较可见源的未缩放矩形与终端区域边界确定，与参考实现的物理边缘处理一致。无邻居与物理边缘是不同事实。隐藏源不作边缘判断。缩放不会抹掉有效的未缩放邻居。采用的导航排序固定参考 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/layout.rs::find_in_direction`；原生界面占用及降级仍遵循 Orchbee 契约。Orchbee 在整个允许坐标范围内扩大二倍中心计算类型；不采用参考实现对极大坐标的 u16 中心饱和行为。
+观测包含源 Panel 的四个可为 null 的邻居。方向边缘通过比较可见源的未缩放矩形与终端区域边界确定。无邻居与物理边缘是不同事实。隐藏源不作边缘判断。缩放不会抹掉有效的未缩放邻居。导航按距离、重叠、中心和规范遍历顺序排列候选。整个允许坐标范围内的二倍中心计算使用扩宽类型。
 
 ## 路由、生命周期与边界
 
@@ -49,7 +49,7 @@ Server 在规范 Workbench 树中持有每个分割的标称比例。所有 Clie
 
 绘制、终端尺寸、指针区域和布局读取消费同一加权树投影。每个分割用轴长减去共享分隔单元格，按名义比例计算一次，第一部分取最近整数单元格（半数向上），并限制到两个子区域都满足约定最小尺寸。无法同时满足时沿用活动／首叶折叠。即使最小尺寸或整数取整限制了单元格结果，名义比例仍可观测。边线标题、zoom 和界面占用保留原所有者。
 
-Resize 使用可见的未缩放源单元格。可选分隔线轴向相同，在垂直轴与源有正重叠，并位于请求边缘的一单元格以内。距离最近者优先，同距按规范遍历顺序；没有则检查对侧边缘。右／下增加 amount，左／上减少，再限制到支持的比例范围。没有可用分割明确返回无变化。该策略采用 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/layout.rs::resize_focused`；原生界面占用、最小尺寸及扩宽算术仍遵循 Orchbee。原生使用有限 f64，参考实现使用 f32。参考对比覆盖原生几何中的边界选择，不声称参考渲染或持久化完全相同。
+Resize 使用可见的未缩放源单元格。可选分隔线轴向相同，在垂直轴与源有正重叠，并位于请求边缘的一单元格以内。距离最近者优先，同距按规范遍历顺序；没有则检查对侧边缘。右／下增加 amount，左／上减少，再限制到支持的比例范围。没有可用分割明确返回无变化。界面占用、最小尺寸及扩宽算术遵循原生契约。比例使用有限 f64。
 
 UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显式路径和 resize 边缘必须对应相同 split、有序 slot 及原比例；可选 `expectedSplit` 还为创建流程钉住这三个身份。worker 仅提交一次带确切修订及原比例的规范 `layout.set-split-ratio` 命令。Server 拒绝会明确返回，Client 与 CLI 均不自动重试；不乐观写入本地比例。
 
@@ -76,7 +76,7 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 | 精确身份、边界、物理边缘及邻居排序                 | `crates/workbench-protocol/tests/client_layout.rs`、共享 Client 视图语料及独立 TypeScript 校验                                                                                                                                                       |
 | 预留、完成、断连与过期                             | [Server 注册表测试](../../orchbee-server/src/client_view_registry/tests.rs)及[生成交错](../../orchbee-server/src/client_view_registry/tests/traces.rs)：96 个固定种子，每种子六个固定前缀动作及 128 个生成动作，重放及删除缩减；有限轨迹，不穷尽调度 |
 
-以 `src/` 开头的路径相对于本应用，其余路径相对于仓库。运行 `cargo test --locked -p orchbee --bin orchbee`、`cargo test --locked -p orchbee-workbench-protocol --test integration client_layout::`、`cargo test --locked -p orchbee-workbench-protocol --test integration client_view::` 及 `cargo test --locked -p orchbee-server client_view_registry`。仓库门禁负责进程及绑定检查。参考捕获维护使用八个确定性种子，在边界至多为 1,200 单元格的非空矩形上，对比未改动的固定 Herdr 邻居函数与协议投影器，共 65,536 次方向查询；不覆盖参考实现的中心饱和域。维护中的协议向量独立于外部 checkout 保留决策边界。
+以 `src/` 开头的路径相对于本应用，其余路径相对于仓库。运行 `cargo test --locked -p orchbee --bin orchbee`、`cargo test --locked -p orchbee-workbench-protocol --test integration client_layout::`、`cargo test --locked -p orchbee-workbench-protocol --test integration client_view::` 及 `cargo test --locked -p orchbee-server client_view_registry`。仓库门禁负责进程及绑定检查。维护中的协议向量覆盖距离、重叠、中心和遍历顺序的决策边界。
 
 终端尺寸所有者在未缩放时按精确附着实例放行每个可见且持有控制权的 pane。缩放时仅焦点 pane 调整尺寸；隐藏同级保留查看器和原物理尺寸。只读 pane 不会为布局变化获取控制权。输入仍限于焦点。已绘制布局是 Client 视图结果，Host 尺寸调整另行异步进行。
 

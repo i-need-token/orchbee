@@ -39,8 +39,7 @@ An explicitly supplied `--agent` must be nonempty after trimming. Recognized rep
 executable paths normalize to the report label (`claude`, `agy`, `copilot`, `qwen`, for example);
 unknown labels retain their trimmed case and content. The Agent guard is never truncated or
 stripped of internal controls: values outside the current 80-scalar, control-free wire contract
-fail before connection. This bound on custom labels remains a difference from Herdr's report
-input and a dependency of complete Agent report support. Native process provider IDs keep their
+fail before connection. Native process provider IDs keep their
 separate recognition contract.
 
 One existing-Session admission and snapshot share a cancellable five-second deadline. Resolve the
@@ -64,7 +63,7 @@ Protocol/owner tests cover atomic changes, replay and TTL; shared Rust/TypeScrip
 checks bound and malformed inputs; named-pipe tests check exact correlation including binding,
 response loss, deadline and no replay. Parser, receipt, localization and shell grammar checks
 cover the CLI projection. TUI rendering and general events remain separate integration obligations; the query projection below consumes current Server reports. This command alone
-does not establish complete Herdr Panel/Agent parity or Desktop support.
+does not establish Desktop support.
 
 ## Query observation model
 
@@ -85,24 +84,21 @@ Each `metadata` object contains `source` (Session, Workbench and metadata revisi
 request IDs), `binding`, `tokens`, raw source `presentations`, guard `context` (`agent`,
 `authoritySource`) and computed `presentation` (title, displayAgent, stateLabels). Its sibling
 `reportedAgent` contains its own `source` (Session, Workbench and report revisions plus report read
-request IDs), the same logical `binding`, and `view` (Agent label, state, authority source, message
-and optional external provider session reference). An unbound row has null binding/view; a bound
+request IDs), the same logical `binding`, and `view` (Agent label, state, authority source and message). An unbound row has null binding/view; a bound
 terminal with no report has an explicit unknown view. The metadata guard context uses the actual
 Server report view. Missing facts remain null and never satisfy a guard. Generic observation
 categories, user-assigned names and canonical provider IDs are never substituted for that context.
-Native session-identity reporting alone does not fabricate process or report authority.
+Custom reporting does not grant canonical Agent session identity.
 
 The collector is a read workflow, not another report owner. Server metadata and reports remain
 available when a Host sample is unavailable. Agent Get uses a unique live primary binding; ended,
 unbound, ambiguous or subsequently changed Agent membership discards both alongside the terminal
 sample. Reports never replace independently observed OSC title, canonical label, status or
-readiness. External provider references remain separate from canonical observation Session IDs
-and are not executed by these queries. Automatic Host process production, associated names,
-provider resume/persistence and TUI publication remain separate integration obligations.
+readiness. Host process observation, names and TUI publication remain with their respective owners.
 
 Windows Panel list/get emit v1, current emits v1, and Agent Get emits v1 (v1 with `--client`).
-Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Their closed previous shapes remain accepted. Localized text escapes effective metadata,
-report details, messages and external references. The offline catalog lists the current documents and command paths.
+Every Panel row and non-null Agent terminal requires metadata and reportedAgent. Localized text escapes effective metadata,
+report details and messages. The offline catalog lists the current documents and command paths.
 
 Admission caps combined encoded metadata and report rows at the existing 8 MiB CLI output budget.
 After metadata admission, reports consume only the remaining row budget; each batch is validated

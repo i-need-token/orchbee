@@ -10,7 +10,7 @@
 //! extended-button remap): same input facts, same bytes, because a cell
 //! coordinate is the cell every pixel inside it maps to. Cell-only input
 //! uses SGR cell fallback when the pane requests pixel reporting (`?1016`),
-//! matching Herdr. This owner never invents an exact pixel position.
+//! without inventing an exact pixel position.
 
 use crate::client_view::Modifiers;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};

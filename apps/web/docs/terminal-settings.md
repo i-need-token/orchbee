@@ -315,14 +315,13 @@ viewport remains keyboard-scrollable and draws an inset focus indicator.
 
 The rail owns an explicit Close settings button. Escape clears a non-empty search before closing Settings; close restores a connected invoker or safe fallback. Local Desktop may inject Agent integration, shell profile, and terminal default controls. Browser Preview omits these privileged capabilities.
 
-ChatGPT's current Web/Desktop Settings composition is the primary visual reference: one quiet rail
+Desktop and wide browser Settings use the following composition: one quiet rail
 owns Close, search, monochrome product-outcome categories, and a restrained neutral selection; one
 moderate content column owns a compact category title, optional introduction, section labels, direct
 rows with hairline separators, descriptions, and a stable trailing control column. Radius and shadow
 belong to the outer shell and transient surfaces rather than ordinary setting sections. Diagnostics,
 migration input, profile management, and shell setup may retain the semantic boundaries required by
-their task states without turning every setting into a card. Cursor, Warp, Zed, and the terminal
-references continue to inform behavior and architecture, not the primary visual composition.
+their task states without turning every setting into a card. Behavior and architecture follow Orchbee's shared settings contract.
 
 At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
 selecting a category or search result shows content, and the content-level Back affordance restores

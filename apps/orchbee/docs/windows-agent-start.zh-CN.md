@@ -110,11 +110,9 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 超时、取消和释放都不终止 Agent。释放未确认时，重试前检查 `agent names` 与终端。
 不自动重放结果不确定的 reserve、complete 或 send。`agent names` v1 分别列出已绑定名称
 和待完成预留，Server 合计容量为 512。Resolve/rename/clear 对预留名称或终端拒绝为
-`launch-pending`（名称失败 v1）。冷启动丢弃普通名称和待完成预留。只有启用 Agent 恢复时，带已接纳 provider 引用的
-已完成托管名称才会恢复到新终端。
-关闭终端会退休其待完成预留。已绑定名称遵循 canonical 会话生命周期：仍为 live 的会话
-解除终端绑定后保留名称，直到会话结束／移除，或显式执行 `agent rename <name> --clear`；
-仅解除绑定不能证明提供方会话已结束。
+`launch-pending`（名称失败 v1）。冷启动丢弃全部名称和待完成预留。
+关闭终端会使待完成预留退役。已提交名称遵循规范会话生命周期：脱离仍活动的会话会保留名称，直到会话结束／移除或显式执行
+`agent rename <name> --clear`；脱离本身不能证明 provider 会话结束。
 
 ## 证据与归属
 
@@ -127,10 +125,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 检查已完成启动
 
-Windows Agent Get v1（指定 Client 时为 v1）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它。已完成托管名称及 provider 意图通过
-[检查点版本 1](../../orchbee-server/docs/agent-canonical-model.zh-CN.md#托管名称重启)跨正常重启保留。
-恢复后的物理 Get v1 使用独立读取来源报告 active provider 归属，不携带旧 Session、预留或
-新的交互就绪声明。清名同时仅清除仍匹配的自有持久恢复引用；保留后来的独立报告。
+Windows Agent Get v1（指定 Client 时为 v1）包含 `management`，携带自己的读取来源、采样规范修订及 `state`。Server 仅在接受 Complete 后保留活动启动身份；手动命名仍为非托管。Active 表示该启动已确认交互就绪，与后续工作、待处理事项、新鲜度或 OS 焦点相互独立。清名、结束／移除／销毁、provider 不符及精确物理绑定退役／替换会清除托管记录。重命名保留它。托管名称是临时状态，不从检查点恢复。
 
 Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v1 中标记 operation management。成功的 Start v1 在现有完成和发送证据上增加必需的 interactiveReady true。CLI 的启动受阻取消策略保持不变。交互看板可在原始预算内等待规范关注解除；两个路径均不通过屏幕文本猜测信任提示。
 

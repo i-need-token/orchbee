@@ -421,8 +421,7 @@ tracking × format encoder. Same-cell captured motion is deduplicated. Out-of-vi
 events report only under motion tracking while held and clamp to the edge cell. Legacy `Default`
 refuses coordinates above 222 rather than wrapping; `Utf8` encodes coordinates as codepoints; SGR
 uses `M`/`m` finals; URXVT uses its decimal form. Cell-only input uses SGR cells when the pane
-requests `SgrPixels` (`?1016`), matching Herdr's cell fallback without inventing a pixel
-position or enabling `?1016` in host capture.
+requests `SgrPixels` (`?1016`), without inventing a pixel position or enabling `?1016` in host capture.
 
 Byte delivery reuses the existing `forward` path, including its `Controlling` check, read-only
 refusal, and acknowledgement semantics. An attached pane may receive local read focus without input

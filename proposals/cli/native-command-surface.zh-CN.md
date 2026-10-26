@@ -92,8 +92,7 @@ Crossterm。默认 prefix 是 `Ctrl+B`，进入 prefix mode 时显示可见提�
 | Prefix 后按 `Ctrl+B`   | 向 terminal 发送字面 `Ctrl+B` |
 
 不在 prefix mode 时，`Ctrl+C`、`Ctrl+D` 与普通 terminal input 直接传给 active terminal。
-HERDR 以及 tmux/Zellij 已建立的交互词汇只作为行为研究参考：不把竞品源码、asset 或一次性
-checkout artifact 复制进本仓库，Orchbee 保持自己的信息架构与视觉设计。
+Orchbee 拥有自己的信息架构与视觉设计。
 
 ## 已接受的 CLI 信息架构
 

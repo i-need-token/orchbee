@@ -14,9 +14,6 @@ focus_new_panel = true
 [worktrees]
 directory = "~/Projects/worktrees"
 
-[session]
-resume_agents_on_restore = true
-
 [update]
 channel = "stable"
 manifest_check = true
@@ -24,7 +21,7 @@ manifest_check = true
 
 只有本文记录的配置段和键会影响 Orchbee，包括下文的 `[keys]` 与 `[ui]` 配置族。未知配置段、字段和动作会警告并忽略；加载配置绝不会启用插件、安装 Provider 或运行配置命令。
 
-`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。已记录的 `ORCHBEE_RESUME_AGENTS_ON_RESTORE` 环境覆盖仍采用严格策略：除精确的 `true` 或 `false` 外均为致命错误，不能被文件回退隐藏。
+`terminal.new_cwd` 接受 `follow`、`home`、`current`、`workspace` 或路径。空值表示 `follow`。路径使用 Windows CLI 路径适配器：相对路径基于配置文件父目录，波浪线路径使用 Windows 主目录，拒绝有歧义的驱动器相对路径、UNC 和设备路径。非法路径仅让该叶字段回退。缺少 `APPDATA` 时仍可使用默认值；显式值无效时不会静默回退。
 
 警告使用有界的规范原因语法和封闭的处置词汇，只携带有界的规范点分字段路径。警告按字段和原因去重、排序。一份结果最多携带 128 条警告及精确的省略数量，因此截断始终可见。未知路径段会转义并在 UTF-8 边界截短；不同原始字段在显示截短前去重。
 
@@ -61,17 +58,7 @@ manifest_check = true
 
 Windows `config check` 版本 1 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。检查报告选定文件、存在状态和规范化有效配置，文本输出以一行 `Config file:` 结尾，以可复制路径给出该文件；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
 
-共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和固定 Herdr 的目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。参考行为：Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `TerminalConfig`、`WorktreesConfig` 和 `default_checkout_path`。
-
-## 恢复策略
-
-共享的 Windows 设置读取器位于 `orchbee-local-site-runtime`，负责有界文件检查、逐字段类型接纳和字面 Windows 路径规范化。CLI 将创建路径投影为 Workbench 类型；运行时库不新增 Workbench 依赖。现有固定版本的 `toml` 解析器作为 Windows 依赖，供实际 Client 和 Server 消费者使用。
-
-`[session] resume_agents_on_restore` 是 TOML 布尔值，默认 `true`。`ORCHBEE_RESUME_AGENTS_ON_RESTORE` 用精确的 `true` 或 `false` 覆盖它；覆盖不能隐藏非法配置文件。此设置仅适用于启动新的 Session 生命周期。已有 Session 的准入不读取它，编辑它也不会改变正在运行的 Session。
-
-Client 启动在持久 Active 发布或激活标记提交前读取并校验一次，将确定的恢复布尔值与冻结配置位置作为私有 Server 参数传递。Server 校验这些参数，恢复决定一经消费便不再重新推导。配置发布前，Server 在冻结位置按同一套继承的严格环境覆盖规则读取一个完整候选，并将其作为权威版本 0 基线。未携带私有参数的直接托管 Server 启动，通过自己的首次读取确定相同的启动决定和冻结位置。致命输入保留此前检查点和已停止状态，可修正后重试。私有参数需要匹配 cohort；回退使用此前完整 cohort。
-
-Windows `config check` 版本 1 报告 `resumeAgentsOnRestore` 和 `resumeAgentsOnRestoreSource`（`default`、`file`、`environment`）。诊断只报告有界字段和原因。验证须覆盖默认值／文件／环境优先级、畸形及非 UTF-8 文件、字段级类型／键准入、读取边界、致命错误提交前拒绝及修正重试、已有 Session 准入不变和实际禁用／启用恢复。热重载、名称和托管状态恢复仍是独立义务。
+共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。
 
 ## 规则更新策略
 
@@ -79,8 +66,8 @@ Windows `config check` 版本 1 报告 `resumeAgentsOnRestore` 和 `resumeAgents
 
 `[update] manifest_check` 是 TOML 布尔值，默认 true，来源为 `default`／`file`。
 Windows `config check` v1 增加 `manifestCheck` 和 `manifestCheckSource`。
-Client 激活将已校验的检查值、来源、配置路径和显式文件标志与恢复策略一起传递。
-托管 Server 将其接纳为启动策略快照，随后在冻结位置读取完整的权威版本 0 候选；已消费的恢复策略不会改变。
+Client 激活将已校验的检查值、来源、配置路径和显式文件标志传递。
+托管 Server 将其接纳为启动策略快照，随后在冻结位置读取完整的权威版本 0 候选。
 直接启动通过同一设置所有者建立这两种角色。cohort 必须匹配。
 `read_windows_user_settings_at` 在冻结位置支持有界显式重载，保留默认文件缺失与显式文件缺失的
 差别，不创建配置文件。
@@ -128,7 +115,7 @@ Client 激活在提交前连同已有配置冻结这两个值。匹配版本的 
 
 共享解析器、私有快照接入、Worker 启动解析、显式覆盖与运行循环测试，以及真实 Windows CLI 检查覆盖本契约。不修改公开线协议或持久化检查点；部署和回退均使用匹配的整套程序。
 
-自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。发现过程解析候选的规范路径，排除祖先目录中存在 `AppxManifest.xml` 文件的映像：Store/AppX 激活拒绝 Host 的原子 Job-list 启动。该选择发生在终端创建之前，继续搜索 PATH 或使用系统回退；不重试创建，也不放松 Job 进程归属约束。显式配置仍按字面选择。这些检查仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚不声称与 Herdr 的 IsWow64Process2 策略完全对齐。显式配置仍可选择该程序。真实 x64 选择、合成头部／架构分区，以及直接／嵌套包标记分区覆盖本实现，不声称通过 ARM64 硬件验收。
+自动 PATH 候选必须通过有界 DOS/PE/COFF、可选头检查，非空节表必须处于文件边界内，具有可执行映像且非 DLL 标志，x86/x64/ARM64 机器类型兼容。损坏、缺失、不可读或不兼容的候选会被跳过。发现过程解析候选的规范路径，排除祖先目录中存在 `AppxManifest.xml` 文件的映像：Store/AppX 激活拒绝 Host 的原子 Job-list 启动。该选择发生在终端创建之前，继续搜索 PATH 或使用系统回退；不重试创建，也不放松 Job 进程归属约束。显式配置仍按字面选择。这些检查仅证明结构候选，不能保证依赖可加载。已有固定版本 `winsafe` kernel 安全包装获取系统架构，不添加自写 unsafe。[GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo) 对 ARM64 上的 x86/x64 进程返回模拟架构；模拟 Worker 优先本机 ARM64 程序尚未支持。显式配置仍可选择该程序。真实 x64 选择、合成头部／架构分区，以及直接／嵌套包标记分区覆盖本实现，不声称通过 ARM64 硬件验收。
 
 ## Windows Client 按键配置
 
@@ -197,9 +184,7 @@ Windows `config check` v1 保留 `keyPrefix`、`keyOverrides` 并增加有界警
 机器字段 `keyPrefix` 保持稳定且不随平台变化
 的报告拼写（本例为 `Ctrl+A`），TUI 快捷键发现则显示实际未按 Shift 的手势（`Ctrl+a`）。
 示例让新建 Tab 取代默认的下一 Tab 快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主
-TUI 使用。CLI 终端流 attach 保留独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在
-`src/client/attach.rs` 同样使用固定转义，
-因此可配置 attach 不是对齐要求。
+TUI 使用。CLI 终端流 attach 保留独立的 Ctrl+B/q 转义。
 
 功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4
 以及 kitty F1–F24。修饰符事件尾部保留按下、重复和释放；无效事件或无法表示的
@@ -237,13 +222,9 @@ Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TU
 确认归属和草稿。带警告的快照会应用有效设置，并显示本地化摘要，引导用户运行
 `orchbee config check`；后续干净快照会清除此警告。配置健康状态与临时提示独立保留：检查点恢复提示
 优先用于首次启动显示；该提示消除后，配置警告会重新显示，而且不会阻止 Agent 通知卡片。重载失败保留现有设置和警告记录，并显示
-本地化失败提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；Herdr 使用前缀 Shift+R，与原生已有的 Project 重命名默认冲突。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
+本地化失败提示。重载动作可通过 `reload_config` 配置。原生默认是前缀 F5；前缀 Shift+R 是原生已有的 Project 重命名默认键位。配置 `reload_config = "prefix+shift+r"` 会明确替换该冲突默认。
 
-启动恢复策略相对 Session 启动时的变化通过 `restartRequired` 返回；已恢复会话仍由当前
-生命周期拥有。默认 Shell 和模式无须重启，对后续准备生效。CLI 目录/worktree 默认值
-在下一次调用读取。这是部分 Herdr 重载对齐：未实现的配置族和
-Client 独立配置策略仍待补全。
-在线键位配置上限为 64 KiB；每动作最多 144 个展开触发键，容纳用户文件最多 16 个数字范围候选。独立可取消连接每 500 毫秒读取一次，单次交换限时两秒。成功重载表示已发布，不表示每个 Client 都已应用。
+默认 Shell 与模式对后续准备生效，无需重启。CLI 目录及 worktree 默认值由下一次调用读取。其他配置族与 Client 专属 profile 策略仍未完成。线协议按键 profile 上限为 64 KiB；每动作最多 144 个展开触发项，保留用户文件中 16 个索引候选项的上限。轮询每 500 毫秒使用一个独立可取消连接，单次交换上限两秒。重载成功表示状态已发布，不代表每个 Client 都已应用。
 
 不引入持久配置迁移或自动重试。确定性测试覆盖临时启动、首次完整应用、致命失败保留、原子 settings/diagnostic 代次、后续单调应用及警告发布/清除。获准 payload 包含 `themeName`；仅主题变化使用同一发布所有者，Client 在完整准入后解析缓存调色板。连接测试覆盖传播，不假设交付公平性。授权、有界序列化、无变化重载及退出仍是实现义务。设置提交/发布核心的范围更窄，只涉及 writer/CAS，不证明整个重载流程。
 
@@ -259,7 +240,7 @@ Client 独立配置策略仍待补全。
 
 重载把已验证的 `DefaultShellSelection` 提交到 Server 现有 TerminalCoordinator。新建接纳时将不可变值冻结到每个默认 `AuthorizedTerminalLaunch`；显式程序/Profile 请求不携带默认覆盖。Worker 在 Host 交接前校验 Windows Shell 语法，并使用自身的程序/PATH 和模式解析。没有覆盖时，非托管/旧私有请求保留 Worker 的启动回退。现有 PTY、已准备启动、精确重放和延迟 Start 不接收后续默认值。CLI/TUI/恢复新建共用同一 coordinator 接纳。
 
-提交锁顺序为配置注册表、Session coordinator、manifest 调度。候选校验与线协议值构造在提交前完成；调度拒绝接纳时，启动策略和发布均不变。持锁期间没有 Worker IPC 或分布式确认。Shell/模式变化对后续新建生效，不再要求 Session 重启；启动恢复仍属于仅启动时生效的设置。重载成功证明配置接纳，不保证程序存在。
+提交锁顺序为配置注册表、Session coordinator、manifest 调度。候选校验与线协议值构造在提交前完成；调度拒绝接纳时，启动策略和发布均不变。持锁期间没有 Worker IPC 或分布式确认。Shell/模式变化对后续新建生效，不再要求 Session 重启。重载成功证明配置接纳，不保证程序存在。
 
 启动准备失败记录既有的确定交接前失败，保留 Worker/Server 连接，不创建 Host 终端。同一失败请求重放原失败；修正设置后必须使用新的创建标识。首次 Host 尚不存在时，延迟循环也保持可用。Host 启动/传输不确定性仍保留原退出与不重试策略。证据覆盖私有帧、默认/显式/缺省选择、跨重载准备、精确/冲突重放、失败保留和真实 Windows 管道交换；provider/多 Client/视觉全量验收仍延后。匹配的私有 cohort 整套部署或回退，不迁移持久化数据。
 

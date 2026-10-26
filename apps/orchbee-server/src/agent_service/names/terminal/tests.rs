@@ -25,7 +25,6 @@ fn fact(index: u128) -> TerminalNameFact {
         },
         owner: TerminalAgentNameOwner {
             agent: Some("codex".into()),
-            reference: None,
             clear: false,
         },
     }
@@ -40,9 +39,6 @@ fn name(value: &str) -> AgentName {
 }
 fn named(value: &str) -> AgentSessionSelector {
     AgentSessionSelector::Name { name: name(value) }
-}
-fn reference(value: &str) -> orchbee_agent_observation_protocol::AgentProviderSessionReference {
-    orchbee_agent_observation_protocol::AgentProviderSessionReference::id(value).unwrap()
 }
 
 #[test]
@@ -148,7 +144,7 @@ fn shared_namespace_refuses_collisions_in_both_directions_and_preserves_id_prece
 }
 
 #[test]
-fn unknown_observation_and_first_reference_preserve_but_reference_replacement_clears() {
+fn unknown_observation_preserves_but_provider_replacement_clears() {
     let service = seeded(&[]).unwrap();
     let snapshot = service.snapshot().unwrap().unwrap();
     let mut names = Names::default();
@@ -163,11 +159,10 @@ fn unknown_observation_and_first_reference_preserve_but_reference_replacement_cl
     unknown.owner.agent = None;
     names.observe_terminal_owner(&unknown);
     assert!(names.terminal_claim("alpha").is_some());
-    observed.owner.reference = Some(reference("first"));
     names.observe_terminal_owner(&observed);
     names.observe_terminal_owner(&unknown);
     assert!(names.terminal_claim("alpha").is_some());
-    observed.owner.reference = Some(reference("second"));
+    observed.owner.agent = Some("claude".into());
     names.observe_terminal_owner(&observed);
     assert!(names.terminal_claim("alpha").is_none());
 }
@@ -369,116 +364,4 @@ fn physical_name_is_reclaimed_before_launch_without_a_names_read() {
         AgentLaunchOutcome::Reserved { .. }
     ));
     assert!(names.terminal_claim("reuse").is_none());
-}
-
-fn managed_seed(
-    fact: &TerminalNameFact,
-    label: &str,
-) -> (
-    orchbee_server::ManagedAgentRestart,
-    orchbee_workbench_protocol::PanelAgentSession,
-) {
-    (orchbee_server::ManagedAgentRestart { presentation_id: fact.binding.presentation.clone(), name: name(label), provider_id: orchbee_agent_observation_protocol::AgentProviderId::parse("codex").unwrap() },
-        serde_json::from_value(serde_json::json!({"source":"herdr:codex","agent":"codex","reference":{"kind":"id","value":"saved"}})).unwrap())
-}
-#[test]
-fn restored_management_survives_reference_change_and_rename_but_not_provider_or_generation_change()
-{
-    use orchbee_agent_observation_protocol::{
-        AgentLaunchOutcome, AgentLaunchRequest, AgentTerminalManagement, ObapRequestId,
-    };
-    let snapshot = seeded(&[]).unwrap().snapshot().unwrap().unwrap();
-    let mut names = Names::default();
-    let mut observed = fact(1);
-    observed.owner.reference = Some(reference("saved"));
-    let seed = managed_seed(&observed, "restored");
-    names
-        .restore_managed(std::slice::from_ref(&seed), std::slice::from_ref(&observed))
-        .unwrap();
-    observed.owner.reference = Some(reference("next"));
-    names.observe_terminal_owner(&observed);
-    assert!(matches!(
-        names.assign_named(
-            &snapshot,
-            &named("restored"),
-            &name("renamed"),
-            std::slice::from_ref(&observed)
-        ),
-        Assign::AssignedTarget { .. }
-    ));
-    let claims = names.managed_claims();
-    assert_eq!(claims.len(), 1);
-    assert_eq!(claims[0].name, name("renamed"));
-    assert_eq!(
-        claims[0].owned_session.as_ref().unwrap().reference.value,
-        "saved"
-    );
-    let binding = launch_binding(&observed.binding);
-    let request = AgentLaunchRequest::TerminalStatus {
-        request_id: ObapRequestId::parse(&"1".repeat(32)).unwrap(),
-        binding: binding.clone(),
-    };
-    assert!(matches!(
-        names.execute_launch(&request, &snapshot, &[observed.binding.clone()], 0),
-        AgentLaunchOutcome::TerminalStatus {
-            management: AgentTerminalManagement::Active { .. },
-            ..
-        }
-    ));
-    let mut stale = binding;
-    stale.generation =
-        orchbee_agent_observation_protocol::AgentAttachmentGeneration::parse(&"9".repeat(32))
-            .unwrap();
-    let stale_request = AgentLaunchRequest::TerminalStatus {
-        request_id: request.request_id().clone(),
-        binding: stale,
-    };
-    assert!(matches!(
-        names.execute_launch(&stale_request, &snapshot, &[observed.binding.clone()], 0),
-        AgentLaunchOutcome::Rejected {
-            reason: orchbee_agent_observation_protocol::AgentLaunchRejectionReason::BindingChanged
-        }
-    ));
-    observed.owner.agent = Some("claude".into());
-    names.observe_terminal_owner(&observed);
-    assert!(names.managed_claims().is_empty());
-    observed.owner.agent = Some("codex".into());
-    names
-        .restore_managed(&[seed], std::slice::from_ref(&observed))
-        .unwrap();
-    let mut replacement = observed.binding;
-    replacement.host = HostTerminalIdentity::new(
-        HostCreationId::from_bytes([9; 16]).unwrap(),
-        replacement.host.host_epoch(),
-        replacement.host.terminal_id(),
-    );
-    names.reconcile_terminal_bindings(&[replacement], false);
-    assert!(names.managed_claims().is_empty());
-}
-#[test]
-fn restored_names_validate_the_whole_namespace_and_release_removes_management() {
-    let snapshot = seeded(&[]).unwrap().snapshot().unwrap().unwrap();
-    let mut names = Names::default();
-    let facts = [fact(1), fact(2)];
-    let seeds = [
-        managed_seed(&facts[0], "same"),
-        managed_seed(&facts[1], "same"),
-    ];
-    assert!(names.restore_managed(&seeds, &facts).is_err());
-    assert_eq!(names.total_bindings(), 0);
-    names.restore_managed(&seeds[..1], &facts).unwrap();
-    assert!(matches!(
-        names.assign_named(&snapshot, &selector(&facts[1]), &name("same"), &facts),
-        Assign::RejectedTarget { .. }
-    ));
-    assert!(matches!(
-        names.release_named(&snapshot, &named("same"), &facts),
-        Release::ReleasedTarget { .. }
-    ));
-    assert!(names.managed_claims().is_empty());
-    assert!(matches!(
-        names.assign_named(&snapshot, &selector(&facts[0]), &name("manual"), &facts),
-        Assign::AssignedTarget { .. }
-    ));
-    assert!(names.managed_claims().is_empty());
 }

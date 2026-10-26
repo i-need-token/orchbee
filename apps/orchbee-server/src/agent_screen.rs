@@ -59,8 +59,6 @@ fn fallback_explanation(provider: AgentReportProvider) -> AgentScreenExplanation
         visible_idle: false,
         visible_blocker: false,
         visible_working: false,
-        screen_detection_skipped: false,
-        screen_detection_skip_reason: None,
         skip_state_update: false,
         skipped_update_reason: None,
         fallback_reason: Some("no-matching-state-evidence".into()),

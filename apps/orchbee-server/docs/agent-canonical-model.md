@@ -223,39 +223,14 @@ replacement, provider A → B → A between reads, proven versus uncertain exit,
 policy/disposal, strict wire bounds and actual Windows rename/resolve/list/clear plus named
 terminal access. The protocol schema and CLI envelope versions must agree with emitted targets.
 
-## Managed name restart
+## Managed terminal status
 
-The private Windows checkpoint version 1 retains only completed managed name claims, keyed by
-Presentation and containing name plus provider ID. Every claim must have a valid official resume
-reference for that same normalized provider. Claims share the 512-name bound and have unique names
-and presentations. Pending launches, canonical session IDs, old physical identities and reservation
-IDs are not restart authority. Only the complete current version 1 shape is readable; incompatible copies remain preserved
-under the [checkpoint recovery policy](workbench-checkpoint.md).
-
-Clean-stop capture holds registry → coordinator → AgentState fences over exact current membership.
-Startup selects only enabled, deduplicated provider resume plans. After fresh Host creation and
-reference seeding, Names restores the selected claims onto the new physical bindings before Site
-publication. Disabled resume, duplicate suppression and missing physical creation do not restore
-names. Restored management expresses ownership, not provider readiness or a fabricated canonical
-observation. Same-provider reference changes retain managed names; provider changes, confirmed
-release/exit and physical replacement/removal invalidate them. Rename retains management.
-
-The existing launch family owns an exact terminal-management status read. Physical Agent Get
-consumes this status; canonical launch status remains independent. Read policy precedes preparation,
-and registry/coordinator guards remain held through the Names status fold so physical replacement
-cannot pass between final membership validation and status sampling. Clearing a restored name also
-clears its matching owned persisted resume seed, while preserving later independent report
-references and authority. The coordinator stages the bounded report update before the Names
-mutation, then commits that prepared update only for the matching successful name release, while
-its guard is still held. Both owners perform CPU work only; no transport runs under commit guards.
-This prevents a visible half-release or accidental deletion of a newer provider session.
-
-Evidence must establish strict current checkpoint admission and incompatible-format rejection, bounded and unique claims, pending
-exclusion, provider/reference agreement, new physical identities, disabled/deduplicated restoration,
-same-provider reference replacement, staged clear semantics and actual Windows managed restart
-with subsequent name/query/input/clear behavior. Codec or storage-only checks do not prove this
-runtime chain. Terminal semantic wait/prompt/focus and complete provider readiness remain separate
-obligations.
+The launch family owns exact terminal-management status. Physical Agent Get consumes this status;
+canonical launch status remains independent. Read policy precedes preparation, and registry/coordinator
+fences remain held through the Names fold. Managed names are transient and follow their current
+canonical launch and physical ownership; checkpoint restoration does not recreate them. Rename
+preserves live management, while name clear, provider change, confirmed exit and physical retirement
+invalidate it. No report source grants a provider resume reference.
 
 ## Managed launch reservations
 

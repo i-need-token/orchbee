@@ -1,20 +1,8 @@
-# Kitty keyboard-scrollback alignment
+# Keyboard scrollback
 
-## Reference scope
+## Scope
 
-This contract adopts Kitty's main-screen line, page, top, and bottom keyboard-scrollback entry
-points from commit `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`, observed on 2026-08-27. Kitty's
-`kitty/options/definition.py` binds `kitty_mod+up`, `kitty_mod+down`, `kitty_mod+page_up`,
-`kitty_mod+page_down`, `kitty_mod+home`, and `kitty_mod+end`; `kitty_mod` defaults to `ctrl+shift`.
-Its `kitty/screen.c` page operation moves by the visible line count minus one, preserving one row of
-context.
-
-The parity claim covers those six primary bindings, their main-screen admission, their direction
-and boundaries, and the one-row page overlap. It does not claim Kitty's additional `kitty_mod+j/k`
-or macOS Command aliases, multiple bindings per Action, keyboard-driven smooth line animation,
-pixel-duration tuning, command-output paging, or alternate-screen application behavior. Orchbee's
-single effective binding per Action remains customizable, so an alias can replace a default but
-cannot coexist with it in this catalog.
+Primary-screen history navigation uses `Ctrl+Shift+Up`, `Ctrl+Shift+Down`, `Ctrl+Shift+PageUp`, `Ctrl+Shift+PageDown`, `Ctrl+Shift+Home` and `Ctrl+Shift+End`. Page movement preserves one row of context. Each Action has one customizable effective binding. Additional aliases, keyboard-driven smooth animation, command-output paging and alternate-screen application behavior are excluded.
 
 ## Domain contract
 

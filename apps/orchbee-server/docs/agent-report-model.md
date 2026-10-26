@@ -1,134 +1,78 @@
 # Terminal Agent report transitions
 
-This model owns explicit terminal report facts: source authority, provider Session references,
-source watermarks and suppression of stale lifecycle reports. It is distinct from canonical
-hook-observation Sessions in `AgentRuntime`. The core now serves a bounded Windows Server registry and the OBWP report/read family.
-The [native CLI commands](../../orchbee/docs/windows-panel-agent-reports.md) submit these reports.
-Panel/Agent queries join the real report view and metadata guards under independent revision fences.
-Correlated Windows Host samples from the Site-owned periodic sampler and diagnostic viewers feed the trusted process operation. Names and TUI publication remain integration obligations. The public wire cannot submit process observations.
+The Server owns transient custom terminal reports separately from canonical hook observations in
+`AgentRuntime`. [Native report commands](../../orchbee/docs/windows-panel-agent-reports.md) submit
+source-attributed state; only correlated Host observations establish process presence or exit.
 
 ## Inputs and ownership
 
-The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, including public
-`AppEvent` routing as well as `TerminalState` transitions. An author has an exact source and a
-normalized, nonempty Agent label. Report state is idle/working/blocked/done/error/unknown. Explicit `done` and `error`
-report current-turn outcomes; screen matching and read acknowledgement never infer them. Reports carry explicit state/message, an optional validated
-provider reference, optional full-u64 sequence and optional recognized start reason. Provider
-reference validation and source-specific policies come from `orchbee-agent-observation-protocol`.
-A separate trusted process observation supplies detected provider, fallback state, visible
-blocker, exit flag and observation time. Report strings cannot establish process existence.
+An author has an exact source and a normalized nonempty Agent label. Every source uses the same
+custom-report policy. State is idle/working/blocked/done/error/unknown; explicit done/error describe
+turn outcomes and are never inferred from screen matching or read acknowledgement. Source names
+cannot grant provider identity, lifecycle authority or resumability. Session-report inputs and
+provider-reference fields do not change report state or source watermarks.
 
-One report state belongs to one terminal generation. Its data consists of current authority,
-persisted provider reference, source sequence watermarks, suppressed full-lifecycle owners,
-pending replacement references/reports and stale Session identities. The core has no I/O,
-clock access, canonical Session allocator, names registry, Workbench topology or persistence.
-The caller supplies ordered owner-clock ticks; process input separately retains its original
-sample tick so it cannot erase a newer custom authority. New clear suppression uses current
-owner time even when a delivered process sample is older; fallback, exit and metadata cleanup
-retain the sample time. State and observations have canonical
-JSON traces. The transition prepares a new state; its caller owns admission and commit.
+One aggregate belongs to one physical terminal generation. It retains current authority, source
+sequence watermarks, detected provider, fallback evidence and the latest confirmed exit. The core
+has no I/O, clock, canonical Session allocator, Names registry or persistence. The caller supplies
+owner-clock ticks; process observations retain their sample-start tick so an older exit cannot erase
+a newer custom report. Preparation returns a candidate without changing the input.
 
-A trusted process observation carries optional fresh screen fallback at the same sample-start time. Presence-only confirmation preserves fallback and its evidence time; it cannot refresh an old visible blocker over a newer custom report. Exit, provider change or a confirmed post-exit replacement clears old fallback to unknown when no new screen is supplied. A fresh fallback retains the full-observation semantics.
-
-The registry belongs beside terminal metadata under the Site/Workbench gate. A trusted process
-operation prepares both report and metadata exit changes before committing either. Canonical
-observation Sessions and their aliases remain with `AgentState`. The binary supplies the current
-retained Worker generation and Host creation/epoch/terminal identity for each committed binding;
-a Client-provided label, PID or generic observation category is insufficient. The Windows viewer
-adapter calls the trusted operation only after a fully correlated successful Host sample; the core itself does not collect processes.
+Presence-only process confirmation preserves fallback and its evidence time. Exit, provider change
+or a confirmed post-exit replacement clears old fallback when no fresh screen evidence is supplied.
+A missing, failed or ambiguous Host sample is not an exit.
 
 ## Transition decisions
 
-| Input                                     | Decision and resulting facts                                                                                                                                                                       |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| State report from reserved native source  | Route to Session-reference reporting without a start reason; requested state and message do not override native observations.                                                                      |
-| State report from an identity-only source | Ignore state authority; the public session-report operation owns its reference. Qwen first follows the reserved-native route.                                                                      |
-| Other state report                        | Check process/owner/session/suppression guards, then source sequence, before replacing authority. Missing reference clears the previous report reference.                                          |
-| Session report without a valid reference  | No state or sequence change.                                                                                                                                                                       |
-| Session report with a valid reference     | Apply exact provider/start-source rules; full lifecycle may stage a replacement until process confirmation. Later guards can refuse after consuming sequence, matching the reference.              |
-| Clear authority                           | Only the current matching source (or omitted source) is eligible; sequence gates the clear. Persisted-only identity is not clearable through this operation.                                       |
-| Release an official source/Agent pair     | Public routing is an unconditional no-op, including sequence.                                                                                                                                      |
-| Release a custom report                   | Reject a foreign authority, require matching effective Agent/reference and sequence; preserve independently confirmed live process and foreign persisted identity.                                 |
-| Process observation                       | Preserve a live full-lifecycle authority against weaker detection; reject observations older than release suppression, reconcile replacement claims, and clean matching exited-generation reports. |
+| Input   | Decision                                                                                                                                              |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State   | Reject a known provider conflicting with the detected process or a confirmed exit; then require a fresh source sequence and replace custom authority. |
+| Session | Ignore without consuming sequence or creating identity.                                                                                               |
+| Clear   | Require the current matching source, or omit source to select it; sequence gates clearing authority.                                                  |
+| Release | Reject foreign authority; require the matching effective Agent and fresh sequence. Preserve an independently confirmed live process.                  |
+| Process | Reconcile provider/fallback evidence and clear matching exited-generation reports while preserving a newer custom report.                             |
 
-Once a source accepts a sequenced report, subsequent unsequenced reports are stale. Equal or
-lower sequence values never advance it. Only the reference's confirmed generation/session
-reanchor rules reset that watermark. Clear/exit suppression and stale identities prevent late
-reports from resurrecting old sessions. A pending lifecycle report is not effective authority.
-OpenCode's unsequenced `select` path is explicit and must wait for process confirmation when absent.
-A recognized start reason alone is not process proof; `branch` does not qualify for lifecycle reanchor.
-
-An effective observation contains label, state, actual authority source/message and current
-provider reference. Full-lifecycle authority is effective only with its matching live process.
-Otherwise detected process/fallback state remains available. A newer visible blocker may override
-a non-full-lifecycle report, without claiming a new report source. Clearing report facts never
-ends a canonical `AgentRuntime` Session or fabricates a turn, approval, readiness or provider ID.
+Sequences use the full unsigned 64-bit domain encoded as canonical decimal strings. After a source
+accepts a sequence, equal/lower and unsequenced reports are stale. Clear retains its watermark;
+confirmed exit may reset the matching report source. A newer visible blocker may override the
+reported state without inventing a report source. Effective views contain Agent label, state,
+authority source and message. Clearing reports does not end a canonical Agent Session.
 
 ## Commit and verification boundary
 
-`changed` describes the prepared state, independently of applied/ignored/deferred disposition.
-In particular, an ignored Session report can advance a watermark; a caller must not use the
-disposition as a substitute for change detection. The previous state remains untouched until
-its owner accepts the complete candidate, metadata effects and encoded result.
+`changed` describes candidate state independently of applied/ignored disposition. Report and matching
+Agent-guarded metadata cleanup prepare and pass revision, capacity and encoded-result admission
+before either commits. Exit cleanup preserves global tokens and newer presentations. Late metadata
+for a confirmed exited Agent remains stale until process confirmation.
 
-The live registry admits at most 128 retained source identities, 256 stale Session identities and
-512 KiB encoded core state per terminal, 4096 logical terminals and 32 MiB accounted aggregate
-state. Failure does not consume the candidate sequence. No-op reports remain valid at capacity.
-An aggregate with no remaining report, process, sequence or history facts is reclaimed.
-Independent report revisions use checked addition. Housekeeping retires absent primary/child
-memberships or positively replaced physical generations; missing Host facts never mean exit.
-Housekeeping has its own checked revision and may settle before a later request refusal. Shared
-Workbench navigation and canonical AgentRuntime revisions are unchanged.
-
-Owner-clock ticks are centered at 2^63 around the first committed admission Instant. Both sample
-and admission time use that same origin, including a sample predating the first admission; checked
-nanosecond conversion refuses overflow. No wall clock, wrapping or saturation defines ordering.
-
-The trusted process commit also clears matching official metadata, older Agent-guarded presentation
-and exited-Agent sequence ownership. It preserves global tokens and newer custom presentation.
-The metadata owner retains presentation report time separately from per-field precedence and records
-the Agent associated with accepted sequences, including token-only reports. Late matching metadata
-is a stale no-op until real process confirmation. Both candidates pass capacity/revision checks
-before either commits, so metadata or report revision exhaustion cannot leave half an exit.
-Report-associated names and TUI context remain required consumers; native queries now join report and metadata state.
+Each terminal admits at most 128 retained sources and 512 KiB of encoded report state. The registry
+admits 4096 terminals and accounts at most 32 MiB. Refusal never consumes candidate sequence;
+no-ops remain available at capacity. Membership removal or positive physical replacement retires
+resources. Missing Host facts do not. Independent checked report revisions leave Workbench and
+canonical AgentRuntime revisions unchanged. Owner-clock nanoseconds use a checked origin at 2^63.
 
 ## Windows report carrier
 
-`workbench.panel-agent` uses OBWP kind 35 for requests and kind 36 for results. Read permission
-admits zero to four unique Panel IDs; navigation permission admits the four explicit report kinds.
-Legacy primary writes require the expected logical primary binding and a currently retained physical fact. Source
-and message remain literal, Agent labels use shared normalization, and sequences are full-u64 decimal
-strings. Invalid provider references and unknown start reasons normalize to absence as in the reference;
-a valid reference remains distinct from canonical observation Session IDs. Windows composition supplies
-path absoluteness without filesystem access or provider execution. Requests are bounded by the existing
-16 KiB envelope; results by 512 KiB. No process-proof field is accepted on the public wire.
+`workbench.panel-agent` uses OBWP request/result kinds 35/36. Read permission admits up to four
+unique Panel IDs; navigation permission admits reports. Writes require current logical membership,
+expected binding and retained Worker/Host generation. Source/message remain literal; labels use
+shared normalization. Requests are bounded by 16 KiB and results by 512 KiB. Public requests cannot
+submit process observations. Receipts carry independent revisions, binding, disposition, change flag
+and effective view; reads preserve requested order and nullable unbound rows.
 
-A receipt carries Workbench/report revisions, resolved binding, applied/ignored/deferred disposition,
-actual change flag and effective report view. Reads preserve requested order and nullable unbound rows.
-The owner validates the encoded receipt before committing a report candidate. A deferred full-lifecycle
-report stays deferred until trusted process evidence arrives; no readiness is fabricated. Raw references
-in decoded results validate source/kind/value eligibility; their platform absoluteness is a Server
-publication obligation and must be rechecked before any future provider execution. The shared Rust,
-TypeScript and JSON contracts retain older closed variants and are rolled out as a matched private cohort;
-older peers reject the new kinds. State is transient, with source/cohort revert as rollback.
-
-Decision tests and serialized traces cover stale/unsequenced reports, source conflicts, the public
-native/official routing rules, session-only identity, clear/release/process preservation, pending
-full-lifecycle references, old-session suppression, provider-specific replacement and delayed
-observations. Generated custom-source traces check immutable preparation, watermark preservation,
-foreign-clear isolation and absence of invented provider/process facts; failures print a reduced
-replayable trace. Pinned-reference differential traces additionally compare complete report state,
-effective views and release outcomes through the public routing rules. These cover the core and owner
-admission only. The native CLI has separate carrier/command acceptance; actual Host observations,
-name/TUI behavior and the final full regression remain required before claiming CLI/API parity.
+Decision traces cover source ordering, foreign clear/release, process preservation, delayed exit,
+visible blockers and immutable preparation. Generated custom-source traces retain watermark and
+no-invented-process invariants. Owner/carrier traces cover capacity, revision exhaustion, atomic
+metadata cleanup, exact member fencing and physical replacement. Canonical Hook behavior and ordinary
+terminal restoration remain separate contracts.
 
 ## Windows process sample adapter
 
 The Windows viewer adapter is the first live producer of trusted process observations. It consumes only a fully correlated successful Host `ProcessInfo` response after I/O, then holds the Worker registry and Site coordinator gates through a second physical-generation check and commit. A sample retains its request-start time, logical binding, Worker generation and Host creation/epoch/terminal identity. The Host pins process objects and verifies identical Job membership before and after collecting all rows. A typed failure, missing identity or ambiguous Agent chain is not an exit.
 
-Executable/entrypoint recognition and ancestry selection are shared pure Agent input rules; Windows command-line parsing remains in each OS adapter. The coordinator retains the selected PID plus creation time and the latest admitted sample start. Older/equal samples cannot supersede newer observations. Complete membership can prove that a previously confirmed process has left that Job or its PID was reused. Exit and metadata cleanup commit as one owner operation; a replacement is confirmed from a subsequent sample, rather than partially committing two transitions. Failed owner admission does not advance the retained process identity. Repeated identity with unchanged explicit-report input revision does not churn report revisions; a new pending report permits renewed confirmation. Missing retained facts never generate an exit. Cache entries are bounded by current registrations and released with their physical membership.
+Executable/entrypoint recognition and ancestry selection are shared pure Agent input rules; Windows command-line parsing remains in each OS adapter. The coordinator retains the selected PID plus creation time and the latest admitted sample start. Older/equal samples cannot supersede newer observations. Complete membership can prove that a previously confirmed process has left that Job or its PID was reused. Exit and metadata cleanup commit as one owner operation; a replacement is confirmed from a subsequent sample, rather than partially committing two transitions. Failed owner admission does not advance the retained process identity. Repeated identity with unchanged explicit-report input revision does not churn report revisions; a new report permits renewed confirmation. Missing retained facts never generate an exit. Cache entries are bounded by current registrations and released with their physical membership.
 
-Process-only reads supply provider presence without inventing fresh fallback evidence. The [screen detection model](agent-screen-model.md) defines the periodic live producer; names, persistence and provider execution remain required integrations. The Windows TUI consumes correlated report and metadata observations through [Panel report presentation](../../orchbee/docs/windows-panel-report-presentation.md). Existing CLI diagnostic process reads remain available even if the report owner cannot admit the sample; they do not promise report freshness.
+Process-only reads supply provider presence without inventing fresh fallback evidence. The [screen detection model](agent-screen-model.md) defines the periodic live producer; names and provider execution remain separate owners. The Windows TUI consumes correlated report and metadata observations through [Panel report presentation](../../orchbee/docs/windows-panel-report-presentation.md). Existing CLI diagnostic process reads remain available even if the report owner cannot admit the sample; they do not promise report freshness.
 
 ## Periodic Windows sampling owner
 
@@ -144,13 +88,11 @@ Physical Agent observations reuse the report owner for primary and child present
 pins presentation, Worker generation, Host epoch and Host terminal identity. Current membership and
 retained physical proof must agree under Worker registry and Site gates; missing proof refuses the
 read. A replacement cannot inherit an old cursor. Results include the effective report view,
-independent report revision and terminal-local semantic sequence. Names and restart references do
-not prove interactive readiness. Client attention owns `done`; this source exposes idle, working,
-blocked and unknown only.
+independent report revision and terminal-local semantic sequence. Names do not prove interactive readiness. Explicit reports may include done/error; screen observations do not infer those outcomes.
 
 The sequence starts at zero with unknown/no Agent and advances by checked addition only when the
-effective Agent label or state changes. Message, reference, watermark and sample-time updates alone
-do not advance it. All report, process, restart seed and managed-clear writers prepare the resource
+effective Agent label or state changes. Message, watermark and sample-time updates alone
+do not advance it. All report and process writers prepare the resource
 and history before commit. History retains at most 128 changes and 64 KiB per physical resource,
 counted within the existing aggregate admission. Eviction advances an explicit floor. Empty report
 state with history remains until membership removal or confirmed physical replacement.
@@ -159,8 +101,7 @@ Null `afterSequence` checkpoints the current head with no changes. A cursor at t
 receives every subsequent change through that head in order; a cursor below it fails with
 `history-limit`, and a future cursor fails with `invalid-request`. Reads never advance the sequence
 or replace lost history with sampled success. Historical state is distinct from current state.
-This refines generic terminal state-change/event waits in fixed Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34`. CLI physical Agent Get is the first consumer;
+CLI physical Agent Get is the first consumer;
 wait/prompt activity gates and Client attention remain dependent consumers, not completion claims
 of this boundary. Traces cover quiet updates, transients, eviction, overflow, admission rollback,
 generation reset and primary/child isolation. Shared wire vectors check closed shapes and cursor

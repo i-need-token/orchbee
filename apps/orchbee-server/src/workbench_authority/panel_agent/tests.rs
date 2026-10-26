@@ -212,9 +212,7 @@ fn invoke(a: &mut WorkbenchAuthority, action: Action, facts: &[TerminalAgentBind
         site_id: a.site_id().clone(),
         action,
     };
-    let result = a.panel_agent(request.clone(), facts, Instant::now(), |p| {
-        std::path::Path::new(p).is_absolute()
-    });
+    let result = a.panel_agent(request.clone(), facts, Instant::now());
     assert!(result.answers(&request));
     result.outcome
 }
@@ -339,13 +337,13 @@ fn source_and_revision_failures_do_not_consume_the_rejected_report() {
     );
 }
 #[test]
-fn session_ignore_can_commit_a_watermark_while_official_release_is_a_complete_noop() {
+fn custom_session_reports_do_not_create_authority_or_consume_a_watermark() {
     let mut a = owner();
     let facts = [physical(1, 1)];
     invoke(
         &mut a,
         report(
-            json!({"kind":"session","source":"herdr:codex","agent":"codex","agentSessionId":"provider-id","sequence":"1"}),
+            json!({"kind":"session","source":"custom:codex","agent":"codex","agentSessionId":"provider-id","sequence":"1"}),
         ),
         &facts,
     );
@@ -353,12 +351,12 @@ fn session_ignore_can_commit_a_watermark_while_official_release_is_a_complete_no
         invoke(
             &mut a,
             report(
-                json!({"kind":"session","source":"herdr:claude","agent":"claude","agentSessionId":"foreign-id","sequence":"9"})
+                json!({"kind":"session","source":"custom:claude","agent":"claude","agentSessionId":"foreign-id","sequence":"9"})
             ),
             &facts
         ),
         Outcome::Reported {
-            changed: true,
+            changed: false,
             disposition: orchbee_workbench_protocol::PanelAgentDisposition::Ignored,
             ..
         }
@@ -368,13 +366,23 @@ fn session_ignore_can_commit_a_watermark_while_official_release_is_a_complete_no
         invoke(
             &mut a,
             report(
-                json!({"kind":"release","source":"herdr:codex","agent":"codex","sequence":"18446744073709551615"})
+                json!({"kind":"release","source":"custom:codex","agent":"codex","sequence":"18446744073709551615"})
             ),
             &facts
         ),
         Outcome::Reported { changed: false, .. }
     ));
     assert_eq!(a.panel_agent.revision, before);
+    assert!(matches!(
+        invoke(
+            &mut a,
+            report(
+                json!({"kind":"state","source":"custom:codex","agent":"codex","state":"working","sequence":"1"})
+            ),
+            &facts
+        ),
+        Outcome::Reported { changed: true, .. }
+    ));
 }
 
 fn metadata(
@@ -412,7 +420,7 @@ fn process_exit_commits_metadata_cleanup_and_blocks_late_reports_without_droppin
     let fact = physical(1, 1);
     let facts = [fact.clone()];
     let now = Instant::now();
-    metadata(&mut a, "herdr:codex", None, "official", "9", now);
+    metadata(&mut a, "custom:codex", Some("codex"), "tagged", "9", now);
     metadata(&mut a, "custom-old", Some("codex"), "old", "9", now);
     metadata(
         &mut a,
@@ -446,8 +454,8 @@ fn process_exit_commits_metadata_cleanup_and_blocks_late_reports_without_droppin
     );
     metadata(
         &mut a,
-        "herdr:codex",
-        None,
+        "custom:codex",
+        Some("codex"),
         "late",
         "10",
         now + std::time::Duration::from_millis(32),
@@ -469,8 +477,8 @@ fn process_exit_commits_metadata_cleanup_and_blocks_late_reports_without_droppin
     .unwrap();
     metadata(
         &mut a,
-        "herdr:codex",
-        None,
+        "custom:codex",
+        Some("codex"),
         "fresh",
         "1",
         now + std::time::Duration::from_millis(41),
@@ -489,7 +497,7 @@ fn failed_process_commit_preserves_metadata_and_report_state_and_clock_keeps_sam
     let fact = physical(1, 1);
     let facts = [fact.clone()];
     let now = Instant::now();
-    metadata(&mut a, "herdr:codex", None, "keep", "1", now);
+    metadata(&mut a, "custom:codex", Some("codex"), "keep", "1", now);
     let before = metadata_read(&mut a, now);
     a.panel_agent.revision = u64::MAX;
     let observation = TerminalAgentProcessObservation {
@@ -568,7 +576,9 @@ fn noops_remain_available_at_full_capacity_and_byte_rejection_preserves_the_cand
     assert!(matches!(
         invoke(
             &mut a,
-            report(json!({"kind":"release","source":"herdr:codex","agent":"codex","sequence":"9"})),
+            report(
+                json!({"kind":"release","source":"custom:codex","agent":"codex","sequence":"9"})
+            ),
             &facts
         ),
         Outcome::Reported { changed: false, .. }
@@ -648,56 +658,6 @@ fn per_binding_explicit_input_stamp_ignores_process_writes_and_other_bindings() 
     assert_eq!(owner.terminal_agent_input_revision(&fact), stamp);
     invoke(&mut owner, state("custom", "2"), &facts);
     assert!(owner.terminal_agent_input_revision(&fact) > stamp);
-}
-
-#[test]
-fn managed_clear_is_prepared_atomic_exact_and_preserves_independent_reports() {
-    let mut a = owner();
-    let physical = physical(1, 1);
-    let session: orchbee_workbench_protocol::PanelAgentSession = serde_json::from_value(
-        json!({"source":"herdr:grok","agent":"grok","reference":{"kind":"id","value":"saved"}}),
-    )
-    .unwrap();
-    a.panel_agent
-        .seed_sessions(vec![(physical.clone(), session.clone())], Instant::now())
-        .unwrap();
-    let revision = a.panel_agent.revision;
-    drop(a.prepare_managed_agent_clear(&physical, &session).unwrap());
-    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
-    assert_eq!(a.panel_agent.revision, revision);
-    a.panel_agent.revision = u64::MAX;
-    assert!(matches!(
-        a.prepare_managed_agent_clear(&physical, &session),
-        Err(Failure::RevisionExhausted)
-    ));
-    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
-    a.panel_agent.revision = revision;
-    let mut other = session.clone();
-    other.reference.value = "later".into();
-    a.prepare_managed_agent_clear(&physical, &other)
-        .unwrap()
-        .commit();
-    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
-    let mut stale = physical.clone();
-    stale.worker_generation = WorkerGeneration::new(NonZeroU64::new(2).unwrap());
-    a.prepare_managed_agent_clear(&stale, &session)
-        .unwrap()
-        .commit();
-    assert_eq!(a.terminal_restart_session(&physical), Some(session.clone()));
-    a.prepare_managed_agent_clear(&physical, &session)
-        .unwrap()
-        .commit();
-    assert_eq!(a.panel_agent.checkpoint_session(&physical), Some(None));
-    assert_eq!(a.panel_agent.revision, revision + 1);
-    // A newer persisted provider reference is not owned by the cleared name.
-    let mut a = owner();
-    a.panel_agent
-        .seed_sessions(vec![(physical.clone(), other.clone())], Instant::now())
-        .unwrap();
-    a.prepare_managed_agent_clear(&physical, &session)
-        .unwrap()
-        .commit();
-    assert_eq!(a.terminal_restart_session(&physical), Some(other));
 }
 
 #[test]

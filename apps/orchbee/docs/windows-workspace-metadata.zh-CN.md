@@ -4,8 +4,7 @@
 
 Workspace 元数据是外部上报的临时展示数据。Workbench 权威在既有 SiteCoordinator 锁下
 拥有值、来源序号高水位和单调时钟过期信息。它不改变权威拓扑、Agent 生命周期、终端 OSC
-元数据、Git 状态或配置。重启后元数据为空，与固定 Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34` 一致。重命名和移动保留 Workspace 身份；
+元数据、Git 状态或配置。重启后元数据为空。重命名和移动保留 Workspace 身份；
 关闭的 Workspace 身份在下一次元数据观察或上报前清理。
 
 持续消费者是 `workspace report-metadata`、Workspace list/get 及其自动化客户端。

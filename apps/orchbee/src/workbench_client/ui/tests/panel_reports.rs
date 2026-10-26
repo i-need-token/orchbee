@@ -228,7 +228,7 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
     *orientation = orchbee_workbench_protocol::PanelOrientation::Vertical;
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
-    let row=PanelReport { report:Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null,"session":null})).unwrap()),
+    let row=PanelReport { report:Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null})).unwrap()),
         metadata:serde_json::from_value(json!({"title":"Approval title","displayAgent":"Agent","stateLabels":{"blocked":"Review needed"}})).unwrap(),tokens:serde_json::from_value(json!({"branch":"test"})).unwrap() };
     let rows = scope
         .panels
@@ -294,7 +294,7 @@ fn a_bare_single_panel_leaves_reports_to_split_and_zoomed_titles() {
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = PanelReport {
-        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null,"session":null})).unwrap()),
+        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null})).unwrap()),
         metadata: serde_json::from_value(json!({"title":"Approval title","displayAgent":"Review Agent","stateLabels":{"blocked":"Review needed"}})).unwrap(),
         tokens: serde_json::from_value(json!({"branch":"test"})).unwrap(),
     };
@@ -370,7 +370,7 @@ fn child_selection_discards_primary_report_and_paints_its_own_exact_observation(
     let primary_scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = |title: &str, token: &str| {
         PanelReport {
-        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":"custom","message":null,"session":null})).unwrap()),
+        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":"custom","message":null})).unwrap()),
         metadata: serde_json::from_value(json!({"title":title,"displayAgent":"Child Agent","stateLabels":{"blocked":"Approval"}})).unwrap(),
         tokens: serde_json::from_value(json!({"branch":token})).unwrap(),
     }

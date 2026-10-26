@@ -40,8 +40,8 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
         "--help",
         true,
     ),
-    ("orchbee config im", "import-herdr", false),
-    ("orchbee help config im", "import-herdr", false),
+    ("orchbee config im", "unsupported-import", false),
+    ("orchbee help config im", "unsupported-import", false),
     #[cfg(windows)]
     ("orchbee config check --dr", "--dry-run", false),
     ("orchbee panel gr", "graphics", true),

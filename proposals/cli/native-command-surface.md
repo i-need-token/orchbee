@@ -98,9 +98,7 @@ stack. The default prefix is `Ctrl+B`, with a visible prefix-mode indicator and 
 | Prefix, then `Ctrl+B`   | Send a literal `Ctrl+B` to the terminal |
 
 Outside prefix mode, `Ctrl+C`, `Ctrl+D`, and ordinary terminal input pass through to the active
-terminal. HERDR and the established tmux/Zellij interaction vocabulary are behavioral research
-references only: no competitor source, asset, or one-off checkout artifact is copied into this
-repository, and Orchbee keeps its own information architecture and visual design.
+terminal. Orchbee owns its information architecture and visual design.
 
 ## Accepted CLI information architecture
 

@@ -1390,7 +1390,7 @@ describe('Workbench Project and Workspace management', () => {
 					{
 						defaultBaseRef: 'main',
 						label: 'orchbee',
-						localBaseRefs: ['compare/warp', 'main', 'release'],
+						localBaseRefs: ['compare/topic', 'main', 'release'],
 						repositoryId: 'repository-orchbee',
 						sourceDirectoryId: 'directory-orchbee',
 						suggestedBranchName: 'orchbee/workspace-1',
@@ -1477,15 +1477,15 @@ describe('Workbench Project and Workspace management', () => {
 				.getAttribute('aria-checked'),
 		).toBe('true');
 		fireEvent.mouseDown(base);
-		fireEvent.input(base, { inputType: 'insertText', target: { value: 'warp' } });
+		fireEvent.input(base, { inputType: 'insertText', target: { value: 'topic' } });
 		await waitFor(() => {
-			expect(base).toHaveProperty('value', 'warp');
-			expect(screen.getByRole('option', { name: 'compare/warp' })).toBeDefined();
+			expect(base).toHaveProperty('value', 'topic');
+			expect(screen.getByRole('option', { name: 'compare/topic' })).toBeDefined();
 			expect(screen.queryByRole('option', { name: 'main' })).toBeNull();
 		});
-		const filteredBase = screen.getByRole('option', { name: 'compare/warp' });
+		const filteredBase = screen.getByRole('option', { name: 'compare/topic' });
 		fireEvent.click(filteredBase);
-		expect(base).toHaveProperty('value', 'compare/warp');
+		expect(base).toHaveProperty('value', 'compare/topic');
 		fireEvent.input(base, { inputType: 'insertText', target: { value: '8d34c51' } });
 		expect(
 			await screen.findByText(

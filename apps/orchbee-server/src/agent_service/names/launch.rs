@@ -118,22 +118,6 @@ impl Entry {
 }
 
 impl Names {
-    pub(super) fn canonical_managed_claims(&self) -> Vec<super::restart::ManagedNameClaim> {
-        self.launches
-            .active
-            .iter()
-            .filter_map(|(id, managed)| {
-                self.by_session
-                    .get(id)
-                    .map(|name| super::restart::ManagedNameClaim {
-                        name: name.clone(),
-                        provider: managed.provider.clone(),
-                        binding: managed.binding.clone(),
-                        owned_session: None,
-                    })
-            })
-            .collect()
-    }
     pub(super) fn reconcile_managed(&mut self, snapshot: &AgentRuntimeSnapshot) {
         self.launches.active.retain(|id, managed| {
             self.by_session.contains_key(id)
@@ -265,16 +249,8 @@ impl Names {
             {
                 return reject(Rejection::BindingChanged);
             }
-            let management = self
-                .terminals
-                .get(&binding.presentation_id)
-                .and_then(|entry| entry.managed.as_ref())
-                .map_or(
-                    orchbee_agent_observation_protocol::AgentTerminalManagement::Unmanaged {},
-                    |managed| orchbee_agent_observation_protocol::AgentTerminalManagement::Active {
-                        provider_id: managed.provider.clone(),
-                    },
-                );
+            let management =
+                orchbee_agent_observation_protocol::AgentTerminalManagement::Unmanaged {};
             return Outcome::TerminalStatus {
                 binding: binding.clone(),
                 management,

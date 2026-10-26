@@ -62,17 +62,11 @@ pub(super) fn render(
             field(out, fields[3], &locale.cli_agent_manifest_warning(warning))?;
         }
     }
-    if explanation.screen_detection_skipped
-        || explanation.skip_state_update
-        || explanation.fallback_reason.is_some()
-    {
+    if explanation.skip_state_update || explanation.fallback_reason.is_some() {
         field(
             out,
             labels[6],
-            locale.cli_agent_screen_reason(
-                explanation.screen_detection_skipped,
-                explanation.skip_state_update,
-            ),
+            locale.cli_agent_screen_reason(explanation.skip_state_update),
         )?;
     }
     for evaluated in &explanation.evaluated_rules {

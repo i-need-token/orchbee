@@ -73,8 +73,6 @@ pub struct WindowsUserSettings {
     pub manifest_check_source: &'static str,
     pub cwd: Option<(WindowsDirectoryPolicy, Option<String>)>,
     pub worktree_root: Option<String>,
-    pub resume_agents_on_restore: bool,
-    pub resume_agents_on_restore_source: &'static str,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -129,39 +127,15 @@ impl Default for WindowsUserSettings {
             manifest_check_source: "default",
             cwd: None,
             worktree_root: None,
-            resume_agents_on_restore: true,
-            resume_agents_on_restore_source: "default",
         }
     }
 }
 
-/// Resolve once; an environment override never bypasses full-file validation.
+/// Resolve one complete effective configuration and its diagnostics.
 pub fn read_windows_user_settings(
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
-    let mut load = read_file(&env)?;
-    apply_resume_environment(&mut load, &env)?;
-    Ok(load)
-}
-
-fn apply_resume_environment(
-    load: &mut WindowsUserSettingsLoad,
-    env: &impl Fn(&str) -> Option<OsString>,
-) -> Result<(), WindowsSettingsError> {
-    if let Some(value) = env("ORCHBEE_RESUME_AGENTS_ON_RESTORE") {
-        load.settings.resume_agents_on_restore = match value.to_str() {
-            Some("true") => true,
-            Some("false") => false,
-            _ => {
-                return Err(WindowsSettingsError::new(
-                    "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-                    "invalid-boolean",
-                ));
-            }
-        };
-        load.settings.resume_agents_on_restore_source = "environment";
-    }
-    Ok(())
+    read_file(env)
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -254,9 +228,7 @@ pub fn read_windows_user_settings_at(
     explicit: bool,
     env: impl Fn(&str) -> Option<OsString>,
 ) -> Result<WindowsUserSettingsLoad, WindowsSettingsError> {
-    let mut load = read_file_at(path, explicit, &env)?;
-    apply_resume_environment(&mut load, &env)?;
-    Ok(load)
+    read_file_at(path, explicit, env)
 }
 
 fn read_file_at(
@@ -446,7 +418,6 @@ fn parse(
             "terminal" => parse_terminal(table, &mut settings, &mut diagnostics, path, env),
             "update" => parse_update(table, &mut settings, &mut diagnostics),
             "worktrees" => parse_worktrees(table, &mut settings, &mut diagnostics, path, env),
-            "session" => parse_session(table, &mut settings, &mut diagnostics),
             _ => diagnostics.push(
                 unknown_field("", &section),
                 "unknown-key",
@@ -675,36 +646,6 @@ fn parse_worktrees(
         Ok(value) => settings.worktree_root = Some(value),
         Err(error) => {
             diagnostics.push_error(&error, WindowsSettingsDiagnosticDisposition::Defaulted)
-        }
-    }
-}
-
-fn parse_session(
-    table: &toml::Table,
-    settings: &mut WindowsUserSettings,
-    diagnostics: &mut DiagnosticsCollector,
-) {
-    for key in table
-        .keys()
-        .filter(|key| !windows_user_config_has_child("session", key))
-    {
-        diagnostics.push(
-            unknown_field("session", key),
-            "unknown-key",
-            WindowsSettingsDiagnosticDisposition::Ignored,
-        );
-    }
-    if let Some(value) = table.get("resume_agents_on_restore") {
-        match value.as_bool() {
-            Some(value) => {
-                settings.resume_agents_on_restore = value;
-                settings.resume_agents_on_restore_source = "file";
-            }
-            None => diagnostics.push(
-                "session.resume_agents_on_restore",
-                "wrong-type",
-                WindowsSettingsDiagnosticDisposition::Defaulted,
-            ),
         }
     }
 }

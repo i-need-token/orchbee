@@ -3,10 +3,8 @@
 //! mutation then inspect the live runtime together inside one fold.
 
 mod launch;
-mod restart;
 mod terminal;
 #[cfg(windows)]
-pub(crate) use restart::ManagedNameClaim;
 pub(crate) use terminal::TerminalNameFact;
 
 use std::collections::BTreeMap;

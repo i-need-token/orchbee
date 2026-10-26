@@ -48,22 +48,7 @@ impl LocalTerminalService {
                     let facts = coordinator
                         .terminal_name_facts()
                         .map_err(|_| crate::agent_service::PreparedUnavailable)?;
-                    let claim = match request {
-                        AgentNamesRequest::NameRelease { target, .. } => agents.managed_name_release(target, &facts)?,
-                        _ => None,
-                    };
-                    let prepared = claim.as_ref().map(|claim| coordinator.prepare_managed_name_clear(claim)).transpose()?;
-                    let result = agents.fold_terminal_names(request, &facts)?;
-                    if let (Some(claim), Some(prepared)) = (claim, prepared)
-                        && let AgentNamesResult::NameRelease { result, .. } = &result
-                        && let orchbee_agent_observation_protocol::AgentNameReleaseOutcome::ReleasedTarget {
-                            target: orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding }, name,
-                        } = &result.outcome
-                        && claim.matches_release(name, binding)
-                    {
-                        prepared.commit();
-                    }
-                    Ok(result)
+                    agents.fold_terminal_names(request, &facts)
                 },
             )
         })

@@ -26,20 +26,11 @@ hostname、mux identity、content 或 notification copy。OSC 9、OSC 777、OSC 
 notification channel 都不是 observation transport。Socket acceptance 后，adapter 可以直接向解析出的
 outer tmux/Zellij client TTY 写 private frame，不依赖 mux passthrough。
 
-## 参考范围
+## 观察设计
 
-2026-08-31 检查了下列本地 source revision，并把它们作为有界 design evidence：
-
-| 产品             | 已审阅机制                                                                                                                   | Orchbee 决策                                                                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Herdr `c2637dc1` | 先检测 foreground process，再选用 lifecycle hook 或 live screen 作为唯一 authority；其指南明确排除在内层 tmux 中启动的 Agent | Passive detection 保持无 capability，并把 evidence capture 与 deterministic transition 分离；不从 process 或 screen inspection 推断精确 nested-mux semantics |
-| Muxy `a5d276e1`  | 带 total execution budget、bounded retry 与 acknowledgement 的 nonblocking Unix-socket hook client                           | 采用 private socket、准确 ACK 与 execution bound；保留 Orchbee 不含内容的 terminal half 和 generation-fenced two-half join                                   |
-| tty7 `a2b5ae56`  | Provider hook diagnostics，以及通过 OSC 777 直接写 controlling TTY                                                           | 采用明确的 integration missing/outdated diagnostic；拒绝其公开 OSC notification transport                                                                    |
-| Warp `086dade6`  | OSC 777 会调用 pluggable desktop-notification callback；已审阅 parser 会忽略非 Kitty APC payload                             | 把它作为选择 private APC、拒绝 OSC 777 的具体 compatibility evidence，而不是对所有 Warp 或 terminal version 的声明                                           |
-
-这不是 compatibility 或 replication claim。竞品的 screen rule、payload、flat status、terminal UI、
-provider lifecycle 与 timing constant 均不在范围内。当实现不同时，以 Orchbee 经验证的 rich hook fact、
-精确 two-half correlation、presentation generation 与 canonical Agent runtime 为准。
+被动检测不授予能力。证据采集与确定性转换保持分离，进程或屏幕检查不能推断精确的嵌套多路复用语义。
+Hook 使用私有 socket、准确确认及有界执行。缺失或过期的集成产生明确诊断。终端关联使用不含内容的
+私有 APC 帧，并对配对施加代际围栏；公开 OSC 通知传输不在范围内。
 
 ## 输入与信任边界
 

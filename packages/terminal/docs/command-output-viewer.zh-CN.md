@@ -1,16 +1,8 @@
-# Kitty 命令输出查看器对齐
+# 命令输出查看器
 
-## 参考范围
+## 范围
 
-本契约采用 2026-08-27 观察到的 Kitty commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中常用的 `show_last_command_output` 工作流。
-Kitty 在 `kitty/options/definition.py` 中映射 `kitty_mod+g`；`kitty/window.py` 提取上一条 Shell
-命令输出；`kitty/boss.py` 则把 ANSI 文本发送到 overlay 窗口中的可配置外部 pager。
-
-Orchbee 采用单 Action 工作流、Shell 语义边界、可搜索只读视图、可复制性、取消以及
-`Ctrl+Shift+G` 默认绑定。它有意使用应用拥有的查看器，使同一交互可以在 Desktop、Web 和后续
-移动端客户端中工作。对齐声明不包含 Kitty 的外部 pager 进程、pager 配置与环境、ANSI 样式、
-独立 pager 历史、完整 scrollback 浏览、首条/最近访问/最近非空输出变体或任意程序启动。
+聚焦终端 Action 使用 Shell 语义边界准备上一条命令输出的可搜索、只读、可复制视图。`Ctrl+Shift+G` 打开应用拥有的查看器；取消及关闭恢复终端焦点。不包含外部 pager 进程、pager 配置、ANSI 样式、独立 pager 历史、其他输出变体或任意程序启动。
 
 ## 领域契约
 
@@ -55,8 +47,7 @@ Workbench 拥有 `terminal.output.show-last` 与 `terminal.output.copy`。Web �
 
 ## 绑定与持久化
 
-Apple 和标准平台都把显示上一条命令输出默认绑定为 `Ctrl+Shift+G`；当 Kitty modifier 使用默认的
-Control+Shift 时，这与 Kitty 的默认 `kitty_mod+g` 一致。该绑定适用于聚焦的终端，并投影到终端
+Apple 和标准平台都把显示上一条命令输出默认绑定为 `Ctrl+Shift+G`。该绑定适用于聚焦的终端，并投影到终端
 上下文菜单、Action 搜索、快捷键 Settings 与本地化参考文本。
 
 增加该绑定会把 Web 的严格设备本地快捷键记录从版本 9 扩展到版本 10。版本 10 reader 会迁移

@@ -13,7 +13,6 @@ Workspaces and their display order, terminal contexts, ordered
 Tabs, groups, pinned state, split structure and ratios, Panel input policy and Presentation labels. It also
 retains Launch Profile definitions and the allocation high-water counter, including deleted IDs.
 All primary and child Presentations survive structurally but carry no terminal binding or launch failure.
-It also retains validated external provider references; see [Agent restart references](agent-restart-reference.md).
 
 It does not retain running processes, Site/Worker identities, controller grants, leases, Client
 views/focus/zoom, request results, publication cursors, unfinished operations, Agent state
@@ -22,12 +21,12 @@ never authorizes replay of a terminal command or Git operation.
 
 ## Model
 
-| Operation              | Preconditions                                                                                                                         | Result and invariant                                                                                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker.      | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict current version 1 document, bounded bytes, normalized navigation, valid configuration graph, counters and provider references. | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
-| Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                             | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
-| Allocate after restore | Restored high-water counter permits advancement.                                                                                      | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
+| Operation              | Preconditions                                                                                                                    | Result and invariant                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker. | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
+| Decode                 | Strict current version 1 document, bounded bytes, normalized navigation, valid configuration graph, counters and directories.    | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
+| Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                        | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
+| Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
 
 The caller owns freshness of the new Site identity. Profile IDs are `<siteHex>:<counterHex>`:
 the stored form retains only the counter, name and launch definition, and reconstruction uses
@@ -39,7 +38,7 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 ### Current normalized navigation
 
 The writer and reader use only `orchbee.workbench.checkpoint` with numeric `version: 1`.
-All retained fields are required, including `agentSessions`, `terminalDirectories`, `managedNames`,
+All retained fields are required, including `terminalDirectories`,
 `projectOrder` and `workspaceOrder`. `checkpoint/navigation.rs` has one DTO: identity-sorted global
 `directories`, `projects` and `workspaces` arrays. Project rows contain `projectId` and `label`;
 Workspace `projectId` is required-nullable. Directory rows contain `directoryId` and `path`, with
@@ -56,8 +55,6 @@ Existing files labeled versions 2–7, including the preceding writer's version 
 relabeling a file is not a supported conversion. The managed recovery policy below preserves them.
 
 Canonical split ratios remain retained; see [shared ratios](shared-split-ratios.md).
-Each of at most 512 unique name/Presentation claims carries `presentationId`, `name` and `providerId`
-and requires a matching admitted official provider reference; see [managed names](agent-canonical-model.md#managed-name-restart).
 `lastIdentity` and each profile `counter` are canonical nonzero 32-character lowercase hex.
 Every Presentation binding is `null`; `customLabel` is required-nullable.
 `checkpoint/contexts.rs` owns the retained graph shape: Tab `automaticLabel` and `groupId`,
@@ -122,27 +119,22 @@ errors still abort. Uncommitted pending-file cleanup remains unchanged.
 configuration value: private graph-validation identities never become a runnable authority. Only
 reconstruction with the fresh Site and admitted Worker creates the new authority.
 
-Before launch IPC, the coordinator prepares all fresh shell/provider reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; missing saved/configured directories fall back to Worker home. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
+Before launch IPC, the coordinator prepares all fresh shell reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; missing saved/configured directories fall back to Worker home. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
 publication failure prevents disposal and remains a failed stop; preceding valid snapshots remain,
 and any displaced invalid original remains in its raw archive. Clean stop first drains the single
 background saver, then performs fresh directory capture
 and final publication before Worker disposal. A late background write cannot replace this final snapshot.
-Fresh physical creation seeds only the retained provider reference, never live Agent state or source
-authority. Client and history recovery remain separate. Completed managed names restore
-after fresh physical creation and reference seeding, before Client publication; ordinary names and
-pending launches do not. Clean capture composes current Names claims with exact physical references. Activation markers retain their existing recovery semantics on failed boot.
+Fresh physical creation establishes terminal bindings. Client and history recovery remain separate. Activation markers retain their existing recovery semantics on failed boot.
 
 ## Running save model
 
-The managed Windows Server owns one background saver after terminal restoration and reference/name
-seeding have settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
-Every 30 seconds it also captures cached directories and current exact-generation provider resume
-references. No terminal screen, history, Agent conversation or live controller state enters the payload.
+The managed Windows Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
+Every 30 seconds it also captures cached directories. No terminal screen, history, Agent conversation or live controller state enters the payload.
 The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
-memory and does not publish that baseline. A later layout, cached directory or provider-reference
+memory and does not publish that baseline. A later layout or cached directory
 change must alter the complete checkpoint before automatic publication can replace an invalid slot.
 This suppression applies only to unattended background saves. An explicit `server stop --confirm`
 confirms the current workspace, so its fresh final capture may publish the unchanged empty state;
@@ -161,7 +153,7 @@ Deterministic tests exercise capture/reconstruct with independent graph expectat
 splits and child Presentations, profile rebasing, allocation after deleted identities, foreign
 ownership, corruption, duplicate/unknown fields, binding injection, graph failures and size limits.
 Current-shape fixtures preserve ungrouped membership, display order, unused/shared Directories,
-Agent references, cwd and managed names. Strict fixtures cover missing fields and incompatible
+cwd. Strict fixtures cover missing fields and incompatible
 versions. Native storage and Server-load witnesses verify fallback/empty notices and exact-byte
 preservation for invalid copies, including a preceding version 7 document. Direct Server admission
 also preserves pending files when the durable catalog is unsupported.
@@ -174,5 +166,5 @@ and invalid copies must retain their exact original bytes and produce the declar
 notice without bypassing Site-owner admission. Cached-capture tests cover physical replacement,
 out-of-order samples and removed members. Scheduling tests use explicit times and delayed writes to
 prove debounce, periodic refresh, bounded pending work and final-stop ordering. Native crash/restart
-acceptance must compare multiple Tabs, nested splits, labels, directories and provider resume references;
-real provider continuity, machine reboot and interactive load remain separate evidence obligations.
+acceptance must compare multiple Tabs, nested splits, labels, directories;
+machine reboot and interactive load remain separate evidence obligations.

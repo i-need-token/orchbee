@@ -1,5 +1,5 @@
 //! Retained per-Presentation directory intent; physical observation admission belongs to the Site.
-use super::{WorkbenchAuthority, WorkbenchCheckpointError as Error, agent_sessions::members};
+use super::{WorkbenchAuthority, WorkbenchCheckpointError as Error};
 use orchbee_workbench_protocol::{
     PresentationBinding, Snapshot, TerminalPresentationId, WorkbenchDirectoryPath, WorkerId,
 };
@@ -56,4 +56,16 @@ impl WorkbenchAuthority {
     pub fn terminal_restart_bindings(&self) -> Vec<PresentationBinding> {
         members(self.snapshot()).into_values().flatten().collect()
     }
+}
+
+fn members(snapshot: &Snapshot) -> BTreeMap<TerminalPresentationId, Option<PresentationBinding>> {
+    let mut members = BTreeMap::new();
+    for context in &snapshot.terminal_contexts {
+        for tab in &context.tabs {
+            visit_panel_presentations(&tab.root, &mut |_, p| {
+                members.insert(p.presentation_id.clone(), p.binding.clone());
+            });
+        }
+    }
+    members
 }

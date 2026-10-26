@@ -340,12 +340,7 @@ fn refresh(entry: &mut PluginRegistryEntry) {
 }
 fn load(path: &Path, enabled: bool) -> Result<PluginRegistryEntry, Error> {
     let path = if path.is_dir() {
-        let native = path.join("orchbee-plugin.toml");
-        match std::fs::metadata(&native) {
-            Ok(_) => native,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => path.join("herdr-plugin.toml"),
-            Err(_) => return Err(Error::ManifestUnavailable),
-        }
+        path.join("orchbee-plugin.toml")
     } else {
         path.to_owned()
     };

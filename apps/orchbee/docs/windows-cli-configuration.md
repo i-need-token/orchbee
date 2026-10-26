@@ -14,9 +14,6 @@ focus_new_panel = true
 [worktrees]
 directory = "~/Projects/worktrees"
 
-[session]
-resume_agents_on_restore = true
-
 [update]
 channel = "stable"
 manifest_check = true
@@ -24,7 +21,7 @@ manifest_check = true
 
 Only documented sections and keys affect Orchbee, including the `[keys]` and `[ui]` families described below. Unknown sections, fields and actions warn and are ignored; loading configuration never enables a plugin, installs a provider or runs a configured command.
 
-`terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. An invalid path falls back only that leaf. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back. The documented `ORCHBEE_RESUME_AGENTS_ON_RESTORE` environment override remains strict: anything other than exact `true` or `false` is fatal and cannot be hidden by file fallback.
+`terminal.new_cwd` accepts `follow`, `home`, `current`, `workspace`, or a path. An empty value means `follow`. Paths use the Windows CLI path adapter: relative paths resolve against the configuration file's parent, tilde paths use Windows home, and ambiguous drive-relative, UNC and device paths are rejected. An invalid path falls back only that leaf. A missing `APPDATA` leaves defaults available; an explicit malformed value does not silently fall back.
 
 Warnings use a bounded canonical reason grammar and a closed disposition vocabulary, and carry only a bounded canonical dotted field path. They are deduplicated and sorted by field and reason. A result carries at most 128 warning entries and an exact omitted count, so truncation is always visible. Unknown path segments are escaped and truncated on a UTF-8 boundary; distinct original fields are deduplicated before display truncation.
 
@@ -64,17 +61,7 @@ The creation settings govern Windows CLI creation. The legacy explicit empty-Wor
 
 Windows `config check` version 1 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. The check reports the selected file, presence and normalized effective settings, and text output ends with a `Config file:` line naming that file as a copyable path; fatal creation configuration continues to use the separate `orchbee.cli.failure.configuration` envelope. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
 
-The shared Windows settings reader owns bounded file inspection, deterministic field admission and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, field-local fallback, stable bounded warnings, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
-
-## Restore policy
-
-The shared Windows settings reader in `orchbee-local-site-runtime` owns bounded file inspection, field-local typed admission and literal Windows path normalization. The CLI projects creation paths into Workbench types; no Workbench dependency is added to the runtime library. The existing pinned `toml` parser is a Windows dependency for the actual Client and Server consumers.
-
-`[session] resume_agents_on_restore` is a TOML boolean, default `true`. `ORCHBEE_RESUME_AGENTS_ON_RESTORE` overrides it with exactly `true` or `false`; an override never hides an invalid file. This setting applies only when starting a new Session lifetime. Existing Session admission does not read it, and editing it does not change a running Session.
-
-Client startup reads and validates once before durable Active publication or activation marker commitment. It passes the resolved restore boolean together with the frozen configuration location as private Server arguments. The Server validates those arguments and does not rederive the restore decision after consuming it. Before configuration publication, the Server reads one complete candidate at the frozen location, with the same inherited strict environment override, and makes that candidate the authoritative revision-0 baseline. Direct managed Server startup establishes the same startup decision and frozen location from its own first read. Fatal input leaves the preceding checkpoint and stopped state available for correction and retry. The private arguments require a matched cohort; rollback uses the preceding whole cohort.
-
-Windows `config check` version 1 reports `resumeAgentsOnRestore` and `resumeAgentsOnRestoreSource` (`default`, `file`, `environment`). Diagnostics report only a bounded field/reason. Checks must cover default/file/environment precedence, malformed and non-UTF-8 files, field-local type and key admission, read bounds, fatal before-commit refusal and corrected retry, unchanged existing-Session admission, and actual disabled/enabled restart. Live reload, names and managed-state restoration are separate obligations.
+The shared Windows settings reader owns bounded file inspection, deterministic field admission and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, field-local fallback, stable bounded warnings, relative/tilde paths, override precedence and slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate.
 
 ## Rule update policy
 
@@ -83,9 +70,9 @@ Windows `config check` version 1 reports `resumeAgentsOnRestore` and `resumeAgen
 `[update] manifest_check` is a TOML boolean, default true, with `default`/`file` provenance.
 Windows `config check` v1 adds `manifestCheck` and `manifestCheckSource`.
 Client activation passes the validated check value/provenance and configuration path/explicit-file
-flag together with the resume policy. The managed Server admits these private values as its
+flag. The managed Server admits these private values as its
 startup-policy snapshot, then reads the complete authoritative revision-0 candidate at the
-frozen location; already-consumed restore policy does not change. Direct startup establishes both
+frozen location. Direct startup establishes both
 roles through the same settings owner. Cohorts must match.
 `read_windows_user_settings_at` supports bounded explicit reload at the frozen location, retaining
 missing-default versus missing-explicit semantics. It does not create configuration files.
@@ -178,7 +165,7 @@ These checks prove a structural candidate, not that its dependencies load. The e
 `winsafe` kernel wrapper supplies system architecture without authored unsafe code.
 [GetNativeSystemInfo](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getnativesysteminfo)
 reports emulated architecture for x86/x64 processes on ARM64; native ARM64 preference through an
-emulated Worker is not claimed aligned with Herdr's IsWow64Process2 policy. Explicit configuration
+emulated Worker is not claimed. Explicit configuration
 still selects that executable. Real x64 selection and synthetic header/architecture and direct/nested
 package-marker partitions cover this implementation; no ARM64 hardware acceptance is claimed.
 
@@ -257,9 +244,7 @@ The machine `keyPrefix`
 field keeps its stable platform-independent report spelling (`Ctrl+A` for this example), while TUI
 shortcut discovery shows the actual unshifted gesture (`Ctrl+a`). The example lets new Tab replace
 the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to the main
-TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape;
-pinned Herdr `e0507237` also uses a fixed escape in `src/client/attach.rs`, so configurable attach
-is not a parity requirement.
+TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape.
 
 Function keys use the actual xterm F1–F12 sequence numbers (skipping 16 and 22), modified
 F1–F4, and kitty F1–F24. Modifier event tails retain press, repeat and release; invalid events or
@@ -309,14 +294,9 @@ settings and shows a localized summary directing the user to `orchbee config che
 snapshot clears that warning. Configuration health is retained independently from transient notices:
 a checkpoint-recovery notice wins the first startup display, then the warning returns after that notice
 is dismissed; the warning does not suppress Agent notification cards. Reload failure keeps current settings and warning record and produces a
-localized failure notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; Herdr uses prefix Shift+R, which conflicts with the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
+localized failure notice. The reload action itself is configurable through `reload_config`. The native default is prefix F5; prefix Shift+R is the existing native Project rename default. A profile such as `reload_config = "prefix+shift+r"` explicitly replaces that conflicting default.
 
-Changed restore-on-start policy is returned in `restartRequired` relative to Session startup;
-already-restored sessions remain owned by their current lifetime. Default shell and mode apply to
-subsequent preparations without a restart. CLI directory/worktree defaults are caller reads on the
-next invocation. This is partial Herdr reload parity: unimplemented
-configuration families and Client-specific profile policy remain unfinished.
-The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. Polling uses an independent cancellable connection every 500 ms, with a two-second exchange limit. A successful reload is published state, not an acknowledgement that every Client has applied it.
+Default shell and mode apply to subsequent preparations without a restart. CLI directory/worktree defaults are caller reads on the next invocation. Other configuration families and Client-specific profile policy remain unfinished. The wire key profile is capped at 64 KiB; up to 144 expanded triggers per action preserve the user file limit of 16 indexed alternatives. Polling uses an independent cancellable connection every 500 ms, with a two-second exchange limit. A successful reload is published state, not an acknowledgement that every Client has applied it.
 
 No persisted configuration migration or automatic retry is introduced. Deterministic tests cover provisional startup, initial complete application, fatal preservation, atomic settings/diagnostic generations, monotonic later application and warning publication/clearing. The admitted payload includes `themeName`; a theme-only change uses the same publication owner, and Clients resolve their cached palette after complete admission. Connection tests cover propagation without assuming delivery fairness. Authorization, bounded serialization, no-change reload and shutdown remain implementation obligations. The settings commit/publication core has a narrower writer/CAS scope and does not prove this whole reload workflow.
 

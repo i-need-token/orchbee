@@ -30,7 +30,6 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
             .env("APPDATA", "relative-appdata")
             .env("LOCALAPPDATA", "relative-localappdata")
             .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
-            .env("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "not-a-boolean")
             .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
             .env("ORCHBEE_RUNTIME_SCOPE", "not-a-scope")
             .env("ORCHBEE_SESSION", "..")
@@ -375,8 +374,8 @@ fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), 
             "Unknown command \"workbench\". Run 'orchbee --help'.\n",
         ),
         (
-            &["config", "import-herdr"],
-            "Unknown command \"import-herdr\" for 'orchbee config'. Run 'orchbee config --help'.\n",
+            &["config", "unsupported-import"],
+            "Unknown command \"unsupported-import\" for 'orchbee config'. Run 'orchbee config --help'.\n",
         ),
         (
             &["--help", "--version"],
@@ -393,7 +392,6 @@ fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), 
             .env("LC_ALL", "en_US.UTF-8")
             .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
             .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
-            .env("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "invalid")
             .output()?;
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
         assert!(output.stdout.is_empty(), "{arguments:?}");

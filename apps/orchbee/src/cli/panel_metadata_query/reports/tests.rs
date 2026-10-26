@@ -4,7 +4,7 @@ fn id(n: u64) -> String {
 }
 fn row(n: u64) -> PanelAgentRow {
     serde_json::from_value(json!({"panelId":id(n),"binding":{"workerId":id(1),"terminalId":id(n+100)},
-            "report":{"agent":"Team Agent","state":"blocked","authoritySource":"source", "message":"message", "session":null}})).unwrap()
+            "report":{"agent":"Team Agent","state":"blocked","authoritySource":"source", "message":"message"}})).unwrap()
 }
 #[test]
 fn report_batch_capacity_and_revision_failures_do_not_admit_partial_rows() {

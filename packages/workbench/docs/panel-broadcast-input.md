@@ -124,17 +124,9 @@ The feature ships as an active-Tab-only transient capability with no migration o
 alias. Rollback removes the Action, Workbench session/bar, and injected surface sink together.
 Previously delivered PTY input is outside rollback.
 
-## Reference and verification
+## Verification
 
-The reference is Kitty revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`,
-`docs/kittens/broadcast.rst`, `kittens/broadcast/main.go`, and
-`kitty/rc/send_text.py`. Orchbee adopts a dedicated live input surface, text and non-text key
-fan-out, `Ctrl+Escape` end, `Ctrl+Alt+Escape` visibility toggle, and exclusion of the dedicated
-input surface from terminal targets.
-Orchbee replaces Kitty's dynamic all-window matching and unreported failures with an immutable
-active-Tab snapshot, exact mounted-sink preflight, and visible partial-delivery failure. Kitty
-remote control, match expressions, cross-Tab or Window targets, unfocused-cursor rendering,
-initial command arguments, paste, files, history, and replay are excluded.
+Orchbee uses a dedicated live input surface to fan out text and physical key taps to fixed targets. `Ctrl+Escape` ends the session and `Ctrl+Alt+Escape` toggles visibility; the input surface is not a terminal target. Startup captures an immutable active-Tab snapshot, preflights exact mounted sinks and exposes partial delivery failures. Remote control, matcher expressions, cross-Tab or Window targets, unfocused cursor rendering, initial command arguments, paste, files, history and replay are excluded.
 
 | Claim                                                                                      | Executable evidence                                                               | Limits                                                                                  |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -143,4 +135,4 @@ initial command arguments, paste, files, history, and replay are excluded.
 | Full success requires every target; partial delivery stops without retry                   | Coordinator tests with controlled completion orders and partial-delivery cases    | Transport acceptance cannot prove child-process consumption                             |
 | DOM input refines to committed text or one physical key tap                                | Normalizer tests plus deterministic Chromium system traces                        | Other browser engines and operating-system-reserved shortcuts are excluded              |
 | Focus, target shields, visibility controls, Action/menu paths, and localized notices agree | React integration, both-locale Stories, and controlled three-Panel browser traces | Pixel identity, compositor timing, and the manual native-window focus test are excluded |
-| Adopted Kitty behavior remains mapped to the owned contract                                | Pinned source scenarios encoded as deterministic Orchbee contract tests           | No source, remote-control, matcher, or pixel parity claim                               |
+| Input and target behavior follows the owned contract                                       | Deterministic Orchbee contract scenarios                                          | No source, remote-control, matcher, or pixel parity claim                               |

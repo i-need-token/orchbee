@@ -555,8 +555,10 @@ fn metadata_revision_failure_prevents_the_companion_agent_exit_commit() {
         Action::Report {
             panel_id: panel(3),
             expected_binding: binding(1),
-            source: MetadataSource::parse("herdr:codex").unwrap(),
-            patch: Box::new(title("keep")),
+            source: MetadataSource::parse("custom:codex").unwrap(),
+            patch: Box::new(
+                serde_json::from_value(json!({"agent":"codex","title":"keep"})).unwrap(),
+            ),
             sequence: Some(WorkbenchRevision::new(1)),
             ttl_milliseconds: None,
         },

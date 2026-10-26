@@ -83,7 +83,7 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 Windows `terminal clear <terminal>` 在已有 Session 中清空一个精确绑定的主终端或子终端。
 保留光标所在的完整软折行提示行，删除此前历史及其他输出，清除选区并将视口返回活动屏幕。
 备用屏幕会被拒绝，内容不变。终端模式、标题、工作目录和子进程保持不变。
-该行为遵循固定版本 Herdr 的 `pane.clear` 实现，不通过注入终端输入模拟。
+清除不通过注入终端输入模拟。
 
 公开终端控制动作 `clear` 指定一个已准入的只读 viewer。Server 核对当前 Session 暴露、
 精确物理绑定和 Worker 代次，然后分配独立的临时输入 attachment 标识。
@@ -152,7 +152,7 @@ Windows `terminal link-resolve <terminal> --cursor ROW:COL` 解析显式原生�
 服务端解析的纯文本区域分开的规则。没有 OSC 8 时，只按需读取完整映射文本行，
 以证明跨已验证软换行的空白分隔 token，包括请求视口之外的 token 端点。
 缺少邻接上下文时有限扩展；硬行边界与 Unicode 空白结束 token，已验证宽字头
-占位不增加文本。纯文本识别遵循固定 Herdr：小写 http／https 前缀、裁剪尾部
+占位不增加文本。纯文本识别使用小写 http／https 前缀、裁剪尾部
 引号／标点、保留平衡的圆／方／花括号，点击最终 URL 之外返回无链接。
 参考实现的共享 8192 单元格探查预算计算选中的物理格、宽字头占位／尾格及双向
 边界探查；预算耗尽返回无链接，不返回截断 URL。原生编码字节／
@@ -211,7 +211,7 @@ Windows `terminal copy-motion <terminal> --cursor ROW:COL --motion <motion>`
 `line-end`、`first-non-blank`、`next-word-start`、`previous-word-start`、
 `next-word-end`、`next-big-word-start`、`previous-big-word-start`、
 `next-big-word-end`、`previous-paragraph`、`next-paragraph`。
-两类词均跨越已验证软换行，硬行插入空白分隔。普通词区分空白、tmux ASCII
+两类词均跨越已验证软换行，硬行插入空白分隔。普通词区分空白、ASCII
 标点（下划线除外）及其他字符；大词仅按空白分隔。结果保留完整字形头部，
 宽字尾与组合字均不拆开。行末是裁剪硬行尾填充后的最后字符；首非空白是首个
 非空白字形。依冻结参照，Kitty Unicode placeholder 单元格在复制移动／搜索中视为空白。段落移动找指定方向最近的空白物理行，保留列，依冻结参照最多
@@ -354,7 +354,7 @@ Workbench 修订、主 Directory 路径及 Worker 一致，且来源检出项必
 全部行、Agent／Client 关联及最终权威／Client 一致性检查共用一个已准入连接、信号所有者
 和原有五秒总期限。查询不激活 Session、不改变关联、不导航、不启动终端、不写 Git 配置。
 Git 清理仍归既有 Worker 读取任务所有。外部文件系统变化不受栅栏约束：这些是依次进行的
-实时观察，不是原子 Git 快照或 Herdr 的缓存关联。`unavailable` 绝不表示“不是仓库”。
+实时观察，不是原子 Git 快照。`unavailable` 绝不表示“不是仓库”。
 
 Workspace list/get 使用 schema 版本 1；目录列出当前文档与命令路径。其他查询版本
 保留既有契约。验证覆盖主／链接检出、检出子目录中的 Workspace、目录缺失、Git 不可用、
@@ -454,7 +454,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 [恢复合同](../../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)。待删除状态也会在临时
 元数据消失后保留，可用相同删除命令继续处理。列表仍只读，不隐式重建运行时基目录本身。
 
-后台及正常停止检查点会保留布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 恢复引用。
+后台及正常停止检查点会保留布局、Launch Profile、采样所得的逐终端 cwd。
 启动选择最新有效副本，保留损坏字节，并在回退或打开空工作区时发出警告。不保存存活 Agent 状态、
 终端历史或屏幕内容。活 Host 接管仍是后续工作。
 
@@ -468,8 +468,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 会话结束、移除或 Session 运行时 dispose 后释放名称；Session 重启后仅可恢复已接纳的已完成托管名称。
 
 Windows 终端名称要求真实的上报、进程识别或保留 provider 身份；普通未命名 shell 不符合条件。
-目标携带 presentation ID、创建 generation、Host epoch 和终端 ID。首次 provider reference
-补齐归属；provider 或已知 reference 改变、确认释放／退出、移除或物理重建会清除名称。
+目标携带 presentation ID、创建 generation、Host epoch 和终端 ID。provider 改变、确认释放／退出、移除或物理重建会清除名称。
 报告提交时同步核对归属，因此 A → B → A 不会复活旧别名。单独缺少进程观察不会清除名称。
 后续 Hook 到达不会悄悄把终端别名转为 canonical 会话别名。
 
@@ -478,9 +477,7 @@ version 1 的 `conflictTarget`；规范回执使用相同版本和目标形状�
 字段及独立的 management 来源／状态读取。状态为 unmanaged 或带恢复 provider 的 active，
 不代表当前就绪；当前这些终端详情保留在 v1 `inspection` 中。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
 `send-keys`、`attach` 经精确物理绑定交给既有终端所有者。物理 `explain` 返回 v1 新鲜屏幕诊断或携带生效规则来源的 v1；
-语义 `wait`／`prompt`、focus 和 `get --client` 使用各自的物理观察／Client 契约，不伪造规范会话；启用 provider 恢复后，已完成托管名称绑定到新物理终端。
-普通手工名称和待完成预留不在冷启动恢复。同 provider 换引用或改名保留恢复后的托管身份；
-清名仅清除其仍匹配的自有持久恢复引用。
+语义 `wait`／`prompt`、focus 和 `get --client` 使用各自的物理观察／Client 契约，不伪造规范会话。所有终端名称和待完成预留均不在冷启动后恢复；改名保留当前托管身份，清名释放其当前名称。
 
 三个命令均接受 `--format text|json`。内嵌成功 schema 为 `orchbee.agent.names`、
 `orchbee.agent.resolve` 与 `orchbee.agent.rename`；names 为 version 1，独立列出预留，另两者为 version 1；接纳后的失败使用
@@ -521,7 +518,7 @@ ABA 明确失败；证据丢失后不重连或退化轮询。总期限不续期�
 普通等待可匹配保留的瞬态，当前观察单独报告。此目标的 `--after-revision` 指报告来源修订，不是规范 Agent 修订；未来门槛在首次观察时拒绝。此后消费的历史必晚于该检查点报告修订。working、idle、blocked、unknown 及 needs-attention 别名使用报告事实。显式 done/error 报告支持 succeeded/failed；既有 done 等待别名匹配任一已结束结果。新鲜度、取消和中断条件仍要求规范观察。`--client` 可选固定一个 Client 并暴露其单独核实的已读确认；仅 done 的请求不再隐式选择 Client。缺失／过期确认不会阻止状态匹配，但显式所选 Client 丢失或读取失败仍结束观察。
 
 提示预检拒绝 blocked，通过真实前台进程链验证已知 provider，并在提交前重读精确语义／物理
-目标。已知存活 provider 即使报告状态 unknown 也可接收输入，与固定 Herdr 的准入一致。
+目标。已知存活 provider 即使报告状态 unknown 也可接收输入。
 既有 send 独占 paste／Enter、Windows Codex 边界、输入清理和交付证据，且只调用一次。
 提示等待以提交前序号建立活动门槛：原先 working 或后续 working／blocked 在五秒内
 （或更短总期限）开启门槛；消息／引用变化和原先 idle 均不能开启。短暂开启门槛的
@@ -532,8 +529,7 @@ Wait v1 返回 `terminal-matched`、物理观察、可空匹配变化、条件�
 `clientView`；Prompt v1 要求已完成等待。预检在输入前检查所选 Client，全部读取共享既有
 五秒评估及绝对总期限，不确认已看过、不重发。Agent 读取失败 v1 和提示失败 v1 携带物理失败详情。输入接纳后的取消／失败保留提交回执；部分／不确定交付保留原 send 结果。
 测试覆盖状态门槛、静默更新、瞬态与当前匹配、provider／物理变化、修订门槛、有界超时、
-回执保留和 Windows 实际输入。生成测试含 32 个种子、6,400 个状态页，并在失败时缩减为可重放序列；它只检验保留状态与活动门槛，不证明退出事件或 Client 注意力。范围参照固定 Herdr
-`e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 wait 与 prompt 处理器；Client 注意力、
+回执保留和 Windows 实际输入。生成测试含 32 个种子、6,400 个状态页，并在失败时缩减为可重放序列；它只检验保留状态与活动门槛，不证明退出事件或 Client 注意力。Client 注意力、
 真实登录 provider 行为和最终全量验收仍需独立证据。
 
 ## Agent 终端操作
@@ -599,7 +595,7 @@ Server 仍验证终端当前绑定。
 结果也可作为证据。旧 idle 或不变的完成结果不能通过活动检查。活动期限耗尽为
 `prompt-stalled`；调用方期限先到则为 `wait-deadline`。后续读取错误、结束、超时或取消
 不会抹去已确认提交。已在 working 的 Agent 可能完成既有轮次；匹配结果不标识本次提示
-自己的轮次。轮询可能漏掉转换，不宣称支持 Herdr 的事件重放。
+自己的轮次。轮询可能漏掉转换，不重放事件。
 
 Windows 中，canonical provider 为 `codex` 时，单次输入序列按字面 paste、Right、Enter 排列。Right 作为非字符边界，促使 Codex 刷出 paste-burst 缓冲并清除 Enter 抑制窗口；不向提示文本拼接转义码，也不以固定延时猜测投递速度。其他 provider 保持 paste、Enter，普通 `terminal send --paste --enter` 不增加按键。回执准确报告三条或两条记录；若在 Right 或 Enter 前停止，只报告实际接受的前缀，绝不补发或开始等待。该边界不证明输入框为空、焦点归属或 provider 已就绪。
 
@@ -2196,8 +2192,7 @@ Agent 状态，也不代表已就绪。
 | 根进程缺失且没有唯一候选        | `unavailable`，PID/provider 为 null | 拒绝                            |
 
 父边只连接样本中创建时间不晚于子进程的父进程。遍历受样本大小限制并检测环；复用的
-父 PID 不能伪造祖先关系。它采用 Herdr `e0507237` 的 Windows 祖先链选择意图，但范围
-限制在 Orchbee 保留的 Job 内，不做全局扫描或 Git Bash 环境标记逃逸回退。歧义明确
+父 PID 不能伪造祖先关系。祖先链选择范围限制在 Orchbee 保留的 Job 内，不做全局扫描或 Git Bash 环境标记逃逸回退。歧义明确
 返回，不伪装成可用 Shell；不声称存在 POSIX 前台进程组。
 
 在规范会话目标上，Windows 的 `agent send-keys` 和 `agent prompt` 先解析 canonical 会话及其精确终端，
@@ -2229,7 +2224,7 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows Session 停止
 
-托管 Windows Server 在 Workbench 提交变化后以 500ms 防抖保存，每 30 秒补存采样所得的逐终端目录及 provider 恢复引用，并在正常停止释放终端前执行最新 final 保存。后续已准入启动恢复布局／Launch Profile，并启动新的默认 shell 或所选 provider 恢复。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留此前的有效存档、无效原件及运行终端，解决后可显式重试。启动会保留不可读存档并回退到较早有效副本；全部副本无效时会提示并打开空工作区。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图、终端屏幕或历史。
+托管 Windows Server 在 Workbench 提交变化后以 500ms 防抖保存，每 30 秒补存采样所得的逐终端目录，并在正常停止释放终端前执行最新 final 保存。后续已准入启动恢复布局／Launch Profile，并启动新的默认 shell。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留此前的有效存档、无效原件及运行终端，解决后可显式重试。启动会保留不可读存档并回退到较早有效副本；全部副本无效时会提示并打开空工作区。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图、终端屏幕或历史。
 
 `server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Session，绝不激活新 Session。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `server stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果。每个答案都包含 `wait`：没有等待状态时为 `null`，适用的 pending/传输结果则为 detached、timed-out 或 cancelled。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
 
@@ -2267,7 +2262,7 @@ Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的�
 
 专用 `orchbee.cli.failure.schema-export` 第 1 版文档包含 `write-failed`、封闭阶段值、字面目标以及可空的残留临时路径，退出码为 1。只有 `--format json` 会在 stdout 输出该文档，并始终在 stderr 给出本地化诊断。不改变 provider、终端、规范 Workbench 状态或运行时身份。进程崩溃可能遗留可识别、尚未发布的同目录临时文件；发布不声称父目录具有断电持久性。
 
-维护中的 Windows 进程检查覆盖中文／空格和相对路径、完整及指定 schema、替换、语法／未知 ID 隔离、缺失父目录、目录目标、锁定目标时原字节保留、失败输出 schema 校验及正常清理无残留。选定文件导出能力以 Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/cli/api.rs` 为参考；Orchbee 保留自身 schema 封套及完整文件发布约束。
+维护中的 Windows 进程检查覆盖中文／空格和相对路径、完整及指定 schema、替换、语法／未知 ID 隔离、缺失父目录、目录目标、锁定目标时原字节保留、失败输出 schema 校验及正常清理无残留。文件导出使用 Orchbee schema 封套及完整文件发布约束。
 
 ## Windows Panel 布局查询
 
@@ -2427,8 +2422,6 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 [Panel 元数据契约](windows-panel-metadata.zh-CN.md#查询观察模型)负责分批读取主项及两类最终修订号校验。[当前 Panel](native-current-panel.zh-CN.md#当前成员信息增强)则校验精确解析成员的 ID、Panel 与绑定。Panel list/get v1 和 current v1 直接暴露其元数据；Windows Agent Get v1 在 terminal `inspection` 中保留元数据及带来源的 `reportedAgent`。实际 Agent／权威上下文选择带守卫展示，同时保留原始来源记录与全局 tokens。规范 OSC 标题、名称、状态及就绪性仍独立。
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
-
-Windows Session 重启默认恢复保留的官方 provider 引用，每个不同的来源／Agent／引用种类／值仅尝试一次。激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可启动普通 shell 并保留引用；仅接受精确 true／false。已运行的 Session 不受影响。Server 读取 SystemRoot 解析系统 Windows PowerShell，并继承 PATH 发现 provider 程序。shell 启动不证明 provider 就绪。失败、去重及其余恢复边界参见 Server 的[重启模型](../../orchbee-server/docs/agent-restart-reference.zh-CN.md)。
 
 ## 已安装的 Agent 检测清单
 

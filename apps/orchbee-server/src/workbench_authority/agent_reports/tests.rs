@@ -3,9 +3,6 @@ use super::*;
 fn author(source: &str, agent: &str) -> Author {
     Author::new(source, agent).unwrap()
 }
-fn reference(value: &str) -> Option<Reference> {
-    Reference::id(value)
-}
 fn seq(value: u64) -> Option<Sequence> {
     Some(Sequence::new(value))
 }
@@ -14,28 +11,13 @@ fn state(
     agent: &str,
     status: Status,
     sequence: Option<Sequence>,
-    session: Option<&str>,
+    _untrusted_session: Option<&str>,
 ) -> Event {
     Event::State {
         author: author(source, agent),
         status,
         message: Some("reported".into()),
-        reference: session.and_then(reference),
         sequence,
-    }
-}
-fn session(
-    source: &str,
-    agent: &str,
-    id: Option<&str>,
-    sequence: Option<Sequence>,
-    start: Option<Start>,
-) -> Event {
-    Event::Session {
-        author: author(source, agent),
-        reference: id.and_then(reference),
-        sequence,
-        start,
     }
 }
 fn process(agent: Option<Provider>, status: Status, exited: bool) -> Event {
@@ -61,77 +43,6 @@ fn step(current: &mut Reports, mut event: Event, at: u64) -> Transition {
     assert_eq!(transition.changed, transition.next != before);
     *current = transition.next.clone();
     transition
-}
-fn anchored(provider: Provider, id: &str) -> Reports {
-    let agent = provider.report_label();
-    let source = format!("herdr:{agent}");
-    let mut current = Reports::default();
-    step(
-        &mut current,
-        process(Some(provider), Status::Unknown, false),
-        1,
-    );
-    step(
-        &mut current,
-        session(&source, agent, Some(id), seq(1), Some(Start::Startup)),
-        2,
-    );
-    step(
-        &mut current,
-        state(&source, agent, Status::Working, seq(2), Some(id)),
-        3,
-    );
-    assert_eq!(current.effective().status, Status::Working);
-    current
-}
-
-#[test]
-fn public_native_routing_and_official_release_never_fabricate_state() {
-    for provider in Provider::ALL {
-        let agent = provider.report_label();
-        let source = if provider == Provider::Antigravity {
-            "herdr:antigravity_cli".into()
-        } else {
-            format!("herdr:{agent}")
-        };
-        if agent_report_source_policy(&source, agent) == SourcePolicy::Custom {
-            continue;
-        }
-        let mut current = Reports::default();
-        step(
-            &mut current,
-            process(Some(provider), Status::Idle, false),
-            1,
-        );
-        step(
-            &mut current,
-            state(&source, agent, Status::Blocked, seq(5), Some("provider-id")),
-            2,
-        );
-        if agent_report_reserves_native_state(&source, agent) {
-            let effective = current.effective();
-            assert_eq!(effective.status, Status::Idle);
-            assert!(effective.authority_source.is_none());
-            assert_eq!(effective.session.unwrap().reference.value(), "provider-id");
-        } else if agent_report_source_policy(&source, agent) == SourcePolicy::IdentityOnly {
-            assert!(current.authority.is_none());
-            assert!(current.persisted.is_none());
-            assert!(current.sequences.is_empty());
-        }
-        let before = current.clone();
-        let released = step(
-            &mut current,
-            Event::Release {
-                author: author(&source, agent),
-                sequence: seq(u64::MAX),
-            },
-            3,
-        );
-        assert_eq!(released.disposition, Disposition::Ignored);
-        assert!(!released.changed);
-        assert!(!released.released);
-        assert_eq!(current, before);
-    }
 }
 
 #[test]
@@ -207,7 +118,7 @@ fn strict_source_watermarks_survive_clear_and_reject_unsequenced_replays() {
 }
 
 #[test]
-fn custom_release_preserves_live_process_and_foreign_persisted_reference() {
+fn custom_release_preserves_live_process() {
     let mut current = Reports::default();
     step(
         &mut current,
@@ -218,11 +129,6 @@ fn custom_release_preserves_live_process_and_foreign_persisted_reference() {
         &mut current,
         state("custom", "codex", Status::Working, seq(1), None),
         2,
-    );
-    step(
-        &mut current,
-        session("herdr:codex", "codex", Some("session"), seq(1), None),
-        3,
     );
     assert!(
         !step(
@@ -249,8 +155,7 @@ fn custom_release_preserves_live_process_and_foreign_persisted_reference() {
     assert_eq!(effective.agent.as_deref(), Some("codex"));
     assert_eq!(effective.status, Status::Idle);
     assert!(effective.authority_source.is_none());
-    assert_eq!(effective.session.unwrap().author.source, "herdr:codex");
-    let only_identity = current.clone();
+    let process_only = current.clone();
     assert!(
         !step(
             &mut current,
@@ -263,8 +168,8 @@ fn custom_release_preserves_live_process_and_foreign_persisted_reference() {
         .changed
     );
     assert_eq!(
-        current, only_identity,
-        "persisted-only identity is not authority to clear"
+        current, process_only,
+        "process-only presence is not authority to clear"
     );
     let mut custom = Reports::default();
     step(
@@ -285,391 +190,6 @@ fn custom_release_preserves_live_process_and_foreign_persisted_reference() {
     );
     assert_eq!(custom.effective().agent, None);
     assert_eq!(custom.effective().status, Status::Unknown);
-}
-
-#[test]
-fn ignored_session_reports_can_consume_sequence_before_later_guards() {
-    let mut current = Reports::default();
-    step(
-        &mut current,
-        process(Some(Provider::Codex), Status::Idle, false),
-        1,
-    );
-    let ignored = step(
-        &mut current,
-        session("herdr:claude", "claude", Some("s"), seq(7), None),
-        2,
-    );
-    assert_eq!(ignored.disposition, Disposition::Ignored);
-    assert!(ignored.changed);
-    assert_eq!(current.sequences["herdr:claude"].get(), 7);
-    assert!(current.persisted.is_none());
-    step(
-        &mut current,
-        process(Some(Provider::Claude), Status::Idle, false),
-        3,
-    );
-    assert!(
-        !step(
-            &mut current,
-            session("herdr:claude", "claude", Some("s"), seq(7), None),
-            4
-        )
-        .changed
-    );
-    assert!(
-        step(
-            &mut current,
-            session("herdr:claude", "claude", Some("s"), seq(8), None),
-            5
-        )
-        .changed
-    );
-    let before = current.clone();
-    assert!(
-        !step(
-            &mut current,
-            session(
-                "herdr:claude",
-                "claude",
-                None,
-                seq(100),
-                Some(Start::Resume)
-            ),
-            6
-        )
-        .changed
-    );
-    assert_eq!(current, before, "missing reference consumes no sequence");
-}
-
-#[test]
-fn full_lifecycle_reports_wait_for_reference_and_matching_process_confirmation() {
-    let mut current = Reports::default();
-    let pending = step(
-        &mut current,
-        state("herdr:pi", "pi", Status::Working, seq(11), Some("old")),
-        1,
-    );
-    assert_eq!(pending.disposition, Disposition::Deferred);
-    assert!(current.effective().authority_source.is_none());
-    assert_eq!(
-        step(
-            &mut current,
-            session("herdr:pi", "pi", Some("old"), seq(10), Some(Start::Startup)),
-            2
-        )
-        .disposition,
-        Disposition::Deferred
-    );
-    step(
-        &mut current,
-        process(Some(Provider::Pi), Status::Unknown, false),
-        3,
-    );
-    assert_eq!(
-        current.effective().authority_source.as_deref(),
-        Some("herdr:pi")
-    );
-    assert_eq!(
-        current.effective().session.unwrap().reference.value(),
-        "old"
-    );
-    assert_eq!(current.effective().status, Status::Working);
-    assert!(
-        !step(&mut current, process(None, Status::Idle, false), 4).changed,
-        "uncertain detection cannot replace live lifecycle authority"
-    );
-    let exited = step(
-        &mut current,
-        process(Some(Provider::Pi), Status::Unknown, true),
-        5,
-    );
-    assert_eq!(
-        exited.metadata_exit,
-        Some(MetadataExit {
-            agent: Provider::Pi,
-            observed_at: 5
-        })
-    );
-    assert!(exited.released);
-    assert_eq!(current.effective().agent, None);
-    step(
-        &mut current,
-        state("herdr:pi", "pi", Status::Working, seq(50), Some("old")),
-        6,
-    );
-    step(
-        &mut current,
-        process(Some(Provider::Pi), Status::Unknown, false),
-        7,
-    );
-    assert!(
-        current.authority.is_none(),
-        "fresh process alone cannot revive the exited Session"
-    );
-    step(
-        &mut current,
-        session("herdr:pi", "pi", Some("new"), seq(20), Some(Start::New)),
-        8,
-    );
-    assert_eq!(
-        current.effective().session.unwrap().reference.value(),
-        "new"
-    );
-    assert!(current.authority.is_none());
-    step(
-        &mut current,
-        state("herdr:pi", "pi", Status::Working, seq(21), Some("new")),
-        9,
-    );
-    assert_eq!(current.effective().status, Status::Working);
-    assert!(
-        !step(
-            &mut current,
-            state("herdr:pi", "pi", Status::Blocked, seq(100), Some("old")),
-            10
-        )
-        .changed
-    );
-}
-
-#[test]
-fn clear_suppresses_same_session_and_reanchors_only_a_different_reference() {
-    let mut current = anchored(Provider::Pi, "old");
-    assert!(
-        step(
-            &mut current,
-            Event::Clear {
-                source: None,
-                sequence: seq(3)
-            },
-            4
-        )
-        .changed
-    );
-    assert!(
-        !step(
-            &mut current,
-            state("herdr:pi", "pi", Status::Blocked, seq(4), Some("old")),
-            5
-        )
-        .changed
-    );
-    assert!(
-        step(
-            &mut current,
-            state("herdr:pi", "pi", Status::Idle, seq(0), Some("new")),
-            6
-        )
-        .changed
-    );
-    assert_eq!(
-        current.effective().session.unwrap().reference.value(),
-        "new"
-    );
-    assert!(
-        !step(
-            &mut current,
-            state(
-                "herdr:pi",
-                "pi",
-                Status::Blocked,
-                seq(u64::MAX),
-                Some("old")
-            ),
-            7
-        )
-        .changed
-    );
-}
-
-#[test]
-fn identity_replacement_and_lifecycle_branch_follow_different_rules() {
-    let mut current = Reports::default();
-    assert!(
-        !step(
-            &mut current,
-            session("herdr:pi", "pi", Some("id"), seq(1), Some(Start::Branch)),
-            1
-        )
-        .changed
-    );
-    step(
-        &mut current,
-        session(
-            "herdr:qwen",
-            "qwen",
-            Some("old"),
-            seq(1),
-            Some(Start::Startup),
-        ),
-        2,
-    );
-    let refused = step(
-        &mut current,
-        session(
-            "herdr:qwen",
-            "qwen",
-            Some("new"),
-            seq(2),
-            Some(Start::Branch),
-        ),
-        3,
-    );
-    assert_eq!(refused.disposition, Disposition::Ignored);
-    assert!(refused.changed);
-    assert_eq!(
-        current.effective().session.unwrap().reference.value(),
-        "old"
-    );
-    step(
-        &mut current,
-        process(Some(Provider::Qwen), Status::Idle, false),
-        4,
-    );
-    step(
-        &mut current,
-        session(
-            "herdr:qwen",
-            "qwen",
-            Some("new"),
-            seq(3),
-            Some(Start::Branch),
-        ),
-        5,
-    );
-    assert_eq!(
-        current.effective().session.unwrap().reference.value(),
-        "new"
-    );
-    assert!(current.authority.is_none());
-}
-
-#[test]
-fn opencode_unsequenced_selection_has_an_explicit_process_gate() {
-    let mut current = anchored(Provider::OpenCode, "old");
-    step(
-        &mut current,
-        session(
-            "herdr:opencode",
-            "opencode",
-            Some("selected"),
-            None,
-            Some(Start::Select),
-        ),
-        4,
-    );
-    assert_eq!(
-        current.effective().session.unwrap().reference.value(),
-        "selected"
-    );
-    assert!(current.authority.is_none());
-    assert_eq!(current.sequences["herdr:opencode"].get(), 2);
-    assert!(
-        !step(
-            &mut current,
-            state(
-                "herdr:opencode",
-                "opencode",
-                Status::Blocked,
-                seq(99),
-                Some("old")
-            ),
-            5
-        )
-        .changed
-    );
-    let mut absent = Reports::default();
-    assert_eq!(
-        step(
-            &mut absent,
-            session(
-                "herdr:opencode",
-                "opencode",
-                Some("selected"),
-                None,
-                Some(Start::Select)
-            ),
-            1
-        )
-        .disposition,
-        Disposition::Deferred
-    );
-    assert!(absent.effective().session.is_none());
-    step(
-        &mut absent,
-        process(Some(Provider::OpenCode), Status::Unknown, false),
-        2,
-    );
-    assert_eq!(
-        absent.effective().session.unwrap().reference.value(),
-        "selected"
-    );
-}
-
-#[test]
-fn foreign_owner_takeover_requires_the_specific_provider_and_start_evidence() {
-    let mut current = Reports::default();
-    step(
-        &mut current,
-        session("herdr:codex", "codex", Some("old"), seq(1), None),
-        1,
-    );
-    step(
-        &mut current,
-        process(Some(Provider::Qwen), Status::Idle, false),
-        2,
-    );
-    assert_eq!(
-        step(
-            &mut current,
-            session(
-                "herdr:qwen",
-                "qwen",
-                Some("new"),
-                seq(1),
-                Some(Start::Branch)
-            ),
-            3
-        )
-        .disposition,
-        Disposition::Ignored
-    );
-    assert_eq!(current.current_session().unwrap().author.agent, "codex");
-    step(
-        &mut current,
-        session(
-            "herdr:qwen",
-            "qwen",
-            Some("new"),
-            seq(2),
-            Some(Start::Startup),
-        ),
-        4,
-    );
-    assert_eq!(current.current_session().unwrap().author.agent, "qwen");
-    step(
-        &mut current,
-        process(Some(Provider::Grok), Status::Idle, false),
-        5,
-    );
-    assert_eq!(
-        step(
-            &mut current,
-            session(
-                "herdr:grok",
-                "grok",
-                Some("grok-id"),
-                seq(3),
-                Some(Start::New)
-            ),
-            6
-        )
-        .disposition,
-        Disposition::Ignored
-    );
-    assert_eq!(current.current_session().unwrap().author.agent, "qwen");
 }
 
 #[test]
@@ -769,11 +289,7 @@ fn custom_trace_failure(trace: &[(u64, Event)]) -> Option<&'static str> {
         {
             return Some("clear changed a foreign authority");
         }
-        if next.effective().session.is_some()
-            || next.detected.is_some()
-            || !next.suppressed.is_empty()
-            || !next.stale.is_empty()
-        {
+        if next.detected.is_some() {
             return Some("custom-only trace manufactured provider or process facts");
         }
         current = next;
@@ -847,89 +363,6 @@ fn generated_custom_traces_preserve_watermarks_without_inventing_process_facts()
 }
 
 #[test]
-fn delayed_process_clear_uses_current_owner_time_for_future_suppression() {
-    let mut current = anchored(Provider::Pi, "old");
-    let changed = step(
-        &mut current,
-        Event::Process(Process {
-            observed_at: 4,
-            agent: Some(Provider::Codex),
-            fallback: Some(Fallback {
-                status: Status::Idle,
-                visible_blocker: false,
-            }),
-            exited: false,
-        }),
-        10,
-    );
-    assert!(changed.changed);
-    assert_eq!(current.suppressed["herdr:pi"].at, 10);
-    let old = step(
-        &mut current,
-        Event::Process(Process {
-            observed_at: 8,
-            agent: Some(Provider::Pi),
-            fallback: Some(Fallback {
-                status: Status::Unknown,
-                visible_blocker: false,
-            }),
-            exited: false,
-        }),
-        11,
-    );
-    assert_eq!(old.disposition, Disposition::Ignored);
-    assert!(!old.changed);
-    assert_eq!(current.detected, Some(Provider::Codex));
-}
-
-#[test]
-fn stale_session_history_limit_refuses_the_candidate_without_forgetting_old_sessions() {
-    let mut current = anchored(Provider::Pi, "initial");
-    for index in 1..=256 {
-        let id = format!("session-{index}");
-        step(
-            &mut current,
-            session(
-                "herdr:pi",
-                "pi",
-                Some(&id),
-                seq(index * 2 + 1),
-                Some(Start::New),
-            ),
-            index * 2 + 100,
-        );
-        step(
-            &mut current,
-            state(
-                "herdr:pi",
-                "pi",
-                Status::Working,
-                seq(index * 2 + 2),
-                Some(&id),
-            ),
-            index * 2 + 101,
-        );
-    }
-    assert!(current.admitted_bytes().is_ok());
-    let next = current.transition(
-        session(
-            "herdr:pi",
-            "pi",
-            Some("overflow"),
-            seq(999),
-            Some(Start::New),
-        ),
-        1000,
-    );
-    assert_eq!(
-        next.next.admitted_bytes(),
-        Err(orchbee_workbench_protocol::PanelAgentFailure::HistoryLimit)
-    );
-    assert_eq!(current.stale["herdr:pi"].len(), 256);
-    assert!(current.admitted_bytes().is_ok());
-}
-
-#[test]
 fn presence_preserves_screen_age_and_replacement_clears_it() {
     let mut current = Reports::default();
     let observation = |agent, fallback, exited, at| {
@@ -982,26 +415,4 @@ fn presence_preserves_screen_age_and_replacement_clears_it() {
     assert_eq!(current.observed_at, None);
     step(&mut current, observation(Provider::Pi, None, false, 80), 80);
     assert_eq!(current.effective().status, Status::Unknown);
-}
-
-#[test]
-fn managed_seed_clear_preserves_independent_authority_and_is_effect_free_until_committed() {
-    let session: orchbee_workbench_protocol::PanelAgentSession = serde_json::from_str(
-        r#"{"source":"herdr:grok","agent":"grok","reference":{"kind":"id","value":"saved"}}"#,
-    )
-    .unwrap();
-    let mut reports = Reports::from_restart_session(&session).unwrap();
-    reports.authority = Some(Authority {
-        author: author("custom", "grok"),
-        status: Status::Working,
-        message: None,
-        at: 1,
-        reference: reference("new"),
-    });
-    let before = reports.clone();
-    let next = reports.clear_owned_restart_session(&session).unwrap();
-    assert_eq!(reports, before);
-    assert!(next.persisted.is_none());
-    assert_eq!(next.authority, before.authority);
-    assert_eq!(next.view().session.unwrap().reference.value, "new");
 }

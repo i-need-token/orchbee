@@ -29,21 +29,13 @@ notification channels including OSC 9, OSC 777, OSC 99, and OSC 1337 are not obs
 Adapters may write the private frame directly to resolved outer tmux and Zellij client TTYs after
 socket acceptance; no mux passthrough is required.
 
-## Reference scope
+## Observation design
 
-The following local source revisions were inspected on 2026-08-31 as bounded design evidence:
-
-| Product          | Reviewed mechanism                                                                                                                                        | Orchbee decision                                                                                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Herdr `c2637dc1` | Foreground-process detection followed by one lifecycle-hook or live-screen authority; its own guide excludes agents launched inside an inner tmux session | Keep passive detection capability-free and separate evidence capture from deterministic transitions; do not infer exact nested-mux semantics from process or screen inspection |
-| Muxy `a5d276e1`  | A nonblocking Unix-socket hook client with a total execution budget, bounded retries, and an acknowledgement                                              | Adopt the private socket, exact ACK, and execution bounds; retain Orchbee's content-free terminal half and generation-fenced two-half join                                     |
-| tty7 `a2b5ae56`  | Provider hook diagnostics plus direct controlling-TTY delivery over OSC 777                                                                               | Adopt explicit missing/outdated integration diagnostics; reject its public OSC notification transport                                                                          |
-| Warp `086dade6`  | OSC 777 invokes the pluggable desktop-notification callback, while non-Kitty APC payloads are ignored by the reviewed parser                              | Treat this as concrete compatibility evidence for private APC and against OSC 777, not as a claim about every Warp or terminal version                                         |
-
-This is not a compatibility or replication claim. Competitor screen rules, payloads, flat status,
-terminal UI, provider lifecycle, and timing constants remain excluded. Orchbee's validated rich
-hook facts, exact two-half correlation, presentation generations, and canonical Agent runtime
-remain authoritative when the implementations differ.
+Passive detection grants no capability. Evidence capture and deterministic transitions remain
+separate, and process or screen inspection cannot infer exact nested-multiplexer semantics.
+Hooks use a private socket, an exact acknowledgement and bounded execution. Missing or outdated
+integrations produce explicit diagnostics. Terminal correlation uses content-free private APC
+frames, with generation-fenced pairing; public OSC notification transports are excluded.
 
 ## Inputs and trust boundaries
 

@@ -95,9 +95,9 @@ Client Connection 上等待状态或新鲜度；Windows 跟随保留变更，默
 Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端绑定。
 规范会话保留 `orchbee.agent.explain` v1；物理终端使用 v2，分别返回有效上报视图与一次新鲜的
 屏幕规则评估。结果包含清单来源/版本、同优先级首条胜出规则、所有规则匹配及有界区域证据。
-生效的完整生命周期权威直接返回明确的屏幕跳过结果，不读取 Host。一次准入与 5 秒 CLI 总预算
+一次准入与 5 秒 CLI 总预算
 覆盖解析和读取；Server 队列/读取预算为 4 秒。绑定或上报上下文变化时拒绝，不重试。
-不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理 v3 增加实际路径、缓存版本、覆盖状态及类型化警告；v2 对旧版、无清单或跳过结果保持封闭。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
+不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理 v3 增加实际路径、缓存版本、覆盖状态及类型化警告；v2 对旧版或无清单结果保持封闭。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
 参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
 
 Windows `panel create-terminal` 启动未绑定主项或精确成员，或追加子项，不分割 Panel。
@@ -214,7 +214,7 @@ Windows Session 中没有 Workspace 或终端内容时，`cd <project>; orchbee`
 仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Session 进程退出后，再次运行可执行文件会自动开始
 新代，并恢复已有 checkpoint。旧 owner 仍活着或无法证明退出时拒绝启动；当前恢复不接管活 Host。
 `session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。持续 Workbench checkpoint
-会保留布局变更、采样所得的终端目录及 provider 恢复引用，但不保存屏幕内容；详见
+会保留布局变更及采样所得的终端目录，但不保存屏幕内容；详见
 [Windows Workbench checkpoint 契约](../orchbee-server/docs/workbench-checkpoint.zh-CN.md)。
 `config check --format json` 检查本地 cohort/runtime 输入，不启动 Session。
 
@@ -845,7 +845,7 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 共享应用与终端主题通过和 Desktop 相同的偏好权威应用于原生 TUI。参见[原生主题](docs/native-themes.zh-CN.md)。
 
-`config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。`[session] resume_agents_on_restore` 控制下次 Session 启动时恢复 Agent，默认 true，精确 true/false 环境覆盖值优先。`config check` JSON v3 报告有效值和来源。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
+`config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
 
 ## Windows 终端观察流
 

@@ -1,1276 +1,1556 @@
 {
-	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "orchbee.config.check",
-	"title": "orchbee config check envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.config.check"
-		},
-		"version": {
-			"const": 1
-		},
-		"source": {
-			"type": "object",
-			"required": ["kind"],
-			"additionalProperties": false,
-			"properties": {
-				"kind": {
-					"const": "local-runtime"
-				}
-			}
-		},
-		"result": {
-			"type": "object",
-			"required": ["ok", "checks"],
-			"additionalProperties": false,
-			"properties": {
-				"ok": {
-					"type": "boolean"
-				},
-				"checks": {
-					"type": "array",
-					"minItems": 6,
-					"maxItems": 6,
-					"prefixItems": [
-						{
-							"$ref": "#/$defs/runtimeBaseCheck"
-						},
-						{
-							"$ref": "#/$defs/runtimeDirectoryCheck"
-						},
-						{
-							"$ref": "#/$defs/cohortCheck"
-						},
-						{
-							"$ref": "#/$defs/localeCheck"
-						},
-						{
-							"$ref": "#/$defs/socketsCheck"
-						},
-						{
-							"oneOf": [
-								{
-									"$ref": "#/$defs/userConfigCheck"
-								},
-								{
-									"$ref": "#/$defs/unsupported"
-								}
-							]
-						}
-					],
-					"items": false
-				}
-			},
-			"if": {
-				"properties": {
-					"checks": {
-						"contains": {
-							"type": "object",
-							"required": ["status"],
-							"properties": {
-								"status": {
-									"const": "fail"
-								}
-							}
-						}
-					}
-				},
-				"required": ["checks"]
-			},
-			"then": {
-				"properties": {
-					"ok": {
-						"const": false
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"checks": {
-								"not": {
-									"contains": {
-										"type": "object",
-										"required": ["status"],
-										"properties": {
-											"status": {
-												"const": "fail"
-											}
-										}
-									}
-								}
-							}
-						},
-						"required": ["checks"]
-					},
-					"then": {
-						"properties": {
-							"ok": {
-								"const": true
-							}
-						}
-					}
-				}
-			]
-		}
-	},
-	"$defs": {
-		"userConfigCheck": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "user-config"
-				},
-				"status": {
-					"enum": ["pass", "warning", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"if": {
-				"properties": {
-					"status": {
-						"enum": ["pass", "warning"]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"details": {
-						"type": "object",
-						"required": [
-							"path",
-							"exists",
-							"newCwd",
-							"worktreeDirectory",
-							"resumeAgentsOnRestore",
-							"resumeAgentsOnRestoreSource",
-							"manifestCheck",
-							"manifestCheckSource",
-							"defaultShell",
-							"shellMode",
-							"keyPrefix",
-							"keyOverrides",
-							"windowTitle",
-							"windowTitleDiagnostic",
-							"notificationDelivery",
-							"notificationPosition",
-							"agentSidebarProfile",
-							"spacesSidebarProfile",
-							"notificationAgentDelivery",
-							"notificationDelaySeconds",
-							"notificationSoundEnabled",
-							"notificationAgentSounds",
-							"diagnostics",
-							"diagnosticsOmitted",
-							"themeName"
-						],
-						"additionalProperties": false,
-						"properties": {
-							"path": {
-								"type": ["string", "null"],
-								"minLength": 1,
-								"maxLength": 4096
-							},
-							"exists": {
-								"type": "boolean"
-							},
-							"resumeAgentsOnRestore": {
-								"type": "boolean"
-							},
-							"resumeAgentsOnRestoreSource": {
-								"enum": ["default", "file", "environment"]
-							},
-							"newCwd": {
-								"type": "string",
-								"minLength": 1,
-								"maxLength": 4096
-							},
-							"worktreeDirectory": {
-								"type": ["string", "null"],
-								"minLength": 1,
-								"maxLength": 4096
-							},
-							"manifestCheck": {
-								"type": "boolean"
-							},
-							"manifestCheckSource": {
-								"enum": ["default", "file"]
-							},
-							"defaultShell": {
-								"type": "string",
-								"maxLength": 4096
-							},
-							"shellMode": {
-								"enum": ["auto", "login", "non_login"]
-							},
-							"keyPrefix": {
-								"type": "string",
-								"minLength": 1,
-								"maxLength": 128
-							},
-							"keyOverrides": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 37
-							},
-							"windowTitle": {
-								"type": "string",
-								"maxLength": 4096
-							},
-							"windowTitleDiagnostic": {
-								"const": null
-							},
-							"notificationDelivery": {
-								"enum": ["off", "orchbee", "terminal", "system"]
-							},
-							"notificationPosition": {
-								"enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
-							},
-							"agentSidebarProfile": {
-								"type": "string",
-								"minLength": 1,
-								"maxLength": 32768
-							},
-							"spacesSidebarProfile": {
-								"type": "string",
-								"minLength": 1,
-								"maxLength": 32768
-							},
-							"notificationAgentDelivery": {
-								"enum": ["off", "orchbee", "terminal", "system"]
-							},
-							"notificationDelaySeconds": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 3600
-							},
-							"notificationSoundEnabled": {
-								"type": "boolean"
-							},
-							"notificationAgentSounds": {
-								"type": "object",
-								"maxProperties": 64,
-								"propertyNames": {
-									"pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
-								},
-								"additionalProperties": {
-									"enum": ["default", "on", "off"]
-								}
-							},
-							"diagnostics": {
-								"type": "array",
-								"maxItems": 128,
-								"uniqueItems": true,
-								"items": {
-									"type": "object",
-									"required": ["field", "reason", "disposition"],
-									"additionalProperties": false,
-									"properties": {
-										"field": {
-											"type": "string",
-											"minLength": 1,
-											"maxLength": 256,
-											"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
-										},
-										"reason": {
-											"type": "string",
-											"minLength": 1,
-											"maxLength": 64,
-											"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-										},
-										"disposition": {
-											"enum": ["defaulted", "disabled", "ignored"]
-										}
-									}
-								}
-							},
-							"diagnosticsOmitted": {
-								"type": "integer",
-								"minimum": 0,
-								"maximum": 65536
-							},
-							"themeName": {
-								"enum": ["terminal-native", "one-light", "one-dark"]
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"details": {
-						"type": "object",
-						"required": ["field", "reason"],
-						"additionalProperties": false,
-						"properties": {
-							"field": {
-								"enum": [
-									"file",
-									"ORCHBEE_CONFIG_FILE",
-									"APPDATA",
-									"ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-								]
-							},
-							"reason": {
-								"enum": [
-									"invalid-path",
-									"invalid-boolean",
-									"missing",
-									"io-error",
-									"not-file",
-									"too-large",
-									"invalid-utf8",
-									"invalid-toml"
-								]
-							}
-						},
-						"oneOf": [
-							{
-								"properties": {
-									"field": {
-										"const": "file"
-									},
-									"reason": {
-										"enum": [
-											"invalid-path",
-											"missing",
-											"io-error",
-											"not-file",
-											"too-large",
-											"invalid-utf8",
-											"invalid-toml"
-										]
-									}
-								}
-							},
-							{
-								"properties": {
-									"field": {
-										"enum": ["ORCHBEE_CONFIG_FILE", "APPDATA"]
-									},
-									"reason": {
-										"const": "invalid-path"
-									}
-								}
-							},
-							{
-								"properties": {
-									"field": {
-										"const": "ORCHBEE_RESUME_AGENTS_ON_RESTORE"
-									},
-									"reason": {
-										"const": "invalid-boolean"
-									}
-								}
-							}
-						]
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"properties": {
-									"diagnostics": {
-										"maxItems": 0
-									},
-									"diagnosticsOmitted": {
-										"const": 0
-									}
-								}
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "warning"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"anyOf": [
-									{
-										"properties": {
-											"diagnostics": {
-												"minItems": 1
-											}
-										}
-									},
-									{
-										"properties": {
-											"diagnosticsOmitted": {
-												"minimum": 1
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				}
-			]
-		},
-		"path": {
-			"oneOf": [
-				{
-					"required": ["path"],
-					"properties": {
-						"path": {
-							"type": "string",
-							"minLength": 1
-						}
-					}
-				},
-				{
-					"required": ["pathBytesHex"],
-					"properties": {
-						"pathBytesHex": {
-							"type": "string",
-							"pattern": "^([0-9a-f]{2})+$"
-						}
-					}
-				}
-			]
-		},
-		"runtimeBaseCheck": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "runtime-base"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"if": {
-				"properties": {
-					"status": {
-						"const": "pass"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"details": {
-						"type": "object",
-						"required": ["exists"],
-						"additionalProperties": false,
-						"properties": {
-							"path": {
-								"type": "string",
-								"minLength": 1
-							},
-							"pathBytesHex": {
-								"type": "string",
-								"pattern": "^([0-9a-f]{2})+$"
-							},
-							"exists": {
-								"const": true
-							}
-						},
-						"oneOf": [
-							{
-								"required": ["path"]
-							},
-							{
-								"required": ["pathBytesHex"]
-							}
-						]
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "fail"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"additionalProperties": false,
-								"required": ["reason"],
-								"properties": {
-									"path": {
-										"type": "string",
-										"minLength": 1
-									},
-									"pathBytesHex": {
-										"type": "string",
-										"pattern": "^([0-9a-f]{2})+$"
-									},
-									"reason": {
-										"enum": ["absent", "invalid-path", "io-error", "unsafe"]
-									},
-									"exists": {
-										"type": "boolean"
-									}
-								},
-								"$ref": "#/$defs/path",
-								"if": {
-									"properties": {
-										"reason": {
-											"const": "absent"
-										}
-									},
-									"required": ["reason"]
-								},
-								"then": {
-									"required": ["exists"],
-									"properties": {
-										"exists": {
-											"const": false
-										}
-									}
-								},
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"reason": {
-													"enum": ["invalid-path", "io-error"]
-												}
-											},
-											"required": ["reason"]
-										},
-										"then": {
-											"not": {
-												"required": ["exists"]
-											}
-										}
-									},
-									{
-										"if": {
-											"properties": {
-												"reason": {
-													"const": "unsafe"
-												}
-											},
-											"required": ["reason"]
-										},
-										"then": {
-											"required": ["exists"],
-											"properties": {
-												"exists": {
-													"const": true
-												}
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				}
-			]
-		},
-		"runtimeDirectoryCheck": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "runtime-directory"
-				},
-				"status": {
-					"enum": ["pass", "fail", "not-applicable"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"if": {
-				"properties": {
-					"status": {
-						"const": "pass"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"details": {
-						"type": "object",
-						"required": ["exists"],
-						"additionalProperties": false,
-						"properties": {
-							"path": {
-								"type": "string",
-								"minLength": 1
-							},
-							"pathBytesHex": {
-								"type": "string",
-								"pattern": "^([0-9a-f]{2})+$"
-							},
-							"exists": {
-								"const": true
-							}
-						},
-						"oneOf": [
-							{
-								"required": ["path"]
-							},
-							{
-								"required": ["pathBytesHex"]
-							}
-						]
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "fail"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"additionalProperties": false,
-								"required": ["reason"],
-								"properties": {
-									"path": {
-										"type": "string",
-										"minLength": 1
-									},
-									"pathBytesHex": {
-										"type": "string",
-										"pattern": "^([0-9a-f]{2})+$"
-									},
-									"reason": {
-										"enum": ["io-error", "unsafe"]
-									},
-									"exists": {
-										"type": "boolean"
-									}
-								},
-								"$ref": "#/$defs/path",
-								"if": {
-									"properties": {
-										"reason": {
-											"const": "io-error"
-										}
-									},
-									"required": ["reason"]
-								},
-								"then": {
-									"not": {
-										"required": ["exists"]
-									}
-								},
-								"allOf": [
-									{
-										"if": {
-											"properties": {
-												"reason": {
-													"const": "unsafe"
-												}
-											},
-											"required": ["reason"]
-										},
-										"then": {
-											"required": ["exists"],
-											"properties": {
-												"exists": {
-													"const": true
-												}
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "not-applicable"
-							}
-						},
-						"required": ["status"]
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"oneOf": [
-									{
-										"type": "object",
-										"additionalProperties": false
-									},
-									{
-										"type": "object",
-										"required": ["exists", "reason"],
-										"additionalProperties": false,
-										"properties": {
-											"path": {
-												"type": "string",
-												"minLength": 1
-											},
-											"pathBytesHex": {
-												"type": "string",
-												"pattern": "^([0-9a-f]{2})+$"
-											},
-											"reason": {
-												"const": "absent"
-											},
-											"exists": {
-												"const": false
-											}
-										},
-										"$ref": "#/$defs/path"
-									}
-								]
-							}
-						}
-					}
-				}
-			]
-		},
-		"cohortCheck": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "cohort"
-				},
-				"status": {
-					"enum": ["pass", "fail"]
-				},
-				"details": {
-					"type": "object"
-				}
-			},
-			"if": {
-				"properties": {
-					"status": {
-						"const": "pass"
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"details": {
-						"type": "object",
-						"required": ["verified"],
-						"additionalProperties": false,
-						"properties": {
-							"verified": {
-								"const": true
-							}
-						}
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"status": {
-								"const": "fail"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"details": {
-								"type": "object",
-								"required": ["verified", "reason"],
-								"additionalProperties": false,
-								"properties": {
-									"verified": {
-										"const": false
-									},
-									"reason": {
-										"enum": ["deadline", "invalid-cohort"]
-									}
-								}
-							}
-						}
-					}
-				}
-			]
-		},
-		"localeCheck": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "locale"
-				},
-				"status": {
-					"const": "pass"
-				},
-				"details": {
-					"type": "object",
-					"required": ["locale", "source"],
-					"additionalProperties": false,
-					"properties": {
-						"locale": {
-							"enum": ["en-US", "zh-CN"]
-						},
-						"source": {
-							"enum": ["LC_ALL", "LC_MESSAGES", "LANG", "default"]
-						}
-					}
-				}
-			}
-		},
-		"socketEntry": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["presence", "status"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"const": "present"
-						},
-						"status": {
-							"const": "pass"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["presence", "status", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"const": "present"
-						},
-						"status": {
-							"const": "fail"
-						},
-						"reason": {
-							"enum": ["io-error", "unsafe"]
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["presence", "status"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"const": "absent"
-						},
-						"status": {
-							"const": "not-applicable"
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["presence", "status", "reason"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"const": "unchecked"
-						},
-						"status": {
-							"const": "not-applicable"
-						},
-						"reason": {
-							"enum": ["runtime-unavailable", "io-error"]
-						}
-					}
-				},
-				{
-					"type": "object",
-					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"enum": ["present", "absent", "unchecked"]
-						},
-						"status": {
-							"const": "fail"
-						},
-						"reason": {
-							"const": "address-too-long"
-						},
-						"path": {
-							"type": "string",
-							"minLength": 1
-						},
-						"pathBytesHex": {
-							"type": "string",
-							"pattern": "^([0-9a-f]{2})+$"
-						},
-						"addressBytes": {
-							"type": "integer",
-							"minimum": 1
-						},
-						"addressCapacityBytes": {
-							"type": "integer",
-							"minimum": 1
-						}
-					},
-					"$ref": "#/$defs/path"
-				}
-			]
-		},
-		"socketBudgetEntry": {
-			"oneOf": [
-				{
-					"type": "object",
-					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"const": "unchecked"
-						},
-						"status": {
-							"const": "not-applicable"
-						},
-						"reason": {
-							"const": "presence-not-inspected"
-						},
-						"path": {
-							"type": "string",
-							"minLength": 1
-						},
-						"pathBytesHex": {
-							"type": "string",
-							"pattern": "^([0-9a-f]{2})+$"
-						},
-						"addressBytes": {
-							"type": "integer",
-							"minimum": 1
-						},
-						"addressCapacityBytes": {
-							"type": "integer",
-							"minimum": 1
-						}
-					},
-					"$ref": "#/$defs/path"
-				},
-				{
-					"type": "object",
-					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
-					"additionalProperties": false,
-					"properties": {
-						"presence": {
-							"const": "unchecked"
-						},
-						"status": {
-							"const": "fail"
-						},
-						"reason": {
-							"const": "address-too-long"
-						},
-						"path": {
-							"type": "string",
-							"minLength": 1
-						},
-						"pathBytesHex": {
-							"type": "string",
-							"pattern": "^([0-9a-f]{2})+$"
-						},
-						"addressBytes": {
-							"type": "integer",
-							"minimum": 1
-						},
-						"addressCapacityBytes": {
-							"type": "integer",
-							"minimum": 1
-						}
-					},
-					"$ref": "#/$defs/path"
-				}
-			]
-		},
-		"socketFail": {
-			"type": "object",
-			"required": ["status"],
-			"properties": {
-				"status": {
-					"const": "fail"
-				}
-			}
-		},
-		"socketPass": {
-			"type": "object",
-			"required": ["status"],
-			"properties": {
-				"status": {
-					"const": "pass"
-				}
-			}
-		},
-		"socketsCheck": {
-			"type": "object",
-			"required": ["name", "status", "details"],
-			"additionalProperties": false,
-			"properties": {
-				"name": {
-					"const": "sockets"
-				},
-				"status": {
-					"enum": ["pass", "fail", "not-applicable"]
-				},
-				"details": {
-					"type": "object",
-					"required": ["client", "worker", "clientPending", "host"],
-					"additionalProperties": false,
-					"properties": {
-						"client": {
-							"$ref": "#/$defs/socketEntry"
-						},
-						"worker": {
-							"$ref": "#/$defs/socketEntry"
-						},
-						"clientPending": {
-							"$ref": "#/$defs/socketBudgetEntry"
-						},
-						"host": {
-							"$ref": "#/$defs/socketBudgetEntry"
-						}
-					}
-				}
-			},
-			"if": {
-				"properties": {
-					"details": {
-						"anyOf": [
-							{
-								"properties": {
-									"client": {
-										"$ref": "#/$defs/socketFail"
-									}
-								},
-								"required": ["client"]
-							},
-							{
-								"properties": {
-									"worker": {
-										"$ref": "#/$defs/socketFail"
-									}
-								},
-								"required": ["worker"]
-							},
-							{
-								"properties": {
-									"clientPending": {
-										"$ref": "#/$defs/socketFail"
-									}
-								},
-								"required": ["clientPending"]
-							},
-							{
-								"properties": {
-									"host": {
-										"$ref": "#/$defs/socketFail"
-									}
-								},
-								"required": ["host"]
-							}
-						]
-					}
-				},
-				"required": ["details"]
-			},
-			"then": {
-				"properties": {
-					"status": {
-						"const": "fail"
-					}
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"details": {
-								"not": {
-									"anyOf": [
-										{
-											"properties": {
-												"client": {
-													"$ref": "#/$defs/socketFail"
-												}
-											},
-											"required": ["client"]
-										},
-										{
-											"properties": {
-												"worker": {
-													"$ref": "#/$defs/socketFail"
-												}
-											},
-											"required": ["worker"]
-										},
-										{
-											"properties": {
-												"clientPending": {
-													"$ref": "#/$defs/socketFail"
-												}
-											},
-											"required": ["clientPending"]
-										},
-										{
-											"properties": {
-												"host": {
-													"$ref": "#/$defs/socketFail"
-												}
-											},
-											"required": ["host"]
-										}
-									]
-								},
-								"anyOf": [
-									{
-										"properties": {
-											"client": {
-												"$ref": "#/$defs/socketPass"
-											}
-										},
-										"required": ["client"]
-									},
-									{
-										"properties": {
-											"worker": {
-												"$ref": "#/$defs/socketPass"
-											}
-										},
-										"required": ["worker"]
-									}
-								]
-							}
-						},
-						"required": ["details"]
-					},
-					"then": {
-						"properties": {
-							"status": {
-								"const": "pass"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"details": {
-								"not": {
-									"anyOf": [
-										{
-											"properties": {
-												"client": {
-													"properties": {
-														"status": {
-															"enum": ["fail", "pass"]
-														}
-													},
-													"required": ["status"]
-												}
-											},
-											"required": ["client"]
-										},
-										{
-											"properties": {
-												"worker": {
-													"properties": {
-														"status": {
-															"enum": ["fail", "pass"]
-														}
-													},
-													"required": ["status"]
-												}
-											},
-											"required": ["worker"]
-										},
-										{
-											"properties": {
-												"clientPending": {
-													"properties": {
-														"status": {
-															"enum": ["fail", "pass"]
-														}
-													},
-													"required": ["status"]
-												}
-											},
-											"required": ["clientPending"]
-										},
-										{
-											"properties": {
-												"host": {
-													"properties": {
-														"status": {
-															"enum": ["fail", "pass"]
-														}
-													},
-													"required": ["status"]
-												}
-											},
-											"required": ["host"]
-										}
-									]
-								}
-							}
-						},
-						"required": ["details"]
-					},
-					"then": {
-						"properties": {
-							"status": {
-								"const": "not-applicable"
-							}
-						}
-					}
-				}
-			]
-		},
-		"unsupported": {
-			"type": "object",
-			"properties": {
-				"kind": {
-					"const": "unsupported"
-				}
-			},
-			"required": ["kind"],
-			"additionalProperties": false
-		}
-	}
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "orchbee.config.check",
+  "title": "orchbee config check envelope",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "source",
+    "result"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "orchbee.config.check"
+    },
+    "version": {
+      "const": 1
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "local-runtime"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "ok",
+        "checks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/runtimeBaseCheck"
+            },
+            {
+              "$ref": "#/$defs/runtimeDirectoryCheck"
+            },
+            {
+              "$ref": "#/$defs/cohortCheck"
+            },
+            {
+              "$ref": "#/$defs/localeCheck"
+            },
+            {
+              "$ref": "#/$defs/socketsCheck"
+            },
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/userConfigCheck"
+                },
+                {
+                  "$ref": "#/$defs/unsupported"
+                }
+              ]
+            }
+          ],
+          "items": false
+        }
+      },
+      "if": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "type": "object",
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "const": "fail"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "checks"
+        ]
+      },
+      "then": {
+        "properties": {
+          "ok": {
+            "const": false
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "not": {
+                  "contains": {
+                    "type": "object",
+                    "required": [
+                      "status"
+                    ],
+                    "properties": {
+                      "status": {
+                        "const": "fail"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "checks"
+            ]
+          },
+          "then": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "userConfigCheck": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "user-config"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warning",
+            "fail"
+          ]
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "pass",
+              "warning"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "type": "object",
+            "required": [
+              "path",
+              "exists",
+              "newCwd",
+              "worktreeDirectory",
+              "manifestCheck",
+              "manifestCheckSource",
+              "defaultShell",
+              "shellMode",
+              "keyPrefix",
+              "keyOverrides",
+              "windowTitle",
+              "windowTitleDiagnostic",
+              "notificationDelivery",
+              "notificationPosition",
+              "agentSidebarProfile",
+              "spacesSidebarProfile",
+              "notificationAgentDelivery",
+              "notificationDelaySeconds",
+              "notificationSoundEnabled",
+              "notificationAgentSounds",
+              "diagnostics",
+              "diagnosticsOmitted",
+              "themeName"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "exists": {
+                "type": "boolean"
+              },
+              "newCwd": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "worktreeDirectory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "manifestCheck": {
+                "type": "boolean"
+              },
+              "manifestCheckSource": {
+                "enum": [
+                  "default",
+                  "file"
+                ]
+              },
+              "defaultShell": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "shellMode": {
+                "enum": [
+                  "auto",
+                  "login",
+                  "non_login"
+                ]
+              },
+              "keyPrefix": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "keyOverrides": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 37
+              },
+              "windowTitle": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "windowTitleDiagnostic": {
+                "const": null
+              },
+              "notificationDelivery": {
+                "enum": [
+                  "off",
+                  "orchbee",
+                  "terminal",
+                  "system"
+                ]
+              },
+              "notificationPosition": {
+                "enum": [
+                  "top-left",
+                  "top-right",
+                  "bottom-left",
+                  "bottom-right"
+                ]
+              },
+              "agentSidebarProfile": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32768
+              },
+              "spacesSidebarProfile": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32768
+              },
+              "notificationAgentDelivery": {
+                "enum": [
+                  "off",
+                  "orchbee",
+                  "terminal",
+                  "system"
+                ]
+              },
+              "notificationDelaySeconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "notificationSoundEnabled": {
+                "type": "boolean"
+              },
+              "notificationAgentSounds": {
+                "type": "object",
+                "maxProperties": 64,
+                "propertyNames": {
+                  "pattern": "^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$"
+                },
+                "additionalProperties": {
+                  "enum": [
+                    "default",
+                    "on",
+                    "off"
+                  ]
+                }
+              },
+              "diagnostics": {
+                "type": "array",
+                "maxItems": 128,
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "field",
+                    "reason",
+                    "disposition"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+                    },
+                    "disposition": {
+                      "enum": [
+                        "defaulted",
+                        "disabled",
+                        "ignored"
+                      ]
+                    }
+                  }
+                }
+              },
+              "diagnosticsOmitted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65536
+              },
+              "themeName": {
+                "enum": [
+                  "terminal-native",
+                  "one-light",
+                  "one-dark"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "details": {
+            "type": "object",
+            "required": [
+              "field",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "enum": [
+                  "file",
+                  "ORCHBEE_CONFIG_FILE",
+                  "APPDATA"
+                ]
+              },
+              "reason": {
+                "enum": [
+                  "invalid-path",
+                  "invalid-boolean",
+                  "missing",
+                  "io-error",
+                  "not-file",
+                  "too-large",
+                  "invalid-utf8",
+                  "invalid-toml"
+                ]
+              }
+            },
+            "oneOf": [
+              {
+                "properties": {
+                  "field": {
+                    "const": "file"
+                  },
+                  "reason": {
+                    "enum": [
+                      "invalid-path",
+                      "missing",
+                      "io-error",
+                      "not-file",
+                      "too-large",
+                      "invalid-utf8",
+                      "invalid-toml"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "field": {
+                    "enum": [
+                      "ORCHBEE_CONFIG_FILE",
+                      "APPDATA"
+                    ]
+                  },
+                  "reason": {
+                    "const": "invalid-path"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "properties": {
+                  "diagnostics": {
+                    "maxItems": 0
+                  },
+                  "diagnosticsOmitted": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "warning"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "diagnostics": {
+                        "minItems": 1
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "diagnosticsOmitted": {
+                        "minimum": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "path": {
+      "oneOf": [
+        {
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "pathBytesHex"
+          ],
+          "properties": {
+            "pathBytesHex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})+$"
+            }
+          }
+        }
+      ]
+    },
+    "runtimeBaseCheck": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "runtime-base"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "type": "object",
+            "required": [
+              "exists"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pathBytesHex": {
+                "type": "string",
+                "pattern": "^([0-9a-f]{2})+$"
+              },
+              "exists": {
+                "const": true
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "required": [
+                  "pathBytesHex"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "fail"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pathBytesHex": {
+                    "type": "string",
+                    "pattern": "^([0-9a-f]{2})+$"
+                  },
+                  "reason": {
+                    "enum": [
+                      "absent",
+                      "invalid-path",
+                      "io-error",
+                      "unsafe"
+                    ]
+                  },
+                  "exists": {
+                    "type": "boolean"
+                  }
+                },
+                "$ref": "#/$defs/path",
+                "if": {
+                  "properties": {
+                    "reason": {
+                      "const": "absent"
+                    }
+                  },
+                  "required": [
+                    "reason"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "exists"
+                  ],
+                  "properties": {
+                    "exists": {
+                      "const": false
+                    }
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "reason": {
+                          "enum": [
+                            "invalid-path",
+                            "io-error"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "reason"
+                      ]
+                    },
+                    "then": {
+                      "not": {
+                        "required": [
+                          "exists"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "reason": {
+                          "const": "unsafe"
+                        }
+                      },
+                      "required": [
+                        "reason"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "exists"
+                      ],
+                      "properties": {
+                        "exists": {
+                          "const": true
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "runtimeDirectoryCheck": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "runtime-directory"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "not-applicable"
+          ]
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "type": "object",
+            "required": [
+              "exists"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pathBytesHex": {
+                "type": "string",
+                "pattern": "^([0-9a-f]{2})+$"
+              },
+              "exists": {
+                "const": true
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "required": [
+                  "pathBytesHex"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "fail"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pathBytesHex": {
+                    "type": "string",
+                    "pattern": "^([0-9a-f]{2})+$"
+                  },
+                  "reason": {
+                    "enum": [
+                      "io-error",
+                      "unsafe"
+                    ]
+                  },
+                  "exists": {
+                    "type": "boolean"
+                  }
+                },
+                "$ref": "#/$defs/path",
+                "if": {
+                  "properties": {
+                    "reason": {
+                      "const": "io-error"
+                    }
+                  },
+                  "required": [
+                    "reason"
+                  ]
+                },
+                "then": {
+                  "not": {
+                    "required": [
+                      "exists"
+                    ]
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "reason": {
+                          "const": "unsafe"
+                        }
+                      },
+                      "required": [
+                        "reason"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "exists"
+                      ],
+                      "properties": {
+                        "exists": {
+                          "const": true
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not-applicable"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "exists",
+                      "reason"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "pathBytesHex": {
+                        "type": "string",
+                        "pattern": "^([0-9a-f]{2})+$"
+                      },
+                      "reason": {
+                        "const": "absent"
+                      },
+                      "exists": {
+                        "const": false
+                      }
+                    },
+                    "$ref": "#/$defs/path"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "cohortCheck": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "cohort"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "type": "object",
+            "required": [
+              "verified"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "verified": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "fail"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "type": "object",
+                "required": [
+                  "verified",
+                  "reason"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "verified": {
+                    "const": false
+                  },
+                  "reason": {
+                    "enum": [
+                      "deadline",
+                      "invalid-cohort"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "localeCheck": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "locale"
+        },
+        "status": {
+          "const": "pass"
+        },
+        "details": {
+          "type": "object",
+          "required": [
+            "locale",
+            "source"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "locale": {
+              "enum": [
+                "en-US",
+                "zh-CN"
+              ]
+            },
+            "source": {
+              "enum": [
+                "LC_ALL",
+                "LC_MESSAGES",
+                "LANG",
+                "default"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "socketEntry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "const": "present"
+            },
+            "status": {
+              "const": "pass"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "const": "present"
+            },
+            "status": {
+              "const": "fail"
+            },
+            "reason": {
+              "enum": [
+                "io-error",
+                "unsafe"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "const": "absent"
+            },
+            "status": {
+              "const": "not-applicable"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "const": "unchecked"
+            },
+            "status": {
+              "const": "not-applicable"
+            },
+            "reason": {
+              "enum": [
+                "runtime-unavailable",
+                "io-error"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status",
+            "reason",
+            "addressBytes",
+            "addressCapacityBytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "enum": [
+                "present",
+                "absent",
+                "unchecked"
+              ]
+            },
+            "status": {
+              "const": "fail"
+            },
+            "reason": {
+              "const": "address-too-long"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pathBytesHex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})+$"
+            },
+            "addressBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "addressCapacityBytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "$ref": "#/$defs/path"
+        }
+      ]
+    },
+    "socketBudgetEntry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status",
+            "reason",
+            "addressBytes",
+            "addressCapacityBytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "const": "unchecked"
+            },
+            "status": {
+              "const": "not-applicable"
+            },
+            "reason": {
+              "const": "presence-not-inspected"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pathBytesHex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})+$"
+            },
+            "addressBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "addressCapacityBytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "$ref": "#/$defs/path"
+        },
+        {
+          "type": "object",
+          "required": [
+            "presence",
+            "status",
+            "reason",
+            "addressBytes",
+            "addressCapacityBytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "presence": {
+              "const": "unchecked"
+            },
+            "status": {
+              "const": "fail"
+            },
+            "reason": {
+              "const": "address-too-long"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pathBytesHex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})+$"
+            },
+            "addressBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "addressCapacityBytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "$ref": "#/$defs/path"
+        }
+      ]
+    },
+    "socketFail": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "fail"
+        }
+      }
+    },
+    "socketPass": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "const": "pass"
+        }
+      }
+    },
+    "socketsCheck": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "sockets"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "not-applicable"
+          ]
+        },
+        "details": {
+          "type": "object",
+          "required": [
+            "client",
+            "worker",
+            "clientPending",
+            "host"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "client": {
+              "$ref": "#/$defs/socketEntry"
+            },
+            "worker": {
+              "$ref": "#/$defs/socketEntry"
+            },
+            "clientPending": {
+              "$ref": "#/$defs/socketBudgetEntry"
+            },
+            "host": {
+              "$ref": "#/$defs/socketBudgetEntry"
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "details": {
+            "anyOf": [
+              {
+                "properties": {
+                  "client": {
+                    "$ref": "#/$defs/socketFail"
+                  }
+                },
+                "required": [
+                  "client"
+                ]
+              },
+              {
+                "properties": {
+                  "worker": {
+                    "$ref": "#/$defs/socketFail"
+                  }
+                },
+                "required": [
+                  "worker"
+                ]
+              },
+              {
+                "properties": {
+                  "clientPending": {
+                    "$ref": "#/$defs/socketFail"
+                  }
+                },
+                "required": [
+                  "clientPending"
+                ]
+              },
+              {
+                "properties": {
+                  "host": {
+                    "$ref": "#/$defs/socketFail"
+                  }
+                },
+                "required": [
+                  "host"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "details"
+        ]
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "fail"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "details": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "client": {
+                          "$ref": "#/$defs/socketFail"
+                        }
+                      },
+                      "required": [
+                        "client"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "worker": {
+                          "$ref": "#/$defs/socketFail"
+                        }
+                      },
+                      "required": [
+                        "worker"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "clientPending": {
+                          "$ref": "#/$defs/socketFail"
+                        }
+                      },
+                      "required": [
+                        "clientPending"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "host": {
+                          "$ref": "#/$defs/socketFail"
+                        }
+                      },
+                      "required": [
+                        "host"
+                      ]
+                    }
+                  ]
+                },
+                "anyOf": [
+                  {
+                    "properties": {
+                      "client": {
+                        "$ref": "#/$defs/socketPass"
+                      }
+                    },
+                    "required": [
+                      "client"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "worker": {
+                        "$ref": "#/$defs/socketPass"
+                      }
+                    },
+                    "required": [
+                      "worker"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "details"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "details": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "client": {
+                          "properties": {
+                            "status": {
+                              "enum": [
+                                "fail",
+                                "pass"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "client"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "worker": {
+                          "properties": {
+                            "status": {
+                              "enum": [
+                                "fail",
+                                "pass"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "worker"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "clientPending": {
+                          "properties": {
+                            "status": {
+                              "enum": [
+                                "fail",
+                                "pass"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "clientPending"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "host": {
+                          "properties": {
+                            "status": {
+                              "enum": [
+                                "fail",
+                                "pass"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "host"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "details"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "not-applicable"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "unsupported": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unsupported"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    }
+  }
 }

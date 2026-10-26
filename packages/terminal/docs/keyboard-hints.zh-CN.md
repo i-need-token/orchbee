@@ -1,16 +1,8 @@
-# Kitty 键盘 Hints 对齐
+# 键盘提示
 
-## 参考范围
+## 范围
 
-本契约采用 2026-08-27 观察到的 Kitty commit
-`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 中 hints kitten 的常见可见文本选择工作流。
-Kitty 的 `kitty/options/definition.py` 为可见 URL、路径、hash 与 `path:line` 位置公开键盘入口，
-`kittens/hints/main.py` 则拥有匹配、标签、筛选与结果处理。
-
-Orchbee 把这些常用目标族投影到一个语义 Action，而不复刻 Kitty 的 kitten 进程或多键映射树。
-对齐声明覆盖当前可见文本上的键盘标签、前缀筛选、取消、URL 打开，以及路径、文件位置和 hash
-的精确文本插入。它不声明 Kitty 的可配置正则表达式、字母表、offset、自定义处理器或程序、多选、
-鼠标选择、剪贴板模式、行/单词/IP 模式、编辑器启动、文件系统打开或任意 URL Action。
+一个语义 Action 通过键盘标签与前缀筛选选择可见 URL、路径、文件位置和 hash，支持取消、打开 URL 及精确文本插入。不包含可配置匹配器、自定义处理器、多选、鼠标选择、剪贴板模式、编辑器启动或任意程序。
 
 ## 领域契约
 
@@ -50,8 +42,7 @@ Frame 或行修订、视口转换、resize、Presentation 几何变化、焦点�
 
 Workbench 拥有 `terminal.hints.open`；Web 注册投影终端实现，并把它投影到终端上下文菜单、
 Action 搜索、快捷键 Settings 与本地化结果反馈。Apple 和标准平台默认均为 `Mod+Shift+O`。
-这有意不同于 Kitty 的 `kitty_mod+e` URL 入口，因为标准平台的 `Ctrl+Shift+E` 已由向下拆分拥有，
-且当前快捷键目录为每个 Action 支持一个有效绑定，而不是 Kitty 的别名与多键映射。
+标准平台 `Ctrl+Shift+E` 已由向下拆分拥有；当前快捷键目录为每个 Action 支持一个有效绑定。
 
 增加该 Action 会把 Web 的严格设备本地快捷键记录从版本 8 扩展到版本 9。版本 9 reader 会迁移
 精确的 v8 目录与默认值，拒绝与新默认值的冲突，只写入规范 v9 记录，并原样保留 v8 作为回滚快照。

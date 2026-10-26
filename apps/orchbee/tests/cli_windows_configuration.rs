@@ -493,46 +493,6 @@ fn file_level_or_missing_explicit_configuration_stops_every_creation_before_ipc(
         json!({"field": "file", "reason": "not-file"})
     );
     std::fs::remove_dir(&config).unwrap();
-
-    let output = fixture.run_with_env(
-        &["workspace", "create", "--format=json"],
-        None,
-        None,
-        &[(
-            "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-            std::ffi::OsStr::new("not-a-boolean"),
-        )],
-    );
-    assert_eq!(output.status.code(), Some(1));
-    let doc = document(output);
-    validate(&doc, schema);
-    assert_eq!(
-        doc["failure"]["details"],
-        json!({
-            "field": "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-            "reason": "invalid-boolean",
-        })
-    );
-    let checked = fixture.run_with_env(
-        &["config", "check", "--format=json"],
-        None,
-        None,
-        &[(
-            "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-            std::ffi::OsStr::new("not-a-boolean"),
-        )],
-    );
-    assert_eq!(checked.status.code(), Some(1));
-    let checked = document(checked);
-    validate(&checked, check_schema);
-    assert_eq!(checked["result"]["checks"][5]["status"], "fail");
-    assert_eq!(
-        checked["result"]["checks"][5]["details"],
-        json!({
-            "field": "ORCHBEE_RESUME_AGENTS_ON_RESTORE",
-            "reason": "invalid-boolean",
-        })
-    );
 }
 
 #[test]
@@ -554,7 +514,7 @@ fn field_errors_warn_default_or_disable_only_the_affected_setting() {
             "ignored",
         ),
         (
-            "[ui.toast]\ndelivery='herdr'",
+            "[ui.toast]\ndelivery='invalid-provider'",
             "ui.toast.delivery",
             "invalid-mode",
             "defaulted",

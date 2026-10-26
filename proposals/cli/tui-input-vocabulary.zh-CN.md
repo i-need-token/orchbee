@@ -5,7 +5,7 @@
 | 状态     | 提请产品决策人验收的草案。本文尚无任何已接受内容；每个新键位、mode、手势规则与 wire 请求都标注为 provisional，只有经过与父 contract 相同的验收路径才生效                                                                                  |
 | 负责人   | 产品命令体验，以及 Rust `orchbee` Client TUI 输入路径、Server 语义命令边界与 terminal protocol 的维护者                                                                                                                                   |
 | 父设计   | [`native-command-surface.md`](native-command-surface.md) 拥有已接受的 TUI Client contract 与 `Ctrl+B` initial map；[`native-runtime-topology.md`](../platform/native-runtime-topology.md) 拥有共享 Workbench document 与 Client View 边界 |
-| 决策权威 | 产品决策人决定二级输入结构、各 provisional 键位表、每项 wire 准入请求以及 mouse-capture 策略。Astra 的调研结论已把 floating panes、插件系统、可配置键位文件、tmux session 语义与客户端 tiling 排除在范围外                                |
+| 决策权威 | 产品决策人决定二级输入结构、各 provisional 键位表、每项 wire 准入请求以及 mouse-capture 策略。Astra 的调研结论已把 floating panes、插件系统、可配置键位文件、multiplexer session 语义与客户端 tiling 排除在范围外                         |
 | 退出条件 | 本词汇的一个已接受切片落入所属 app 文档、输入实现与测试；届时本提案退役或缩减为尚未接受的剩余部分                                                                                                                                         |
 
 英文规范原文：
@@ -98,10 +98,10 @@ shortcut help、literal-prefix 转发与前缀取消：
 `SetHistoryDemand`、`SelectionGesture`）、或纯 Client-local 的 view/session 转换。因此第二
 级只是 Client-local 输入问题——wire 与 Server contract 永远看不到它。
 
-- **(a) `Ctrl+B` 下的二级前缀（tmux 式扩展）。** 一级键武装一个具名 sub-prefix，第二个键
+- **(a) `Ctrl+B` 下的二级前缀。** 一级键武装一个具名 sub-prefix，第二个键
   触发动作。每个序列保持两次按键且不引入可见状态，但每个 sub-prefix 又是个要背的魔法字
   母，悬空的 armed prefix 需要自己的 timeout/dismiss 规则，而且不打开 help 就看不到分组。
-- **(b) 显式 mode 族（Zellij 式）。** 前缀键进入带可见指示的具象名 mode；mode 内整个键盘
+- **(b) 显式 mode 族。** 前缀键进入带可见指示的具象名 mode；mode 内整个键盘
   重绑定到该域，直到 Escape。mode 按域复用同一批字母，廉价吸收大型低频域，让重复操作高
   效。代价是 modal 风险：忘记所处 mode 的用户会迷失，除非指示恒可见且 Escape 总能退出。
 - **(c) 命令面板 / `:` 命令行。** 一个绑定打开行编辑器，按 CLI noun/verb 语法输入命令，
@@ -229,7 +229,7 @@ app 开启自己的 mouse reporting 时，其 viewport 内的拖拽属于该 app
 
 ## 非目标
 
-- floating panes、插件系统、可配置键位文件、tmux session 语义与客户端 tiling 已由既定
+- floating panes、插件系统、可配置键位文件、multiplexer session 语义与客户端 tiling 已由既定
   调研结论排除。
 - 本提案不改任何代码；实现按验收后的切片各自落地。
 - 除明确列出的 wire 缺口请求外，本文不设计任何新的 Server 语义。
