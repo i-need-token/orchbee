@@ -3,10 +3,9 @@ use crate::{
     cli::{
         Failure, FailureKind,
         client_control::{exchange::exchange, selection},
+        console_interrupt::SignalWatch,
         current_presentation::{self, Origin, Resolved},
-        query, results,
-        source::ArmedSignals,
-        workbench_query, workbench_worktrees,
+        query, results, workbench_query, workbench_worktrees,
     },
     invocation::{QueryCommand, Target},
     local_client::LocalClient,
@@ -28,7 +27,7 @@ pub(in crate::cli) fn resolve(
     provided: PluginInvocationContext,
     operation_id: &str,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<PluginInvocationContext, Failure> {
     observe(
         client,
@@ -50,7 +49,7 @@ pub(in crate::cli) fn observe(
     provided: PluginInvocationContext,
     operation_id: &str,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<
     (
         PluginInvocationContext,

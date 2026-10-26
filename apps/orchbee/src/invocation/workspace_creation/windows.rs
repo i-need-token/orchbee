@@ -1,4 +1,4 @@
-//! Resolve admitted Workspace paths/programs in the executing Windows CLI.
+//! Resolve the explicit Windows Workspace path policy after execution admission.
 use super::{
     CreationDirectory, OutputFormat, ParseFailure, ParsedWorkspaceCreationCommand,
     ParsedWorkspaceCreationDirectory, UsageContext, WorkspaceCreationCommand, path_failure,

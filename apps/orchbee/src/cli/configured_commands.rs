@@ -3,8 +3,8 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{self, exchange::exchange, selection},
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, output, query,
-    source::{ArmedSignals, Finish, SignalWatch},
 };
 use crate::{
     invocation::{ClientNavigationTarget, OutputFormat, Target, configured_commands::Command},
@@ -20,6 +20,10 @@ use orchbee_workbench_protocol::{
 use std::time::{Duration, Instant};
 
 pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::ConfiguredCommands)
+    {
+        return failure_output(failure, Some(format), locale);
+    }
     let timeout = match command {
         Command::Invoke(invocation) => invocation.timeout_ms,
         Command::List => 5_000,

@@ -16,7 +16,6 @@ pub(crate) mod panel_agent;
 pub(crate) mod panel_metadata;
 mod panel_metadata_query;
 pub(crate) mod panel_terminal_creation;
-#[cfg(windows)]
 pub(crate) mod plugins;
 mod report_target;
 pub(crate) mod runtime_configuration;
@@ -25,7 +24,6 @@ pub(crate) mod window_title;
 pub(crate) mod workspace_metadata;
 pub(crate) use schema_export::run as export_schema;
 mod client_control;
-#[cfg(windows)]
 pub(crate) mod configured_commands;
 #[cfg(windows)]
 pub(crate) mod events;
@@ -48,10 +46,6 @@ mod current_panel;
 mod current_presentation;
 mod launch_receipt;
 mod source_context;
-#[cfg(windows)]
-pub(crate) mod workspace_creation;
-#[cfg(not(windows))]
-#[path = "cli/workspace_creation_unix.rs"]
 pub(crate) mod workspace_creation;
 mod workspace_focus;
 pub(crate) use creation::run_parsed as run_creation;
@@ -75,13 +69,8 @@ pub(crate) mod escape;
 pub(crate) mod integration;
 pub(crate) mod layouts;
 mod mutation;
-#[cfg(windows)]
 pub(crate) mod named_sessions;
 pub(crate) mod output;
-#[cfg(windows)]
-pub(crate) mod panel_relocation;
-#[cfg(not(windows))]
-#[path = "cli/panel_relocation_unix.rs"]
 pub(crate) mod panel_relocation;
 pub(crate) mod present;
 pub(crate) use crate::agent_runtime::processes;

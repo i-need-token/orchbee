@@ -1,5 +1,5 @@
 //! Preserve the Unix Workbench create/launch routes behind the shared parsed request.
-use super::Output;
+use crate::cli::Output;
 use crate::invocation::workspace_creation::ParsedWorkspaceCreationDirectory as Directory;
 use crate::invocation::{
     ExpectedValue, MutationCommand, OutputFormat, ParsedWorkspaceCreationCommand, UsageContext,
@@ -7,20 +7,25 @@ use crate::invocation::{
 };
 use crate::localization::Locale;
 
-pub(crate) fn run(
+pub(super) fn run(
     command: ParsedWorkspaceCreationCommand,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::WorkbenchMutation)
+    {
+        return crate::cli::failure_output(failure, Some(format), locale);
+    }
     let context = UsageContext::Path("workspace create");
     let envelope = selection_envelope(Some(format));
     if command.source.is_some() || command.client.is_some() || command.focus {
-        return super::unsupported_platform(Some(format), locale);
+        return crate::cli::unsupported_platform(Some(format), locale);
     }
     let (Some(project), Some(label)) = (command.project, command.label) else {
         // The common grammar admits the Windows default/source workflow. Unix's existing
         // Workbench route needs an explicit project and label and does not emulate it.
-        return super::unsupported_platform(Some(format), locale);
+        return crate::cli::unsupported_platform(Some(format), locale);
     };
     let directory = match command.directory {
         Directory::Default => None,
@@ -28,7 +33,7 @@ pub(crate) fn run(
             match orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(path.as_str()) {
                 Ok(path) => Some(path),
                 Err(_) => {
-                    return super::parse_failure(
+                    return crate::cli::parse_failure(
                         usage_with(
                             UsageReason::InvalidValue {
                                 context,
@@ -44,13 +49,13 @@ pub(crate) fn run(
             }
         }
         Directory::Follow | Directory::Home | Directory::Current | Directory::Workspace => {
-            return super::unsupported_platform(Some(format), locale);
+            return crate::cli::unsupported_platform(Some(format), locale);
         }
     };
     let mutation = if let Some(directory) = directory {
         let launch = match crate::invocation::program::resolve(command.launch, context, envelope) {
             Ok(launch) => launch,
-            Err(failure) => return super::parse_failure(failure, locale),
+            Err(failure) => return crate::cli::parse_failure(failure, locale),
         };
         let mut options = command.options;
         options.cwd = Some(directory);
@@ -67,9 +72,9 @@ pub(crate) fn run(
             || command.profile.is_some()
             || command.options != Default::default()
         {
-            return super::unsupported_platform(Some(format), locale);
+            return crate::cli::unsupported_platform(Some(format), locale);
         }
-        return super::mutation::create_workspace(&project, &label, format, locale);
+        return crate::cli::mutation::create_workspace(&project, &label, format, locale);
     };
-    super::mutation(mutation, format, locale)
+    crate::cli::mutation(mutation, format, locale)
 }

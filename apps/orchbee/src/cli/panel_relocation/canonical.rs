@@ -1,18 +1,18 @@
 //! Existing Unix Panel moves retain their Workbench mutation route.
-use super::Output;
+use crate::cli::Output;
 use crate::invocation::{
     MutationCommand, OutputFormat, PanelMoveDestination, PanelRelocationCommand,
     PanelRelocationDestination,
 };
 use crate::localization::Locale;
 
-pub(crate) fn run(
+pub(super) fn run(
     command: &PanelRelocationCommand,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
     if command.client.is_some() || command.focus.is_some() || command.timeout_ms.is_some() {
-        return super::unsupported_platform(Some(format), locale);
+        return crate::cli::unsupported_platform(Some(format), locale);
     }
     let destination = match &command.destination {
         PanelRelocationDestination::Tab {
@@ -37,10 +37,10 @@ pub(crate) fn run(
         }
         | PanelRelocationDestination::NewTab { label: None, .. }
         | PanelRelocationDestination::NewWorkspace { .. } => {
-            return super::unsupported_platform(Some(format), locale);
+            return crate::cli::unsupported_platform(Some(format), locale);
         }
     };
-    super::mutation(
+    crate::cli::mutation(
         MutationCommand::PanelMove {
             target: command.source.clone(),
             destination,

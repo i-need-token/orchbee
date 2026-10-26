@@ -2,7 +2,7 @@
 //! deletion with typed receipts. It does not adopt unregistered processes or infer a running
 //! Session solely from an endpoint pathname.
 
-use super::source::{ArmedSignals, Finish, SignalWatch};
+use super::console_interrupt::{ArmedSignals, Finish, SignalWatch};
 use super::{Failure, FailureKind, Output, config, failure_output, output};
 use crate::{
     invocation::{NamedSessionCommand, OutputFormat},
@@ -60,6 +60,9 @@ impl SessionState {
 }
 
 pub(crate) fn run(command: &NamedSessionCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::NamedSessions) {
+        return failure_output(failure, Some(format), locale);
+    }
     match command {
         NamedSessionCommand::Attach { mouse, .. } => {
             let result = match crate::local_startup::run(locale, *mouse) {

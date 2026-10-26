@@ -1,7 +1,8 @@
 //! One invocation submission, or a finite newest-first log read under one deadline.
 use super::super::{
-    Failure, FailureKind, Output, failure_output, output, query,
-    source::{ArmedSignals, Finish, SignalWatch},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    failure_output, output, query,
 };
 use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},

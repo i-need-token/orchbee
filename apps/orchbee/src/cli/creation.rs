@@ -9,25 +9,26 @@ use crate::{
 use orchbee_workbench_protocol::WorkbenchLabel;
 
 pub(super) mod directory;
-#[cfg(windows)]
 mod receipt;
-#[cfg(windows)]
 mod targeting;
-#[cfg(windows)]
-mod windows;
+mod workflow;
 
 pub(crate) fn run_parsed(
     command: &CreationCommand<crate::invocation::program::ParsedLaunch>,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    let route = match Route::select(command) {
+        Ok(route) => route,
+        Err(failure) => return super::failure_output(failure, Some(format), locale),
+    };
     let named = matches!(
         command.launch,
         Some(crate::invocation::program::ParsedLaunch::Path { .. })
     );
     match command.clone().into_resolved(format) {
         Ok(command) => {
-            let output = run(&command, format, locale);
+            let output = route.run(&command, format, locale);
             super::launch_receipt::annotate(
                 output,
                 command.launch.as_ref().filter(|_| named),
@@ -40,13 +41,29 @@ pub(crate) fn run_parsed(
 }
 
 pub(crate) fn run(command: &CreationCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(command, format, locale)
+    match Route::select(command) {
+        Ok(route) => route.run(command, format, locale),
+        Err(failure) => super::failure_output(failure, Some(format), locale),
     }
-    #[cfg(not(windows))]
-    {
-        // Preserve the preexisting explicit creation route; the new workflow is Windows-only.
+}
+
+enum Route {
+    Extended,
+    Canonical {
+        context: Option<TabContext>,
+        target: Option<Target>,
+        label: WorkbenchLabel,
+    },
+}
+
+impl Route {
+    fn select<L>(command: &CreationCommand<L>) -> Result<Self, super::Failure> {
+        let failure = match super::execution::admit(super::execution::Capability::ExtendedCreation)
+        {
+            Ok(()) => return Ok(Self::Extended),
+            Err(failure) => failure,
+        };
+        // Preserve the existing explicit Unix route without admitting Client-only effects.
         let explicit = match &command.kind {
             CreationKind::Tab {
                 context: Some(context),
@@ -66,19 +83,25 @@ pub(crate) fn run(command: &CreationCommand, format: OutputFormat, locale: Local
             && command.client.is_none()
             && let (Some((context, target)), Some(label)) = (explicit, &command.label)
         {
-            return super::mutation::run(
-                &canonical(command, context, target, label.clone()),
-                format,
-                locale,
-            );
+            super::execution::admit(super::execution::Capability::WorkbenchMutation)?;
+            return Ok(Self::Canonical {
+                context,
+                target,
+                label: label.clone(),
+            });
         }
-        super::failure_output(
-            super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
+        Err(failure)
+    }
+
+    fn run(self, command: &CreationCommand, format: OutputFormat, locale: Locale) -> Output {
+        match self {
+            Self::Extended => workflow::run(command, format, locale),
+            Self::Canonical {
+                context,
+                target,
+                label,
+            } => super::mutation::run(&canonical(command, context, target, label), format, locale),
+        }
     }
 }
 

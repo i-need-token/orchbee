@@ -1,4 +1,5 @@
 //! Retained terminal relocation with atomic directory binding and acknowledged Client effects.
+mod canonical;
 mod receipt;
 mod targeting;
 mod view;
@@ -6,8 +7,8 @@ use super::{
     Failure, FailureKind, Output,
     caller_context::PanelTarget,
     client_control::{exchange as control, selection},
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
     failure_output, mutation, query, results,
-    source::{ArmedSignals, Finish, SignalWatch},
 };
 use crate::{
     invocation::{
@@ -33,6 +34,14 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if super::execution::admit(super::execution::Capability::ExtendedCreation).is_ok() {
+        run_extended(command, format, locale)
+    } else {
+        canonical::run(command, format, locale)
+    }
+}
+
+fn run_extended(command: &PanelRelocationCommand, format: OutputFormat, locale: Locale) -> Output {
     let deadline =
         Instant::now() + Duration::from_millis(u64::from(command.timeout_ms.unwrap_or(30_000)));
     let mut signals = match ArmedSignals::arm_interrupts() {

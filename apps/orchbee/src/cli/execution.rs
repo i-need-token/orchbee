@@ -10,12 +10,16 @@ pub(super) enum Capability {
     ClientControl,
     Layout,
     TerminalCreation,
+    ExtendedCreation,
     WorkbenchMutation,
     WorkbenchInspection,
     CanonicalPanelProcess,
     Reports,
     AgentManifests,
     RuntimeStatus,
+    Plugins,
+    ConfiguredCommands,
+    NamedSessions,
 }
 
 pub(super) struct Unsupported(Capability);
@@ -35,12 +39,16 @@ pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
         | Capability::ClientControl
         | Capability::Layout
         | Capability::TerminalCreation
+        | Capability::ExtendedCreation
         | Capability::WorkbenchMutation
         | Capability::WorkbenchInspection
         | Capability::CanonicalPanelProcess
         | Capability::Reports
         | Capability::AgentManifests
-        | Capability::RuntimeStatus => Failure::new(FailureKind::ServiceUnavailable)
+        | Capability::RuntimeStatus
+        | Capability::Plugins
+        | Capability::ConfiguredCommands
+        | Capability::NamedSessions => Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform")),
     })
 }

@@ -14,12 +14,16 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus
+        | Capability::Plugins
+        | Capability::ConfiguredCommands
+        | Capability::NamedSessions
         | Capability::AgentProjection
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation
         | Capability::ClientControl
         | Capability::Layout
         | Capability::WorkbenchInspection
+        | Capability::ExtendedCreation
         | Capability::TerminalCreation => Err(Unsupported(capability)),
     }
 }

@@ -1,4 +1,4 @@
-//! Executes Windows terminal creation workflows by resolving captured targets, submitting
+//! Executes admitted terminal creation workflows by resolving captured targets, submitting
 //! canonical operations, and observing requested Client presentation under one budget. It does
 //! not invent membership from local state or roll back unknown physical effects.
 
@@ -11,8 +11,8 @@ use crate::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
         client_control::{exchange as control, selection},
+        console_interrupt::{ArmedSignals, Finish},
         failure_output, mutation, query,
-        source::{ArmedSignals, Finish, SignalWatch},
     },
     invocation::{CreationCommand, CreationKind, OutputFormat},
     local_client::LocalClient,

@@ -3,10 +3,7 @@
 use std::time::Instant;
 
 use crate::{
-    cli::{
-        Failure, FailureKind, results,
-        source::{ArmedSignals, SignalWatch},
-    },
+    cli::{Failure, FailureKind, console_interrupt::SignalWatch, results},
     local_client::LocalClient,
     terminal_link_activation::{self, Error, Guard, SnapshotMember},
 };
@@ -17,11 +14,14 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalContextId, WorkerId,
 };
 
-pub(in crate::cli) use crate::terminal_link_activation::{Activation, Invocation, Selection};
+pub(in crate::cli) use crate::terminal_link_activation::{
+    Activation,
+    plugin::{Invocation, Selection},
+};
 
-struct CliGuard<'a>(&'a mut ArmedSignals);
+struct CliGuard<'a, S: SignalWatch>(&'a mut S);
 
-impl Guard for CliGuard<'_> {
+impl<S: SignalWatch> Guard for CliGuard<'_, S> {
     type Error = Failure;
 
     fn check(&mut self, deadline: Instant) -> Result<(), Self::Error> {
@@ -55,7 +55,7 @@ fn failure(error: Error<Failure>) -> Failure {
 pub(in crate::cli) fn select(
     url: &str,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Option<Selection>, Failure> {
     terminal_link_activation::plugin::select(url, deadline, &mut CliGuard(signals))
         .map(|snapshot| snapshot.selection)
@@ -76,7 +76,7 @@ pub(in crate::cli) fn observe(
     pane_directory: Option<String>,
     preflight: terminal_link_activation::plugin::Preflight,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(Invocation, SnapshotMember), Failure> {
     let member = snapshot_member(snapshot, terminal)?;
     let context = terminal_link_activation::context::observe(
@@ -98,7 +98,7 @@ pub(in crate::cli) fn fence(
     snapshot: &Snapshot,
     member: &SnapshotMember,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(), Failure> {
     terminal_link_activation::context::fence_member(
         client,
@@ -133,7 +133,7 @@ pub(in crate::cli) fn submit(
     snapshot: &Snapshot,
     invocation: Invocation,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Activation, Failure> {
     terminal_link_activation::plugin::submit(
         client,

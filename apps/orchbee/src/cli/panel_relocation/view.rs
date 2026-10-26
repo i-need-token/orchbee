@@ -7,8 +7,8 @@ use crate::{
     cli::{
         Failure, FailureKind,
         client_control::{Answer, exchange as control},
+        console_interrupt::{ArmedSignals, SignalWatch},
         query,
-        source::ArmedSignals,
     },
     local_client::LocalClient,
 };

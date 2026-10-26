@@ -169,13 +169,10 @@ fn main() -> ExitCode {
                 | invocation::Request::TerminalLink { format, .. }
                 | invocation::Request::TerminalCopy { format, .. }
                 | invocation::Request::TerminalSelection { format, .. }
-                | invocation::Request::Plugin { format, .. }
-                | invocation::Request::ConfiguredCommand { format, .. }
                 | invocation::Request::PaneGraphics { format, .. }
                 | invocation::Request::Events { format, .. }
                 | invocation::Request::ChannelShow { format, .. }
                 | invocation::Request::Update { format, .. }
-                | invocation::Request::NamedSession { format, .. }
                 | invocation::Request::AgentView { format, .. },
             ) => cli::unsupported_platform(Some(format), locale),
             #[cfg(not(windows))]
@@ -254,11 +251,9 @@ fn main() -> ExitCode {
                 cli::workspace_creation::run(command, format, locale)
             }
             Ok(invocation::Request::ServerStart { format }) => cli::session_start(format, locale),
-            #[cfg(windows)]
             Ok(invocation::Request::Plugin { command, format }) => {
                 cli::plugins::run(command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::ConfiguredCommand { command, format }) => {
                 cli::configured_commands::run(&command, format, locale)
             }
@@ -279,7 +274,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::NamedSession { command, format }) => {
                 cli::named_sessions::run(&command, format, locale)
             }

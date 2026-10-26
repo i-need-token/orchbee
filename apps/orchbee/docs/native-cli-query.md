@@ -20,6 +20,8 @@ Workbench and terminal-list enrichment share bounded canonical/physical reads, p
 
 Report submission, Agent manifest maintenance and runtime-status collection share their protocol settlement and rendering owners. Native installation observation remains a Windows port: only a missing release file means a development cohort, and failed verification remains unavailable. Unsupported hosts refuse these commands before signal, environment or filesystem effects.
 
+Plugin catalog/runtime commands, configured commands and named-Session commands share preparation, settlement and presentation. Plugin provisioning obtains a native process runner; Unix refusal never fabricates a process outcome. Creation and relocation keep their shared canonical and Client receipts, while the existing explicit Unix Tab, Panel and Workspace routes retain their own request requirements. Capability selection precedes launch-path resolution and preserves Windows execution order.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

@@ -4,8 +4,9 @@ use crate::{
     cli::{
         Failure, FailureKind, Output,
         caller_context::PanelTarget,
-        client_control, failure_output, output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
+        client_control,
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        failure_output, output, query,
     },
     invocation::{OutputFormat, plugins::panes::Open},
     localization::Locale,

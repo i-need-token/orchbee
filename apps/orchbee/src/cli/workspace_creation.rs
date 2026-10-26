@@ -1,10 +1,11 @@
 //! One atomic Workspace launch with optional organization, then separately receipted Client focus.
+mod canonical;
 mod receipt;
 mod source;
 use super::{
-    Failure, FailureKind, Output, failure_output, mutation, query,
-    source::{ArmedSignals, Finish, SignalWatch},
-    workspace_focus,
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish, SignalWatch},
+    failure_output, mutation, query, workspace_focus,
 };
 use crate::{
     invocation::{
@@ -18,6 +19,18 @@ use receipt::Receipt;
 use std::time::{Duration, Instant};
 
 pub(crate) fn run(
+    command: ParsedWorkspaceCreationCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    if super::execution::admit(super::execution::Capability::ExtendedCreation).is_ok() {
+        run_extended(command, format, locale)
+    } else {
+        canonical::run(command, format, locale)
+    }
+}
+
+fn run_extended(
     command: ParsedWorkspaceCreationCommand,
     format: OutputFormat,
     locale: Locale,

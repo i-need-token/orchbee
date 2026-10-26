@@ -38,7 +38,6 @@ pub(crate) enum ParsedWorkspaceCreationDirectory {
 pub(crate) type ParsedWorkspaceCreationCommand =
     WorkspaceCreationCommand<ParsedWorkspaceCreationDirectory, super::program::ParsedLaunch>;
 
-#[cfg(windows)]
 mod windows;
 
 fn path_failure(

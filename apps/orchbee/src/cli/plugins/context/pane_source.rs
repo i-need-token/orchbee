@@ -5,9 +5,8 @@ use crate::{
         Failure, FailureKind,
         caller_context::PanelTarget,
         client_control::{exchange as control, selection},
-        query, results,
-        source::ArmedSignals,
-        workbench_agents, workbench_query,
+        console_interrupt::SignalWatch,
+        query, results, workbench_agents, workbench_query,
     },
     invocation::{MutationCommand, TabContext, Target},
     local_client::LocalClient,
@@ -94,7 +93,7 @@ impl<'a> Source<'a> {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<Observation, Failure> {
         let caller = if self.explicit.is_none() {
             PanelTarget::prepare_optional(|name| std::env::var_os(name))?
@@ -225,7 +224,7 @@ impl Memory {
         record: &ClientViewRecord,
         context: &WorkbenchTerminalContextId,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<Self, Failure> {
         let ClientViewControlStatus::NavigationRead { navigation, view } = read_status(
             client,
@@ -314,7 +313,7 @@ impl Fence {
         client: &mut LocalClient,
         snapshot: &Snapshot,
         deadline: Instant,
-        signals: &mut ArmedSignals,
+        signals: &mut impl SignalWatch,
     ) -> Result<(), Failure> {
         if let Some(memory) = self.memory {
             let fresh = Memory::read(
@@ -354,7 +353,7 @@ fn read_status(
     record: &ClientViewRecord,
     intent: ClientViewIntent,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<ClientViewControlStatus, Failure> {
     signals.check_before(deadline)?;
     let command = ClientViewControl {

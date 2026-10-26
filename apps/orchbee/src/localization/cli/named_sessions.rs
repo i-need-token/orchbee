@@ -1,12 +1,9 @@
 use super::Locale;
-#[cfg(windows)]
 use crate::cli::named_sessions::SessionState;
 use crate::invocation::CommandPath;
-#[cfg(windows)]
 use orchbee_local_runtime::NamedSessionDeleteReason as Reason;
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_session_state(self, state: SessionState) -> &'static str {
         match self {
             Self::EnUs => match state {
@@ -29,7 +26,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_session_delete(
         self,
         name: &str,

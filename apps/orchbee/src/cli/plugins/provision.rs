@@ -1,7 +1,8 @@
 //! Explicit offline plugin source workflow; this invocation owns every Git/build Job.
 use super::super::{
-    Failure, FailureKind, Output, failure_output, output, query,
-    source::{ArmedSignals, Finish, SignalWatch},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish},
+    failure_output, output, query,
 };
 use crate::{
     invocation::{OutputFormat, plugins::PluginCommand},
@@ -10,15 +11,32 @@ use crate::{
 use orchbee_local_runtime::{
     CommandFailure, CommandOutput, PluginProvisionCommand, PluginProvisionExecutor,
     PluginProvisionFailure, PluginProvisionReport, PluginProvisionStage, PluginRegistry,
-    resolve_windows_program, run_windows_command,
 };
 use std::{
     fmt::Write,
-    process::Command,
     time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+#[path = "provision/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "provision/unix.rs"]
+mod platform;
+
+struct Unsupported;
+
+trait NativeRunner {
+    fn run(
+        &mut self,
+        step: &PluginProvisionCommand,
+        deadline: Instant,
+        signals: &mut ArmedSignals,
+    ) -> CommandOutput;
+}
+
 struct Executor {
+    native: Box<dyn NativeRunner>,
     signals: ArmedSignals,
     deadline: Instant,
 }
@@ -38,27 +56,14 @@ impl PluginProvisionExecutor for Executor {
         }
     }
     fn run(&mut self, step: &PluginProvisionCommand) -> CommandOutput {
-        let mut command = Command::new(resolve_windows_program(&step.argv[0], &step.directory));
-        command.args(&step.argv[1..]).current_dir(&step.directory);
-        // Build steps are source provisioning, not participants in a live Session.
-        for (name, _) in std::env::vars_os() {
-            if name
-                .to_string_lossy()
-                .to_ascii_uppercase()
-                .starts_with("ORCHBEE_")
-            {
-                command.env_remove(name);
-            }
-        }
-        command
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .env("GCM_INTERACTIVE", "never");
-        run_windows_command(command, Some(self.deadline), || {
-            self.signals.take().map(|s| s.is_some())
-        })
+        self.native.run(step, self.deadline, &mut self.signals)
     }
 }
 pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
+    let native = match platform::runner() {
+        Ok(native) => native,
+        Err(Unsupported) => return super::super::unsupported_platform(Some(format), locale),
+    };
     let timeout = match &command {
         PluginCommand::Install { timeout_ms, .. } => *timeout_ms,
         _ => 10_000,
@@ -83,6 +88,7 @@ pub(super) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) 
         }
     };
     let mut executor = Executor {
+        native,
         signals,
         deadline: Instant::now() + Duration::from_millis(u64::from(timeout)),
     };

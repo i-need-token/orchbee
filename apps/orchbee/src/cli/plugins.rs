@@ -1,5 +1,4 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
-#[cfg(windows)]
 pub(in crate::cli) mod context;
 mod failure;
 pub(in crate::cli) mod links;
@@ -24,6 +23,9 @@ enum RegistryCommand {
 
 /// Executes complete plugin grammar; link context is resolved before acquiring the catalog.
 pub(crate) fn run(command: PluginCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::Plugins) {
+        return failure_output(failure, Some(format), locale);
+    }
     let command = match command {
         PluginCommand::PopupClose { client, timeout_ms } => {
             return popup::close(client.as_ref(), timeout_ms, format, locale);

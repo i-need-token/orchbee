@@ -72,7 +72,6 @@ impl Receipt {
     pub(super) fn close_request_id(&self) -> Option<&str> {
         self.close_request_id.as_deref()
     }
-    #[cfg(windows)]
     pub(super) fn launch_failure(&self) -> Option<super::FailureKind> {
         match self.terminal.as_ref().map(|terminal| terminal.outcome) {
             Some("pending" | "started") => None,
@@ -82,12 +81,10 @@ impl Receipt {
         }
     }
 
-    #[cfg(windows)]
     pub(super) fn committed_revision(&self) -> Option<WorkbenchRevision> {
         self.revision
     }
 
-    #[cfg(windows)]
     pub(super) fn id_value(&self, name: &str) -> Option<&str> {
         self.ids
             .iter()
@@ -95,7 +92,6 @@ impl Receipt {
             .and_then(|(_, value)| value.as_deref())
     }
 
-    #[cfg(windows)]
     pub(super) fn transfer(&self) -> Option<&orchbee_workbench_protocol::WorkbenchPanelTransfer> {
         self.panel_transfer.as_ref()
     }
@@ -317,20 +313,19 @@ pub(crate) fn run(command: &MutationCommand, format: OutputFormat, locale: Local
     workflow::run(command, format, locale)
 }
 
-#[cfg(target_os = "linux")]
-pub(super) use workflow::create_workspace;
-#[cfg(not(any(target_os = "linux", windows)))]
 pub(super) fn create_workspace(
-    _project: &crate::invocation::Target,
-    _label: &orchbee_workbench_protocol::WorkbenchLabel,
+    project: &crate::invocation::Target,
+    label: &orchbee_workbench_protocol::WorkbenchLabel,
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    super::unsupported_platform(Some(format), locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::WorkbenchMutation) {
+        return failure_output(failure, Some(format), locale);
+    }
+    workflow::create_workspace(project, label, format, locale)
 }
 
 pub(super) use workflow::submit_action;
-#[cfg(windows)]
 pub(super) use workflow::{submit_creation, success_output};
 
 mod workflow {
@@ -616,7 +611,6 @@ mod workflow {
     }
 
     /// Unix's existing empty-Workspace effect is selected only by its creation adapter.
-    #[cfg(target_os = "linux")]
     pub(in crate::cli) fn create_workspace(
         project: &Target,
         label: &orchbee_workbench_protocol::WorkbenchLabel,
@@ -1300,7 +1294,6 @@ mod workflow {
 
     /// Submit exactly one command on the admitted session and map the typed
     /// submission into the receipt/failure matrix.
-    #[cfg(windows)]
     pub(in crate::cli) fn submit_creation(
         client: &mut LocalClient,
         snapshot: &Snapshot,
