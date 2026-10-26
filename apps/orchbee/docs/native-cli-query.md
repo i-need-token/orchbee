@@ -8,6 +8,8 @@ Panel-family commands use a positional Panel or `--current`. Agent targets addit
 
 Syntax and discovery are identical on Windows, Linux and macOS. Unsupported execution returns `stage: "platform"`, `reason: "unsupported-platform"`, exit `4`, in either locale. Parsed requests preserve omitted Agent wait conditions/timeouts and opaque list cursors; each existing backend retains its own defaults, cursor encoding and observation behavior. Unix Workspace creation still uses its existing Workbench create/launch adapter for supported requests. No retired flag, suffix selector, environment fallback or configuration import is restored.
 
+Agent startup, saved-machine management and relay, and configuration reporting keep preparation, settlement and presentation in shared CLI owners. Capability admission precedes environment reads, signal registration, connections and persistence for unavailable operations. Named native ports retain Windows interrupt arbitration, SSH process ownership and bounded input acquisition; Unix refusal does not change existing supported query or configuration-check results.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

@@ -5,6 +5,12 @@ use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport, reset_keybindings
 use serde_json::json;
 
 pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
+    if crate::tui_capabilities::Capability::ConfigurationFile
+        .require()
+        .is_err()
+    {
+        return super::unsupported_platform(Some(format), locale);
+    }
     emit(
         reset_keybindings(|name| std::env::var_os(name)),
         format,

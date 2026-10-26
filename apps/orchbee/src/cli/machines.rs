@@ -2,8 +2,9 @@
 pub(crate) mod routing;
 mod ssh;
 use super::{
-    Failure, FailureKind, Output, failure_output, output,
-    source::{ArmedSignals, Finish, SignalWatch},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish},
+    failure_output, output,
 };
 use crate::{
     invocation::{MachineCommand, OutputFormat},
@@ -109,6 +110,12 @@ struct Report {
     remote: Remote,
 }
 pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale) -> Output {
+    if crate::tui_capabilities::Capability::SavedMachines
+        .require()
+        .is_err()
+    {
+        return super::unsupported_platform(Some(format), locale);
+    }
     let signals = match ArmedSignals::arm_interrupts() {
         Ok(s) => s,
         Err(_) => {

@@ -8,6 +8,8 @@ Panel 命令族使用位置 Panel 或 `--current`。Agent 目标额外接受 `--
 
 Windows、Linux 和 macOS 的语法与可发现性完全一致。不支持的执行在两种语言下均返回 `stage: "platform"`、`reason: "unsupported-platform"`、退出码 `4`。解析请求保留 Agent wait 条件／超时的省略意图及不透明列表游标；现有后端各自保留默认值、游标编码与观察行为。Unix Workspace 创建对已支持请求继续使用原有 Workbench create/launch 适配。不恢复任何已退役参数、后缀选择器、环境变量回退或配置导入。
 
+Agent 启动、已保存机器的管理与中继、配置报告的准备、结算和展示均归共享 CLI 所有者负责。不可用操作的能力准入先于环境读取、信号注册、连接和持久化。具名原生端口保留 Windows 的中断仲裁、SSH 进程所有权及有界输入获取；Unix 拒绝不改变现有已支持的查询或配置检查结果。
+
 ## 会话与后台服务
 
 一个 **Orchbee 会话（Session）** 是包含 Workspace、Tab、Panel、终端和 Agent 的独立工作环境。
@@ -2482,4 +2484,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=a9a93c504c7ecf60f2d71c7b0fe78e9b999687d047a5e2f6173dc0215f87c2c5 zh-cn-sha256=f6aa2cb07bb765ed2bbbb23b4841c18e1abd64e01d639589b16a895ecdf021b4 -->
+<!-- documentation-pairing: english-sha256=eed2d115226f6c33d5bcb756577313946047a37a548d7eec2d04816621950fd9 zh-cn-sha256=8ab9c430ce6840198107bcca119cc84fe6eb705a997b2b8108c9c50048294f1b -->

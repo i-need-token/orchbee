@@ -48,7 +48,7 @@ fn fail(name: &'static str, details: Map<String, Value>) -> CheckReport {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", windows))]
 fn warning(name: &'static str, details: Map<String, Value>) -> CheckReport {
     CheckReport {
         name,
@@ -206,24 +206,28 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
 
     checks.push(locale_check());
     checks.push(socket_checks(&session, &scope_directory));
-    #[cfg(windows)]
-    checks.push(match super::configuration::load() {
-        Ok(settings) => {
-            let status = if settings.diagnostics.is_empty() {
-                pass
-            } else {
-                warning
-            };
-            status("user-config", settings.check_details())
-        }
-        Err(error) => fail(
-            "user-config",
-            Map::from_iter([
-                ("field".into(), json!(error.field)),
-                ("reason".into(), json!(error.reason)),
-            ]),
-        ),
-    });
+    if crate::tui_capabilities::Capability::ConfigurationFile
+        .require()
+        .is_ok()
+    {
+        checks.push(match super::configuration::load() {
+            Ok(settings) => {
+                let status = if settings.diagnostics.is_empty() {
+                    pass
+                } else {
+                    warning
+                };
+                status("user-config", settings.check_details())
+            }
+            Err(error) => fail(
+                "user-config",
+                Map::from_iter([
+                    ("field".into(), json!(error.field)),
+                    ("reason".into(), json!(error.reason)),
+                ]),
+            ),
+        });
+    }
     Ok(checks)
 }
 

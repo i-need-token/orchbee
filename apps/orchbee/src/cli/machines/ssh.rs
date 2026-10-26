@@ -1,9 +1,9 @@
-//! Bounded Windows OpenSSH preparation. User OpenSSH configuration remains authoritative.
+//! Bounded OpenSSH preparation through the host process port. User SSH configuration remains authoritative.
 use super::{Context, Error, Remote};
 use crate::machines::Draft;
-use orchbee_local_runtime::{CommandFailure, run_windows_command};
+use orchbee_local_runtime::CommandFailure;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::machine_ssh::protocols;
 pub(super) use crate::machine_ssh::{Client, command, literal, program};
@@ -13,11 +13,7 @@ pub(super) fn prepare(
     remote: &mut Remote,
 ) -> Result<(), Error> {
     context.check()?;
-    let ssh = PathBuf::from(winsafe::GetSystemDirectory().map_err(|_| Error::SshUnavailable)?)
-        .join("OpenSSH/ssh.exe");
-    if !ssh.is_file() {
-        return Err(Error::SshUnavailable);
-    }
+    let ssh = crate::machine_ssh::executable().map_err(|_| Error::SshUnavailable)?;
     prepare_session(remote, |path, action| {
         exchange(
             &ssh,
@@ -82,9 +78,11 @@ pub(super) fn exchange(
     context: &mut Context,
 ) -> Result<Value, Error> {
     context.check()?;
-    let result = run_windows_command(command(ssh, target, remote), Some(context.deadline), || {
-        context.interrupted()
-    });
+    let result =
+        crate::machine_ssh::execute(command(ssh, target, remote), Some(context.deadline), || {
+            context.interrupted()
+        })
+        .map_err(|_| Error::SshUnavailable)?;
     match result.failure {
         Some(CommandFailure::Cancelled) => return Err(Error::Cancelled),
         Some(CommandFailure::Timeout) => return Err(Error::Timeout),

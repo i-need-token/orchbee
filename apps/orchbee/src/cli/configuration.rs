@@ -1,4 +1,4 @@
-//! CLI projection of the shared Windows settings owner.
+//! CLI settings preparation and reporting after configuration capability admission.
 use super::{Failure, FailureKind};
 use crate::invocation::CreationDirectory;
 #[cfg(test)]

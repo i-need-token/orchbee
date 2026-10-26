@@ -306,7 +306,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
         match (self, unknown) {
             (Self::EnUs, false) => "Remote command was not submitted.",
@@ -364,7 +363,6 @@ impl Locale {
             },
         )
     }
-    #[cfg(windows)]
     pub(crate) fn cli_machine_message(self, code: &str) -> &'static str {
         match (self, code) {
             (Self::EnUs, "empty") => "No saved SSH machines.",

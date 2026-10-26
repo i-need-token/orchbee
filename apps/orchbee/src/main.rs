@@ -144,11 +144,9 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Tui { .. }) => {
                 cli::process_result(present(Ok(Invocation::Tui), locale), locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::MachineRoute(route)) => {
                 cli::machines::routing::run(route, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::MachineRelay) => cli::machines::routing::serve(locale),
             #[cfg(windows)]
             Ok(invocation::Request::MachineTunnel { cohort }) => cli::Output {
@@ -161,14 +159,12 @@ fn main() -> ExitCode {
                 stderr: String::new(),
                 finalization: None,
             },
-            #[cfg(windows)]
             Ok(invocation::Request::Machine { command, format }) => {
                 cli::machines::run(&command, format, locale)
             }
             #[cfg(not(windows))]
             Ok(
-                invocation::Request::Machine { format, .. }
-                | invocation::Request::TerminalClear { format, .. }
+                invocation::Request::TerminalClear { format, .. }
                 | invocation::Request::TerminalEditor { format, .. }
                 | invocation::Request::TerminalLink { format, .. }
                 | invocation::Request::TerminalCopy { format, .. }
@@ -183,19 +179,12 @@ fn main() -> ExitCode {
                 | invocation::Request::Events { format, .. }
                 | invocation::Request::ChannelShow { format, .. }
                 | invocation::Request::Update { format, .. }
-                | invocation::Request::ConfigResetKeys { format, .. }
                 | invocation::Request::NamedSession { format, .. }
                 | invocation::Request::AgentView { format, .. },
             ) => cli::unsupported_platform(Some(format), locale),
             #[cfg(not(windows))]
-            Ok(
-                invocation::Request::DefaultConfig
-                | invocation::Request::MachineRelay
-                | invocation::Request::MachineTunnel { .. },
-            ) => cli::unsupported_platform(None, locale),
-            #[cfg(not(windows))]
-            Ok(invocation::Request::MachineRoute(route)) => {
-                cli::unsupported_platform(Some(route.format), locale)
+            Ok(invocation::Request::MachineTunnel { .. }) => {
+                cli::unsupported_platform(None, locale)
             }
             Ok(invocation::Request::Version) => {
                 cli::process_result(present(Ok(Invocation::Version), locale), locale)
@@ -203,7 +192,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::RootHelp) => cli::root_help(locale),
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
             Ok(invocation::Request::Skill) => cli::skill(locale),
-            #[cfg(windows)]
             Ok(invocation::Request::DefaultConfig) => cli::default_config(locale),
             Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
             #[cfg(windows)]
@@ -296,7 +284,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::Update { channel, format }) => {
                 cli::update::run(channel, 600_000, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::ConfigResetKeys { format }) => {
                 cli::config_reset::run(format, locale)
             }

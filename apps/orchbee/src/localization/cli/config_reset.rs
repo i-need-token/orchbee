@@ -1,11 +1,8 @@
-#[cfg(windows)]
 use crate::cli::escape::quoted;
 use crate::localization::Locale;
-#[cfg(windows)]
 use orchbee_local_runtime::{KeysResetOutcome, KeysResetReport};
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_config_reset(self, report: &KeysResetReport) -> String {
         let path = report
             .path

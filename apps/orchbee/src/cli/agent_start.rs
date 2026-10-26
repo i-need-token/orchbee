@@ -6,7 +6,10 @@ use super::output;
 use super::{FailureKind, Output, failure_output};
 use crate::{
     agent_start::{Report, Request, Verdict},
-    cli::caller_context::PanelTarget,
+    cli::{
+        caller_context::PanelTarget,
+        console_interrupt::{ArmedSignals, Finish},
+    },
 };
 use crate::{
     invocation::{AgentStartCommand, OutputFormat},
@@ -15,12 +18,6 @@ use crate::{
 use orchbee_agent_observation_protocol::AgentProviderId;
 use serde_json::json;
 use std::time::{Duration, Instant};
-#[cfg(windows)]
-#[path = "agent_start/signals_windows.rs"]
-mod signals;
-#[cfg(not(windows))]
-#[path = "agent_start/signals_unix.rs"]
-mod signals;
 
 const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-start";
 
@@ -59,30 +56,37 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
             None,
         );
     }
-    let result = signals::run(request, |request, wake| {
-        match PanelTarget::prepare(command.panel.as_ref(), |name| std::env::var_os(name)) {
-            Ok(prepared) => {
-                crate::agent_start::run_local(request, started, deadline, wake, |snapshot| {
-                    prepared.resolve(snapshot)
-                })
-            }
-            Err(failure) => Report::preflight(request, started, failure),
-        }
-    });
-    let (mut report, finish) = match result {
-        Ok(result) => result,
-        Err((request, failure)) => {
+    let armed = match ArmedSignals::arm_interrupts() {
+        Ok(armed) => armed,
+        Err(_) => {
             return project(
-                Report::preflight(request, started, failure),
+                Report::preflight(
+                    request,
+                    started,
+                    crate::agent_start::failure(
+                        FailureKind::InternalFailure,
+                        "signal-registration-failed",
+                    ),
+                ),
                 format,
                 locale,
                 None,
             );
         }
     };
-    let finalization = match finish {
-        Ok(None) => None,
-        Ok(Some(finalization)) => {
+    let mut report = match PanelTarget::prepare(command.panel.as_ref(), |name| {
+        std::env::var_os(name)
+    }) {
+        Ok(prepared) => {
+            crate::agent_start::run_local(request, started, deadline, armed.poll_fd(), |snapshot| {
+                prepared.resolve(snapshot)
+            })
+        }
+        Err(failure) => Report::preflight(request, started, failure),
+    };
+    let finalization = match armed.finish() {
+        Ok(Finish::Clear) => None,
+        Ok(Finish::Cancelled { finalization }) => {
             if !report.completed() && report.failure_kind() != Some(FailureKind::OutcomeUnknown) {
                 report.replace_failure(crate::agent_start::failure(
                     FailureKind::Cancelled,

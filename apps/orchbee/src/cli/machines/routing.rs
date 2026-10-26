@@ -3,20 +3,25 @@ use super::{Context, Error, ssh};
 use crate::{
     cli::{
         self, Failure, FailureKind, Output,
-        source::{self, ArmedSignals},
+        console_interrupt::{self as source, ArmedSignals},
     },
     invocation::{self, OutputFormat, TerminalSendInput, machine_routing::Route},
     localization::Locale,
     machines::{Catalog, Profile, Store},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use orchbee_local_runtime::{Cohort, CommandFailure, SessionName, run_windows_command_exchange};
+use orchbee_local_runtime::{Cohort, CommandFailure, SessionName};
 use serde::{Deserialize, Serialize};
 use std::{
-    path::PathBuf,
     process::Command,
     time::{Duration, Instant},
 };
+#[cfg(windows)]
+#[path = "routing/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "routing/unix.rs"]
+mod platform;
 
 const REQUEST_LIMIT: usize = 2 * 1024 * 1024;
 const REPLY_LIMIT: usize = 24 * 1024 * 1024;
@@ -159,6 +164,12 @@ fn failed(
     result
 }
 pub(crate) fn run(route: Route, locale: Locale) -> Output {
+    if crate::tui_capabilities::Capability::SavedMachines
+        .require()
+        .is_err()
+    {
+        return cli::unsupported_platform(Some(route.format), locale);
+    }
     let signals = match ArmedSignals::arm_interrupts() {
         Ok(v) => v,
         Err(_) => return failed("internal", 1, Outcome::NotSubmitted, route.format, locale),
@@ -225,9 +236,7 @@ fn execute(
     };
     context.deadline = Instant::now() + Duration::from_secs(60);
     context.check().map_err(mapped)?;
-    let ssh_path =
-        PathBuf::from(winsafe::GetSystemDirectory().map_err(|_| ("ssh-unavailable", 4))?)
-            .join("OpenSSH/ssh.exe");
+    let ssh_path = platform::ssh_path().map_err(|_| ("ssh-unavailable", 4))?;
     let probe = ssh::exchange(
         &ssh_path,
         &profile.draft.target,
@@ -259,9 +268,13 @@ fn execute(
         &profile.draft.target,
         &relay_program(&client.executable),
     );
-    let result = run_windows_command_exchange(command, Some(&bytes), REPLY_LIMIT, None, || {
+    let result = platform::exchange(command, Some(&bytes), REPLY_LIMIT, None, || {
         context.interrupted()
-    });
+    })
+    .map_err(|_| {
+        *outcome = Outcome::NotSubmitted;
+        ("ssh-unavailable", 4)
+    })?;
     if matches!(
         result.failure,
         Some(CommandFailure::SpawnUnavailable | CommandFailure::SpawnFailed)
@@ -308,6 +321,12 @@ fn relay_program(executable: &str) -> String {
     format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
 }
 pub(crate) fn serve(locale: Locale) -> Output {
+    if crate::tui_capabilities::Capability::SavedMachines
+        .require()
+        .is_err()
+    {
+        return cli::unsupported_platform(None, locale);
+    }
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(v) => v,
         Err(_) => return encoded(Reply::failure(Outcome::NotSubmitted)),
@@ -404,11 +423,12 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
         .env("LC_ALL", &packet.locale)
         .env_remove("ORCHBEE_TERMINAL_ID")
         .env_remove("ORCHBEE_WORKER_ID");
-    let result =
-        run_windows_command_exchange(command, Some(&input), cli::output::LIMIT, None, || {
-            use source::SignalWatch;
-            signals.take().map(|v| v.is_some())
-        });
+    let result = match platform::exchange(command, Some(&input), cli::output::LIMIT, None, || {
+        signals.take().map(|v| v.is_some())
+    }) {
+        Ok(result) => result,
+        Err(_) => return Reply::failure(Outcome::NotSubmitted),
+    };
     if result.stdout_truncated || result.stderr_truncated {
         return Reply::failure(Outcome::Unknown);
     }

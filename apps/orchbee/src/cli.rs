@@ -5,7 +5,8 @@
 pub(crate) mod agent_manifests;
 #[cfg(windows)]
 pub(crate) mod agent_view_spec;
-#[cfg(windows)]
+mod console_interrupt;
+mod input_source;
 pub(crate) mod machines;
 pub(crate) mod notification;
 pub(crate) mod operation;
@@ -75,9 +76,7 @@ pub(crate) use terminal_clear::run as clear_terminal;
 #[cfg(windows)]
 pub(crate) use terminal_editor::run as edit_terminal_scrollback;
 pub(crate) mod config;
-#[cfg(windows)]
 pub(crate) mod config_reset;
-#[cfg(windows)]
 mod configuration;
 pub(crate) mod escape;
 pub(crate) mod integration;
@@ -662,8 +661,13 @@ pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
     fixed_text(&completion::render(shell), locale)
 }
 
-#[cfg(windows)]
 pub(crate) fn default_config(locale: Locale) -> Output {
+    if crate::tui_capabilities::Capability::ConfigurationFile
+        .require()
+        .is_err()
+    {
+        return unsupported_platform(None, locale);
+    }
     let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
     let config = orchbee_local_runtime::default_user_settings_toml_with_actions(&actions);
     fixed_text(&config, locale)
