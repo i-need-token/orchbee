@@ -29,8 +29,8 @@ use crate::{
     },
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, ControlInput, ControllerId, Geometry, HostEpoch as ObcsHostEpoch, RequestId,
-    ServerMessage, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId, TerminalViewerAction,
+    ClientMessage, ControlInput, ControllerId, Geometry, HostEpoch as ObcsHostEpoch, ServerMessage,
+    SiteId as ObcsSiteId, TerminalId as ObcsTerminalId, TerminalViewerAction,
     TerminalViewerOutcome, ViewerId, WorkerId as ObcsWorkerId, read_client_message,
     write_server_message,
 };
