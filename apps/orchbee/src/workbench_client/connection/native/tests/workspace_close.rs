@@ -135,8 +135,7 @@ fn snapshot() -> Snapshot {
                     .chain(
                         workspaces
                             .iter()
-                            .map(|workspace| workspace.workspace_id.clone())
-                            .collect(),
+                            .map(|workspace| workspace.workspace_id.clone()),
                     )
                     .collect(),
                 workspaces,

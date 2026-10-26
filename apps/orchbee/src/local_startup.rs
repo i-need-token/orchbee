@@ -1,4 +1,3 @@
-#[cfg(not(windows))]
 use crate::{
     client_view::ClientView,
     local_activation,

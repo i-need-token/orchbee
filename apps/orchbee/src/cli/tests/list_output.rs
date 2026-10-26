@@ -46,8 +46,8 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
         group_id: Some("group-id".to_owned()),
         context: ContextRef {
             terminal_context_id: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_owned(),
-            workspace_id: Some(workspace_id.to_owned()),
-            workspace_label: Some("\u{1b}Workspace label that needs clipping".to_owned()),
+            workspace_id: workspace_id.to_owned(),
+            workspace_label: "\u{1b}Workspace label that needs clipping".to_owned(),
         },
     };
     let initial_workspace_tab = TabRow {

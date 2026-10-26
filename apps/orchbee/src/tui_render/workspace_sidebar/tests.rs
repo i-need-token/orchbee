@@ -1432,7 +1432,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
         for (index, row) in view.machines.space_rows().iter().enumerate() {
             assert_eq!(
                 annotations[index + 1],
-                format!(" [{}]", identity(&row.sidebar_target().unwrap()))
+                format!(" [{}]", identity(&row.sidebar_target().unwrap()).unwrap())
             );
         }
         let (buffer, hits) = paint_navigation(&view, locale, &theme, 24, 30);
@@ -1451,7 +1451,7 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
                 .collect();
             displayed.retain(|character| !character.is_whitespace());
             assert!(
-                displayed.contains(identity(&row.sidebar_target().unwrap())),
+                displayed.contains(identity(&row.sidebar_target().unwrap()).unwrap()),
                 "{displayed}"
             );
         }

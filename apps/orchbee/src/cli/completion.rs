@@ -4504,7 +4504,6 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("layout:apply", "--stdin") => &["--file"],
         ("layout:apply", "--tab") => &["--workspace"],
         ("layout:apply", "--workspace") => &["--tab", "--confirm"],
-        ("layout:apply") => &["--tab", "--workspace", "--confirm"],
         ("layout:apply", "--confirm") => &["--workspace"],
         ("layout:apply", "--focus") => &["--no-focus"],
         ("layout:apply", "--no-focus") => &["--focus"],
@@ -4543,13 +4542,6 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("panel:move", "--workspace") => {
             &["--into-tab", "--new-workspace", "--project", "--tab-label"]
         }
-        ("panel:move") => &[
-            "--into-tab",
-            "--new-workspace",
-            "--workspace",
-            "--project",
-            "--tab-label",
-        ],
         ("panel:move", "--project" | "--tab-label") => &["--into-tab", "--new-tab", "--workspace"],
         ("panel:move", "--focus") => &["--no-focus"],
         ("panel:move", "--no-focus") => &["--focus"],

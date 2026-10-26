@@ -80,8 +80,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
                         ))
                         .unwrap(),
                         primary_directory_id: None,
-                    })
-                    .collect(),
+                    }),
             )
             .collect(),
         }

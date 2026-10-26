@@ -157,11 +157,11 @@ fn membership(
             continue;
         }
         let key = match family {
-            "workspace" => panel.workspace_id.as_ref(),
-            "tab" => Some(&panel.tab_id),
-            _ => Some(&panel.panel_id),
+            "workspace" => &panel.workspace_id,
+            "tab" => &panel.tab_id,
+            _ => &panel.panel_id,
         };
-        if let Some(row) = key.and_then(|key| rows.get_mut(key)) {
+        if let Some(row) = rows.get_mut(key) {
             row.insert(panel.primary_presentation_id);
         }
     }
