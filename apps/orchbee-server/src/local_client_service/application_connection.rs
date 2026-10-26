@@ -151,6 +151,16 @@ impl ApplicationRequest {
     }
     pub(super) fn subscribable(&self) -> bool {
         match &self.kind {
+            // Synchronize may transfer a Queued control to Delivered even without a completion.
+            // It stays a one-shot request; consumers subscribe to side-effect-free invalidations.
+            ApplicationRequestKind::Workbench(WorkbenchRequest::ClientView(request))
+                if matches!(
+                    request.action,
+                    orchbee_workbench_protocol::ClientViewAction::Synchronize { .. }
+                ) =>
+            {
+                false
+            }
             ApplicationRequestKind::Workbench(WorkbenchRequest::Events(request)) => matches!(
                 request.action,
                 orchbee_workbench_protocol::SemanticEventsAction::Subscribe { .. }

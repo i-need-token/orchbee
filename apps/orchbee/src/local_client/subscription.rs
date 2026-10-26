@@ -82,6 +82,29 @@ pub(crate) struct ChangeSubscription {
     ended: std::sync::atomic::AtomicBool,
 }
 impl ChangeSubscription {
+    /// Wait for a committed invalidation or this domain owner's command wake.
+    /// The subscription never consumes a semantic command or receipt.
+    pub(crate) fn wait(&self, wake: &LocalStream) -> io::Result<bool> {
+        loop {
+            if self.changed()? {
+                return Ok(true);
+            }
+            let mut fds = [
+                PollFd::new(self.stream.readiness(), PollFlags::POLLIN),
+                PollFd::new(wake.as_local_io(), PollFlags::POLLIN),
+            ];
+            poll(&mut fds, PollTimeout::NONE)?;
+            if !fds[1].revents().unwrap_or(PollFlags::empty()).is_empty() {
+                let mut buffer = [0; 64];
+                match (&*wake).read(&mut buffer) {
+                    Ok(0) => return Err(io::ErrorKind::BrokenPipe.into()),
+                    Ok(_) => return Ok(false),
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+    }
     pub(crate) fn changed(&self) -> io::Result<bool> {
         use std::sync::atomic::Ordering;
         if self.ended.load(Ordering::Acquire) {
@@ -106,38 +129,5 @@ pub(crate) fn notify(stream: &LocalStream) -> io::Result<()> {
         Ok(_) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(()),
         Err(error) => Err(error),
-    }
-}
-
-/// `None` means the domain mailbox changed; this owner drains only its own wake channel.
-pub(crate) fn next_workbench(
-    subscription: &Subscription,
-    wake: &LocalStream,
-) -> io::Result<Option<WorkbenchResponse>> {
-    loop {
-        match subscription.poll()? {
-            Some(StreamEvent::Record(bytes)) => {
-                return read_workbench_response(&mut Cursor::new(bytes))
-                    .map(Some)
-                    .map_err(io::Error::other);
-            }
-            Some(StreamEvent::Gap | StreamEvent::Disconnected) => continue,
-            None => {}
-        }
-        let mut fds = [
-            PollFd::new(subscription.readiness(), PollFlags::POLLIN),
-            PollFd::new(wake.as_local_io(), PollFlags::POLLIN),
-        ];
-        poll(&mut fds, PollTimeout::NONE)?;
-        let flags = fds[1].revents().unwrap_or(PollFlags::empty());
-        if !flags.is_empty() {
-            let mut buffer = [0; 64];
-            match (&*wake).read(&mut buffer) {
-                Ok(0) => return Err(io::ErrorKind::BrokenPipe.into()),
-                Ok(_) => return Ok(None),
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                Err(error) => return Err(error),
-            }
-        }
     }
 }

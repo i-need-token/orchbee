@@ -29,9 +29,6 @@ impl LocalClient {
         let deadline = self
             .submission_deadline_before(deadline)
             .map_err(|_| ClientViewExchangeError::Timeout)?;
-        let generation = self
-            .generation()
-            .ok_or(ClientViewExchangeError::Unavailable)?;
         let connection = self
             .connection
             .as_mut()
@@ -45,9 +42,11 @@ impl LocalClient {
             &frame,
             |io| read_workbench_response(io),
         );
+        let generation = connection.reply_generation();
         let error = match attempt {
             ExchangeAttempt::Result(WorkbenchResponse::ClientView(result))
-                if correlated(&request, &result, generation) =>
+                if generation
+                    .is_some_and(|generation| correlated(&request, &result, generation)) =>
             {
                 return Ok(result);
             }

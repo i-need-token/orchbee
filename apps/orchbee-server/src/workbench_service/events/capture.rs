@@ -57,6 +57,10 @@ impl Capture {
             slot,
         }
     }
+    pub(super) fn cancel(&mut self) {
+        // Running::drop cancels and joins before releasing the shared capture permit.
+        self.running = None;
+    }
     pub(super) fn pending_for(&self, probe: usize) -> bool {
         self.running
             .as_ref()
@@ -92,22 +96,30 @@ impl Capture {
                 result => result.map(Some),
             };
         }
-        // Sibling subscriptions keep separate cursors and cancellation owners, but cannot
-        // create one Host reader per stream. The permit is held until its owner joins the job.
-        let Some(permit) = Permit::acquire(&self.slot) else {
-            return Ok(None);
-        };
         let target = target.clone();
         let pane = pane.clone();
+        match self.start(probe, move |stop| {
+            service.capture_event_output(&target, pane, revision, &read, stop)
+        }) {
+            Ok(()) | Err(Failure::Busy) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+    pub(super) fn start(
+        &mut self,
+        probe: usize,
+        read: impl FnOnce(&AtomicBool) -> Result<OutputSample, Failure> + Send + 'static,
+    ) -> Result<(), Failure> {
+        // Sibling subscriptions keep separate cursors and cancellation owners, but cannot
+        // create one Host reader per stream. The permit is held until its owner joins the job.
+        let permit = Permit::acquire(&self.slot).ok_or(Failure::Busy)?;
         let stopped = Arc::new(AtomicBool::new(false));
         let actor_stop = Arc::clone(&stopped);
         let (sender, completion) = mpsc::sync_channel(1);
         let thread = std::thread::Builder::new()
             .name("orchbee-event-observer".into())
             .spawn(move || {
-                let result =
-                    service.capture_event_output(&target, pane, revision, &read, &actor_stop);
-                let _ = sender.send(result);
+                let _ = sender.send(read(&actor_stop));
             })
             .map_err(|_| Failure::Unavailable)?;
         self.running = Some(Running {
@@ -117,6 +129,6 @@ impl Capture {
             completion,
             thread: Some(thread),
         });
-        Ok(None)
+        Ok(())
     }
 }

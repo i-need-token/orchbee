@@ -1,4 +1,5 @@
-//! Only repeatable reads may be evaluated again by a connection subscription.
+//! Classify operations that do not require an additional generic invalidation.
+//! Multiplex subscription admission separately excludes reads with delivery side effects.
 use orchbee_workbench_protocol::{
     AgentManifestsAction, ClientViewAction, ConfigurationAction, ConfiguredCommandAction,
     SettingsOperation, NotificationAction, PaneGraphicsAction, PanelAgentAction,
@@ -57,6 +58,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         WorkbenchRequest::WorkspaceMetadata(request) => {
             matches!(request.action, WorkspaceMetadataAction::Read { .. })
         }
+        // A completion-free synchronization may transfer a control but must not invalidate
+        // itself: consumers already synchronize after a producer commit or a new UI sample.
         WorkbenchRequest::ClientView(request) => matches!(
             request.action,
             ClientViewAction::Synchronize {

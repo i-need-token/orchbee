@@ -12,13 +12,27 @@ fn execute(
     session: &orchbee_workbench_protocol::SessionId,
     action: ClientViewAction,
 ) -> ClientViewOutcome {
-    let WorkbenchResponse::ClientView(result) = response(connection.execute(
+    execute_lane(
+        connection,
+        session,
+        action,
+        orchbee_workbench_protocol::MultiplexLaneId::ROOT,
+    )
+}
+fn execute_lane(
+    connection: &WorkbenchClientConnection<'_>,
+    session: &orchbee_workbench_protocol::SessionId,
+    action: ClientViewAction,
+    lane: orchbee_workbench_protocol::MultiplexLaneId,
+) -> ClientViewOutcome {
+    let WorkbenchResponse::ClientView(result) = response(connection.execute_scoped(
         WorkbenchRequest::ClientView(WorkbenchClientViewRequest {
             protocol_version: ProtocolVersion,
             request_id: WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap(),
             session_id: session.clone(),
             action,
         }),
+        lane,
     )) else {
         panic!("Client response");
     };
@@ -144,13 +158,24 @@ fn client_view_sessions_bind_identity_route_exactly_and_settle_disconnect() {
         execute(&caller, &wrong_session, ClientViewAction::List {}),
         ClientViewOutcome::Denied {}
     ));
-    drop(first);
+    let sibling = orchbee_workbench_protocol::MultiplexLaneId::new(2).unwrap();
+    assert!(matches!(
+        execute_lane(&first, session, sample(&snapshot, None), sibling),
+        ClientViewOutcome::Conflict {}
+    ));
+    first.close_lane(sibling);
+    assert!(matches!(
+        execute(&caller, session, ClientViewAction::Read { operation_id: command.operation_id.clone() }),
+        ClientViewOutcome::Operation { operation } if operation.status == ClientViewControlStatus::Delivered {}
+    ));
+    first.close_lane(orchbee_workbench_protocol::MultiplexLaneId::ROOT);
     assert!(
         matches!(execute(&caller,session,submit),ClientViewOutcome::Operation { operation } if operation.status==ClientViewControlStatus::Incomplete { reason:ClientViewControlReason::ClientDisconnected,view:None })
     );
     assert!(
         matches!(execute(&caller,session,ClientViewAction::List {}),ClientViewOutcome::Listed { clients } if clients.len()==1 && clients[0].client_id==second_view.client_id)
     );
+    drop(first);
     let after = bootstrap(&service);
     assert_eq!(
         snapshot, after,

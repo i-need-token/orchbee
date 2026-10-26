@@ -60,12 +60,14 @@ struct ClientLane {
     cancel: orchbee_local_ipc::LocalStream,
     shutdown: orchbee_local_ipc::LocalStream,
     owner: Arc<multiplex::Lane>,
+    reply_generation: Option<std::num::NonZeroU64>,
 }
 impl ClientLane {
     fn new(connection: Arc<multiplex::Connection>) -> io::Result<Self> {
         let (cancel, shutdown) = orchbee_local_ipc::LocalStream::pair()?;
         Ok(Self {
             owner: connection.lane()?,
+            reply_generation: None,
             connection,
             cancel,
             shutdown,
@@ -77,6 +79,12 @@ impl ClientTransport {
         match self {
             Self::Direct(connection) => connection.generation(),
             Self::Lane(lane) => lane.connection.generation(),
+        }
+    }
+    fn reply_generation(&self) -> Option<std::num::NonZeroU64> {
+        match self {
+            Self::Direct(connection) => Some(connection.generation()),
+            Self::Lane(lane) => lane.reply_generation,
         }
     }
     fn as_local_io(&self) -> BorrowedFd<'_> {
@@ -866,7 +874,10 @@ fn exchange_once<ResultType, ReadError>(
             wake,
             Some(lane.cancel.as_local_io()),
         ) {
-            Ok(bytes) => Some(io::Cursor::new(bytes)),
+            Ok((bytes, generation)) => {
+                lane.reply_generation = Some(generation);
+                Some(io::Cursor::new(bytes))
+            }
             Err((false, error)) => return ExchangeAttempt::NotSubmitted(error),
             Err((true, error)) => return ExchangeAttempt::WriteFailed(error),
         }

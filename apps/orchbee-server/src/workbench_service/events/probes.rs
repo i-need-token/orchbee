@@ -617,3 +617,6 @@ fn viewport(
     *pending = Some(command);
     Ok(None)
 }
+
+#[cfg(test)]
+mod tests;

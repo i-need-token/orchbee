@@ -90,7 +90,6 @@ pub(crate) struct Peer {
     reply: Option<Open>,
     snapshots: BTreeMap<MultiplexStreamId, (WorkbenchRequestId, StreamMode, u64)>,
     latest: Option<WorkbenchSnapshotOutcome>,
-    control: Option<orchbee_workbench_protocol::WorkbenchClientViewResult>,
 }
 impl Peer {
     pub(crate) fn new(stream: LocalStream) -> Self {
@@ -103,7 +102,6 @@ impl Peer {
             reply: None,
             snapshots: BTreeMap::new(),
             latest: None,
-            control: None,
         }
     }
     pub(crate) fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
@@ -148,25 +146,6 @@ impl Peer {
                     self.snapshots
                         .insert(stream_id, (intent.request_id, mode, 0));
                     self.snapshot(stream_id)?;
-                    return Ok(false);
-                }
-                if mode != StreamMode::Request
-                    && let Ok(WorkbenchRequest::ClientView(request)) =
-                        read_workbench_request(&mut Cursor::new(&request))
-                    && let Some(mut reply) = self.control.clone()
-                {
-                    reply.request_id = request.request_id;
-                    reply.session_id = request.session_id;
-                    respond(
-                        &mut self.stream,
-                        &Open {
-                            id: stream_id,
-                            mode,
-                            request: Vec::new(),
-                        },
-                        &WorkbenchResponse::ClientView(reply),
-                        1,
-                    )?;
                     return Ok(false);
                 }
                 self.reply = Some(Open {
@@ -276,11 +255,6 @@ impl Write for Peer {
         {
             changed = self.latest.as_ref() != Some(&reply.outcome);
             self.latest = Some(reply.outcome);
-        }
-        if let Ok(WorkbenchResponse::ClientView(reply)) =
-            read_workbench_response(&mut Cursor::new(&record))
-        {
-            self.control = Some(reply);
         }
         let open = self.reply.take().ok_or(io::ErrorKind::InvalidData)?;
         write_multiplex_message(

@@ -82,7 +82,7 @@ impl WorkbenchService {
         }
     }
 
-    pub(crate) const fn client_connection(
+    pub(crate) fn client_connection(
         &self,
         generation: std::num::NonZeroU64,
     ) -> WorkbenchClientConnection<'_> {
@@ -93,6 +93,8 @@ impl WorkbenchService {
             events: std::sync::Mutex::new(std::collections::BTreeMap::new()),
             #[cfg(windows)]
             event_capture: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            #[cfg(windows)]
+            view_lane: std::sync::Mutex::new(None),
         }
     }
 
@@ -880,6 +882,8 @@ pub(crate) struct WorkbenchClientConnection<'a> {
     service: &'a WorkbenchService,
     generation: std::num::NonZeroU64,
     #[cfg(windows)]
+    view_lane: std::sync::Mutex<Option<orchbee_workbench_protocol::MultiplexLaneId>>,
+    #[cfg(windows)]
     event_capture: Arc<std::sync::atomic::AtomicBool>,
     #[cfg(windows)]
     events: std::sync::Mutex<
@@ -974,9 +978,25 @@ impl WorkbenchClientConnection<'_> {
     }
     pub(crate) fn close_lane(&self, lane: orchbee_workbench_protocol::MultiplexLaneId) {
         #[cfg(windows)]
-        self.service.terminals.disconnect_lane_popup(
-            crate::local_terminal_service::PopupOwner::new(self.generation, lane),
-        );
+        {
+            let mut owner = self
+                .view_lane
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if *owner == Some(lane) {
+                self.service
+                    .client_views
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .disconnect(self.generation, std::time::Instant::now());
+                *owner = None;
+                self.service.changes.notify();
+            }
+            drop(owner);
+            self.service.terminals.disconnect_lane_popup(
+                crate::local_terminal_service::PopupOwner::new(self.generation, lane),
+            );
+        }
         #[cfg(not(windows))]
         let _ = lane;
     }
@@ -1180,6 +1200,30 @@ impl WorkbenchClientConnection<'_> {
                     != Some(true)
             {
                 ClientViewOutcome::Denied {}
+            } else if matches!(request.action, ClientViewAction::Synchronize { .. }) {
+                // One logical owner publishes this physical Client's view. Other lanes may
+                // read or submit controls, but cannot transfer or acknowledge its deliveries.
+                let mut owner = self
+                    .view_lane
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if owner.is_some_and(|owner| owner != lane) {
+                    ClientViewOutcome::Conflict {}
+                } else if let Ok(mut registry) = self.service.client_views.lock() {
+                    let outcome = registry.execute(
+                        self.generation,
+                        request.action,
+                        std::time::Instant::now(),
+                    );
+                    if matches!(outcome, ClientViewOutcome::Synchronized { .. }) {
+                        *owner = Some(lane);
+                    }
+                    outcome
+                } else {
+                    ClientViewOutcome::Unavailable {
+                        reason: ClientViewUnavailable::ServerBusy,
+                    }
+                }
             } else if let Ok(mut registry) = self.service.client_views.lock() {
                 registry.execute(self.generation, request.action, std::time::Instant::now())
             } else {

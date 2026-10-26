@@ -194,6 +194,21 @@ impl Subscription {
         limit: usize,
         gap_only: bool,
     ) -> Result<SessionEventPage, Failure> {
+        let result = self.read_page(session, request, limit, gap_only);
+        if result.is_err() || self.pending_failure.is_some() {
+            // Source resolution, initial probes and journal reads can all fail before sample()
+            // consumes its completed job. No failure may retain the sibling capture permit.
+            self.capture.cancel();
+        }
+        result
+    }
+    fn read_page(
+        &mut self,
+        session: &WorkbenchClientConnection<'_>,
+        request: &SemanticEventsRequest,
+        limit: usize,
+        gap_only: bool,
+    ) -> Result<SessionEventPage, Failure> {
         if let Some(reason) = self.pending_failure {
             return Err(reason);
         }

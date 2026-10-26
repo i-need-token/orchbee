@@ -11,6 +11,7 @@ use std::{
 };
 
 mod configured_invocation;
+mod delivery_race;
 mod split_ratios;
 
 #[test]

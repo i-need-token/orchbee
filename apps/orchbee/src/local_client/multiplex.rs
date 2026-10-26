@@ -86,6 +86,7 @@ struct Delivery {
     ready: LocalStream,
     notify: LocalStream,
     handoff: AtomicU8,
+    generation: AtomicU64,
     cancelled: AtomicBool,
     budget: Arc<AtomicUsize>,
 }
@@ -99,6 +100,7 @@ impl Delivery {
             ready,
             notify,
             handoff: AtomicU8::new(QUEUED),
+            generation: AtomicU64::new(0),
             cancelled: AtomicBool::new(false),
             budget,
         })
@@ -486,7 +488,7 @@ impl Connection {
         clock: &dyn super::MonotonicClock,
         wake: Option<LocalIo<'_>>,
         cancel: Option<LocalIo<'_>>,
-    ) -> Result<Vec<u8>, (bool, io::Error)> {
+    ) -> Result<(Vec<u8>, NonZeroU64), (bool, io::Error)> {
         if clock.now() >= deadline {
             return Err((false, io::ErrorKind::TimedOut.into()));
         }
@@ -494,7 +496,11 @@ impl Connection {
             .open(lane, frame.to_vec(), StreamMode::Request)
             .map_err(|error| (false, error))?;
         match subscription.delivery.wait(deadline, clock, wake, cancel) {
-            Ok(StreamEvent::Record(bytes)) => Ok(bytes),
+            Ok(StreamEvent::Record(bytes)) => {
+                NonZeroU64::new(subscription.delivery.generation.load(Ordering::Acquire))
+                    .map(|generation| (bytes, generation))
+                    .ok_or_else(|| (true, io::ErrorKind::InvalidData.into()))
+            }
             Ok(StreamEvent::Gap | StreamEvent::Disconnected) => Err((
                 subscription.delivery.cancel(),
                 io::ErrorKind::ConnectionAborted.into(),
@@ -884,7 +890,14 @@ fn drive(
                     outgoing.pop_front();
                     return Ok(());
                 }
-                Ok(_) | Err(_) => {}
+                Ok(_) | Err(_) => {
+                    // Bind correlation to the carrier that actually starts this request. It
+                    // may differ from the generation visible while the caller queued offline.
+                    active
+                        .delivery
+                        .generation
+                        .store(connection.generation().get(), Ordering::Release);
+                }
             }
         }
         match connection.write(&item.bytes[item.offset..]) {

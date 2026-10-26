@@ -193,3 +193,114 @@ fn state_coalescing_releases_the_connection_budget_and_overrun_is_typed() {
     ));
     budget.store(0, Ordering::Release);
 }
+
+#[test]
+fn an_offline_request_correlates_with_the_generation_that_first_writes_it() {
+    use orchbee_workbench_protocol::{
+        ClientViewAction, ClientViewAvailability, ClientViewOutcome, ClientViewRecord,
+        WorkbenchClientId, WorkbenchClientViewResult, WorkbenchResponse, parse_workbench_request,
+        read_workbench_request,
+    };
+    let (waiting, admission) = mpsc::sync_channel(1);
+    let (close_first, first_closed) = mpsc::sync_channel(1);
+    let server = FakeServer::start_connections(3, move |index, mut peer| {
+        if index == 0 {
+            admit(&mut peer, 1)?;
+            let initial = read_open(&mut peer)?;
+            frame(&mut peer, initial.id, 1, StreamFrameKind::Snapshot, 1)?;
+            first_closed.recv_timeout(Duration::from_secs(2)).unwrap();
+            return Ok(());
+        }
+        if index == 1 {
+            assert!(matches!(
+                orchbee_local_client_protocol::read_message(&mut peer).map_err(io::Error::other)?,
+                orchbee_local_client_protocol::LocalClientMessage::ClientHello(_)
+            ));
+            waiting.send(()).unwrap();
+            // Queuing the offline request wakes and cancels this unfinished admission.
+            // The central actor alone admits the next carrier and writes the queued request.
+            assert_eq!(peer.read(&mut [0; 1])?, 0);
+            return Ok(());
+        }
+        admit(&mut peer, 2)?;
+        loop {
+            let open = read_open(&mut peer)?;
+            let request = read_workbench_request(&mut io::Cursor::new(&open.request)).unwrap();
+            match request {
+                WorkbenchRequest::SnapshotRead(_) => {
+                    frame(&mut peer, open.id, 1, StreamFrameKind::Snapshot, 2)?;
+                }
+                WorkbenchRequest::ClientView(request) => {
+                    assert_eq!(open.mode, StreamMode::Request);
+                    let ClientViewAction::Synchronize {
+                        heartbeat,
+                        view_revision,
+                        view,
+                        ..
+                    } = request.action
+                    else {
+                        panic!()
+                    };
+                    crate::local_client::tests::multiplex_peer::respond(
+                        &mut peer,
+                        &open,
+                        &WorkbenchResponse::ClientView(WorkbenchClientViewResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: request.request_id,
+                            session_id: request.session_id,
+                            outcome: ClientViewOutcome::Synchronized {
+                                client: Box::new(ClientViewRecord {
+                                    client_id: WorkbenchClientId::parse(&format!("{:032x}", 2))
+                                        .unwrap(),
+                                    heartbeat,
+                                    view_revision,
+                                    view: *view,
+                                    availability: ClientViewAvailability::Current,
+                                }),
+                                control: None,
+                            },
+                        }),
+                        1,
+                    )?;
+                    return Ok(());
+                }
+                _ => panic!("only the retained observer and one new request"),
+            }
+        }
+    })
+    .unwrap();
+    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
+    let origin = client.origin();
+    let watcher = origin.subscribe(&request(1), StreamMode::State).unwrap();
+    assert!(matches!(take(&watcher).unwrap(), StreamEvent::Record(_)));
+    close_first.send(()).unwrap();
+    assert!(matches!(take(&watcher).unwrap(), StreamEvent::Disconnected));
+    admission.recv_timeout(Duration::from_secs(2)).unwrap();
+    assert_eq!(
+        client.generation().unwrap().get(),
+        1,
+        "new admission is still withheld"
+    );
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-client-view-conformance-v1.json"
+    ))
+    .unwrap();
+    let WorkbenchRequest::ClientView(request) =
+        parse_workbench_request(&serde_json::to_vec(&corpus["valid"][0]["document"]).unwrap())
+            .unwrap()
+    else {
+        panic!()
+    };
+    let result = client
+        .exchange_client_view(request, Instant::now() + Duration::from_secs(2), None)
+        .unwrap();
+    assert!(
+        matches!(result.outcome, ClientViewOutcome::Synchronized { client, .. }
+        if client.client_id.as_str() == format!("{:032x}", 2))
+    );
+    drop((watcher, origin, client));
+    server.finish().unwrap();
+}

@@ -323,10 +323,11 @@ fn run(
     let mut exchange_id = 0_u64;
     let mut last_sample: Option<Sample> = None;
     let mut delivered_operation = None;
-    let mut subscription: Option<(
-        WorkbenchRequestId,
-        crate::local_client::multiplex::Subscription,
-    )> = None;
+    // Register once before publishing any view. This stream only invalidates; a
+    // replaceable stream must never own a control already marked Delivered by Server.
+    let Ok(subscription) = origin.watch_changes() else {
+        return;
+    };
     loop {
         let (lock, signal) = &**shared;
         let Ok(mut handoff) = lock.lock() else {
@@ -354,23 +355,13 @@ fn run(
             || handoff.invocation.is_some()
             || handoff.layout.is_some();
         drop(handoff);
-        let pushed = if !changed {
-            let Some((expected, active)) = &subscription else {
-                return;
-            };
-            match crate::local_client::subscription::next_workbench(active, changes) {
-                Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::ClientView(reply)))
-                    if &reply.request_id == expected && reply.session_id == session_id =>
-                {
-                    Some(reply)
-                }
-                Ok(None) => continue,
-                _ => return,
+        if !changed {
+            match subscription.wait(changes) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(_) => return,
             }
-        } else {
-            subscription.take();
-            None
-        };
+        }
 
         let Some(next) = exchange_id.checked_add(1) else {
             return;
@@ -390,31 +381,14 @@ fn run(
                 completion: completion.clone(),
             },
         };
-        let result = if let Some(result) = pushed {
-            result
-        } else {
-            let Ok(result) = client.exchange_client_view(
-                request.clone(),
-                clock.now() + Duration::from_secs(2),
-                Some(wake.as_local_io()),
-            ) else {
-                return;
-            };
-            // A completion remains a one-shot mutation. Only its completion-free read continuation
-            // is retained for push and reconnection, so an uncertain acknowledgement is not replayed.
-            let mut listen = request;
-            if let ClientViewAction::Synchronize { completion, .. } = &mut listen.action {
-                *completion = None;
-            }
-            let expected = listen.request_id.clone();
-            let Ok(active) = origin.subscribe(
-                &orchbee_workbench_protocol::WorkbenchRequest::ClientView(listen),
-                orchbee_workbench_protocol::StreamMode::Events,
-            ) else {
-                return;
-            };
-            subscription = Some((expected, active));
-            result
+        // Every response is consumed before another sample or invocation can advance this
+        // owner. Completion and control delivery are never rebuilt or replayed on reconnect.
+        let Ok(result) = client.exchange_client_view(
+            request,
+            clock.now() + Duration::from_secs(2),
+            Some(wake.as_local_io()),
+        ) else {
+            return;
         };
         last_sample = Some(sample.clone());
         let ClientViewOutcome::Synchronized {

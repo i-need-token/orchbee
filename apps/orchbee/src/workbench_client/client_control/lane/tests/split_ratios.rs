@@ -45,6 +45,12 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
                 Err(error) => return Err(error),
             };
             match read_workbench_request(&mut io::Cursor::new(&open.request)).unwrap() {
+                WorkbenchRequest::SnapshotRead(_) => {
+                    assert_eq!(
+                        open.mode,
+                        orchbee_workbench_protocol::StreamMode::Invalidations
+                    );
+                }
                 WorkbenchRequest::Command(command) => {
                     assert!(matches!(
                         command.action,
