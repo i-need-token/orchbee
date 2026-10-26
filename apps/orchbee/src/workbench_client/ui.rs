@@ -2686,7 +2686,6 @@ impl WorkbenchClientUi {
         if matches!(
             action,
             ClientAction::RequestWorkspaceRename
-                | ClientAction::RequestWorkspaceMove
                 | ClientAction::RequestWorkspaceDirectory
                 | ClientAction::RequestWorkspaceClose
                 | ClientAction::RequestProjectRename
@@ -2744,24 +2743,6 @@ impl WorkbenchClientUi {
                     && let Some(state) = self.state.as_mut()
                 {
                     state.set_notice(super::state::ClientNotice::DraftCancelled);
-                }
-                ClientActionDisposition::KeepNavigator
-            }
-            ClientAction::RequestWorkspaceMove => {
-                let request = self.state.as_ref().and_then(|state| {
-                    let deadline = self
-                        .clock
-                        .now()
-                        .checked_add(std::time::Duration::from_secs(30))?;
-                    let super::ClientContextLocation::Workspace { workspace_id, .. } =
-                        state.cache().location()
-                    else {
-                        return None;
-                    };
-                    super::WorkspaceOrganizationRequest::workspace(state, workspace_id, deadline)
-                });
-                if let Some(request) = request {
-                    self.request_workspace_organization(Box::new(request));
                 }
                 ClientActionDisposition::KeepNavigator
             }

@@ -155,10 +155,6 @@ Workspace 和 Project 菜单在发现等待、非 Git、失败及就绪时均保
 坐标保持稳定。完成只以新菜单 token 更新可用性并要求重新绘制；不在已按下的指针下插入动作，
 也不改变所选动作的身份。
 
-保留的原有工作区使用既有 Context 身份与兼容动作列表，包括新建 Tab。规范目录、重命名、组织
-以及整个 Workspace 关闭入口继续禁用，并显示本地化的原有工作区说明。简化的上下文构件仍保留
-所选禁用项的原因；绝不替换成规范 Workspace ID，也不隐藏该前提。
-
 侧栏删除通过既有关闭或 setup 所有者请求权威条件准入。只有与条件类型及捕获修订号匹配的明确
 `confirmation-required` 才打开新的完整绘制确认；显式 Enter 随后使用不同的无条件请求 ID。
 缺失、过期、不可用或未知证据绝不等于空闲，也不自动升级。
@@ -366,4 +362,4 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 
 侧栏锚定菜单保留被覆盖行的完整矩形用于定位，同时抑制底层输入目标。空间允许时在行旁打开，否则在其上方或下方打开。工作树发现过程在检查中、可用和不可用结果间保留原因行，使靠边放置的重命名与删除操作保持位置。
 
-<!-- documentation-pairing: english-sha256=0b0ed17ba4a7716cc77796e6f51b5865ac6aa4635477ba921e0ae38ed00d7030 zh-cn-sha256=3c66d8e2fc5da3ab749a845037f2fe302195ac18acf69ee504ec1920e9e55f63 -->
+<!-- documentation-pairing: english-sha256=fb3ee287d4232e1a92fcb5f325b3966bcf8a298146d65ee9c62ff2eabe640783 zh-cn-sha256=c8e20f87c997c59641ef04b70c4eae173419ab8575db575f897276b9f80b0a6d -->

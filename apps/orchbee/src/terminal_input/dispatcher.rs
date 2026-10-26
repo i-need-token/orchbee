@@ -2067,7 +2067,6 @@ impl InputDispatcher {
                     | ClientAction::RequestWorkspaceRename
                     | ClientAction::RequestProjectRename
                     | ClientAction::RequestTargetedProjectRename(_)
-                    | ClientAction::RequestWorkspaceMove
                     | ClientAction::RequestWorkspaceOrganization(_)
                     | ClientAction::RequestProjectCloseAll(_)
                     | ClientAction::RequestWorkspaceCloseAt(_)

@@ -1,11 +1,12 @@
 use super::super::*;
 use crate::{
+    action_menu::{MenuAction, MenuTarget},
     client_view::{ClientAction, ClientActionDisposition, ClientView},
     localization::Locale,
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
-    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl, MotionObservability},
+    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, MotionObservability},
     tui_theme::{Role, Theme},
-    workbench_client::{CaptureContext, SetupStage, SetupToken, WorkspaceCloseToken},
+    workbench_client::{CaptureContext, SetupStage, WorkspaceCloseToken},
 };
 use ratatui::{
     Terminal,
@@ -45,10 +46,6 @@ impl TerminalInputPort for ClientInputPort<'_> {
 
     fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
         self.ui.click_workspace_close(token, confirm);
-    }
-
-    fn choose_setup_project(&mut self, token: SetupToken, index: usize) {
-        self.ui.choose_setup_project(token, index);
     }
 }
 
@@ -222,28 +219,6 @@ fn workspace_close_cell(
         .expect("production Workspace close action")
 }
 
-fn setup_choice_cell(
-    frame: &RenderedFrame,
-    token: SetupToken,
-    index: usize,
-    height: u16,
-) -> (u16, u16) {
-    (0..height)
-        .find_map(|y| {
-            (0..frame.width).find_map(|x| {
-                matches!(
-                    frame.map.hit_target_at(x, y),
-                    Some(HitTarget::Setup {
-                        token: painted,
-                        control: ModalControl::Choice(painted_index),
-                    }) if *painted == token && *painted_index == index
-                )
-                .then_some((x, y))
-            })
-        })
-        .expect("production Setup choice row")
-}
-
 #[test]
 fn workspace_close_action_roundtrips_hover_release_and_geometry_cancellation() {
     let theme = Theme::rgb_test_dark();
@@ -322,55 +297,6 @@ fn workspace_close_action_roundtrips_hover_release_and_geometry_cancellation() {
     orphan.extend_from_slice(b"orphan");
     harness.dispatch(&mut ui, &orphan);
     assert_eq!(harness.forwarded, b"orphan");
-}
-
-#[test]
-fn setup_project_row_roundtrips_hover_press_and_release_through_native_ui() {
-    let theme = Theme::rgb_test_dark();
-    let (mut ui, mailbox, _, _) = super::workspace_close::ready();
-    assert_eq!(
-        ui.apply_client_action(ClientAction::RequestWorkspaceMove),
-        ClientActionDisposition::KeepNavigator
-    );
-    let draft = ui.view().setup_draft().unwrap();
-    assert_eq!(draft.stage(), SetupStage::ChooseWorkspaceProject);
-    let token = draft.token();
-    let choice = draft.project_count() - 1;
-    assert_ne!(draft.selected_project(), choice);
-
-    let mut harness = Harness::new(120);
-    harness.enable_pointer(&mut ui);
-    let rest = harness.render(
-        &mut ui,
-        120,
-        40,
-        &theme,
-        Some("p3-setup-projects-provisional"),
-    );
-    let (x, y) = setup_choice_cell(&rest, token, choice, 40);
-
-    harness.dispatch(&mut ui, &sgr_motion(x, y));
-    let hovered = harness.render(&mut ui, 120, 40, &theme, Some("p3-setup-projects-hover"));
-    assert_eq!(
-        hovered.background(x, y),
-        theme.color(Role::SurfaceHover),
-        "AnyMotion must project the exact rendered Setup row's hover cue"
-    );
-
-    harness.dispatch(&mut ui, &sgr_press(x, y));
-    let still_picker = ui.view().setup_draft().unwrap();
-    assert_eq!(still_picker.token(), token);
-    assert_eq!(still_picker.stage(), SetupStage::ChooseWorkspaceProject);
-    assert!(mailbox.try_recv().unwrap().is_none(), "press cannot choose");
-    let pressed = harness.render(&mut ui, 120, 40, &theme, Some("p3-setup-projects-pressed"));
-    assert_eq!(pressed.background(x, y), theme.color(Role::SurfacePressed));
-
-    harness.dispatch(&mut ui, &sgr_release(x, y));
-    let advanced = ui.view().setup_draft().unwrap();
-    assert_ne!(advanced.token(), token);
-    assert_eq!(advanced.stage(), SetupStage::WorkspaceProjectName);
-    assert!(mailbox.try_recv().unwrap().is_none());
-    assert!(harness.forwarded.is_empty());
 }
 
 fn visible_row(buffer: &Buffer, y: u16) -> String {
@@ -471,13 +397,44 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
         ] {
             for (width, height) in [(120, 40), (80, 24), (60, 18), (48, 11), (15, 4)] {
                 for fault in [false, true] {
-                    let (mut ui, mailbox, _, _) = super::workspace_close::ready();
-                    ui.apply_client_action(ClientAction::RequestWorkspaceMove);
-                    let draft = ui.view().setup_draft().unwrap();
-                    let (picker_token, choice) = (draft.token(), draft.project_count() - 1);
+                    let mut snapshot = super::super::tests::membership::snapshot(1, 1);
+                    let workspace = &mut snapshot.navigation.workspaces[0];
+                    assert!(workspace.project_id.is_none());
+                    workspace.label = "项目 space 界".into();
+                    let (mut ui, mailbox, _, _) = super::workspace_setup::ready_snapshot(snapshot);
+                    let location = ui.state.as_ref().unwrap().cache().location().clone();
+                    assert!(ui.open_action_menu(
+                        MenuTarget::Drawn {
+                            source: ui.view().action_menu_source().unwrap(),
+                            target: Box::new(MenuTarget::WorkspaceProjects(location)),
+                        },
+                        None,
+                        false,
+                    ));
                     let mut harness = Harness::new(120);
                     harness.render(&mut ui, 120, 40, &theme, None);
-                    ui.choose_setup_project(picker_token, choice);
+                    let (source, menu_token, row) = {
+                        let view = ui.view();
+                        let menu = view.action_menu().unwrap();
+                        let row = menu
+                            .actions
+                            .iter()
+                            .position(|action| *action == MenuAction::CreateWorkspaceProject)
+                            .unwrap();
+                        assert_eq!(menu.unavailable[row], None);
+                        (menu.source.clone(), menu.token, row)
+                    };
+                    ui.activate_action_menu_row(&source, menu_token, row);
+                    let action = ui.take_action_menu_action(false).unwrap();
+                    assert!(matches!(
+                        action,
+                        ClientAction::RequestWorkspaceOrganization(_)
+                    ));
+                    assert_eq!(
+                        ui.apply_client_action(action),
+                        ClientActionDisposition::KeepNavigator
+                    );
+                    assert!(mailbox.try_recv().unwrap().is_none());
                     let token = ui.view().setup_draft().unwrap().token();
                     harness.render(&mut ui, 120, 40, &theme, None);
                     ui.edit_setup_draft(token, SetupEdit::Paste("p1界"));

@@ -208,11 +208,6 @@ row is reserved even after success, keeping the complete edge-clamped frame and 
 coordinates stable. Completion changes availability under a fresh menu token and requires repaint;
 it never inserts an action under an armed pointer or changes the selected action's identity.
 
-The retained Legacy workspace uses its existing Context identity and compatibility action list,
-including New Tab. Canonical directory, rename, organization and whole-Workspace Close entries stay
-disabled with the localized Legacy workspace explanation. Its plain context chrome retains the
-selected disabled reason; it never substitutes a canonical Workspace ID or hides that prerequisite.
-
 Sidebar Delete asks for authoritative conditional admission through the existing Close or setup owner.
 Only definite `confirmation-required` for that conditional kind and captured revision opens a new
 complete-draw confirmation; explicit Enter then uses a distinct unconditional request ID. Missing,

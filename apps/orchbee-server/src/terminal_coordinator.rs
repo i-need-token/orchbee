@@ -19,6 +19,7 @@ use orchbee_client_server_protocol::{
     TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest, TerminalStartResult,
     WorkerConstraint,
 };
+#[cfg(test)]
 use orchbee_workbench_protocol::PresentationBinding;
 
 mod outcomes;
@@ -383,6 +384,7 @@ impl TerminalCoordinator {
             .map(|binding| binding.authorization)
     }
 
+    #[cfg(test)]
     pub(crate) fn has_retained_binding(&self, expected: &PresentationBinding) -> bool {
         self.bindings.values().any(|binding| {
             #[cfg(windows)]
