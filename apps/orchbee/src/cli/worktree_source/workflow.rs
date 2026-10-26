@@ -107,7 +107,10 @@ pub(in crate::cli) fn prepare(
     })
 }
 
-pub(in crate::cli) fn check(signals: &mut ArmedSignals, deadline: Instant) -> Result<(), Failure> {
+pub(in crate::cli) fn check(
+    signals: &mut impl SignalWatch,
+    deadline: Instant,
+) -> Result<(), Failure> {
     if signals
         .take()
         .map_err(|_| Failure::new(FailureKind::InternalFailure))?

@@ -1,5 +1,4 @@
 use super::Locale;
-#[cfg(windows)]
 use serde_json::Value;
 impl Locale {
     pub(crate) fn cli_workspace_preparation_failure(
@@ -33,7 +32,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_workspace_creation(self, document: &Value) -> String {
         let result = &document["workspace"]["result"];
         let complete = document["outcome"] == "completed";

@@ -922,7 +922,6 @@ pub(crate) fn render(
             super::agent_projection::render_inspection(out, doc, command, locale)
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
-        #[cfg(not(windows))]
         Projection::AgentGet(outcome) => agent_get(out, outcome, text, locale),
         Projection::AgentTerminalInspection {
             terminal,

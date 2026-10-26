@@ -111,7 +111,6 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
 /// The outcome a successful attempt reports: the admitted probe is dropped
 /// before output, and only the branch fact and rendered paths remain.
 struct StartOutcome {
-    #[cfg(windows)]
     restore_notice: Option<orchbee_local_runtime::CheckpointRestoreNotice>,
     outcome: &'static str,
     spawned: bool,
@@ -135,7 +134,6 @@ fn run() -> Result<StartOutcome, Failure> {
     let deadline = Instant::now() + START_BUDGET;
     crate::local_activation::activate_local_session(deadline)
         .map(|started| StartOutcome {
-            #[cfg(windows)]
             restore_notice: started.restore_notice,
             outcome: if started.spawned {
                 "started"

@@ -943,7 +943,7 @@ pub(crate) fn snapshot_session_until(
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, deadline)?;
     let (cohort, session) = session_preamble(cohort_deadline, || Ok(()))?;
-    admit_snapshot(&cohort, &session, deadline, None)
+    admit_snapshot(&cohort, &session, deadline, || Ok(()))
 }
 
 /// The same preamble gated by the wait command's clock/cancel control:

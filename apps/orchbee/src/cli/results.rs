@@ -3,11 +3,11 @@
 //! verified; no fabricated fields appear where no authoritative source exists.
 
 #[cfg(not(windows))]
-use orchbee_agent_observation_protocol::{AgentGetOutcome, AgentListOutcome};
+use orchbee_agent_observation_protocol::AgentListOutcome;
 use std::collections::HashMap;
 
 use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
+    AgentExplainOutcome, AgentGetOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
 };
 use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact};
 #[cfg(test)]
@@ -1123,7 +1123,6 @@ pub(crate) enum Projection {
     UnifiedAgentInspection(Box<super::agent_projection::Inspection>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
-    #[cfg(not(windows))]
     AgentGet(AgentGetOutcome),
     AgentInspection(Box<AgentInspectionDoc>),
     AgentTerminalInspection {
@@ -1345,7 +1344,6 @@ impl Projection {
             Self::UnifiedAgentList(doc) => doc.document(),
             Self::UnifiedAgentInspection(doc) => doc.document(),
             Self::AgentChanges(outcome) => json!(outcome),
-            #[cfg(not(windows))]
             Self::AgentGet(outcome) => json!(outcome),
             Self::AgentTerminalInspection {
                 binding,

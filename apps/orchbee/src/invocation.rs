@@ -3957,7 +3957,6 @@ fn mouse_option(value: &str) -> Option<bool> {
 }
 
 /// Per-launch overrides are independent of the program/profile selection.
-
 fn launch_options_with_directory(
     options: &Options,
     directory: Option<&str>,

@@ -1,6 +1,6 @@
 //! Agent observations joined to canonical primary Presentation membership.
 use super::{
-    Failure, FailureKind,
+    Failure,
     agent_view::workflow as attention,
     console_interrupt::SignalWatch,
     output::{Bounded, TooLarge},

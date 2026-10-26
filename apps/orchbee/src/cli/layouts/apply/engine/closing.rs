@@ -1,7 +1,7 @@
 //! Await retained Close completion; recovery closes only an unchanged workflow-owned Tab.
 use super::{Engine, error, ownership};
 use crate::{
-    cli::{Failure, FailureKind, console_interrupt::SignalWatch, mutation, query},
+    cli::{Failure, FailureKind, mutation, query},
     local_client::LocalClient,
 };
 use orchbee_workbench_protocol::{

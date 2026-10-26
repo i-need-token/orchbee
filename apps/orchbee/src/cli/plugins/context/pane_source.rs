@@ -6,7 +6,7 @@ use crate::{
         caller_context::PanelTarget,
         client_control::{exchange as control, selection},
         console_interrupt::SignalWatch,
-        query, results, workbench_agents, workbench_query,
+        query, results, workbench_query,
     },
     invocation::{MutationCommand, TabContext, Target},
     local_client::LocalClient,

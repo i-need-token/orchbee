@@ -3,7 +3,6 @@ use super::{Engine, error, internal, ownership};
 use crate::cli::{
     Failure, FailureKind,
     client_control::{Answer, exchange as control},
-    console_interrupt::SignalWatch,
     query,
 };
 use orchbee_workbench_protocol::{

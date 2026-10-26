@@ -4,7 +4,6 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{Snapshot, TerminalId, WorkerId};
-#[cfg(any(not(windows), test))]
 use serde_json::Value;
 
 use super::{Failure, FailureKind, results, stage_details, target_details};
@@ -110,7 +109,6 @@ fn invalid_context() -> Failure {
     failure
 }
 
-#[cfg(any(not(windows), test))]
 pub(super) fn read(
     explicit: Option<&Target>,
     environment: impl FnMut(&str) -> Option<OsString>,

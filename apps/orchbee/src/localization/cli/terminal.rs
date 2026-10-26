@@ -250,7 +250,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_agent_client_view(
         self,
         client: &str,
