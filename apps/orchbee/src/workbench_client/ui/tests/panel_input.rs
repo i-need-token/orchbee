@@ -38,8 +38,11 @@ impl TerminalInputPort for ClientInputPort<'_> {
             .ok_or(TerminalInputUnavailable)
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
-        Some(self.0.apply_client_action(action))
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        Some(self.0.apply_client_action(command))
     }
 
     fn capture_tab_confirmation_key_for(

@@ -61,7 +61,11 @@ impl TerminalInputPort for Port {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         match action {
             ClientAction::RequestWorktreeCreate => self.stage = WorktreeStage::Preparing,
             ClientAction::RequestWorktreeOpen => self.stage = WorktreeStage::Checkout,

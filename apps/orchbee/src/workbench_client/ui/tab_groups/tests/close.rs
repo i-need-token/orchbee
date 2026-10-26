@@ -305,7 +305,7 @@ fn close_set_menu_rejects_a_handoff_after_its_exact_close_observation_changes() 
         .take_action_menu_action(false)
         .expect("painted recovery menu handoff");
     assert!(matches!(
-        &action,
+        &action.intent(),
         ClientAction::TabMenu {
             action: MenuAction::ResumeTabClose,
             tab_id: Some(tab_id),
@@ -484,8 +484,11 @@ impl TerminalInputPort for Port<'_> {
     fn pointer_probe(&mut self) -> PointerProbe {
         self.ui.pointer_probe()
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
-        Some(self.ui.apply_client_action(action))
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        Some(self.ui.apply_client_action(command))
     }
     fn capture_tab_confirmation_key_for(
         &mut self,
@@ -547,7 +550,10 @@ impl TerminalInputPort for Port<'_> {
     ) -> Option<crate::action_menu::MenuToken> {
         self.ui.scroll_action_menu(token, up, lines)
     }
-    fn take_action_menu_action(&mut self, released: bool) -> Option<ClientAction> {
+    fn take_action_menu_action(
+        &mut self,
+        released: bool,
+    ) -> Option<crate::workbench_client::InputAction> {
         self.ui.take_action_menu_action(released)
     }
 }

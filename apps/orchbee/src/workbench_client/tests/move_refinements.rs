@@ -38,7 +38,10 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     ));
     poll_seen.recv_timeout(Duration::from_secs(1))?;
     assert_eq!(
-        TerminalInputPort::apply_client_action(&mut workbench_client, ClientAction::SelectTab(9)),
+        TerminalInputPort::apply_client_action(
+            &mut workbench_client,
+            ClientAction::SelectTab(9).into()
+        ),
         Some(ClientActionDisposition::KeepNavigator)
     );
     let before = render_workbench_client(&workbench_client, &ClientView::new(120))?;
@@ -54,7 +57,10 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     held_seen.recv_timeout(Duration::from_secs(1))?;
     phase.store(1, Ordering::SeqCst);
     assert_eq!(
-        TerminalInputPort::apply_client_action(&mut workbench_client, ClientAction::MoveNextTab),
+        TerminalInputPort::apply_client_action(
+            &mut workbench_client,
+            ClientAction::MoveNextTab.into()
+        ),
         Some(ClientActionDisposition::KeepNavigator)
     );
     let _sent = returned_sent.send(());
@@ -178,7 +184,7 @@ fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_
     assert_eq!(
         TerminalInputPort::apply_client_action(
             &mut workbench_client,
-            ClientAction::MovePreviousTab
+            ClientAction::MovePreviousTab.into()
         ),
         Some(ClientActionDisposition::DismissNavigator)
     );

@@ -208,7 +208,11 @@ impl TerminalInputPort for UnavailablePort {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.0.borrow_mut().push(Call::Action(action));
         None
     }
@@ -1508,7 +1512,11 @@ impl TerminalInputPort for LayoutChangedPort {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.0.borrow_mut().push(Call::Action(action));
         Some(ClientActionDisposition::LayoutChanged)
     }
@@ -1593,7 +1601,11 @@ impl TerminalInputPort for BoardPort {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         if action == ClientAction::ToggleAgentBoard {
             self.owned.set(!self.owned.get());
         } else {
@@ -1721,7 +1733,11 @@ impl TerminalInputPort for ConfirmationBoardPort {
         true
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.calls.borrow_mut().push(Call::Action(action));
         Some(ClientActionDisposition::KeepNavigator)
     }

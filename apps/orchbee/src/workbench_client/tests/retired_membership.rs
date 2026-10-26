@@ -78,7 +78,7 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
         workbench_client.after_draw();
     }
     assert!(workbench_client.task.is_none(), "no automatic reconnect");
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(
         workbench_client.task.is_some(),
         "exact joined Poll retirement admits explicit recovery"
@@ -149,7 +149,7 @@ fn arm_uncommitted_panel_close(
         .recv_timeout(Duration::from_secs(2))
         .map_err(|error| io::Error::other(format!("ordinary Poll handoff: {error}")))?;
     assert_eq!(workbench_client.status(), TerminalStatus::Controlling);
-    workbench_client.apply_client_action(ClientAction::ClosePanel);
+    workbench_client.apply_client_action((ClientAction::ClosePanel).into());
     let view = ClientView::new(120);
     let mut terminal = Terminal::new(TestBackend::new(120, 32))?;
     let mut receipt = DrawReceipt::default();
@@ -224,7 +224,7 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(workbench_client.task.is_some());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
@@ -234,7 +234,7 @@ fn repeated_failed_recovery_joins_before_explicit_retry_and_never_resets_request
         let view = workbench_client.view();
         view.phase() == DisplayPhase::Retired
     });
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
         view.phase() == DisplayPhase::Empty
@@ -280,7 +280,7 @@ fn exit_closes_a_recovery_carrier_before_any_late_snapshot_can_install() -> Test
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     received.recv_timeout(Duration::from_secs(2))?;
     drop(workbench_client);
     server.finish()?;
@@ -330,7 +330,7 @@ fn wrong_id_transport_loss_and_other_unavailability_cannot_open_peer_recovery() 
         assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
             workbench_client.task.is_none()
         }));
-        workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+        workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
         assert!(
             workbench_client.task.is_none(),
             "failure kind {kind} does not establish an origin"
@@ -548,7 +548,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     if mode == 1 {
         let ok = spin_with_draw(
             &mut workbench_client,
@@ -577,7 +577,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
     );
     assert_eq!(view.tab(0).unwrap().tab_label(), "survivor");
     if mode != 1 {
-        workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+        workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
         assert!(
             workbench_client.task.is_none(),
             "setup failure cannot impersonate ordinary Poll retirement"
@@ -633,7 +633,7 @@ fn cancelled_connect_closes_late_admission_without_placing_snapshot() -> TestRes
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     connecting.recv_timeout(Duration::from_secs(2))?;
     workbench_client.recovery_shutdown.as_ref().unwrap().close();
     release.send(())?;

@@ -103,8 +103,8 @@ impl PointerState {
             return PointerOutcome::Handled;
         }
         if probe.focus.as_ref() != Some(&pane)
-            && let Some(disposition) =
-                port.apply_client_action(ClientAction::FocusPanel(pane.pane().panel().clone()))
+            && let Some(disposition) = port
+                .apply_client_action((ClientAction::FocusPanel(pane.pane().panel().clone())).into())
         {
             view.commit_pointer(disposition);
         }

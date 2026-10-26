@@ -2938,10 +2938,13 @@ impl PointerState {
                     return PointerOutcome::Ignored;
                 };
                 if event.mods == Modifiers::CTRL {
-                    let disposition = port.apply_client_action(ClientAction::TabMenu {
-                        action: crate::action_menu::MenuAction::SelectTab,
-                        tab_id: Some(tab.clone()),
-                    });
+                    let disposition = port.apply_client_action(
+                        (ClientAction::TabMenu {
+                            action: crate::action_menu::MenuAction::SelectTab,
+                            tab_id: Some(tab.clone()),
+                        })
+                        .into(),
+                    );
                     if let Some(disposition) = disposition {
                         view.commit_pointer(disposition);
                     }
@@ -2977,9 +2980,9 @@ impl PointerState {
                 {
                     return PointerOutcome::Ignored;
                 }
-                if let Some(disposition) =
-                    port.apply_client_action(ClientAction::FocusPanel(selected.key.panel().clone()))
-                {
+                if let Some(disposition) = port.apply_client_action(
+                    (ClientAction::FocusPanel(selected.key.panel().clone())).into(),
+                ) {
                     view.commit_pointer(disposition);
                 }
                 PointerOutcome::RegionsChanged
@@ -3225,7 +3228,7 @@ impl PointerState {
             let Ok(position) = u8::try_from(probe.tabs[tab_index].position) else {
                 return PointerOutcome::Ignored;
             };
-            let disposition = port.apply_client_action(ClientAction::SelectTab(position));
+            let disposition = port.apply_client_action((ClientAction::SelectTab(position)).into());
             if let Some(disposition) = disposition {
                 view.commit_pointer(disposition);
             }
@@ -3269,8 +3272,9 @@ impl PointerState {
         // stable, never positional; the session plans a *local* focus
         // transition for the already-attached sibling — no attach or
         // detach round trip is minted for a click.
-        let disposition =
-            port.apply_client_action(ClientAction::FocusPanel(expected.pane().panel().clone()));
+        let disposition = port.apply_client_action(
+            (ClientAction::FocusPanel(expected.pane().panel().clone())).into(),
+        );
         if let Some(disposition) = disposition {
             view.commit_pointer(disposition);
         }

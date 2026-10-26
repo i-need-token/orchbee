@@ -16,7 +16,11 @@ struct Port {
     settings: usize,
 }
 impl TerminalInputPort for Port {
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         if action == ClientAction::OpenSettings {
             self.settings += 1;
         }

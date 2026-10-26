@@ -22,9 +22,9 @@ fn every_creation_entry_projects_immediately_without_changing_canonical_selectio
         let (mut ui, mailbox, clock, snapshot) = ready(true);
         let source = ui.state.as_ref().unwrap().desired().cloned();
         let action = match entry {
-            "create" => ClientAction::RequestWorkspaceCreate,
-            "quick" => ClientAction::RequestQuickWorkspace,
-            _ => ClientAction::RequestProjectQuickWorkspace(Box::new(
+            "create" => ClientAction::RequestWorkspaceCreate.into(),
+            "quick" => ClientAction::RequestQuickWorkspace.into(),
+            _ => crate::workbench_client::InputAction::project_quick_workspace(Box::new(
                 crate::workbench_client::ProjectQuickWorkspaceRequest::capture(
                     ui.state.as_ref().unwrap(),
                     &snapshot.navigation.projects[0],

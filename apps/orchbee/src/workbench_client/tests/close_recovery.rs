@@ -140,14 +140,14 @@ fn recovery_rejects_foreign_target_without_adopting_its_operation() -> TestResul
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
     let wire_id = wire_receiver.recv_timeout(Duration::from_secs(1))?;
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(workbench_client.task.is_some());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
@@ -158,7 +158,7 @@ fn recovery_rejects_foreign_target_without_adopting_its_operation() -> TestResul
     assert_eq!(retained.target().tab_id().as_str(), ID);
     assert!(canonical.is_none());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     assert!({
         let view = workbench_client.view();
         view.close_confirmation().is_none()
@@ -234,14 +234,14 @@ fn early_not_closing_preserves_uncertain_identity_until_explicit_read_resolves_i
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
     let wire_id = wire_receiver.recv_timeout(Duration::from_secs(1))?;
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     workbench_client.tick();
     let read_id = wire_receiver.recv_timeout(Duration::from_secs(1))?;
     assert!(
@@ -265,7 +265,7 @@ fn early_not_closing_preserves_uncertain_identity_until_explicit_read_resolves_i
         .expect("inconclusive Read cannot erase the submitted identity");
     assert_eq!(retained.request_id(), &wire_id);
     assert!(canonical.is_none());
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         recovered_status(workbench_client, CloseStatusKind::CleanupBlocked)
     }));
@@ -363,14 +363,14 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
 
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(
         workbench_client.task.is_some(),
         "explicit status recovery creates one fresh worker"
@@ -378,7 +378,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         recovered_status(workbench_client, CloseStatusKind::CleanupBlocked)
     }));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     assert!(
         {
             let view = workbench_client.view();
@@ -387,13 +387,13 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
         "undrawn fresh status cannot authorize Resume"
     );
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     assert!({
         let view = workbench_client.view();
         view.close_confirmation()
             .is_some_and(|prompt| prompt.kind() == CloseConfirmationKind::Resume)
     });
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(
         {
             let view = workbench_client.view();
@@ -402,7 +402,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
         "undrawn confirmation remains unsubmitted"
     );
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(
         spin_with_draw(&mut workbench_client, |workbench_client| workbench_client
             .task
@@ -410,7 +410,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
         "the second carrier also requires its own completed join"
     );
 
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         recovered_status(workbench_client, CloseStatusKind::Closed)
     }));

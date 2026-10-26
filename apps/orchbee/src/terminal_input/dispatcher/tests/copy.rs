@@ -76,7 +76,11 @@ impl TerminalInputPort for CopyPort {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         if action == ClientAction::EnterCopyMode {
             self.active = !self.refuse;
         }
@@ -121,7 +125,7 @@ fn copy_exit_packet_cannot_fall_through_to_retained_resize_mode() {
     let mut view = ClientView::new(80);
     let transition = view.decide_action(ClientAction::EnterResizeMode);
     let action = transition.action().unwrap();
-    let disposition = port.apply_client_action(action).unwrap();
+    let disposition = port.apply_client_action((action).into()).unwrap();
     view.commit(transition, disposition);
     assert!(port.active);
     assert!(view.resize_mode());

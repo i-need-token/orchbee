@@ -495,9 +495,9 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                 };
                 let mut view = ClientView::new(width);
                 let action = match entry {
-                    "create" => ClientAction::RequestWorkspaceCreate,
-                    "quick" => ClientAction::RequestQuickWorkspace,
-                    _ => ClientAction::RequestProjectQuickWorkspace(Box::new(
+                    "create" => ClientAction::RequestWorkspaceCreate.into(),
+                    "quick" => ClientAction::RequestQuickWorkspace.into(),
+                    _ => crate::workbench_client::InputAction::project_quick_workspace(Box::new(
                         ProjectQuickWorkspaceRequest::capture(
                             workbench_client
                                 .backend
@@ -512,7 +512,7 @@ fn shell_control_tick_lands_all_launch_entries_unless_newer_focus_revokes_them()
                         .unwrap(),
                     )),
                 };
-                let transition = view.decide_action(action.clone());
+                let transition = view.decide_action(action.intent());
                 let disposition = workbench_client
                     .backend
                     .native_mut()

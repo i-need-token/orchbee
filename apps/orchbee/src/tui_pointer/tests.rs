@@ -422,7 +422,11 @@ impl TerminalInputPort for RecordingPort {
         true
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         if let ClientAction::FocusPanel(panel) = &action {
             // Mirror the session's local focus transition: the desired
             // pane becomes the clicked panel's record and, when that

@@ -535,8 +535,8 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
 
     fn arm(view: &mut ClientView, state: &WorkbenchClientState) {
         for action in [
-            ClientAction::ToggleBusinessSidebar,
-            ClientAction::RequestProjectQuickWorkspace(Box::new(
+            ClientAction::ToggleBusinessSidebar.into(),
+            crate::workbench_client::InputAction::project_quick_workspace(Box::new(
                 ProjectQuickWorkspaceRequest::capture(
                     state,
                     &state.cache().projects()[1],
@@ -545,7 +545,7 @@ fn project_row_and_disclosure_focus_retires_submitted_entering_and_queued_ready_
                 .unwrap(),
             )),
         ] {
-            let transition = view.decide_action(action);
+            let transition = view.decide_action(action.intent());
             view.commit(transition, ClientActionDisposition::KeepNavigator);
         }
         view.machines.available = true;

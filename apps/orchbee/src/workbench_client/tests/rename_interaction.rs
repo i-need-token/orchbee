@@ -942,7 +942,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
             assert!(workbench_client.rename_input_context().is_none());
             TerminalInputPort::apply_client_action(
                 &mut workbench_client,
-                ClientAction::OpenWorkbenchNavigator,
+                ClientAction::OpenWorkbenchNavigator.into(),
             );
             assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
                 let view = workbench_client.view();

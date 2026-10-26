@@ -189,7 +189,11 @@ drawn Project without entering a child. Project Delete dissolves only that organ
 Workspace, terminal, program and identity survives ungrouped. It never composes Close All with removal.
 Explicit Close All compatibility keeps its separate owner. Worktree discovery uses the addressed
 derived source in [native-worktrees.md](native-worktrees.md), including for noncurrent Projects;
-it never borrows an unrelated current Workspace. Typed proofs survive ClientView and InputDispatcher.
+it never borrows an unrelated current Workspace. Workbench keeps the immutable capture while ClientView receives only its plain intent.
+InputDispatcher retains that capture on the current call stack through the view decision and terminal
+mode lease, then submits it only for the same accepted action. A refused or rewritten decision cannot
+execute an unrelated capture. The original source, baseline, desired state, focus and deadline remain
+intact; execution returns the actual disposition to the same view transition.
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 

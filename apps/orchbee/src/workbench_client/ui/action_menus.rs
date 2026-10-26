@@ -1517,7 +1517,7 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn take_action_menu_action(
         &mut self,
         pointer_released: bool,
-    ) -> Option<ClientAction> {
+    ) -> Option<crate::workbench_client::InputAction> {
         self.drive_action_menu();
         let intent = self.menus.intent.as_ref()?;
         if !matches!(intent.stage, Stage::Offered(_, _)) {
@@ -1700,7 +1700,7 @@ impl WorkbenchClientUi {
                 .as_ref()?
                 .can_confirm_guarded_workspace_close(workspace_id) =>
             {
-                ClientAction::RequestWorkspaceCloseAt(workspace_id.clone())
+                ClientAction::RequestWorkspaceCloseAt(workspace_id.clone()).into()
             }
             (
                 Target::Workspace {
@@ -1708,7 +1708,7 @@ impl WorkbenchClientUi {
                     ..
                 },
                 MenuAction::DeleteWorkspace,
-            ) => ClientAction::RequestSidebarWorkspaceDelete(Box::new(
+            ) => crate::workbench_client::InputAction::sidebar_workspace_delete(Box::new(
                 crate::workbench_client::WorkspaceDeleteRequest::capture(
                     self.state.as_ref()?,
                     workspace_id,
@@ -1739,13 +1739,13 @@ impl WorkbenchClientUi {
                     intent.stage.deadline()?,
                 )?
                 .with_choice(choice)?;
-                ClientAction::RequestWorkspaceOrganization(Box::new(request))
+                crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }
             (Target::Project { project, .. }, MenuAction::DeleteProject) => {
                 let request = crate::workbench_client::WorkspaceOrganizationRequest::project(
                     self.state.as_ref()?, project, intent.stage.deadline()?)?
                     .with_choice(crate::workbench_client::state::workspace_setup::OrganizationChoice::DeleteIfIdle)?;
-                ClientAction::RequestWorkspaceOrganization(Box::new(request))
+                crate::workbench_client::InputAction::workspace_organization(Box::new(request))
             }
             (
                 Target::Workspace {
@@ -1753,9 +1753,9 @@ impl WorkbenchClientUi {
                     ..
                 },
                 MenuAction::CloseWorkspace,
-            ) => ClientAction::RequestWorkspaceCloseAt(workspace_id.clone()),
+            ) => ClientAction::RequestWorkspaceCloseAt(workspace_id.clone()).into(),
             (Target::Project { project, .. }, MenuAction::CloseProjectWorkspaces) => {
-                ClientAction::RequestProjectCloseAll(Some(project.project_id.clone()))
+                ClientAction::RequestProjectCloseAll(Some(project.project_id.clone())).into()
             }
             (Target::Tab { tab, .. }, action)
                 if matches!(action.client_action(), Some(ClientAction::TabMenu { .. })) =>
@@ -1764,6 +1764,7 @@ impl WorkbenchClientUi {
                     action,
                     tab_id: Some(tab.tab_id().clone()),
                 }
+                .into()
             }
             (
                 Target::Project { project, .. },
@@ -1775,9 +1776,9 @@ impl WorkbenchClientUi {
                     intent.stage.deadline()?,
                 )?;
                 if action == MenuAction::WorkspaceAtDirectory {
-                    ClientAction::RequestWorkspaceAtDirectory(Some(Box::new(request)))
+                    crate::workbench_client::InputAction::workspace_at_directory(Box::new(request))
                 } else {
-                    ClientAction::RequestProjectQuickWorkspace(Box::new(request))
+                    crate::workbench_client::InputAction::project_quick_workspace(Box::new(request))
                 }
             }
             (Target::Project { project, .. }, MenuAction::RenameProject) => {
@@ -1786,9 +1787,9 @@ impl WorkbenchClientUi {
                     project,
                     intent.stage.deadline()?,
                 )?;
-                ClientAction::RequestTargetedProjectRename(Box::new(request))
+                crate::workbench_client::InputAction::targeted_project_rename(Box::new(request))
             }
-            (_, action) => action.client_action()?,
+            (_, action) => action.client_action()?.into(),
         };
         self.menus.menu.take()?;
         self.menus.intent = None;

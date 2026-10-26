@@ -469,7 +469,7 @@ impl PointerState {
                             _ => None,
                         };
                         if let Some(disposition) =
-                            action.and_then(|action| port.apply_client_action(action))
+                            action.and_then(|action| port.apply_client_action((action).into()))
                         {
                             view.commit_pointer(disposition);
                         }

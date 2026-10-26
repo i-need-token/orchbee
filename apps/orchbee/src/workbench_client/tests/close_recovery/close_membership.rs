@@ -102,13 +102,13 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         recovered_status(workbench_client, CloseStatusKind::Closed)
     }));
@@ -116,7 +116,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
     gap_rx.recv_timeout(Duration::from_secs(1))?;
     assert!(!is_empty(&workbench_client));
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(spin_with_draw(&mut workbench_client, is_empty));
     drop(workbench_client);
     server.finish()?;
@@ -164,9 +164,9 @@ fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_i
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         let view = workbench_client.view();
         view.close_status().is_some_and(|status| {
@@ -176,7 +176,7 @@ fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_i
     tick_manual_gap(&mut workbench_client);
     gap_rx.recv_timeout(Duration::from_secs(1))?;
     assert!(!is_empty(&workbench_client));
-    workbench_client.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    workbench_client.apply_client_action((ClientAction::OpenWorkbenchNavigator).into());
     assert!(spin_with_draw(&mut workbench_client, is_empty));
     drop(workbench_client);
     server.finish()?;
@@ -229,9 +229,9 @@ fn close_closed_snapshot_uses_exact_gone_and_installs_empty_without_another_term
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     draw_recovery(&mut workbench_client)?;
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(
         spin_with_draw(&mut workbench_client, is_empty),
         "Closed must complete canonical removal and Empty"

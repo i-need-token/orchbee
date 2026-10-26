@@ -595,7 +595,9 @@ impl PointerState {
                     );
                 }
                 super::ResizeControl::Exit => {
-                    port.apply_client_action(crate::client_view::ClientAction::ExitResizeMode);
+                    port.apply_client_action(
+                        (crate::client_view::ClientAction::ExitResizeMode).into(),
+                    );
                     view.exit_resize_mode();
                 }
                 _ => {}

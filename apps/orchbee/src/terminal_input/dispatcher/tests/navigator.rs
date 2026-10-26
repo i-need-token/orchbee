@@ -53,7 +53,11 @@ impl TerminalInputPort for Port {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.calls.borrow_mut().push(Call::Action(action));
         Some(ClientActionDisposition::KeepNavigator)
     }

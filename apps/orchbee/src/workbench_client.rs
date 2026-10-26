@@ -7,6 +7,7 @@ mod client_control;
 mod completion_reminders;
 pub(crate) mod input;
 pub(crate) use completion_reminders::Reminder as CompletionReminder;
+pub(crate) use input::InputAction;
 mod configuration;
 mod settings_lane;
 mod window_title;
@@ -958,7 +959,7 @@ impl TerminalInputPort for WorkbenchClient {
             native.cancel_action_menu();
         }
     }
-    fn take_action_menu_action(&mut self, pointer_released: bool) -> Option<ClientAction> {
+    fn take_action_menu_action(&mut self, pointer_released: bool) -> Option<InputAction> {
         self.backend
             .native_mut()?
             .take_action_menu_action(pointer_released)
@@ -1452,7 +1453,8 @@ impl TerminalInputPort for WorkbenchClient {
         consumed
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(&mut self, command: InputAction) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         if let Some(native) = self.backend.native_mut()
             && !native.admit_client_action(&action)
         {
@@ -1510,7 +1512,7 @@ impl TerminalInputPort for WorkbenchClient {
             return Some(ClientActionDisposition::KeepNavigator);
         }
         let disposition = match &mut self.backend {
-            ClientBackend::Native(native) => Some(native.apply_client_action(action)),
+            ClientBackend::Native(native) => Some(native.apply_client_action(command)),
         };
         self.finalize_native_retirement();
         disposition

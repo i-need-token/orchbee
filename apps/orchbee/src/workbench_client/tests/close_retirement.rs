@@ -93,14 +93,14 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         &mut workbench_client,
         |workbench_client| workbench_client.status() == TerminalStatus::Controlling
     ));
-    workbench_client.apply_client_action(ClientAction::RequestCloseTab);
+    workbench_client.apply_client_action((ClientAction::RequestCloseTab).into());
     let view = workbench_client.view();
     let token = view.close_confirmation().unwrap().token();
     workbench_client.after_close_draw(DrawReceipt::new(
         Some(ModalPresentation::Presented(token)),
         None,
     ));
-    workbench_client.apply_client_action(ClientAction::ConfirmClose);
+    workbench_client.apply_client_action((ClientAction::ConfirmClose).into());
     assert!(spin_with_draw(&mut workbench_client, |workbench_client| {
         workbench_client.task.is_none()
     }));

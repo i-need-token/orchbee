@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
     Snapshot, Tab, TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
     WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchProjectId, WorkbenchRevision,
     WorkbenchSplitId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, WorkerId,
+    WorkerId,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -35,17 +35,7 @@ pub(super) struct ClientContextTabs {
     projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "kind", content = "identity", deny_unknown_fields)]
-pub(crate) enum ClientContextLocation {
-    /// No Workspace is open. This UI location has no terminal Context or persistent identity.
-    #[serde(skip)]
-    NoWorkspace,
-    Workspace {
-        workspace_id: WorkbenchWorkspaceId,
-        terminal_context_id: WorkbenchTerminalContextId,
-    },
-}
+pub(crate) use crate::client_context::ClientContextLocation;
 
 /// An explicit destination is bound to a Session as well as its navigation identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -118,18 +108,6 @@ pub(super) struct ClientMemberSelection {
     pub(super) member: ClientMemberTarget,
     pub(super) binding: orchbee_workbench_protocol::PresentationBinding,
     pub(super) expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
-}
-
-impl ClientContextLocation {
-    pub(super) fn terminal_context_id(&self) -> Option<&WorkbenchTerminalContextId> {
-        match self {
-            Self::NoWorkspace => None,
-            Self::Workspace {
-                terminal_context_id,
-                ..
-            } => Some(terminal_context_id),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -142,7 +142,11 @@ impl TerminalInputPort for SetupPort {
         self.focus.push(focused);
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.stage = match action {
             ClientAction::RequestProjectRename => SetupStage::ProjectRename,
             ClientAction::RequestWorkspaceRename => SetupStage::WorkspaceRename,

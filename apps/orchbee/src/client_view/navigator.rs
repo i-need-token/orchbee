@@ -2,7 +2,7 @@
 use orchbee_workbench_protocol::{SessionId, WorkbenchRevision, WorkbenchTabId};
 
 use super::{Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, Modifiers};
-use crate::workbench_client::ClientContextLocation;
+use crate::client_context::ClientContextLocation;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Source {

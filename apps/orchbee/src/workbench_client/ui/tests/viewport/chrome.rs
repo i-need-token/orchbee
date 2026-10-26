@@ -231,7 +231,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
             // Only the explicit at-directory entry waits for an Enter-accepted review.
             assert_eq!(
                 ui.apply_client_action(
-                    crate::client_view::ClientAction::RequestWorkspaceAtDirectory(None)
+                    crate::client_view::ClientAction::RequestWorkspaceAtDirectory
                 ),
                 ClientActionDisposition::LayoutChanged
             );

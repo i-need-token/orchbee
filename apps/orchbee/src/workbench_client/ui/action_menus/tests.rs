@@ -49,7 +49,7 @@ fn tab_creation_exposes_saved_profiles_and_cancel_has_no_effect() {
             activate_row(&mut ui, token, row);
             let action = ui.take_action_menu_action(false).unwrap();
             assert_eq!(
-                action,
+                action.intent(),
                 ClientAction::TabMenu {
                     action: MenuAction::NewTabWithProfile(Box::new(profile)),
                     tab_id: None
@@ -275,7 +275,8 @@ fn global_menu_groups_existing_tab_panel_workspace_and_client_actions_and_dispat
         let token = arm(&mut ui);
         activate_row(&mut ui, token, row);
         assert_eq!(
-            ui.take_action_menu_action(false),
+            ui.take_action_menu_action(false)
+                .map(|command| command.intent()),
             Some(expected_client_action),
             "{action:?} must use the same ClientAction as its keyboard binding"
         );
@@ -487,7 +488,8 @@ fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
     ui.activate_action_menu_row(&MenuTarget::Global, token, row);
     assert_eq!(ui.menus.menu.confirmed(), Some(MenuAction::Help));
     assert_eq!(
-        ui.take_action_menu_action(false),
+        ui.take_action_menu_action(false)
+            .map(|command| command.intent()),
         Some(ClientAction::OpenShortcutHelp)
     );
     assert!(!ui.action_menu_capture_claim());
@@ -1365,7 +1367,8 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
     activate_row(&mut ui, token, row);
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(peer));
     assert_eq!(
-        ui.take_action_menu_action(false),
+        ui.take_action_menu_action(false)
+            .map(|command| command.intent()),
         Some(ClientAction::ClosePanel)
     );
     assert_eq!(ui.take_action_menu_action(false), None);
@@ -1525,7 +1528,7 @@ fn empty_workspace_navigation_uses_owned_refresh_and_exact_cleanup_then_original
     let action = ui
         .take_action_menu_action(false)
         .expect("original action does not require Ready");
-    assert_eq!(action, ClientAction::RequestWorkspaceRename);
+    assert_eq!(action.intent(), ClientAction::RequestWorkspaceRename);
     ui.apply_client_action(action);
     assert!(ui.view().setup_draft().is_some());
 }

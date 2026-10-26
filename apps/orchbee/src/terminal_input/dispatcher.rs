@@ -28,6 +28,20 @@ use super::{
 
 mod navigator;
 
+struct ActionDecision {
+    transition: crate::client_view::ClientTransition,
+    captured: Option<crate::workbench_client::input::CapturedClientAction>,
+}
+
+impl From<crate::client_view::ClientTransition> for ActionDecision {
+    fn from(transition: crate::client_view::ClientTransition) -> Self {
+        Self {
+            transition,
+            captured: None,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct InputDispatcher {
     navigator: navigator::Capture,
@@ -221,8 +235,13 @@ impl InputDispatcher {
             return Ok(None);
         };
         self.settle_action_menu_closed(port);
-        let transition = view.decide_action(action);
-        self.apply_transition(view, port, now, transition, None, after_layout, mode)
+        let (intent, captured) = action.into_parts();
+        let transition = view.decide_action(intent);
+        let decision = ActionDecision {
+            transition,
+            captured,
+        };
+        self.apply_transition(view, port, now, decision, None, after_layout, mode)
             .map(Some)
     }
     fn host_reply(
@@ -2017,11 +2036,15 @@ impl InputDispatcher {
         view: &mut ClientView,
         port: &mut Port,
         now: Instant,
-        transition: crate::client_view::ClientTransition,
+        decision: impl Into<ActionDecision>,
         item: Option<&DecodedItem>,
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
+        let ActionDecision {
+            transition,
+            captured,
+        } = decision.into();
         let action = transition.action();
         if action == Some(ClientAction::DismissOnboarding) {
             view.commit(transition, ClientActionDisposition::KeepNavigator);
@@ -2061,16 +2084,16 @@ impl InputDispatcher {
                     | ClientAction::ToggleAgentBoard
                     | ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace
-                    | ClientAction::RequestWorkspaceAtDirectory(_)
-                    | ClientAction::RequestProjectQuickWorkspace(_)
+                    | ClientAction::RequestWorkspaceAtDirectory
+                    | ClientAction::RequestProjectQuickWorkspace
                     | ClientAction::RequestWorkspaceDirectory
                     | ClientAction::RequestWorkspaceRename
                     | ClientAction::RequestProjectRename
-                    | ClientAction::RequestTargetedProjectRename(_)
-                    | ClientAction::RequestWorkspaceOrganization(_)
+                    | ClientAction::RequestTargetedProjectRename
+                    | ClientAction::RequestWorkspaceOrganization
                     | ClientAction::RequestProjectCloseAll(_)
                     | ClientAction::RequestWorkspaceCloseAt(_)
-                    | ClientAction::RequestSidebarWorkspaceDelete(_)
+                    | ClientAction::RequestSidebarWorkspaceDelete
             )
         );
         let requests_modal = requests_modal
@@ -2093,14 +2116,14 @@ impl InputDispatcher {
         let applied = action.clone().and_then(|action| {
             if action == ClientAction::FocusBusinessSidebar {
                 return if board_action_handoff {
-                    port.apply_client_action(action)
+                    port.apply_client_action(action.into())
                 } else {
                     Some(ClientActionDisposition::KeepNavigator)
                 };
             }
             if action == ClientAction::OpenActionMenu {
                 let disposition = if board_action_handoff {
-                    port.apply_client_action(action.clone())?
+                    port.apply_client_action(action.clone().into())?
                 } else {
                     ClientActionDisposition::KeepNavigator
                 };
@@ -2120,7 +2143,9 @@ impl InputDispatcher {
                 }
                 return Some(disposition);
             }
-            port.apply_client_action(action)
+            port.apply_client_action(crate::workbench_client::InputAction::for_decision(
+                action, captured,
+            ))
         });
         view.commit(
             transition,

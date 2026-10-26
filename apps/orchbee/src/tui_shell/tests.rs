@@ -57,8 +57,11 @@ pub(crate) fn run_native_close_resize_confirmation(
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.session.forward(bytes)
         }
-        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
-            self.session.apply_client_action(action)
+        fn apply_client_action(
+            &mut self,
+            command: crate::workbench_client::InputAction,
+        ) -> Option<ClientActionDisposition> {
+            self.session.apply_client_action(command)
         }
         fn capture_tab_confirmation_key_for(
             &mut self,
@@ -630,7 +633,11 @@ impl TerminalInputPort for OrderedSurface {
         Ok(())
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.events.push(SurfaceEvent::Action(action));
         Some(ClientActionDisposition::KeepNavigator)
     }

@@ -83,7 +83,7 @@ pub(crate) enum BackendAction {
     MovePanel,
 }
 
-// This value is shared with the Workbench Client reducer while remaining protocol-free.
+/// Plain Client view intent; executable menu captures and their proofs remain with Workbench.
 // Not `Copy`: `FocusPanel` carries a `WorkbenchPanelId` (heap identity).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
@@ -106,19 +106,19 @@ pub(crate) enum ClientAction {
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
-    RequestWorkspaceAtDirectory(Option<Box<crate::workbench_client::ProjectQuickWorkspaceRequest>>),
-    RequestProjectQuickWorkspace(Box<crate::workbench_client::ProjectQuickWorkspaceRequest>),
+    RequestWorkspaceAtDirectory,
+    RequestProjectQuickWorkspace,
     RequestWorktreeCreate,
     RequestWorktreeOpen,
     RequestWorkspaceClose,
     RequestWorkspaceCloseAt(orchbee_workbench_protocol::WorkbenchWorkspaceId),
-    RequestSidebarWorkspaceDelete(Box<crate::workbench_client::WorkspaceDeleteRequest>),
+    RequestSidebarWorkspaceDelete,
     RequestControlTakeover,
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
     RequestProjectRename,
-    RequestTargetedProjectRename(Box<crate::workbench_client::ProjectRenameRequest>),
-    RequestWorkspaceOrganization(Box<crate::workbench_client::WorkspaceOrganizationRequest>),
+    RequestTargetedProjectRename,
+    RequestWorkspaceOrganization,
     RequestProjectCloseAll(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
     RequestRenameTab,
     RequestCloseTab,
@@ -291,20 +291,20 @@ impl ClientAction {
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestQuickWorkspace
-            | Self::RequestWorkspaceAtDirectory(_)
-            | Self::RequestProjectQuickWorkspace(_) => Some(BackendAction::QuickCreateWorkspace),
+            | Self::RequestWorkspaceAtDirectory
+            | Self::RequestProjectQuickWorkspace => Some(BackendAction::QuickCreateWorkspace),
             Self::RequestWorktreeCreate => Some(BackendAction::CreateWorktree),
             Self::RequestWorktreeOpen => Some(BackendAction::OpenWorktree),
             Self::RequestWorkspaceClose => Some(BackendAction::CloseWorkspace),
             Self::RequestControlTakeover => None,
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
             Self::RequestWorkspaceRename => Some(BackendAction::RenameWorkspace),
-            Self::RequestProjectRename | Self::RequestTargetedProjectRename(_) => {
+            Self::RequestProjectRename | Self::RequestTargetedProjectRename => {
                 Some(BackendAction::RenameProject)
             }
             Self::RequestWorkspaceCloseAt(_)
-            | Self::RequestSidebarWorkspaceDelete(_)
-            | Self::RequestWorkspaceOrganization(_)
+            | Self::RequestSidebarWorkspaceDelete
+            | Self::RequestWorkspaceOrganization
             | Self::RequestProjectCloseAll(_) => None,
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
@@ -1319,9 +1319,9 @@ impl ClientView {
             if matches!(
                 action,
                 ClientAction::RequestWorkspaceCreate
-                    | ClientAction::RequestWorkspaceAtDirectory(_)
+                    | ClientAction::RequestWorkspaceAtDirectory
                     | ClientAction::RequestQuickWorkspace
-                    | ClientAction::RequestProjectQuickWorkspace(_)
+                    | ClientAction::RequestProjectQuickWorkspace
             ) {
                 // Creation takes keyboard intent from the sidebar. Preserve the
                 // visible overlay until the exact native Ready receipt returns;

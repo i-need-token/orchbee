@@ -589,7 +589,7 @@ fn unsupported_reload_without_a_watcher_reports_before_dispatch() -> TestResult 
         recovery_shutdown: None,
     };
     assert_eq!(
-        workbench_client.apply_client_action(ClientAction::ReloadConfiguration),
+        workbench_client.apply_client_action((ClientAction::ReloadConfiguration).into()),
         Some(ClientActionDisposition::KeepNavigator)
     );
     assert_eq!(
@@ -1137,7 +1137,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                 ClientAction::SelectNextTab,
             ] {
                 assert_eq!(
-                    TerminalInputPort::apply_client_action(&mut workbench_client, action),
+                    TerminalInputPort::apply_client_action(&mut workbench_client, action.into()),
                     Some(ClientActionDisposition::KeepNavigator)
                 );
             }
@@ -1782,7 +1782,10 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
     mailbox.close(CarrierFailure::Deadline);
 
     assert_eq!(
-        TerminalInputPort::apply_client_action(&mut workbench_client, ClientAction::CreateTab),
+        TerminalInputPort::apply_client_action(
+            &mut workbench_client,
+            ClientAction::CreateTab.into()
+        ),
         Some(ClientActionDisposition::KeepNavigator)
     );
     assert!(workbench_client.task.is_none());

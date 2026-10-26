@@ -508,7 +508,7 @@ impl Locale {
                     Self::ZhCn => "新建工作区",
                 })
             }
-            PrefixAction::Client(A::RequestWorkspaceAtDirectory(_)) => Some(match self {
+            PrefixAction::Client(A::RequestWorkspaceAtDirectory) => Some(match self {
                 Self::EnUs => "New Workspace in directory",
                 Self::ZhCn => "在指定目录新建工作区",
             }),

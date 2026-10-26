@@ -48,8 +48,8 @@ impl Capability {
             ClientAction::ReloadConfiguration => Some(Self::ConfigurationFile),
             ClientAction::RequestQuickWorkspace
             | ClientAction::RequestWorkspaceCreate
-            | ClientAction::RequestWorkspaceAtDirectory(_)
-            | ClientAction::RequestProjectQuickWorkspace(_)
+            | ClientAction::RequestWorkspaceAtDirectory
+            | ClientAction::RequestProjectQuickWorkspace
             | ClientAction::RequestWorktreeCreate
             | ClientAction::RequestWorktreeOpen
             | ClientAction::RequestWorkspaceDirectory => Some(Self::DirectoryInput),

@@ -426,7 +426,11 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
                 _ => None,
             }
         }
-        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+        fn apply_client_action(
+            &mut self,
+            command: crate::workbench_client::InputAction,
+        ) -> Option<ClientActionDisposition> {
+            let action = command.intent();
             self.actions.push(action);
             Some(ClientActionDisposition::KeepNavigator)
         }

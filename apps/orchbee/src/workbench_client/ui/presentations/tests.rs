@@ -290,8 +290,11 @@ impl crate::terminal_input::TerminalInputPort for PointerUi<'_> {
     fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
         self.0.pointer_probe()
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
-        Some(self.0.apply_client_action(action))
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        Some(self.0.apply_client_action(command))
     }
 }
 

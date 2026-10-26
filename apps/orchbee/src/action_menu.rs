@@ -222,7 +222,7 @@ impl MenuAction {
             Self::NewTab => ClientAction::CreateTab,
             Self::RenameTab => ClientAction::RequestRenameTab,
             Self::QuickWorkspace => ClientAction::RequestQuickWorkspace,
-            Self::WorkspaceAtDirectory => ClientAction::RequestWorkspaceAtDirectory(None),
+            Self::WorkspaceAtDirectory => ClientAction::RequestWorkspaceAtDirectory,
             Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
             Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
             Self::RenameProject => ClientAction::RequestProjectRename,

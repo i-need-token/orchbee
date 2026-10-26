@@ -77,8 +77,8 @@ fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspac
     activate_row(&mut ui, token, row);
     let action = ui.take_action_menu_action(false).unwrap();
     assert!(matches!(
-        action,
-        ClientAction::RequestProjectQuickWorkspace(_)
+        action.intent(),
+        ClientAction::RequestProjectQuickWorkspace
     ));
     assert!(mailbox.try_recv().unwrap().is_none());
     assert_eq!(
@@ -323,11 +323,15 @@ fn workspace_project_choice_reorder_retires_the_frozen_submenu_before_dispatch()
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-fn confirm_quick(ui: &mut WorkbenchClientUi, project: &Project, keyboard: bool) -> ClientAction {
+fn confirm_quick(
+    ui: &mut WorkbenchClientUi,
+    project: &Project,
+    keyboard: bool,
+) -> crate::workbench_client::InputAction {
     let action = confirm_project_action(ui, project, keyboard, MenuAction::QuickWorkspace);
     assert!(matches!(
-        action,
-        ClientAction::RequestProjectQuickWorkspace(_)
+        action.intent(),
+        ClientAction::RequestProjectQuickWorkspace
     ));
     action
 }
@@ -337,7 +341,7 @@ fn confirm_project_action(
     project: &Project,
     keyboard: bool,
     requested: MenuAction,
-) -> ClientAction {
+) -> crate::workbench_client::InputAction {
     assert!(open(ui, project));
     let row = ui
         .view()
@@ -897,8 +901,8 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                 let action =
                     confirm_project_action(&mut ui, &project, keyboard, MenuAction::RenameProject);
                 assert!(matches!(
-                    action,
-                    ClientAction::RequestTargetedProjectRename(_)
+                    action.intent(),
+                    ClientAction::RequestTargetedProjectRename
                 ));
                 ui.apply_client_action(action);
                 let draft = ui.view().setup_draft().unwrap();
@@ -1029,18 +1033,24 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
     ) -> bool {
         self.ui.capture_action_menu_key_for(expected, event)
     }
-    fn take_action_menu_action(&mut self, released: bool) -> Option<ClientAction> {
+    fn take_action_menu_action(
+        &mut self,
+        released: bool,
+    ) -> Option<crate::workbench_client::InputAction> {
         self.ui.take_action_menu_action(released)
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
         assert!(matches!(
-            action,
-            ClientAction::RequestTargetedProjectRename(_)
+            command.intent(),
+            ClientAction::RequestTargetedProjectRename
         ));
         if let Some(elapsed) = &self.expire {
             elapsed.store(30_000, std::sync::atomic::Ordering::Relaxed);
         }
-        Some(self.ui.apply_client_action(action))
+        Some(self.ui.apply_client_action(command))
     }
     fn edit_setup_draft(
         &mut self,

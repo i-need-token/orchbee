@@ -5,6 +5,7 @@
 
 mod action_menus;
 mod agent_attention;
+mod captured_actions;
 mod launch_profiles;
 mod pane_graphics;
 pub(in crate::workbench_client) mod settings;
@@ -2667,7 +2668,11 @@ impl WorkbenchClientUi {
             .is_none_or(|capability| self.admit_capability(capability))
     }
 
-    pub(super) fn apply_client_action(&mut self, action: ClientAction) -> ClientActionDisposition {
+    pub(super) fn apply_client_action(
+        &mut self,
+        command: impl Into<super::InputAction>,
+    ) -> ClientActionDisposition {
+        let (action, captured) = command.into().into_parts();
         if !self.admit_client_action(&action) {
             return ClientActionDisposition::KeepNavigator;
         }
@@ -2707,7 +2712,14 @@ impl WorkbenchClientUi {
             state.set_notice(ClientNotice::NoWorkspace);
             return ClientActionDisposition::KeepNavigator;
         }
+        if let Some(captured) = captured {
+            return self.apply_captured_action(captured);
+        }
         match action {
+            ClientAction::RequestProjectQuickWorkspace
+            | ClientAction::RequestSidebarWorkspaceDelete
+            | ClientAction::RequestTargetedProjectRename
+            | ClientAction::RequestWorkspaceOrganization => ClientActionDisposition::KeepNavigator,
             ClientAction::OpenActionMenu => ClientActionDisposition::KeepNavigator,
             ClientAction::OpenSettings => self.request_settings(),
             ClientAction::OpenMachines
@@ -2724,37 +2736,14 @@ impl WorkbenchClientUi {
                     ClientActionDisposition::KeepNavigator
                 }
             }
-            ClientAction::RequestWorkspaceAtDirectory(request) => {
-                if self.request_quick_workspace_with_review(request.map(|request| *request), true) {
+            ClientAction::RequestWorkspaceAtDirectory => {
+                if self.request_quick_workspace_with_review(None, true) {
                     ClientActionDisposition::LayoutChanged
                 } else {
                     ClientActionDisposition::KeepNavigator
                 }
             }
-            ClientAction::RequestProjectQuickWorkspace(request) => {
-                if self.request_quick_workspace_for(Some(*request)) {
-                    return ClientActionDisposition::LayoutChanged;
-                } else if let Some(state) = self.state.as_mut() {
-                    state.set_notice(super::state::ClientNotice::DraftCancelled);
-                }
-                ClientActionDisposition::KeepNavigator
-            }
-            ClientAction::RequestTargetedProjectRename(request) => {
-                if self.request_project_rename(request).is_none()
-                    && let Some(state) = self.state.as_mut()
-                {
-                    state.set_notice(super::state::ClientNotice::DraftCancelled);
-                }
-                ClientActionDisposition::KeepNavigator
-            }
-            ClientAction::RequestWorkspaceOrganization(request) => {
-                if !self.request_workspace_organization(request)
-                    && let Some(state) = self.state.as_mut()
-                {
-                    state.set_notice(super::state::ClientNotice::DraftCancelled);
-                }
-                ClientActionDisposition::KeepNavigator
-            }
+
             ClientAction::RequestProjectCloseAll(project) => {
                 let project =
                     project.or_else(|| self.state.as_ref()?.cache().project_id().cloned());
@@ -2806,9 +2795,7 @@ impl WorkbenchClientUi {
             ClientAction::RequestWorkspaceCloseAt(workspace) => {
                 self.request_workspace_close_at(&workspace)
             }
-            ClientAction::RequestSidebarWorkspaceDelete(request) => {
-                self.request_sidebar_workspace_delete(&request)
-            }
+
             ClientAction::RequestControlTakeover => self.request_takeover(),
             ClientAction::EnterResizeMode => {
                 let _consumed = self.history_key(&crate::client_view::KeyEvent::press(

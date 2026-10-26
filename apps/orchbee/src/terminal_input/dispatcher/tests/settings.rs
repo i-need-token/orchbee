@@ -97,8 +97,9 @@ impl TerminalInputPort for Port {
 
     fn apply_client_action(
         &mut self,
-        action: ClientAction,
+        command: crate::workbench_client::InputAction,
     ) -> Option<crate::client_view::ClientActionDisposition> {
+        let action = command.intent();
         self.calls.borrow_mut().push(Call::Action(action.clone()));
         if action == ClientAction::OpenSettings {
             self.editor.open().unwrap();

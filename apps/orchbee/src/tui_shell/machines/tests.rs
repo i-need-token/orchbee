@@ -29,8 +29,9 @@ impl crate::terminal_input::TerminalInputPort for Witness {
 
     fn apply_client_action(
         &mut self,
-        action: crate::client_view::ClientAction,
+        command: crate::workbench_client::InputAction,
     ) -> Option<crate::client_view::ClientActionDisposition> {
+        let action = command.intent();
         if let crate::client_view::ClientAction::FocusPanel(panel) = action {
             let target = self
                 .probe

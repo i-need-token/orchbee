@@ -880,7 +880,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             ui.activate_action_menu_row(&source, token, last);
             let action = ui.take_action_menu_action(false).unwrap();
             assert!(matches!(
-                action,
+                action.intent(),
                 ClientAction::TabMenu {
                     action: MenuAction::MoveTabLast,
                     ..

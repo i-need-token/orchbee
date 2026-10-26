@@ -427,8 +427,8 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                     ui.activate_action_menu_row(&source, menu_token, row);
                     let action = ui.take_action_menu_action(false).unwrap();
                     assert!(matches!(
-                        action,
-                        ClientAction::RequestWorkspaceOrganization(_)
+                        action.intent(),
+                        ClientAction::RequestWorkspaceOrganization
                     ));
                     assert_eq!(
                         ui.apply_client_action(action),

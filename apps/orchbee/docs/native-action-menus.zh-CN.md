@@ -140,7 +140,10 @@ Project 选择器。重命名与删除同样直接针对已绘制 Project，不�
 解散该组织关系：所有成员 Workspace、终端、程序及身份都保留，并成为未分组。绝不组合全部关闭
 与移除。显式全部关闭兼容入口保留独立所有者。Worktree 发现采用
 [native-worktrees.md](native-worktrees.zh-CN.md) 中的已寻址派生来源，包括非当前 Project；绝不借用
-无关的当前 Workspace。有类型证明经过 ClientView 与 InputDispatcher 保留。Setup 保留当前来源
+无关的当前 Workspace。Workbench 保留不可变捕获，ClientView 仅接收普通意图。
+InputDispatcher 在当前调用栈中保留该捕获，经过 view 决定与终端模式 lease 后，
+仅为同一已接受动作提交它。被拒绝或改写的决定不能执行无关捕获。原有来源、基线、
+期望状态、焦点和期限保持不变；执行的实际 disposition 提交回同一个 view transition。Setup 保留当前来源
 与焦点，准入时核对原菜单截止时间，并使用有界准备，不对可选的人工编辑计时。
 
 Workspace 菜单包含 Project、Worktree、重命名和删除各段。Project 子菜单对未分组
@@ -362,4 +365,4 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 
 侧栏锚定菜单保留被覆盖行的完整矩形用于定位，同时抑制底层输入目标。空间允许时在行旁打开，否则在其上方或下方打开。工作树发现过程在检查中、可用和不可用结果间保留原因行，使靠边放置的重命名与删除操作保持位置。
 
-<!-- documentation-pairing: english-sha256=fb3ee287d4232e1a92fcb5f325b3966bcf8a298146d65ee9c62ff2eabe640783 zh-cn-sha256=c8e20f87c997c59641ef04b70c4eae173419ab8575db575f897276b9f80b0a6d -->
+<!-- documentation-pairing: english-sha256=ef551cd9ff7df1aa8585f5f3ea3e143e5ea948256df9ae1b8bad4754c22f2190 zh-cn-sha256=347216ecb58e69ceebf2b40244a334e444410ebc6b87831eb36b5c2ec9d64bbf -->

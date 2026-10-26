@@ -115,7 +115,11 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
             self.forwarded.push(bytes.to_vec());
             Ok(())
         }
-        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+        fn apply_client_action(
+            &mut self,
+            command: crate::workbench_client::InputAction,
+        ) -> Option<ClientActionDisposition> {
+            let action = command.intent();
             if action == ClientAction::RequestCloseTab {
                 self.active = true;
             }
@@ -204,7 +208,11 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
             self.forwarded.push(bytes.to_vec());
             Ok(())
         }
-        fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+        fn apply_client_action(
+            &mut self,
+            command: crate::workbench_client::InputAction,
+        ) -> Option<ClientActionDisposition> {
+            let action = command.intent();
             if action == ClientAction::RequestCloseTab {
                 self.active = true;
             }
@@ -321,7 +329,11 @@ impl TerminalInputPort for RecordingTerminalInput {
         }
     }
 
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.recorded.push(Recorded::Action(action));
         self.action_disposition
     }

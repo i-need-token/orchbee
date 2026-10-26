@@ -13,6 +13,7 @@ mod agent_provider;
 mod agent_runtime;
 mod agent_start;
 mod cli;
+mod client_context;
 mod client_view;
 mod help;
 mod invocation;

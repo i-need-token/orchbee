@@ -5,7 +5,11 @@ use super::{
     CaptureContext, RenameDraftToken, RenameEdit, SetupEdit, SetupToken, WorktreeEdit,
     WorktreeToken,
 };
-use crate::client_view::{ClientAction, ClientActionDisposition, ClientKey};
+mod action;
+pub(in crate::workbench_client) use action::CapturedRequest;
+pub(crate) use action::{CapturedClientAction, InputAction};
+
+use crate::client_view::{ClientActionDisposition, ClientKey};
 use crate::terminal_events::{DecodedItem, MouseEvent};
 use crate::tui_composition::{CaptureClaims, WorkbenchCaptureOwner};
 use orchbee_client_server_protocol::Geometry;
@@ -305,7 +309,7 @@ pub(crate) trait TerminalInputPort {
         None
     }
     fn cancel_action_menu(&mut self) {}
-    fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<ClientAction> {
+    fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<InputAction> {
         None
     }
     fn observe_host_graphics(&mut self, _facts: crate::terminal_graphics::Facts) {}
@@ -455,7 +459,7 @@ pub(crate) trait TerminalInputPort {
         PointerLinkAdmission::Rejected
     }
 
-    fn apply_client_action(&mut self, _action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(&mut self, _action: InputAction) -> Option<ClientActionDisposition> {
         None
     }
 

@@ -53,7 +53,11 @@ impl TerminalInputPort for Port {
         assert_eq!(source, &self.source.drawn);
         self.writes.push(operation);
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         self.actions.push(action);
         Some(ClientActionDisposition::KeepNavigator)
     }

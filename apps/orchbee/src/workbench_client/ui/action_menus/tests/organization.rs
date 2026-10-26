@@ -1,7 +1,11 @@
 use super::*;
 use orchbee_workbench_protocol::WorkbenchAction;
 
-fn choose(ui: &mut WorkbenchClientUi, target: MenuTarget, action: MenuAction) -> ClientAction {
+fn choose(
+    ui: &mut WorkbenchClientUi,
+    target: MenuTarget,
+    action: MenuAction,
+) -> crate::workbench_client::InputAction {
     assert!(ui.open_action_menu(
         MenuTarget::Drawn {
             source: ui.view().action_menu_source().unwrap(),
@@ -48,8 +52,8 @@ fn leaving_noncurrent_workspace_submits_exact_organization_without_navigating() 
         MenuAction::LeaveWorkspaceProject,
     );
     assert!(matches!(
-        action,
-        ClientAction::RequestWorkspaceOrganization(_)
+        action.intent(),
+        ClientAction::RequestWorkspaceOrganization
     ));
     assert!(mailbox.try_recv().unwrap().is_none());
     ui.apply_client_action(action);
@@ -141,8 +145,8 @@ fn deleting_noncurrent_workspace_submits_only_conditional_admission_without_navi
         MenuAction::DeleteWorkspace,
     );
     assert!(matches!(
-        action,
-        ClientAction::RequestSidebarWorkspaceDelete(_)
+        action.intent(),
+        ClientAction::RequestSidebarWorkspaceDelete
     ));
     assert!(mailbox.try_recv().unwrap().is_none());
     ui.apply_client_action(action);
@@ -292,7 +296,7 @@ fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
             activate_row(&mut ui, token, row);
             let action = ui.take_action_menu_action(false).unwrap();
             assert_eq!(
-                action,
+                action.intent(),
                 ClientAction::RequestWorkspaceCloseAt(workspace.clone())
             );
             ui.apply_client_action(action);

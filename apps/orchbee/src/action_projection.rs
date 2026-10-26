@@ -193,7 +193,7 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Workspace,
             WORKSPACE,
         ),
-        PrefixAction::Client(A::RequestWorkspaceAtDirectory(_)) => built_in(
+        PrefixAction::Client(A::RequestWorkspaceAtDirectory) => built_in(
             "orchbee.native.workspace.create-in-directory",
             C::Workspace,
             WORKSPACE,

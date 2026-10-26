@@ -87,7 +87,7 @@ fn directory_review_prepares_without_launching_and_submits_only_the_visible_edit
     use orchbee_workbench_protocol::{WorkbenchAction, WorkbenchDirectoryPath};
     let (mut ui, mailbox, clock, snapshot) = no_workspace();
     assert_eq!(
-        ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory(None)),
+        ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory),
         ClientActionDisposition::LayoutChanged
     );
     finish_preparation_with_directory(
@@ -123,7 +123,7 @@ fn directory_review_prepares_without_launching_and_submits_only_the_visible_edit
 fn cancelling_directory_review_keeps_the_source_and_submits_nothing() {
     let (mut ui, mailbox, clock, snapshot) = no_workspace();
     let source = ui.state.as_ref().unwrap().cache().clone();
-    ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory(None));
+    ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory);
     finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
     let token = ui.view().setup_draft().unwrap().token();
     ui.cancel_setup_draft(token);
@@ -750,7 +750,7 @@ fn workspace_at_directory_launches_only_from_a_drawn_review_in_either_locale() {
         for (width, height, drawn) in [(120, 40, true), (80, 24, true), (22, 8, false)] {
             let (mut ui, mailbox, clock, snapshot) =
                 super::super::tests::workspace_setup::ready(false);
-            ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory(None));
+            ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory);
             finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
             assert!(
                 mailbox.try_recv().unwrap().is_none(),

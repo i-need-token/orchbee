@@ -831,8 +831,11 @@ impl TerminalInputPort for Port {
             self.menu.cancel();
         }
     }
-    fn take_action_menu_action(&mut self, _: bool) -> Option<ClientAction> {
-        self.menu.take().and_then(|action| action.client_action())
+    fn take_action_menu_action(&mut self, _: bool) -> Option<crate::workbench_client::InputAction> {
+        self.menu
+            .take()
+            .and_then(|action| action.client_action())
+            .map(Into::into)
     }
     fn pointer_probe(&mut self) -> PointerProbe {
         let mut probe = self.probe.clone();
@@ -847,7 +850,11 @@ impl TerminalInputPort for Port {
         self.selections.push(intent);
         crate::terminal_input::PointerSelectionAdmission::Admitted
     }
-    fn apply_client_action(&mut self, action: ClientAction) -> Option<ClientActionDisposition> {
+    fn apply_client_action(
+        &mut self,
+        command: crate::workbench_client::InputAction,
+    ) -> Option<ClientActionDisposition> {
+        let action = command.intent();
         if self.focus_on_request
             && let ClientAction::FocusPanel(panel) = &action
         {
