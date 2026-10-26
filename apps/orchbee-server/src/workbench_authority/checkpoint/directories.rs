@@ -1,4 +1,5 @@
 //! Retained per-Presentation directory intent; physical observation admission belongs to the Site.
+use super::super::terminal_membership::visit_panel_presentations;
 use super::{WorkbenchAuthority, WorkbenchCheckpointError as Error};
 use orchbee_workbench_protocol::{
     PresentationBinding, Snapshot, TerminalPresentationId, WorkbenchDirectoryPath, WorkerId,

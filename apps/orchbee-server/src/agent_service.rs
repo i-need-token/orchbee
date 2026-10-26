@@ -16,7 +16,6 @@ mod launch;
 mod map;
 mod names;
 #[cfg(windows)]
-#[cfg(windows)]
 pub(crate) use names::TerminalNameFact;
 #[cfg(test)]
 mod tests;
