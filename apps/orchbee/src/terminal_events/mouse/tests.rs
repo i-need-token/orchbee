@@ -6,7 +6,7 @@ use super::{
     MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute, decode_sgr,
     decode_x10, encode_cursor_arrows, encode_pane_report, route_pane_pointer,
 };
-use crate::client_view::Modifiers;
+use crate::terminal_events::keys::Modifiers;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
 
 fn event(

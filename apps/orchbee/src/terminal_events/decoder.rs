@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use super::mouse::{self, MouseEvent};
 use super::utf8::{Continuation, continuation_count};
-use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
+use crate::terminal_events::keys::{KeyCode, KeyEvent, KeyKind, Modifiers};
 
 /// One decoded input item; rejected paste retains no raw bytes. `owned` marks an
 /// item that completes a frame which began inside a captured packet, so
@@ -26,7 +26,7 @@ pub(crate) struct DecodedItem {
 
 impl DecodedItem {
     /// Editing intent is classified before encoding: navigation, mouse reports and focus are not edits.
-    pub(super) fn edits_terminal(&self) -> bool {
+    pub(crate) fn edits_terminal(&self) -> bool {
         match &self.kind {
             DecodedKind::Paste { text } => !text.is_empty(),
             DecodedKind::Key(event) if event.kind != KeyKind::Release => {
@@ -205,19 +205,19 @@ enum State {
         owned: bool,
     },
     Graphics {
-        reply: Box<crate::terminal_graphics::ReplyString>,
+        reply: Box<crate::terminal_events::graphics::ReplyString>,
         owned: bool,
     },
     /// A possible OSC 10/11 response; selector bytes stay bounded until ownership is known.
     Osc {
         introducer: Vec<u8>,
-        frame: crate::terminal_host_appearance::OscReplyFrame,
+        frame: crate::terminal_events::appearance::OscReplyFrame,
         selector_deadline: Option<Instant>,
         owned: bool,
     },
     /// A targeted appearance string expired mid-frame; drain a bounded tail through BEL/ST.
     OscDrain {
-        drain: crate::terminal_host_appearance::OscDrain,
+        drain: crate::terminal_events::appearance::OscDrain,
         owned: bool,
     },
     /// An in-progress UTF-8 scalar; `raw` includes an optional leading ESC
@@ -539,7 +539,7 @@ impl LegacyDecoder {
                 } => {
                     if byte == b'G' {
                         self.state = State::Graphics {
-                            reply: Box::new(crate::terminal_graphics::ReplyString::new(
+                            reply: Box::new(crate::terminal_events::graphics::ReplyString::new(
                                 now, self.wait,
                             )),
                             owned: frame_owned,
@@ -593,7 +593,7 @@ impl LegacyDecoder {
                         pending = Some(byte);
                     } else {
                         match frame.push(byte) {
-                            crate::terminal_host_appearance::OscStep::Pending => {
+                            crate::terminal_events::appearance::OscStep::Pending => {
                                 self.state = State::Osc {
                                     introducer,
                                     selector_deadline: if frame.target().is_some() {
@@ -605,7 +605,9 @@ impl LegacyDecoder {
                                     owned,
                                 };
                             }
-                            crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                            crate::terminal_events::appearance::OscStep::NotColorReply(
+                                selector,
+                            ) => {
                                 replay_osc_candidate(
                                     self,
                                     &introducer,
@@ -615,10 +617,10 @@ impl LegacyDecoder {
                                     items,
                                 );
                             }
-                            crate::terminal_host_appearance::OscStep::OverBound(target) => {
+                            crate::terminal_events::appearance::OscStep::OverBound(target) => {
                                 items.push(DecodedItem {
                                     kind: DecodedKind::HostReply(super::HostReply::Appearance(
-                                        crate::terminal_host_appearance::ColorReply {
+                                        crate::terminal_events::appearance::ColorReply {
                                             target,
                                             rgb: None,
                                         },
@@ -631,7 +633,7 @@ impl LegacyDecoder {
                                     owned,
                                 };
                             }
-                            crate::terminal_host_appearance::OscStep::Complete(reply) => {
+                            crate::terminal_events::appearance::OscStep::Complete(reply) => {
                                 items.push(DecodedItem {
                                     kind: DecodedKind::HostReply(super::HostReply::Appearance(
                                         reply,
@@ -644,11 +646,11 @@ impl LegacyDecoder {
                     }
                 }
                 State::OscDrain { mut drain, owned } => match drain.push(byte, now) {
-                    crate::terminal_host_appearance::OscDrainStep::Pending => {
+                    crate::terminal_events::appearance::OscDrainStep::Pending => {
                         self.state = State::OscDrain { drain, owned };
                     }
-                    crate::terminal_host_appearance::OscDrainStep::Finished => {}
-                    crate::terminal_host_appearance::OscDrainStep::Reprocess => {
+                    crate::terminal_events::appearance::OscDrainStep::Finished => {}
+                    crate::terminal_events::appearance::OscDrainStep::Reprocess => {
                         pending = Some(byte);
                     }
                 },
@@ -883,7 +885,7 @@ impl LegacyDecoder {
             0x9d => {
                 self.state = State::Osc {
                     introducer: vec![byte],
-                    frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    frame: crate::terminal_events::appearance::OscReplyFrame::new(now),
                     selector_deadline: None,
                     owned,
                 };
@@ -949,7 +951,7 @@ impl LegacyDecoder {
             b']' => {
                 self.state = State::Osc {
                     introducer: vec![0x1b, byte],
-                    frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    frame: crate::terminal_events::appearance::OscReplyFrame::new(now),
                     selector_deadline: Some(escape_deadline),
                     owned: frame_owned,
                 };
@@ -1185,25 +1187,25 @@ fn csi_prefix_len(raw: &[u8]) -> usize {
 /// Parses the bounded outer-terminal metadata that input owns. Pointer
 /// admission is intentionally strict: only mode 1003 and a syntactically
 /// complete primary device-attributes reply are admitted as typed replies.
-pub(super) fn csi_host_reply(body: &[u8]) -> Option<super::HostReply> {
-    if let Some(reply) = crate::terminal_graphics::cell_reply(body) {
+pub(crate) fn csi_host_reply(body: &[u8]) -> Option<super::HostReply> {
+    if let Some(reply) = crate::terminal_events::graphics::cell_reply(body) {
         return Some(super::HostReply::Graphics(reply));
     }
     let pointer = match body {
-        b"?1003;0$y" => Some(crate::terminal_pointer_admission::ModeReportState::Unsupported),
-        b"?1003;1$y" => Some(crate::terminal_pointer_admission::ModeReportState::Set),
-        b"?1003;2$y" => Some(crate::terminal_pointer_admission::ModeReportState::Reset),
-        b"?1003;3$y" => Some(crate::terminal_pointer_admission::ModeReportState::PermanentlySet),
-        b"?1003;4$y" => Some(crate::terminal_pointer_admission::ModeReportState::PermanentlyReset),
+        b"?1003;0$y" => Some(crate::terminal_events::pointer::ModeReportState::Unsupported),
+        b"?1003;1$y" => Some(crate::terminal_events::pointer::ModeReportState::Set),
+        b"?1003;2$y" => Some(crate::terminal_events::pointer::ModeReportState::Reset),
+        b"?1003;3$y" => Some(crate::terminal_events::pointer::ModeReportState::PermanentlySet),
+        b"?1003;4$y" => Some(crate::terminal_events::pointer::ModeReportState::PermanentlyReset),
         _ => None,
     };
     if let Some(state) = pointer {
         return Some(super::HostReply::Pointer(
-            crate::terminal_pointer_admission::HostReply::Mode1003(state),
+            crate::terminal_events::pointer::HostReply::Mode1003(state),
         ));
     }
     primary_device_attributes(body).then_some(super::HostReply::Pointer(
-        crate::terminal_pointer_admission::HostReply::PrimaryDeviceAttributes,
+        crate::terminal_events::pointer::HostReply::PrimaryDeviceAttributes,
     ))
 }
 
@@ -1222,7 +1224,7 @@ fn primary_device_attributes(body: &[u8]) -> bool {
 
 /// A complete private CSI is host metadata only when it carries a reply final.
 /// Unknown private modes such as `?25h` remain generic input and pass through.
-pub(super) fn csi_host_metadata_shaped(body: &[u8]) -> bool {
+pub(crate) fn csi_host_metadata_shaped(body: &[u8]) -> bool {
     body.starts_with(b"6;")
         || (body.starts_with(b"?") && (body.ends_with(b"c") || body.ends_with(b"$y")))
 }

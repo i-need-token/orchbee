@@ -12,7 +12,7 @@
 //! uses SGR cell fallback when the pane requests pixel reporting (`?1016`),
 //! without inventing an exact pixel position.
 
-use crate::client_view::Modifiers;
+use crate::terminal_events::keys::Modifiers;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
 
 /// One decoded host mouse report. `column`/`row` are 0-based host cells;

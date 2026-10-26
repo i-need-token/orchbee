@@ -4,7 +4,7 @@ use super::{
     SelectionPlan, SwitchMarker, WorkbenchClientUi, WorkbenchClientView, WorkbenchPanelId,
     finish_action,
 };
-use crate::terminal_input::PointerUnboundPane;
+use crate::workbench_client::input::PointerUnboundPane;
 use orchbee_workbench_protocol::TerminalPresentationId;
 
 /// One presentation control exactly as it was drawn for a live pane source.
@@ -245,9 +245,9 @@ impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn unbound_pane(
         &self,
         panel: &super::super::ClientPanel,
-    ) -> Option<crate::terminal_input::PointerUnboundPane> {
+    ) -> Option<crate::workbench_client::input::PointerUnboundPane> {
         let state = self.state.as_ref()?;
-        Some(crate::terminal_input::PointerUnboundPane {
+        Some(crate::workbench_client::input::PointerUnboundPane {
             key: state.unbound_panel_key(panel)?,
             presentation: state.selected_presentation(panel).presentation_id().clone(),
         })

@@ -5,6 +5,7 @@
 
 mod client_control;
 mod completion_reminders;
+pub(crate) mod input;
 pub(crate) use completion_reminders::Reminder as CompletionReminder;
 mod configuration;
 mod settings_lane;
@@ -15,7 +16,7 @@ use crate::terminal_projection::TerminalProjection;
 use crate::{
     client_view::{ClientAction, ClientActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
-    terminal_input::{TerminalInputPort, TerminalInputUnavailable},
+    workbench_client::input::{TerminalInputPort, TerminalInputUnavailable},
 };
 use orchbee_client_server_protocol::Geometry;
 use std::{
@@ -970,7 +971,7 @@ impl TerminalInputPort for WorkbenchClient {
     fn popup_input(
         &mut self,
         id: &orchbee_workbench_protocol::WorkbenchRequestId,
-        item: &crate::terminal_input::DecodedItem,
+        item: &crate::terminal_events::DecodedItem,
     ) {
         if let Some(native) = self.backend.native_mut() {
             native.popup_input(id, item);
@@ -980,7 +981,7 @@ impl TerminalInputPort for WorkbenchClient {
         &mut self,
         id: &orchbee_workbench_protocol::WorkbenchRequestId,
         content: ratatui::layout::Rect,
-        event: crate::terminal_input::MouseEvent,
+        event: crate::terminal_events::MouseEvent,
     ) {
         if let Some(native) = self.backend.native_mut() {
             native.popup_mouse(id, content, event);
@@ -1212,7 +1213,7 @@ impl TerminalInputPort for WorkbenchClient {
         }
     }
 
-    fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
+    fn pointer_probe(&mut self) -> crate::workbench_client::input::PointerProbe {
         match &mut self.backend {
             ClientBackend::Native(native) => native.pointer_probe(),
         }
@@ -1253,8 +1254,8 @@ impl TerminalInputPort for WorkbenchClient {
     fn pointer_selection(
         &mut self,
         key: &state::PaneRef,
-        intent: crate::terminal_input::PointerSelectionIntent,
-    ) -> crate::terminal_input::PointerSelectionAdmission {
+        intent: crate::workbench_client::input::PointerSelectionIntent,
+    ) -> crate::workbench_client::input::PointerSelectionAdmission {
         match &mut self.backend {
             ClientBackend::Native(native) => native.pointer_selection(key, intent),
         }
@@ -1360,8 +1361,8 @@ impl TerminalInputPort for WorkbenchClient {
     fn pointer_link(
         &mut self,
         source: crate::terminal_link_activation::PaintedLinkSource,
-        cell: crate::terminal_input::PointerSelectionCell,
-    ) -> crate::terminal_input::PointerLinkAdmission {
+        cell: crate::workbench_client::input::PointerSelectionCell,
+    ) -> crate::workbench_client::input::PointerLinkAdmission {
         match &mut self.backend {
             ClientBackend::Native(native) => native.pointer_link(source, cell),
         }

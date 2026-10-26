@@ -8,7 +8,7 @@
 
 本参考治理原生 Client 的指针行为：宿主捕获生命周期、最后一个已绘制帧的 hit map、各绘制
 区域接受的手势词表、向 pane 内程序的透传编码，以及备用屏幕的滚轮回退。它与
-`tui_pointer.rs`、`terminal_input/mouse.rs`、`terminal_input/decoder.rs`、
+`tui_pointer.rs`、`terminal_events/mouse.rs`、`terminal_events/decoder.rs`、
 `terminal_input/dispatcher.rs`、`terminal_lifecycle.rs`、`tui_render.rs` 及其
 `tabs`/`contexts` 绘制器、`tui_shell.rs`、`client_view.rs` 与 `client_view/bindings.rs`、
 `workbench_client/ui.rs`、`invocation.rs`、`terminal_link_activation.rs`、`localization.rs`
@@ -449,8 +449,8 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 | 生产表面                                                                                                 | 模型对应                                                                                                                                                                          |
 | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tui_pointer.rs`、`tui_pointer/interaction.rs`                                                           | `PointerState` 捕获/map/手势生命周期、类型化交互元数据与 projection、稳定 release fingerprint、`FrameHitMap`/`HitMapBuilder` 暂存区域、specialized `Gesture` owner、`WheelStream` |
-| `terminal_input/mouse.rs`                                                                                | `MouseEvent` 解码（`decode_sgr`、`decode_x10`）、`route_pane_pointer`、`encode_pane_report`、`encode_cursor_arrows`                                                               |
-| `terminal_input/decoder.rs`                                                                              | 类型化 `DecodedKind::Mouse`/`Ignored` item；X10 三字节 body 原子消费、超时与中止；鼠标形态的畸形/中止/越界运行解码为 `Ignored`                                                    |
+| `terminal_events/mouse.rs`                                                                                | `MouseEvent` 解码（`decode_sgr`、`decode_x10`）、`route_pane_pointer`、`encode_pane_report`、`encode_cursor_arrows`                                                               |
+| `terminal_events/decoder.rs`                                                                              | 类型化 `DecodedKind::Mouse`/`Ignored` item；X10 三字节 body 原子消费、超时与中止；鼠标形态的畸形/中止/越界运行解码为 `Ignored`                                                    |
 | `terminal_input/dispatcher.rs`                                                                           | raw 透传前的显式 `Mouse` 与 `Ignored` 臂；通用指针 outcome 与整包不变 motion 重绘裁决；pending 字节及 decoder deadline 保持顺序；结构变化使 map 失效                              |
 | `terminal_lifecycle.rs`                                                                                  | 基线 Button/SGR 捕获、一次性类型化 `1003` 准入、已结算 motion 可观测性及每条退出路径的日志式恢复                                                                                  |
 | `tui_shell.rs`                                                                                           | 启动 arming、每个候选使用不可变 pointer projection、成功才发布、一次后续 turn 对账重绘、失败 draw 使权威失效、capture 回调接线                                                    |
@@ -472,7 +472,7 @@ control/attach 字节实测覆盖。
 
 | 表面                    | 证据                                                                                                                                                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 解码                    | `terminal_input/mouse/tests` SGR/X10 表——press/release/motion/wheel/修饰、跨 chunk 原子性、畸形拒绝且不退化为按键；`terminal_input/decoder/tests`——合法 SGR/X10 item、X10 分片喂入、超时 drain、ESC/C1 中止、畸形 body、越界运行、与按键/粘贴交错——所有鼠标形态畸形字节均为 `Ignored`            |
+| 解码                    | `terminal_events/mouse/tests` SGR/X10 表——press/release/motion/wheel/修饰、跨 chunk 原子性、畸形拒绝且不退化为按键；`terminal_events/decoder/tests`——合法 SGR/X10 item、X10 分片喂入、超时 drain、ESC/C1 中止、畸形 body、越界运行、与按键/粘贴交错——所有鼠标形态畸形字节均为 `Ignored`            |
 | 编码与归属              | `route_pane_pointer` 的 fresh 事件矩阵，加上 `encode_pane_report` 对每个 tracking × format 单元、已捕获清理、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级的覆盖                                                                                                                         |
 | Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                             |
 | 交互 projection         | `tui_pointer/tests/interaction` 覆盖 hover 进入／重复／离开、disabled 与 specialized 目标、press/release、移出后永久取消、重绘连续性、fingerprint／遮挡变化、transport 丢失、子项优先级及一次有界静止位置后续重绘                                                                                |
@@ -499,4 +499,4 @@ control/attach 字节实测覆盖。
 
 证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。
 
-<!-- documentation-pairing: english-sha256=d441a383315fc1ae0b5a6a91e14dd0099fa2b45d6a77de34816d135fea5aa79d zh-cn-sha256=3a8b6e755291e931b29913bb08502c061cdfce91e060bdda19739f6df2c92480 -->
+<!-- documentation-pairing: english-sha256=1605806067169ca2f502aeee4453887a335a7bd0c14b1290cce6778cee9f7ae4 zh-cn-sha256=ac422dc2ed2fcc93c96e7c808ea03912e873aef929280e7ab3af6858915e9d33 -->

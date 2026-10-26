@@ -11,7 +11,7 @@ pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 =
 mod bindings;
 mod copy;
 pub(crate) mod help;
-mod keys;
+use crate::terminal_events::keys;
 pub(crate) mod navigator;
 mod resize;
 

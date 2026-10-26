@@ -2549,8 +2549,10 @@ impl WorkbenchClientUi {
     /// and the focus pane's interaction contract. Everything is read
     /// fresh so pointer events never resolve against a snapshot taken at
     /// paint time.
-    pub(super) fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
-        use crate::terminal_input::{PointerFrameFacts, PointerPane, PointerProbe, PointerTab};
+    pub(super) fn pointer_probe(&mut self) -> crate::workbench_client::input::PointerProbe {
+        use crate::workbench_client::input::{
+            PointerFrameFacts, PointerPane, PointerProbe, PointerTab,
+        };
         // Draft probes take `&mut self`, so they run before the shared
         // view borrow.
         let input_captured = self.rename_input_context().is_some()

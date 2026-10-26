@@ -11,6 +11,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(crate) use crate::terminal_events::pointer::{HostReply, ModeReportState};
+
 const QUERY_DEADLINE: Duration = Duration::from_millis(300);
 
 /// The one query issued after button-event tracking has established the host
@@ -39,23 +41,6 @@ impl crossterm::Command for Query {
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
         output.write_str(self.sequence())
     }
-}
-
-/// The five values defined by DECRPM for one DEC private mode.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ModeReportState {
-    Unsupported,
-    Set,
-    Reset,
-    PermanentlySet,
-    PermanentlyReset,
-}
-
-/// Pointer-admission replies recognized and removed by the host decoder.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HostReply {
-    Mode1003(ModeReportState),
-    PrimaryDeviceAttributes,
 }
 
 /// Settled capability of this exact admitted outer-terminal endpoint.

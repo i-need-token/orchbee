@@ -91,16 +91,16 @@ enum Phase {
         deadline: Instant,
     },
     GraphicsStart(Instant),
-    Graphics(Box<crate::terminal_graphics::ReplyString>),
+    Graphics(Box<crate::terminal_events::graphics::ReplyString>),
     /// A possible OSC 10/11 response; unrelated escape text returns to ordinary modal decoding.
     Osc {
         introducer: Vec<u8>,
-        frame: crate::terminal_host_appearance::OscReplyFrame,
+        frame: crate::terminal_events::appearance::OscReplyFrame,
         selector_deadline: Option<Instant>,
     },
     /// A response-shaped OSC exceeded its bound or deadline and owns a bounded tail.
     OscDrain {
-        drain: crate::terminal_host_appearance::OscDrain,
+        drain: crate::terminal_events::appearance::OscDrain,
     },
     Paste(Paste),
     /// The modal released its lease: every remaining byte of the packet
@@ -408,7 +408,7 @@ impl ModalDecoder {
                         0x9d => {
                             self.phase = Phase::Osc {
                                 introducer: vec![byte],
-                                frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                                frame: crate::terminal_events::appearance::OscReplyFrame::new(now),
                                 selector_deadline: None,
                             }
                         }
@@ -424,7 +424,7 @@ impl ModalDecoder {
                     b']' => {
                         self.phase = Phase::Osc {
                             introducer: vec![0x1b, byte],
-                            frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                            frame: crate::terminal_events::appearance::OscReplyFrame::new(now),
                             selector_deadline: Some(deadline),
                         }
                     }
@@ -438,7 +438,7 @@ impl ModalDecoder {
                 Phase::GraphicsStart(_) => {
                     if byte == b'G' {
                         self.phase = Phase::Graphics(Box::new(
-                            crate::terminal_graphics::ReplyString::new(now, WAIT),
+                            crate::terminal_events::graphics::ReplyString::new(now, WAIT),
                         ));
                     } else {
                         self.finish_frame(now, &mut events);
@@ -476,7 +476,7 @@ impl ModalDecoder {
                         pending = Some(byte);
                     } else {
                         match frame.push(byte) {
-                            crate::terminal_host_appearance::OscStep::Pending => {
+                            crate::terminal_events::appearance::OscStep::Pending => {
                                 self.phase = Phase::Osc {
                                     introducer,
                                     selector_deadline: if frame.target().is_some() {
@@ -487,19 +487,21 @@ impl ModalDecoder {
                                     frame,
                                 };
                             }
-                            crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                            crate::terminal_events::appearance::OscStep::NotColorReply(
+                                selector,
+                            ) => {
                                 self.replay_osc_candidate(&introducer, &selector, now, &mut events);
                             }
-                            crate::terminal_host_appearance::OscStep::Complete(reply) => {
+                            crate::terminal_events::appearance::OscStep::Complete(reply) => {
                                 self.finish_frame(now, &mut events);
                                 events.push(ModalInputEvent::HostReply(
                                     super::HostReply::Appearance(reply),
                                 ));
                             }
-                            crate::terminal_host_appearance::OscStep::OverBound(target) => {
+                            crate::terminal_events::appearance::OscStep::OverBound(target) => {
                                 events.push(ModalInputEvent::HostReply(
                                     super::HostReply::Appearance(
-                                        crate::terminal_host_appearance::ColorReply {
+                                        crate::terminal_events::appearance::ColorReply {
                                             target,
                                             rgb: None,
                                         },
@@ -513,13 +515,13 @@ impl ModalDecoder {
                     }
                 }
                 Phase::OscDrain { mut drain } => match drain.push(byte, now) {
-                    crate::terminal_host_appearance::OscDrainStep::Pending => {
+                    crate::terminal_events::appearance::OscDrainStep::Pending => {
                         self.phase = Phase::OscDrain { drain };
                     }
-                    crate::terminal_host_appearance::OscDrainStep::Finished => {
+                    crate::terminal_events::appearance::OscDrainStep::Finished => {
                         self.finish_frame(now, &mut events);
                     }
-                    crate::terminal_host_appearance::OscDrainStep::Reprocess => {
+                    crate::terminal_events::appearance::OscDrainStep::Reprocess => {
                         self.finish_frame(now, &mut events);
                         pending = Some(byte);
                     }
@@ -616,7 +618,7 @@ impl ModalDecoder {
                 events.push(ModalInputEvent::Completeness(false));
                 self.phase = Phase::Osc {
                     introducer: vec![byte],
-                    frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    frame: crate::terminal_events::appearance::OscReplyFrame::new(now),
                     selector_deadline: None,
                 };
             }

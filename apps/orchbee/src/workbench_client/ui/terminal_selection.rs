@@ -1,6 +1,6 @@
 //! Selection admission and record intake for the installed pane incarnation.
 use super::{ClientProjectionStatus, ViewportSurface, WorkbenchClientUi};
-use crate::terminal_input::{PointerSelectionAdmission, PointerSelectionIntent};
+use crate::workbench_client::input::{PointerSelectionAdmission, PointerSelectionIntent};
 use crate::workbench_client::terminal_selection::{
     self as selection, Command, Driver, Event, Failure, Reply,
 };
@@ -30,7 +30,7 @@ impl WorkbenchClientUi {
         effect: crate::terminal_copy_mode::SelectionEffect,
     ) -> bool {
         use crate::{
-            terminal_copy_mode::SelectionEffect, terminal_input::PointerSelectionCell,
+            terminal_copy_mode::SelectionEffect, workbench_client::input::PointerSelectionCell,
             workbench_client::terminal_selection::SemanticIntent,
         };
 
@@ -184,7 +184,7 @@ impl WorkbenchClientUi {
             return PointerSelectionAdmission::Rejected;
         }
         let intent = if let Some(crop) = self.view().pane_live_view(key.pane().panel()) {
-            let map = |mut cell: crate::terminal_input::PointerSelectionCell| {
+            let map = |mut cell: crate::workbench_client::input::PointerSelectionCell| {
                 cell.column = cell.column.saturating_add(crop.column);
                 cell.row = cell.row.saturating_add(crop.row);
                 cell

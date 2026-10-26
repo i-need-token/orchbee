@@ -35,7 +35,7 @@ impl WorkbenchClientUi {
     pub(in crate::workbench_client) fn popup_input(
         &mut self,
         id: &WorkbenchRequestId,
-        item: &crate::terminal_input::DecodedItem,
+        item: &crate::terminal_events::DecodedItem,
     ) {
         self.popup.input(id, item);
     }
@@ -43,7 +43,7 @@ impl WorkbenchClientUi {
         &mut self,
         id: &WorkbenchRequestId,
         content: Rect,
-        event: crate::terminal_input::MouseEvent,
+        event: crate::terminal_events::MouseEvent,
     ) {
         self.popup.mouse(id, content, event);
     }

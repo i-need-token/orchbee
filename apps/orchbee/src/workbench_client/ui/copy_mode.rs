@@ -1447,7 +1447,7 @@ impl WorkbenchClientUi {
         NonZeroU64,
         u16,
         u16,
-        crate::terminal_input::PointerSelectionCell,
+        crate::workbench_client::input::PointerSelectionCell,
     )> {
         let current = self.admitted_copy_source(key)?;
         if &current != expected || current.rows.columns == 0 || current.rows.row_count == 0 {
@@ -1463,7 +1463,7 @@ impl WorkbenchClientUi {
             current.rows.generation,
             current.rows.columns,
             current.rows.row_count,
-            crate::terminal_input::PointerSelectionCell {
+            crate::workbench_client::input::PointerSelectionCell {
                 column: normalized.col,
                 row: u16::try_from(row).ok()?,
             },

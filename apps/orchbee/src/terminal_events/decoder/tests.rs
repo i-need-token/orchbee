@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::*;
-use crate::terminal_input::{MouseAction, MouseButton};
+use crate::terminal_events::{MouseAction, MouseButton};
 
 fn decode(bytes: &[u8]) -> Vec<DecodedItem> {
     let mut decoder = LegacyDecoder::default();
@@ -770,8 +770,8 @@ fn focus_reports_decode_in_both_forms_and_paste_keeps_them_as_data() {
 
 #[test]
 fn pointer_admission_replies_decode_strictly_in_escape_and_c1_forms() {
-    use crate::terminal_input::HostReply;
-    use crate::terminal_pointer_admission::{HostReply as PointerReply, ModeReportState};
+    use crate::terminal_events::HostReply;
+    use crate::terminal_events::pointer::{HostReply as PointerReply, ModeReportState};
 
     for (status, state) in [
         (b'0', ModeReportState::Unsupported),
@@ -804,8 +804,8 @@ fn pointer_admission_replies_decode_strictly_in_escape_and_c1_forms() {
 
 #[test]
 fn appearance_replies_are_typed_and_never_reach_key_input() {
-    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
-    use crate::terminal_input::HostReply;
+    use crate::terminal_events::HostReply;
+    use crate::terminal_events::appearance::{ColorReply, ColorTarget};
 
     let items = decode(b"a\x1b]10;rgb:ffff/ffff/ffff\x1b\\\x1b]11;rgb:1010/2020/3030\x1b\\q");
     assert_eq!(items.len(), 4);
@@ -829,8 +829,8 @@ fn appearance_replies_are_typed_and_never_reach_key_input() {
 
 #[test]
 fn malformed_and_oversized_appearance_replies_are_consumed_atomically() {
-    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
-    use crate::terminal_input::HostReply;
+    use crate::terminal_events::HostReply;
+    use crate::terminal_events::appearance::{ColorReply, ColorTarget};
 
     let malformed = decode(b"\x1b]11;not-rgb\x07x");
     assert_eq!(malformed.len(), 2);
@@ -925,8 +925,8 @@ fn a_truncated_appearance_tail_releases_after_idle_and_resumes_keys() {
 
 #[test]
 fn an_oversized_appearance_tail_releases_at_its_byte_cap() {
-    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
-    use crate::terminal_input::HostReply;
+    use crate::terminal_events::HostReply;
+    use crate::terminal_events::appearance::{ColorReply, ColorTarget};
 
     let start = Instant::now();
     let mut decoder = LegacyDecoder::default();

@@ -3,8 +3,8 @@
 
 use super::{WorkbenchClientNotice, WorkbenchClientUi};
 use crate::{
-    terminal_input::{PointerLinkAdmission, PointerSelectionCell},
     terminal_link_activation::PaintedLinkSource,
+    workbench_client::input::{PointerLinkAdmission, PointerSelectionCell},
 };
 
 impl WorkbenchClientUi {

@@ -1,7 +1,7 @@
 //! Attachment-local selection commands and complete Host-owned text admission.
 mod export;
 mod record;
-use crate::terminal_input::{PointerSelectionCell, PointerSelectionIntent};
+use crate::workbench_client::input::{PointerSelectionCell, PointerSelectionIntent};
 use orchbee_client_server_protocol::{
     TerminalViewerAction, ViewerId, ViewerSelectionExportCancelReason, ViewerSelectionExportFormat,
     ViewerSelectionGestureAction, ViewerSelectionGestureGeometry, ViewerSelectionGesturePosition,

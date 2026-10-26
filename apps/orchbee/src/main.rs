@@ -40,6 +40,7 @@ mod terminal_copy;
 mod terminal_copy_mode;
 mod terminal_copy_query;
 mod terminal_device;
+mod terminal_events;
 mod terminal_graphics;
 mod terminal_host_appearance;
 mod terminal_input;

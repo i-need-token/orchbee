@@ -7,12 +7,12 @@
 /// control sequence, and a broken scalar cannot hide a later real terminator.
 /// This recognizes UTF-8 byte shape; the text owner validates Unicode scalars.
 #[derive(Debug, Default)]
-pub(super) struct Continuation {
+pub(crate) struct Continuation {
     remaining: u8,
 }
 
 impl Continuation {
-    pub(super) fn push(&mut self, byte: u8) -> bool {
+    pub(crate) fn push(&mut self, byte: u8) -> bool {
         if self.remaining > 0 && (0x80..=0xbf).contains(&byte) {
             self.remaining -= 1;
             true
@@ -23,7 +23,7 @@ impl Continuation {
     }
 }
 
-pub(super) fn continuation_count(lead: u8) -> Option<u8> {
+pub(crate) fn continuation_count(lead: u8) -> Option<u8> {
     match lead {
         0xc2..=0xdf => Some(1),
         0xe0..=0xef => Some(2),

@@ -1,7 +1,7 @@
 //! A bounded independent projection/control lane. Canonical Pane state is never modified.
 use crate::{
     local_client::{LocalClient, LocalClientOrigin, LocalOperationClock},
-    terminal_input::{
+    terminal_events::{
         DecodedItem, DecodedKind, MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent,
         encode_cursor_arrows, encode_pane_report,
     },
