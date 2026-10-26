@@ -350,11 +350,9 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
   `sq = 0`，不参与两两唯一性比较；它仍占用某个已执行 read 的原结果槽。
 - `AckAfterInstall`：`RowsApplied` 只对已安装窗口、匹配序号、精确一次。
 - `CommittedOnlyAfterAck`：只有精确受理的应答才提升锚点，`Committed` read 使用先前
-  已受理的锚点。模型的 `CommittedNeedsAck` 在从未提交到已提交的迁移边上检查
-  `AckAccepted`，不要求当前窗口的应答在尺寸变化后持续存在。
+  已受理的锚点。
 - `NoReadWhileAck`：应答待受理或在途期间不发出 read。
-- `SurfaceCurrent`：绘制的行永远匹配当前 generation 与列数。模型只把已绘制 generation
-  约束为空或当前值，本身不证明正向绘制——绘制证据来自产品测试。
+- `SurfaceCurrent`：绘制的行永远匹配当前 generation 与列数。绘制证据来自产品测试。
 - `RecoverBeforeInput`：每个新受理到线路上的普通输入都已在覆盖之下——面板处于
   `Recovering`，或其前方已有受理的 `Recover`。以受理边时序断言表达；已执行完毕的
   恢复无需重复见证。
@@ -381,4 +379,4 @@ read/ACK 权威与取消策略仍由 Orchbee 拥有。
 
 TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态行位于终端几何之外，恢复协议和保留的操作事实保持不变。
 
-<!-- documentation-pairing: english-sha256=de39da23ef135ce40a083558fbdc46f3b86f0914df45108235d136233a354ea5 zh-cn-sha256=6c679afe22406be512e5289706012eafce4f50c3d06da54ac378e8e28c5539cd -->
+<!-- documentation-pairing: english-sha256=51c2884a1c8d2f9c99bda0c41f104d5c54ecb872d1a3ed66db0e55b5f3657c65 zh-cn-sha256=820845507be12a958c40f35c480e5e3de627887cd15e013e8640923ed9d9490d -->

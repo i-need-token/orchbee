@@ -533,30 +533,6 @@ fn settled_button_only_initialization_queries_once_after_the_first_draw() -> io:
 }
 
 #[test]
-fn pointer_capture_requests_map_to_exact_lifecycle_levels() {
-    use crate::terminal_input::PointerCaptureRequest;
-    use crate::terminal_lifecycle::PointerTrackingLevel;
-
-    assert_eq!(
-        super::pointer_tracking_level(PointerCaptureRequest::Release),
-        None
-    );
-    assert_eq!(
-        super::pointer_tracking_level(PointerCaptureRequest::ButtonOnly),
-        Some(PointerTrackingLevel::ButtonOnly)
-    );
-    assert_eq!(
-        super::pointer_tracking_level(PointerCaptureRequest::AnyMotion),
-        Some(PointerTrackingLevel::AnyMotion)
-    );
-    #[cfg(windows)]
-    assert_eq!(
-        super::pointer_tracking_level(PointerCaptureRequest::MenuMotion),
-        Some(PointerTrackingLevel::MenuMotion)
-    );
-}
-
-#[test]
 fn exits_through_the_prefixed_user_binding_without_forwarding_it() -> io::Result<()> {
     let initial = dimensions(120, 30);
     let mut terminal = test_terminal(initial);

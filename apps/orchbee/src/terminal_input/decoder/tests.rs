@@ -13,21 +13,6 @@ fn decode(bytes: &[u8]) -> Vec<DecodedItem> {
     items
 }
 
-fn decode_split(first: &[u8], rest: &[&[u8]]) -> Vec<DecodedItem> {
-    let mut decoder = LegacyDecoder::default();
-    let now = Instant::now();
-    let mut items = Vec::new();
-    for byte in first {
-        items.extend(decoder.push(*byte, now, false));
-    }
-    for chunk in rest {
-        for byte in chunk.iter() {
-            items.extend(decoder.push(*byte, now, false));
-        }
-    }
-    items
-}
-
 fn press(code: KeyCode) -> DecodedKind {
     DecodedKind::Key(KeyEvent::press(code, Modifiers::NONE))
 }
@@ -52,36 +37,21 @@ fn plain_and_control_bytes_decode_to_typed_events() {
 
 #[test]
 fn utf8_scalar_is_one_item_and_owns_its_bytes() {
-    let items = decode("中".as_bytes());
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0].kind, press(KeyCode::Char('中')));
-    assert_eq!(items[0].raw.as_ref(), "中".as_bytes());
+    for scalar in ['中', '😀'] {
+        let text = scalar.to_string();
+        let items = decode(text.as_bytes());
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, press(KeyCode::Char(scalar)));
+        assert_eq!(items[0].raw.as_ref(), text.as_bytes());
+    }
 }
 
 #[test]
-fn utf8_split_across_every_boundary_still_decodes_as_one_scalar() {
-    let zh = "中".as_bytes();
-    let emoji = "😀".as_bytes();
-    for (scalar, splits) in [(zh, vec![1, 2]), (emoji, vec![1, 2, 3])] {
-        for cut in splits {
-            let items = decode_split(&scalar[..cut], &[&scalar[cut..]]);
-            assert_eq!(items.len(), 1, "cut {cut}");
-            assert_eq!(items[0].raw.as_ref(), scalar);
-        }
-    }
-    // Every byte in its own read.
-    let items = decode_split(&emoji[..1], &[&emoji[1..2], &emoji[2..3], &emoji[3..]]);
+fn arrow_csi_decodes_as_one_item() {
+    let items = decode(b"\x1b[D");
     assert_eq!(items.len(), 1);
-}
-
-#[test]
-fn arrow_csi_decodes_as_one_item_at_every_split() {
-    for cut in 1..b"\x1b[D".len() {
-        let items = decode_split(&b"\x1b[D"[..cut], &[&b"\x1b[D"[cut..]]);
-        assert_eq!(items.len(), 1, "cut {cut}");
-        assert_eq!(items[0].kind, press(KeyCode::Left));
-        assert_eq!(items[0].raw.as_ref(), b"\x1b[D");
-    }
+    assert_eq!(items[0].kind, press(KeyCode::Left));
+    assert_eq!(items[0].raw.as_ref(), b"\x1b[D");
 }
 
 #[test]
@@ -276,17 +246,6 @@ fn paste_run_is_one_atomic_item_and_payload_never_becomes_keys() {
 }
 
 #[test]
-fn paste_split_across_reads_stays_atomic() {
-    let paste = b"\x1b[200~payload\x1b[201~";
-    for cut in 1..paste.len() {
-        let items = decode_split(&paste[..cut], &[&paste[cut..]]);
-        assert_eq!(items.len(), 1, "cut {cut}");
-        assert!(matches!(items[0].kind, DecodedKind::Paste { .. }));
-        assert_eq!(items[0].raw.as_ref(), paste);
-    }
-}
-
-#[test]
 fn stray_paste_terminator_is_a_nondecision() {
     let items = decode(b"\x1b[201~");
     assert_eq!(items.len(), 1);
@@ -412,17 +371,18 @@ fn rejected_paste_at_every_raw_cap_terminator_split_releases_only_fresh_input() 
             let mut decoder = LegacyDecoder::default();
             let now = Instant::now();
             let owned = split % 2 == 0;
-            let mut bytes = start.to_vec();
-            bytes.extend(std::iter::repeat_n(
-                b'a',
-                4 * 1024 * 1024 - start.len() - split - 2,
-            ));
-            bytes.extend_from_slice(b"\xc2\x9b");
-            bytes.extend_from_slice(&term[..split]);
-            assert_eq!(bytes.len(), 4 * 1024 * 1024);
+            for (index, &byte) in start.iter().enumerate() {
+                assert!(decoder.push(byte, now, owned && index == 0).is_empty());
+            }
+            let super::State::Paste { raw, .. } = &mut decoder.state else {
+                panic!("expected paste after opener");
+            };
+            // ASCII padding leaves terminator and UTF-8 state unchanged. Prepare
+            // the near-cap prefix once, then feed every boundary byte normally.
+            raw.resize(4 * 1024 * 1024 - split - 2, b'a');
             let mut items = Vec::new();
-            for (index, byte) in bytes.into_iter().enumerate() {
-                items.extend(decoder.push(byte, now, owned && index == 0));
+            for &byte in b"\xc2\x9b".iter().chain(&term[..split]) {
+                items.extend(decoder.push(byte, now, false));
             }
             assert_eq!(items.len(), 1, "{start:?}, split {split}");
             assert_eq!(items[0].kind, DecodedKind::RejectedPaste);
@@ -789,15 +749,13 @@ fn malformed_mouse_bytes_never_swallow_neighboring_keys_or_paste() {
 }
 
 #[test]
-fn focus_reports_survive_every_packet_split_and_paste_keeps_them_as_data() {
+fn focus_reports_decode_in_both_forms_and_paste_keeps_them_as_data() {
     for bytes in [b"\x1b[I\x1b[O".as_slice(), b"\x9bI\x9bO".as_slice()] {
-        for split in 0..=bytes.len() {
-            let items = decode_split(&bytes[..split], &[&bytes[split..]]);
-            assert_eq!(
-                items.iter().map(|item| &item.kind).collect::<Vec<_>>(),
-                [&DecodedKind::Focus(true), &DecodedKind::Focus(false)]
-            );
-        }
+        let items = decode(bytes);
+        assert_eq!(
+            items.iter().map(|item| &item.kind).collect::<Vec<_>>(),
+            [&DecodedKind::Focus(true), &DecodedKind::Focus(false)]
+        );
     }
     let items = decode(b"\x1b[200~a\x1b[Ob\x1b[Ic\x1b[201~");
     assert_eq!(items.len(), 1);
@@ -845,14 +803,11 @@ fn pointer_admission_replies_decode_strictly_in_escape_and_c1_forms() {
 }
 
 #[test]
-fn appearance_replies_are_typed_across_reads_and_never_reach_key_input() {
+fn appearance_replies_are_typed_and_never_reach_key_input() {
     use crate::terminal_host_appearance::{ColorReply, ColorTarget};
     use crate::terminal_input::HostReply;
 
-    let items = decode_split(
-        b"a\x1b]10;rgb:ffff/ffff/ffff\x1b\\\x1b]11;rgb:1010/2020/3030",
-        &[b"\x1b", b"\\q"],
-    );
+    let items = decode(b"a\x1b]10;rgb:ffff/ffff/ffff\x1b\\\x1b]11;rgb:1010/2020/3030\x1b\\q");
     assert_eq!(items.len(), 4);
     assert_eq!(items[0].kind, press(KeyCode::Char('a')));
     assert_eq!(

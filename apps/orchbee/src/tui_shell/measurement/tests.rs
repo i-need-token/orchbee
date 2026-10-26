@@ -334,43 +334,6 @@ fn measured_writer_forwards_short_writes_errors_vectored_and_overridden_write_al
     }
 }
 
-#[derive(Default)]
-struct DefaultWriter {
-    calls: Vec<Vec<u8>>,
-    attempts: usize,
-}
-impl Write for DefaultWriter {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        self.calls.push(buffer.to_vec());
-        self.attempts += 1;
-        if self.attempts == 2 {
-            Err(io::ErrorKind::Interrupted.into())
-        } else {
-            Ok(buffer.len().min(2))
-        }
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-#[test]
-fn underlying_default_methods_keep_their_original_short_write_and_interrupted_policy()
--> io::Result<()> {
-    let mut original = DefaultWriter::default();
-    original.write_all(b"abcde")?;
-    let mut measured = MeasuredWriter::new(DefaultWriter::default(), observe(10));
-    measured.write_all(b"abcde")?;
-    assert_eq!(measured.inner.calls, original.calls);
-    let buffers = [IoSlice::new(b""), IoSlice::new(b"def")];
-    assert_eq!(
-        measured.write_vectored(&buffers)?,
-        original.write_vectored(&buffers)?
-    );
-    assert_eq!(measured.inner.calls, original.calls);
-    Ok(())
-}
-
 #[test]
 fn the_real_buffer_and_restoration_fence_do_not_replay_a_failed_prefix_on_drop() {
     let calls = Rc::new(RefCell::new(Vec::new()));

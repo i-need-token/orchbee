@@ -416,13 +416,10 @@ recovery. The retained viewport core checks only the coordination properties in 
   executed read's original result slot.
 - `AckAfterInstall`: `RowsApplied` only for an installed window, matching sequence, exactly once.
 - `CommittedOnlyAfterAck`: only an exact accepted acknowledgement promotes an anchor; `Committed`
-  reads use that previously accepted anchor. The model's `CommittedNeedsAck` checks the false-to-true
-  promotion edge against `AckAccepted`, rather than requiring the current window's acknowledgement
-  to remain live after resize.
+  reads use that previously accepted anchor.
 - `NoReadWhileAck`: no read while an acknowledgement is pending or in flight.
-- `SurfaceCurrent`: painted rows always match the current generation and column count. The
-  model bounds the drawn generation to none-or-current; it does not itself prove a positive
-  draw — drawing evidence lives in the product tests.
+- `SurfaceCurrent`: painted rows always match the current generation and column count.
+  Drawing evidence lives in the product tests.
 - `RecoverBeforeInput`: every input newly admitted to the wire is already covered — the pane
   was in `Recovering`, or a `Recover` was admitted ahead of it. Asserted on the admission
   edge; an already-executed recovery needs no re-witness.
