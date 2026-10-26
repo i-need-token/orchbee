@@ -38,6 +38,7 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
     let server = FakeServer::start(move |mut stream| {
         admit(&mut stream, 1)?;
         let mut pending_mutation = false;
+        let mut initial_view_revision = None;
         loop {
             let open = match read_open(&mut stream) {
                 Ok(open) => open,
@@ -69,6 +70,8 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
                     else {
                         panic!()
                     };
+                    let initial_revision =
+                        *initial_view_revision.get_or_insert(view_revision.value());
                     respond(
                         &mut stream,
                         &open,
@@ -90,7 +93,9 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
                         }),
                         1,
                     )?;
-                    if pending_mutation && view_revision.value() == 2 {
+                    if pending_mutation
+                        && view_revision.value() == initial_revision.checked_add(1).unwrap()
+                    {
                         updated.try_send(()).ok();
                     }
                 }
@@ -147,11 +152,25 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
         graphics: None,
     };
     assert!(lane.publish(sample.clone()));
-    mutation.recv_timeout(Duration::from_secs(2)).unwrap();
-    sample.heartbeat = ClientViewSequence::new(2).unwrap();
-    sample.revision = ClientViewSequence::new(2).unwrap();
+    if let Err(error) = mutation.recv_timeout(Duration::from_secs(2)) {
+        lane.close();
+        panic!(
+            "mutation was not received: {error:?}; peer: {:?}",
+            server.finish()
+        );
+    }
+    sample.heartbeat =
+        ClientViewSequence::new(sample.heartbeat.value().checked_add(1).unwrap()).unwrap();
+    sample.revision =
+        ClientViewSequence::new(sample.revision.value().checked_add(1).unwrap()).unwrap();
     assert!(lane.publish(sample));
-    update.recv_timeout(Duration::from_secs(2)).unwrap();
+    if let Err(error) = update.recv_timeout(Duration::from_secs(2)) {
+        lane.close();
+        panic!(
+            "view update was not received: {error:?}; peer: {:?}",
+            server.finish()
+        );
+    }
     assert!(lane.take_layout_result().is_none());
     lane.close();
     assert!(
