@@ -3,7 +3,6 @@ use orchbee_workbench_protocol::{
     PanelAgentDisposition, PanelAgentFailure as Failure, PanelAgentOutcome as Outcome,
 };
 impl Locale {
-    #[cfg(windows)]
     pub(crate) const fn cli_agent_manifest_fields(self) -> [&'static str; 4] {
         match self {
             Self::EnUs => [
@@ -15,7 +14,6 @@ impl Locale {
             Self::ZhCn => ["规则文件", "缓存版本", "本地覆盖遮蔽缓存", "规则告警"],
         }
     }
-    #[cfg(windows)]
     pub(crate) fn cli_agent_manifest_warning(
         self,
         warning: &orchbee_workbench_protocol::AgentManifestWarning,
@@ -51,7 +49,6 @@ impl Locale {
         };
         format!("{source}: {reason}")
     }
-    #[cfg(windows)]
     pub(crate) const fn cli_agent_screen_fields(self) -> [&'static str; 17] {
         match self {
             Self::EnUs => [
@@ -94,7 +91,6 @@ impl Locale {
             ],
         }
     }
-    #[cfg(windows)]
     pub(crate) const fn cli_agent_screen_reason(self, unchanged: bool) -> &'static str {
         match (self, unchanged) {
             (Self::EnUs, true) => "Matched rule preserves the previous state",

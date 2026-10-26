@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{Snapshot, TerminalAgentChange, WorkbenchRevisio
 use serde_json::{Value, json};
 
 use super::terminal_agent::{self, TerminalAgentRead, failure as error};
-use crate::cli::source::{ArmedSignals, SignalWatch};
+use crate::cli::console_interrupt::SignalWatch;
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::{AgentTarget, AgentWaitCondition};
@@ -65,7 +65,7 @@ pub(in crate::cli) fn read_pinned(
     binding: &AgentLaunchBinding,
     after: Option<WorkbenchRevision>,
     deadline: Instant,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<(Snapshot, TerminalAgentRead), Failure> {
     interrupt(signals)?;
     let snapshot = super::agent_target::read_snapshot(client, deadline, signals.poll_fd())?;
@@ -103,7 +103,7 @@ pub(in crate::cli) fn observe(
     client: &mut LocalClient,
     options: Options<'_>,
     initial: Option<TerminalAgentRead>,
-    signals: &mut ArmedSignals,
+    signals: &mut impl SignalWatch,
 ) -> Result<Matched, Failure> {
     let prompt = initial.is_some();
     let effect = options.total.step(Instant::now(), READ_BUDGET)?;
@@ -199,7 +199,7 @@ pub(in crate::cli) fn observe(
     }
 }
 
-pub(in crate::cli) fn interrupt(signals: &mut ArmedSignals) -> Result<(), Failure> {
+pub(in crate::cli) fn interrupt(signals: &mut impl SignalWatch) -> Result<(), Failure> {
     if super::wait_backoff(signals.poll_fd(), Duration::from_millis(1)) {
         Err(error(FailureKind::InternalFailure, "interrupted"))
     } else {

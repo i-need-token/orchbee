@@ -27,8 +27,8 @@ use super::{
     agent_session_until, agent_unavailable_details, classify_agent_read, classify_connect,
     is_deadline_elapsed, obap_request_id,
 };
-use crate::cli::results::{AgentWaitDoc, Projection, agent_source};
-use crate::cli::source::{ArmedSignals, Finish, SignalWatch};
+use crate::cli::agent_interrupt::{ArmedSignals, Finish};
+use crate::cli::results::{AgentWaitDoc, AgentWaitHistory, Projection, agent_source};
 use crate::cli::wait_deadline::WaitDeadline;
 use crate::cli::{Failure, FailureKind};
 use crate::invocation::AgentWaitCondition;
@@ -40,7 +40,6 @@ const WAIT_POLL_INITIAL: Duration = Duration::from_millis(50);
 /// Consecutive quiet polls double the interval up to this ceiling.
 const WAIT_POLL_MAXIMUM: Duration = Duration::from_millis(500);
 
-#[cfg(windows)]
 use super::{AgentJournal, JournalError};
 
 /// `agent wait`: the armed span owns the whole wait — one admitted Client
@@ -54,14 +53,12 @@ pub(crate) fn agent_wait(
     timeout_ms: Option<u32>,
     selected: Option<&orchbee_workbench_protocol::WorkbenchClientId>,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    crate::cli::execution::admit(crate::cli::execution::Capability::CanonicalAgentRead)
+        .map_err(AgentQueryError::Admission)?;
     crate::cli::execution::admit_agent_target(target).map_err(AgentQueryError::Admission)?;
-    #[cfg(not(windows))]
     if selected.is_some() {
-        return Err(AgentQueryError::Admission(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-        ));
+        crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection)
+            .map_err(AgentQueryError::Admission)?;
     }
     let start = Instant::now();
     let total = WaitDeadline::new(start, timeout_ms).map_err(AgentQueryError::Admission)?;
@@ -151,7 +148,6 @@ enum WaitAttempt {
     /// A settled outcome: the decisive Get's identity plus the matched
     /// document, or an already-classified wait failure.
     Done(Result<(ObapRequestId, AgentWaitDoc), Failure>),
-    #[cfg(windows)]
     TerminalDone(Result<super::terminal_agent_wait::Matched, Failure>),
 }
 
@@ -198,6 +194,8 @@ fn agent_wait_span(
     signals: &mut ArmedSignals,
     acquire: impl FnOnce(Instant, Option<BorrowedFd<'_>>) -> Result<LocalClient, AgentAdmissionError>,
 ) -> WaitAttempt {
+    let extended =
+        crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection).is_ok();
     let admission = match total.step(Instant::now(), read_budget) {
         Ok(deadline) => deadline,
         Err(failure) => return WaitAttempt::Admission(AgentAdmissionError::Preamble(failure)),
@@ -218,62 +216,60 @@ fn agent_wait_span(
     } else {
         None
     };
-    #[cfg(windows)]
-    let session_id = match super::agent_target::resolve_named(
-        &mut client,
-        target,
-        snapshot.as_ref(),
-        resolve_deadline,
-        signals.poll_fd(),
-    ) {
-        Ok(resolved) => match resolved.target {
-            orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
-                session_id
-            }
-            orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
-                return WaitAttempt::TerminalDone(
-                    super::terminal_agent_wait::admit(until).and_then(|()| {
-                        super::terminal_agent_wait::observe(
-                            &mut client,
-                            super::terminal_agent_wait::Options {
-                                selected,
-                                target,
-                                binding: &binding,
-                                until,
-                                after_revision,
-                                timeout_ms,
-                                start,
-                                total,
-                            },
-                            None,
-                            signals,
-                        )
-                    }),
-                );
-            }
-        },
-        Err(failure) => return WaitAttempt::Done(Err(failure)),
-    };
-    #[cfg(not(windows))]
-    let session_id = match super::agent_target::resolve_on_session(
-        &mut client,
-        target,
-        snapshot.as_ref(),
-        resolve_deadline,
-        signals.poll_fd(),
-    ) {
-        Ok(resolved) => resolved.session_id,
-        Err(failure) => return WaitAttempt::Done(Err(failure)),
+    let session_id = if extended {
+        match super::agent_target::resolve_named(
+            &mut client,
+            target,
+            snapshot.as_ref(),
+            resolve_deadline,
+            signals.poll_fd(),
+        ) {
+            Ok(resolved) => match resolved.target {
+                orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
+                    session_id
+                }
+                orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
+                    return WaitAttempt::TerminalDone(
+                        super::terminal_agent_wait::admit(until).and_then(|()| {
+                            super::terminal_agent_wait::observe(
+                                &mut client,
+                                super::terminal_agent_wait::Options {
+                                    selected,
+                                    target,
+                                    binding: &binding,
+                                    until,
+                                    after_revision,
+                                    timeout_ms,
+                                    start,
+                                    total,
+                                },
+                                None,
+                                signals,
+                            )
+                        }),
+                    );
+                }
+            },
+            Err(failure) => return WaitAttempt::Done(Err(failure)),
+        }
+    } else {
+        match super::agent_target::resolve_on_session(
+            &mut client,
+            target,
+            snapshot.as_ref(),
+            resolve_deadline,
+            signals.poll_fd(),
+        ) {
+            Ok(resolved) => resolved.session_id,
+            Err(failure) => return WaitAttempt::Done(Err(failure)),
+        }
     };
     let session_id = &session_id;
     let mut observations: u64 = 0;
     let mut last: Option<WaitObservation> = None;
     let mut backoff = WAIT_POLL_INITIAL;
     let mut first_evaluation = true;
-    #[cfg(windows)]
-    let mut journal = AgentJournal::default();
-    #[cfg(windows)]
-    let historical_until = until.to_vec();
+    let mut journal = extended.then(AgentJournal::default);
 
     let outcome = loop {
         // Post-step total settlement before any new step: an expired
@@ -287,8 +283,7 @@ fn agent_wait_span(
                 last.as_ref(),
             );
         }
-        #[cfg(windows)]
-        let historical = {
+        let historical = if let Some(journal) = journal.as_mut() {
             let now = Instant::now();
             let deadline = match total.step(now, read_budget) {
                 Ok(deadline) => deadline,
@@ -312,7 +307,7 @@ fn agent_wait_span(
                     {
                         return None;
                     }
-                    let conditions: Vec<_> = historical_until
+                    let conditions: Vec<_> = until
                         .iter()
                         .copied()
                         .filter(|condition| {
@@ -349,6 +344,8 @@ fn agent_wait_span(
                     )));
                 }
             }
+        } else {
+            None
         };
         let request_id = match obap_request_id() {
             Ok(request_id) => request_id,
@@ -361,7 +358,6 @@ fn agent_wait_span(
         };
         // The budget this poll's Get was actually admitted with: the
         // read-deadline reason records it verbatim.
-        #[cfg(windows)]
         let attention = if let (Some(selected), Some(snapshot)) = (selected, snapshot.as_ref()) {
             let client_start = Instant::now();
             let client_deadline = read_deadline.min(client_start + Duration::from_secs(2));
@@ -434,9 +430,9 @@ fn agent_wait_span(
                 }
                 match result.outcome {
                     AgentGetOutcome::Found { revision, session } => {
-                        #[cfg(windows)]
                         if journal
-                            .observed_through()
+                            .as_ref()
+                            .and_then(AgentJournal::observed_through)
                             .is_some_and(|head| head.value() > revision.value())
                         {
                             break WaitAttempt::Done(Err(agent_protocol_invalid(
@@ -448,7 +444,6 @@ fn agent_wait_span(
                                 AgentReadOperation::Wait,
                             )));
                         }
-                        #[cfg(windows)]
                         let (session, client_view) = {
                             let canonical = super::AgentObservationRead {
                                 request_id: answered.clone(),
@@ -496,7 +491,6 @@ fn agent_wait_span(
                         }
                         let eligible =
                             after_revision.is_none_or(|fence| revision.value() > fence.value());
-                        #[cfg(windows)]
                         if let Some((source, change, matched)) = historical {
                             if revision.value() < change.revision.value() {
                                 break WaitAttempt::Done(Err(agent_protocol_invalid(
@@ -509,8 +503,10 @@ fn agent_wait_span(
                                     matched,
                                     revision,
                                     session,
-                                    matched_change: Some(change),
-                                    client: client_view,
+                                    history: Some(AgentWaitHistory {
+                                        matched_change: Some(change),
+                                        client: client_view,
+                                    }),
                                     until: until.to_vec(),
                                     after_revision,
                                     timeout_ms,
@@ -535,10 +531,10 @@ fn agent_wait_span(
                                         matched,
                                         revision,
                                         session,
-                                        #[cfg(windows)]
-                                        matched_change: None,
-                                        #[cfg(windows)]
-                                        client: client_view,
+                                        history: extended.then_some(AgentWaitHistory {
+                                            matched_change: None,
+                                            client: client_view,
+                                        }),
                                         until: until.to_vec(),
                                         after_revision,
                                         timeout_ms,
@@ -548,8 +544,7 @@ fn agent_wait_span(
                                 )));
                             }
                         }
-                        #[cfg(windows)]
-                        if !journal.has_more()
+                        if journal.as_ref().is_some_and(|journal| !journal.has_more())
                             && session.snapshot.lifecycle
                                 == orchbee_agent_observation_protocol::AgentLifecycle::Ended
                         {
@@ -625,8 +620,7 @@ fn agent_wait_span(
         // Bounded interruptible backoff: the wake descriptor joins the
         // sleep so a captured signal ends the wait promptly instead of at
         // the next poll boundary.
-        #[cfg(windows)]
-        if journal.has_more() {
+        if journal.as_ref().is_some_and(AgentJournal::has_more) {
             continue;
         }
         let remaining = total.backoff(Instant::now(), backoff);
@@ -642,7 +636,6 @@ fn agent_wait_span(
     outcome
 }
 
-#[cfg(windows)]
 fn client_wait_failure(
     mut failure: Failure,
     total: WaitDeadline,
@@ -693,7 +686,6 @@ fn classify_wait_attempt(
         WaitAttempt::Done(result) => result
             .map(|(request_id, doc)| (agent_source(&request_id), Projection::AgentWait(doc)))
             .map_err(AgentQueryError::Read),
-        #[cfg(windows)]
         WaitAttempt::TerminalDone(result) => result
             .map(|doc| {
                 (

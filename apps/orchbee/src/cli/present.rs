@@ -4,7 +4,6 @@
 //! render aborts at the 8 MiB bound instead of assembling the full body.
 
 use serde_json::Value;
-#[cfg(windows)]
 mod agent_screen;
 
 #[cfg(not(windows))]
@@ -983,12 +982,10 @@ pub(crate) fn render(
             }
         }
         Projection::AgentExplain(outcome) => agent_explain(out, outcome, text, locale),
-        #[cfg(windows)]
         Projection::AgentTerminalExplanation(terminal) => {
             agent_screen::render(out, terminal, locale)
         }
         Projection::AgentWait(doc) => agent_wait(out, doc, locale),
-        #[cfg(windows)]
         Projection::AgentTerminalWait(doc) => out.push(
             &locale.cli_agent_terminal_wait_matched(
                 doc.read.observation.binding.presentation_id.as_str(),
@@ -1012,13 +1009,11 @@ pub(crate) fn render(
 /// elapsed milliseconds. The session detail itself stays in the machine
 /// document; the text surface is the wait's own verdict.
 fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(), TooLarge> {
-    #[cfg(windows)]
     let revision = doc
-        .matched_change
+        .history
         .as_ref()
+        .and_then(|history| history.matched_change.as_ref())
         .map_or(doc.revision, |change| change.revision);
-    #[cfg(not(windows))]
-    let revision = doc.revision;
     let conditions = doc
         .matched
         .iter()
@@ -1031,8 +1026,11 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
         revision.value(),
         doc.elapsed_ms,
     ))?;
-    #[cfg(windows)]
-    if let Some(client) = &doc.client {
+    if let Some(client) = doc
+        .history
+        .as_ref()
+        .and_then(|history| history.client.as_ref())
+    {
         out.push(&locale.cli_agent_client_view(client))?;
     }
     Ok(())

@@ -2,6 +2,7 @@
 //! structured failures, and process outcomes. It does not own command grammar, canonical
 //! Workbench state, or physical terminal execution.
 
+mod agent_interrupt;
 pub(crate) mod agent_manifests;
 #[cfg(windows)]
 pub(crate) mod agent_view_spec;
@@ -138,7 +139,6 @@ pub(crate) fn terminal_control(
 mod text;
 mod usage;
 pub(crate) use usage::{children as usage_children, suggestions as usage_suggestions};
-#[cfg(any(target_os = "linux", windows))]
 mod wait_deadline;
 
 #[cfg(test)]
@@ -871,8 +871,7 @@ fn agent_output(
             }
             failure_output(failure, Some(format), locale)
         }
-        // Only the Linux signal owner constructs `Cancelled`.
-        #[cfg(any(target_os = "linux", windows))]
+        // The native Agent signal owner lends the deferred finalization token.
         Err(query::AgentQueryError::Cancelled(cancelled)) => {
             let query::AgentCancelled {
                 failure,

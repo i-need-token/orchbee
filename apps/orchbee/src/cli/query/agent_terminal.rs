@@ -1,9 +1,7 @@
 //! Compose canonical Agent identity with an exact Workbench terminal binding.
 //! This owner resolves only; existing terminal owners retain observation/input.
 
-#[cfg(not(windows))]
 use super::agent_target;
-#[cfg(windows)]
 use super::named_terminal_target;
 use super::read_terminal_processes;
 use super::{
@@ -23,12 +21,9 @@ pub(crate) fn agent_terminal_target(
     target: &AgentTarget,
     deadline: Instant,
 ) -> Result<Target, Failure> {
-    #[cfg(windows)]
-    {
+    if crate::cli::execution::admit(crate::cli::execution::Capability::AgentProjection).is_ok() {
         named_terminal_target(client, snapshot, target, deadline, None, false)
-    }
-    #[cfg(not(windows))]
-    {
+    } else {
         resolve_agent_terminal(client, snapshot, target, deadline).map(|resolved| resolved.terminal)
     }
 }
@@ -106,7 +101,6 @@ pub(crate) fn verify_agent_terminal(
     })
 }
 
-#[cfg(not(windows))]
 pub(crate) fn resolve_agent_terminal(
     client: &mut LocalClient,
     snapshot: &Snapshot,
@@ -116,7 +110,6 @@ pub(crate) fn resolve_agent_terminal(
     resolve_agent_terminal_cancellable(client, snapshot, target, deadline, None)
 }
 
-#[cfg(not(windows))]
 pub(crate) fn resolve_agent_terminal_cancellable(
     client: &mut LocalClient,
     snapshot: &Snapshot,

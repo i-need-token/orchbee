@@ -5,6 +5,7 @@ use super::{Failure, FailureKind, stage_reason_details};
 #[derive(Clone, Copy)]
 pub(super) enum Capability {
     AgentProjection,
+    CanonicalAgentRead,
     WorkspaceGroupClose,
     WorktreeOperation,
     ClientControl,
@@ -37,6 +38,7 @@ mod platform;
 pub(super) fn admit(capability: Capability) -> Result<(), Failure> {
     platform::admit(capability).map_err(|Unsupported(capability)| match capability {
         Capability::AgentProjection
+        | Capability::CanonicalAgentRead
         | Capability::WorkspaceGroupClose
         | Capability::WorktreeOperation
         | Capability::ClientControl

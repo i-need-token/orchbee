@@ -221,16 +221,16 @@ fn agent_markers_classify_internal_at_every_io_position() {
 /// arbitration read — so it only succeeds when the admitted session's
 /// socket was already dropped before the finish read.
 struct OrderWatch {
-    inner: ArmedSignals,
+    inner: AgentSignals,
     eof: std::sync::mpsc::Receiver<()>,
 }
 
 impl AgentWatch for OrderWatch {
     fn poll_fd(&self) -> Option<BorrowedFd<'_>> {
-        SignalWatch::poll_fd(&self.inner)
+        self.inner.poll_fd()
     }
 
-    fn finish(self) -> Result<Finish, crate::cli::source::SignalError> {
+    fn finish(self) -> std::io::Result<AgentFinish> {
         self.eof
             .recv_timeout(Duration::from_secs(5))
             .expect("the admitted session must be dropped before finish");
@@ -280,7 +280,7 @@ fn session_socket_drops_before_finish_arbitration() {
         .expect("start fake server");
     let client =
         LocalClient::connect(server.endpoint(), "test-cohort").expect("connect admitted client");
-    let armed = ArmedSignals::arm_interrupts().expect("arm interrupts");
+    let armed = AgentSignals::arm_interrupts().expect("arm interrupts");
     let watch = OrderWatch {
         inner: armed,
         eof: eof_rx,

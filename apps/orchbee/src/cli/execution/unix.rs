@@ -1,16 +1,19 @@
-//! Unix refuses extended CLI capabilities before effects; Linux retains its existing Workbench mutations and canonical process reads.
+//! Unix refuses extended CLI capabilities before effects; Linux retains its existing Workbench mutations and canonical process/Agent reads.
 //! Admission itself does not inspect environment or native state.
 use super::{Capability, Unsupported};
 
 pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
     match capability {
-        Capability::WorkbenchMutation | Capability::CanonicalPanelProcess
+        Capability::WorkbenchMutation
+        | Capability::CanonicalPanelProcess
+        | Capability::CanonicalAgentRead
             if cfg!(target_os = "linux") =>
         {
             Ok(())
         }
         Capability::WorkbenchMutation
         | Capability::CanonicalPanelProcess
+        | Capability::CanonicalAgentRead
         | Capability::Reports
         | Capability::AgentManifests
         | Capability::RuntimeStatus

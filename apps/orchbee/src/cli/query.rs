@@ -82,19 +82,13 @@ pub(in crate::cli) mod named_terminal;
 pub(crate) use named_terminal::named_terminal_target;
 mod agent_management;
 pub(in crate::cli) mod terminal_agent;
-#[cfg(windows)]
 pub(in crate::cli) mod terminal_agent_wait;
 pub(super) mod terminal_metadata;
 pub(in crate::cli) use agent_management::read_agent_management;
-#[cfg(windows)]
 mod agent_journal;
-#[cfg(windows)]
 pub(crate) use agent_journal::{AgentJournal, JournalError};
-#[cfg(windows)]
 mod agent_explanation;
 mod agent_focus;
-#[cfg(windows)]
-pub(crate) use agent_explanation::agent_explain;
 #[cfg(any(target_os = "linux", windows))]
 mod agent_names;
 mod agent_names_failure;
@@ -111,7 +105,8 @@ use crate::local_client::{
 use crate::terminal_projection::TerminalProjection;
 #[cfg(not(any(target_os = "linux", windows)))]
 use orchbee_agent_observation_protocol::{
-    AgentGetOutcome, AgentReadRequest, AgentReadResult, AgentSafeInteger, AgentSessionId,
+    AgentExplainOutcome, AgentGetOutcome, AgentReadRequest, AgentReadResult, AgentSafeInteger,
+    AgentSessionId,
 };
 #[cfg(not(any(target_os = "linux", windows)))]
 use orchbee_client_server_protocol::{
@@ -207,15 +202,16 @@ use orchbee_workbench_protocol::{
     WorktreeListUnavailableReason,
 };
 
+use super::agent_interrupt::{ArmedSignals as AgentSignals, Finish as AgentFinish};
 #[cfg(any(target_os = "linux", windows))]
 use super::results::Projection;
 #[cfg(any(target_os = "linux", windows))]
 use super::source::{ArmedSignals, Finish, SignalWatch};
 #[cfg(target_os = "macos")]
 use super::stage_details;
-use super::{Failure, FailureKind};
+use super::{Failure, FailureKind, SourceFinalization};
 #[cfg(any(target_os = "linux", windows))]
-use super::{SourceFinalization, stage_details, stage_reason_details, target_details};
+use super::{stage_details, stage_reason_details, target_details};
 #[cfg(any(target_os = "linux", windows))]
 use crate::invocation::{Resource, Target};
 #[cfg(any(target_os = "linux", windows))]
@@ -239,12 +235,12 @@ use crate::termination_signal::{TerminationSignal, TerminationSource};
 
 #[cfg(target_os = "macos")]
 mod agent_list_macos;
-#[cfg(any(target_os = "linux", windows))]
 mod agent_wait;
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use agent_wait::condition_matches;
 #[cfg(windows)]
 pub(crate) use agent_wait::status_matches;
-#[cfg(any(target_os = "linux", windows))]
-pub(crate) use agent_wait::{agent_wait, condition_matches, wait_backoff};
+pub(crate) use agent_wait::{agent_wait, wait_backoff};
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
@@ -2334,13 +2330,11 @@ pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
 /// The typed cancellation payload: the settled agent failure plus the owed
 /// finalization token, boxed so the common error type stays small on paths
 /// that never cancel.
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) struct AgentCancelled {
     pub(crate) failure: Failure,
     pub(crate) finalization: SourceFinalization,
 }
 
-#[cfg(any(target_os = "linux", windows))]
 pub(crate) enum AgentQueryError {
     Admission(Failure),
     Read(Failure),
@@ -2351,7 +2345,6 @@ pub(crate) enum AgentQueryError {
 /// failure family. Preamble failures arrive already classified; the raw
 /// connect outcome is held unprojected because it may carry the protocol's
 /// provisional wake markers, which only the finish arbitration may weigh.
-#[cfg(any(target_os = "linux", windows))]
 enum AgentAdmissionError {
     Preamble(Failure),
     Connect(crate::local_client::LocalClientConnectError),
@@ -2362,7 +2355,6 @@ enum AgentAdmissionError {
 /// wake markers survive intact to that point. The variant carries the
 /// phase: `Admission` answers the generic document, the rest answer the
 /// agent document.
-#[cfg(any(target_os = "linux", windows))]
 enum AgentAttempt<Response = AgentReadResult> {
     Admission(AgentAdmissionError),
     /// The shared absolute budget expired before or after the exchange.
@@ -2376,27 +2368,24 @@ enum AgentAttempt<Response = AgentReadResult> {
 /// The armed Agent interruption owner as one pollable descriptor plus one
 /// finish arbitration — the private seam where a test substitutes a
 /// recording watch to prove the admitted session is dropped first. Only
-/// `ArmedSignals` implements it in production.
-#[cfg(any(target_os = "linux", windows))]
+/// `AgentSignals` implements it in production.
 trait AgentWatch {
     /// The borrowed signal descriptor joined into every transport wait.
     fn poll_fd(&self) -> Option<BorrowedFd<'_>>;
     /// The single arbitration read after the armed span.
-    fn finish(self) -> Result<Finish, crate::cli::source::SignalError>;
+    fn finish(self) -> std::io::Result<AgentFinish>;
 }
 
-#[cfg(any(target_os = "linux", windows))]
-impl AgentWatch for ArmedSignals {
+impl AgentWatch for AgentSignals {
     fn poll_fd(&self) -> Option<BorrowedFd<'_>> {
-        SignalWatch::poll_fd(self)
+        AgentSignals::poll_fd(self)
     }
 
-    fn finish(self) -> Result<Finish, crate::cli::source::SignalError> {
-        ArmedSignals::finish(self)
+    fn finish(self) -> std::io::Result<AgentFinish> {
+        AgentSignals::finish(self)
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
 trait AgentReadExchange {
     type Response;
     fn exchange(
@@ -2407,7 +2396,6 @@ trait AgentReadExchange {
     ) -> Result<Self::Response, AgentExchangeError>;
 }
 
-#[cfg(any(target_os = "linux", windows))]
 impl AgentReadExchange for AgentReadRequest {
     type Response = AgentReadResult;
     fn exchange(
@@ -2420,7 +2408,6 @@ impl AgentReadExchange for AgentReadRequest {
     }
 }
 
-#[cfg(windows)]
 impl AgentReadExchange for orchbee_agent_observation_protocol::AgentChangesRequest {
     type Response = orchbee_agent_observation_protocol::AgentChangesResult;
     fn exchange(
@@ -2440,7 +2427,6 @@ impl AgentReadExchange for orchbee_agent_observation_protocol::AgentChangesReque
 /// before the single `finish` arbitration; and no early return may bypass
 /// that arbitration once armed. `Clear` hands the raw attempt back for the
 /// normal classification; `Cancelled` answers the typed 130 family.
-#[cfg(any(target_os = "linux", windows))]
 fn agent_armed_run<Request: AgentReadExchange>(
     operation: AgentReadOperation,
     build: impl FnOnce(
@@ -2452,7 +2438,7 @@ fn agent_armed_run<Request: AgentReadExchange>(
 ) -> Result<(ObapRequestId, AgentAttempt<Request::Response>), AgentQueryError> {
     let total = deadline_after(AGENT_TOTAL_BUDGET).map_err(AgentQueryError::Admission)?;
     let request_id = obap_request_id().map_err(AgentQueryError::Admission)?;
-    let armed = ArmedSignals::arm_interrupts()
+    let armed = AgentSignals::arm_interrupts()
         .map_err(|_| AgentQueryError::Admission(Failure::new(FailureKind::InternalFailure)))?;
     agent_armed_finish(
         operation,
@@ -2469,7 +2455,6 @@ fn agent_armed_run<Request: AgentReadExchange>(
 /// `agent_span` owns the session and drops it before returning; only then
 /// does `armed.finish()` read the signal descriptor. Nothing here
 /// classifies.
-#[cfg(any(target_os = "linux", windows))]
 fn agent_armed_finish<Request: AgentReadExchange>(
     operation: AgentReadOperation,
     build: impl FnOnce(
@@ -2494,7 +2479,7 @@ fn agent_armed_finish<Request: AgentReadExchange>(
             }
             _ => AgentQueryError::Read(Failure::new(FailureKind::InternalFailure)),
         }),
-        Ok(Finish::Cancelled { finalization, .. }) => {
+        Ok(AgentFinish::Cancelled { finalization, .. }) => {
             Err(AgentQueryError::Cancelled(Box::new(AgentCancelled {
                 // A cancelled read carries no source: only a trustworthy semantic
                 // answer may publish the correlated request identity.
@@ -2503,14 +2488,13 @@ fn agent_armed_finish<Request: AgentReadExchange>(
                 finalization,
             })))
         }
-        Ok(Finish::Clear) => Ok((request_id, attempt)),
+        Ok(AgentFinish::Clear) => Ok((request_id, attempt)),
     }
 }
 
 /// The armed span body: admission under the borrowed wake descriptor, the
 /// pre-submission settle, one OBAP exchange, then the session is dropped —
 /// all before the caller's finish arbitration. Nothing here classifies.
-#[cfg(any(target_os = "linux", windows))]
 fn agent_span<Request: AgentReadExchange>(
     total: Instant,
     operation: AgentReadOperation,
@@ -2551,7 +2535,6 @@ fn agent_span<Request: AgentReadExchange>(
 /// bounded by `total`, never a renewed budget. The wake descriptor joins
 /// the admission wait set; nothing here may create state, replay a request,
 /// or touch the Workbench.
-#[cfg(any(target_os = "linux", windows))]
 fn agent_session_until(
     total: Instant,
     wake: Option<BorrowedFd<'_>>,
@@ -2572,7 +2555,6 @@ fn agent_session_until(
 /// Post-step settlement of the shared absolute budget: at or past the
 /// ceiling the step's outcome is the command's own Agent timeout — never a
 /// late success or a stale transport fault.
-#[cfg(any(target_os = "linux", windows))]
 fn agent_settle(total: Instant, operation: AgentReadOperation) -> Result<(), Failure> {
     if Instant::now() >= total {
         return Err(Failure::new(FailureKind::Timeout).details(agent_timeout_details(operation)));
@@ -2585,7 +2567,6 @@ fn agent_settle(total: Instant, operation: AgentReadOperation) -> Result<(), Fai
 /// Agent timeout, and a raw exchange result or failure maps through the
 /// post-admission classifiers — provisional wake markers left readable
 /// without a captured signal land on `internal-failure`.
-#[cfg(any(target_os = "linux", windows))]
 fn classify_attempt<Response>(
     attempt: AgentAttempt<Response>,
     operation: AgentReadOperation,
@@ -2711,15 +2692,19 @@ pub(crate) fn agent_get(
 }
 
 /// `agent explain`: resolve once and read on the same admitted session.
-#[cfg(target_os = "linux")]
 pub(crate) fn agent_explain(
     target: &crate::invocation::AgentTarget,
 ) -> Result<(serde_json::Value, Projection), AgentQueryError> {
-    agent_session_read(AgentReadOperation::Explain, target)
+    if super::execution::admit(super::execution::Capability::AgentProjection).is_ok() {
+        agent_explanation::agent_explain(target)
+    } else {
+        super::execution::admit(super::execution::Capability::CanonicalAgentRead)
+            .map_err(AgentQueryError::Admission)?;
+        agent_session_read(AgentReadOperation::Explain, target)
+    }
 }
 
 /// Admission, optional target resolution and the read share one deadline.
-#[cfg(target_os = "linux")]
 fn agent_session_read(
     operation: AgentReadOperation,
     target: &crate::invocation::AgentTarget,
@@ -3029,15 +3014,6 @@ pub(crate) fn launch_profile_catalog(
     )
 }
 
-/// The staged Agent read failure family: macOS uses it for the bounded
-/// `agent list` route, while unsupported targets use it for their pre-admission
-/// platform failures.
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) enum AgentQueryError {
-    Admission(super::Failure),
-    Read(super::Failure),
-}
-
 #[cfg(target_os = "macos")]
 pub(crate) fn agent_list(
     include_ended: bool,
@@ -3071,32 +3047,6 @@ pub(crate) fn agent_get(
     ))
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) fn agent_explain(
-    _target: &crate::invocation::AgentTarget,
-) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
-    Err(AgentQueryError::Admission(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    ))
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) fn agent_wait(
-    _target: &crate::invocation::AgentTarget,
-    _until: &[crate::invocation::AgentWaitCondition],
-    _after_revision: Option<orchbee_agent_observation_protocol::AgentSafeInteger>,
-    _timeout_ms: Option<u32>,
-    _client: Option<&orchbee_workbench_protocol::WorkbenchClientId>,
-) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
-    Err(AgentQueryError::Admission(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            super::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    ))
-}
-
 #[cfg(any(target_os = "linux", windows))]
 pub(super) fn names_command(
     command: &crate::invocation::AgentNamesCommand,
@@ -3112,7 +3062,6 @@ pub(super) fn names_command(
     ))
 }
 
-#[cfg(windows)]
 pub(crate) fn agent_changes(
     limit: u64,
     cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
@@ -3120,6 +3069,8 @@ pub(crate) fn agent_changes(
     use orchbee_agent_observation_protocol::{
         AgentChangesOutcome, AgentChangesRejectionReason, AgentChangesRequest, AgentChangesResult,
     };
+    super::execution::admit(super::execution::Capability::AgentProjection)
+        .map_err(AgentQueryError::Admission)?;
     let operation = AgentReadOperation::Changes;
     let (request_id, attempt) = agent_armed_run(operation, |_, request_id, _, _| {
         Ok(AgentChangesRequest::Read {
@@ -3158,19 +3109,6 @@ pub(crate) fn agent_changes(
                 .source(source),
         )),
     }
-}
-
-#[cfg(not(windows))]
-pub(crate) fn agent_changes(
-    _limit: u64,
-    _cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
-) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
-    Err(AgentQueryError::Admission(
-        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-            "platform",
-            "unsupported-platform",
-        )),
-    ))
 }
 
 pub(in crate::cli) fn workbench_failure(reason: &'static str) -> Failure {

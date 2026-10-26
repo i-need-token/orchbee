@@ -153,7 +153,6 @@ impl Locale {
     }
 
     /// Physical matches identify a presentation and semantic sequence, without a canonical session.
-    #[cfg(windows)]
     pub(crate) fn cli_agent_terminal_wait_matched(
         self,
         presentation: &str,

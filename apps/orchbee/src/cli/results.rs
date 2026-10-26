@@ -1134,13 +1134,11 @@ pub(crate) enum Projection {
     },
     /// The typed `found` outcome carrying session plus explanation.
     AgentExplain(AgentExplainOutcome),
-    #[cfg(windows)]
     AgentTerminalExplanation(Box<orchbee_workbench_protocol::TerminalAgentExplanation>),
     /// The `agent wait` matched answer: the satisfying session detail
     /// verbatim plus the requested-order matched conditions and the
     /// effective wait echo.
     AgentWait(AgentWaitDoc),
-    #[cfg(windows)]
     AgentTerminalWait(Box<super::query::terminal_agent_wait::Matched>),
     ProjectList(Vec<ProjectRow>),
     ProjectGet(ProjectDoc),
@@ -1185,15 +1183,20 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) matched: Vec<AgentWaitCondition>,
     pub(crate) revision: AgentSafeInteger,
     pub(crate) session: Box<AgentSessionDetail>,
-    #[cfg(windows)]
-    pub(crate) matched_change: Option<orchbee_agent_observation_protocol::AgentChange>,
-    #[cfg(windows)]
-    pub(crate) client: Option<Box<AgentClientViewDoc>>,
+    pub(crate) history: Option<AgentWaitHistory>,
     pub(crate) until: Vec<AgentWaitCondition>,
     pub(crate) after_revision: Option<AgentSafeInteger>,
     pub(crate) timeout_ms: Option<u32>,
     pub(crate) observations: u64,
     pub(crate) elapsed_ms: u64,
+}
+
+/// Present only when the execution owner observes contiguous change history.
+/// A sampled wait omits these fields rather than claiming historical evidence.
+#[derive(Debug)]
+pub(crate) struct AgentWaitHistory {
+    pub(crate) matched_change: Option<orchbee_agent_observation_protocol::AgentChange>,
+    pub(crate) client: Option<Box<AgentClientViewDoc>>,
 }
 
 #[derive(Debug)]
@@ -1369,7 +1372,6 @@ impl Projection {
                 result
             }
             Self::AgentExplain(outcome) => json!(outcome),
-            #[cfg(windows)]
             Self::AgentTerminalExplanation(terminal) => {
                 let mut terminal = json!(terminal);
                 terminal["explanation"]
@@ -1397,7 +1399,7 @@ impl Projection {
                 wait.insert("timeoutMs".to_owned(), json!(doc.timeout_ms));
                 wait.insert("observations".to_owned(), json!(doc.observations));
                 wait.insert("elapsedMs".to_owned(), json!(doc.elapsed_ms));
-                let result = json!({
+                let mut result = json!({
                     "matchedConditions": doc
                         .matched
                         .iter()
@@ -1407,18 +1409,14 @@ impl Projection {
                     "session": doc.session,
                     "wait": Value::Object(wait),
                 });
-                #[cfg(windows)]
-                let result = {
-                    let mut result = result;
-                    result["matchedChange"] = json!(doc.matched_change);
-                    if let Some(client) = &doc.client {
+                if let Some(history) = &doc.history {
+                    result["matchedChange"] = json!(history.matched_change);
+                    if let Some(client) = &history.client {
                         result["client"] = client.document();
                     }
-                    result
-                };
+                }
                 result
             }
-            #[cfg(windows)]
             Self::AgentTerminalWait(doc) => doc.document(),
             Self::Status(doc) => json!({
                 "session": {

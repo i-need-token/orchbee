@@ -1,4 +1,4 @@
-//! Bounded Windows wait continuity; historical evidence never edits a Get sample.
+//! Bounded wait continuity for the admitted history capability; historical evidence never edits a Get sample.
 use super::{
     AgentSafeInteger, BorrowedFd, Failure, FailureKind, Instant, LocalClient, ObapRequestId,
     agent_protocol_invalid, agent_unavailable_details, obap_request_id,

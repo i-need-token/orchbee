@@ -1,7 +1,6 @@
 //! Compose native Panel selectors with the Agent owner's canonical resolver.
 //! Workbench owns the primary presentation; OBAP owns unique live attachments.
 
-#[cfg(not(windows))]
 use super::AgentSessionId;
 use super::{
     BorrowedFd, Failure, FailureKind, Instant, LocalClient, Projection, ProtocolVersion, Resource,
@@ -26,10 +25,8 @@ pub(in crate::cli) struct NamedTarget {
     pub(in crate::cli) presentation: Option<String>,
 }
 
-#[cfg(not(windows))]
 pub(super) struct ResolvedTarget {
     pub(super) session_id: AgentSessionId,
-    #[cfg(not(windows))]
     pub(in crate::cli) presentation: Option<String>,
 }
 
@@ -192,7 +189,6 @@ pub(super) fn prepare(
     })
 }
 
-#[cfg(not(windows))]
 pub(super) fn resolve_on_session(
     client: &mut LocalClient,
     target: &AgentTarget,
@@ -210,7 +206,6 @@ pub(super) fn resolve_on_session(
     };
     Ok(ResolvedTarget {
         session_id,
-        #[cfg(not(windows))]
         presentation: resolved.presentation,
     })
 }
@@ -247,9 +242,14 @@ pub(in crate::cli) fn resolve_named(
         None => resolve(client, prepared.selector, total, wake)?,
     };
     let resolved = resolved_target(&answer);
-    #[cfg(windows)]
     let resolved = match resolved {
-        Err(failure) if failure.kind == FailureKind::NotFound => {
+        Err(failure)
+            if failure.kind == FailureKind::NotFound
+                && crate::cli::execution::admit(
+                    crate::cli::execution::Capability::AgentProjection,
+                )
+                .is_ok() =>
+        {
             if let AgentTarget::Auto { target } = target {
                 let owned;
                 let snapshot = match snapshot {

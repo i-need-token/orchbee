@@ -26,6 +26,8 @@ Terminal selection, copy and link workflows share bounded buffer validation and 
 
 Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes; shared polling interprets their actual byte, EOF and exit observations. Unsupported hosts refuse before terminal admission, signal registration or helper creation. Native interrupt observation delegates to the existing Windows guard without replacing Unix cancellation ownership.
 
+Agent changes, explanations and waits share exchange, cancellation settlement and presentation owners. The Agent interrupt port delegates to the existing Linux or Windows signal producer; the held Client Connection is still dropped before its single finish arbitration. Windows waits retain contiguous history and optional Client evidence, while Linux waits retain sampled canonical observations and their existing output fields. macOS keeps its separate bounded canonical list owner; unavailable read capabilities refuse before signal or Session effects.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
