@@ -2261,6 +2261,8 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 `server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Session，绝不激活新 Session。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `server stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.server.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果。每个答案都包含 `wait`：没有等待状态时为 `null`，适用的 pending/传输结果则为 detached、timed-out 或 cancelled。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
 
+停止／状态工作流、请求标识选择、回执渲染与取消决策在所有宿主平台参与编译。原生能力准入先于熵获取、信号注册及运行时访问。严格激活记录观察保留在具名平台端口之后；不支持的端口不能制造完成回执。
+
 ## Windows 保留 Worktree 操作
 
 [Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选 --client、--focus／--no-focus、标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` v1 封套包含可空的原请求 Project 元数据、可选聚焦及 shell 恢复回执，无 Project 准备阶段。离线目录发布其当前 schema。
@@ -2522,4 +2524,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=8d9a4b3ebf7305bf395d14418e5e0e4016e2d5e3983fd05c401e2e8c14b83b50 zh-cn-sha256=9acda5104444b931d284f949435859228f11f8f17de3ba6b8930b05858856797 -->
+<!-- documentation-pairing: english-sha256=33132c10c010c58b5f88fe9e14d5b58baaf94f2b14275249d2ca7931ff4227e1 zh-cn-sha256=0097bfef190c5cbb07ab0e20fd0d6c083e9782006a9c7f6e90dd2dd496b349d7 -->

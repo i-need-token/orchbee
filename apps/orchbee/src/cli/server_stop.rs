@@ -1,39 +1,30 @@
 //! Session stop receipts remain inspectable across Client disconnection and Server exit.
-#[cfg(windows)]
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{OutputFormat, ServerStopCommand},
     localization::Locale,
 };
-#[cfg(windows)]
 use orchbee_local_client_protocol::StopId;
-#[cfg(windows)]
 use serde_json::{Value, json};
 
-#[cfg(windows)]
 mod reply;
 #[cfg(windows)]
 mod windows;
+mod workflow;
 #[cfg(windows)]
-use reply::{Answer, Observation, render};
-
+use windows as platform;
 #[cfg(not(windows))]
-pub(crate) fn run(command: &ServerStopCommand, format: OutputFormat, locale: Locale) -> Output {
-    let _ = command;
-    failure_output(
-        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-            "platform",
-            "unsupported-platform",
-        )),
-        Some(format),
-        locale,
-    )
-}
+mod unix;
+use reply::{Answer, Observation, render};
+#[cfg(not(windows))]
+use unix as platform;
 
 /// Chooses one request identity and returns a bounded stop/status result without Session activation.
-#[cfg(windows)]
 pub(crate) fn run(command: &ServerStopCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::ServerStop) {
+        return failure_output(failure, Some(format), locale);
+    }
     let id = match command {
         ServerStopCommand::Status { id } | ServerStopCommand::Stop { id: Some(id), .. } => *id,
         ServerStopCommand::Stop { id: None, .. } => {
@@ -48,10 +39,9 @@ pub(crate) fn run(command: &ServerStopCommand, format: OutputFormat, locale: Loc
             StopId::new(bytes).expect("validated entropy")
         }
     };
-    windows::run(command, id, format, locale)
+    workflow::run(command, id, format, locale)
 }
 
-#[cfg(windows)]
 fn id_text(id: StopId) -> String {
     id.bytes()
         .iter()
@@ -59,7 +49,6 @@ fn id_text(id: StopId) -> String {
         .collect()
 }
 
-#[cfg(windows)]
 fn emit(
     id: StopId,
     result: Value,
