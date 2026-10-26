@@ -1,139 +1,152 @@
 use super::*;
-use crate::local_client::{LocalClient, tests::server::FakeServer};
-use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
-use std::time::Instant;
-use std::{
-    io::{self, Read},
-    num::NonZeroU64,
-    sync::mpsc,
+use crate::local_client::{
+    LocalClient,
+    tests::{
+        multiplex_peer::{admit, read_open, respond},
+        server::FakeServer,
+    },
 };
-#[test]
-fn listener_shutdown_cancels_blocked_handshake_or_poll_and_joins() {
-    for handshake in [true, false] {
-        let (tx, rx) = mpsc::sync_channel(1);
-        let server = FakeServer::start_connections(2, move |index, mut stream| {
-            assert!(matches!(
-                read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
-            ));
-            if index == 0 || !handshake {
-                write_message(
-                    &mut stream,
-                    &LocalClientMessage::ClientAccepted {
-                        generation: NonZeroU64::new(index as u64 + 1).unwrap(),
-                    },
-                )
-                .map_err(io::Error::other)?;
-            }
-            if index == 1 {
-                if !handshake {
-                    assert!(matches!(
-                        orchbee_workbench_protocol::read_workbench_request(&mut stream)
-                            .map_err(io::Error::other)?,
-                        orchbee_workbench_protocol::WorkbenchRequest::WindowTitle(_)
-                    ));
-                }
-                tx.send(()).unwrap();
-                assert_eq!(stream.read(&mut [0])?, 0);
-            }
-            Ok(())
-        })
-        .unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
-        let mut listener = Subscription::spawn(
-            client.origin(),
-            client.operation_clock(),
-            SessionId::parse(&format!("{:032x}", 2)).unwrap(),
-        )
-        .unwrap();
-        drop(client);
-        rx.recv_timeout(Duration::from_secs(3)).unwrap();
-        listener.close();
-        assert!(listener.task.is_none());
-        listener.close();
-        server.finish().unwrap();
-    }
-}
+use orchbee_workbench_protocol::{WindowTitleResult, WorkbenchRevision, read_workbench_request};
+use std::{
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 
 #[test]
-fn live_window_title_pipe_hands_off_latest_snapshot_once() {
-    use orchbee_workbench_protocol::{
-        WindowTitleResult, WorkbenchRequest, WorkbenchResponse, read_workbench_request,
-        write_workbench_response,
-    };
-    let message = WindowTitleSnapshot {
-        revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
-        title: Some(orchbee_workbench_protocol::WindowTitle::normalize("ready").unwrap()),
-    };
-    let expected = message.clone();
-    let (tx, rx) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+fn title_uses_one_admission_and_cancellation_preserves_the_carrier() {
+    let (opened, ready) = mpsc::sync_channel(1);
+    let server = FakeServer::start(move |mut peer| {
+        admit(&mut peer, 1)?;
+        let open = read_open(&mut peer)?;
         assert!(matches!(
-            read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
+            read_workbench_request(&mut Cursor::new(&open.request)).unwrap(),
+            WorkbenchRequest::WindowTitle(_)
         ));
-        write_message(
-            &mut stream,
-            &LocalClientMessage::ClientAccepted {
-                generation: NonZeroU64::new(index as u64 + 1).unwrap(),
-            },
-        )
-        .map_err(io::Error::other)?;
-        if index == 0 {
-            return Ok(());
-        }
+        opened.send(open.id).unwrap();
         loop {
-            let WorkbenchRequest::WindowTitle(request) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
-            else {
-                panic!()
-            };
-            let deliver = request.action
-                == WindowTitleAction::Listen {
-                    focused: true,
-                    context: Default::default(),
-                };
-            write_workbench_response(
-                &mut stream,
-                &WorkbenchResponse::WindowTitle(WindowTitleResult {
-                    protocol_version: ProtocolVersion,
-                    request_id: request.request_id,
-                    session_id: request.session_id,
-                    outcome: WindowTitleOutcome::Listening {
-                        snapshot: deliver.then(|| message.clone()),
-                    },
-                }),
-            )
-            .map_err(io::Error::other)?;
-            if deliver {
+            if let orchbee_workbench_protocol::MultiplexMessage::StreamClose { stream_id, .. } =
+                orchbee_workbench_protocol::read_multiplex_message(&mut peer)?
+            {
+                assert_eq!(stream_id, open.id);
                 break;
             }
         }
-        tx.send(()).unwrap();
-        // Keep the connection alive until listener cancellation. Polls may already be queued.
-        let mut data = [0_u8; 4096];
-        while stream.read(&mut data)? != 0 {}
-        Ok(())
+        let next = read_open(&mut peer)?;
+        let WorkbenchRequest::SnapshotRead(request) =
+            read_workbench_request(&mut Cursor::new(&next.request)).unwrap()
+        else {
+            panic!()
+        };
+        respond(
+            &mut peer,
+            &next,
+            &WorkbenchResponse::Snapshot(orchbee_workbench_protocol::WorkbenchSnapshotResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Denied {},
+            }),
+            1,
+        )
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let mut client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
     let mut listener = Subscription::spawn(
         client.origin(),
         client.operation_clock(),
         SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
-    assert_eq!(listener.poll(true, Default::default()), None);
-    rx.recv_timeout(Duration::from_secs(3)).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let delivered = loop {
-        if let Some(message) = listener.poll(true, Default::default()) {
-            break message;
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    listener.close();
+    let reply = client
+        .submit_workbench_snapshot_read_before_cancellable(
+            orchbee_workbench_protocol::SnapshotReadIntent {
+                protocol_version: ProtocolVersion,
+                request_id: WorkbenchRequestId::parse(&format!("{:032x}", 3)).unwrap(),
+            },
+            Instant::now() + Duration::from_secs(2),
+            None,
+        )
+        .unwrap();
+    assert!(matches!(
+        reply.outcome,
+        orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Denied {}
+    ));
+    drop(client);
+    server.finish().unwrap();
+}
+
+#[test]
+fn title_latest_value_is_consumed_once_without_a_lane_thread() {
+    let (sent, ready) = mpsc::sync_channel(1);
+    let server = FakeServer::start(move |mut peer| {
+        admit(&mut peer, 1)?;
+        let open = read_open(&mut peer)?;
+        let WorkbenchRequest::WindowTitle(request) =
+            read_workbench_request(&mut Cursor::new(&open.request)).unwrap()
+        else {
+            panic!()
+        };
+        for sequence in 1..=3 {
+            respond(
+                &mut peer,
+                &open,
+                &WorkbenchResponse::WindowTitle(WindowTitleResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id.clone(),
+                    session_id: request.session_id.clone(),
+                    outcome: WindowTitleOutcome::Listening {
+                        snapshot: Some(WindowTitleSnapshot {
+                            revision: WorkbenchRevision::new(sequence),
+                            title: Some(
+                                orchbee_workbench_protocol::WindowTitle::normalize(&format!(
+                                    "title-{sequence}"
+                                ))
+                                .unwrap(),
+                            ),
+                        }),
+                    },
+                }),
+                sequence,
+            )?;
+        }
+        sent.send(()).unwrap();
+        while let Ok(message) = orchbee_workbench_protocol::read_multiplex_message(&mut peer) {
+            if matches!(
+                message,
+                orchbee_workbench_protocol::MultiplexMessage::StreamClose { .. }
+            ) {
+                break;
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
+    let mut listener = Subscription::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
+    )
+    .unwrap();
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if listener
+            .poll(false, Default::default())
+            .is_some_and(|snapshot| snapshot.revision.value() == 3)
+        {
+            break;
         }
         assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(5));
-    };
-    assert_eq!(delivered, expected);
+        std::thread::yield_now();
+    }
     assert_eq!(listener.poll(false, Default::default()), None);
     listener.close();
     drop(client);
@@ -141,45 +154,35 @@ fn live_window_title_pipe_hands_off_latest_snapshot_once() {
 }
 
 #[test]
-fn window_title_latest_handoff_discards_demoted_state_and_republishes_on_promotion() {
-    let (_reader, wake) = LocalStream::pair().unwrap();
-    let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
+fn title_handoff_republishes_on_promotion_and_suppresses_unchanged_values() {
     let listener = Subscription {
-        shared: shared.clone(),
-        wake,
-        task: None,
+        source: None,
+        state: Mutex::default(),
     };
     let snapshot = WindowTitleSnapshot {
-        revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+        revision: WorkbenchRevision::new(1),
         title: None,
     };
-    shared.0.lock().unwrap().receive(Some(snapshot.clone()));
+    listener
+        .state
+        .lock()
+        .unwrap()
+        .receive(Some(snapshot.clone()));
     assert_eq!(
         listener.poll(false, Default::default()),
         Some(snapshot.clone())
     );
-    shared.0.lock().unwrap().receive(Some(snapshot.clone()));
+    listener
+        .state
+        .lock()
+        .unwrap()
+        .receive(Some(snapshot.clone()));
     assert_eq!(listener.poll(false, Default::default()), None);
-    shared.0.lock().unwrap().receive(None);
-    shared.0.lock().unwrap().receive(Some(snapshot.clone()));
-    assert_eq!(
-        listener.poll(false, Default::default()),
-        Some(snapshot.clone())
-    );
     assert_eq!(listener.poll(true, Default::default()), None);
-    shared.0.lock().unwrap().receive(Some(snapshot.clone()));
-    assert_eq!(
-        listener.poll(true, Default::default()),
-        Some(snapshot.clone())
-    );
-    let newer = WindowTitleSnapshot {
-        revision: orchbee_workbench_protocol::WorkbenchRevision::new(2),
-        title: Some(orchbee_workbench_protocol::WindowTitle::normalize("latest").unwrap()),
-    };
-    shared.0.lock().unwrap().receive(Some(newer.clone()));
-    shared.0.lock().unwrap().receive(Some(snapshot));
-    shared.0.lock().unwrap().receive(Some(newer.clone()));
-    assert_eq!(listener.poll(true, Default::default()), Some(newer));
-    shared.0.lock().unwrap().receive(None);
-    assert_eq!(listener.poll(true, Default::default()), None);
+    listener
+        .state
+        .lock()
+        .unwrap()
+        .receive(Some(snapshot.clone()));
+    assert_eq!(listener.poll(true, Default::default()), Some(snapshot));
 }

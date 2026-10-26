@@ -8,7 +8,7 @@ use std::num::NonZeroU64;
 impl LocalTerminalConnection<'_> {
     pub(crate) fn execute_editor(
         &mut self,
-        owner: NonZeroU64,
+        owner: impl Into<crate::local_terminal_service::PopupOwner>,
         request: TerminalEditorRequest,
     ) -> TerminalEditorResult {
         let source = if let TerminalEditorAction::Open { capture, .. } = &request.action {
@@ -44,6 +44,7 @@ impl LocalTerminalConnection<'_> {
         } else {
             None
         };
-        self.service.execute_editor_popup(owner, request, source)
+        self.service
+            .execute_editor_popup(owner.into(), request, source)
     }
 }

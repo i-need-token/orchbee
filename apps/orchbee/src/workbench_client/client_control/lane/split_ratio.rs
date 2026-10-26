@@ -1,4 +1,4 @@
-//! A separate mutation connection preserves heartbeat delivery and owns shutdown/join.
+//! A bounded mutation job uses its own logical lane and owns cancellation/join.
 use super::{
     AsLocalIo, Duration, JoinHandle, LocalClientOrigin, LocalOperationClock, LocalStream, Shared,
     WorkbenchRequestId, io, thread,

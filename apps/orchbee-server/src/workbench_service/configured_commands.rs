@@ -16,9 +16,10 @@ impl WorkbenchClientConnection<'_> {
     pub(super) fn configured_command(
         &self,
         request: ConfiguredCommandRequest,
+        owner: crate::local_terminal_service::PopupOwner,
     ) -> ConfiguredCommandResult {
         let outcome = self
-            .configured_outcome(&request)
+            .configured_outcome(&request, owner)
             .unwrap_or_else(|reason| Outcome::Failed { reason });
         ConfiguredCommandResult {
             protocol_version: ProtocolVersion,
@@ -27,7 +28,11 @@ impl WorkbenchClientConnection<'_> {
             outcome,
         }
     }
-    fn configured_outcome(&self, request: &ConfiguredCommandRequest) -> Result<Outcome, Failure> {
+    fn configured_outcome(
+        &self,
+        request: &ConfiguredCommandRequest,
+        owner: crate::local_terminal_service::PopupOwner,
+    ) -> Result<Outcome, Failure> {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
         if !self.service.policy.read {
             return Err(Failure::Denied);
@@ -127,7 +132,7 @@ impl WorkbenchClientConnection<'_> {
                 Ok(self
                     .service
                     .terminals
-                    .execute_configured_popup(self.generation, request.clone())
+                    .execute_configured_popup(owner, request.clone())
                     .outcome)
             }
         }

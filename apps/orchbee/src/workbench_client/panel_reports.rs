@@ -14,6 +14,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+// Selected presentations include Host process/output detection with no event source. Keep this
+// bounded physical sample; canonical metadata is also refreshed on normal view changes.
 const INTERVAL: Duration = Duration::from_secs(1);
 const DEADLINE: Duration = Duration::from_secs(5);
 pub(super) const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;

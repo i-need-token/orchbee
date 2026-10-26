@@ -9,6 +9,8 @@ pub(crate) mod configured_commands;
 #[cfg(windows)]
 mod independent_popup;
 #[cfg(windows)]
+pub(crate) use independent_popup::PopupOwner;
+#[cfg(windows)]
 mod observation;
 #[cfg(windows)]
 mod pane_graphics;

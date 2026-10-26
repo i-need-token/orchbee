@@ -3,7 +3,6 @@ use crate::{
     client_view::{ClientView, Notice},
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
-use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_local_runtime::{
     AgentSidebarSettings, KeySettings, NotificationSettings, SpaceSidebarSettings,
 };
@@ -13,7 +12,6 @@ use orchbee_workbench_protocol::{
 };
 use std::{
     sync::{Arc, Condvar, Mutex},
-    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -57,12 +55,22 @@ fn queue_snapshot(state: &mut Handoff, snapshot: ConfigurationSnapshot) {
 }
 pub(super) struct Watcher {
     shared: Shared,
-    wake: LocalStream,
-    changed: LocalStream,
-    task: Option<JoinHandle<()>>,
+    connection: Mutex<Option<Connection>>,
     revision: Option<u64>,
     applied_snapshot: Option<ConfigurationSnapshot>,
     notification_update: Option<(u64, NotificationSettings)>,
+}
+struct Connection {
+    origin: LocalClientOrigin,
+    clock: LocalOperationClock,
+    session: SessionId,
+    current_id: WorkbenchRequestId,
+    subscription: crate::local_client::multiplex::Subscription,
+    serial: u64,
+    pending: Option<(
+        WorkbenchRequestId,
+        crate::local_client::subscription::Request,
+    )>,
 }
 impl Watcher {
     pub(super) fn spawn(
@@ -70,20 +78,28 @@ impl Watcher {
         clock: LocalOperationClock,
         session: SessionId,
     ) -> std::io::Result<Self> {
-        let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
-        let (reader, wake) = LocalStream::pair()?;
-        let (changes, changed) = LocalStream::pair()?;
-        changes.set_nonblocking(true)?;
-        changed.set_nonblocking(true)?;
-        let state = Arc::clone(&shared);
-        let task = thread::Builder::new()
-            .name("orchbee-client-config".into())
-            .spawn(move || run(state, origin, clock, session, reader, changes))?;
+        let current_id = WorkbenchRequestId::parse("00000000000000000000000000000001")
+            .expect("nonzero identity");
+        let subscription = origin.subscribe(
+            &orchbee_workbench_protocol::WorkbenchRequest::Configuration(ConfigurationRequest {
+                protocol_version: ProtocolVersion,
+                request_id: current_id.clone(),
+                session_id: session.clone(),
+                action: ConfigurationAction::Current,
+            }),
+            orchbee_workbench_protocol::StreamMode::State,
+        )?;
         Ok(Self {
-            shared,
-            wake,
-            changed,
-            task: Some(task),
+            shared: Arc::new((Mutex::default(), Condvar::new())),
+            connection: Mutex::new(Some(Connection {
+                origin,
+                clock,
+                session,
+                current_id,
+                subscription,
+                serial: 1,
+                pending: None,
+            })),
             revision: None,
             applied_snapshot: None,
             notification_update: None,
@@ -97,11 +113,12 @@ impl Watcher {
             return false;
         }
         state.reload = true;
-        self.shared.1.notify_all();
         drop(state);
-        crate::local_client::subscription::notify(&self.changed).is_ok()
+        self.poll_connection();
+        true
     }
     pub(super) fn tick(&mut self, view: &mut ClientView) -> bool {
+        self.poll_connection();
         self.notification_update = None;
         let Ok(mut state) = self.shared.0.lock() else {
             return false;
@@ -177,17 +194,78 @@ impl Watcher {
         self.notification_update.take()
     }
     pub(super) fn close(&mut self) {
-        if self.task.is_none() {
-            return;
-        }
         if let Ok(mut state) = self.shared.0.lock() {
             state.stopped = true;
         }
-        self.shared.1.notify_all();
-        let _ = self.wake.shutdown(std::net::Shutdown::Both);
-        let _ = self.changed.shutdown(std::net::Shutdown::Both);
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
+        self.connection
+            .get_mut()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+    }
+    fn poll_connection(&self) {
+        use crate::local_client::multiplex::StreamEvent;
+        use orchbee_workbench_protocol::{
+            WorkbenchRequest, WorkbenchResponse, read_workbench_response,
+        };
+        let Ok(mut connection) = self.connection.lock() else {
+            return;
+        };
+        let Some(c) = connection.as_mut() else {
+            return;
+        };
+        let reload = self.shared.0.lock().is_ok_and(|mut state| {
+            !state.stopped && c.pending.is_none() && std::mem::take(&mut state.reload)
+        });
+        if reload {
+            let Some(serial) = c.serial.checked_add(1) else {
+                return;
+            };
+            c.serial = serial;
+            let id = WorkbenchRequestId::parse(&format!("{serial:032x}")).expect("nonzero serial");
+            let request = WorkbenchRequest::Configuration(ConfigurationRequest {
+                protocol_version: ProtocolVersion,
+                request_id: id.clone(),
+                session_id: c.session.clone(),
+                action: ConfigurationAction::Reload,
+            });
+            match c.origin.request(
+                &request,
+                c.clock.now() + Duration::from_secs(2),
+                c.clock.clone(),
+            ) {
+                Ok(request) => c.pending = Some((id, request)),
+                Err(_) => publish_outcome(&self.shared, None, true, false),
+            }
+        }
+        if let Some((expected, pending)) = &c.pending
+            && let Some(reply) = pending.poll()
+        {
+            let (outcome, submitted) = match reply {
+                Ok(WorkbenchResponse::Configuration(reply))
+                    if reply.request_id == *expected && reply.session_id == c.session =>
+                {
+                    (Some(reply.outcome), false)
+                }
+                Ok(_) => (None, true),
+                Err(submitted) => (None, submitted),
+            };
+            publish_outcome(&self.shared, outcome, true, submitted);
+            c.pending = None;
+        }
+        loop {
+            match c.subscription.poll() {
+                Ok(Some(StreamEvent::Record(bytes))) => {
+                    if let Ok(WorkbenchResponse::Configuration(reply)) =
+                        read_workbench_response(&mut std::io::Cursor::new(bytes))
+                        && reply.request_id == c.current_id
+                        && reply.session_id == c.session
+                    {
+                        publish_outcome(&self.shared, Some(reply.outcome), false, false);
+                    }
+                }
+                Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) => {}
+                Ok(None) | Err(_) => break,
+            }
         }
     }
 }
@@ -197,120 +275,51 @@ impl Drop for Watcher {
     }
 }
 
-fn run(
-    shared: Shared,
-    origin: LocalClientOrigin,
-    clock: LocalOperationClock,
-    session: SessionId,
-    wake: LocalStream,
-    changes: LocalStream,
+fn publish_outcome(
+    shared: &Shared,
+    outcome: Option<ConfigurationOutcome>,
+    reload: bool,
+    submitted: bool,
 ) {
-    let current_id = WorkbenchRequestId::parse("00000000000000000000000000000001")
-        .expect("nonzero request identity");
-    let Ok(subscription) = origin.subscribe(
-        &orchbee_workbench_protocol::WorkbenchRequest::Configuration(ConfigurationRequest {
-            protocol_version: ProtocolVersion,
-            request_id: current_id.clone(),
-            session_id: session.clone(),
-            action: ConfigurationAction::Current,
-        }),
-        orchbee_workbench_protocol::StreamMode::State,
-    ) else {
+    let Ok(mut state) = shared.0.lock() else {
         return;
     };
-    let mut serial = 1_u64;
-    loop {
-        let reload = {
-            let Ok(mut state) = shared.0.lock() else {
-                return;
-            };
-            if state.stopped {
-                return;
-            }
-            std::mem::take(&mut state.reload)
-        };
-        let (outcome, submitted) = if reload {
-            let Some(next) = serial.checked_add(1) else {
-                return;
-            };
-            serial = next;
-            let result = origin
-                .lane_before_cancellable(
-                    clock.now() + Duration::from_secs(2),
-                    clock.clone(),
-                    Some(wake.as_local_io()),
-                )
-                .ok()
-                .map(|mut client| {
-                    client.configuration(
-                        ConfigurationRequest {
-                            protocol_version: ProtocolVersion,
-                            request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
-                                .expect("nonzero serial"),
-                            session_id: session.clone(),
-                            action: ConfigurationAction::Reload,
-                        },
-                        clock.now() + Duration::from_secs(2),
-                        Some(wake.as_local_io()),
-                    )
-                });
-            match result {
-                Some(Ok(reply)) => (Some(reply.outcome), false),
-                Some(Err(error)) => (None, error.submitted),
-                None => (None, false),
-            }
-        } else {
-            match crate::local_client::subscription::next_workbench(&subscription, &changes) {
-                Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::Configuration(reply)))
-                    if reply.request_id == current_id && reply.session_id == session =>
-                {
-                    (Some(reply.outcome), false)
-                }
-                Ok(None) => continue,
-                _ => return,
-            }
-        };
-        let Ok(mut state) = shared.0.lock() else {
-            return;
-        };
-        if state.stopped {
-            return;
+    if state.stopped {
+        return;
+    }
+    match outcome {
+        Some(ConfigurationOutcome::Current { snapshot }) => {
+            queue_snapshot(&mut state, snapshot);
         }
-        match outcome {
-            Some(ConfigurationOutcome::Current { snapshot }) => {
-                queue_snapshot(&mut state, snapshot);
-            }
-            Some(ConfigurationOutcome::Reloaded { snapshot, changed }) => {
-                if reload {
-                    let warning = !snapshot.diagnostics.items.is_empty()
-                        || snapshot.diagnostics.omitted_count > 0;
-                    let notice = if snapshot.restart_required.is_empty() {
-                        (!warning).then_some(Notice::ConfigurationPublished)
-                    } else {
-                        Some(Notice::ConfigurationRestart)
-                    };
-                    state.notice = notice.map(|notice| PendingNotice {
-                        revision: Some(snapshot.revision.value()),
-                        needs_application: changed,
-                        notice,
-                    });
-                }
-                queue_snapshot(&mut state, snapshot);
-            }
-            _ if reload => {
-                state.notice = Some(PendingNotice {
-                    revision: None,
-                    needs_application: false,
-                    notice: if submitted {
-                        Notice::ConfigurationUnknown
-                    } else {
-                        Notice::ConfigurationFailed
-                    },
+        Some(ConfigurationOutcome::Reloaded { snapshot, changed }) => {
+            if reload {
+                let warning = !snapshot.diagnostics.items.is_empty()
+                    || snapshot.diagnostics.omitted_count > 0;
+                let notice = if snapshot.restart_required.is_empty() {
+                    (!warning).then_some(Notice::ConfigurationPublished)
+                } else {
+                    Some(Notice::ConfigurationRestart)
+                };
+                state.notice = notice.map(|notice| PendingNotice {
+                    revision: Some(snapshot.revision.value()),
+                    needs_application: changed,
+                    notice,
                 });
             }
-            // This command consumes its own observation or terminal receipt; unrelated control results have no projection in this phase.
-            _ => {}
+            queue_snapshot(&mut state, snapshot);
         }
+        _ if reload => {
+            state.notice = Some(PendingNotice {
+                revision: None,
+                needs_application: false,
+                notice: if submitted {
+                    Notice::ConfigurationUnknown
+                } else {
+                    Notice::ConfigurationFailed
+                },
+            });
+        }
+        _ => {}
     }
 }
 

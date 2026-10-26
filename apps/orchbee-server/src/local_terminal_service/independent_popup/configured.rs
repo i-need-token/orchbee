@@ -1,6 +1,6 @@
 //! Configured popup launch uses the ordinary independent owner, with no plugin admission.
 use super::{
-    Failure, LocalTerminalService, NonZeroU64, Outcome, Phase, PopupKind, ProtocolVersion,
+    Failure, LocalTerminalService, Outcome, Phase, PopupKind, PopupOwner, ProtocolVersion,
     WorkbenchRequestId, client, lease_expiry, placement,
 };
 use orchbee_workbench_protocol::{
@@ -53,9 +53,10 @@ impl From<Outcome> for CommandOutcome {
 impl LocalTerminalService {
     pub(crate) fn execute_configured_popup(
         &self,
-        owner: NonZeroU64,
+        owner: impl Into<PopupOwner>,
         request: ConfiguredCommandRequest,
     ) -> ConfiguredCommandResult {
+        let owner = owner.into();
         let outcome = (|| {
             request.validate().map_err(|_| Failure::InvalidIntent)?;
             if self.workbench_session_matches(&request.session_id) != Some(true) {
@@ -101,7 +102,7 @@ impl LocalTerminalService {
     }
     fn open_configured_popup(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         id: &WorkbenchRequestId,
         spec: &ConfiguredCommandPopupSpec,
         geometry: WorkbenchTerminalGeometry,

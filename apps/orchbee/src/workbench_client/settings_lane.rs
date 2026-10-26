@@ -1,18 +1,19 @@
-//! One ordered settings lane: passive reads and explicit writes share a transport sequence.
+//! Settings observes pushed snapshots and submits each explicit write exactly once.
 use crate::{
-    local_client::{LocalClientOrigin, LocalOperationClock},
+    local_client::{
+        LocalClientOrigin, LocalOperationClock,
+        multiplex::{StreamEvent, Subscription},
+        subscription::Request,
+    },
     native_settings::Token,
 };
-use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SessionId, SettingsOperation, SettingsOutcome, SettingsRequest,
-    SettingsResult, UserPreferencesSnapshot, WorkbenchRequestId,
+    SettingsOperation, SettingsOutcome, SettingsRequest, SettingsResult,
+    ProtocolVersion, SessionId, StreamMode, UserPreferencesSnapshot, WorkbenchRequest,
+    WorkbenchRequestId, WorkbenchResponse, read_workbench_response,
 };
-use std::{
-    sync::{Arc, Condvar, Mutex},
-    thread::{self, JoinHandle},
-    time::Duration,
-};
+use std::{io, sync::Mutex, time::Duration};
+
 pub(super) struct Job {
     pub(super) token: Token,
     pub(super) request: SettingsRequest,
@@ -21,76 +22,92 @@ pub(super) struct Reply {
     pub(super) token: Token,
     pub(super) result: Result<SettingsResult, bool>,
 }
-#[derive(Default)]
-struct Handoff {
-    stopped: bool,
-    busy: bool,
-    job: Option<Job>,
+struct Pending {
+    token: Token,
+    id: WorkbenchRequestId,
+    request: Request,
+}
+struct State {
+    origin: LocalClientOrigin,
+    clock: LocalOperationClock,
+    session: SessionId,
+    subscription: Subscription,
+    pending: Option<Pending>,
     reply: Option<Reply>,
     observation: Option<UserPreferencesSnapshot>,
 }
-type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 pub(super) struct Lane {
-    shared: Shared,
-    wake: LocalStream,
-    changed: LocalStream,
-    task: Option<JoinHandle<()>>,
+    state: Mutex<Option<State>>,
 }
 impl Lane {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
         session: SessionId,
-    ) -> std::io::Result<Self> {
-        let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
-        let (reader, wake) = LocalStream::pair()?;
-        let (changes, changed) = LocalStream::pair()?;
-        changes.set_nonblocking(true)?;
-        changed.set_nonblocking(true)?;
-        let state = Arc::clone(&shared);
-        let task = thread::Builder::new()
-            .name("orchbee-client-settings".into())
-            .spawn(move || run(state, origin, clock, session, reader, changes))?;
+    ) -> io::Result<Self> {
+        let subscription = observe(&origin, &session)?;
         Ok(Self {
-            shared,
-            wake,
-            changed,
-            task: Some(task),
+            state: Mutex::new(Some(State {
+                origin,
+                clock,
+                session,
+                subscription,
+                pending: None,
+                reply: None,
+                observation: None,
+            })),
         })
     }
     pub(super) fn submit(&self, job: Job) -> bool {
-        let Ok(mut state) = self.shared.0.lock() else {
+        let Ok(mut state) = self.state.lock() else {
             return false;
         };
-        if state.stopped || state.busy {
+        let Some(state) = state.as_mut() else {
+            return false;
+        };
+        state.poll();
+        if state.pending.is_some() || state.reply.is_some() {
             return false;
         }
-        state.busy = true;
-        state.job = Some(job);
-        self.shared.1.notify_all();
-        drop(state);
-        crate::local_client::subscription::notify(&self.changed).is_ok()
+        let id = job.request.request_id.clone();
+        match state.origin.request(
+            &WorkbenchRequest::Settings(job.request),
+            state.clock.now() + Duration::from_secs(2),
+            state.clock.clone(),
+        ) {
+            Ok(request) => {
+                state.pending = Some(Pending {
+                    token: job.token,
+                    id,
+                    request,
+                })
+            }
+            Err(_) => {
+                state.reply = Some(Reply {
+                    token: job.token,
+                    result: Err(false),
+                })
+            }
+        }
+        true
     }
     pub(super) fn take(&self) -> Option<Reply> {
-        let mut state = self.shared.0.lock().ok()?;
-        let reply = state.reply.take()?;
-        state.busy = false;
-        self.shared.1.notify_all();
-        Some(reply)
+        let mut state = self.state.lock().ok()?;
+        let state = state.as_mut()?;
+        state.poll();
+        state.reply.take()
     }
     pub(super) fn take_observation(&self) -> Option<UserPreferencesSnapshot> {
-        self.shared.0.lock().ok()?.observation.take()
+        let mut state = self.state.lock().ok()?;
+        let state = state.as_mut()?;
+        state.poll();
+        state.observation.take()
     }
     pub(super) fn close(&mut self) {
-        if let Ok(mut state) = self.shared.0.lock() {
-            state.stopped = true;
-        }
-        self.shared.1.notify_all();
-        let _ = self.wake.shutdown(std::net::Shutdown::Both);
-        let _ = self.changed.shutdown(std::net::Shutdown::Both);
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
+        self.state
+            .get_mut()
+            .unwrap_or_else(|error| error.into_inner())
+            .take();
     }
 }
 impl Drop for Lane {
@@ -98,77 +115,72 @@ impl Drop for Lane {
         self.close();
     }
 }
-fn run(
-    shared: Shared,
-    origin: LocalClientOrigin,
-    clock: LocalOperationClock,
-    session: SessionId,
-    wake: LocalStream,
-    changes: LocalStream,
-) {
-    let request_id = WorkbenchRequestId::parse("ffff0000000000000000000000000001")
-        .expect("nonzero read identity");
-    let Ok(subscription) = origin.subscribe(
-        &orchbee_workbench_protocol::WorkbenchRequest::Settings(SettingsRequest {
+fn observe(origin: &LocalClientOrigin, session: &SessionId) -> io::Result<Subscription> {
+    origin.subscribe(
+        &WorkbenchRequest::Settings(SettingsRequest {
             protocol_version: ProtocolVersion,
-            request_id: request_id.clone(),
+            request_id: observation_id(),
             session_id: session.clone(),
             operation: SettingsOperation::Open {},
         }),
-        orchbee_workbench_protocol::StreamMode::State,
-    ) else {
-        return;
-    };
-    loop {
-        let job = {
-            let Ok(mut state) = shared.0.lock() else {
-                return;
-            };
-            if state.stopped {
-                return;
-            }
-            state.job.take()
-        };
-        let (token, result) = if let Some(job) = job {
-            let deadline = clock.now() + Duration::from_secs(2);
-            let result = match origin.lane_before_cancellable(
-                deadline,
-                clock.clone(),
-                Some(wake.as_local_io()),
-            ) {
-                Ok(mut client) => client
-                    .settings(job.request, deadline, Some(wake.as_local_io()))
-                    .map_err(|error| error.submitted),
-                Err(_) => Err(false),
-            };
-            (Some(job.token), result)
-        } else {
-            match crate::local_client::subscription::next_workbench(&subscription, &changes) {
-                Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::Settings(reply)))
-                    if reply.request_id == request_id && reply.session_id == session =>
-                {
-                    (None, Ok(reply))
+        StreamMode::State,
+    )
+}
+fn observation_id() -> WorkbenchRequestId {
+    WorkbenchRequestId::parse("ffff0000000000000000000000000001").expect("nonzero read identity")
+}
+impl State {
+    fn poll(&mut self) {
+        loop {
+            match self.subscription.poll() {
+                Ok(Some(StreamEvent::Record(bytes))) => {
+                    if let Ok(WorkbenchResponse::Settings(reply)) =
+                        read_workbench_response(&mut io::Cursor::new(bytes))
+                        && reply.request_id == observation_id()
+                        && reply.session_id == self.session
+                    {
+                        self.observe(&reply);
+                    }
                 }
-                Ok(None) => continue,
-                _ => return,
-            }
-        };
-        let Ok(mut state) = shared.0.lock() else {
-            return;
-        };
-        if state.stopped {
-            return;
-        }
-        if let Ok(result) = &result {
-            match &result.outcome {
-                SettingsOutcome::Opened { snapshot } | SettingsOutcome::Saved { snapshot, .. } => {
-                    state.observation = Some(snapshot.clone())
-                }
-                SettingsOutcome::OutcomeUnknown { .. } | SettingsOutcome::Refused { .. } => {}
+                Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) => {}
+                Ok(None) | Err(_) => break,
             }
         }
-        if let Some(token) = token {
-            state.reply = Some(Reply { token, result });
+        let Some(pending) = &self.pending else {
+            return;
+        };
+        let Some(result) = pending.request.poll() else {
+            return;
+        };
+        let result = match result {
+            Ok(WorkbenchResponse::Settings(reply))
+                if reply.request_id == pending.id && reply.session_id == self.session =>
+            {
+                Ok(reply)
+            }
+            Ok(_) => Err(true),
+            Err(submitted) => Err(submitted),
+        };
+        let pending = self.pending.take().expect("pending request");
+        if let Ok(reply) = &result {
+            self.observe(reply);
+        }
+        self.reply = Some(Reply {
+            token: pending.token,
+            result,
+        });
+        // Preference source tokens are opaque, not ordered revisions. A fresh capture after the
+        // write prevents an older queued observation from replacing its acknowledged snapshot.
+        self.subscription.cancel();
+        if let Ok(subscription) = observe(&self.origin, &self.session) {
+            self.subscription = subscription;
+        }
+    }
+    fn observe(&mut self, reply: &SettingsResult) {
+        if let SettingsOutcome::Opened { snapshot }
+        | SettingsOutcome::Saved { snapshot, .. } = &reply.outcome
+        {
+            self.observation = Some(snapshot.clone());
         }
     }
 }

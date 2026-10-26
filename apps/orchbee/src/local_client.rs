@@ -32,12 +32,17 @@ const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
 pub(crate) enum LocalClientShutdown {
     Direct(orchbee_local_ipc::LocalStream),
     Multiplex(Arc<multiplex::Connection>),
+    Lane(Arc<multiplex::Lane>, orchbee_local_ipc::LocalStream),
 }
 impl LocalClientShutdown {
     pub(crate) fn close(&self) -> io::Result<()> {
         match self {
             Self::Direct(stream) => stream.shutdown(std::net::Shutdown::Both),
             Self::Multiplex(connection) => connection.shutdown(),
+            Self::Lane(lane, stream) => {
+                lane.close();
+                stream.shutdown(std::net::Shutdown::Both)
+            }
         }
     }
 }
@@ -54,11 +59,13 @@ struct ClientLane {
     connection: Arc<multiplex::Connection>,
     cancel: orchbee_local_ipc::LocalStream,
     shutdown: orchbee_local_ipc::LocalStream,
+    owner: Arc<multiplex::Lane>,
 }
 impl ClientLane {
     fn new(connection: Arc<multiplex::Connection>) -> io::Result<Self> {
         let (cancel, shutdown) = orchbee_local_ipc::LocalStream::pair()?;
         Ok(Self {
+            owner: connection.lane()?,
             connection,
             cancel,
             shutdown,
@@ -131,7 +138,7 @@ impl LocalClientOrigin {
         self.local
     }
 
-    pub(crate) fn reconnect_before(
+    pub(crate) fn lane_before(
         &self,
         deadline: Instant,
         clock: LocalOperationClock,
@@ -296,7 +303,8 @@ impl LocalClient {
             let ClientTransport::Lane(connection) = connection else {
                 unreachable!()
             };
-            return Ok(LocalClientShutdown::Direct(
+            return Ok(LocalClientShutdown::Lane(
+                Arc::clone(&connection.owner),
                 connection.shutdown.try_clone()?,
             ));
         };
@@ -868,6 +876,7 @@ fn exchange_once<ResultType, ReadError>(
         // The queued-to-handoff CAS owns definite refusal versus possible delivery. Cancellation
         // never replays a request, and only the connection actor can write the physical stream.
         match lane.connection.exchange(
+            lane.owner.id(),
             frame,
             deadline.expires_at,
             clock,
@@ -921,7 +930,7 @@ struct DeadlineIo<'a> {
     clock: &'a dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
-    /// The signal owner's borrowed wake descriptor — only ever polled, never
+    /// The signal owner's borrowed wake descriptor â€” only ever polled, never
     /// owned, read, drained, or closed here.
     wake: Option<BorrowedFd<'a>>,
     write_began: bool,
@@ -929,7 +938,7 @@ struct DeadlineIo<'a> {
 
 /// Provisional wake observation private to the Client exchange path: the
 /// borrowed descriptor reported readable data. The armed signal owner still
-/// performs the sole arbitration read — this marker is never a verdict.
+/// performs the sole arbitration read â€” this marker is never a verdict.
 #[derive(Debug)]
 struct ExchangeWakeReady;
 
@@ -942,7 +951,7 @@ impl fmt::Display for ExchangeWakeReady {
 impl std::error::Error for ExchangeWakeReady {}
 
 /// The borrowed wake descriptor reported a fault flag with no readable data
-/// left — the owner's arbitration read could never observe a capture, so
+/// left â€” the owner's arbitration read could never observe a capture, so
 /// the observation is a source fault, not readiness.
 #[derive(Debug)]
 struct ExchangeWakeFault(PollFlags);
@@ -959,7 +968,7 @@ impl fmt::Display for ExchangeWakeFault {
 
 impl std::error::Error for ExchangeWakeFault {}
 
-/// Whether an exchange I/O error carries the private wake-ready marker —
+/// Whether an exchange I/O error carries the private wake-ready marker â€”
 /// the armed owner's discriminator for "descriptor readable, no signal
 /// read yet" once the span ends clear.
 pub(crate) fn exchange_wake_ready(error: &io::Error) -> bool {

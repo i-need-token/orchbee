@@ -21,6 +21,28 @@ use std::{
 mod configured;
 mod editor;
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct PopupOwner {
+    connection: NonZeroU64,
+    lane: orchbee_workbench_protocol::MultiplexLaneId,
+}
+impl PopupOwner {
+    pub(crate) const fn new(
+        connection: NonZeroU64,
+        lane: orchbee_workbench_protocol::MultiplexLaneId,
+    ) -> Self {
+        Self { connection, lane }
+    }
+}
+impl From<NonZeroU64> for PopupOwner {
+    fn from(connection: NonZeroU64) -> Self {
+        Self::new(
+            connection,
+            orchbee_workbench_protocol::MultiplexLaneId::ROOT,
+        )
+    }
+}
+
 const MAXIMUM_OWNERS: usize = 32;
 const SETTLEMENT_WINDOW: Duration = Duration::from_secs(5);
 const OBSERVATION_INTERVAL: Duration = Duration::from_millis(100);
@@ -138,12 +160,12 @@ struct Popup {
     next: Instant,
 }
 #[derive(Default)]
-pub(in crate::local_terminal_service) struct Popups(Mutex<BTreeMap<NonZeroU64, Popup>>);
+pub(in crate::local_terminal_service) struct Popups(Mutex<BTreeMap<PopupOwner, Popup>>);
 
 impl LocalTerminalService {
     fn reserve_popup(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         id: &WorkbenchRequestId,
         kind: PopupKind,
     ) -> Result<(), Failure> {
@@ -178,7 +200,12 @@ impl LocalTerminalService {
         );
         Ok(())
     }
-    pub(crate) fn execute_popup(&self, owner: NonZeroU64, request: PluginRequest) -> PluginResult {
+    pub(crate) fn execute_popup(
+        &self,
+        owner: impl Into<PopupOwner>,
+        request: PluginRequest,
+    ) -> PluginResult {
+        let owner = owner.into();
         let outcome = self
             .popup_operation(owner, &request)
             .unwrap_or_else(|reason| {
@@ -232,7 +259,7 @@ impl LocalTerminalService {
     }
     fn popup_operation(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         request: &PluginRequest,
     ) -> Result<Outcome, Failure> {
         request.validate().map_err(|_| Failure::InvalidIntent)?;
@@ -345,7 +372,7 @@ impl LocalTerminalService {
     }
     fn popup_close(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         popup_id: &WorkbenchRequestId,
         kind: PopupKind,
     ) -> Result<Outcome, Failure> {
@@ -388,7 +415,7 @@ impl LocalTerminalService {
 
     fn popup_read(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         popup_id: &WorkbenchRequestId,
         session: &orchbee_workbench_protocol::SessionId,
         kind: PopupKind,
@@ -441,7 +468,24 @@ impl LocalTerminalService {
             }),
         }
     }
-    pub(crate) fn disconnect_popup(&self, owner: NonZeroU64) {
+    pub(crate) fn disconnect_popup(&self, connection: NonZeroU64) {
+        let owners = self
+            .popups
+            .0
+            .lock()
+            .map(|owners| {
+                owners
+                    .keys()
+                    .filter(|owner| owner.connection == connection)
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        for owner in owners {
+            self.disconnect_lane_popup(owner);
+        }
+    }
+    pub(crate) fn disconnect_lane_popup(&self, owner: PopupOwner) {
         if let Ok(mut owners) = self.popups.0.lock()
             && let Some(popup) = owners.get_mut(&owner)
         {

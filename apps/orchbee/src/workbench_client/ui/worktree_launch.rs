@@ -31,6 +31,8 @@ pub(super) struct Coordinator {
     lane: Option<Lane>,
     query: Option<WorktreeToken>,
     read_at: Option<Instant>,
+    changes: Option<crate::local_client::subscription::ChangeSubscription>,
+    changes_dirty: bool,
     observation_until: Option<Instant>,
     entry: Option<Entry>,
 }
@@ -69,6 +71,8 @@ impl Coordinator {
         self.entry = None;
     }
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
+        self.changes = origin.watch_changes().ok();
+        self.changes_dirty = true;
         self.origin = Some(origin);
     }
     pub(super) fn close(&mut self) -> bool {
@@ -405,6 +409,14 @@ impl WorkbenchClientUi {
         true
     }
     pub(super) fn drive_worktree(&mut self) -> bool {
+        self.worktrees.changes_dirty |= self
+            .worktrees
+            .changes
+            .as_ref()
+            .is_some_and(|changes| changes.changed().unwrap_or(true));
+        if self.worktrees.changes_dirty && self.worktrees.launcher.pending() {
+            self.worktrees.read_at = Some(self.clock.now());
+        }
         let mut changed = false;
         if let Some(reply) = self.worktrees.lane.as_ref().and_then(Lane::take) {
             changed = true;
@@ -456,10 +468,7 @@ impl WorkbenchClientUi {
                         {
                             state.note_publication_hint();
                         }
-                        if self.worktrees.launcher.pending() {
-                            self.worktrees.read_at =
-                                Some(self.clock.now() + Duration::from_millis(100));
-                        } else {
+                        if !self.worktrees.launcher.pending() {
                             self.worktrees.read_at = None;
                             if self.worktrees.launcher.notice() == WorktreeNotice::Opened {
                                 self.begin_worktree_entry(snapshot);
@@ -518,6 +527,7 @@ impl WorkbenchClientUi {
                         Some(self.clock.now() + Duration::from_secs(120));
                 }
                 if self.issue_worktree(Action::Read(Box::new(plan))) {
+                    self.worktrees.changes_dirty = false;
                     self.worktrees.read_at = None;
                     changed = true;
                 } else {

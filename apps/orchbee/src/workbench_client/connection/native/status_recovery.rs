@@ -58,7 +58,7 @@ pub(in crate::workbench_client) fn run_status_recovery(
     membership: bool,
 ) -> ClientConnectionExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
-    let client = match origin.reconnect_before(deadline, clock) {
+    let client = match origin.lane_before(deadline, clock) {
         Ok(client) => client,
         Err(_) => {
             exit.failure = CarrierFailure::Transport;

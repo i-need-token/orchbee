@@ -3,11 +3,12 @@ use super::LocalClientOrigin;
 use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
-    MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_STREAMS, MultiplexDecoder, MultiplexMessage,
-    MultiplexStreamId, StreamCloseReason, StreamFrameKind, StreamMode, encode_multiplex_message,
+    MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS, MultiplexDecoder,
+    MultiplexLaneId, MultiplexMessage, MultiplexStreamId, StreamCloseReason, StreamFrameKind,
+    StreamMode, encode_multiplex_message,
 };
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     io::{self, Read, Write},
     num::NonZeroU64,
     sync::{
@@ -85,6 +86,7 @@ struct Delivery {
     ready: LocalStream,
     notify: LocalStream,
     handoff: AtomicU8,
+    cancelled: AtomicBool,
     budget: Arc<AtomicUsize>,
 }
 impl Delivery {
@@ -97,6 +99,7 @@ impl Delivery {
             ready,
             notify,
             handoff: AtomicU8::new(QUEUED),
+            cancelled: AtomicBool::new(false),
             budget,
         })
     }
@@ -104,12 +107,22 @@ impl Delivery {
         let _notified = (&self.notify).write(&[1]);
     }
     fn cancelled(&self) -> bool {
-        self.handoff.load(Ordering::Acquire) == CANCELLED
+        self.cancelled.load(Ordering::Acquire)
     }
     fn cancel(&self) -> bool {
-        self.handoff
+        self.cancelled.store(true, Ordering::Release);
+        let submitted = self
+            .handoff
             .compare_exchange(QUEUED, CANCELLED, Ordering::AcqRel, Ordering::Acquire)
-            .is_err_and(|previous| previous == HANDED_OFF)
+            .is_err_and(|previous| previous == HANDED_OFF);
+        if let Ok(mut state) = self.state.lock() {
+            self.budget.fetch_sub(state.bytes, Ordering::AcqRel);
+            state.bytes = 0;
+            state.events.clear();
+            state.closed = true;
+        }
+        self.signal();
+        submitted
     }
     fn publish(&self, event: StreamEvent, mode: StreamMode) -> io::Result<bool> {
         let length = match &event {
@@ -141,7 +154,10 @@ impl Delivery {
             })
             .is_err()
         {
-            return Err(io::ErrorKind::OutOfMemory.into());
+            return Err(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                Disconnect(orchbee_workbench_protocol::MultiplexDisconnectReason::Capacity),
+            ));
         }
         state.bytes += length;
         state.events.push_back(event);
@@ -242,16 +258,21 @@ impl Drop for Delivery {
 enum Command {
     Open {
         id: MultiplexStreamId,
+        lane: MultiplexLaneId,
         mode: StreamMode,
         request: Vec<u8>,
         delivery: Arc<Delivery>,
         reservation: Arc<Reservation>,
     },
     Cancel(MultiplexStreamId),
+    LaneOpen(MultiplexLaneId),
+    LaneClose(MultiplexLaneId),
 }
 #[derive(Debug, Default)]
 struct Commands {
     next: u64,
+    next_lane: u64,
+    lanes: usize,
     queue: VecDeque<Command>,
 }
 #[derive(Debug)]
@@ -270,6 +291,13 @@ impl Shared {
     fn cancel(&self, id: MultiplexStreamId) {
         if let Ok(mut commands) = self.commands.lock() {
             // Cancellation capacity is separate and bounded by the active stream bound.
+            if commands
+                .queue
+                .iter()
+                .any(|command| matches!(command, Command::Cancel(queued) if *queued == id))
+            {
+                return;
+            }
             if commands.queue.len() < MAXIMUM_MULTIPLEX_STREAMS * 2 {
                 commands.queue.push_back(Command::Cancel(id));
             } else {
@@ -285,7 +313,64 @@ pub(crate) struct Connection {
     shared: Arc<Shared>,
     task: Mutex<Option<JoinHandle<()>>>,
 }
+#[derive(Debug)]
+pub(super) struct Lane {
+    owner: Arc<Connection>,
+    id: MultiplexLaneId,
+    closed: AtomicBool,
+}
+impl Lane {
+    pub(super) fn id(&self) -> MultiplexLaneId {
+        self.id
+    }
+    pub(super) fn close(&self) {
+        if self.closed.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        if let Ok(mut commands) = self.owner.shared.commands.lock() {
+            commands.lanes -= 1;
+            commands.queue.push_back(Command::LaneClose(self.id));
+        }
+        self.owner.shared.signal();
+    }
+}
+impl Drop for Lane {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
 impl Connection {
+    pub(super) fn lane(self: &Arc<Self>) -> io::Result<Arc<Lane>> {
+        let mut commands = self
+            .shared
+            .commands
+            .lock()
+            .map_err(|_| io::ErrorKind::BrokenPipe)?;
+        if self.shared.stopped.load(Ordering::Acquire) {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        if commands.lanes >= MAXIMUM_MULTIPLEX_LANES
+            || commands.queue.len() >= MAXIMUM_MULTIPLEX_STREAMS * 2
+        {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let id = commands
+            .next_lane
+            .max(1)
+            .checked_add(1)
+            .and_then(MultiplexLaneId::new)
+            .ok_or(io::ErrorKind::OutOfMemory)?;
+        commands.next_lane = id.value();
+        commands.lanes += 1;
+        commands.queue.push_back(Command::LaneOpen(id));
+        drop(commands);
+        self.shared.signal();
+        Ok(Arc::new(Lane {
+            owner: Arc::clone(self),
+            id,
+            closed: AtomicBool::new(false),
+        }))
+    }
     pub(super) fn start(
         connection: ClientConnection,
         mut origin: LocalClientOrigin,
@@ -329,7 +414,12 @@ impl Connection {
         }
         Ok(())
     }
-    fn open(self: &Arc<Self>, frame: Vec<u8>, mode: StreamMode) -> io::Result<Subscription> {
+    fn open(
+        self: &Arc<Self>,
+        lane: MultiplexLaneId,
+        frame: Vec<u8>,
+        mode: StreamMode,
+    ) -> io::Result<Subscription> {
         if self.shared.stopped.load(Ordering::Acquire) {
             return Err(io::ErrorKind::BrokenPipe.into());
         }
@@ -355,6 +445,7 @@ impl Connection {
         commands.next = next;
         commands.queue.push_back(Command::Open {
             id,
+            lane,
             mode,
             request: frame,
             delivery: Arc::clone(&delivery),
@@ -373,10 +464,11 @@ impl Connection {
         frame: Vec<u8>,
         mode: StreamMode,
     ) -> io::Result<Subscription> {
-        self.open(frame, mode)
+        self.open(MultiplexLaneId::ROOT, frame, mode)
     }
     pub(super) fn exchange(
         self: &Arc<Self>,
+        lane: MultiplexLaneId,
         frame: &[u8],
         deadline: Instant,
         clock: &dyn super::MonotonicClock,
@@ -387,7 +479,7 @@ impl Connection {
             return Err((false, io::ErrorKind::TimedOut.into()));
         }
         let subscription = self
-            .open(frame.to_vec(), StreamMode::Request)
+            .open(lane, frame.to_vec(), StreamMode::Request)
             .map_err(|error| (false, error))?;
         match subscription.delivery.wait(deadline, clock, wake, cancel) {
             Ok(StreamEvent::Record(bytes)) => Ok(bytes),
@@ -412,6 +504,11 @@ pub(crate) struct Subscription {
     delivery: Arc<Delivery>,
 }
 impl Subscription {
+    pub(crate) fn cancel(&self) -> bool {
+        let submitted = self.delivery.cancel();
+        self.owner.shared.cancel(self.id);
+        submitted
+    }
     pub(crate) fn poll(&self) -> io::Result<Option<StreamEvent>> {
         self.delivery.take()
     }
@@ -421,13 +518,12 @@ impl Subscription {
 }
 impl Drop for Subscription {
     fn drop(&mut self) {
-        self.delivery.cancel();
-        self.delivery.close();
-        self.owner.shared.cancel(self.id);
+        self.cancel();
     }
 }
 
 struct Active {
+    lane: MultiplexLaneId,
     mode: StreamMode,
     request: Vec<u8>,
     delivery: Arc<Delivery>,
@@ -436,11 +532,11 @@ struct Active {
     _reservation: Arc<Reservation>,
 }
 struct Outgoing {
-    id: MultiplexStreamId,
+    id: Option<MultiplexStreamId>,
     bytes: Vec<u8>,
     offset: usize,
     deadline: Instant,
-    _reservation: Arc<Reservation>,
+    _reservation: Option<Arc<Reservation>>,
 }
 
 fn actor(
@@ -451,6 +547,7 @@ fn actor(
 ) {
     let mut connection = Some(connection);
     let mut active = BTreeMap::<MultiplexStreamId, Active>::new();
+    let mut lanes = BTreeSet::from([MultiplexLaneId::ROOT]);
     let mut outgoing = VecDeque::new();
     let mut decoder = MultiplexDecoder::default();
     let mut reconnect_at = Instant::now();
@@ -467,12 +564,14 @@ fn actor(
             match command {
                 Command::Open {
                     id,
+                    lane,
                     mode,
                     request,
                     delivery,
                     reservation,
                 } => {
-                    if delivery.cancelled() {
+                    if delivery.cancelled() || !lanes.contains(&lane) {
+                        delivery.close();
                         continue;
                     }
                     if active.len() >= MAXIMUM_MULTIPLEX_STREAMS {
@@ -482,15 +581,16 @@ fn actor(
                     if connection.is_some() {
                         if let Ok(bytes) = encode_multiplex_message(&MultiplexMessage::StreamOpen {
                             stream_id: id,
+                            lane_id: lane,
                             mode,
                             request: request.clone(),
                         }) {
                             outgoing.push_back(Outgoing {
-                                id,
+                                id: Some(id),
                                 bytes,
                                 offset: 0,
                                 deadline: Instant::now() + Duration::from_secs(2),
-                                _reservation: Arc::clone(&reservation),
+                                _reservation: Some(Arc::clone(&reservation)),
                             });
                         } else {
                             delivery.close();
@@ -500,6 +600,7 @@ fn actor(
                     active.insert(
                         id,
                         Active {
+                            lane,
                             mode,
                             request,
                             delivery,
@@ -512,7 +613,7 @@ fn actor(
                 Command::Cancel(id) => {
                     // A queued request cancelled before the handoff CAS must never reach the
                     // Server. A partial frame is completed before the cancellation record.
-                    outgoing.retain(|item| item.id != id || item.offset != 0);
+                    outgoing.retain(|item| item.id != Some(id) || item.offset != 0);
                     if let Some(removed) = active.remove(&id)
                         && connection.is_some()
                     {
@@ -523,13 +624,35 @@ fn actor(
                             })
                         {
                             outgoing.push_back(Outgoing {
-                                id,
+                                id: Some(id),
                                 bytes,
                                 offset: 0,
                                 deadline: Instant::now() + Duration::from_secs(2),
-                                _reservation: removed._reservation,
+                                _reservation: Some(removed._reservation),
                             });
                         }
+                    }
+                }
+                Command::LaneOpen(id) => {
+                    lanes.insert(id);
+                    if connection.is_some() {
+                        queue_lane(&mut outgoing, id, true);
+                    }
+                }
+                Command::LaneClose(id) => {
+                    lanes.remove(&id);
+                    let removed = active
+                        .iter()
+                        .filter_map(|(stream, item)| (item.lane == id).then_some(*stream))
+                        .collect::<Vec<_>>();
+                    for stream in removed {
+                        outgoing.retain(|item| item.id != Some(stream) || item.offset != 0);
+                        if let Some(item) = active.remove(&stream) {
+                            item.delivery.close();
+                        }
+                    }
+                    if connection.is_some() {
+                        queue_lane(&mut outgoing, id, false);
                     }
                 }
             }
@@ -546,20 +669,24 @@ fn actor(
                         .generation
                         .store(next.generation().get(), Ordering::Release);
                     connection = Some(next);
+                    for lane in lanes.iter().filter(|lane| **lane != MultiplexLaneId::ROOT) {
+                        queue_lane(&mut outgoing, *lane, true);
+                    }
                     for (id, item) in &mut active {
                         item.sequence = 0;
                         item.needs_snapshot = item.mode != StreamMode::Request;
                         if let Ok(bytes) = encode_multiplex_message(&MultiplexMessage::StreamOpen {
                             stream_id: *id,
+                            lane_id: item.lane,
                             mode: item.mode,
                             request: item.request.clone(),
                         }) {
                             outgoing.push_back(Outgoing {
-                                id: *id,
+                                id: Some(*id),
                                 bytes,
                                 offset: 0,
                                 deadline: Instant::now() + Duration::from_secs(2),
-                                _reservation: Arc::clone(&item._reservation),
+                                _reservation: Some(Arc::clone(&item._reservation)),
                             });
                         }
                     }
@@ -568,6 +695,14 @@ fn actor(
                     reconnect_at = Instant::now() + Duration::from_millis(250);
                 }
             }
+        }
+        if outgoing.len() > MAXIMUM_MULTIPLEX_STREAMS * 4 {
+            shared.stopped.store(true, Ordering::Release);
+            for item in active.values() {
+                item.delivery
+                    .fail(orchbee_workbench_protocol::MultiplexDisconnectReason::Capacity);
+            }
+            break;
         }
         let result = match connection.as_mut() {
             Some(connection) => drive(
@@ -691,7 +826,7 @@ fn drive(
         && let Some(item) = outgoing.front_mut()
     {
         if item.offset == 0
-            && let Some(active) = active.get(&item.id)
+            && let Some(active) = item.id.and_then(|id| active.get(&id))
         {
             match active.delivery.handoff.compare_exchange(
                 QUEUED,
@@ -757,11 +892,11 @@ fn deliver(
             {
                 item.needs_snapshot = true;
                 outgoing.push_back(Outgoing {
-                    id: stream_id,
+                    id: Some(stream_id),
                     bytes: encode_multiplex_message(&MultiplexMessage::Resnapshot { stream_id })?,
                     offset: 0,
                     deadline: Instant::now() + Duration::from_secs(2),
-                    _reservation: Arc::clone(&item._reservation),
+                    _reservation: Some(Arc::clone(&item._reservation)),
                 });
             }
             if item.mode == StreamMode::Request {
@@ -786,11 +921,29 @@ fn deliver(
                 Disconnect(reason),
             ));
         }
-        MultiplexMessage::StreamOpen { .. } | MultiplexMessage::Resnapshot { .. } => {
+        MultiplexMessage::StreamOpen { .. }
+        | MultiplexMessage::Resnapshot { .. }
+        | MultiplexMessage::LaneOpen { .. }
+        | MultiplexMessage::LaneClose { .. } => {
             return Err(io::ErrorKind::InvalidData.into());
         }
     }
     Ok(())
+}
+
+fn queue_lane(outgoing: &mut VecDeque<Outgoing>, lane_id: MultiplexLaneId, open: bool) {
+    let message = if open {
+        MultiplexMessage::LaneOpen { lane_id }
+    } else {
+        MultiplexMessage::LaneClose { lane_id }
+    };
+    outgoing.push_back(Outgoing {
+        id: None,
+        bytes: encode_multiplex_message(&message).expect("fixed valid lane frame"),
+        offset: 0,
+        deadline: Instant::now() + Duration::from_secs(2),
+        _reservation: None,
+    });
 }
 
 #[derive(Debug)]
@@ -801,3 +954,6 @@ impl std::fmt::Display for Disconnect {
     }
 }
 impl std::error::Error for Disconnect {}
+
+#[cfg(test)]
+mod tests;

@@ -43,7 +43,8 @@ use orchbee_client_server_protocol::{
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{
     DeltaRejectionReason, ProtocolVersion, PublicationReadIntent, Snapshot, SnapshotReadIntent,
-    WorkbenchPublicationOutcome, WorkbenchSnapshotOutcome, apply_workbench_publication,
+    WorkbenchPublicationOutcome, WorkbenchRequestId, WorkbenchSnapshotOutcome,
+    apply_workbench_publication,
 };
 use std::{
     collections::VecDeque,

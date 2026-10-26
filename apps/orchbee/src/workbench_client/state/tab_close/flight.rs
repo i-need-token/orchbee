@@ -125,6 +125,8 @@ impl PendingCloseResult {
     }
 }
 
+// Closing probes Host process disposal, which has no push source. This bounded observation
+// also settles close receipts; it is not a substitute for membership publication events.
 const READ_INTERVAL: Duration = Duration::from_millis(250);
 
 impl CloseState {

@@ -9,8 +9,48 @@ use orchbee_workbench_protocol::{
     write_workbench_request,
 };
 use std::io::{self, Cursor, Read, Write};
+use std::time::Instant;
+
+/// An asynchronous one-shot request. Polling reads only the actor mailbox, never the socket.
+pub(crate) struct Request {
+    stream: Subscription,
+    deadline: Instant,
+    clock: super::LocalOperationClock,
+}
+impl Request {
+    pub(crate) fn poll(&self) -> Option<Result<WorkbenchResponse, bool>> {
+        if self.clock.now() >= self.deadline {
+            return Some(Err(self.stream.cancel()));
+        }
+        match self.stream.poll() {
+            Ok(Some(StreamEvent::Record(bytes))) => {
+                Some(read_workbench_response(&mut Cursor::new(bytes)).map_err(|_| true))
+            }
+            Ok(None) => None,
+            Ok(Some(StreamEvent::Gap | StreamEvent::Disconnected)) | Err(_) => {
+                Some(Err(self.stream.cancel()))
+            }
+        }
+    }
+}
 
 impl LocalClientOrigin {
+    pub(crate) fn request(
+        &self,
+        request: &WorkbenchRequest,
+        deadline: Instant,
+        clock: super::LocalOperationClock,
+    ) -> io::Result<Request> {
+        if clock.now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        self.subscribe(request, StreamMode::Request)
+            .map(|stream| Request {
+                stream,
+                deadline,
+                clock,
+            })
+    }
     /// Register before the first domain read. A commit concurrent with that read remains dirty.
     pub(crate) fn watch_changes(&self) -> io::Result<ChangeSubscription> {
         use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchRequestId};
@@ -20,7 +60,10 @@ impl LocalClientOrigin {
                 .expect("nonzero subscription identity"),
         });
         self.subscribe(&request, StreamMode::Invalidations)
-            .map(ChangeSubscription)
+            .map(|stream| ChangeSubscription {
+                stream,
+                ended: std::sync::atomic::AtomicBool::new(false),
+            })
     }
     pub(crate) fn subscribe(
         &self,
@@ -34,14 +77,27 @@ impl LocalClientOrigin {
     }
 }
 
-pub(crate) struct ChangeSubscription(Subscription);
+pub(crate) struct ChangeSubscription {
+    stream: Subscription,
+    ended: std::sync::atomic::AtomicBool,
+}
 impl ChangeSubscription {
     pub(crate) fn changed(&self) -> io::Result<bool> {
-        let mut changed = false;
-        while self.0.poll()?.is_some() {
-            changed = true;
+        use std::sync::atomic::Ordering;
+        if self.ended.load(Ordering::Acquire) {
+            return Ok(false);
         }
-        Ok(changed)
+        let mut changed = false;
+        loop {
+            match self.stream.poll() {
+                Ok(Some(_)) => changed = true,
+                Ok(None) => return Ok(changed),
+                Err(error) => {
+                    self.ended.store(true, Ordering::Release);
+                    return Err(error);
+                }
+            }
+        }
     }
 }
 

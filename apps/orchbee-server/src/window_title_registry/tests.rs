@@ -93,8 +93,14 @@ fn replay_never_republishes_or_uses_later_foreground_state() {
         "second"
     );
     assert!(matches!(
-        run(&mut r, 1, 3, set("expired"), now + Duration::from_secs(5)),
-        Outcome::Published { changed: false, .. }
+        run(
+            &mut r,
+            1,
+            3,
+            set("still connected"),
+            now + Duration::from_secs(60)
+        ),
+        Outcome::Published { changed: true, .. }
     ));
 }
 #[test]

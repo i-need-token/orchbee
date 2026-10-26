@@ -8,6 +8,7 @@ use crate::WORKBENCH_MAGIC;
 
 pub const MULTIPLEX_OPEN_KIND: u16 = 64;
 pub const MAXIMUM_MULTIPLEX_STREAMS: usize = 64;
+pub const MAXIMUM_MULTIPLEX_LANES: usize = 64;
 pub const MAXIMUM_MULTIPLEX_BYTES: usize = 32 * 1024 * 1024;
 pub const MAXIMUM_STREAM_RECORD_BYTES: usize = 24 * 1024 * 1024 + 12;
 const HEADER_BYTES: usize = 12;
@@ -15,6 +16,22 @@ const HEADER_BYTES: usize = 12;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MultiplexStreamId(NonZeroU64);
 impl MultiplexStreamId {
+    pub const fn new(value: u64) -> Option<Self> {
+        match NonZeroU64::new(value) {
+            Some(value) => Some(Self(value)),
+            None => None,
+        }
+    }
+    pub const fn value(self) -> u64 {
+        self.0.get()
+    }
+}
+
+/// A logical resource owner inside one admitted carrier; never an admitted Client identity.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct MultiplexLaneId(NonZeroU64);
+impl MultiplexLaneId {
+    pub const ROOT: Self = Self(NonZeroU64::MIN);
     pub const fn new(value: u64) -> Option<Self> {
         match NonZeroU64::new(value) {
             Some(value) => Some(Self(value)),
@@ -60,6 +77,7 @@ pub enum MultiplexDisconnectReason {
 pub enum MultiplexMessage {
     StreamOpen {
         stream_id: MultiplexStreamId,
+        lane_id: MultiplexLaneId,
         mode: StreamMode,
         request: Vec<u8>,
     },
@@ -81,6 +99,12 @@ pub enum MultiplexMessage {
     Resnapshot {
         stream_id: MultiplexStreamId,
     },
+    LaneOpen {
+        lane_id: MultiplexLaneId,
+    },
+    LaneClose {
+        lane_id: MultiplexLaneId,
+    },
     Disconnect {
         reason: MultiplexDisconnectReason,
     },
@@ -96,7 +120,7 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
             if request.is_empty() || request.len() > MAXIMUM_STREAM_RECORD_BYTES {
                 return Err(invalid());
             }
-            (64u16, 9 + request.len())
+            (64u16, 17 + request.len())
         }
         MultiplexMessage::StreamFrame { record, .. } => {
             if record.is_empty() || record.len() > MAXIMUM_STREAM_RECORD_BYTES {
@@ -108,6 +132,8 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
         MultiplexMessage::Gap { .. } => (67, 16),
         MultiplexMessage::Disconnect { .. } => (68, 1),
         MultiplexMessage::Resnapshot { .. } => (69, 8),
+        MultiplexMessage::LaneOpen { .. } => (70, 8),
+        MultiplexMessage::LaneClose { .. } => (71, 8),
     };
     let mut bytes = Vec::with_capacity(HEADER_BYTES + length);
     bytes.extend_from_slice(&WORKBENCH_MAGIC);
@@ -117,10 +143,12 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
     match message {
         MultiplexMessage::StreamOpen {
             stream_id,
+            lane_id,
             mode,
             request,
         } => {
             bytes.extend_from_slice(&stream_id.value().to_be_bytes());
+            bytes.extend_from_slice(&lane_id.value().to_be_bytes());
             bytes.push(match mode {
                 StreamMode::Request => 0,
                 StreamMode::State => 1,
@@ -167,6 +195,9 @@ pub fn encode_multiplex_message(message: &MultiplexMessage) -> io::Result<Vec<u8
         MultiplexMessage::Resnapshot { stream_id } => {
             bytes.extend_from_slice(&stream_id.value().to_be_bytes())
         }
+        MultiplexMessage::LaneOpen { lane_id } | MultiplexMessage::LaneClose { lane_id } => {
+            bytes.extend_from_slice(&lane_id.value().to_be_bytes())
+        }
     }
     Ok(bytes)
 }
@@ -189,12 +220,12 @@ fn payload_length(header: &[u8]) -> io::Result<usize> {
     let kind = u16::from_be_bytes([header[6], header[7]]);
     let length = u32::from_be_bytes(header[8..12].try_into().map_err(|_| invalid())?) as usize;
     let valid = match kind {
-        64 => (10..=MAXIMUM_STREAM_RECORD_BYTES + 9).contains(&length),
+        64 => (18..=MAXIMUM_STREAM_RECORD_BYTES + 17).contains(&length),
         65 => (18..=MAXIMUM_STREAM_RECORD_BYTES + 17).contains(&length),
         66 => length == 9,
         67 => length == 16,
         68 => length == 1,
-        69 => length == 8,
+        69..=71 => length == 8,
         _ => false,
     };
     if valid { Ok(length) } else { Err(invalid()) }
@@ -227,17 +258,24 @@ fn decode(kind: u16, payload: &[u8]) -> io::Result<MultiplexMessage> {
     }
     let stream_id = MultiplexStreamId(nonzero(&payload[..8])?);
     Ok(match kind {
+        70 => MultiplexMessage::LaneOpen {
+            lane_id: MultiplexLaneId(nonzero(payload)?),
+        },
+        71 => MultiplexMessage::LaneClose {
+            lane_id: MultiplexLaneId(nonzero(payload)?),
+        },
         69 => MultiplexMessage::Resnapshot { stream_id },
         64 => MultiplexMessage::StreamOpen {
             stream_id,
-            mode: match payload[8] {
+            lane_id: MultiplexLaneId(nonzero(&payload[8..16])?),
+            mode: match payload[16] {
                 0 => StreamMode::Request,
                 1 => StreamMode::State,
                 2 => StreamMode::Events,
                 3 => StreamMode::Invalidations,
                 _ => return Err(invalid()),
             },
-            request: payload[9..].to_vec(),
+            request: payload[17..].to_vec(),
         },
         65 => MultiplexMessage::StreamFrame {
             stream_id,
@@ -303,3 +341,6 @@ impl MultiplexDecoder {
         self.bytes.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests;

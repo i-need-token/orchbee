@@ -313,13 +313,25 @@ fn handle_candidate_control(
     }
     drop(admission_lease);
 
-    let connection = std::cell::RefCell::new(terminals.client_connection());
+    let connections = std::cell::RefCell::new(std::collections::BTreeMap::new());
     let _connection_result = application_connection::run_network(
         &stream,
-        |request| connection.borrow_mut().execute(request),
-        |request| {
-            workbench_connection
-                .execute_with_terminal_connection(request, &mut connection.borrow_mut())
+        |lane, request| {
+            connections
+                .borrow_mut()
+                .entry(lane)
+                .or_insert_with(|| terminals.client_connection())
+                .execute(request)
+        },
+        |lane, request| {
+            workbench_connection.execute_with_terminal_lane(
+                request,
+                connections
+                    .borrow_mut()
+                    .entry(lane)
+                    .or_insert_with(|| terminals.client_connection()),
+                lane,
+            )
         },
         |request| match request {
             orchbee_agent_observation_protocol::AgentRequest::Changes(request) => agents
@@ -356,6 +368,10 @@ fn handle_candidate_control(
             agents.watch_changes(signal);
         },
         |request| workbench_connection.cancel_subscription(request),
+        |lane| {
+            connections.borrow_mut().remove(&lane);
+            workbench_connection.close_lane(lane);
+        },
     );
 }
 

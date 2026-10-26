@@ -3,12 +3,12 @@ use super::application_connection::{ApplicationConnectionError, ApplicationReque
 use orchbee_local_ipc::LocalStream;
 use orchbee_server::SessionChangeSignal;
 use orchbee_workbench_protocol::{
-    MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_STREAMS, MultiplexDisconnectReason,
-    MultiplexMessage, MultiplexStreamId, StreamCloseReason, StreamFrameKind, StreamMode,
-    read_multiplex_message, write_multiplex_message,
+    MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
+    MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, StreamCloseReason,
+    StreamFrameKind, StreamMode, read_multiplex_message, write_multiplex_message,
 };
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     io::{self, Cursor, Read, Write},
     num::NonZeroU64,
     sync::{
@@ -16,7 +16,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const INPUT_RECORDS: usize = 64;
@@ -47,7 +47,7 @@ impl Claim {
         streams: &Arc<AtomicUsize>,
         message: &MultiplexMessage,
     ) -> io::Result<Self> {
-        let mut claim = Self::reserve(budget, size(message).saturating_mul(2))?;
+        let mut claim = Self::reserve(budget, size(message).saturating_mul(3))?;
         if matches!(message, MultiplexMessage::StreamOpen { .. }) {
             streams
                 .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
@@ -80,12 +80,16 @@ struct Inbox {
     failure: Option<MultiplexDisconnectReason>,
 }
 struct Subscription {
+    lane: MultiplexLaneId,
     request: ApplicationRequest,
+    continuation: ApplicationRequest,
+    more: bool,
     mode: StreamMode,
     sequence: u64,
     last: Vec<u8>,
     observed: u64,
     overruns: u8,
+    last_overrun: Option<Instant>,
     _request_claim: Claim,
     last_claim: Claim,
 }
@@ -94,7 +98,11 @@ pub(super) fn run(
     stream: &LocalStream,
     first: MultiplexMessage,
     signal: Arc<SessionChangeSignal>,
-    mut execute: impl FnMut(&ApplicationRequest) -> Result<Vec<u8>, ApplicationConnectionError>,
+    mut execute: impl FnMut(
+        MultiplexLaneId,
+        &ApplicationRequest,
+    ) -> Result<Vec<u8>, ApplicationConnectionError>,
+    mut close_lane: impl FnMut(MultiplexLaneId),
     mut cancel: impl FnMut(&ApplicationRequest),
 ) -> io::Result<()> {
     let inbox = Arc::new(Mutex::new(Inbox::default()));
@@ -131,8 +139,23 @@ pub(super) fn run(
             &signal,
             &mut execute,
             &mut cancel,
+            &mut close_lane,
             &budget,
         );
+        if let Err(error) = &result {
+            let reason = match error.kind() {
+                io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock => {
+                    MultiplexDisconnectReason::SlowConsumer
+                }
+                io::ErrorKind::OutOfMemory => MultiplexDisconnectReason::Capacity,
+                io::ErrorKind::InvalidData => MultiplexDisconnectReason::InvalidStream,
+                _ => MultiplexDisconnectReason::Unavailable,
+            };
+            // The peer receives a typed reason if it resumes draining within the final bounded
+            // write window; an unresponsive socket is then closed regardless of delivery.
+            let _notice =
+                write_multiplex_message(&mut writer, &MultiplexMessage::Disconnect { reason });
+        }
         // This owner closes the reader before joining; no detached bridge or lane thread exists.
         let shutdown = stream.shutdown(std::net::Shutdown::Both);
         let joined = reader_task
@@ -164,6 +187,8 @@ fn read_loop(
             message,
             MultiplexMessage::StreamOpen { .. }
                 | MultiplexMessage::Resnapshot { .. }
+                | MultiplexMessage::LaneOpen { .. }
+                | MultiplexMessage::LaneClose { .. }
                 | MultiplexMessage::StreamClose {
                     reason: StreamCloseReason::Cancelled,
                     ..
@@ -195,12 +220,18 @@ fn dispatch(
     first: Queued,
     inbox: &Mutex<Inbox>,
     signal: &SessionChangeSignal,
-    execute: &mut impl FnMut(&ApplicationRequest) -> Result<Vec<u8>, ApplicationConnectionError>,
+    execute: &mut impl FnMut(
+        MultiplexLaneId,
+        &ApplicationRequest,
+    ) -> Result<Vec<u8>, ApplicationConnectionError>,
     cancel: &mut impl FnMut(&ApplicationRequest),
+    close_lane: &mut impl FnMut(MultiplexLaneId),
     budget: &Arc<AtomicUsize>,
 ) -> io::Result<()> {
     let mut subscriptions = BTreeMap::new();
     let mut high_water = 0;
+    let mut lanes = BTreeSet::from([MultiplexLaneId::ROOT]);
+    let mut lane_high_water = 1;
     let mut pending = Some(first);
     loop {
         let wake_revision = signal.wake_revision();
@@ -224,10 +255,11 @@ fn dispatch(
             match message {
                 MultiplexMessage::StreamOpen {
                     stream_id,
+                    lane_id,
                     mode,
                     request,
                 } => {
-                    if stream_id.value() <= high_water {
+                    if stream_id.value() <= high_water || !lanes.contains(&lane_id) {
                         return write_multiplex_message(
                             writer,
                             &MultiplexMessage::Disconnect {
@@ -247,7 +279,9 @@ fn dispatch(
                         continue;
                     }
                     let parsed = ApplicationRequest::decode(&request).map_err(io::Error::other)?;
-                    if mode != StreamMode::Request && !parsed.subscribable() {
+                    if !parsed.multiplex_safe()
+                        || (mode != StreamMode::Request && !parsed.subscribable())
+                    {
                         write_multiplex_message(
                             writer,
                             &MultiplexMessage::StreamClose {
@@ -257,10 +291,15 @@ fn dispatch(
                         )?;
                         continue;
                     }
+                    // These listeners belong to the authenticated Client, not to independent
+                    // foreground identities. Replacement retires the old evaluation first.
+                    subscriptions.retain(|_, current: &mut Subscription| {
+                        !current.request.same_subscription_owner(&parsed)
+                    });
                     // Registration precedes capture: publication during capture changes the signal
                     // revision and forces another evaluation before this connection can sleep.
                     let captured_at = signal.revision();
-                    let record = execute(&parsed).map_err(io::Error::other)?;
+                    let record = execute(lane_id, &parsed).map_err(io::Error::other)?;
                     let Ok(last_claim) = Claim::reserve(budget, record.len().saturating_mul(3))
                     else {
                         return write_multiplex_message(
@@ -288,12 +327,16 @@ fn dispatch(
                         subscriptions.insert(
                             stream_id,
                             Subscription {
+                                lane: lane_id,
+                                continuation: parsed.continuation(),
                                 request: parsed,
+                                more: ApplicationRequest::event_page(&record).0,
                                 mode,
                                 sequence: 1,
                                 last: record,
                                 observed: captured_at,
                                 overruns: 0,
+                                last_overrun: None,
                                 _request_claim: claim,
                                 last_claim,
                             },
@@ -311,6 +354,14 @@ fn dispatch(
                 }
                 MultiplexMessage::Resnapshot { stream_id } => {
                     if let Some(subscription) = subscriptions.get_mut(&stream_id) {
+                        let now = Instant::now();
+                        if subscription
+                            .last_overrun
+                            .is_none_or(|last| now.duration_since(last) >= Duration::from_secs(30))
+                        {
+                            subscription.overruns = 0;
+                        }
+                        subscription.last_overrun = Some(now);
                         subscription.overruns = subscription.overruns.saturating_add(1);
                         if subscription.overruns >= PERSISTENT_OVERRUN {
                             return write_multiplex_message(
@@ -320,42 +371,43 @@ fn dispatch(
                                 },
                             );
                         }
-                        let observed = signal.revision();
-                        write_multiplex_message(
+                        resnapshot(
                             writer,
-                            &MultiplexMessage::Gap {
-                                stream_id,
-                                through: NonZeroU64::new(subscription.sequence)
-                                    .ok_or(io::ErrorKind::InvalidData)?,
-                            },
+                            stream_id,
+                            subscription,
+                            execute,
+                            cancel,
+                            signal,
+                            budget,
                         )?;
-                        let record = execute(&subscription.request).map_err(io::Error::other)?;
-                        let Ok(last_claim) = Claim::reserve(budget, record.len().saturating_mul(3))
-                        else {
-                            return write_multiplex_message(
-                                writer,
-                                &MultiplexMessage::Disconnect {
-                                    reason: MultiplexDisconnectReason::Capacity,
-                                },
-                            );
-                        };
-                        subscription.sequence = subscription
-                            .sequence
-                            .checked_add(1)
-                            .ok_or(io::ErrorKind::InvalidData)?;
-                        write_multiplex_message(
+                    }
+                }
+                MultiplexMessage::LaneOpen { lane_id } => {
+                    if lane_id.value() <= lane_high_water || lanes.len() > MAXIMUM_MULTIPLEX_LANES {
+                        return write_multiplex_message(
                             writer,
-                            &MultiplexMessage::StreamFrame {
-                                stream_id,
-                                sequence: NonZeroU64::new(subscription.sequence)
-                                    .ok_or(io::ErrorKind::InvalidData)?,
-                                kind: StreamFrameKind::Snapshot,
-                                record: record.clone(),
+                            &MultiplexMessage::Disconnect {
+                                reason: MultiplexDisconnectReason::Capacity,
                             },
-                        )?;
-                        subscription.last = record;
-                        subscription.last_claim = last_claim;
-                        subscription.observed = observed;
+                        );
+                    }
+                    lane_high_water = lane_id.value();
+                    lanes.insert(lane_id);
+                }
+                MultiplexMessage::LaneClose { lane_id } => {
+                    if lane_id == MultiplexLaneId::ROOT {
+                        return Err(io::ErrorKind::InvalidData.into());
+                    }
+                    if lanes.remove(&lane_id) {
+                        subscriptions.retain(|_, subscription| {
+                            if subscription.lane == lane_id {
+                                cancel(&subscription.request);
+                                false
+                            } else {
+                                true
+                            }
+                        });
+                        close_lane(lane_id);
                     }
                 }
                 _ => return Err(io::ErrorKind::InvalidData.into()),
@@ -367,13 +419,31 @@ fn dispatch(
             // Domain journals retain ordered events and report their own cursor gaps. A commit
             // count is only invalidation: unrelated commits must never imply event loss.
             let backlog = observed.wrapping_sub(subscription.observed);
-            if backlog > 0 || subscription.request.requires_sampling() {
+            if backlog > 0 || subscription.more || subscription.request.requires_sampling() {
                 let record = if subscription.mode == StreamMode::Invalidations {
                     observed.to_be_bytes().to_vec()
                 } else {
-                    execute(&subscription.request).map_err(io::Error::other)?
+                    execute(subscription.lane, &subscription.continuation)
+                        .map_err(io::Error::other)?
                 };
-                if record != subscription.last {
+                let (more, gap) = ApplicationRequest::event_page(&record);
+                subscription.more = more;
+                if gap {
+                    resnapshot(
+                        writer,
+                        *stream_id,
+                        subscription,
+                        execute,
+                        cancel,
+                        signal,
+                        budget,
+                    )?;
+                    continue;
+                }
+                if record != subscription.last
+                    || (subscription.mode == StreamMode::Events
+                        && ApplicationRequest::has_event(&record))
+                {
                     let Ok(last_claim) = Claim::reserve(budget, record.len().saturating_mul(3))
                     else {
                         return write_multiplex_message(
@@ -419,8 +489,62 @@ fn dispatch(
             .values()
             .any(|subscription| subscription.request.requires_sampling())
             .then_some(Duration::from_millis(100));
-        signal.wait(wake_revision, sampling);
+        if !subscriptions.values().any(|subscription| subscription.more) {
+            signal.wait(wake_revision, sampling);
+        }
     }
+}
+
+fn resnapshot(
+    writer: &mut impl Write,
+    stream_id: orchbee_workbench_protocol::MultiplexStreamId,
+    subscription: &mut Subscription,
+    execute: &mut impl FnMut(
+        MultiplexLaneId,
+        &ApplicationRequest,
+    ) -> Result<Vec<u8>, ApplicationConnectionError>,
+    cancel: &mut impl FnMut(&ApplicationRequest),
+    signal: &SessionChangeSignal,
+    budget: &Arc<AtomicUsize>,
+) -> io::Result<()> {
+    write_multiplex_message(
+        writer,
+        &MultiplexMessage::Gap {
+            stream_id,
+            through: NonZeroU64::new(subscription.sequence).ok_or(io::ErrorKind::InvalidData)?,
+        },
+    )?;
+    // The event journal owns its cursor. Reset only this subscription, then capture its new
+    // baseline while the connection's commit signal remains registered.
+    if matches!(
+        subscription.request.workbench(),
+        Some(orchbee_workbench_protocol::WorkbenchRequest::Events(_))
+    ) {
+        cancel(&subscription.request);
+    }
+    let observed = signal.revision();
+    let fresh = subscription.request.fresh_snapshot();
+    let record = execute(subscription.lane, &fresh).map_err(io::Error::other)?;
+    let last_claim = Claim::reserve(budget, record.len().saturating_mul(3))?;
+    subscription.sequence = subscription
+        .sequence
+        .checked_add(1)
+        .ok_or(io::ErrorKind::InvalidData)?;
+    write_multiplex_message(
+        writer,
+        &MultiplexMessage::StreamFrame {
+            stream_id,
+            sequence: NonZeroU64::new(subscription.sequence).ok_or(io::ErrorKind::InvalidData)?,
+            kind: StreamFrameKind::Snapshot,
+            record: record.clone(),
+        },
+    )?;
+    subscription.continuation = fresh.continuation();
+    subscription.more = ApplicationRequest::event_page(&record).0;
+    subscription.last = record;
+    subscription.last_claim = last_claim;
+    subscription.observed = observed;
+    Ok(())
 }
 
 pub(super) struct PrefixedStream<'a, S> {

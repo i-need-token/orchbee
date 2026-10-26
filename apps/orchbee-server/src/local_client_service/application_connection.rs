@@ -15,17 +15,19 @@ use orchbee_client_server_protocol::{
     ServerMessage, WriteMessageError, read_client_message, write_server_message,
 };
 use orchbee_workbench_protocol::{
-    WORKBENCH_MAGIC, WorkbenchRequest, WorkbenchWireError, read_workbench_request,
+    MultiplexLaneId, WORKBENCH_MAGIC, WorkbenchRequest, WorkbenchWireError, read_workbench_request,
     write_workbench_response,
 };
 
 use crate::agent_service::AgentReadFault;
 use crate::workbench_service::WorkbenchExecution;
 
+#[derive(Clone)]
 pub(super) struct ApplicationRequest {
     kind: ApplicationRequestKind,
     encoded_length: usize,
 }
+#[derive(Clone)]
 enum ApplicationRequestKind {
     Terminal(ClientMessage),
     Workbench(WorkbenchRequest),
@@ -78,11 +80,76 @@ impl ApplicationRequest {
             encoded_length: bytes.len(),
         })
     }
+    /// Waiting belongs to a subscription, never the sole connection dispatcher.
+    pub(super) fn multiplex_safe(&self) -> bool {
+        !matches!(self.workbench(), Some(WorkbenchRequest::Events(request)) if matches!(request.action, orchbee_workbench_protocol::SemanticEventsAction::Wait { .. }))
+    }
+    pub(super) fn continuation(&self) -> Self {
+        let mut next = self.clone();
+        if let ApplicationRequestKind::Workbench(WorkbenchRequest::Events(request)) = &mut next.kind
+            && let orchbee_workbench_protocol::SemanticEventsAction::Subscribe {
+                subscription_id,
+                ..
+            } = &request.action
+        {
+            request.action = orchbee_workbench_protocol::SemanticEventsAction::Read {
+                subscription_id: subscription_id.clone(),
+                limit: orchbee_workbench_protocol::MAXIMUM_EVENT_PAGE as u16,
+            };
+        }
+        next
+    }
+    pub(super) fn fresh_snapshot(&self) -> Self {
+        let mut next = self.clone();
+        if let ApplicationRequestKind::Workbench(WorkbenchRequest::Events(request)) = &mut next.kind
+            && let orchbee_workbench_protocol::SemanticEventsAction::Subscribe { after, .. } =
+                &mut request.action
+        {
+            *after = None;
+        }
+        next
+    }
+    pub(super) fn has_event(record: &[u8]) -> bool {
+        use orchbee_workbench_protocol::{
+            NotificationOutcome, SemanticEventsOutcome, WorkbenchResponse, read_workbench_response,
+        };
+        match read_workbench_response(&mut Cursor::new(record)) {
+            Ok(WorkbenchResponse::Notification(reply)) => matches!(
+                reply.outcome,
+                NotificationOutcome::Listening {
+                    notification: Some(_),
+                    ..
+                }
+            ),
+            Ok(WorkbenchResponse::Events(reply)) => {
+                matches!(reply.outcome, SemanticEventsOutcome::Events { events, .. } if !events.is_empty())
+            }
+            _ => false,
+        }
+    }
+    pub(super) fn event_page(record: &[u8]) -> (bool, bool) {
+        use orchbee_workbench_protocol::{
+            SemanticEventsOutcome, WorkbenchResponse, read_workbench_response,
+        };
+        match read_workbench_response(&mut Cursor::new(record)) {
+            Ok(WorkbenchResponse::Events(reply)) => match reply.outcome {
+                SemanticEventsOutcome::Opened { .. } => (true, false),
+                SemanticEventsOutcome::Events { more, gap, .. } => (more, gap.is_some()),
+                SemanticEventsOutcome::Gap { .. } => (false, true),
+                _ => (false, false),
+            },
+            _ => (false, false),
+        }
+    }
     pub(super) fn encoded_length(&self) -> usize {
         self.encoded_length
     }
     pub(super) fn subscribable(&self) -> bool {
         match &self.kind {
+            ApplicationRequestKind::Workbench(WorkbenchRequest::Events(request)) => matches!(
+                request.action,
+                orchbee_workbench_protocol::SemanticEventsAction::Subscribe { .. }
+            ),
             ApplicationRequestKind::Workbench(request) => {
                 crate::workbench_service::subscription_request(request)
             }
@@ -100,6 +167,15 @@ impl ApplicationRequest {
     pub(super) fn requires_sampling(&self) -> bool {
         // Host output and external filesystem/process state currently expose snapshot reads,
         // not change notifications. Semantic state subscriptions have no periodic deadline.
+        if let Some(WorkbenchRequest::Events(request)) = self.workbench()
+            && let orchbee_workbench_protocol::SemanticEventsAction::Subscribe { filters, .. } =
+                &request.action
+        {
+            use orchbee_workbench_protocol::{
+                SemanticEventFilter as Filter, SemanticEventKind as Kind,
+            };
+            return filters.iter().any(|filter| !matches!(filter, Filter::Event { event, .. } if !matches!(event, Kind::PaneOutputChanged | Kind::PaneExited | Kind::PaneAgentDetected | Kind::PaneAgentStatusChanged)));
+        }
         matches!(
             &self.kind,
             ApplicationRequestKind::Terminal(_)
@@ -116,12 +192,13 @@ impl ApplicationRequest {
 
 pub(super) fn run_network<Permit>(
     stream: &orchbee_local_ipc::LocalStream,
-    mut execute: impl FnMut(ClientMessage) -> ServerMessage,
-    mut execute_workbench: impl FnMut(WorkbenchRequest) -> WorkbenchExecution,
+    mut execute: impl FnMut(MultiplexLaneId, ClientMessage) -> ServerMessage,
+    mut execute_workbench: impl FnMut(MultiplexLaneId, WorkbenchRequest) -> WorkbenchExecution,
     mut execute_agent: impl FnMut(AgentRequest) -> Result<AgentResult, AgentReadFault>,
     mut admit: impl FnMut() -> Option<Permit>,
     watch: impl FnOnce(&std::sync::Arc<orchbee_server::SessionChangeSignal>),
     mut cancel: impl FnMut(&WorkbenchRequest),
+    close_lane: impl FnMut(MultiplexLaneId),
 ) -> Result<(), ApplicationConnectionError> {
     let mut records = super::record_stream::ClientRecordStream::new(stream)
         .map_err(ApplicationConnectionError::Prefix)?;
@@ -134,13 +211,15 @@ pub(super) fn run_network<Permit>(
         stream: &mut records,
     };
     if header[..4] != WORKBENCH_MAGIC
-        || u16::from_be_bytes([header[6], header[7]])
-            != orchbee_workbench_protocol::MULTIPLEX_OPEN_KIND
+        || !matches!(
+            u16::from_be_bytes([header[6], header[7]]),
+            orchbee_workbench_protocol::MULTIPLEX_OPEN_KIND | 70
+        )
     {
         return run_guarded(
             &mut prefixed,
-            execute,
-            execute_workbench,
+            |request| execute(MultiplexLaneId::ROOT, request),
+            |request| execute_workbench(MultiplexLaneId::ROOT, request),
             execute_agent,
             admit,
         );
@@ -153,16 +232,17 @@ pub(super) fn run_network<Permit>(
         stream,
         first,
         signal,
-        |request| {
+        |lane, request| {
             let _permit = admit().ok_or(ApplicationConnectionError::Stopping)?;
             let mut bytes = Vec::new();
             match &request.kind {
                 ApplicationRequestKind::Terminal(request) => {
-                    write_server_message(&mut bytes, &execute(request.clone()))
+                    write_server_message(&mut bytes, &execute(lane, request.clone()))
                         .map_err(ApplicationConnectionError::Write)?
                 }
                 ApplicationRequestKind::Workbench(request) => {
-                    let WorkbenchExecution::Response(response) = execute_workbench(request.clone())
+                    let WorkbenchExecution::Response(response) =
+                        execute_workbench(lane, request.clone())
                     else {
                         return Err(ApplicationConnectionError::WorkbenchOutcomeUnknown);
                     };
@@ -178,6 +258,7 @@ pub(super) fn run_network<Permit>(
             }
             Ok(bytes)
         },
+        close_lane,
         |request| {
             if let Some(request) = request.workbench() {
                 cancel(request);

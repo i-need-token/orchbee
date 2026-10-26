@@ -1,7 +1,7 @@
 //! Editor opening shares popup ownership and cleanup, without plugin command admission.
 use super::{
-    BindingViewerTarget, Failure, Instant, LocalTerminalService, NonZeroU64, Outcome, Phase,
-    PopupKind, PreparedOperation, ProtocolVersion, SETTLEMENT_WINDOW, WorkbenchRequestId,
+    BindingViewerTarget, Failure, Instant, LocalTerminalService, Outcome, Phase, PopupKind,
+    PopupOwner, PreparedOperation, ProtocolVersion, SETTLEMENT_WINDOW, WorkbenchRequestId,
     WorkerOperationRequest, WorkerOperationResult, client, hex, lease_expiry, node, placement,
 };
 use orchbee_workbench_protocol::{
@@ -57,7 +57,7 @@ impl From<Outcome> for EditorOutcome {
 impl LocalTerminalService {
     pub(in crate::local_terminal_service) fn execute_editor_popup(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         request: TerminalEditorRequest,
         source: Option<(node::TerminalEditorSource, BindingViewerTarget)>,
     ) -> TerminalEditorResult {
@@ -108,7 +108,7 @@ impl LocalTerminalService {
 
     fn open_editor_popup(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         id: &WorkbenchRequestId,
         spec: &orchbee_workbench_protocol::ScrollbackEditorSpec,
         source: node::TerminalEditorSource,
@@ -302,7 +302,7 @@ impl LocalTerminalService {
 
     fn queue_editor_cleanup(
         &self,
-        owner: NonZeroU64,
+        owner: PopupOwner,
         id: &WorkbenchRequestId,
         phase: Phase,
     ) -> Result<(), Failure> {

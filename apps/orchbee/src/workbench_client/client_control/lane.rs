@@ -1,9 +1,5 @@
 //! A shared-connection control subscription with bounded observations and owned cancellation.
-#[cfg(test)]
-use crate::local_client::LocalClientConnectError;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock};
-#[cfg(test)]
-use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::{
     ClientViewAction, ClientViewCompletion, ClientViewControl, ClientViewControlReason as Reason,
@@ -15,7 +11,7 @@ use std::{
     io,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    time::Duration,
 };
 mod configured_command;
 mod split_ratio;
@@ -208,6 +204,8 @@ impl ClientControlLane {
         handoff.invocation_pending = true;
         handoff.invocation = Some(invocation);
         signal.notify_one();
+        drop(handoff);
+        let _notified = crate::local_client::subscription::notify(&self.changed);
         Ok(())
     }
     pub(super) fn take_invocation_result(&self) -> Option<CommandCompletion> {
@@ -324,6 +322,7 @@ fn run(
     let mut layout_task: Option<split_ratio::Mutation> = None;
     let mut exchange_id = 0_u64;
     let mut last_sample: Option<Sample> = None;
+    let mut delivered_operation = None;
     let mut subscription: Option<(
         WorkbenchRequestId,
         crate::local_client::multiplex::Subscription,
@@ -556,7 +555,10 @@ fn run(
                 }
             }
         }
+        let control =
+            control.filter(|control| delivered_operation.as_ref() != Some(&control.operation_id));
         let delivery = if let Some(control) = control {
+            delivered_operation = Some(control.operation_id.clone());
             let workbench_snapshot = if matches!(
                 control.intent,
                 ClientViewIntent::CommandPopupOpen { .. }
@@ -625,42 +627,6 @@ fn run(
             handoff.control = Some(delivery);
         }
     }
-}
-
-#[cfg(test)]
-fn admit_startup_with<T>(
-    clock: &LocalOperationClock,
-    mut connect: impl FnMut(Instant) -> Result<T, LocalClientConnectError>,
-) -> Result<T, LocalClientConnectError> {
-    let deadline = clock.now() + STARTUP_ADMISSION_TOTAL_TIMEOUT;
-    match connect(deadline) {
-        Err(error) if transient_startup_admission_failure(&error) && clock.now() < deadline => {
-            connect(deadline)
-        }
-        outcome => outcome,
-    }
-}
-
-#[cfg(test)]
-fn transient_startup_admission_failure(error: &LocalClientConnectError) -> bool {
-    let LocalClientConnectError::Admission(
-        ConnectClientError::ConnectFailed(error) | ConnectClientError::Io(error),
-    ) = error
-    else {
-        return false;
-    };
-    matches!(
-        error.kind(),
-        io::ErrorKind::NotFound
-            | io::ErrorKind::ConnectionRefused
-            | io::ErrorKind::ConnectionReset
-            | io::ErrorKind::ConnectionAborted
-            | io::ErrorKind::BrokenPipe
-            | io::ErrorKind::WouldBlock
-            | io::ErrorKind::TimedOut
-            | io::ErrorKind::Interrupted
-            | io::ErrorKind::UnexpectedEof
-    )
 }
 
 pub(super) fn random_request_id() -> Option<WorkbenchRequestId> {

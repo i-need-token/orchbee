@@ -1,0 +1,309 @@
+//! Scripted peers keep domain assertions while exercising the real single-carrier framing.
+use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
+use orchbee_local_ipc::LocalStream;
+use orchbee_workbench_protocol::{
+    MultiplexMessage, MultiplexStreamId, ProtocolVersion, StreamFrameKind, StreamMode,
+    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome,
+    WorkbenchSnapshotResult, read_multiplex_message, read_workbench_request,
+    read_workbench_response, write_multiplex_message, write_workbench_response,
+};
+use std::{
+    collections::BTreeMap,
+    io::{self, Cursor, Read, Write},
+    num::NonZeroU64,
+    time::Duration,
+};
+
+pub(crate) struct Open {
+    pub(crate) id: MultiplexStreamId,
+    pub(crate) mode: StreamMode,
+    pub(crate) request: Vec<u8>,
+}
+pub(crate) fn admit(stream: &mut LocalStream, generation: u64) -> io::Result<()> {
+    assert!(matches!(
+        read_message(stream).map_err(io::Error::other)?,
+        LocalClientMessage::ClientHello(_)
+    ));
+    write_message(
+        stream,
+        &LocalClientMessage::ClientAccepted {
+            generation: NonZeroU64::new(generation).unwrap(),
+        },
+    )
+    .map_err(io::Error::other)
+}
+pub(crate) fn read_open(stream: &mut LocalStream) -> io::Result<Open> {
+    loop {
+        match read_multiplex_message(stream)? {
+            MultiplexMessage::StreamOpen {
+                stream_id,
+                mode,
+                request,
+                ..
+            } => {
+                return Ok(Open {
+                    id: stream_id,
+                    mode,
+                    request,
+                });
+            }
+            MultiplexMessage::LaneOpen { .. }
+            | MultiplexMessage::LaneClose { .. }
+            | MultiplexMessage::StreamClose { .. } => {}
+            _ => return Err(io::ErrorKind::InvalidData.into()),
+        }
+    }
+}
+pub(crate) fn respond(
+    stream: &mut LocalStream,
+    open: &Open,
+    response: &WorkbenchResponse,
+    sequence: u64,
+) -> io::Result<()> {
+    let mut record = Vec::new();
+    write_workbench_response(&mut record, response).map_err(io::Error::other)?;
+    write_multiplex_message(
+        stream,
+        &MultiplexMessage::StreamFrame {
+            stream_id: open.id,
+            sequence: NonZeroU64::new(sequence).unwrap(),
+            kind: if open.mode == StreamMode::Request {
+                StreamFrameKind::Result
+            } else if sequence == 1 {
+                StreamFrameKind::Snapshot
+            } else {
+                StreamFrameKind::Update
+            },
+            record,
+        },
+    )
+}
+
+/// Domain scripts can run directly or over the TUI's actual multiplexer. Snapshot subscriptions
+/// observe the same snapshots that the script publishes; they never open an extra Server socket.
+pub(crate) struct Peer {
+    stream: LocalStream,
+    admitted: bool,
+    multiplex: Option<bool>,
+    input: Cursor<Vec<u8>>,
+    output: Vec<u8>,
+    reply: Option<Open>,
+    snapshots: BTreeMap<MultiplexStreamId, (WorkbenchRequestId, StreamMode, u64)>,
+    latest: Option<WorkbenchSnapshotOutcome>,
+    control: Option<orchbee_workbench_protocol::WorkbenchClientViewResult>,
+}
+impl Peer {
+    pub(crate) fn new(stream: LocalStream) -> Self {
+        Self {
+            stream,
+            admitted: false,
+            multiplex: None,
+            input: Cursor::new(Vec::new()),
+            output: Vec::new(),
+            reply: None,
+            snapshots: BTreeMap::new(),
+            latest: None,
+            control: None,
+        }
+    }
+    pub(crate) fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.stream.set_read_timeout(timeout)
+    }
+    fn snapshot(&mut self, id: MultiplexStreamId) -> io::Result<()> {
+        let Some(outcome) = self.latest.clone() else {
+            return Ok(());
+        };
+        let Some((request_id, mode, sequence)) = self.snapshots.get_mut(&id) else {
+            return Ok(());
+        };
+        *sequence += 1;
+        let open = Open {
+            id,
+            mode: *mode,
+            request: Vec::new(),
+        };
+        respond(
+            &mut self.stream,
+            &open,
+            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                protocol_version: ProtocolVersion,
+                request_id: request_id.clone(),
+                outcome,
+            }),
+            *sequence,
+        )
+    }
+    fn accept(&mut self, message: MultiplexMessage) -> io::Result<bool> {
+        match message {
+            MultiplexMessage::StreamOpen {
+                stream_id,
+                mode,
+                request,
+                ..
+            } => {
+                if mode != StreamMode::Request
+                    && let Ok(WorkbenchRequest::SnapshotRead(intent)) =
+                        read_workbench_request(&mut Cursor::new(&request))
+                {
+                    self.snapshots
+                        .insert(stream_id, (intent.request_id, mode, 0));
+                    self.snapshot(stream_id)?;
+                    return Ok(false);
+                }
+                if mode != StreamMode::Request
+                    && let Ok(WorkbenchRequest::ClientView(request)) =
+                        read_workbench_request(&mut Cursor::new(&request))
+                    && let Some(mut reply) = self.control.clone()
+                {
+                    reply.request_id = request.request_id;
+                    reply.session_id = request.session_id;
+                    respond(
+                        &mut self.stream,
+                        &Open {
+                            id: stream_id,
+                            mode,
+                            request: Vec::new(),
+                        },
+                        &WorkbenchResponse::ClientView(reply),
+                        1,
+                    )?;
+                    return Ok(false);
+                }
+                self.reply = Some(Open {
+                    id: stream_id,
+                    mode,
+                    request: Vec::new(),
+                });
+                self.input = Cursor::new(request);
+                Ok(true)
+            }
+            MultiplexMessage::StreamClose { stream_id, .. } => {
+                self.snapshots.remove(&stream_id);
+                Ok(false)
+            }
+            MultiplexMessage::LaneOpen { .. } | MultiplexMessage::LaneClose { .. } => Ok(false),
+            _ => Err(io::ErrorKind::InvalidData.into()),
+        }
+    }
+}
+impl Read for Peer {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        if !self.admitted {
+            return self.stream.read(buffer);
+        }
+        loop {
+            if self.input.position() < self.input.get_ref().len() as u64 {
+                return self.input.read(buffer);
+            }
+            if self.multiplex == Some(false) {
+                return self.stream.read(buffer);
+            }
+            let message = if self.multiplex.is_none() {
+                let mut header = [0; 12];
+                match self.stream.read_exact(&mut header) {
+                    Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(0),
+                    result => result?,
+                }
+                if &header[..4] != b"OBWP"
+                    || !matches!(u16::from_be_bytes([header[6], header[7]]), 64 | 70)
+                {
+                    self.multiplex = Some(false);
+                    self.input = Cursor::new(header.to_vec());
+                    continue;
+                }
+                self.multiplex = Some(true);
+                read_multiplex_message(&mut Cursor::new(header).chain(&mut self.stream))
+            } else {
+                read_multiplex_message(&mut self.stream)
+            };
+            match message {
+                Ok(message) => {
+                    self.accept(message)?;
+                }
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(0),
+                Err(error) => return Err(error),
+            }
+        }
+    }
+}
+impl Write for Peer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if !self.admitted {
+            let count = self.stream.write(bytes)?;
+            if bytes.starts_with(b"OBLC") {
+                self.admitted = true;
+            }
+            return Ok(count);
+        }
+        if self.multiplex != Some(true) {
+            return self.stream.write(bytes);
+        }
+        if bytes.len() < 8
+            && self.output.is_empty()
+            && let Some(open) = self.reply.take()
+        {
+            write_multiplex_message(
+                &mut self.stream,
+                &MultiplexMessage::StreamFrame {
+                    stream_id: open.id,
+                    sequence: NonZeroU64::MIN,
+                    kind: StreamFrameKind::Result,
+                    record: bytes.to_vec(),
+                },
+            )?;
+            return Ok(bytes.len());
+        }
+        self.output.extend_from_slice(bytes);
+        let length = if self.output.len() < 8 {
+            return Ok(bytes.len());
+        } else if self.output.starts_with(b"OBCS") {
+            8 + usize::from(u16::from_be_bytes([self.output[6], self.output[7]]))
+        } else if self.output.len() >= 12 {
+            12 + u32::from_be_bytes(self.output[8..12].try_into().unwrap()) as usize
+        } else {
+            return Ok(bytes.len());
+        };
+        if self.output.len() < length {
+            return Ok(bytes.len());
+        }
+        let record = std::mem::take(&mut self.output);
+        let mut changed = false;
+        if let Ok(WorkbenchResponse::Snapshot(reply)) =
+            read_workbench_response(&mut Cursor::new(&record))
+        {
+            changed = self.latest.as_ref() != Some(&reply.outcome);
+            self.latest = Some(reply.outcome);
+        }
+        if let Ok(WorkbenchResponse::ClientView(reply)) =
+            read_workbench_response(&mut Cursor::new(&record))
+        {
+            self.control = Some(reply);
+        }
+        let open = self.reply.take().ok_or(io::ErrorKind::InvalidData)?;
+        write_multiplex_message(
+            &mut self.stream,
+            &MultiplexMessage::StreamFrame {
+                stream_id: open.id,
+                sequence: NonZeroU64::MIN,
+                kind: if open.mode == StreamMode::Request {
+                    StreamFrameKind::Result
+                } else {
+                    StreamFrameKind::Snapshot
+                },
+                record,
+            },
+        )?;
+        if changed {
+            for id in self.snapshots.keys().copied().collect::<Vec<_>>() {
+                self.snapshot(id)?;
+            }
+        }
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
+    }
+}

@@ -249,7 +249,7 @@ pub(crate) enum ViewportSurface<'a> {
     Window {
         window: &'a ViewportWindow,
         /// `(start_row, total_rows)` re-validated at the same instant the
-        /// window was fenced — the only honest position source.
+        /// window was fenced â€” the only honest position source.
         position: Option<(u64, u64)>,
     },
     Entering,
@@ -354,7 +354,7 @@ impl<'a> ClientTabView<'a> {
         self.inner.panel(index)
     }
 
-    /// The tab's stable identity — recorded into pointer hit regions so a
+    /// The tab's stable identity â€” recorded into pointer hit regions so a
     /// click resolves the entry, never a stale position.
     pub(crate) fn tab_id(&self) -> &'a WorkbenchTabId {
         self.inner.tab_id()
@@ -745,7 +745,7 @@ impl<'a> WorkbenchClientView<'a> {
         self.projection_status
     }
 
-    /// The focus pane's projection — kept for single-pane consumers; paned
+    /// The focus pane's projection â€” kept for single-pane consumers; paned
     /// rendering uses [`Self::pane_projection`] per leaf.
     pub(crate) fn projection(&self) -> Option<&'a TerminalProjection> {
         self.focus.and_then(|panel| self.pane_projection(panel))
@@ -812,8 +812,8 @@ impl<'a> WorkbenchClientView<'a> {
             .map(super::terminal_selection::Driver::selection)
     }
 
-    /// The exact live incarnation bound to one panel — anchor generation,
-    /// stable panel, and incarnation — or `None` while the panel has no
+    /// The exact live incarnation bound to one panel â€” anchor generation,
+    /// stable panel, and incarnation â€” or `None` while the panel has no
     /// record. Pane hit regions record this so a click can never migrate
     /// onto a re-minted record of the same logical pane.
     pub(crate) fn pane_ref_for_panel(&self, panel: &WorkbenchPanelId) -> Option<PaneRef> {
@@ -823,7 +823,7 @@ impl<'a> WorkbenchClientView<'a> {
             .map(|record| record.pane_ref())
     }
 
-    /// The draw status of one panel's projection — `Empty` when the pane has
+    /// The draw status of one panel's projection â€” `Empty` when the pane has
     /// no installed projection at all.
     pub(crate) fn pane_projection_status(
         &self,
@@ -845,7 +845,7 @@ impl<'a> WorkbenchClientView<'a> {
 
     /// One panel's retained-history surface, or `None` while its pane is
     /// Live. The returned window is already fenced to the pane's current
-    /// generation and column geometry — the renderer only clips it to the
+    /// generation and column geometry â€” the renderer only clips it to the
     /// leaf bounds.
     pub(crate) fn pane_viewport(&self, panel: &WorkbenchPanelId) -> Option<ViewportSurface<'_>> {
         let state = self.state.as_ref()?;
@@ -1003,7 +1003,7 @@ impl<'a> WorkbenchClientView<'a> {
         ))
     }
 
-    /// The panel identity of the focus pane — the leaf that takes input,
+    /// The panel identity of the focus pane â€” the leaf that takes input,
     /// resize and the focused-frame chrome.
     pub(crate) const fn focus_panel_id(&self) -> Option<&'a WorkbenchPanelId> {
         self.focus
@@ -1036,13 +1036,13 @@ impl<'a> WorkbenchClientView<'a> {
         self.retirement
     }
 
-    /// The Agent board's read handle — `Some` only while the board is
+    /// The Agent board's read handle â€” `Some` only while the board is
     /// open, so a closed board never paints and never claims hits.
     pub(crate) const fn agent_board(&self) -> Option<&AgentBoardView<'a>> {
         self.board.as_ref()
     }
 
-    /// The sidebar's summary of the last completed Agent read — `None`
+    /// The sidebar's summary of the last completed Agent read â€” `None`
     /// when no read has completed, never an implied zero.
     pub(crate) const fn agent_board_summary(&self) -> Option<AgentBoardSummary> {
         self.board_summary.copied()
@@ -1086,7 +1086,7 @@ impl<'a> WorkbenchClientView<'a> {
 
     /// Test-only view over a bare Client state: the caller supplies the
     /// live projections and the focus draw status the paint pass would
-    /// report — the exact shape `pane_geometries`, `active_pane_area`, and
+    /// report â€” the exact shape `pane_geometries`, `active_pane_area`, and
     /// the renderer consume.
     pub(super) fn test_view(
         state: &'a WorkbenchClientState,
@@ -1215,8 +1215,8 @@ pub(super) struct WorkbenchClientUi {
     popup: super::independent_popup::Driver,
     command_notice: Option<(WorkbenchClientNotice, std::time::Instant)>,
     notice_context: Option<NoticeContext>,
-    /// `presentation_id → workbench placement` over the freshest observed
-    /// canonical snapshot — a pure function of that snapshot, rebuilt
+    /// `presentation_id â†’ workbench placement` over the freshest observed
+    /// canonical snapshot â€” a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
@@ -1230,7 +1230,7 @@ pub(super) struct WorkbenchClientUi {
     poll_cursor: usize,
     ordinary_poll_serial: Option<u64>,
     next_empty_poll: Option<std::time::Instant>,
-    unbound_refresh_at: Option<std::time::Instant>,
+    publications: Option<crate::local_client::subscription::ChangeSubscription>,
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<DisplayRetirement>,
@@ -1353,7 +1353,7 @@ impl WorkbenchClientUi {
             poll_cursor: 0,
             ordinary_poll_serial: None,
             next_empty_poll: None,
-            unbound_refresh_at: None,
+            publications: None,
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
@@ -1378,7 +1378,7 @@ impl WorkbenchClientUi {
             });
         let state = self.state.as_ref();
         let focus = state.and_then(WorkbenchClientState::focus_panel_id);
-        // Drop projections whose exact incarnation no longer exists — the
+        // Drop projections whose exact incarnation no longer exists â€” the
         // settle paths normally remove them, this filter is the last fence.
         let focus_status = focus
             .and_then(|panel| {
@@ -1683,13 +1683,20 @@ impl WorkbenchClientUi {
                     | state.tick_takeover(self.clock.now())
                     | state.settle_close_set(self.clock.now())
             });
+            if self
+                .publications
+                .as_ref()
+                .is_some_and(|changes| changes.changed().unwrap_or(true))
+                && let Some(state) = self.state.as_mut()
+            {
+                state.note_publication_hint();
+            }
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
             changed |= self.schedule_close_set(&mailbox);
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
-            changed |= self.schedule_unbound_refresh(&mailbox);
             // Board lane settlement and intent scheduling remain fair while a
             // client surface covers native content. Only a focus-moving jump
             // must wait until the total compositor names Board as the top.
@@ -1774,7 +1781,7 @@ impl WorkbenchClientUi {
                 continue;
             }
             // The settlement claims this draw's proof: a frame that was never
-            // staged into a live, non-departing leaf settles as `NoFeedback` —
+            // staged into a live, non-departing leaf settles as `NoFeedback` â€”
             // the poll-time `FrameApplied` is never forwarded for a frame the
             // screen never showed.
             let settlement = match pending.frame {
@@ -1863,7 +1870,7 @@ impl WorkbenchClientUi {
     pub(super) fn observe_geometry(&mut self, geometry: Geometry) {
         self.observe_focus_geometry(geometry);
         // A whole-session observation on a single-leaf tab is exactly that
-        // leaf's geometry — route it through the pane path so the focus
+        // leaf's geometry â€” route it through the pane path so the focus
         // viewer's resize is emitted; multi-leaf tabs own per-leaf geometry
         // through `observe_panes`.
         let single_leaf = self.state.as_ref().and_then(|state| {
@@ -1917,8 +1924,8 @@ impl WorkbenchClientUi {
             let Some(state) = self.state.as_mut() else {
                 return;
             };
-            // A non-Client close carrier — status-only recovery, or the
-            // pending membership handoff before its atomic install — owns the
+            // A non-Client close carrier â€” status-only recovery, or the
+            // pending membership handoff before its atomic install â€” owns the
             // window the same way: the carrier mailbox holds no canonical pane
             // set, so the observation's record sync would mint pane facts the
             // Retired-phase shape forbids, and Resize admission has no
@@ -2071,7 +2078,7 @@ impl WorkbenchClientUi {
         // stage `Recover` first and the byte follows only once that step is
         // admitted onto the wire queue; Recovering already holds its
         // admission and forwards immediately. A byte that cannot get behind
-        // an admitted Recover is dropped — never replayed, never forwarded
+        // an admitted Recover is dropped â€” never replayed, never forwarded
         // while the pane still scrolls.
         let recovering = self
             .projections
@@ -2124,7 +2131,7 @@ impl WorkbenchClientUi {
 
     /// Enters retained-history mode on the exact focus incarnation: the
     /// `Enter` step must be admitted before the deterministic core installs
-    /// — a refused enqueue leaves the pane Live, and no input is ever
+    /// â€” a refused enqueue leaves the pane Live, and no input is ever
     /// replayed on its behalf.
     fn enter_history(&mut self) -> ClientActionDisposition {
         self.enter_history_rows(None)
@@ -2250,7 +2257,7 @@ impl WorkbenchClientUi {
     /// Whether the focus pane's non-Live core consumes this key locally.
     /// The five history keys scroll or exit; every other key reports
     /// `false` so the ordinary byte path forwards (and exits history
-    /// first). Live panes always report `false` — their passthrough is
+    /// first). Live panes always report `false` â€” their passthrough is
     /// untouched.
     pub(super) fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
         if self.workspace_creation_replaces_content() {
@@ -2358,7 +2365,7 @@ impl WorkbenchClientUi {
     }
 
     /// Whether the exact focus incarnation currently carries a non-Live
-    /// core — the pointer probe's fast fact for wheel ownership.
+    /// core â€” the pointer probe's fast fact for wheel ownership.
     fn focus_viewport_non_live(&self) -> bool {
         self.state
             .as_ref()
@@ -2396,7 +2403,7 @@ impl WorkbenchClientUi {
             } = step
             {
                 // The watermark advances when the owner observes the staged
-                // read — admitted or not — so a sequence the core minted is
+                // read â€” admitted or not â€” so a sequence the core minted is
                 // never reissued to this attachment's host watermark.
                 projection.read_watermark = projection.read_watermark.max(request_sequence.get());
             }
@@ -2512,7 +2519,7 @@ impl WorkbenchClientUi {
     }
 
     /// Advances every live core's deadline episode and drains its staged
-    /// steps — the per-tick driver that turns expired waits into recovery
+    /// steps â€” the per-tick driver that turns expired waits into recovery
     /// and idle intents into wire commands.
     fn tick_viewports(&mut self, mailbox: &Arc<CommandMailbox>) -> bool {
         let now = self.clock.now();
@@ -2563,7 +2570,7 @@ impl WorkbenchClientUi {
         let Some(state) = self.state.as_ref() else {
             return probe;
         };
-        // `input_ready` mirrors `forward`'s own admission gate — Ready
+        // `input_ready` mirrors `forward`'s own admission gate â€” Ready
         // phase, Controlling mode, an exact focus incarnation, and no
         // close suppression on its anchor. All are live state reads;
         // nothing is guessed from the pointer's own records.
@@ -2677,7 +2684,7 @@ impl WorkbenchClientUi {
             state.clear_settled_setup_status();
         }
         // The board and every other surface are mutually exclusive: any
-        // action that is not the board's own toggle closes it first —
+        // action that is not the board's own toggle closes it first â€”
         // navigator, help, sidebar, modals, and pane operations all take
         // the overlay slot back.
         if !matches!(action, ClientAction::ToggleAgentBoard) {
@@ -3159,7 +3166,7 @@ impl WorkbenchClientUi {
 
     /// Pointer-issued panel focus: the pointer resolved a concrete stable
     /// panel identity in the active tab; the admission path is the same
-    /// purely local transition as the directional `move_panel_focus` — the
+    /// purely local transition as the directional `move_panel_focus` â€” the
     /// pane's viewer is already live under the same anchor, so no
     /// detach/attach round trip is minted.
     fn move_panel_focus_to(&mut self, panel: &WorkbenchPanelId) -> ClientActionDisposition {
@@ -3197,7 +3204,7 @@ impl WorkbenchClientUi {
     /// `Ctrl+B z`: the volatile Client-local zoom toggle. The mailbox lock
     /// serializes flag minting against membership installs so a flag can
     /// never be minted on a Tab an in-flight install is shrinking to one
-    /// leaf — the same TOCTOU the local confirmations close.
+    /// leaf â€” the same TOCTOU the local confirmations close.
     fn toggle_zoom(&mut self) -> ClientActionDisposition {
         let (Some(mailbox), Some(state)) =
             (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
@@ -3433,7 +3440,7 @@ impl WorkbenchClientUi {
             }
             // Viewport outcomes are fire-and-forget publications: a stale
             // incarnation's outcome (or one for a core that already retired)
-            // drops silently — unlike pane facts it never diverges
+            // drops silently â€” unlike pane facts it never diverges
             // canonical state, so a drop is not a protocol fault.
             if let WorkerEvent::ViewportOutcome { key, outcome } = event {
                 return self.apply_viewport_outcome(mailbox, key, outcome);
@@ -3503,7 +3510,7 @@ impl WorkbenchClientUi {
             match result {
                 Ok(MutationResult::Applied) => {
                     self.state = installed;
-                    // The accepted bootstrap seeds the board's index —
+                    // The accepted bootstrap seeds the board's index â€”
                     // only installed canonical state may feed it.
                     self.agent_index = super::agent_board::PresentationIndex::default();
                     if let Some(state) = self.state.as_ref() {
@@ -3794,7 +3801,7 @@ impl WorkbenchClientUi {
             return true;
         };
         // The board's presentation index may only consume a snapshot the
-        // session itself accepted — keep it until the verdict proves the
+        // session itself accepted â€” keep it until the verdict proves the
         // snapshot drove a Membership/Append application.
         let index_snapshot = match &outcome {
             orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot } => {
@@ -3846,7 +3853,7 @@ impl WorkbenchClientUi {
             return true;
         };
         // Only a snapshot that actually drove the accepted refresh may
-        // rebuild the index — a Stale, DefiniteFailure or Divergent
+        // rebuild the index â€” a Stale, DefiniteFailure or Divergent
         // verdict never feeds it.
         let rebuild_index = index_snapshot.is_some()
             && matches!(
@@ -3999,7 +4006,7 @@ impl WorkbenchClientUi {
         };
         // The poll's exact incarnation must still own an installed projection;
         // a detached or re-incarnated pane's late result is dropped, not
-        // applied — the causal settlement below still answers the lease.
+        // applied â€” the causal settlement below still answers the lease.
         let Some(index) = self
             .projections
             .iter()
@@ -4170,7 +4177,7 @@ impl WorkbenchClientUi {
         if frame.is_some() {
             // A settled live frame ends an admitted recovery, and a
             // host-side geometry change inside that frame re-geometries a
-            // surviving core. Only a real FrameApplied arm reaches here —
+            // surviving core. Only a real FrameApplied arm reaches here â€”
             // kind-53 events never re-run frame hooks.
             if let Some(viewport) = self.projections[index].viewport.as_mut() {
                 let effect = viewport.frame_applied();
@@ -4254,8 +4261,8 @@ impl WorkbenchClientUi {
     }
 
     /// Schedules the next ordinary poll for the next pane in rotation. One
-    /// ordinary poll stays in flight at a time — the single causal cell is
-    /// preserved — while the cursor walks the projected pane set so every
+    /// ordinary poll stays in flight at a time â€” the single causal cell is
+    /// preserved â€” while the cursor walks the projected pane set so every
     /// pane's viewer advances without starving the focus.
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
         // Existing polls/replies still drain. Do not put a fresh ordinary Poll ahead of
@@ -4289,7 +4296,7 @@ impl WorkbenchClientUi {
             self.poll_cursor = 0;
             return;
         }
-        // Only panes this UI actually projects are served — a state-side live
+        // Only panes this UI actually projects are served â€” a state-side live
         // pane whose projection was never installed here (or was already
         // dropped) must not mint a poll it cannot settle.
         let start = self.poll_cursor % pollable.len();
@@ -4343,7 +4350,7 @@ impl WorkbenchClientUi {
         true
     }
 
-    /// Drops every projection and staged draw — used on epoch teardown, where
+    /// Drops every projection and staged draw â€” used on epoch teardown, where
     /// all panes retire together, and on retirement.
     fn clear_projections(&mut self) {
         self.history_positions.projections_cleared();
@@ -4357,7 +4364,7 @@ impl WorkbenchClientUi {
         self.next_empty_poll = None;
     }
 
-    /// Drops one pane's projection and staged draws — focus-scoped settle
+    /// Drops one pane's projection and staged draws â€” focus-scoped settle
     /// events (`CleanupSettled`, `SetupWithoutAttachment`) and pane-local
     /// disposal land here, leaving sibling panes untouched.
     fn clear_pane_projection(&mut self, key: &PaneRef) {
@@ -4591,7 +4598,7 @@ fn build_switch(
 }
 
 /// `build_switch` carrying the stable panel identity the Agent board's
-/// jump wants focused after the tab switch lands — the same admission
+/// jump wants focused after the tab switch lands â€” the same admission
 /// checks, the same `begin_switch`, only the selected pane differs: it
 /// resolves `panel_id` to its current index instead of `panel(0)`.
 fn build_switch_for_panel(
@@ -4609,7 +4616,7 @@ fn build_switch_for_panel(
         SelectionPlan::NoOp => {
             // Same-tab target the ordinary planner calls a NoOp: for the
             // jump it may still mean "reattach a dead viewer on this
-            // tab". The state re-checks every guard — a live target
+            // tab". The state re-checks every guard â€” a live target
             // stays a NoOp, and only a genuinely dead panel mints a
             // fresh-generation attach on the same anchor.
             let Some(target) =

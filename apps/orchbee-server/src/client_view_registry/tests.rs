@@ -100,8 +100,8 @@ fn graphics_freshness_partial_scope_and_heartbeat_change_do_not_fabricate_visibi
         Some(false)
     );
     let later = now + Duration::from_secs(6);
-    execute(&mut registry, 1, sample(), later); // Replaying the same heartbeat never refreshes its sampling time.
-    let stale = registry
+    execute(&mut registry, 1, sample(), later); // Idle time does not expire a live connection.
+    let current = registry
         .graphics_info(
             Some(&record.client_id),
             &source,
@@ -110,8 +110,8 @@ fn graphics_freshness_partial_scope_and_heartbeat_change_do_not_fabricate_visibi
         )
         .unwrap()
         .unwrap();
-    assert!(stale.capabilities.is_none());
-    assert!(stale.visible.is_none());
+    assert!(current.capabilities.is_some());
+    assert_eq!(current.visible, Some(false));
     assert!(
         registry
             .observe_graphics(
@@ -121,7 +121,7 @@ fn graphics_freshness_partial_scope_and_heartbeat_change_do_not_fabricate_visibi
                 observation,
                 later
             )
-            .is_err()
+            .is_ok()
     );
     let mut next = sample();
     let ClientViewAction::Synchronize { heartbeat, .. } = &mut next else {
@@ -724,22 +724,16 @@ fn exact_owner_receives_once_and_only_observed_completion_settles() {
 }
 
 #[test]
-fn frozen_ui_never_renews_freshness_and_revision_changes_fence_delivery() {
+fn idle_connected_view_remains_current_and_revision_changes_fence_delivery() {
     let now = Instant::now();
     let mut registry = ClientViewRegistry::default();
     execute(&mut registry, 1, sample(), now);
-    let later = now + FRESHNESS;
+    let later = now + Duration::from_secs(60);
     let ClientViewOutcome::Synchronized { client, .. } = execute(&mut registry, 1, sample(), later)
     else {
         panic!("sync");
     };
-    assert_eq!(client.availability, ClientViewAvailability::Stale);
-    assert_eq!(
-        status(submit(&mut registry, 3, 1, later)),
-        ClientViewControlStatus::Rejected {
-            reason: ClientViewControlReason::StaleView
-        }
-    );
+    assert_eq!(client.availability, ClientViewAvailability::Current);
     let mut fresh = sample();
     if let ClientViewAction::Synchronize { heartbeat, .. } = &mut fresh {
         *heartbeat = ClientViewSequence::new(2).unwrap();

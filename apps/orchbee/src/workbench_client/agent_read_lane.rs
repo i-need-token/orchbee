@@ -1,12 +1,6 @@
-//! Shared native Agent and Panel observation read lane: one worker thread holding its own
-//! admitted Client Connection (re-established from `LocalClientOrigin`, the
-//! `status_recovery` precedent). Commands are sequential; a wake pipe lets
-//! `close` interrupt an in-flight exchange, and every outcome is delivered
-//! through a channel the board drains from `tick`.
-//!
-//! Reads never run on the native worker's primary connection: a
-//! post-submission ambiguity retires the session that submitted it, and
-//! that session must be this lane's own.
+//! Bounded Agent/Panel domain jobs share one multiplexed Client carrier.
+//! The worker owns only its logical lane, sequential read state and cancellation wake.
+//! Physical admission and reconnect belong to the connection actor.
 
 use orchbee_local_ipc::AsLocalIo;
 #[cfg(windows)]
@@ -17,7 +11,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver, SyncSender},
     },
     thread::{self, JoinHandle},
     time::Instant,
@@ -33,7 +27,7 @@ use crate::local_client::{
     LocalClient, LocalClientOrigin, LocalOperationClock, agent::AgentExchangeError,
 };
 
-/// 512 sessions at 100 items per page, rounded up — the walk's page bound.
+/// 512 sessions at 100 items per page, rounded up â€” the walk's page bound.
 /// A cursor that outlives the bound yields `complete: false`, never a
 /// silently truncated listing presented as whole.
 const MAXIMUM_LIST_PAGES: usize = 6;
@@ -105,7 +99,7 @@ pub(super) enum LaneOutcome {
     },
 }
 
-/// One completed list walk — `complete` is false when the page bound or
+/// One completed list walk â€” `complete` is false when the page bound or
 /// the restart budget was hit; the accumulated pages are still canonical
 /// and may be shown with the incomplete marker.
 pub(super) struct ListRound {
@@ -119,17 +113,17 @@ pub(super) enum LaneFailure {
     /// The runtime answered `unavailable` for the operation.
     Unavailable,
     Denied,
-    /// Connect, transport, or post-submission ambiguity — the session
-    /// handle is already dropped; the next request reconnects.
+    /// Connect, transport, or post-submission ambiguity â€” the session
+    /// logical lane is already dropped; the connection actor owns any reconnect.
     Transport,
 }
 
 /// The board's lane handle: command channel, outcome drain, the wake
 /// pipe's write end, and the thread join for bounded shutdown. The
 /// sender is optional so `close` can drop it (waking `recv`) before
-/// joining — a `Drop` type cannot move fields out otherwise.
+/// joining â€” a `Drop` type cannot move fields out otherwise.
 pub(super) struct AgentReadLane {
-    commands: Option<Sender<LaneCommand>>,
+    commands: Option<SyncSender<LaneCommand>>,
     outcomes: Receiver<LaneOutcome>,
     wake: OwnedFd,
     shutdown: Arc<AtomicBool>,
@@ -141,8 +135,8 @@ impl AgentReadLane {
         origin: LocalClientOrigin,
         clock: LocalOperationClock,
     ) -> std::io::Result<Self> {
-        let (commands, command_rx) = mpsc::channel();
-        let (outcome_tx, outcomes) = mpsc::channel();
+        let (commands, command_rx) = mpsc::sync_channel(1);
+        let (outcome_tx, outcomes) = mpsc::sync_channel(1);
         let (wake_read, wake_write) = wake_pair()?;
         let shutdown = Arc::new(AtomicBool::new(false));
         let join = thread::Builder::new()
@@ -166,18 +160,18 @@ impl AgentReadLane {
     pub(super) fn send(&self, command: LaneCommand) -> bool {
         self.commands
             .as_ref()
-            .is_some_and(|commands| commands.send(command).is_ok())
+            .is_some_and(|commands| commands.try_send(command).is_ok())
     }
 
     /// A lane whose thread already exited, carrying a pre-queued outcome
-    /// stream — tests drain real `LaneOutcome`s and exercise the
+    /// stream â€” tests drain real `LaneOutcome`s and exercise the
     /// `finished()` witness without a socket or a live thread. The
     /// command receiver is deliberately leaked so `send` still reports
     /// success: that is exactly a dead lane holding an issued credit.
     #[cfg(test)]
     pub(super) fn for_test(outcomes: Vec<LaneOutcome>) -> Self {
-        let (commands, command_rx) = mpsc::channel();
-        let (outcome_tx, outcome_rx) = mpsc::channel();
+        let (commands, command_rx) = mpsc::sync_channel(1);
+        let (outcome_tx, outcome_rx) = mpsc::sync_channel(outcomes.len().max(1));
         for outcome in outcomes {
             let _ = outcome_tx.send(outcome);
         }
@@ -195,7 +189,7 @@ impl AgentReadLane {
 
     /// Non-blocking liveness probe: the spawn path defers while a
     /// predecessor thread is still exiting so at most one lane thread is
-    /// alive at a time — the UI never blocks on a join outside `close`.
+    /// alive at a time â€” the UI never blocks on a join outside `close`.
     pub(super) fn finished(&self) -> bool {
         self.join.as_ref().is_none_or(JoinHandle::is_finished)
     }
@@ -207,7 +201,7 @@ impl AgentReadLane {
     /// Ask the thread to exit: the shutdown flag ends the loop at its
     /// next boundary, the wake byte interrupts any in-flight exchange,
     /// and the dropped sender ends `recv` even when the thread is idle.
-    /// Used by board close — the handle then lives in `dying_lanes` until
+    /// Used by board close â€” the handle then lives in `dying_lanes` until
     /// the thread has actually exited.
     pub(super) fn interrupt(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
@@ -217,7 +211,7 @@ impl AgentReadLane {
 
     /// Bounded close: the wake byte interrupts any in-flight exchange and
     /// the dropped command channel ends the loop after the current
-    /// operation — `join` returns without waiting out a full deadline.
+    /// operation â€” `join` returns without waiting out a full deadline.
     pub(super) fn close(mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
         let _ = signal_wake(&self.wake);
@@ -243,7 +237,7 @@ fn run(
     origin: LocalClientOrigin,
     clock: LocalOperationClock,
     commands: Receiver<LaneCommand>,
-    outcomes: Sender<LaneOutcome>,
+    outcomes: SyncSender<LaneOutcome>,
     wake_read: OwnedFd,
     shutdown: Arc<AtomicBool>,
 ) {
@@ -343,7 +337,7 @@ fn run(
                 ),
             },
         };
-        if outcomes.send(outcome).is_err() {
+        if outcomes.try_send(outcome).is_err() {
             break;
         }
     }
@@ -351,7 +345,7 @@ fn run(
 
 /// Walk the full list within the caller's deadline: bounded pages, all
 /// pages on one revision, cursor rejections and revision splices restart
-/// the walk once — a second failure yields `complete: false` rather than
+/// the walk once â€” a second failure yields `complete: false` rather than
 /// a spliced or truncated listing passed off as whole.
 fn list_round(
     origin: &LocalClientOrigin,
@@ -440,7 +434,7 @@ fn list_round(
                 }
             }
         }
-        // Page bound reached with a live cursor — honest truncation.
+        // Page bound reached with a live cursor â€” honest truncation.
         return Ok(ListRound {
             items,
             complete: false,
@@ -469,9 +463,9 @@ fn get_session(
     Ok(result.outcome)
 }
 
-/// One exchange on the lane session, reconnecting first when the handle
-/// is empty (startup, or after a failure retired it). Any submit error —
-/// pre-handoff or the ambiguous post-submission kind — drops the handle
+/// One exchange on the shared carrier, acquiring a logical scope when its handle
+/// is empty (startup, or after a failure retired it). Any submit error â€”
+/// pre-handoff or the ambiguous post-submission kind â€” drops the handle
 /// so the next request re-admits cleanly.
 fn submit(
     origin: &LocalClientOrigin,
@@ -503,7 +497,7 @@ fn submit(
     }
 }
 
-/// 16 bytes of operating-system entropy rendered as 32 lowercase hex characters —
+/// 16 bytes of operating-system entropy rendered as 32 lowercase hex characters â€”
 /// the same request-id discipline the CLI uses.
 fn mint_request_id() -> Result<ObapRequestId, LaneFailure> {
     let mut bytes = [0_u8; 16];

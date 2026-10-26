@@ -46,6 +46,7 @@ const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 use server::TestDirectory;
 use server::{FakeServer, connect_with_adjustable_clock};
 
+pub(crate) mod multiplex_peer;
 mod process_info;
 mod selection;
 pub(crate) mod server;

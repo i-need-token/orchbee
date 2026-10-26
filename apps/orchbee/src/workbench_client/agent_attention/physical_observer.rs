@@ -230,6 +230,9 @@ impl PhysicalObserver {
             }
             changed |= self.unavailable();
         }
+        // Hidden presentations still require Host process/output samples: no Host push source
+        // feeds this physical detector. Semantic invalidations can expedite the next bounded read.
+        self.dirty |= self.next_read.is_some_and(|next| now >= next);
         if !self.dirty
             || self.inflight.is_some()
             || self.stopping

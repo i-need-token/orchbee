@@ -902,16 +902,10 @@ impl WorkbenchClientConnection<'_> {
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .disconnect(self.generation),
             WorkbenchRequest::Events(events) => {
-                if let orchbee_workbench_protocol::SemanticEventsAction::Read {
-                    subscription_id,
-                    ..
-                } = &events.action
-                {
-                    self.events
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .remove(subscription_id);
-                }
+                self.events
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .remove(events.action.subscription_id());
             }
             _ => {}
         }
@@ -929,6 +923,18 @@ impl WorkbenchClientConnection<'_> {
         &self,
         request: WorkbenchRequest,
         terminal_connection: &mut crate::local_terminal_service::LocalTerminalConnection<'_>,
+    ) -> WorkbenchExecution {
+        self.execute_with_terminal_lane(
+            request,
+            terminal_connection,
+            orchbee_workbench_protocol::MultiplexLaneId::ROOT,
+        )
+    }
+    pub(crate) fn execute_with_terminal_lane(
+        &self,
+        request: WorkbenchRequest,
+        terminal_connection: &mut crate::local_terminal_service::LocalTerminalConnection<'_>,
+        lane: orchbee_workbench_protocol::MultiplexLaneId,
     ) -> WorkbenchExecution {
         #[cfg(windows)]
         if let WorkbenchRequest::TerminalEditor(editor) = &request {
@@ -948,24 +954,50 @@ impl WorkbenchClientConnection<'_> {
                 return WorkbenchExecution::Response(unavailable_or_denied(request, true));
             }
             return WorkbenchExecution::Response(WorkbenchResponse::TerminalEditor(
-                terminal_connection.execute_editor(self.generation, editor.clone()),
+                terminal_connection.execute_editor(
+                    crate::local_terminal_service::PopupOwner::new(self.generation, lane),
+                    editor.clone(),
+                ),
             ));
         }
         #[cfg(not(windows))]
         let _ = terminal_connection;
-        self.execute(request)
+        self.execute_scoped(request, lane)
     }
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
+        self.execute_scoped(request, orchbee_workbench_protocol::MultiplexLaneId::ROOT)
+    }
+    pub(crate) fn close_lane(&self, lane: orchbee_workbench_protocol::MultiplexLaneId) {
+        #[cfg(windows)]
+        self.service.terminals.disconnect_lane_popup(
+            crate::local_terminal_service::PopupOwner::new(self.generation, lane),
+        );
+        #[cfg(not(windows))]
+        let _ = lane;
+    }
+    fn execute_scoped(
+        &self,
+        request: WorkbenchRequest,
+        lane: orchbee_workbench_protocol::MultiplexLaneId,
+    ) -> WorkbenchExecution {
         let changes = !subscription_request(&request);
-        let result = self.execute_inner(request);
+        let result = self.execute_inner(request, lane);
         if changes {
             self.service.changes.notify();
         }
         result
     }
 
-    fn execute_inner(&self, request: WorkbenchRequest) -> WorkbenchExecution {
+    fn execute_inner(
+        &self,
+        request: WorkbenchRequest,
+        lane: orchbee_workbench_protocol::MultiplexLaneId,
+    ) -> WorkbenchExecution {
+        #[cfg(windows)]
+        let owner = crate::local_terminal_service::PopupOwner::new(self.generation, lane);
+        #[cfg(not(windows))]
+        let _ = lane;
         #[cfg(windows)]
         if let WorkbenchRequest::PaneGraphics(graphics) = &request {
             let allowed = if graphics.action.writes() {
@@ -989,7 +1021,7 @@ impl WorkbenchClientConnection<'_> {
         #[cfg(windows)]
         if let WorkbenchRequest::ConfiguredCommand(command) = &request {
             return WorkbenchExecution::Response(WorkbenchResponse::ConfiguredCommand(
-                self.configured_command(command.clone()),
+                self.configured_command(command.clone(), owner),
             ));
         }
         #[cfg(windows)]
@@ -1022,9 +1054,7 @@ impl WorkbenchClientConnection<'_> {
                 return WorkbenchExecution::Response(unavailable_or_denied(request, true));
             }
             return WorkbenchExecution::Response(WorkbenchResponse::Plugin(
-                self.service
-                    .terminals
-                    .execute_popup(self.generation, plugin.clone()),
+                self.service.terminals.execute_popup(owner, plugin.clone()),
             ));
         }
         #[cfg(windows)]

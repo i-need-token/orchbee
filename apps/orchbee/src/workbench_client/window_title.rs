@@ -1,24 +1,29 @@
-//! Owns a cancellable title subscription on the shared Client connection.
-use crate::local_client::{LocalClientOrigin, LocalOperationClock};
-use orchbee_local_ipc::LocalStream;
-use orchbee_workbench_protocol::{ProtocolVersion, SessionId, WorkbenchRequestId};
+//! UI-owned title state consumes the shared connection subscription without a bridge thread.
+use crate::local_client::{LocalClientOrigin, LocalOperationClock, multiplex::StreamEvent};
 use orchbee_workbench_protocol::{
-    WindowTitleAction, WindowTitleContext, WindowTitleOutcome, WindowTitleRequest,
-    WindowTitleSnapshot,
+    ProtocolVersion, SessionId, WindowTitleAction, WindowTitleContext, WindowTitleOutcome,
+    WindowTitleRequest, WindowTitleSnapshot, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, read_workbench_response,
 };
-#[cfg(test)]
-use std::time::Duration;
 use std::{
-    sync::{Arc, Condvar, Mutex},
-    thread::{self, JoinHandle},
+    io::{self, Cursor},
+    sync::Mutex,
 };
+
+struct Active {
+    focused: bool,
+    context: WindowTitleContext,
+    request_id: WorkbenchRequestId,
+    stream: crate::local_client::multiplex::Subscription,
+}
 #[derive(Default)]
 struct Handoff {
-    stopped: bool,
+    serial: u64,
     focused: bool,
     context: WindowTitleContext,
     snapshot: Option<WindowTitleSnapshot>,
     last: Option<WindowTitleSnapshot>,
+    active: Option<Active>,
 }
 impl Handoff {
     fn receive(&mut self, snapshot: Option<WindowTitleSnapshot>) {
@@ -28,65 +33,108 @@ impl Handoff {
         }
     }
 }
-type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 pub(super) struct Subscription {
-    shared: Shared,
-    wake: LocalStream,
-    task: Option<JoinHandle<()>>,
+    source: Option<(LocalClientOrigin, SessionId)>,
+    state: Mutex<Handoff>,
 }
 impl Subscription {
     pub(super) fn spawn(
         origin: LocalClientOrigin,
-        clock: LocalOperationClock,
+        _clock: LocalOperationClock,
         session: SessionId,
-    ) -> std::io::Result<Self> {
-        let shared = Arc::new((Mutex::new(Handoff::default()), Condvar::new()));
-        let (reader, wake) = LocalStream::pair()?;
-        reader.set_nonblocking(true)?;
-        wake.set_nonblocking(true)?;
-        let state = Arc::clone(&shared);
-        let task = thread::Builder::new()
-            .name("orchbee-window-title".into())
-            .spawn(move || run(state, origin, clock, session, reader))?;
-        Ok(Self {
-            shared,
-            wake,
-            task: Some(task),
-        })
+    ) -> io::Result<Self> {
+        let listener = Self {
+            source: Some((origin, session)),
+            state: Mutex::default(),
+        };
+        listener.update(false, WindowTitleContext::default())?;
+        Ok(listener)
+    }
+    fn update(&self, focused: bool, context: WindowTitleContext) -> io::Result<()> {
+        let mut state = self.state.lock().map_err(|_| io::ErrorKind::BrokenPipe)?;
+        if focused && !state.focused {
+            state.last = None;
+        }
+        state.focused = focused;
+        state.context = context.clone();
+        let Some((origin, session)) = &self.source else {
+            return Ok(());
+        };
+        if state
+            .active
+            .as_ref()
+            .is_none_or(|old| old.focused != focused || old.context != context)
+        {
+            state.serial = state
+                .serial
+                .checked_add(1)
+                .ok_or(io::ErrorKind::OutOfMemory)?;
+            let request_id = WorkbenchRequestId::parse(&format!("{:032x}", state.serial))
+                .map_err(io::Error::other)?;
+            let request = WorkbenchRequest::WindowTitle(WindowTitleRequest {
+                protocol_version: ProtocolVersion,
+                request_id: request_id.clone(),
+                session_id: session.clone(),
+                action: WindowTitleAction::Listen {
+                    focused,
+                    context: context.clone(),
+                },
+            });
+            // Open precedes old cancellation, preserving the connection-owned foreground order.
+            let stream =
+                origin.subscribe(&request, orchbee_workbench_protocol::StreamMode::State)?;
+            state.active = Some(Active {
+                focused,
+                context,
+                request_id,
+                stream,
+            });
+        }
+        loop {
+            let Some(active) = &state.active else {
+                break;
+            };
+            let event = active.stream.poll()?;
+            match event {
+                Some(StreamEvent::Record(bytes)) => {
+                    let response = read_workbench_response(&mut Cursor::new(bytes))
+                        .map_err(io::Error::other)?;
+                    let WorkbenchResponse::WindowTitle(reply) = response else {
+                        return Err(io::ErrorKind::InvalidData.into());
+                    };
+                    if reply.request_id != active.request_id || &reply.session_id != session {
+                        return Err(io::ErrorKind::InvalidData.into());
+                    }
+                    match reply.outcome {
+                        WindowTitleOutcome::Listening { snapshot } => state.receive(snapshot),
+                        _ => return Err(io::ErrorKind::InvalidData.into()),
+                    }
+                }
+                Some(StreamEvent::Gap | StreamEvent::Disconnected) => {
+                    state.last = None;
+                    state.snapshot = None;
+                }
+                None => break,
+            }
+        }
+        Ok(())
     }
     pub(super) fn poll(
         &self,
         focused: bool,
         context: WindowTitleContext,
     ) -> Option<WindowTitleSnapshot> {
-        let Ok(mut state) = self.shared.0.lock() else {
+        if self.update(focused, context).is_err() {
             return None;
-        };
-        if focused && !state.focused {
-            state.last = None;
         }
-        let changed = state.focused != focused || state.context != context;
-        state.focused = focused;
-        state.context = context;
-        let snapshot = state.snapshot.take();
-        drop(state);
-        if changed {
-            let _notified = crate::local_client::subscription::notify(&self.wake);
-        }
-        snapshot
+        self.state.lock().ok()?.snapshot.take()
     }
     pub(super) fn close(&mut self) {
-        if self.task.is_none() {
-            return;
-        }
-        if let Ok(mut state) = self.shared.0.lock() {
-            state.stopped = true;
-        }
-        self.shared.1.notify_all();
-        let _ = self.wake.shutdown(std::net::Shutdown::Both);
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
+        self.state
+            .get_mut()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .active = None;
+        self.source = None;
     }
 }
 impl Drop for Subscription {
@@ -94,80 +142,5 @@ impl Drop for Subscription {
         self.close();
     }
 }
-fn run(
-    shared: Shared,
-    origin: LocalClientOrigin,
-    clock: LocalOperationClock,
-    session: SessionId,
-    wake: LocalStream,
-) {
-    let _clock = clock;
-    let mut active = None;
-    let mut serial = 0_u64;
-    loop {
-        let (focused, context) = {
-            let Ok(state) = shared.0.lock() else {
-                return;
-            };
-            if state.stopped {
-                return;
-            }
-            (state.focused, state.context.clone())
-        };
-        if active
-            .as_ref()
-            .is_none_or(|(previous_focus, previous_context, _)| {
-                *previous_focus != focused || previous_context != &context
-            })
-        {
-            let Some(next) = serial.checked_add(1) else {
-                return;
-            };
-            serial = next;
-            let request =
-                orchbee_workbench_protocol::WorkbenchRequest::WindowTitle(WindowTitleRequest {
-                    protocol_version: ProtocolVersion,
-                    request_id: WorkbenchRequestId::parse(&format!("{serial:032x}"))
-                        .expect("nonzero serial"),
-                    session_id: session.clone(),
-                    action: WindowTitleAction::Listen {
-                        focused,
-                        context: context.clone(),
-                    },
-                });
-            let Ok(subscription) =
-                origin.subscribe(&request, orchbee_workbench_protocol::StreamMode::State)
-            else {
-                return;
-            };
-            active = Some((focused, context, subscription));
-        }
-        let Some((_, _, subscription)) = &active else {
-            return;
-        };
-        let reply = match crate::local_client::subscription::next_workbench(subscription, &wake) {
-            Ok(Some(orchbee_workbench_protocol::WorkbenchResponse::WindowTitle(reply)))
-                if reply.request_id.as_str() == format!("{serial:032x}")
-                    && reply.session_id == session =>
-            {
-                reply
-            }
-            Ok(None) => continue,
-            _ => return,
-        };
-        let snapshot = match reply.outcome {
-            WindowTitleOutcome::Listening { snapshot } => snapshot,
-            _ => None,
-        };
-        let Ok(mut state) = shared.0.lock() else {
-            return;
-        };
-        if state.stopped {
-            return;
-        }
-        state.receive(snapshot);
-    }
-}
-
 #[cfg(test)]
 mod tests;

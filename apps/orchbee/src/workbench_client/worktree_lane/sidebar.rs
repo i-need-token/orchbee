@@ -221,7 +221,7 @@ pub(super) fn discover(
             wake,
         );
         if !matches!(released, Ok(TerminalViewerOutcome::Detached {})) {
-            // This lane owns the entire auxiliary Client Connection. Dropping it retires any uncertain
+            // This logical lane owns its auxiliary Viewer. Dropping it cancels that lane and retires any uncertain
             // Viewer; neither the main Viewer nor its controller is borrowed or detached.
             slot.take();
             return Err(WorktreeNotice::SourceUnavailable);

@@ -20,6 +20,8 @@ mod platform;
 mod platform;
 
 #[cfg(windows)]
+// The owned OS process wrapper exposes try_wait, not an exit event. Sampling is bounded by
+// the lookup deadline and stops when the job is cancelled or exits.
 const POLL: Duration = Duration::from_millis(10);
 const TEARDOWN: Duration = Duration::from_millis(600);
 

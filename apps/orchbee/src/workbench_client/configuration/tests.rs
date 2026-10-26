@@ -9,6 +9,7 @@ use std::{
     io::{self, Read},
     num::NonZeroU64,
     sync::mpsc,
+    thread,
 };
 
 fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
@@ -34,12 +35,9 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     use orchbee_workbench_protocol::{
         ApplicationAppearance, PreferencesLocale, UserPreferencesValues,
     };
-    let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-        changed: wake.try_clone().unwrap(),
-        wake,
-        task: None,
+        connection: Mutex::new(None),
         revision: None,
         applied_snapshot: None,
         notification_update: None,
@@ -93,12 +91,9 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
 
 #[test]
 fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomically() {
-    let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-        changed: wake.try_clone().unwrap(),
-        wake,
-        task: None,
+        connection: Mutex::new(None),
         revision: None,
         applied_snapshot: None,
         notification_update: None,
@@ -152,12 +147,9 @@ fn authoritative_server_baseline_applies_once_then_revision_order_is_strict() {
     use orchbee_workbench_protocol::{
         ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
     };
-    let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-        changed: wake.try_clone().unwrap(),
-        wake,
-        task: None,
+        connection: Mutex::new(None),
         revision: None,
         applied_snapshot: None,
         notification_update: None,
@@ -232,12 +224,9 @@ fn diagnostics_follow_only_a_complete_newer_snapshot_and_clean_publication_clear
     use orchbee_workbench_protocol::{
         ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
     };
-    let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-        changed: wake.try_clone().unwrap(),
-        wake,
-        task: None,
+        connection: Mutex::new(None),
         revision: None,
         applied_snapshot: None,
         notification_update: None,
@@ -295,7 +284,8 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
         ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
         ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(1, move |index, stream| {
+        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -307,9 +297,6 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
             },
         )
         .map_err(io::Error::other)?;
-        if index == 0 {
-            return Ok(());
-        }
         let WorkbenchRequest::Configuration(current) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
@@ -360,7 +347,10 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
@@ -403,7 +393,8 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
         ConfigurationDiagnostic, ConfigurationDiagnosticDisposition, ConfigurationDiagnostics,
         ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(1, move |index, stream| {
+        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -415,9 +406,6 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
             },
         )
         .map_err(io::Error::other)?;
-        if index == 0 {
-            return Ok(());
-        }
         let WorkbenchRequest::Configuration(current) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
@@ -469,7 +457,10 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
@@ -527,7 +518,8 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
     use orchbee_workbench_protocol::{
         ConfigurationRestart, ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(1, move |index, stream| {
+        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -539,9 +531,6 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
             },
         )
         .map_err(io::Error::other)?;
-        if index == 0 {
-            return Ok(());
-        }
         let WorkbenchRequest::Configuration(current) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
@@ -585,7 +574,10 @@ fn unchanged_reload_reports_restart_without_reapplying_the_existing_snapshot() {
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
@@ -634,7 +626,8 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
     use orchbee_workbench_protocol::{
         ConfigurationResult, WorkbenchResponse, write_workbench_response,
     };
-    let server = FakeServer::start_connections(2, move |index, mut stream| {
+    let server = FakeServer::start_connections(1, move |index, stream| {
+        let mut stream = crate::local_client::tests::multiplex_peer::Peer::new(stream);
         assert!(matches!(
             read_message(&mut stream).map_err(io::Error::other)?,
             LocalClientMessage::ClientHello(_)
@@ -646,9 +639,6 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
             },
         )
         .map_err(io::Error::other)?;
-        if index == 0 {
-            return Ok(());
-        }
         let WorkbenchRequest::Configuration(current) =
             read_workbench_request(&mut stream).map_err(io::Error::other)?
         else {
@@ -690,7 +680,10 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
@@ -737,139 +730,104 @@ fn unchanged_reload_catches_up_a_lagging_client_once_before_reporting_success() 
 }
 
 #[test]
-fn closing_watcher_wakes_and_joins_blocked_admission_or_configuration_read() {
-    for during_admission in [false, true] {
-        let (reached_tx, reached_rx) = mpsc::sync_channel(1);
-        let server = FakeServer::start_connections(2, move |index, mut stream| {
-            assert!(matches!(
-                read_message(&mut stream).map_err(io::Error::other)?,
-                LocalClientMessage::ClientHello(_)
-            ));
-            if index == 0 || !during_admission {
-                write_message(
-                    &mut stream,
-                    &LocalClientMessage::ClientAccepted {
-                        generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
-                    },
-                )
-                .map_err(io::Error::other)?;
+fn closing_watcher_cancels_only_its_pending_stream() {
+    use crate::local_client::tests::multiplex_peer::{admit, read_open};
+    use orchbee_workbench_protocol::{MultiplexMessage, read_multiplex_message};
+    let (opened, ready) = mpsc::sync_channel(1);
+    let server = FakeServer::start(move |mut stream| {
+        admit(&mut stream, 1)?;
+        let open = read_open(&mut stream)?;
+        opened.send(()).unwrap();
+        loop {
+            if let MultiplexMessage::StreamClose { stream_id, .. } =
+                read_multiplex_message(&mut stream)?
+            {
+                assert_eq!(stream_id, open.id);
+                break;
             }
-            if index == 1 {
-                if !during_admission {
-                    let WorkbenchRequest::Configuration(request) =
-                        read_workbench_request(&mut stream).map_err(io::Error::other)?
-                    else {
-                        panic!("configuration read");
-                    };
-                    assert_eq!(request.action, ConfigurationAction::Current);
-                }
-                reached_tx.send(()).unwrap();
-                assert_eq!(stream.read(&mut [0])?, 0);
-            }
-            Ok(())
-        })
-        .unwrap();
-        let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
-        let mut watcher = Watcher::spawn(
-            client.origin(),
-            client.operation_clock(),
-            SessionId::parse(&format!("{:032x}", 2)).unwrap(),
-        )
-        .unwrap();
-        drop(client);
-        reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
-        watcher.close();
-        assert!(watcher.task.is_none());
-        assert!(!watcher.reload());
-        watcher.close();
-        server.finish().unwrap();
-    }
-}
-
-#[test]
-fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publication() {
-    use orchbee_workbench_protocol::{
-        ConfigurationResult, WorkbenchResponse, write_workbench_response,
-    };
-    let (first_tx, first_rx) = mpsc::sync_channel(1);
-    let (release_tx, release_rx) = mpsc::sync_channel(1);
-    let (poll_tx, poll_rx) = mpsc::sync_channel(1);
-    let server = FakeServer::start_connections(3, move |index, mut stream| {
-        assert!(matches!(
-            read_message(&mut stream).map_err(io::Error::other)?,
-            LocalClientMessage::ClientHello(_)
-        ));
-        write_message(
-            &mut stream,
-            &LocalClientMessage::ClientAccepted {
-                generation: NonZeroU64::new(u64::try_from(index + 1).unwrap()).unwrap(),
-            },
-        )
-        .map_err(io::Error::other)?;
-        if index == 0 {
-            return Ok(());
-        }
-        let WorkbenchRequest::Configuration(request) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            panic!("configuration");
-        };
-        assert_eq!(
-            request.action,
-            ConfigurationAction::Current,
-            "reconnect must not retry a submitted reload"
-        );
-        if index == 1 {
-            first_tx.send(()).unwrap();
-            release_rx.recv_timeout(Duration::from_secs(3)).unwrap();
-        }
-        write_workbench_response(
-            &mut stream,
-            &WorkbenchResponse::Configuration(ConfigurationResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                session_id: request.session_id,
-                outcome: ConfigurationOutcome::Current {
-                    snapshot: snapshot(if index == 1 { 0 } else { 2 }, "[keys]\nprefix='ctrl+a'"),
-                },
-            }),
-        )
-        .map_err(io::Error::other)?;
-        if index == 1 {
-            let WorkbenchRequest::Configuration(request) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
-            else {
-                panic!("reload");
-            };
-            assert_eq!(request.action, ConfigurationAction::Reload);
-            // Apply may have succeeded. Drop the response; the next connection only reads.
-        } else {
-            let WorkbenchRequest::Configuration(request) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
-            else {
-                panic!("configuration poll");
-            };
-            assert_eq!(request.action, ConfigurationAction::Current);
-            poll_tx.send(()).unwrap();
-            // Hold the next poll pending until close cancels it. UI scheduling need not
-            // beat the polling interval, and recovery must never resubmit the reload.
-            assert_eq!(stream.read(&mut [0])?, 0);
         }
         Ok(())
     })
     .unwrap();
-    let client = LocalClient::connect(server.endpoint(), "test-cohort").unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
     let mut watcher = Watcher::spawn(
         client.origin(),
         client.operation_clock(),
         SessionId::parse(&format!("{:032x}", 2)).unwrap(),
     )
     .unwrap();
+    ready.recv_timeout(Duration::from_secs(3)).unwrap();
+    watcher.close();
+    assert!(watcher.connection.lock().unwrap().is_none());
+    assert!(!watcher.reload());
+    watcher.close();
     drop(client);
-    first_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    server.finish().unwrap();
+}
+
+#[test]
+fn submitted_reload_loss_recovers_by_subscription_without_replaying_the_write() {
+    use crate::local_client::tests::multiplex_peer::{admit, read_open, respond};
+    use orchbee_workbench_protocol::{ConfigurationResult, WorkbenchResponse};
+    let (lost, loss) = mpsc::sync_channel(1);
+    let (release, finish) = mpsc::sync_channel(1);
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        admit(&mut stream, u64::try_from(index + 1).unwrap())?;
+        let open = read_open(&mut stream)?;
+        let WorkbenchRequest::Configuration(current) =
+            read_workbench_request(&mut io::Cursor::new(&open.request)).unwrap()
+        else {
+            panic!("configuration subscription");
+        };
+        assert_eq!(
+            current.action,
+            ConfigurationAction::Current,
+            "reconnect replays only the subscription"
+        );
+        respond(
+            &mut stream,
+            &open,
+            &WorkbenchResponse::Configuration(ConfigurationResult {
+                protocol_version: ProtocolVersion,
+                request_id: current.request_id,
+                session_id: current.session_id,
+                outcome: ConfigurationOutcome::Current {
+                    snapshot: snapshot(if index == 0 { 0 } else { 2 }, "[keys]\nprefix='ctrl+a'"),
+                },
+            }),
+            1,
+        )?;
+        if index == 0 {
+            let open = read_open(&mut stream)?;
+            let WorkbenchRequest::Configuration(reload) =
+                read_workbench_request(&mut io::Cursor::new(open.request)).unwrap()
+            else {
+                panic!("reload");
+            };
+            assert_eq!(reload.action, ConfigurationAction::Reload);
+            // Commit may have happened, but its acknowledgement is lost with the carrier.
+            lost.send(()).unwrap();
+        } else {
+            finish.recv_timeout(Duration::from_secs(3)).unwrap();
+        }
+        Ok(())
+    })
+    .unwrap();
+    let client = LocalClient::connect(server.endpoint(), "test-cohort")
+        .unwrap()
+        .into_multiplexed()
+        .unwrap();
+    let mut watcher = Watcher::spawn(
+        client.origin(),
+        client.operation_clock(),
+        SessionId::parse(&format!("{:032x}", 2)).unwrap(),
+    )
+    .unwrap();
     assert!(watcher.reload());
-    release_tx.send(()).unwrap();
-    poll_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    loss.recv_timeout(Duration::from_secs(3)).unwrap();
     let mut view = ClientView::new(120);
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
     while watcher.revision != Some(2) {
@@ -878,7 +836,7 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
             "publication recovery deadline"
         );
         watcher.tick(&mut view);
-        thread::sleep(Duration::from_millis(5));
+        thread::yield_now();
     }
     assert_eq!(view.notice(), Some(Notice::ConfigurationUnknown));
     assert!(
@@ -886,18 +844,17 @@ fn submitted_reload_loss_recovers_by_read_only_and_installs_the_observed_publica
             .prefix
             .matches(KeyEvent::press(KeyCode::Char('a'), Modifiers::CTRL))
     );
+    release.send(()).unwrap();
     watcher.close();
+    drop(client);
     server.finish().unwrap();
 }
 
 #[test]
 fn notification_policy_and_keys_are_applied_as_one_valid_publication() {
-    let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {
         shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
-        changed: wake.try_clone().unwrap(),
-        wake,
-        task: None,
+        connection: Mutex::new(None),
         revision: None,
         applied_snapshot: None,
         notification_update: None,

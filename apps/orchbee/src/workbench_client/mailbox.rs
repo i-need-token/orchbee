@@ -38,6 +38,8 @@ use std::{
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const COMMAND_CAPACITY: usize = 8;
+// Host viewer Empty responses have no output-ready notification; only the two Host retry
+// waits use this sampling interval. Mailbox/UI waits use their real condition and deadline.
 const CONDITION_WAIT_SLICE: Duration = Duration::from_millis(10);
 #[cfg(test)]
 const UI_REPLY_DEPOSIT_SAMPLE_BOUND: Duration = Duration::from_secs(5);
@@ -3403,7 +3405,7 @@ impl CommandMailbox {
                 .placement()
                 .unwrap_or(deadline)
                 .saturating_duration_since(observed_at);
-            let (next, _timed_out) = self.wait_timeout(state, remaining.min(CONDITION_WAIT_SLICE));
+            let (next, _timed_out) = self.wait_timeout(state, remaining);
             drop(next);
             (state, observed_at) = self.lock_with_fresh_sample(clock);
             #[cfg(test)]
@@ -3537,8 +3539,7 @@ impl CommandMailbox {
                         return Err(EventError::ForwardExpired);
                     }
                     let remaining = effective_cutoff.saturating_duration_since(observed_at);
-                    let (next, _timed_out) =
-                        self.wait_timeout(state, remaining.min(CONDITION_WAIT_SLICE));
+                    let (next, _timed_out) = self.wait_timeout(state, remaining);
                     state = next;
                     drop(state);
                     (state, observed_at) = self.lock_with_fresh_sample(clock);
@@ -3839,7 +3840,7 @@ impl CommandMailbox {
             };
         }
         let remaining = expires_at.saturating_duration_since(observed_at);
-        let (state, _timed_out) = self.wait_timeout(state, remaining.min(CONDITION_WAIT_SLICE));
+        let (state, _timed_out) = self.wait_timeout(state, remaining);
         Ok(state)
     }
 

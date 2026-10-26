@@ -86,6 +86,7 @@ fn recovery_rejects_foreign_target_without_adopting_its_operation() -> TestResul
     let geometry = fixture_geometry()?;
     let (wire_sender, wire_receiver) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(2, move |index, mut stream| {
+        let mut stream = UnixStream::new(stream);
         if index == 0 {
             serve_native_controlling_frame(&mut stream, geometry)?;
             accept_native_frame_feedback(&mut stream)?;
@@ -172,6 +173,7 @@ fn early_not_closing_preserves_uncertain_identity_until_explicit_read_resolves_i
     let mut original = None;
     let (wire_sender, wire_receiver) = mpsc::sync_channel(1);
     let server = FakeServer::start_connections(2, move |index, mut stream| {
+        let mut stream = UnixStream::new(stream);
         if index == 0 {
             serve_native_controlling_frame(&mut stream, geometry)?;
             accept_native_frame_feedback(&mut stream)?;
@@ -283,6 +285,7 @@ fn explicit_recovery_reads_then_confirmed_resume_retires_and_recovers_closed() -
     let mut original: Option<WorkbenchCommand> = None;
     let mut previous_request = None;
     let server = FakeServer::start_connections(3, move |index, mut stream| {
+        let mut stream = UnixStream::new(stream);
         if index == 0 {
             serve_native_controlling_frame(&mut stream, geometry)?;
             accept_native_frame_feedback(&mut stream)?;
