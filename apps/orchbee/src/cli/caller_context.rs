@@ -22,7 +22,6 @@ enum PanelTargetKind {
 
 impl PanelTarget {
     /// No caller means an external CLI. Partial or malformed caller metadata is never a fallback.
-    #[cfg(any(windows, test))]
     pub(super) fn prepare_optional(
         mut environment: impl FnMut(&str) -> Option<OsString>,
     ) -> Result<Option<Self>, Failure> {
@@ -49,7 +48,6 @@ impl PanelTarget {
         }
     }
 
-    #[cfg(any(windows, test))]
     pub(super) fn resolve_exact(
         self,
         snapshot: &Snapshot,

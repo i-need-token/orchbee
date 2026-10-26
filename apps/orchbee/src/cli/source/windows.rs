@@ -214,7 +214,7 @@ impl SignalWatch for super::ArmedSignals {
 }
 
 impl super::ArmedSignals {
-    pub(in crate::cli) fn arm_interrupts() -> io::Result<Self> {
+    pub(crate) fn arm_interrupts() -> io::Result<Self> {
         ArmedSignals::arm_interrupts().map(Self)
     }
 

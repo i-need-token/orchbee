@@ -80,7 +80,6 @@ pub(crate) struct CliLabels {
     pub(crate) agent_fidelity: &'static str,
     pub(crate) agent_navigate_only: &'static str,
     pub(crate) agent_none: &'static str,
-    #[cfg(not(windows))]
     pub(crate) agent_headers: [&'static str; 5],
     pub(crate) agent_request_headers: [&'static str; 3],
     pub(crate) agent_attachment_headers: [&'static str; 4],
@@ -195,7 +194,6 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_fidelity: "Fidelity",
     agent_navigate_only: "Facts",
     agent_none: "none",
-    #[cfg(not(windows))]
     agent_headers: ["SESSION", "PROVIDER", "STATUS", "FRESHNESS", "LOCATION"],
     agent_request_headers: ["KIND", "REQUEST", "TURN"],
     agent_attachment_headers: ["PRESENTATION", "GENERATION", "NAVIGABLE", "VISIBILITY"],
@@ -297,7 +295,6 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_fidelity: "保真度",
     agent_navigate_only: "事实",
     agent_none: "无",
-    #[cfg(not(windows))]
     agent_headers: ["会话", "提供方", "状态", "新鲜度", "位置"],
     agent_request_headers: ["类型", "请求", "轮次"],
     agent_attachment_headers: ["PRESENTATION", "代次", "可导航", "可见性"],

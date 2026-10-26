@@ -1,7 +1,10 @@
 //! Windows retains its private runtime observations and refuses POSIX metadata observations.
-use super::Entry;
+use super::{Entry, Unsupported};
 use orchbee_local_runtime::{ActivationState, EntryObservation, ModeCheckedLocalSessionRendezvous};
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 pub(in crate::cli::server_diagnose) const PRIVATE_RUNTIME: bool = true;
 
@@ -44,4 +47,10 @@ pub(in crate::cli::server_diagnose) fn endpoint_exists_before(
     deadline: std::time::Instant,
 ) -> io::Result<Option<bool>> {
     orchbee_local_ipc::endpoint_exists_before(path, deadline)
+}
+
+pub(in crate::cli::server_diagnose) fn observation_endpoint_path(
+    runtime: &Path,
+) -> Result<PathBuf, Unsupported> {
+    Ok(ModeCheckedLocalSessionRendezvous::observation_endpoint_path(runtime))
 }

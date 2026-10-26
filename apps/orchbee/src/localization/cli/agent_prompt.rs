@@ -3,8 +3,6 @@
 use super::Locale;
 
 impl Locale {
-    #[cfg(any(target_os = "linux", windows))]
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_prompt_submitted(self, presentation: &str, matched: bool) -> String {
         match (self, matched) {
             (Self::EnUs, false) => format!("Prompt submitted to terminal {presentation}.\n"),
@@ -31,7 +29,6 @@ impl Locale {
         }
     }
 
-    #[cfg(any(target_os = "linux", windows))]
     pub(crate) fn cli_prompt_hint(self, reason: &str) -> Option<&'static str> {
         match (self, reason) {
             (Self::EnUs, "agent-launch-pending") => Some(

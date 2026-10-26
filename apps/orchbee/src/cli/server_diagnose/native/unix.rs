@@ -1,7 +1,10 @@
 //! Unix preserves descriptor-based metadata facts and refuses Windows private activation reads.
-use super::Entry;
+use super::{Entry, Unsupported};
 use orchbee_local_runtime::{ActivationState, EntryObservation, ModeCheckedLocalSessionRendezvous};
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 pub(in crate::cli::server_diagnose) const PRIVATE_RUNTIME: bool = false;
 
@@ -58,4 +61,10 @@ pub(in crate::cli::server_diagnose) fn endpoint_exists_before(
     _deadline: std::time::Instant,
 ) -> io::Result<Option<bool>> {
     Err(io::ErrorKind::Unsupported.into())
+}
+
+pub(in crate::cli::server_diagnose) fn observation_endpoint_path(
+    _runtime: &Path,
+) -> Result<PathBuf, Unsupported> {
+    Err(Unsupported)
 }

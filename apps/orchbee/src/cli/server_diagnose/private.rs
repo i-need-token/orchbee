@@ -147,7 +147,13 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
             ),
             (
                 "agentObservation",
-                Rendezvous::observation_endpoint_path(session.runtime_directory()),
+                super::native::observation_endpoint_path(session.runtime_directory()).map_err(
+                    |super::native::Unsupported| {
+                        Failure::new(FailureKind::ServiceUnavailable).details(
+                            crate::cli::stage_reason_details("platform", "unsupported-platform"),
+                        )
+                    },
+                )?,
             ),
             (
                 "hostEndpoint",

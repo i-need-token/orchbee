@@ -11,6 +11,9 @@ pub(super) enum Entry {
     HostDirectory,
 }
 
+/// This host has no private Agent-observation endpoint spelling.
+pub(super) struct Unsupported;
+
 #[cfg(windows)]
 #[path = "native/windows.rs"]
 mod platform;
@@ -20,5 +23,5 @@ mod platform;
 
 pub(super) use platform::{
     PRIVATE_RUNTIME, activation_lock_exists, activation_state, endpoint_exists_before,
-    metadata_base, metadata_scope, observe_entry, unsupported_field,
+    metadata_base, metadata_scope, observation_endpoint_path, observe_entry, unsupported_field,
 };

@@ -22,6 +22,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+#[path = "named_sessions/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "named_sessions/unix.rs"]
+mod platform;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SessionState {
     Running,
@@ -277,7 +284,7 @@ fn observe(
                 io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
             ) =>
         {
-            let marker = session.activation_state().map_err(local_error)?;
+            let marker = platform::activation_state(&session).map_err(local_error)?;
             let lifetime = session
                 .observe_session_lifetime_lock()
                 .map_err(local_error)?;

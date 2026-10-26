@@ -36,6 +36,8 @@ Named-Session and runtime-status reports share a narrow native Server metadata e
 Windows delegates the original endpoint, absolute deadline and cancellation borrow unchanged;
 Unix reports unsupported without opening a connection. Their existing entry admission still
 precedes environment and signal effects.
+Named-Session activation-marker observation and private-diagnosis endpoint spelling also use
+native ports; unavailable ports inspect no runtime files and invent no endpoint paths.
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
 Panels, terminals and Agents. Its background service owns the shared state and processes;

@@ -2,7 +2,6 @@
 
 use super::failure_target;
 use crate::cli::Failure;
-#[cfg(any(windows, test))]
 use crate::cli::escape::native_path;
 use crate::{cli::escape::escape, invocation::CommandPath, localization::Locale};
 use serde_json::Value;
@@ -246,7 +245,6 @@ impl Locale {
     }
 }
 
-#[cfg(any(windows, test))]
 impl Locale {
     pub(crate) fn cli_worktree_query(
         self,

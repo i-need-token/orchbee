@@ -123,7 +123,6 @@ pub(super) const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
     );
 
 impl Locale {
-    #[cfg(windows)]
     pub(crate) fn cli_terminal_run_result(self, terminal: &str, completed: bool) -> String {
         match (self, completed) {
             (Self::EnUs, true) => {

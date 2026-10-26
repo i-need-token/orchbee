@@ -20,7 +20,6 @@ pub(crate) use copy::{
     CopyHintLabel, CopyModeKey, CopySearchCommand, decide as copy_mode_key,
     footer_bindings as copy_footer_bindings, search_command as copy_search_command,
 };
-#[cfg(windows)]
 pub(crate) use keys::format_configuration_binding;
 pub(crate) use keys::{
     Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, LabelStyle, Modifiers, format_binding,
