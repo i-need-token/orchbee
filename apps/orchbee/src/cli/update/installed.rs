@@ -1,70 +1,30 @@
 //! Offline installed release provenance, bound to an independently admitted native cohort.
 use super::manifest::{MANIFEST_LIMIT, Release};
+use crate::cli::installation::VerifiedRelease;
 use crate::release_store::open_release_file;
 use orchbee_local_runtime::{Cohort, CohortArtifact, UpdateChannel};
-use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     io::{self, Read},
     path::Path,
 };
 
-/// Installation observation. Unavailable never becomes a guessed channel or development build.
-pub(in crate::cli) enum Installation {
-    Development,
-    Unavailable,
-    Verified {
-        channel: UpdateChannel,
-        version: String,
-        build_id: String,
-        manifest: String,
-    },
-}
-impl Installation {
-    pub(in crate::cli) fn delivery(&self) -> &'static str {
-        match self {
-            Self::Development => "development-cohort",
-            Self::Unavailable => "unknown",
-            Self::Verified { .. } => "native-release",
-        }
-    }
-    pub(in crate::cli) fn channel(&self) -> Option<&'static str> {
-        match self {
-            Self::Verified { channel, .. } => Some(channel.as_str()),
-            _ => None,
-        }
-    }
-    pub(in crate::cli) fn json(&self) -> Value {
-        match self {
-            Self::Development => json!({"state":"development"}),
-            Self::Unavailable => json!({"state":"unavailable"}),
-            Self::Verified {
-                channel,
-                version,
-                build_id,
-                manifest,
-            } => {
-                json!({"state":"verified","channel":channel.as_str(),"version":version,"buildId":build_id,"manifestSha256":manifest})
-            }
-        }
-    }
-}
 /// Reads no preferences and starts no process. Call only with the current cohort's admission result.
-pub(in crate::cli) fn inspect(
+pub(in crate::cli) fn observe(
     executable: &Path,
     admitted: Option<&Cohort>,
     version: &str,
-) -> Installation {
+) -> Result<Option<VerifiedRelease>, ()> {
     let Some(admitted) = admitted else {
-        return Installation::Unavailable;
+        return Err(());
     };
     let Some(root) = executable.parent() else {
-        return Installation::Unavailable;
+        return Err(());
     };
     let file = match open_release_file(root, "release.json") {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Installation::Development,
-        Err(_) => return Installation::Unavailable,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(()),
     };
     let mut bytes = Vec::new();
     if file
@@ -72,17 +32,17 @@ pub(in crate::cli) fn inspect(
         .read_to_end(&mut bytes)
         .is_err()
     {
-        return Installation::Unavailable;
+        return Err(());
     }
     let Some(release) = Release::parse(&bytes, UpdateChannel::Stable)
         .or_else(|| Release::parse(&bytes, UpdateChannel::Preview))
     else {
-        return Installation::Unavailable;
+        return Err(());
     };
     if root.file_name().and_then(|s| s.to_str()) != Some(release.identity.as_str())
         || release.version != version
     {
-        return Installation::Unavailable;
+        return Err(());
     }
     for artifact in [
         CohortArtifact::Client,
@@ -94,7 +54,7 @@ pub(in crate::cli) fn inspect(
             file.path.eq_ignore_ascii_case(artifact.file_name())
                 && file.sha256 == admitted.artifact_sha256(artifact)
         }) {
-            return Installation::Unavailable;
+            return Err(());
         }
     }
     let Some(artifact) = release
@@ -102,23 +62,23 @@ pub(in crate::cli) fn inspect(
         .iter()
         .find(|file| file.path.eq_ignore_ascii_case("cohort.json"))
     else {
-        return Installation::Unavailable;
+        return Err(());
     };
     let mut cohort = Vec::new();
     let Ok(file) = open_release_file(root, &artifact.path) else {
-        return Installation::Unavailable;
+        return Err(());
     };
     if file.take(16 * 1024 + 1).read_to_end(&mut cohort).is_err()
         || cohort.len() > 16 * 1024
         || cohort.len() as u64 != artifact.size
         || format!("{:x}", Sha256::digest(&cohort)) != artifact.sha256
     {
-        return Installation::Unavailable;
+        return Err(());
     }
-    Installation::Verified {
+    Ok(Some(VerifiedRelease {
         channel: release.channel,
         version: release.version,
         build_id: release.build_id,
         manifest: release.identity,
-    }
+    }))
 }

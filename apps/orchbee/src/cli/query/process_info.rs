@@ -7,9 +7,7 @@ use super::{
     attach_viewer_cancellable, classify_viewer, classify_viewer_rejected, obcs_request_id,
     rows_details, viewer_protocol_invalid, viewer_unavailable,
 };
-#[cfg(target_os = "linux")]
 use super::{NETWORK_BUDGET, Projection, deadline_after, snapshot_session_until};
-#[cfg(target_os = "linux")]
 use crate::cli::caller_context::PanelTarget;
 use crate::cli::results;
 use orchbee_terminal_protocol::{
@@ -18,8 +16,8 @@ use orchbee_terminal_protocol::{
 };
 use serde_json::{Value, json};
 
-#[cfg(target_os = "linux")]
 pub(crate) fn panel_process_info(target: Option<&Target>) -> Result<(Value, Projection), Failure> {
+    crate::cli::execution::admit(crate::cli::execution::Capability::CanonicalPanelProcess)?;
     let deadline = deadline_after(NETWORK_BUDGET)?;
     let prepared = PanelTarget::prepare(target, |name| std::env::var_os(name))?;
     let (mut client, deadline, snapshot) = snapshot_session_until(deadline)?;
@@ -29,7 +27,6 @@ pub(crate) fn panel_process_info(target: Option<&Target>) -> Result<(Value, Proj
     outcome.map_err(|error| error.source(snapshot_source))
 }
 
-#[cfg(target_os = "linux")]
 fn read_on_session(
     client: &mut LocalClient,
     deadline: Instant,

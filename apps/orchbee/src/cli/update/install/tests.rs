@@ -172,26 +172,22 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     );
     assert!(second.reused);
     let admitted = Cohort::load(&published, context.deadline).unwrap();
-    let installed = crate::cli::update::inspect_installation(
-        &published.join("orchbee.exe"),
-        Some(&admitted),
-        "0.1.0",
-    );
+    let installed =
+        crate::cli::installation::inspect(&published.join("orchbee.exe"), Some(&admitted), "0.1.0")
+            .expect("Windows installation observation");
     assert_eq!(installed.delivery(), "native-release");
     assert_eq!(installed.channel(), Some("stable"));
     assert_eq!(installed.json()["buildId"], "test");
     assert_eq!(
-        crate::cli::update::inspect_installation(&published.join("orchbee.exe"), None, "0.1.0")
+        crate::cli::installation::inspect(&published.join("orchbee.exe"), None, "0.1.0")
+            .expect("Windows installation observation")
             .delivery(),
         "unknown"
     );
     assert_eq!(
-        crate::cli::update::inspect_installation(
-            &published.join("orchbee.exe"),
-            Some(&admitted),
-            "9.0.0"
-        )
-        .delivery(),
+        crate::cli::installation::inspect(&published.join("orchbee.exe"), Some(&admitted), "9.0.0")
+            .expect("Windows installation observation")
+            .delivery(),
         "unknown"
     );
 
@@ -206,12 +202,9 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     fs::write(published.join("cohort.json"), cohort_before).unwrap();
     fs::write(published.join("orchbee-server.exe"), peer_before).unwrap();
     assert_eq!(
-        crate::cli::update::inspect_installation(
-            &published.join("orchbee.exe"),
-            Some(&stale),
-            "0.1.0"
-        )
-        .delivery(),
+        crate::cli::installation::inspect(&published.join("orchbee.exe"), Some(&stale), "0.1.0")
+            .expect("Windows installation observation")
+            .delivery(),
         "unknown"
     );
     let executable = fs::read(published.join("orchbee.exe")).unwrap();
@@ -232,12 +225,9 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     }));
     fs::write(published.join("release.json"), b"corrupt metadata").unwrap();
     assert_eq!(
-        crate::cli::update::inspect_installation(
-            &published.join("orchbee.exe"),
-            Some(&admitted),
-            "0.1.0"
-        )
-        .delivery(),
+        crate::cli::installation::inspect(&published.join("orchbee.exe"), Some(&admitted), "0.1.0")
+            .expect("Windows installation observation")
+            .delivery(),
         "unknown"
     );
     drop(context);

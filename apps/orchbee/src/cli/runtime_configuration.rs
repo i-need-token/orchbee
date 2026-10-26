@@ -4,28 +4,12 @@ use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::ConfigurationAction;
 
 pub(crate) fn run(action: ConfigurationAction, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows(action, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::Reports) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = action;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
-}
-
-#[cfg(windows)]
-fn windows(action: ConfigurationAction, format: OutputFormat, locale: Locale) -> Output {
     use super::{
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
         output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
     };
     use orchbee_workbench_protocol::{
         ConfigurationFailure, ConfigurationOutcome, ConfigurationRequest,

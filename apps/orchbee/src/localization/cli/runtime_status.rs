@@ -30,7 +30,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_runtime_status_unknown(self) -> &'static str {
         match self {
             Self::EnUs => "Unknown / unavailable",
@@ -38,7 +37,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_runtime_status_label(self, label: &str) -> &str {
         let (en, zh) = match label {
             "client" => ("Client version", "客户端版本"),
@@ -85,7 +83,6 @@ impl Locale {
         }
     }
 
-    #[cfg(windows)]
     pub(crate) fn cli_runtime_status_value(self, token: &str) -> &str {
         let (en, zh) = match token {
             "true" => ("Yes", "是"),

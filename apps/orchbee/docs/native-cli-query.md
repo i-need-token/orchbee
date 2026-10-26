@@ -18,6 +18,8 @@ Client navigation/swap, reusable layouts and direct terminal-member creation sha
 
 Workbench and terminal-list enrichment share bounded canonical/physical reads, passive Client observations and their human renderers. Their Windows capability is checked before discovery. Existing Unix lists, current-Panel selection and process queries retain their original paths and outputs; optional Client-specific queries still refuse before signals or connection setup.
 
+Report submission, Agent manifest maintenance and runtime-status collection share their protocol settlement and rendering owners. Native installation observation remains a Windows port: only a missing release file means a development cohort, and failed verification remains unavailable. Unsupported hosts refuse these commands before signal, environment or filesystem effects.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

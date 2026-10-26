@@ -5,8 +5,9 @@
 use super::{Answer, Observation};
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        failure_output, query,
     },
     invocation::{OutputFormat, PanelAgentCommand},
     local_client::workbench::metadata_exchange::MetadataExchangeReason,

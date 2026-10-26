@@ -8,6 +8,7 @@ pub(crate) mod agent_view_spec;
 mod console_interrupt;
 mod execution;
 mod input_source;
+mod installation;
 pub(crate) mod machines;
 pub(crate) mod notification;
 pub(crate) mod operation;
@@ -17,7 +18,6 @@ mod panel_metadata_query;
 pub(crate) mod panel_terminal_creation;
 #[cfg(windows)]
 pub(crate) mod plugins;
-#[cfg(windows)]
 mod report_target;
 pub(crate) mod runtime_configuration;
 mod schema_export;

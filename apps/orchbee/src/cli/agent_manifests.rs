@@ -1,24 +1,19 @@
 //! Installed manifests and retained reload receipts; transport loss never replays a mutation.
-#[cfg(windows)]
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{ManifestCommand, OutputFormat},
     localization::Locale,
 };
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
+mod workflow;
 use orchbee_workbench_protocol::{
     AgentManifestsAction, AgentManifestsFailure, AgentManifestsOperation, AgentManifestsOutcome,
     AgentManifestsResult, SessionId, WorkbenchRequestId, WorkbenchResponse,
 };
-#[cfg(windows)]
 enum Observation {
     Server(Box<AgentManifestsResult>),
     Unknown(&'static str),
 }
-#[cfg(windows)]
 struct Answer {
     request_id: WorkbenchRequestId,
     session_id: SessionId,
@@ -27,7 +22,6 @@ struct Answer {
     interrupted: bool,
     cleanup_failed: bool,
 }
-#[cfg(windows)]
 impl Answer {
     fn document(&self) -> serde_json::Value {
         let mut observation = match &self.observation {
@@ -165,19 +159,8 @@ impl Answer {
     }
 }
 pub(crate) fn run(command: &ManifestCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(command, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::AgentManifests) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
+    workflow::run(command, format, locale)
 }

@@ -8,7 +8,7 @@ use super::{
     source::{ArmedSignals, Finish, SignalWatch},
 };
 use crate::{invocation::OutputFormat, localization::Locale};
-pub(in crate::cli) use installed::{Installation, inspect as inspect_installation};
+pub(in crate::cli) use installed::observe as observe_installation;
 use orchbee_local_runtime::{
     CommandFailure, CommandOutput, UpdateChannel, read_user_settings, set_update_channel,
 };

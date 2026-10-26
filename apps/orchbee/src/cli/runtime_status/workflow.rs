@@ -1,4 +1,4 @@
-//! One read-only Windows probe and an independent optional local cohort check.
+//! One read-only admitted probe and an independent optional local cohort check.
 use super::{
     Failure, FailureKind, Locale, Output, OutputFormat, RuntimeStatusScope, failed,
     projection::{
@@ -6,8 +6,8 @@ use super::{
     },
 };
 use crate::cli::{
+    console_interrupt::{ArmedSignals, Finish},
     query,
-    source::{ArmedSignals, Finish, SignalWatch},
 };
 use orchbee_local_client_protocol::{
     ConnectClientError, RejectionReason, exchange_server_metadata_before,
@@ -55,11 +55,17 @@ fn collect(
         let executable =
             std::env::current_exe().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
         let admitted = admitted_cohort(deadline);
-        let installation = crate::cli::update::inspect_installation(
+        let installation = crate::cli::installation::inspect(
             &executable,
             admitted.as_ref().ok(),
             env!("CARGO_PKG_VERSION"),
-        );
+        )
+        .map_err(|_| {
+            Failure::new(FailureKind::ServiceUnavailable).details(crate::cli::stage_reason_details(
+                "platform",
+                "unsupported-platform",
+            ))
+        })?;
         let cohort = project_cohort(admitted);
         return Ok(Report::Client {
             executable,

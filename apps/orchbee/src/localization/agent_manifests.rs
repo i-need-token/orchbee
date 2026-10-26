@@ -1,8 +1,6 @@
 use super::Locale;
-#[cfg(windows)]
 use crate::cli::escape::escape;
 use crate::invocation::CommandPath;
-#[cfg(windows)]
 use orchbee_workbench_protocol::{AgentManifestsOperation, AgentManifestsOutcome};
 impl Locale {
     pub(crate) fn cli_agent_manifests_help(
@@ -56,7 +54,6 @@ impl Locale {
             ),
         }
     }
-    #[cfg(windows)]
     pub(crate) fn cli_agent_manifests(
         self,
         operation_id: Option<&str>,
@@ -193,7 +190,6 @@ impl Locale {
     }
 }
 
-#[cfg(windows)]
 impl Locale {
     fn cli_agent_manifest_update(
         self,
@@ -270,7 +266,6 @@ impl Locale {
     }
 }
 
-#[cfg(windows)]
 impl Locale {
     fn cli_agent_manifest_automatic(
         self,

@@ -1,25 +1,20 @@
 //! A display-data report is submitted once; its acknowledgement survives late cancellation.
-#[cfg(any(windows, test))]
 use super::output;
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::{
     invocation::{OutputFormat, PanelMetadataCommand},
     localization::Locale,
 };
-#[cfg(windows)]
-mod windows;
-#[cfg(any(windows, test))]
+mod workflow;
 use orchbee_workbench_protocol::{
     PanelMetadataFailure, PanelMetadataOutcome, PanelMetadataResult, SessionId, WorkbenchPanelId,
     WorkbenchRequestId, WorkbenchResponse,
 };
-#[cfg(any(windows, test))]
 #[derive(Debug)]
 enum Observation {
     Server(PanelMetadataResult),
     Unknown(&'static str),
 }
-#[cfg(any(windows, test))]
 #[derive(Debug)]
 struct Answer {
     request_id: WorkbenchRequestId,
@@ -30,7 +25,6 @@ struct Answer {
     interrupted: bool,
     cleanup_failed: bool,
 }
-#[cfg(any(windows, test))]
 impl Answer {
     fn document(&self) -> serde_json::Value {
         let observation = match &self.observation {
@@ -120,21 +114,10 @@ impl Answer {
     }
 }
 pub(crate) fn run(command: &PanelMetadataCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(command, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::Reports) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
+    workflow::run(command, format, locale)
 }
 
 #[cfg(test)]

@@ -4,28 +4,12 @@ use crate::{invocation::OutputFormat, localization::Locale};
 use orchbee_workbench_protocol::WindowTitle;
 
 pub(crate) fn run(title: Option<WindowTitle>, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows(title, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::Reports) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = title;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(
-                crate::cli::stage_reason_details("platform", "unsupported-platform"),
-            ),
-            Some(format),
-            locale,
-        )
-    }
-}
-
-#[cfg(windows)]
-fn windows(title: Option<WindowTitle>, format: OutputFormat, locale: Locale) -> Output {
     use super::{
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
         output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
     };
     use orchbee_workbench_protocol::{WindowTitleFailure, WindowTitleOutcome, WindowTitleRequest};
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);

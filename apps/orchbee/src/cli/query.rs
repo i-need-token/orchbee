@@ -151,21 +151,10 @@ pub(crate) use agent_focus::{
     attention_covers_observation, authenticate_attention,
 };
 mod process_info;
-#[cfg(target_os = "linux")]
 pub(crate) use process_info::panel_process_info;
 pub(crate) use process_info::read_terminal_processes;
 pub(crate) use process_info::{primary_terminal, read_terminal_processes_cancellable};
 
-#[cfg(not(any(target_os = "linux", windows)))]
-pub(crate) fn panel_process_info(
-    _target: Option<&crate::invocation::Target>,
-) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
-    Err(
-        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
-            crate::cli::stage_reason_details("platform", "unsupported-platform"),
-        ),
-    )
-}
 mod agent_terminal;
 #[cfg(target_os = "linux")]
 pub(crate) use agent_terminal::resolve_agent_terminal;

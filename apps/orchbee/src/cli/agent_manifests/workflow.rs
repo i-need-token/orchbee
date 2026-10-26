@@ -1,12 +1,13 @@
-//! Executes bounded Windows Agent-manifest reads and explicit operations through the admitted
+//! Executes bounded Agent-manifest reads and explicit operations through the admitted
 //! Server, preserving correlated observations and cancellation outcomes. It does not install
 //! rules locally or treat a stopped wait as reversal of an admitted operation.
 
 use super::{Answer, Observation};
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        failure_output, query,
     },
     invocation::{ManifestCommand, OutputFormat},
     local_client::workbench::metadata_exchange::MetadataExchangeReason,

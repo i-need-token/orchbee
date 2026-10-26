@@ -140,7 +140,7 @@ pub(super) enum Report {
     Client {
         executable: PathBuf,
         cohort: Cohort,
-        installation: crate::cli::update::Installation,
+        installation: crate::cli::installation::Installation,
     },
     Server(ServerReport),
 }

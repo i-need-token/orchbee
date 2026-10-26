@@ -5,31 +5,16 @@ use crate::{
     localization::Locale,
 };
 
-#[cfg(windows)]
 mod projection;
-#[cfg(windows)]
-mod windows;
+mod workflow;
 
 pub(crate) fn run(scope: RuntimeStatusScope, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows::run(scope, format, locale)
+    if let Err(failure) = super::execution::admit(super::execution::Capability::RuntimeStatus) {
+        return failure_output(failure, Some(format), locale);
     }
-    #[cfg(not(windows))]
-    {
-        let _ = scope;
-        failure_output(
-            Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
-                "platform",
-                "unsupported-platform",
-            )),
-            Some(format),
-            locale,
-        )
-    }
+    workflow::run(scope, format, locale)
 }
 
-#[cfg(windows)]
 fn failed(mut failure: Failure, format: OutputFormat, locale: Locale) -> Output {
     let kind = failure.kind;
     if matches!(kind, FailureKind::Timeout | FailureKind::Cancelled) {

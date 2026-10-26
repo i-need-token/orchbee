@@ -1,24 +1,21 @@
-//! Submits bounded Workspace report reads or writes through the admitted Server and preserves
-//! exact correlated observations. It does not change canonical Workspace membership or own
-//! report persistence.
+//! Submits bounded Panel metadata reads or writes to the admitted Server with exact
+//! correlation and cancellation handling. It does not own canonical topology or use display
+//! metadata as terminal control authority.
 
 use super::{Answer, Observation};
 use crate::{
     cli::{
-        Failure, FailureKind, Output, failure_output, query,
-        source::{ArmedSignals, Finish, SignalWatch},
+        Failure, FailureKind, Output,
+        console_interrupt::{ArmedSignals, Finish, SignalWatch},
+        failure_output, query,
     },
-    invocation::{OutputFormat, Resource, WorkspaceMetadataCommand},
+    invocation::{OutputFormat, PanelMetadataCommand},
     local_client::workbench::metadata_exchange::MetadataExchangeReason,
     localization::Locale,
 };
-use orchbee_workbench_protocol::{WorkspaceMetadataAction, WorkspaceMetadataRequest};
+use orchbee_workbench_protocol::PanelMetadataRequest;
 use std::time::{Duration, Instant};
-pub(super) fn run(
-    command: &WorkspaceMetadataCommand,
-    format: OutputFormat,
-    locale: Locale,
-) -> Output {
+pub(super) fn run(command: &PanelMetadataCommand, format: OutputFormat, locale: Locale) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
@@ -56,38 +53,26 @@ pub(super) fn run(
     output
 }
 fn submit(
-    command: &WorkspaceMetadataCommand,
+    command: &PanelMetadataCommand,
     signals: &mut ArmedSignals,
     deadline: Instant,
 ) -> Result<Answer, Failure> {
     signals.check_before(deadline)?;
-    let (mut client, _, snapshot) = query::snapshot_session_until(deadline)?;
+    let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     signals.check_before(deadline)?;
-    let workspace = super::super::results::resolve_or_fail(
-        snapshot.navigation.workspaces.iter().map(|workspace| {
-            (
-                workspace.workspace_id.as_str(),
-                workspace.label.as_str(),
-                workspace,
-            )
-        }),
+    let (panel_id, binding) = crate::cli::report_target::resolve(
+        &snapshot,
         &command.target,
-        Resource::Workspace,
+        command.presentation_id.as_ref(),
     )?;
-    let request = WorkspaceMetadataRequest {
+    let request = PanelMetadataRequest {
         protocol_version: snapshot.protocol_version,
         request_id: query::request_id()?,
         session_id: snapshot.session_id,
-        action: WorkspaceMetadataAction::Report {
-            workspace_id: workspace.workspace_id.clone(),
-            source: command.source.clone(),
-            tokens: command.tokens.clone(),
-            sequence: command.sequence,
-            ttl_milliseconds: command.ttl_milliseconds,
-        },
+        action: command.action(panel_id.clone(), binding),
     };
     signals.check_before(deadline)?;
-    let result = client.workspace_metadata(request.clone(), deadline, signals.poll_fd());
+    let result = client.panel_metadata(request.clone(), deadline, signals.poll_fd());
     // After handoff, never replace a receipt or unknown outcome with timeout/cancellation.
     let observation = match result {
         Ok(reply) => Observation::Server(reply),
@@ -105,7 +90,8 @@ fn submit(
     Ok(Answer {
         request_id: request.request_id,
         session_id: request.session_id,
-        workspace_id: workspace.workspace_id.clone(),
+        panel_id: panel_id.clone(),
+        presentation_id: command.presentation_id.clone(),
         observation,
         interrupted: false,
         cleanup_failed: false,
