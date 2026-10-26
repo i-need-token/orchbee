@@ -849,8 +849,8 @@ fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without
         "{text}"
     );
     assert!(
-        crate::localization::Locale::ZhCn
-            .native_phase_status(&ui.view())
+        ui.view()
+            .phase_status_text(crate::localization::Locale::ZhCn)
             .contains("空终端位")
     );
     let (x, y, target) = (0..40)

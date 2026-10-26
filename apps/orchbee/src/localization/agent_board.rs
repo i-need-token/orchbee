@@ -2,6 +2,19 @@
 
 use super::Locale;
 
+/// Text-only startup outcome; operation ownership and running/cancellation policy stay with startup.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentStartStatus {
+    Starting,
+    WaitingInput,
+    Unconfirmed,
+    Cancelling,
+    Started,
+    Failed,
+    Unknown,
+    Cancelled,
+}
+
 /// The Agent board's localized copy. Read-state lines, jump-refusal notices,
 /// action labels and shortcut verbs live here; the Board key map supplies the
 /// separately formatted effective key labels.
@@ -165,6 +178,60 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     jump_expired: "跳转超时",
 };
 
+/// The renderer-facing read state of the board's last list attempt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentBoardRead {
+    /// No completed read yet — never rendered as "no Agents".
+    Unread,
+    InFlight,
+    /// `complete` marks the page walk reached the canonical end marker;
+    /// `false` means the walk exhausted its budget — shown, never hidden.
+    Ready {
+        complete: bool,
+        at: std::time::Instant,
+    },
+    Failed(AgentBoardReadFailure),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentBoardReadFailure {
+    /// The dedicated read lane could not be established at all.
+    LaneUnavailable,
+    Denied,
+    /// The Agent runtime answered `unavailable`.
+    Unavailable,
+    /// Transport/connection failure, including post-submission ambiguity.
+    Transport,
+}
+
+/// Why a jump refused; every variant maps to a localized board notice.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum JumpFailure {
+    /// Get found the session but no resolvable navigable attachment, or the
+    /// session disappeared / its presentation identity vanished.
+    Gone,
+    /// Get could not produce an observation (transport or runtime
+    /// unavailability) — the jump never proceeds from unverified state.
+    Unavailable,
+    Denied,
+    /// The canonical lifecycle says the session already ended.
+    Ended,
+    /// The session has no navigable presentation attachment at all.
+    NoPlacement,
+    /// The jump's total budget elapsed before landing.
+    Expired,
+}
+
+/// The sidebar's honest summary of the last completed read — `None` means
+/// no completed read ever ran and the sidebar shows no count (never zero).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardSummary {
+    pub(crate) sessions: usize,
+    pub(crate) complete: bool,
+    /// When that read completed — the sidebar renders its age.
+    pub(crate) at: std::time::Instant,
+}
+
 impl Locale {
     pub(super) const fn agent_board_text(self) -> AgentBoardText {
         match self {
@@ -223,9 +290,9 @@ impl Locale {
     /// The board body's line for a non-ready read state.
     pub(crate) fn agent_board_read_line(
         self,
-        read: crate::workbench_client::AgentBoardRead,
+        read: crate::localization::AgentBoardRead,
     ) -> &'static str {
-        use crate::workbench_client::{AgentBoardRead, AgentBoardReadFailure};
+        use crate::localization::{AgentBoardRead, AgentBoardReadFailure};
         let board = self.agent_board_text();
         match read {
             AgentBoardRead::Unread => board.unread,
@@ -243,9 +310,9 @@ impl Locale {
     /// A jump refusal's board notice.
     pub(crate) fn agent_board_notice(
         self,
-        failure: crate::workbench_client::JumpFailure,
+        failure: crate::localization::JumpFailure,
     ) -> &'static str {
-        use crate::workbench_client::JumpFailure;
+        use crate::localization::JumpFailure;
         let board = self.agent_board_text();
         match failure {
             JumpFailure::Gone => board.jump_gone,
@@ -262,7 +329,7 @@ impl Locale {
     /// completed read ever ran and the line must not exist at all.
     pub(crate) fn agent_sidebar_line(
         self,
-        summary: crate::workbench_client::AgentBoardSummary,
+        summary: crate::localization::AgentBoardSummary,
         elapsed: std::time::Duration,
     ) -> String {
         let seconds = elapsed.as_secs();
@@ -284,13 +351,10 @@ impl Locale {
         }
     }
 
-    pub(crate) fn agent_start_phase(
-        self,
-        phase: crate::workbench_client::AgentStartPhase,
-    ) -> &'static str {
-        use crate::workbench_client::AgentStartPhase as Phase;
+    pub(crate) fn agent_start_phase(self, phase: impl Into<AgentStartStatus>) -> &'static str {
+        use AgentStartStatus as Phase;
         let text = self.agent_board_text();
-        match phase {
+        match phase.into() {
             Phase::Starting => text.start_starting,
             Phase::WaitingInput => text.start_waiting_input,
             Phase::Unconfirmed => text.start_unconfirmed,

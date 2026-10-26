@@ -127,13 +127,7 @@ enum CompletedSummary {
     Hidden,
 }
 
-/// Counts describe confirmed lifecycle closure, independently of snapshot/viewer delivery.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct CloseSetStatus {
-    pub(crate) completed: usize,
-    pub(crate) total: usize,
-    pub(crate) halted: bool,
-}
+pub(crate) use crate::localization::CloseSetStatus;
 
 impl CloseSetRun {
     pub(super) fn halted_target(&self) -> Option<&CloseTarget> {

@@ -25,12 +25,7 @@ pub(crate) struct TerminalProjection {
     frame: Option<Arc<TerminalTextFrame>>,
 }
 
-/// Host-reported settlement, independent of the retained terminal frame.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TerminalEnd {
-    Exited(orchbee_terminal_protocol::ExitResult),
-    Failed,
-}
+pub(crate) use crate::localization::TerminalEnd;
 
 impl TerminalProjection {
     pub(crate) const fn new(attachment: AttachmentId, epoch: HostEpoch) -> Self {

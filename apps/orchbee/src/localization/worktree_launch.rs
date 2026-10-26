@@ -1,7 +1,50 @@
 //! Localized Worktree forms, retained receipts and progress hints.
 use super::Locale;
-use crate::workbench_client::{WorktreeMode, WorktreeNotice, WorktreeStage};
 mod removal;
+
+/// The requested everyday Worktree operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WorktreeMode {
+    Create,
+    Open,
+    Remove,
+}
+
+/// A presentation reason, independent of transport diagnostic text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WorktreeNotice {
+    PresentationUnavailable,
+    Preparing,
+    InvalidInput,
+    InputLimit,
+    SourceUnavailable,
+    ListingUnavailable,
+    ConfigurationUnavailable,
+    Busy,
+    NotSubmitted,
+    Pending,
+    Unknown,
+    Failed,
+    Opened,
+    Removed,
+    EntryDeferred,
+    EntryPending,
+    EntryFailed,
+    SourceChanged,
+}
+
+/// The current keyboard owner inside the Worktree surface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WorktreeStage {
+    Preparing,
+    Branch,
+    Base,
+    Checkout,
+    Remove,
+    ResumeRemove,
+    Waiting,
+    Result,
+}
 
 impl Locale {
     pub(crate) fn worktree_cancel_label(self, stage: WorktreeStage) -> &'static str {

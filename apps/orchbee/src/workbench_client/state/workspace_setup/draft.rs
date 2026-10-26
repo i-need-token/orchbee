@@ -16,60 +16,8 @@ impl SetupToken {
         Self(value)
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SetupStage {
-    ChooseWorkspaceProject,
-    WorkspaceProjectName,
-    DissolveProject,
-    ProjectDeleteConfirm,
-    TabGroupName,
-    PreparingWorkspace,
-    QuickProject,
-    QuickName,
-    QuickDirectory,
-    DirectoryPath,
-    ProjectRename,
-    WorkspaceRename,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SetupStatus {
-    PresentationUnavailable,
-    WorkspaceOrganized,
-    ProjectDissolved,
-    TabsConfigured,
-    NavigationConfigured,
-    TabsNotApplied,
-    TabsCommittedNeedRefresh,
-    TabsOutcomeUnknown,
-    LocationLabel {
-        target: LocationLabelTarget,
-        status: LocationLabelStatus,
-    },
-    NotApplied,
-    /// Refused because the Workbench changed elsewhere; the session is resynchronizing.
-    Stale,
-    ProjectCreated,
-    WorkspaceCreated,
-    DirectoryAccepted,
-    CommittedNeedRefresh,
-    OutcomeUnknown,
-}
-impl SetupStatus {
-    pub(in crate::workbench_client) const fn transient(self) -> bool {
-        !matches!(
-            self,
-            Self::TabsCommittedNeedRefresh
-                | Self::TabsOutcomeUnknown
-                | Self::CommittedNeedRefresh
-                | Self::OutcomeUnknown
-                | Self::LocationLabel {
-                    status: LocationLabelStatus::CommittedNeedRefresh
-                        | LocationLabelStatus::OutcomeUnknown,
-                    ..
-                }
-        )
-    }
-}
+pub(crate) use crate::localization::SetupStage;
+pub(crate) use crate::localization::SetupStatus;
 /// The typed edit vocabulary the setup draft applies — the same contract
 /// U5's typed-input bridge delivers. Text operations apply to the stage's
 /// line editor and are inert while the picker owns the draft.
@@ -92,22 +40,8 @@ pub(crate) enum SetupEdit<'a> {
     SelectNextProject,
     ScrollProjects { up: bool, lines: usize },
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum LocationLabelTarget {
-    Project,
-    Workspace,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum LocationLabelStatus {
-    Unavailable,
-    NotApplied,
-    /// Refused because the owner changed elsewhere; the typed text is kept for retry.
-    Stale,
-    Unchanged,
-    Renamed,
-    CommittedNeedRefresh,
-    OutcomeUnknown,
-}
+pub(crate) use crate::localization::LocationLabelStatus;
+pub(crate) use crate::localization::LocationLabelTarget;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) enum SetupIntent {
     Organize(Box<super::WorkspaceOrganizationRequest>),

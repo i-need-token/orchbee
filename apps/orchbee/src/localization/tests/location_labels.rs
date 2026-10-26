@@ -1,8 +1,5 @@
 use super::Locale;
-use crate::workbench_client::{
-    LocationLabelStatus as Status, LocationLabelTarget as Target, SetupStatus,
-    WorkbenchClientNotice,
-};
+use crate::workbench_client::{LocationLabelStatus as Status, LocationLabelTarget as Target};
 
 #[test]
 fn blank_workspace_names_have_localized_validation_and_recoverable_display_names() {
@@ -61,77 +58,5 @@ fn location_label_results_name_the_target_and_distinguish_unchanged_from_renamed
                 .location_label_status(target, Status::Unavailable)
                 .contains("未发送命令")
         );
-    }
-}
-
-#[test]
-fn location_rename_recovery_preserves_its_target_without_offering_recovery_after_retirement() {
-    for target in [Target::Project, Target::Workspace] {
-        let setup = SetupStatus::LocationLabel {
-            target,
-            status: Status::CommittedNeedRefresh,
-        };
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            let live =
-                locale.native_status_with_setup("live".to_owned(), false, None, Some(setup), false);
-            assert!(
-                live.contains(locale.location_label_status(target, Status::CommittedNeedRefresh))
-            );
-            assert!(!live.contains("Ctrl+B"));
-            let retired = locale.native_status_with_setup(
-                "retired".to_owned(),
-                true,
-                None,
-                Some(setup),
-                false,
-            );
-            assert!(retired.starts_with("retired"));
-            assert!(retired.contains(locale.location_rename_committed_fact(target)));
-            assert!(!retired.contains("Ctrl+B w"));
-            let notice = WorkbenchClientNotice::LocalBusy;
-            let busy = locale.native_status_with_setup(
-                "live".to_owned(),
-                false,
-                Some(notice),
-                Some(setup),
-                false,
-            );
-            assert!(busy.starts_with(&locale.native_notice(notice)));
-            assert!(
-                busy.contains(locale.location_label_status(target, Status::CommittedNeedRefresh))
-            );
-        }
-    }
-}
-
-#[test]
-fn later_errors_take_precedence_over_location_rename_success() {
-    for target in [Target::Project, Target::Workspace] {
-        for status in [Status::Renamed, Status::Unchanged] {
-            let setup = SetupStatus::LocationLabel { target, status };
-            for locale in [Locale::EnUs, Locale::ZhCn] {
-                let notice = WorkbenchClientNotice::CreateNotCreated;
-                assert_eq!(
-                    locale.native_status_with_setup(
-                        "live".to_owned(),
-                        false,
-                        Some(notice),
-                        Some(setup),
-                        false
-                    ),
-                    locale.native_notice(notice)
-                );
-                assert_eq!(
-                    locale.native_status_with_setup(
-                        "retired".to_owned(),
-                        true,
-                        None,
-                        Some(setup),
-                        false
-                    ),
-                    "retired"
-                );
-            }
-        }
     }
 }

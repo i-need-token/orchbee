@@ -319,12 +319,12 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             }
         }
         Some(native) => {
-            let phase_status = locale.native_phase_status(native);
+            let phase_status = native.phase_status_text(locale);
             let close = native.close_status();
             let status = native.workspace_close_status().map_or_else(
                 || {
                     close.as_ref().map_or_else(
-                        || locale.native_status(native, areas.status.width),
+                        || native.status_text(locale, areas.status.width),
                         |status| locale.native_close_status(status),
                     )
                 },
@@ -332,7 +332,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             );
             secondary_notice = native
                 .notice()
-                .map(|notice| locale.native_notice_with_context(notice, native))
+                .map(|notice| locale.native_notice_with_context(notice, native.notice_context()))
                 .or_else(|| {
                     native
                         .completion_reminder()

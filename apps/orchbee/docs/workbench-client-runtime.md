@@ -11,6 +11,8 @@ provenance rules extend the Workspace startup and same-context Tab workflows bel
 [Native Workspace setup](native-workspace-setup.md) owns staged creation and first-directory input,
 sharing this Workbench Client's structural admission, carrier and membership settlement.
 
+Workbench owns status selection in `workbench_client/ui/status_text`: Worktree, takeover, Close, terminal-end, duplication and setup/retirement precedence read the same immutable view in the same order. Localization receives the selected semantic facts and bounded close/launch display descriptions; it never receives the Workbench view or its private operation tokens. Display vocabularies are shared below the owners, while startup lifecycle, notice expiry, capability-to-action selection and all executable authority remain with their feature owners.
+
 ## Accepted Close refinement and local integration
 
 [Canonical terminal Tab Close](../../orchbee-server/docs/terminal-tab-close.md) owns the accepted

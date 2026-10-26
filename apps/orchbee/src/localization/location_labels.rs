@@ -1,5 +1,24 @@
 use super::Locale;
-use crate::workbench_client::{LocationLabelStatus, LocationLabelTarget};
+
+/// The kind of location named by rename feedback.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LocationLabelTarget {
+    Project,
+    Workspace,
+}
+
+/// Observed rename result; committed and unknown outcomes remain distinct.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LocationLabelStatus {
+    Unavailable,
+    NotApplied,
+    /// Refused because the owner changed elsewhere; the typed text is kept for retry.
+    Stale,
+    Unchanged,
+    Renamed,
+    CommittedNeedRefresh,
+    OutcomeUnknown,
+}
 
 impl Locale {
     pub(crate) const fn workspace_name_required(self) -> &'static str {
@@ -93,7 +112,7 @@ impl Locale {
         }
     }
 
-    pub(super) const fn location_rename_committed_fact(
+    pub(crate) const fn location_rename_committed_fact(
         self,
         target: LocationLabelTarget,
     ) -> &'static str {

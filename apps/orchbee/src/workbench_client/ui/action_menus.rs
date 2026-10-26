@@ -120,7 +120,7 @@ fn action_availability(
     if action
         .client_action()
         .as_ref()
-        .and_then(crate::tui_capabilities::Capability::for_action)
+        .and_then(crate::tui_capabilities::for_action)
         .is_some_and(|capability| !capabilities.supports(capability))
     {
         return ActionAvailability::Hidden;

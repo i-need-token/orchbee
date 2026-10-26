@@ -54,7 +54,7 @@ pub(crate) fn entries(
     let mut entries: Vec<ShortcutHelpEntry> = Vec::new();
     for binding in view.bindings().discovery_entries(glyphs) {
         if let PrefixAction::Client(action) = &binding.action
-            && crate::tui_capabilities::Capability::for_action(action)
+            && crate::tui_capabilities::for_action(action)
                 .is_some_and(|capability| !view.capabilities.supports(capability))
         {
             continue;

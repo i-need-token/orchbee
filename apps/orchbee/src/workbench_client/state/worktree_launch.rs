@@ -15,35 +15,8 @@ use orchbee_workbench_protocol::{
 pub(in crate::workbench_client) use origin::{Origin, Preparation};
 pub(in crate::workbench_client) use removal::Removal;
 
-/// The requested everyday Worktree operation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WorktreeMode {
-    Create,
-    Open,
-    Remove,
-}
-/// A presentation reason, independent of transport diagnostic text.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WorktreeNotice {
-    PresentationUnavailable,
-    Preparing,
-    InvalidInput,
-    InputLimit,
-    SourceUnavailable,
-    ListingUnavailable,
-    ConfigurationUnavailable,
-    Busy,
-    NotSubmitted,
-    Pending,
-    Unknown,
-    Failed,
-    Opened,
-    Removed,
-    EntryDeferred,
-    EntryPending,
-    EntryFailed,
-    SourceChanged,
-}
+pub(crate) use crate::localization::WorktreeMode;
+pub(crate) use crate::localization::WorktreeNotice;
 #[derive(Clone, Debug)]
 pub(in crate::workbench_client) struct Discovery {
     pub source: WorktreeQuerySource,

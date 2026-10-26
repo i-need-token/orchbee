@@ -1,6 +1,16 @@
 use super::Locale;
-use crate::workbench_client::TakeoverStatus;
 use orchbee_client_server_protocol::RequestId;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TakeoverStatus {
+    Pending,
+    Refused,
+    Unknown,
+    Granted,
+    WaitingForFrame,
+    Ready,
+    Lost,
+}
 
 impl Locale {
     pub(crate) fn takeover_status(self, status: TakeoverStatus, id: &RequestId) -> String {

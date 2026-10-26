@@ -104,15 +104,7 @@ pub(crate) use ui::{
 };
 pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TerminalStatus {
-    Connecting,
-    Controlling,
-    ReadOnly,
-    Blocked,
-    Unavailable,
-    OutcomeUnknown,
-}
+pub(crate) use crate::localization::TerminalStatus;
 
 /// Admission only: the existing Client still owns the accepted asynchronous handoff.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

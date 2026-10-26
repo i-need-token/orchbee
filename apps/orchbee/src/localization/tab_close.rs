@@ -1,8 +1,41 @@
 use super::Locale;
-use crate::{
-    terminal_text::sanitize_terminal_text,
-    workbench_client::{CloseConfirmationKind, CloseStatusKind, CloseStatusView},
-};
+use crate::terminal_text::sanitize_terminal_text;
+
+/// Whether the close surface asks for initial confirmation or explicit resumption.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CloseConfirmationKind {
+    Close,
+    Resume,
+}
+
+/// The current close lifecycle description, separate from a close authority token.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CloseStatusKind {
+    AwaitingStatus,
+    Closing,
+    CleanupBlocked,
+    OutcomeUnknown,
+    DisposedAwaitingPublication,
+    Closed,
+}
+
+/// Counts describe confirmed lifecycle closure, independently of snapshot/viewer delivery.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct CloseSetStatus {
+    pub(crate) completed: usize,
+    pub(crate) total: usize,
+    pub(crate) halted: bool,
+}
+
+/// Current close feedback only; no target token or executable close authority.
+#[derive(Clone, Copy)]
+pub(crate) struct CloseStatusText<'a> {
+    pub(crate) label: &'a str,
+    pub(crate) kind: CloseStatusKind,
+    pub(crate) resumable: bool,
+    pub(crate) observation_paused: bool,
+    pub(crate) unavailable: bool,
+}
 
 impl Locale {
     pub(crate) const fn tab_close_cancel_label(self) -> &'static str {
@@ -50,10 +83,7 @@ impl Locale {
             }
         }
     }
-    pub(crate) fn close_set_status(
-        self,
-        status: crate::workbench_client::state::CloseSetStatus,
-    ) -> String {
+    pub(crate) fn close_set_status(self, status: crate::localization::CloseSetStatus) -> String {
         let completed = status.completed;
         let remaining = status.total.saturating_sub(completed);
         match (self, status.halted) {
@@ -89,8 +119,9 @@ impl Locale {
         }
     }
 
-    pub(crate) fn native_close_status(self, status: &CloseStatusView<'_>) -> String {
-        let phase = match (self, status.status()) {
+    pub(crate) fn native_close_status<'a>(self, status: impl Into<CloseStatusText<'a>>) -> String {
+        let status = status.into();
+        let phase = match (self, status.kind) {
             (Self::EnUs, CloseStatusKind::AwaitingStatus) => "Awaiting Close status",
             (Self::ZhCn, CloseStatusKind::AwaitingStatus) => "等待关闭状态",
             (Self::EnUs, CloseStatusKind::Closing) => "Closing",
@@ -108,23 +139,20 @@ impl Locale {
             (Self::EnUs, CloseStatusKind::Closed) => "Closed",
             (Self::ZhCn, CloseStatusKind::Closed) => "已关闭",
         };
-        let mut text = format!(
-            "{} · {phase}",
-            sanitize_terminal_text(status.target_label())
-        );
-        if status.unavailable() {
+        let mut text = format!("{} · {phase}", sanitize_terminal_text(status.label));
+        if status.unavailable {
             text.push_str(match self {
                 Self::EnUs => " · Status check unavailable",
                 Self::ZhCn => " · 状态查询不可用",
             });
         }
-        if status.observation_paused() {
+        if status.observation_paused {
             text.push_str(match self {
                 Self::EnUs => " · Automatic status checks paused",
                 Self::ZhCn => " · 自动状态查询已暂停",
             });
         }
-        if status.resumable() {
+        if status.resumable {
             text.push_str(match self {
                 Self::EnUs => " · Close can be retried",
                 Self::ZhCn => " · 可以重试关闭",

@@ -1,13 +1,19 @@
 //! Localized session connection, display, and mutation feedback; does not change session state.
 
 use super::Locale;
+mod parameters;
+pub(crate) use parameters::{
+    ClientProjectionStatus, DisplayController, DisplayPhase, DisplayProvenance, DisplayRetirement,
+    DuplicateProgress, DuplicateStop, LaunchFailure, LaunchProfile, NoticeContext, RefreshStatus,
+    TerminalStatus, WorkbenchClientNotice,
+};
 
 impl Locale {
     pub(crate) const fn terminal_status(
         self,
-        status: crate::workbench_client::TerminalStatus,
+        status: crate::localization::TerminalStatus,
     ) -> &'static str {
-        use crate::workbench_client::TerminalStatus;
+        use crate::localization::TerminalStatus;
         match (self, status) {
             (Self::EnUs, TerminalStatus::Connecting) => "Connecting terminal…",
             (Self::ZhCn, TerminalStatus::Connecting) => "正在连接终端…",
@@ -30,133 +36,40 @@ impl Locale {
         }
     }
 
-    pub(crate) fn native_status(
-        self,
-        view: &crate::workbench_client::WorkbenchClientView<'_>,
-        columns: u16,
-    ) -> String {
-        if let Some(notice) = view.worktree_notice() {
-            return self.worktree_status_line(notice, view.worktree().map(|v| v.stage()));
-        }
-        if let Some((status, id)) = view.takeover_status() {
-            return self.takeover_status(status, id);
-        }
-        if let Some(status) = view.workspace_close_status() {
-            return self.workspace_close_status(status);
-        }
-        if view.retirement().is_none()
-            && (view.phase() == crate::workbench_client::DisplayPhase::Ready
-                && view
-                    .focus_panel_id()
-                    .and_then(|panel| view.terminal_end(panel))
-                    .is_some()
-                || view.phase() == crate::workbench_client::DisplayPhase::SelectedWithoutAttachment
-                    && view.selected_provenance()
-                        == Some(crate::workbench_client::DisplayProvenance::Failed))
-        {
-            let status = self.native_phase_status(view);
-            if crate::terminal_text::display_width(&status) > usize::from(columns)
-                && let Some(end) = view
-                    .focus_panel_id()
-                    .and_then(|panel| view.terminal_end(panel))
-            {
-                return self.terminal_end_compact(end);
+    /// Format only the selected duplication observation; priority belongs to Workbench.
+    pub(crate) fn duplication_progress(self, progress: DuplicateProgress) -> String {
+        let status = match (self, progress.stop, progress.complete) {
+            (Self::EnUs, _, true) => "Duplication complete",
+            (Self::ZhCn, _, true) => "复制完成",
+            (Self::EnUs, None, false) => "Duplicating tabs",
+            (Self::ZhCn, None, false) => "正在复制标签页",
+            (Self::EnUs, Some(DuplicateStop::Changed), _) => {
+                "Duplication stopped: selection or workspace changed"
             }
-            return status;
+            (Self::ZhCn, Some(DuplicateStop::Changed), _) => "复制已停止：选择或工作区已改变",
+            (Self::EnUs, Some(DuplicateStop::Deadline), _) => "Duplication stopped: time limit",
+            (Self::ZhCn, Some(DuplicateStop::Deadline), _) => "复制已停止：已到时限",
+            (Self::EnUs, Some(DuplicateStop::NotCreated), _) => {
+                "Duplication stopped: tab not created"
+            }
+            (Self::ZhCn, Some(DuplicateStop::NotCreated), _) => "复制已停止：标签页未创建",
+            (Self::EnUs, Some(DuplicateStop::TerminalNotStarted | DuplicateStop::Recovery), _) => {
+                "Duplication stopped: check pending, failed or unknown result; no replay"
+            }
+            (Self::ZhCn, Some(DuplicateStop::TerminalNotStarted | DuplicateStop::Recovery), _) => {
+                "复制已停止：请检查待定、失败或未知结果；不会重放"
+            }
+        };
+        match self {
+            Self::EnUs => format!(
+                "{status} · {}/{} submitted · {} tabs created · {} terminals started",
+                progress.submitted, progress.total, progress.committed, progress.started
+            ),
+            Self::ZhCn => format!(
+                "{status} · 已提交 {}/{} · 已创建 {} 个标签页 · 已启动 {} 个终端",
+                progress.submitted, progress.total, progress.committed, progress.started
+            ),
         }
-        if view.notice().is_none()
-            && view.retirement().is_none()
-            && view.setup_status().is_none()
-            && let Some(progress) = view.duplicate_progress()
-        {
-            use crate::workbench_client::state::DuplicateStop;
-            let status = match (self, progress.stop, progress.complete) {
-                (Self::EnUs, _, true) => "Duplication complete",
-                (Self::ZhCn, _, true) => "复制完成",
-                (Self::EnUs, None, false) => "Duplicating tabs",
-                (Self::ZhCn, None, false) => "正在复制标签页",
-                (Self::EnUs, Some(DuplicateStop::Changed), _) => {
-                    "Duplication stopped: selection or workspace changed"
-                }
-                (Self::ZhCn, Some(DuplicateStop::Changed), _) => "复制已停止：选择或工作区已改变",
-                (Self::EnUs, Some(DuplicateStop::Deadline), _) => "Duplication stopped: time limit",
-                (Self::ZhCn, Some(DuplicateStop::Deadline), _) => "复制已停止：已到时限",
-                (Self::EnUs, Some(DuplicateStop::NotCreated), _) => {
-                    "Duplication stopped: tab not created"
-                }
-                (Self::ZhCn, Some(DuplicateStop::NotCreated), _) => "复制已停止：标签页未创建",
-                (
-                    Self::EnUs,
-                    Some(DuplicateStop::TerminalNotStarted | DuplicateStop::Recovery),
-                    _,
-                ) => "Duplication stopped: check pending, failed or unknown result; no replay",
-                (
-                    Self::ZhCn,
-                    Some(DuplicateStop::TerminalNotStarted | DuplicateStop::Recovery),
-                    _,
-                ) => "复制已停止：请检查待定、失败或未知结果；不会重放",
-            };
-            return match self {
-                Self::EnUs => format!(
-                    "{status} · {}/{} submitted · {} tabs created · {} terminals started",
-                    progress.submitted, progress.total, progress.committed, progress.started
-                ),
-                Self::ZhCn => format!(
-                    "{status} · 已提交 {}/{} · 已创建 {} 个标签页 · 已启动 {} 个终端",
-                    progress.submitted, progress.total, progress.committed, progress.started
-                ),
-            };
-        }
-        self.native_status_with_setup(
-            self.native_phase_status(view),
-            view.retirement().is_some(),
-            view.notice(),
-            view.setup_status(),
-            view.phase() == crate::workbench_client::DisplayPhase::Empty
-                && view.workspace_directory_unconfigured(),
-        )
-    }
-
-    pub(crate) fn native_phase_status(
-        self,
-        view: &crate::workbench_client::WorkbenchClientView<'_>,
-    ) -> String {
-        if view.retirement().is_none()
-            && view.phase() == crate::workbench_client::DisplayPhase::Ready
-            && let Some(end) = view
-                .focus_panel_id()
-                .and_then(|panel| view.terminal_end(panel))
-        {
-            return self.terminal_end(end);
-        }
-        if let Some(recovery) = view.quick_workspace_recovery() {
-            return self.quick_workspace_failure(
-                recovery.project,
-                recovery.workspace,
-                recovery.unknown,
-            );
-        }
-        if view.phase() == crate::workbench_client::DisplayPhase::SelectedWithoutAttachment
-            && view.selected_is_unbound()
-            && view.retirement().is_none()
-        {
-            return self.native_unbound_terminal().to_owned();
-        }
-        let tab = view
-            .active_position()
-            .and_then(|position| view.tab(position - 1));
-        let label = tab.map(|tab| tab.display_label(self));
-        let safe_label = label
-            .as_deref()
-            .map(crate::terminal_text::sanitize_terminal_text);
-        self.native_phase_status_values(
-            view.phase(),
-            safe_label.as_deref(),
-            view.controller(),
-            view.selected_provenance(),
-            view.projection_status(),
-            view.retirement(),
-        )
     }
 
     pub(crate) const fn native_unbound_terminal(self) -> &'static str {
@@ -166,16 +79,17 @@ impl Locale {
         }
     }
 
-    fn native_phase_status_values(
+    /// Render the feature-selected phase facts without inspecting or retaining a view.
+    pub(crate) fn native_phase_status_values(
         self,
-        phase: crate::workbench_client::DisplayPhase,
+        phase: crate::localization::DisplayPhase,
         label: Option<&str>,
-        controller: Option<crate::workbench_client::DisplayController>,
-        provenance: Option<crate::workbench_client::DisplayProvenance>,
-        projection: crate::workbench_client::ClientProjectionStatus,
-        retirement: Option<crate::workbench_client::DisplayRetirement>,
+        controller: Option<crate::localization::DisplayController>,
+        provenance: Option<crate::localization::DisplayProvenance>,
+        projection: crate::localization::ClientProjectionStatus,
+        retirement: Option<crate::localization::DisplayRetirement>,
     ) -> String {
-        use crate::workbench_client::{
+        use crate::localization::{
             DisplayController as Controller, DisplayPhase as Phase,
             DisplayProvenance as Provenance, DisplayRetirement as Retirement,
         };
@@ -183,10 +97,10 @@ impl Locale {
         if let Some(retirement) = retirement {
             return match retirement {
                 Retirement::OutcomeUnknown => self
-                    .terminal_status(crate::workbench_client::TerminalStatus::OutcomeUnknown)
+                    .terminal_status(crate::localization::TerminalStatus::OutcomeUnknown)
                     .to_owned(),
                 Retirement::Unavailable => self
-                    .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
+                    .terminal_status(crate::localization::TerminalStatus::Unavailable)
                     .to_owned(),
             };
         }
@@ -201,7 +115,7 @@ impl Locale {
             Phase::Ready => {
                 let Some(label) = label else {
                     return self
-                        .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
+                        .terminal_status(crate::localization::TerminalStatus::Unavailable)
                         .to_owned();
                 };
                 match controller {
@@ -227,7 +141,7 @@ impl Locale {
             Phase::SelectedWithoutAttachment => {
                 let Some(label) = label else {
                     return self
-                        .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
+                        .terminal_status(crate::localization::TerminalStatus::Unavailable)
                         .to_owned();
                 };
                 match provenance {
@@ -245,20 +159,20 @@ impl Locale {
                 (Some(label), Some(Provenance::Failed)) => self.native_terminal_failed(label),
                 (Some(label), _) => self.native_terminal_unavailable(label),
                 (None, _) => self
-                    .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
+                    .terminal_status(crate::localization::TerminalStatus::Unavailable)
                     .to_owned(),
             },
             Phase::Retired => self
-                .terminal_status(crate::workbench_client::TerminalStatus::Unavailable)
+                .terminal_status(crate::localization::TerminalStatus::Unavailable)
                 .to_owned(),
         }
     }
 
     pub(crate) fn native_refresh_status(
         self,
-        status: crate::workbench_client::RefreshStatus,
+        status: crate::localization::RefreshStatus,
     ) -> String {
-        use crate::workbench_client::RefreshStatus;
+        use crate::localization::RefreshStatus;
         match status {
             RefreshStatus::Refreshing => self.native_refreshing().to_owned(),
             RefreshStatus::Success(revision) => self.native_refresh_success(revision),
@@ -269,12 +183,12 @@ impl Locale {
     /// Adds only the matching operation's sanitized display context to a localized notice.
     pub(crate) fn native_notice_with_context(
         self,
-        notice: crate::workbench_client::WorkbenchClientNotice,
-        native: &crate::workbench_client::WorkbenchClientView<'_>,
+        notice: crate::localization::WorkbenchClientNotice,
+        context: Option<&NoticeContext>,
     ) -> String {
         let message = self.native_notice(notice);
-        if let Some(context) = native.notice_context() {
-            use crate::workbench_client::NoticeContext;
+        if let Some(context) = context {
+            use crate::localization::NoticeContext;
             return match context {
                 NoticeContext::LaunchProfile(name) => {
                     format!("{message} · {}", self.launch_profile_label(name.as_deref()))
@@ -290,9 +204,9 @@ impl Locale {
 
     pub(crate) fn native_notice(
         self,
-        notice: crate::workbench_client::WorkbenchClientNotice,
+        notice: crate::localization::WorkbenchClientNotice,
     ) -> String {
-        use crate::workbench_client::WorkbenchClientNotice;
+        use crate::localization::WorkbenchClientNotice;
         match notice {
             WorkbenchClientNotice::Unsupported(capability) => self.unsupported_capability(capability),
             WorkbenchClientNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
@@ -533,34 +447,34 @@ impl Locale {
     fn native_starting_status(
         self,
         label: Option<&str>,
-        projection: crate::workbench_client::ClientProjectionStatus,
+        projection: crate::localization::ClientProjectionStatus,
     ) -> String {
         self.native_connection_status(
             label,
             projection,
-            crate::workbench_client::TerminalStatus::Connecting,
+            crate::localization::TerminalStatus::Connecting,
         )
     }
 
     fn native_switching_status(
         self,
         label: Option<&str>,
-        projection: crate::workbench_client::ClientProjectionStatus,
+        projection: crate::localization::ClientProjectionStatus,
     ) -> String {
         self.native_connection_status(
             label,
             projection,
-            crate::workbench_client::TerminalStatus::Unavailable,
+            crate::localization::TerminalStatus::Unavailable,
         )
     }
 
     fn native_connection_status(
         self,
         label: Option<&str>,
-        projection: crate::workbench_client::ClientProjectionStatus,
-        missing_position: crate::workbench_client::TerminalStatus,
+        projection: crate::localization::ClientProjectionStatus,
+        missing_position: crate::localization::TerminalStatus,
     ) -> String {
-        use crate::workbench_client::ClientProjectionStatus;
+        use crate::localization::ClientProjectionStatus;
 
         let Some(label) = label else {
             return self.terminal_status(missing_position).to_owned();

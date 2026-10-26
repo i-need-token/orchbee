@@ -16,6 +16,7 @@ mod cli;
 mod client_context;
 mod client_view;
 mod help;
+mod host_capabilities;
 mod invocation;
 mod local_activation;
 mod local_client;

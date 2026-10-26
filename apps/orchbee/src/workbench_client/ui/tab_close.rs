@@ -240,6 +240,18 @@ impl<'a> CloseStatusView<'a> {
     }
 }
 
+impl<'a> From<&CloseStatusView<'a>> for crate::localization::CloseStatusText<'a> {
+    fn from(status: &CloseStatusView<'a>) -> Self {
+        Self {
+            label: status.target_label(),
+            kind: status.status(),
+            resumable: status.resumable(),
+            observation_paused: status.observation_paused(),
+            unavailable: status.unavailable(),
+        }
+    }
+}
+
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn close_set_status(
         &self,

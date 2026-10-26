@@ -48,16 +48,7 @@ pub(super) struct TakeoverState {
     show_pending: bool,
     status_until: Option<Instant>,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TakeoverStatus {
-    Pending,
-    Refused,
-    Unknown,
-    Granted,
-    WaitingForFrame,
-    Ready,
-    Lost,
-}
+pub(crate) use crate::localization::TakeoverStatus;
 impl WorkbenchClientState {
     pub(in crate::workbench_client) fn takeover_pending(&self) -> bool {
         self.takeover.pending.is_some()

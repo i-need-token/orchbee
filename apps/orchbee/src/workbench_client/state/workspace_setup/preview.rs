@@ -5,16 +5,7 @@ use orchbee_workbench_protocol::{
     SessionId, WorkbenchProjectId, WorkbenchRevision, WorkbenchWorkspaceId,
 };
 
-/// The creation phase projected without waiting for preparation or terminal startup I/O.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WorkspaceCreationPhase {
-    /// The source directory and launch command are being prepared.
-    Preparing,
-    /// The accepted launch or its canonical snapshot is still being reconciled.
-    Starting,
-    /// Canonical creation has settled; the sidebar observer may still be catching up.
-    Committed,
-}
+pub(crate) use crate::localization::WorkspaceCreationPhase;
 
 /// One admitted launch's display, separate from canonical navigation and terminal selection.
 #[derive(Clone, Copy)]

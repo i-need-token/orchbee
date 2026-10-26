@@ -97,49 +97,11 @@ impl AgentBoardRow {
     }
 }
 
-/// The renderer-facing read state of the board's last list attempt.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentBoardRead {
-    /// No completed read yet — never rendered as "no Agents".
-    Unread,
-    InFlight,
-    /// `complete` marks the page walk reached the canonical end marker;
-    /// `false` means the walk exhausted its budget — shown, never hidden.
-    Ready {
-        complete: bool,
-        at: Instant,
-    },
-    Failed(AgentBoardReadFailure),
-}
+pub(crate) use crate::localization::AgentBoardRead;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AgentBoardReadFailure {
-    /// The dedicated read lane could not be established at all.
-    LaneUnavailable,
-    Denied,
-    /// The Agent runtime answered `unavailable`.
-    Unavailable,
-    /// Transport/connection failure, including post-submission ambiguity.
-    Transport,
-}
+pub(crate) use crate::localization::AgentBoardReadFailure;
 
-/// Why a jump refused; every variant maps to a localized board notice.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum JumpFailure {
-    /// Get found the session but no resolvable navigable attachment, or the
-    /// session disappeared / its presentation identity vanished.
-    Gone,
-    /// Get could not produce an observation (transport or runtime
-    /// unavailability) — the jump never proceeds from unverified state.
-    Unavailable,
-    Denied,
-    /// The canonical lifecycle says the session already ended.
-    Ended,
-    /// The session has no navigable presentation attachment at all.
-    NoPlacement,
-    /// The jump's total budget elapsed before landing.
-    Expired,
-}
+pub(crate) use crate::localization::JumpFailure;
 
 /// Stable identity for one open Board incarnation.
 ///
@@ -289,15 +251,7 @@ impl AgentBoardInputContext {
     }
 }
 
-/// The sidebar's honest summary of the last completed read — `None` means
-/// no completed read ever ran and the sidebar shows no count (never zero).
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct AgentBoardSummary {
-    pub(crate) sessions: usize,
-    pub(crate) complete: bool,
-    /// When that read completed — the sidebar renders its age.
-    pub(crate) at: Instant,
-}
+pub(crate) use crate::localization::AgentBoardSummary;
 
 /// A workbench placement resolved from a `TerminalPresentationId`: which
 /// context owns it, which tab, which panel — plus the display labels the
@@ -1936,5 +1890,20 @@ impl<'a> AgentBoardView<'a> {
         attachment: &AgentPresentationAttachment,
     ) -> Option<&'a PresentationPlacement> {
         self.index.placement(attachment)
+    }
+}
+
+impl From<AgentStartPhase> for crate::localization::AgentStartStatus {
+    fn from(phase: AgentStartPhase) -> Self {
+        match phase {
+            AgentStartPhase::Starting => Self::Starting,
+            AgentStartPhase::WaitingInput => Self::WaitingInput,
+            AgentStartPhase::Unconfirmed => Self::Unconfirmed,
+            AgentStartPhase::Cancelling => Self::Cancelling,
+            AgentStartPhase::Started => Self::Started,
+            AgentStartPhase::Failed => Self::Failed,
+            AgentStartPhase::Unknown => Self::Unknown,
+            AgentStartPhase::Cancelled => Self::Cancelled,
+        }
     }
 }

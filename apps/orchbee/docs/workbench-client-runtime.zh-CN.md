@@ -9,6 +9,8 @@
 [原生 Workspace 设置](native-workspace-setup.zh-CN.md) 拥有分步创建和首目录输入，
 复用该 Workbench Client 的结构准入、carrier 和成员结算。
 
+Workbench 在 `workbench_client/ui/status_text` 中拥有状态选择：Worktree、接管、Close、终端结束、复制以及 setup/retirement 的优先级，仍按原顺序读取同一不可变视图。localization 接收选定的语义事实及有界的关闭、启动展示描述，不接收 Workbench 视图或私有操作 token。展示词汇位于各所有者下层共享；启动生命周期、notice 到期策略、能力与动作的对应选择以及全部执行权限仍归特性所有者。
+
 ## 已接受的 Close 细化与本地集成
 
 [规范终端 Tab Close](../../orchbee-server/docs/terminal-tab-close.zh-CN.md) 拥有已接受的
@@ -1843,4 +1845,4 @@ Client 独立于附着保留精确 Presentation ID。选中的空成员使用 `S
 
 原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 启动设置 `terminal.focus_new_panel = false` 保留原选择，修改后需重启 Client。
 
-<!-- documentation-pairing: english-sha256=463099dd6bbf3896e19ba190e92fde564632f63a7bc7a11a070d459031cc3ff9 zh-cn-sha256=14141c75644dacfd5928126317c8cbbc1fd249466541a14443738906ae6e0ad7 -->
+<!-- documentation-pairing: english-sha256=1a07314fcc704e59019e7a14478921dfdf1524d2df6d75713eda637f96a95d56 zh-cn-sha256=c58e4bd85eb2036ddc0e192d0f63f75776cd5fc106b27db09cddf4ba27240bec -->

@@ -7,6 +7,7 @@ mod parameters;
 pub(crate) use parameters::{BackendAction, Notice, PanelDirection};
 mod agent_projection;
 mod control_takeover;
+pub(crate) use control_takeover::TakeoverStatus;
 mod directory_startup;
 mod machines;
 mod navigator;
@@ -21,8 +22,10 @@ pub(crate) use shortcut_help::{ShortcutContext, ShortcutHelpGroup, ShortcutLabel
 mod capabilities;
 mod runtime_configuration;
 mod settings;
+pub(crate) use settings::SettingsNotice;
 mod status;
 mod terminal_feedback;
+pub(crate) use terminal_feedback::{CompletionReminder, TerminalEnd};
 mod update;
 mod window_title;
 use std::ffi::OsString;
@@ -37,27 +40,43 @@ mod pane_graphics;
 mod panel_reports;
 pub(crate) use cli::{CliLabels, DetailLabel};
 mod agent_board;
+pub(crate) use agent_board::AgentStartStatus;
+pub(crate) use agent_board::{
+    AgentBoardRead, AgentBoardReadFailure, AgentBoardSummary, JumpFailure,
+};
 #[cfg(any(unix, windows))]
 mod location_labels;
+pub(crate) use location_labels::{LocationLabelStatus, LocationLabelTarget};
 mod onboarding;
 #[cfg(any(unix, windows))]
 mod panel_close;
 mod prefix;
 pub(crate) use prefix::PrefixDesc;
 mod session_status;
+pub(crate) use session_status::{
+    ClientProjectionStatus, DisplayController, DisplayPhase, DisplayProvenance, DisplayRetirement,
+    DuplicateProgress, DuplicateStop, LaunchFailure, LaunchProfile, NoticeContext, RefreshStatus,
+    TerminalStatus, WorkbenchClientNotice,
+};
 mod shell;
 mod startup;
 #[cfg(any(unix, windows))]
 mod tab_close;
+pub(crate) use tab_close::{
+    CloseConfirmationKind, CloseSetStatus, CloseStatusKind, CloseStatusText,
+};
 #[cfg(any(unix, windows))]
 mod tab_rename;
 mod terminal_history;
 #[cfg(any(unix, windows))]
 mod workspace_close;
+pub(crate) use workspace_close::{WorkspaceCloseStatus, WorkspaceCloseText};
 #[cfg(any(unix, windows))]
 mod workspace_setup;
+pub(crate) use workspace_setup::{SetupStage, SetupStatus, WorkspaceCreationPhase};
 mod worktree_launch;
 pub(crate) use shell::{ShellBindings, ShellText};
+pub(crate) use worktree_launch::{WorktreeMode, WorktreeNotice, WorktreeStage};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Locale {

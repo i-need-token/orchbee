@@ -1,7 +1,58 @@
 use super::Locale;
-use crate::workbench_client::{
-    LocationLabelStatus, SetupStage, SetupStatus, WorkbenchClientNotice,
-};
+use crate::localization::{LocationLabelStatus, LocationLabelTarget};
+
+/// The setup field or confirmation currently selected by its feature owner.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SetupStage {
+    ChooseWorkspaceProject,
+    WorkspaceProjectName,
+    DissolveProject,
+    ProjectDeleteConfirm,
+    TabGroupName,
+    PreparingWorkspace,
+    QuickProject,
+    QuickName,
+    QuickDirectory,
+    DirectoryPath,
+    ProjectRename,
+    WorkspaceRename,
+}
+
+/// Observed setup outcome, including facts retained after loss of publication.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SetupStatus {
+    PresentationUnavailable,
+    WorkspaceOrganized,
+    ProjectDissolved,
+    TabsConfigured,
+    NavigationConfigured,
+    TabsNotApplied,
+    TabsCommittedNeedRefresh,
+    TabsOutcomeUnknown,
+    LocationLabel {
+        target: LocationLabelTarget,
+        status: LocationLabelStatus,
+    },
+    NotApplied,
+    /// Refused because the Workbench changed elsewhere; the session is resynchronizing.
+    Stale,
+    ProjectCreated,
+    WorkspaceCreated,
+    DirectoryAccepted,
+    CommittedNeedRefresh,
+    OutcomeUnknown,
+}
+
+/// The creation phase projected without waiting for preparation or terminal startup I/O.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WorkspaceCreationPhase {
+    /// The source directory and launch command are being prepared.
+    Preparing,
+    /// The accepted launch or its canonical snapshot is still being reconciled.
+    Starting,
+    /// Canonical creation has settled; the sidebar observer may still be catching up.
+    Committed,
+}
 
 impl Locale {
     pub(crate) const fn no_current_workspace(self) -> &'static str {
@@ -36,9 +87,9 @@ impl Locale {
     /// Localized progress for the Client-local Workspace creation projection.
     pub(crate) const fn workspace_creation_progress(
         self,
-        phase: crate::workbench_client::WorkspaceCreationPhase,
+        phase: crate::localization::WorkspaceCreationPhase,
     ) -> &'static str {
-        use crate::workbench_client::WorkspaceCreationPhase;
+        use crate::localization::WorkspaceCreationPhase;
         match (self, phase) {
             (Self::EnUs, WorkspaceCreationPhase::Preparing) => "Creating workspace…",
             (Self::ZhCn, WorkspaceCreationPhase::Preparing) => "正在创建工作区…",
@@ -105,83 +156,21 @@ impl Locale {
 }
 
 impl Locale {
-    pub(super) fn native_status_with_setup(
-        self,
-        phase: String,
-        retired: bool,
-        notice: Option<WorkbenchClientNotice>,
-        setup: Option<SetupStatus>,
-        can_configure_directory: bool,
-    ) -> String {
-        let primary = if retired {
-            Some(phase.clone())
-        } else {
-            notice.map(|notice| self.native_notice(notice))
-        };
-        match (primary, setup) {
-            (
-                Some(primary),
-                Some(SetupStatus::LocationLabel {
-                    target,
-                    status: LocationLabelStatus::CommittedNeedRefresh,
-                }),
-            ) if retired => {
-                format!(
-                    "{primary} · {}",
-                    self.location_rename_committed_fact(target)
-                )
-            }
-            (
-                Some(primary),
-                Some(SetupStatus::LocationLabel {
-                    target,
-                    status:
-                        status @ (LocationLabelStatus::CommittedNeedRefresh
-                        | LocationLabelStatus::OutcomeUnknown),
-                }),
-            ) => {
-                format!("{primary} · {}", self.location_label_status(target, status))
-            }
-            (Some(primary), Some(SetupStatus::CommittedNeedRefresh)) if retired => {
-                format!("{primary} · {}", self.setup_committed_fact())
-            }
-            (Some(primary), Some(SetupStatus::TabsCommittedNeedRefresh)) if retired => {
-                format!(
-                    "{primary} · {}",
-                    match self {
-                        Self::EnUs => "Tabs updated · do not resubmit",
-                        Self::ZhCn => "标签页已更新 · 请勿重复提交",
-                    }
-                )
-            }
-            (
-                Some(primary),
-                Some(
-                    status @ (SetupStatus::CommittedNeedRefresh
-                    | SetupStatus::OutcomeUnknown
-                    | SetupStatus::TabsCommittedNeedRefresh
-                    | SetupStatus::TabsOutcomeUnknown),
-                ),
-            ) => {
-                format!("{primary} · {}", self.setup_status(status))
-            }
-            (Some(primary), _) => primary,
-            (None, Some(SetupStatus::WorkspaceCreated)) if can_configure_directory => {
-                self.setup_workspace_directory_action().to_owned()
-            }
-            (None, Some(status)) => self.setup_status(status).to_owned(),
-            (None, None) => phase,
+    pub(crate) const fn setup_tabs_committed_fact(self) -> &'static str {
+        match self {
+            Self::EnUs => "Tabs updated · do not resubmit",
+            Self::ZhCn => "标签页已更新 · 请勿重复提交",
         }
     }
 
-    pub(super) const fn setup_committed_fact(self) -> &'static str {
+    pub(crate) const fn setup_committed_fact(self) -> &'static str {
         match self {
             Self::EnUs => "Setup committed · do not resubmit",
             Self::ZhCn => "设置已提交 · 请勿重复提交",
         }
     }
 
-    const fn setup_workspace_directory_action(self) -> &'static str {
+    pub(crate) const fn setup_workspace_directory_action(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace created · its first directory is not configured",
             Self::ZhCn => "工作区已创建 · 尚未配置首个目录",

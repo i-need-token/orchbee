@@ -1,5 +1,18 @@
 use super::Locale;
-use crate::workbench_client::CompletionReminder;
+
+/// Already-admitted completion facts; reminder timing and notification policy remain outside text.
+pub(crate) struct CompletionReminder {
+    pub(crate) title: String,
+    pub(crate) duration_milliseconds: u64,
+    pub(crate) exit_code: u8,
+}
+
+/// Host-reported settlement, independent of the retained terminal frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalEnd {
+    Exited(orchbee_terminal_protocol::ExitResult),
+    Failed,
+}
 
 impl Locale {
     pub(crate) fn launch_failure_actions(self, settings: &str, copy: &str) -> String {
@@ -8,8 +21,8 @@ impl Locale {
             Self::ZhCn => format!("设置：{settings}\n复制诊断：{copy}"),
         }
     }
-    pub(crate) fn terminal_end(self, end: crate::terminal_projection::TerminalEnd) -> String {
-        use crate::terminal_projection::TerminalEnd;
+    pub(crate) fn terminal_end(self, end: crate::localization::TerminalEnd) -> String {
+        use crate::localization::TerminalEnd;
         use orchbee_terminal_protocol::ExitResult;
         match (self, end) {
             (Self::EnUs, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
@@ -38,11 +51,8 @@ impl Locale {
     }
 
     /// Keeps the exit result intact when the retained-output detail cannot fit.
-    pub(crate) fn terminal_end_compact(
-        self,
-        end: crate::terminal_projection::TerminalEnd,
-    ) -> String {
-        use crate::terminal_projection::TerminalEnd;
+    pub(crate) fn terminal_end_compact(self, end: crate::localization::TerminalEnd) -> String {
+        use crate::localization::TerminalEnd;
         use orchbee_terminal_protocol::ExitResult;
         match (self, end) {
             (Self::EnUs, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
@@ -66,9 +76,9 @@ impl Locale {
 
     pub(crate) fn terminal_launch_failure(
         self,
-        failure: crate::workbench_client::LaunchFailure<'_>,
+        failure: crate::localization::LaunchFailure<'_>,
     ) -> String {
-        use crate::workbench_client::LaunchProfile;
+        use crate::localization::LaunchProfile;
         let name = match (self, failure.profile) {
             (_, LaunchProfile::Named(name)) => crate::terminal_text::sanitize_terminal_text(name),
             (Self::EnUs, LaunchProfile::SystemDefault) => "System default".into(),

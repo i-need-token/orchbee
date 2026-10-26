@@ -11,24 +11,9 @@ use std::time::{Duration, Instant};
 const TOTAL: Duration = Duration::from_secs(120);
 const NOTICE: Duration = Duration::from_secs(5);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DuplicateStop {
-    Changed,
-    Deadline,
-    NotCreated,
-    TerminalNotStarted,
-    Recovery,
-}
+pub(crate) use crate::localization::DuplicateStop;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct DuplicateProgress {
-    pub(crate) total: usize,
-    pub(crate) submitted: usize,
-    pub(crate) committed: usize,
-    pub(crate) started: usize,
-    pub(crate) stop: Option<DuplicateStop>,
-    pub(crate) complete: bool,
-}
+pub(crate) use crate::localization::DuplicateProgress;
 
 struct SelectionFence {
     marks: Vec<WorkbenchTabId>,

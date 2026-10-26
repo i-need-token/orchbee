@@ -47,21 +47,9 @@ impl CloseConfirmationToken {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CloseStatusToken(u64);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CloseConfirmationKind {
-    Close,
-    Resume,
-}
+pub(crate) use crate::localization::CloseConfirmationKind;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CloseStatusKind {
-    AwaitingStatus,
-    Closing,
-    CleanupBlocked,
-    OutcomeUnknown,
-    DisposedAwaitingPublication,
-    Closed,
-}
+pub(crate) use crate::localization::CloseStatusKind;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::workbench_client) struct CloseTarget {

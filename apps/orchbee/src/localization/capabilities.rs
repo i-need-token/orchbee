@@ -1,6 +1,6 @@
 //! Localized refusal of host effects; unavailable capabilities never imply an unknown commit.
 use super::Locale;
-use crate::tui_capabilities::Capability;
+use crate::host_capabilities::Capability;
 
 impl Locale {
     pub(crate) fn unsupported_capability(self, capability: Capability) -> String {

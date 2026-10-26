@@ -17,23 +17,7 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Notice {
-    Saved,
-    NoChange,
-    SourceChanged,
-    Failed,
-    Unknown,
-    Busy,
-    PresentationUnavailable,
-    TooSmall,
-    Background,
-}
-impl Notice {
-    fn persistent(self) -> bool {
-        !matches!(self, Self::Saved | Self::NoChange)
-    }
-}
+pub(crate) use crate::localization::SettingsNotice as Notice;
 #[derive(Default)]
 pub(super) struct Coordinator {
     pub(super) editor: Editor,
@@ -75,7 +59,7 @@ impl Coordinator {
     fn note(&mut self, notice: Notice, now: Instant) {
         self.notice = Some((
             notice,
-            if notice.persistent() {
+            if !matches!(notice, Notice::Saved | Notice::NoChange) {
                 None
             } else {
                 now.checked_add(Duration::from_secs(5))

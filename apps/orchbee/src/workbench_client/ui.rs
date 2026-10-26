@@ -10,15 +10,11 @@ mod launch_profiles;
 mod pane_graphics;
 pub(in crate::workbench_client) mod settings;
 mod sidebar_reorder;
+mod status_text;
 mod tab_duplication;
 mod tab_groups;
 
-/// Display context for one local notice; it retains no executable text or launch authority.
-pub(crate) enum NoticeContext {
-    /// A missing name is the localized built-in System default label.
-    LaunchProfile(Option<String>),
-    ConfiguredCommand(String),
-}
+pub(crate) use crate::localization::NoticeContext;
 #[cfg(test)]
 pub(in crate::workbench_client) use agent_attention::tests::focused_physical_agent_fixture;
 mod agent_focus;
@@ -137,96 +133,13 @@ pub(crate) use super::agent_board::{
 };
 pub(crate) use super::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DisplayPhase {
-    Starting,
-    Empty,
-    Ready,
-    Creating,
-    CreateCommittedNeedDetach,
-    ProjectionUnavailable,
-    MoveProjectionUnavailable,
-    PanelProjectionUnavailable,
-    RenameProjectionUnavailable,
-    Switching,
-    SelectedWithoutAttachment,
-    RetryableAttachUnavailable,
-    Retired,
-}
+pub(crate) use crate::localization::DisplayPhase;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DisplayController {
-    Controlling,
-    ReadOnly,
-}
+pub(crate) use crate::localization::DisplayController;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DisplayProvenance {
-    Started,
-    Pending,
-    Unavailable,
-    Failed,
-    OutcomeUnknown,
-    BindingOnly,
-}
+pub(crate) use crate::localization::DisplayProvenance;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WorkbenchClientNotice {
-    Unsupported(crate::tui_capabilities::Capability),
-    Settings(settings::Notice),
-    MenuUnavailable,
-    LocalBusy,
-    NoTabAtPosition(u8),
-    CreateNotCreated,
-    CreateOrderConflict,
-    DuplicatePending,
-    DuplicateNotStarted,
-    DuplicateOutcomeUnknown,
-    MoveNotMoved,
-    MoveOrderConflict,
-    PanelNotApplied,
-    RenameNotRenamed,
-    CloseRequestNotApplied,
-    WorkspaceCloseUnavailable,
-    NoWorkspace,
-    ConfirmationCancelled,
-    DraftCancelled,
-    ModalOwnsInput,
-    AgentStart(super::agent_board::AgentStartPhase),
-    HistoryRecovering,
-    HistoryUnavailable,
-    HistoryPositionLost,
-    CopyModeUnavailable,
-    CopyModeBusy,
-    CopyModeInvalidated,
-    CopyModeQueryFailed,
-    CopyModeNoMatch,
-    CopyModeSearchLimit,
-    CopyModeNoSelection,
-    SelectionEvicted,
-    CopyFailed,
-    CopyUnknown,
-    BellFailed,
-    BellUnknown,
-    PositionChanged,
-    PositionChangedEmpty,
-    PositionLocationChanged,
-    PositionLocationChangedEmpty,
-    PositionUnavailable,
-    PopupUnavailable,
-    CommandAccepted,
-    CommandFailed,
-    CommandUnknown,
-    CommandRefused(orchbee_workbench_protocol::ConfiguredCommandFailure),
-    LaunchProfileSelected,
-    LaunchProfileUnavailable,
-    LinkOpened,
-    LinkHandled,
-    LinkNoLink,
-    LinkBusy,
-    LinkFailed,
-    LinkUnknown,
-}
+pub(crate) use crate::localization::WorkbenchClientNotice;
 
 const fn link_notice(notice: crate::terminal_link_activation::Notice) -> WorkbenchClientNotice {
     match notice {
@@ -258,26 +171,11 @@ pub(crate) enum ViewportSurface<'a> {
     Recovering,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum RefreshStatus {
-    Refreshing,
-    Success(u64),
-    Failure(u64),
-}
+pub(crate) use crate::localization::RefreshStatus;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ClientProjectionStatus {
-    Empty,
-    FrameAvailable,
-    WaitingForFullFrame,
-    Blocked,
-}
+pub(crate) use crate::localization::ClientProjectionStatus;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DisplayRetirement {
-    Unavailable,
-    OutcomeUnknown,
-}
+pub(crate) use crate::localization::DisplayRetirement;
 
 #[derive(Clone, Copy)]
 pub(crate) struct ClientTabView<'a> {
@@ -388,19 +286,9 @@ pub(crate) struct WorkbenchClientView<'a> {
     popup: Option<&'a super::independent_popup::Driver>,
 }
 
-/// Bounded launch facts for a failed member; no command arguments or environment.
-#[derive(Clone, Copy)]
-pub(crate) struct LaunchFailure<'a> {
-    pub(crate) profile: LaunchProfile<'a>,
-    pub(crate) executable: Option<&'a str>,
-}
+pub(crate) use crate::localization::LaunchFailure;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum LaunchProfile<'a> {
-    Named(&'a str),
-    SystemDefault,
-    Unknown,
-}
+pub(crate) use crate::localization::LaunchProfile;
 
 impl<'a> WorkbenchClientView<'a> {
     pub(crate) fn launch_failure(
@@ -681,7 +569,7 @@ impl<'a> WorkbenchClientView<'a> {
             ClientNotice::ConfirmationCancelled => WorkbenchClientNotice::ConfirmationCancelled,
             ClientNotice::DraftCancelled => WorkbenchClientNotice::DraftCancelled,
             ClientNotice::ModalOwnsInput => WorkbenchClientNotice::ModalOwnsInput,
-            ClientNotice::AgentStart(phase) => WorkbenchClientNotice::AgentStart(phase),
+            ClientNotice::AgentStart(phase) => WorkbenchClientNotice::AgentStart(phase.into()),
             ClientNotice::HistoryRecovering => WorkbenchClientNotice::HistoryRecovering,
             ClientNotice::HistoryUnavailable => WorkbenchClientNotice::HistoryUnavailable,
             ClientNotice::HistoryPositionLost => WorkbenchClientNotice::HistoryPositionLost,
@@ -2664,7 +2552,7 @@ impl WorkbenchClientUi {
     }
 
     pub(super) fn admit_client_action(&mut self, action: &ClientAction) -> bool {
-        crate::tui_capabilities::Capability::for_action(action)
+        crate::tui_capabilities::for_action(action)
             .is_none_or(|capability| self.admit_capability(capability))
     }
 
@@ -2859,7 +2747,9 @@ impl WorkbenchClientUi {
         };
         let now = self.clock.now();
         let notice = state.notice().filter(|notice| notice.transient());
-        let setup = state.setup_status().filter(|status| status.transient());
+        let setup = state
+            .setup_status()
+            .filter(|status| status_text::setup_status_transient(*status));
         let notice_expired = self.notice_timer.expired(notice, now);
         let setup_expired = self.setup_notice_timer.expired(setup, now);
         if notice_expired {

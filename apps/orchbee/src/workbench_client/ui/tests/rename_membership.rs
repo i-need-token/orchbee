@@ -222,8 +222,8 @@ fn automatic_native_titles_follow_observation_while_fixed_titles_and_status_rema
             );
             if !automatic {
                 assert!(
-                    locale
-                        .native_phase_status(&ui.view())
+                    ui.view()
+                        .phase_status_text(locale)
                         .starts_with("dev server")
                 );
             }

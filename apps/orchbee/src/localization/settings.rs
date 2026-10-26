@@ -1,12 +1,26 @@
 //! Localized common-setting vocabulary and explicit draft/save outcomes.
 use super::Locale;
+
+/// Settings draft and save feedback; persistence and expiry remain in the coordinator.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SettingsNotice {
+    Saved,
+    NoChange,
+    SourceChanged,
+    Failed,
+    Unknown,
+    Busy,
+    PresentationUnavailable,
+    TooSmall,
+    Background,
+}
+
 use crate::{
     native_settings::{
         Choice, Confirmation, DraftView, Page, Reconciliation, Row, SettingCategory, SettingUnit,
         SettingsHintLabel, setting_for_row,
     },
     terminal_text::{sanitize_terminal_text, truncate_display},
-    workbench_client::SettingsNotice,
 };
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,

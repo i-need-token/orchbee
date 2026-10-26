@@ -308,16 +308,7 @@ impl<'a> WorkspaceCloseConfirmationView<'a> {
         self.inner.presentation
     }
 }
-/// Lifecycle truth; an absent observation never implies successful removal.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WorkspaceCloseStatus {
-    Closing,
-    Closed,
-    Failed,
-    Unknown,
-    Refused,
-    ConfirmationRequired,
-}
+pub(crate) use crate::localization::WorkspaceCloseStatus;
 /// Scope and recovery identity retained independently of the current selection.
 #[derive(Clone, Copy)]
 pub(crate) struct WorkspaceCloseStatusView<'a> {
@@ -344,6 +335,17 @@ impl<'a> WorkspaceCloseStatusView<'a> {
         self.operation.target.workspace_id()
     }
 }
+impl<'a> From<WorkspaceCloseStatusView<'a>> for crate::localization::WorkspaceCloseText<'a> {
+    fn from(view: WorkspaceCloseStatusView<'a>) -> Self {
+        Self {
+            label: view.label(),
+            status: view.status(),
+            operation_id: view.operation_id(),
+            workspace_id: view.workspace_id(),
+        }
+    }
+}
+
 impl WorkbenchClientState {
     /// A known guarded-signal refusal can be reviewed explicitly without
     /// discarding the retained operation or weakening unknown-outcome fences.

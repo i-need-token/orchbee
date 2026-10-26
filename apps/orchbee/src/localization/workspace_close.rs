@@ -1,8 +1,26 @@
 use super::Locale;
-use crate::{
-    terminal_text::sanitize_terminal_text,
-    workbench_client::{WorkspaceCloseStatus, WorkspaceCloseStatusView},
-};
+use crate::terminal_text::sanitize_terminal_text;
+
+/// Lifecycle truth; an absent observation never implies successful removal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WorkspaceCloseStatus {
+    Closing,
+    Closed,
+    Failed,
+    Unknown,
+    Refused,
+    ConfirmationRequired,
+}
+
+/// Frozen close-result display facts; the original operation and recovery authority stay owned.
+#[derive(Clone, Copy)]
+pub(crate) struct WorkspaceCloseText<'a> {
+    pub(crate) label: &'a str,
+    pub(crate) status: WorkspaceCloseStatus,
+    pub(crate) operation_id: Option<&'a orchbee_workbench_protocol::WorkbenchRequestId>,
+    pub(crate) workspace_id: Option<&'a orchbee_workbench_protocol::WorkbenchWorkspaceId>,
+}
+
 impl Locale {
     pub(crate) const fn workspace_close_cancel_label(self) -> &'static str {
         match self {
@@ -46,9 +64,13 @@ impl Locale {
             ),
         }
     }
-    pub(crate) fn workspace_close_status(self, view: WorkspaceCloseStatusView<'_>) -> String {
-        let project = view.workspace_id().is_none();
-        let phase = match (self, view.status(), project) {
+    pub(crate) fn workspace_close_status<'a>(
+        self,
+        view: impl Into<WorkspaceCloseText<'a>>,
+    ) -> String {
+        let view = view.into();
+        let project = view.workspace_id.is_none();
+        let phase = match (self, view.status, project) {
             (Self::EnUs, WorkspaceCloseStatus::ConfirmationRequired, _) => {
                 "Confirmation required before closing"
             }
@@ -90,11 +112,11 @@ impl Locale {
                 "工作区关闭未提交或被拒绝；刷新后重试"
             }
         };
-        let mut text = format!("{phase} · {}", sanitize_terminal_text(view.label()));
-        if view.status() != WorkspaceCloseStatus::Closed
-            && let Some(id) = view.operation_id()
+        let mut text = format!("{phase} · {}", sanitize_terminal_text(view.label));
+        if view.status != WorkspaceCloseStatus::Closed
+            && let Some(id) = view.operation_id
         {
-            if let Some(workspace) = view.workspace_id() {
+            if let Some(workspace) = view.workspace_id {
                 text.push_str(&format!(
                     " · orchbee workspace close-status --workspace {workspace}"
                 ));

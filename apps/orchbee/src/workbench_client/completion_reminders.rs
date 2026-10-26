@@ -56,11 +56,7 @@ impl Observer {
     }
 }
 
-pub(crate) struct Reminder {
-    pub(crate) title: String,
-    pub(crate) duration_milliseconds: u64,
-    pub(crate) exit_code: u8,
-}
+pub(crate) use crate::localization::CompletionReminder as Reminder;
 #[derive(Default)]
 pub(super) struct State {
     pub(super) observer: Observer,

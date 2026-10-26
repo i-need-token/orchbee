@@ -18,18 +18,7 @@ impl WorktreeToken {
         Self(value)
     }
 }
-/// The current keyboard owner inside the Worktree surface.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WorktreeStage {
-    Preparing,
-    Branch,
-    Base,
-    Checkout,
-    Remove,
-    ResumeRemove,
-    Waiting,
-    Result,
-}
+pub(crate) use crate::localization::WorktreeStage;
 /// Single-line edits and choice movement; never interpreted as terminal input.
 pub(crate) enum WorktreeEdit<'a> {
     ReadStatus,
