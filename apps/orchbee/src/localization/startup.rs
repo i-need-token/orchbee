@@ -3,6 +3,19 @@
 use super::Locale;
 
 impl Locale {
+    /// The startup diagnostic when a derived Session socket path cannot fit one
+    /// socket address on this platform.
+    pub(crate) const fn socket_path_too_long(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "A derived local session socket path is too long for this platform's socket address limit. Set ORCHBEE_RUNTIME_BASE to a shorter absolute directory.\n"
+            }
+            Self::ZhCn => {
+                "派生出的本地会话套接字路径超出本平台的套接字地址长度限制。请将 ORCHBEE_RUNTIME_BASE 设为更短的绝对目录。\n"
+            }
+        }
+    }
+
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) const fn startup_progress(self) -> &'static str {
         match self {
@@ -70,7 +83,7 @@ impl Locale {
                 "The local session runtime failed its ownership or permission checks.\n"
             }
             (Self::ZhCn, StartupFailure::Runtime) => "本地会话运行时未通过所有者或权限检查。\n",
-            (_, StartupFailure::SocketPathTooLong) => self.cli_socket_path_too_long(),
+            (_, StartupFailure::SocketPathTooLong) => self.socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
                 if cfg!(windows) {
                     "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee server diagnose with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
