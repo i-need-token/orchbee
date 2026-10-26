@@ -104,8 +104,8 @@ fn catalog_create_mints_site_scoped_ids_and_advances_both_revisions() {
     };
     assert_eq!(*revision, WorkbenchRevision::new(1));
     assert_eq!(*catalog_revision, LaunchProfileCatalogRevision::new(1));
-    // <siteHex>:<counterHex> — the Site prefix is what makes a dead Site's ids
-    // unable to alias another Site's catalog. The counter shares the
+    // <sessionHex>:<counterHex> — the Session prefix is what makes a dead Session's ids
+    // unable to alias another Session's catalog. The counter shares the
     // authority identity cursor, which starts at 1, so the first profile id
     // mints counter 2.
     assert_eq!(profile_id.as_str(), format!("{site_hex}:{:032x}", 2));
@@ -512,8 +512,8 @@ fn profile_ids_do_not_alias_across_sites() {
             create_action("shell", launch("/bin/zsh", &[])),
         ),
     ));
-    // Same counter, different Site prefix: an id from one Site can never select
-    // a profile in another Site, by construction.
+    // Same counter, different Session prefix: an id from one Session can never select
+    // a profile in another Session, by construction.
     assert_ne!(first_id, second_id);
     assert_eq!(
         catalog_outcome(

@@ -265,7 +265,7 @@ authority 还拥有一个按 会话 划分、易失的 Launch Profile 目录：�
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题   | 已接纳 Client 必须能列出、解析、创建、删除命名的自定义可执行文件选择，并在创建终端时消费它们，而不引入第二个目录写方或持久化注册表。                                                                                                                                                                                                         |
 | 输入   | 严格的 `workbench.launch-profile-catalog.read` 意图（请求 identity + 可选 selector），或严格的 `launch-profile.create`/`launch-profile.delete` 命令。selector 是 1–512 字节不透明文本；name 复用 label 信封；selection 是封闭的 launch 契约。                                                                                                |
-| 数据   | 有界条目向量（64 条、序列化总量 256 KiB）、私有单调递增的目录 revision，以及与导航组共用的同一请求/结果 ledger。Profile 由 会话 identity 与既有 Server identity cursor 铸造不透明 id `<siteHex>:<counterHex>`。                                                                                                                              |
+| 数据   | 有界条目向量（64 条、序列化总量 256 KiB）、私有单调递增的目录 revision，以及与导航组共用的同一请求/结果 ledger。Profile 由会话 identity 与既有 Server identity cursor 铸造不透明 id `<sessionHex>:<counterHex>`。                                                                                                                            |
 | 输出   | 读返回 catalog { entries }、profile { entry }、not-found、ambiguous { candidateIds }、denied 或 unavailable。命令返回 launch-profile-created/deleted { revision, catalogRevision, profileId }、落账的 selector 解析结果 launch-profile-unavailable 与 launch-profile-ambiguous { candidateIds }，以及常规 rejected/denied/unavailable 集合。 |
 | 不变量 | 只有 Server 提交目录状态。已提交的 create/delete 同时推进 Workbench revision 与私有目录 revision，并与 projection、ledger、保留请求更新原子完成。精确 profile-id 匹配先于任何 name 查找；否则零个 name 匹配为 not-found，一个为 found，多于一个为 ambiguous 并携带同一次解析捕获的有界 id 列表。                                             |
 | 决策   | 读与 snapshot 读使用相同的 site-identity grant 语义，从不进入命令 ledger。selector 失败与其他已决结果一样落账，因此相同请求重放相同应答。字节容量与 revision 耗尽拒绝先于任何目录变更。已消亡 会话 的 id 内嵌该 会话 identity，构造上不可能别名到另一个 会话 的条目。                                                                        |
@@ -500,4 +500,4 @@ Panel 所属关系及非空、与期望一致的绑定，再应用来源守卫�
 [create-process]: ../tests/client_process/tab_create.rs
 [create-authority-tests]: ../src/workbench_authority/terminal_tab_create/tests.rs
 
-<!-- documentation-pairing: english-sha256=8a4acba1e582ce3c0f03940a8f29d2c1035c29beca9beac3ca9d9a6ebea90b6f zh-cn-sha256=d69fd81e17711dd23a9a9f8c835d3d12d5dcc991135f5dfa2e5d1d6d38b1d605 -->
+<!-- documentation-pairing: english-sha256=c1844ebe264bbca30cfbb86d7847dbe127b03cd3754274269fe898892652f41a zh-cn-sha256=2c389b8c52effbb0033d6340e13f780cf9f436ac674c58d45ea511e8ac4479d9 -->

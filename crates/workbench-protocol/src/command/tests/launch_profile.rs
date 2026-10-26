@@ -178,7 +178,7 @@ fn catalog_read_intent_and_result_round_trip_the_full_outcome_set() {
 #[test]
 fn launch_profile_lexical_types_enforce_their_bounds() {
     // Name and selector share the 1..=512-byte UTF-8 envelope; the id carries
-    // the fixed <siteHex>:<counterHex> shape minted Server-side.
+    // the fixed <sessionHex>:<counterHex> shape minted Server-side.
     assert!(LaunchProfileName::parse(&"n".repeat(512)).is_ok());
     assert!(LaunchProfileName::parse(&"n".repeat(513)).is_err());
     assert!(LaunchProfileName::parse("").is_err());

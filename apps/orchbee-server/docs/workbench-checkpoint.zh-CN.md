@@ -23,7 +23,7 @@
 | 重建       | 调用者传入新启动的 会话 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile 会话 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
-调用者负责新 会话 身份的新鲜性。Profile ID 为 `<siteHex>:<counterHex>`，存储形式仅保留
+调用者负责新会话身份的新鲜性。Profile ID 为 `<sessionHex>:<counterHex>`，存储形式仅保留
 计数器、名称和启动定义，重建使用新 会话 前缀。旧 会话 授权和 Profile ID 不获得新启动的权威。
 名称不要求唯一，既有选择器歧义语义保持不变。
 
@@ -142,4 +142,4 @@ Workbench revision；每次变化重置 500ms 防抖。每 30 秒还捕获已缓
 已移除成员。调度测试使用显式时间及延迟写入，证明防抖、定期补存、有界待办与最终停止顺序。
 原生崩溃／重启验收须比较多个 Tab、嵌套分屏、标签、目录；机器重启及交互负载仍须单独提供证据。
 
-<!-- documentation-pairing: english-sha256=d4ff581dd3022615dee06e8cbbdf9be0f1523eaf8888c71d4da3aebc6437eac2 zh-cn-sha256=17034a3c35be36dbfbb9ef55fdf11b24c4083aadebabe4bd479f2fc855783c06 -->
+<!-- documentation-pairing: english-sha256=f60cad86e8bc5df952b9f245964d7c6a9ad945fee5f548000e06bb43fb4c3921 zh-cn-sha256=7b18ea55194ab165e5d76a8b0f5eb66fe3d1c68ed1e2aa035a24cd2f5ffc1240 -->

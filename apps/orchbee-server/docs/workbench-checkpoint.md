@@ -28,7 +28,7 @@ never authorizes replay of a terminal command or Git operation.
 | Reconstruct            | Caller supplies a fresh boot Session identity and its admitted local Worker.                                                     | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Session prefixes, revision 0 and empty transient owners. |
 | Allocate after restore | Restored high-water counter permits advancement.                                                                                 | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                                |
 
-The caller owns freshness of the new Session identity. Profile IDs are `<siteHex>:<counterHex>`:
+The caller owns freshness of the new Session identity. Profile IDs are `<sessionHex>:<counterHex>`:
 the stored form retains only the counter, name and launch definition, and reconstruction uses
 the new Session prefix. Old Session grants and profile IDs do not acquire authority over the new boot.
 Names need not be unique; their existing ambiguous-selector semantics remain unchanged.

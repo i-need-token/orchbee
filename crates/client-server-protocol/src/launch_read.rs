@@ -256,7 +256,7 @@ impl TryFrom<WireLaunchProfileProvenance> for LaunchProfileProvenance {
 }
 
 impl LaunchProfileProvenance {
-    /// `profile_id` is the opaque `<siteHex>:<counterHex>` grammar minted by
+    /// `profile_id` is the opaque `<sessionHex>:<counterHex>` grammar minted by
     /// the Server; the boundary re-checks the shared identity envelope (at
     /// most 128 bytes, non-empty) without re-parsing the opaque interior.
     pub fn new(profile_id: String, catalog_revision: u64) -> Result<Self, ProtocolError> {

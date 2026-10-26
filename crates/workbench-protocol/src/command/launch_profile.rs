@@ -31,7 +31,7 @@ fn valid_profile_id(value: &str) -> bool {
 }
 
 /// A minted Launch Profile identity. Opaque text in the shared id grammar;
-/// the Server mints `<siteHex>:<counterHex>` so a selector captured under a
+/// the Server mints `<sessionHex>:<counterHex>` so a selector captured under a
 /// dead Site can never alias a different Site's profile.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
