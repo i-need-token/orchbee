@@ -1,6 +1,6 @@
 use super::*;
 use crate::site_coordinator::PendingTerminalTabCreate;
-use orchbee_client_server_protocol::{Geometry, RequestId};
+use orchbee_client_server_protocol::RequestId;
 use orchbee_server::WorkbenchGrant;
 use orchbee_workbench_protocol::{
     WorkbenchCommandResult, WorkbenchDirectoryPath, WorkbenchTabMoveDirection,

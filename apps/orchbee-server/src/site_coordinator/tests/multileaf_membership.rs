@@ -471,10 +471,8 @@ fn create_dispatched_then_split_committed_then_completion_settles() {
 }
 
 #[test]
-fn pending_create_completion_survives_legal_close_retarget() {
-    // A non-first Create in flight while a real Close removes the previous slot
-    // member and retargets the slot onto the pending Create's binding: the
-    // completion still settles and updates the slot.
+fn pending_create_completion_survives_another_tab_close() {
+    // Closing another settled Tab must not invalidate this pending Create.
     let mut coordinator = site();
     let committed = snapshot(&mut coordinator);
     let context = committed.navigation.workspaces[0]
@@ -495,13 +493,13 @@ fn pending_create_completion_survives_legal_close_retarget() {
     let completed = coordinator
         .complete_terminal_tab_create(pending_c, completion_c, Some(worker(1)))
         .unwrap();
+    terminal_started(&completed.result);
 }
 
 #[test]
-fn pending_anchor_split_then_completion_settles_the_slot() {
-    // Initial Creating(anchor) pending, then a real split makes the anchor's own
-    // Tab multi-leaf, then the anchor completion must still settle and update
-    // the current slot to Settled.
+fn pending_create_and_split_complete_independently() {
+    // A split can commit while its Tab creation is pending; both completions
+    // must retain their own successful results.
     let mut coordinator = site();
     let committed = snapshot(&mut coordinator);
     let context = committed.navigation.workspaces[0]
@@ -532,15 +530,19 @@ fn pending_anchor_split_then_completion_settles_the_slot() {
     let completed_s = coordinator
         .complete_terminal_panel_create(pending_s, completion_s, Some(worker(1)))
         .unwrap();
+    assert!(matches!(
+        completed_s.result.outcome,
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            terminal_outcome: WorkbenchTerminalOutcome::Started { .. },
+            ..
+        }
+    ));
 }
 
 #[test]
-fn non_current_completion_after_legitimate_retarget_settles_ledger_only() {
-    // A settled anchor plus two pending Creates; the real aggregate Close
-    // removes the anchor's Tab and retargets the slot onto the first surviving
-    // pending member. A completion for the other (non-current) pending
-    // reference must settle its ledger without touching the retargeted slot,
-    // and the current reference still settles normally afterwards.
+fn pending_creates_settle_out_of_order_after_another_tab_closes() {
+    // Closing a settled Tab preserves two other pending Creates. They may
+    // complete out of order, and the retained result must still replay.
     let mut coordinator = site();
     let committed = snapshot(&mut coordinator);
     let context = committed.navigation.workspaces[0]
@@ -566,20 +568,20 @@ fn non_current_completion_after_legitimate_retarget_settles_ledger_only() {
         WorkbenchCommandOutcome::TabCloseAccepted { .. }
     ));
     drive_close_to_publication(&mut coordinator, &close);
-    // The slot retargeted onto the first surviving pending member.
 
-    // C is not the current anchor: its completion settles the ledger only.
+    // Complete the later Create first.
     let completion_c = immediate_completion(pending_c.command());
     let completed_c = coordinator
         .complete_terminal_tab_create(pending_c, completion_c, Some(worker(1)))
         .unwrap();
 
     terminal_started(&completed_c.result);
-    // B remains the current anchor and settles the slot on completion.
+    // The earlier Create still completes independently.
     let completion_b = immediate_completion(pending_b.command());
     let completed_b = coordinator
         .complete_terminal_tab_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
+    terminal_started(&completed_b.result);
 
     assert_eq!(
         ready(coordinator.prepare_terminal_tab_create(create_c, None, None, None)),
@@ -632,8 +634,7 @@ fn a_pending_member_cannot_be_removed_by_close() {
             }
         ));
     }
-    // The member and the pending operation are untouched; the completion still
-    // settles the slot.
+    // The member and pending operation remain intact, so completion succeeds.
     let (still_ctx, still_tab, _) = workspace_leaf(&mut coordinator);
     assert_eq!(still_ctx, ctx);
     assert_eq!(still_tab, tab_a);
@@ -641,14 +642,13 @@ fn a_pending_member_cannot_be_removed_by_close() {
     let completed_a = coordinator
         .complete_terminal_tab_create(pending_a, completion_a, Some(worker(1)))
         .unwrap();
+    terminal_started(&completed_a.result);
 }
 
 #[test]
 fn last_close_to_empty_keeps_retained_replay_and_fresh_create_path() {
-    // The sole member is settled; the real Close removes it and the slot
-    // becomes Empty. The settled ledger entry still replays exactly, the member
-    // is not resurrected, and a subsequent Create follows the normal Empty
-    // path (the O/Empty-only boundary is unchanged).
+    // Closing the last Tab leaves its Workspace empty. The retained result
+    // still replays without resurrecting that Tab, and a fresh Create succeeds.
     let mut coordinator = site();
     let committed = snapshot(&mut coordinator);
     let context = committed.navigation.workspaces[0]
@@ -678,7 +678,7 @@ fn last_close_to_empty_keeps_retained_replay_and_fresh_create_path() {
         ready(coordinator.prepare_terminal_tab_create(create_a, None, None, None)),
         completed_a.result
     );
-    // A fresh Create on Empty commits and settles through the ordinary path.
+    // A fresh Create in the empty Workspace commits and settles normally.
     let create_b = context_tab_command(
         &coordinator,
         9803,
@@ -691,6 +691,7 @@ fn last_close_to_empty_keeps_retained_replay_and_fresh_create_path() {
     let completed_b = coordinator
         .complete_terminal_tab_create(pending_b, completion_b, Some(worker(1)))
         .unwrap();
+    terminal_started(&completed_b.result);
 }
 
 #[test]
@@ -762,8 +763,7 @@ fn an_open_aggregate_close_fences_the_same_tab_split_but_not_a_new_create() {
         .unwrap();
 
     terminal_started(&completed.result);
-    // Drive the pending Close to publication; the split Tab is removed and the
-    // already-settled unfenced member becomes the retargeted slot anchor.
+    // Publishing the Close removes the split Tab and retains the newly created Tab.
     drive_close_to_publication(&mut coordinator, &close);
 
     let committed = snapshot(&mut coordinator);

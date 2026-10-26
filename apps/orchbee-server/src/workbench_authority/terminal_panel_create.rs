@@ -13,7 +13,6 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkerId, serialize_document,
 };
 
-use super::terminal_membership::{WorkbenchTerminalMembership, tree_terminal_membership};
 use super::{
     MAXIMUM_LEDGER_BYTES, PlanFailure, RetainedRequest, SettledRequest, WorkbenchAuthority,
     WorkbenchGrant, ledger_size, result, unavailable,

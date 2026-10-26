@@ -36,7 +36,7 @@ fn effect_record(clipboard: bool, attachment: [u8; 16], epoch: [u8; 16]) -> Vec<
 fn program_poll_effects_preserve_bytes_order_and_the_pending_frame_flight() {
     let bell = effect_record(false, [2; 16], [3; 16]);
     let clipboard = effect_record(true, [2; 16], [3; 16]);
-    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
         WorkerOutcome::Record(frame_record(1)),
         WorkerOutcome::Record(bell.clone()),
         WorkerOutcome::Record(clipboard.clone()),
@@ -164,7 +164,7 @@ fn wrong_program_effect_scope_envelope_or_action_still_retires_the_viewer() {
             .map(|record| (record, poll()))
             .chain([(valid, read_rows())])
         {
-            let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+            let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
                 WorkerOutcome::Record(frame_record(1)),
                 WorkerOutcome::Record(record),
             ]));

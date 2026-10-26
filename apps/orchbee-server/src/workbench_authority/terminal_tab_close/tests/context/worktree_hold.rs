@@ -1,5 +1,4 @@
 use super::*;
-use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{
     WorkbenchWorktreeAction as Action, WorkbenchWorktreeOutcome as Outcome,
     WorkbenchWorktreeRequest, WorktreeIntent, WorktreeOperationFailure as Failure,

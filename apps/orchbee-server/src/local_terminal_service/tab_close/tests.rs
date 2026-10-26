@@ -173,8 +173,7 @@ fn add_terminal_between(
             )),
         )
         .unwrap();
-        let completed = site
-            .complete_terminal_tab_create(pending, Completion::Launch(result), Some(worker))
+        site.complete_terminal_tab_create(pending, Completion::Launch(result), Some(worker))
             .unwrap();
         drop(site);
     }

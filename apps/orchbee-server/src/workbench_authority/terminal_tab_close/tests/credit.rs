@@ -198,9 +198,7 @@ fn bootstrap_and_primary_reject_exhaustion_and_two_credits_are_consumed_separate
             authority
                 .prepare_terminal_tab_close_publication(&request.request_id, now)
                 .unwrap()
-                .commit()
-                .metadata()
-                .clone(),
+                .commit(),
             WorkbenchTabCloseStatus::Closed {
                 revision: WorkbenchRevision::new(revision)
             }

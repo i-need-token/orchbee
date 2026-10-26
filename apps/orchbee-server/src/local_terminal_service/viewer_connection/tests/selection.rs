@@ -413,7 +413,7 @@ fn event_record(kind: u16, payload: &[u8], payload_encoding: PayloadEncoding) ->
 #[test]
 fn poll_routes_only_selection_events_for_the_exact_viewer() {
     let expected = selection_events([2; 16]);
-    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from(
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from(
         expected
             .iter()
             .cloned()
@@ -440,7 +440,7 @@ fn poll_routes_only_selection_events_for_the_exact_viewer() {
 
     for wrong in selection_events([9; 16]) {
         let (service, handle, owner, peer, stop) =
-            scripted_session(VecDeque::from([WorkerOutcome::Record(wrong)]));
+            scripted_connection(VecDeque::from([WorkerOutcome::Record(wrong)]));
         let mut connection = service.client_connection();
         assert!(matches!(
             connection.publish_attach(viewer(&service, handle), attached_result()),

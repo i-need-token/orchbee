@@ -1,6 +1,5 @@
 //! Conditional deletion must prove every captured binding before any effect.
 use super::*;
-use crate::test_support::WorkbenchFixture;
 use crate::workbench_authority::WorkbenchProjectDissolveBegin;
 use orchbee_workbench_protocol::{PanelNode, Presentation, TerminalPresentationId};
 

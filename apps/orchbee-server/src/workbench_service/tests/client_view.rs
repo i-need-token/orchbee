@@ -178,7 +178,9 @@ fn client_view_control_requires_navigation_permission_but_status_is_read_only() 
                     expected_view_revision: client.view_revision,
                     minimum_workbench_revision: snapshot.revision,
                     intent: ClientViewIntent::Context {
-                        terminal_context_id: snapshot.navigation.workspaces[0].terminal_context_id
+                        terminal_context_id: snapshot.navigation.workspaces[0]
+                            .terminal_context_id
+                            .clone()
                     }
                 })
             }

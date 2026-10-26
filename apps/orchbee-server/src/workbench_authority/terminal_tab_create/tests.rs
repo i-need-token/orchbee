@@ -241,7 +241,7 @@ fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
         panic!("configured Workspace did not prepare")
     };
 
-    let pending = prepared.commit().into_pending();
+    let _pending = prepared.commit().into_pending();
 
     let snapshot = authority.projection.snapshot();
     assert_eq!(snapshot.revision, WorkbenchRevision::new(1));
@@ -645,7 +645,7 @@ fn stale_duplicate_wrong_seal_and_changed_metadata_tokens_cannot_settle_an_entry
         seal: Arc::new(SettlementSeal),
     };
     let mut changed_metadata = pending.metadata.clone();
-    changed_metadata.first = !changed_metadata.first;
+    changed_metadata.revision = WorkbenchRevision::new(changed_metadata.revision.value() + 1);
     let changed = PendingWorkbenchTabCreate {
         metadata: changed_metadata,
         seal: Arc::clone(&pending.seal),
@@ -687,9 +687,9 @@ fn stale_duplicate_wrong_seal_and_changed_metadata_tokens_cannot_settle_an_entry
 fn two_pending_entries_settle_out_of_order_without_changing_membership_revision() {
     let (mut authority, grant) = authority();
     let first_request = tab_command(&authority, 1, 0, "one");
-    let (first, first_metadata) = commit(&mut authority, &grant, first_request, binding(20));
+    let (first, _) = commit(&mut authority, &grant, first_request, binding(20));
     let second_request = tab_command(&authority, 2, 1, "two");
-    let (second, second_metadata) = commit(&mut authority, &grant, second_request, binding(21));
+    let (second, _) = commit(&mut authority, &grant, second_request, binding(21));
 
     let before = authority.projection.snapshot().clone();
 

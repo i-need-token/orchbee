@@ -4,7 +4,6 @@
 //! effect, checked overflow, the exact ±1 ledger boundary, and the same
 //! accounting on the leaf Tab path.
 
-use crate::test_support::WorkbenchFixture;
 use std::mem::size_of;
 use std::time::Instant;
 

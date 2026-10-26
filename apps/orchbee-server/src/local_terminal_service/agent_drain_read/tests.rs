@@ -51,7 +51,7 @@ use orchbee_capability_node_protocol::{
     TerminalLaunchOutcome, TerminalLaunchResult, WorkerGeneration, WorkerId, read_message,
     write_message,
 };
-use orchbee_client_server_protocol::{Geometry, RequestId};
+use orchbee_client_server_protocol::RequestId;
 use orchbee_local_site_protocol::WorkerId as LspWorkerId;
 
 const WORKER_BYTES: [u8; 16] = [9; 16];

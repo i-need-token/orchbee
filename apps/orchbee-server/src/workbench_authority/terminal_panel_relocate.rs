@@ -3,7 +3,7 @@
 
 use super::{
     CommitPlan, PlanFailure, PreparedCommandCommit, RetainedRequest, WorkbenchAuthority,
-    WorkbenchGrant, WorkbenchTerminalMembership, allocate, identity, result, unavailable,
+    WorkbenchGrant, allocate, identity, result, unavailable,
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, WorkbenchAction, WorkbenchCommand,

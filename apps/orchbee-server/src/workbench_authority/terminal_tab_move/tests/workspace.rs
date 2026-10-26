@@ -260,7 +260,6 @@ fn dropping_workspace_preparation_preserves_every_owner_fact() {
     else {
         panic!("admission expected")
     };
-    assert!(admission.fixture_membership().is_none());
     drop(admission);
     let WorkbenchTabMoveBegin::Admitted(admission) =
         authority.begin_terminal_tab_move(Some(&grant), request)

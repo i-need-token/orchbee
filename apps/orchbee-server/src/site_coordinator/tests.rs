@@ -2,12 +2,11 @@ use super::*;
 use crate::test_support::WorkbenchFixture;
 use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, HostCreationId, HostEpoch, HostLaunchAccepted, HostLaunchState,
-    HostTerminalId, HostTerminalIdentity, TerminalLaunchFailure, TerminalLaunchMode,
-    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
-    TerminalOperationAuthorization, WorkerGeneration, WorkerId,
+    HostTerminalId, HostTerminalIdentity, TerminalLaunchFailure, TerminalLaunchOutcome,
+    TerminalLaunchResult, TerminalOperationAuthorization, WorkerGeneration, WorkerId,
 };
 use orchbee_client_server_protocol::{
-    CreateFailureReason, CreateUnavailableReason, Geometry, StartMode, TerminalCreateRequest,
+    CreateFailureReason, Geometry, StartMode, TerminalCreateRequest,
 };
 use orchbee_workbench_protocol::{
     PanelNode, ProtocolVersion, SiteId, Snapshot, SnapshotReadIntent, WorkbenchRequest,

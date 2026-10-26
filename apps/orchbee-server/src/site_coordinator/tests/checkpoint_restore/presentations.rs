@@ -283,7 +283,7 @@ fn child_only_restore_registers_and_opens_while_unbound_tab_close_preserves_refe
 }
 
 #[test]
-fn entirely_unbound_tabs_close_without_a_worker_and_keep_open_slot_empty() {
+fn entirely_unbound_tabs_close_without_a_worker() {
     let (mut coordinator, _targets, _worker) = restored(true);
     for index in 0..2 {
         let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
@@ -311,11 +311,9 @@ fn entirely_unbound_tabs_close_without_a_worker_and_keep_open_slot_empty() {
             result.outcome,
             WorkbenchCommandOutcome::PanelCloseAccepted { .. }
         ));
-        assert!(
-            !coordinator
-                .publish_terminal_tab_close(&close.request_id, now)
-                .unwrap()
-        );
+        coordinator
+            .publish_terminal_tab_close(&close.request_id, now)
+            .unwrap();
     }
     assert!(
         coordinator

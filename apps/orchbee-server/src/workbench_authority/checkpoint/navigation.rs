@@ -1,7 +1,7 @@
 //! Strict retained navigation without physical Worker authority or historical shapes.
 use orchbee_workbench_protocol::{
     Directory, Navigation, Project, WorkbenchDirectoryId, WorkbenchDirectoryPath,
-    WorkbenchProjectId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId, Workspace,
+    WorkbenchProjectId, WorkbenchWorkspaceId, WorkerId, Workspace,
 };
 use serde::{Deserialize, Serialize};
 

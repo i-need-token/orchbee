@@ -1,5 +1,4 @@
 use super::*;
-use crate::test_support::WorkbenchFixture;
 use orchbee_workbench_protocol::{PresentationBinding, TerminalId, WorkbenchDirectoryPath};
 
 fn binding(id: u128, owner: u128) -> PresentationBinding {

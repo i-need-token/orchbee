@@ -122,7 +122,7 @@ fn process_reads_keep_typed_failures_and_reject_wrong_routes_without_projection_
         Reply::Malformed,
         Reply::Empty,
     ] {
-        let (service, handle, owner, peer, stop) = process_session(reply);
+        let (service, handle, owner, peer, stop) = process_connection(reply);
         let mut connection = service.client_connection();
         assert!(matches!(
             connection.publish_attach(viewer(&service, handle), attached_result()),

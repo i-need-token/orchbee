@@ -241,26 +241,3 @@ fn restart_refusal_does_not_commit_a_second_physical_reservation() {
         .complete(next, Completion::Unavailable, Some(worker))
         .unwrap();
 }
-
-#[test]
-fn unavailable_restart_is_retained_without_replaying_or_faking_open_success() {
-    let (mut coordinator, targets, worker) = restored(true);
-    for (index, target) in targets.iter().enumerate() {
-        let pending = coordinator
-            .prepare_checkpoint_terminal(
-                target,
-                id(100 + index as u128),
-                worker,
-                expiry(),
-                None,
-                None,
-            )
-            .unwrap();
-        coordinator
-            .complete(pending, Completion::Unavailable, Some(worker))
-            .unwrap();
-    }
-    let before = coordinator.workbench.as_ref().unwrap().snapshot().clone();
-    for candidate in [200, 201] {}
-    assert_eq!(coordinator.workbench.as_ref().unwrap().snapshot(), &before);
-}

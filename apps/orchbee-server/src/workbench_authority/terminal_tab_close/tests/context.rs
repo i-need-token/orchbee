@@ -1,4 +1,3 @@
-use crate::test_support::WorkbenchFixture;
 mod idle;
 mod worktree_hold;
 use super::workspace::workspace_fixture;

@@ -285,7 +285,7 @@ fn read_rows() -> Action {
 
 #[test]
 fn read_rows_record_at_the_requested_budget_is_delivered() {
-    let (service, handle, received, owner, peer, stop) = rows_session(4096, None);
+    let (service, handle, received, owner, peer, stop) = rows_connection(4096, None);
     let mut connection = service.client_connection();
     let candidate = viewer(&service, handle);
     assert!(matches!(
@@ -441,7 +441,7 @@ fn execute_viewer(
 fn poll_delivers_a_history_event_while_a_frame_flight_is_pending() {
     let frame = frame_record(1);
     let history = history_record([2; 16], 1);
-    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
         WorkerOutcome::Record(frame),
         WorkerOutcome::Record(history.clone()),
         WorkerOutcome::FeedbackAccepted,
@@ -483,7 +483,7 @@ fn poll_delivers_a_history_event_while_a_frame_flight_is_pending() {
 
 #[test]
 fn a_history_record_on_any_action_but_poll_is_a_strict_route_violation() {
-    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
         WorkerOutcome::Record(frame_record(1)),
         WorkerOutcome::Record(history_record([2; 16], 1)),
     ]));
@@ -520,7 +520,7 @@ fn a_history_record_on_any_action_but_poll_is_a_strict_route_violation() {
 #[test]
 fn a_history_event_for_another_attachment_is_a_strict_route_violation() {
     let (service, handle, owner, peer, stop) =
-        scripted_session(VecDeque::from([WorkerOutcome::Record(history_record(
+        scripted_connection(VecDeque::from([WorkerOutcome::Record(history_record(
             [9; 16], 1,
         ))]));
     let mut connection = service.client_connection();
@@ -543,7 +543,7 @@ fn a_history_event_for_another_attachment_is_a_strict_route_violation() {
 
 #[test]
 fn history_observed_acknowledgement_leaves_the_frame_flight_untouched() {
-    let (service, handle, owner, peer, stop) = scripted_session(VecDeque::from([
+    let (service, handle, owner, peer, stop) = scripted_connection(VecDeque::from([
         WorkerOutcome::Record(frame_record(1)),
         WorkerOutcome::FeedbackAccepted,
         WorkerOutcome::FeedbackAccepted,
@@ -587,7 +587,7 @@ fn history_observed_acknowledgement_leaves_the_frame_flight_untouched() {
 
 #[test]
 fn read_rows_record_one_byte_over_budget_is_rejected_before_delivery() {
-    let (service, handle, _received, owner, peer, stop) = rows_session(4096 + 1, None);
+    let (service, handle, _received, owner, peer, stop) = rows_connection(4096 + 1, None);
     let mut connection = service.client_connection();
     let candidate = viewer(&service, handle);
     assert!(matches!(
@@ -627,7 +627,8 @@ fn render_row_read_forwards_detail_and_rejects_a_text_reply() {
     use orchbee_capability_node_protocol::ViewerRowDetail as WorkerDetail;
     use orchbee_client_server_protocol::ViewerRowDetail;
     for reply_detail in [WorkerDetail::Render, WorkerDetail::Text] {
-        let (service, handle, received, owner, peer, stop) = rows_session(4096, Some(reply_detail));
+        let (service, handle, received, owner, peer, stop) =
+            rows_connection(4096, Some(reply_detail));
         let mut connection = service.client_connection();
         assert!(matches!(
             connection.publish_attach(viewer(&service, handle), attached_result()),

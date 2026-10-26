@@ -37,20 +37,13 @@ fn navigation(groups: &[Option<usize>]) -> Navigation {
                 primary_directory_id: None,
                 label: "Workspace".into(),
             })
-            .chain(
-                groups
-                    .iter()
-                    .enumerate()
-                    .map(|(index, group)| Workspace {
-                        workspace_id: workspace(index),
-                        project_id: group.map(project),
-                        label: format!("Workspace {index}"),
-                        primary_directory_id: Some(WorkbenchDirectoryId::parse(&id(1000)).unwrap()),
-                        terminal_context_id: WorkbenchTerminalContextId::parse(&id(2000 + index))
-                            .unwrap(),
-                    })
-                    .collect(),
-            )
+            .chain(groups.iter().enumerate().map(|(index, group)| Workspace {
+                workspace_id: workspace(index),
+                project_id: group.map(project),
+                label: format!("Workspace {index}"),
+                primary_directory_id: Some(WorkbenchDirectoryId::parse(&id(1000)).unwrap()),
+                terminal_context_id: WorkbenchTerminalContextId::parse(&id(2000 + index)).unwrap(),
+            }))
             .collect(),
             workspace_order: Vec::new(),
             project_order: vec![],

@@ -3,7 +3,8 @@ use crate::test_support::WorkbenchFixture;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{
     PanelOrientation, PanelSlot, Presentation, SiteId, TerminalId, TerminalPresentationId,
-    WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchRevision, WorkbenchSplitId, WorkerId,
+    WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchProtocolDocument, WorkbenchRevision,
+    WorkbenchSplitId, WorkerId, serialize_document,
 };
 
 fn authority() -> WorkbenchAuthority {
