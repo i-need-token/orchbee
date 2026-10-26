@@ -1,14 +1,15 @@
 //! Complete cohort verification and immutable publication before user PATH activation.
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests;
 use super::{
     Context, Error, Report,
     acquire::Source,
     manifest::{Artifact, Release},
+    platform,
 };
 use crate::release_store::{ReleaseStore, open_release_file};
 use base64::Engine;
-use orchbee_local_runtime::{Cohort, run_windows_command};
+use orchbee_local_runtime::Cohort;
 use sha2::{Digest, Sha256};
 use std::{
     io::{Read, Write},
@@ -17,19 +18,7 @@ use std::{
 };
 
 pub(super) fn root() -> Result<PathBuf, Error> {
-    let path = match std::env::var_os("ORCHBEE_INSTALL_DIR") {
-        Some(value) => PathBuf::from(value),
-        None => PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or(Error::InstallLocation)?)
-            .join("Programs/Orchbee"),
-    };
-    if !path.is_absolute()
-        || path
-            .to_str()
-            .is_none_or(|s| s.len() > 2048 || s.contains([';', '%', '\0', '\r', '\n', '"']))
-    {
-        return Err(Error::InstallLocation);
-    }
-    Ok(path)
+    platform::install_root().map_err(|_| Error::InstallLocation)
 }
 pub(super) fn publish(
     root: &Path,
@@ -104,16 +93,15 @@ fn verify(root: &Path, release: &Release, context: &mut Context) -> Result<(), E
     }
     let cohort = Cohort::load(root, context.deadline).map_err(|_| Error::CohortInvalid)?;
     let sidecar = cohort.observation_adapters_sidecar();
-    if !crate::agent_integrations::verify_distribution_capsule(
-        sidecar.directory(),
-        sidecar.declared_payload_sha256(),
-    ) {
+    if !platform::verify_capsule(sidecar.directory(), sidecar.declared_payload_sha256())
+        .map_err(|_| Error::CohortInvalid)?
+    {
         return Err(Error::CohortInvalid);
     }
     // This binary is executed only after all manifest digests and cohort checks pass.
     let mut command = Command::new(root.join("orchbee.exe"));
     command.arg("--version").env_remove("ORCHBEE_CONFIG_FILE");
-    let result = run_windows_command(command, Some(context.deadline), || context.interrupted());
+    let result = platform::execute(command, context).map_err(|_| Error::SmokeFailed)?;
     context
         .command_result(&result)
         .map_err(|error| match error {
@@ -151,9 +139,7 @@ pub(super) fn activate(root: &Path, release: &Path, context: &mut Context) -> Re
     // The root publisher lock also serializes cooperating PATH activations.
     let _store = ReleaseStore::acquire(root).map_err(|_| Error::Busy)?;
     context.check()?;
-    let system = winsafe::GetSystemDirectory().map_err(|_| Error::Activation)?;
-    let mut command =
-        Command::new(PathBuf::from(system).join("WindowsPowerShell/v1.0/powershell.exe"));
+    let mut command = platform::powershell_command().map_err(|_| Error::Activation)?;
     command
         .args([
             "-NoLogo",
@@ -172,7 +158,7 @@ pub(super) fn activate(root: &Path, release: &Path, context: &mut Context) -> Re
         .env("ORCHBEE_INSTALL_ROOT", root)
         .env("ORCHBEE_INSTALL_RELEASE", release)
         .env_remove("PSModulePath");
-    let result = run_windows_command(command, Some(context.deadline), || context.interrupted());
+    let result = platform::execute(command, context).map_err(|_| Error::Activation)?;
     if result.failure.is_some() {
         return Err(Error::ActivationUnknown);
     }

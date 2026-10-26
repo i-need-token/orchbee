@@ -3,15 +3,21 @@ mod acquire;
 mod install;
 mod installed;
 mod manifest;
+#[cfg(windows)]
+#[path = "update/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "update/unix.rs"]
+mod platform;
+mod source_path;
 use super::{
-    Failure, FailureKind, Output, failure_output, output,
-    source::{ArmedSignals, Finish, SignalWatch},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals, Finish},
+    failure_output, output,
 };
 use crate::{invocation::OutputFormat, localization::Locale};
 pub(in crate::cli) use installed::observe as observe_installation;
-use orchbee_local_runtime::{
-    CommandFailure, CommandOutput, UpdateChannel, read_user_settings, set_update_channel,
-};
+use orchbee_local_runtime::{CommandFailure, CommandOutput, UpdateChannel};
 use serde_json::json;
 use std::{
     io,
@@ -120,6 +126,9 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::ReleaseUpdate) {
+        return failure_output(failure, Some(format), locale);
+    }
     let signals = match ArmedSignals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => {
@@ -150,21 +159,18 @@ pub(crate) fn run(
     let result = (|| {
         context.check()?;
         if let Some(channel) = channel {
-            report.config_path = Some(
-                set_update_channel(channel, |name| std::env::var_os(name))
-                    .map_err(|_| Error::Configuration)?,
-            );
+            report.config_path =
+                Some(platform::save_channel(channel).map_err(|_| Error::Configuration)?);
             report.channel_saved = true;
         }
-        let settings =
-            read_user_settings(|name| std::env::var_os(name)).map_err(|_| Error::Configuration)?;
-        selected = Some(settings.update_channel);
+        let selected_channel = platform::selected_channel().map_err(|_| Error::Configuration)?;
+        selected = Some(selected_channel);
         report.phase = "source";
-        let source = acquire::Source::configured(settings.update_channel)?;
+        let source = acquire::Source::configured(selected_channel)?;
         report.phase = "manifest";
         let bytes = source.manifest(&mut context)?;
-        let release = manifest::Release::parse(&bytes, settings.update_channel)
-            .ok_or(Error::ManifestInvalid)?;
+        let release =
+            manifest::Release::parse(&bytes, selected_channel).ok_or(Error::ManifestInvalid)?;
         report.version = Some(release.version.clone());
         report.build_id = Some(release.build_id.clone());
         let root = install::root()?;

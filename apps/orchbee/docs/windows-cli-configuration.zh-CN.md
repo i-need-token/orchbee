@@ -260,7 +260,11 @@ Server 提交已支持的在线 manifest-check 策略，并向连接中的主 TU
 
 `orchbee update [--format text|json]` 安装配置的频道。`orchbee channel set <stable|preview> [--format text|json]` 先校验并原子保存频道，保留注释与其他 TOML 值，再运行同一更新器。该写入器可以创建显式指定但不存在的文件。更新失败保留已保存偏好。两个命令均无须 Session；不会启动、停止、替换或重新连接运行中的 Session。
 
+共用更新工作流、来源／清单准入、有界传输策略、验证、发布、激活决策及已安装版本来源在所有宿主平台参与编译。具名原生端口拥有声明过的环境／配置访问、安装根目录准入、不跟随链接的清单打开、系统程序定位、capsule 验证和受管进程执行。能力准入先于信号注册及任何环境、文件、网络或进程效果。Linux/macOS 保留通用 unsupported-platform 结果（退出码 4），既不保存频道也不执行更新。
+
 将 `ORCHBEE_UPDATE_MANIFEST` 设置为显式本地发布清单绝对路径或 HTTPS URL。`{channel}` 替换为所选频道。没有隐式公共发布源。选定的清单是信任依据；逐文件 SHA-256 校验保证与清单一致，不等于独立发布者签名。`ORCHBEE_INSTALL_DIR` 默认为 `LOCALAPPDATA/Programs/Orchbee`。安装路径拒绝 PATH 分隔符、展开变量和控制字符。获取来源共用 600 秒时限并支持 Ctrl+C 取消。HTTPS 使用系统目录中的 curl 8.4 或更新版本，仅允许 HTTPS 有界重定向，不读取 curlrc 或继承代理/凭据环境，并限制下载大小。
+
+本地来源模型独立于编译宿主，保留既有 Windows 驱动器绝对路径语法：`/` 和 `\` 分隔组件，重复分隔符和 `.` 遵循非 verbatim 的 Windows 组件语义，拒绝 `..`、UNC、设备、verbatim 和驱动器相对路径。原始外部来源上限为 4096 字节；解析已准入相对产物时保留既有 parent／join 行为。既有来源夹具覆盖这些边界，并在 Windows 上与原 Windows 标准库解析器及 join 对照。
 
 发布清单为封闭 JSON，包含 `schemaVersion: 1`、`product: "orchbee"`、`platform: "windows-x86_64"`、`channel`、`version`、`buildId` 和 `files`。每文件恰含 `path`、`url`、小写 `sha256` 与字节数 `size`。文件 URL 为 HTTPS 或相对清单目录解析的可移植路径。清单最大 64 KiB，最多 4096 个文件，单文件最大 512 MiB，总量最大 2 GiB。可移植路径拒绝目录穿越、Windows 设备名、替代数据流、大小写别名及文件/目录冲突。必需内容包括四个程序、schema-2 `cohort.json`、适配器 capsule 及三个 ConPTY 分发文件。所有声明文件先复制到私有暂存区并计算哈希；通过 cohort 与 capsule 摘要接纳后，才执行新 Client 的精确版本启动检查。
 
@@ -343,4 +347,4 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 
 `terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。
 
-<!-- documentation-pairing: english-sha256=43b1b9558bf50319e98ce9c6453850b40ffadf6a027f67cdb64f1501bd76c466 zh-cn-sha256=4a2927cfb13a359efb715b6b859dd44bc67443357a1171fecb3e083c5e304540 -->
+<!-- documentation-pairing: english-sha256=bbca1f12092b3039ebe44a678036aa27a2501055095812fc919178be60d29a8d zh-cn-sha256=bfa9c5f9824c542df132c7b7c1b6b7bd7924f426fcc6d4f969f054b0dd34e5df -->

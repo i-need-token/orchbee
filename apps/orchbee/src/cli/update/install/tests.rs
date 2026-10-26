@@ -1,8 +1,9 @@
 //! Installer boundary with synthetic cohort peers and a real compiled version probe.
 //! This proves staging/publication, not Server/Worker/Host behavior or user PATH activation.
+use super::super::source_path::LocalPath;
 use super::*;
-use crate::cli::source::ArmedSignals;
-use orchbee_local_runtime::{PrivateCache, UpdateChannel};
+use crate::cli::console_interrupt::ArmedSignals;
+use orchbee_local_runtime::{PrivateCache, UpdateChannel, run_windows_command};
 use serde_json::json;
 use std::{
     fs,
@@ -152,7 +153,10 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     )
     .unwrap();
     let mut release = Release::parse(&bytes, UpdateChannel::Stable).unwrap();
-    let source_ref = Source::Local(source.join("release.json"));
+    let source_ref = Source::Local(
+        LocalPath::parse(source.join("release.json").to_str().unwrap())
+            .expect("valid local source"),
+    );
     let mut context = Context {
         signals: ArmedSignals::arm_interrupts().unwrap(),
         deadline: Instant::now() + Duration::from_secs(60),
