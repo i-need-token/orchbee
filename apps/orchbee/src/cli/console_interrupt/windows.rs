@@ -22,6 +22,9 @@ pub(super) fn arm() -> io::Result<Box<dyn NativeSignals>> {
 }
 
 impl NativeSignals for ArmedSignals {
+    fn requested(&self) -> bool {
+        ArmedSignals::requested(self)
+    }
     fn wake(&self) -> Option<LocalIo<'_>> {
         self.poll_fd()
     }

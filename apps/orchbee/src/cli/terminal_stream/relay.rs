@@ -1,72 +1,34 @@
-//! A bounded, acknowledged stdout relay. Fixed system script; payload is only pipe data.
-use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
+//! Bounded acknowledged records and cleanup over one native stdout relay.
 use std::{
-    io::{self, IsTerminal, Read, Write},
-    os::windows::process::CommandExt,
-    path::PathBuf,
-    process::{Child, Command, Stdio},
-    thread,
+    io, thread,
     time::{Duration, Instant},
 };
-
-const SCRIPT: &str = r#"$ErrorActionPreference='Stop'; try {
-$i=[Console]::OpenStandardInput(); $o=[Console]::OpenStandardOutput(); $a=[Console]::OpenStandardError()
-$console=-not [Console]::IsOutputRedirected; $utf8=[Text.UTF8Encoding]::new($false,$true)
-if ($console) { [Console]::OutputEncoding=[Text.Encoding]::Unicode }
-$header=[byte[]]::new(4)
-while ($true) {
-  $pos=0
-  while ($pos -lt 4) { $n=$i.Read($header,$pos,4-$pos); if ($n -eq 0) { if ($pos -eq 0) { exit 0 }; exit 1 }; $pos+=$n }
-  $size=[BitConverter]::ToUInt32($header,0); if ($size -eq 0 -or $size -gt 8388608) { exit 1 }
-  $body=[byte[]]::new($size); $pos=0
-  while ($pos -lt $size) { $n=$i.Read($body,$pos,$size-$pos); if ($n -eq 0) { exit 1 }; $pos+=$n }
-  if ($console) { [Console]::Write($utf8.GetString($body)); [Console]::Out.Flush() }
-  else { $o.Write($body,0,$body.Length); $o.Flush() }
-  $a.WriteByte(1); $a.Flush()
+#[cfg(windows)]
+#[path = "relay/windows.rs"]
+mod platform;
+#[cfg(not(windows))]
+#[path = "relay/unix.rs"]
+mod platform;
+trait NativeRelay {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize>;
+    fn read_ack(&mut self, bytes: &mut [u8]) -> io::Result<usize>;
+    fn stop(&mut self) -> io::Result<()>;
 }
-} catch { exit 1 }"#;
-
 pub(in crate::cli) struct Relay {
-    child: Child,
-    input: ChildInputWriter,
-    ack: ChildOutputReader,
+    native: Box<dyn NativeRelay>,
     healthy: bool,
 }
 impl Relay {
     pub(in crate::cli) fn start() -> io::Result<Self> {
-        Self::spawn(Stdio::inherit(), io::stdout().is_terminal())
+        platform::start().map(|native| Self {
+            native,
+            healthy: true,
+        })
     }
-    #[cfg(test)]
-    pub(super) fn with_output(output: Stdio) -> io::Result<Self> {
-        Self::spawn(output, false)
-    }
-    fn spawn(output: Stdio, console: bool) -> io::Result<Self> {
-        let executable = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
-            .join("WindowsPowerShell/v1.0/powershell.exe");
-        let (input, child_input) = ChildInputWriter::pipe()?;
-        let (ack, child_ack) = ChildOutputReader::pipe()?;
-        let mut command = Command::new(executable);
-        command
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                SCRIPT,
-            ])
-            .stdin(child_input)
-            .stdout(output)
-            .stderr(child_ack)
-            // A detached helper silently discards inherited console output. Retain
-            // that console, but isolate Ctrl+C so the owner can finish its record
-            // and reap the helper. Redirected output needs no console at all.
-            .creation_flags(if console { 0x0000_0200 } else { 0x0800_0000 });
-        let child = command.spawn()?;
-        drop(command);
-        Ok(Self {
-            child,
-            input,
-            ack,
+    #[cfg(all(test, windows))]
+    pub(super) fn with_output(output: std::process::Stdio) -> io::Result<Self> {
+        platform::with_output(output).map(|native| Self {
+            native,
             healthy: true,
         })
     }
@@ -91,7 +53,7 @@ impl Relay {
             let mut remaining = part;
             while !remaining.is_empty() {
                 check(deadline, cancelled)?;
-                match self.input.write(remaining) {
+                match self.native.write(remaining) {
                     Ok(0) => return Err(io::ErrorKind::WriteZero.into()),
                     Ok(n) => remaining = &remaining[n..],
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => pause(),
@@ -102,7 +64,7 @@ impl Relay {
         loop {
             check(deadline, cancelled)?;
             let mut ack = [0];
-            match self.ack.read(&mut ack) {
+            match self.native.read_ack(&mut ack) {
                 Ok(1) if ack[0] == 1 => {
                     self.healthy = true;
                     return Ok(());
@@ -116,8 +78,7 @@ impl Relay {
 }
 impl Drop for Relay {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let _ = self.native.stop();
     }
 }
 fn check(deadline: Instant, cancelled: &dyn Fn() -> bool) -> io::Result<()> {

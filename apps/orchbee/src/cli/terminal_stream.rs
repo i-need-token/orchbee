@@ -1,8 +1,8 @@
 //! Invocation-owned terminal observation and control streams. The transport and Viewer remain single owners.
 use super::{Failure, FailureKind, Output, output, query};
 use crate::{
-    invocation::TerminalObserveCommand, local_client::LocalClient, localization::Locale,
-    terminal_projection::TerminalProjection, windows_signal::ControlInterrupt,
+    cli::console_interrupt::ArmedSignals as Interrupt, invocation::TerminalObserveCommand,
+    local_client::LocalClient, localization::Locale, terminal_projection::TerminalProjection,
 };
 use orchbee_client_server_protocol::{
     TerminalViewerAction as Action, TerminalViewerOutcome as Outcome, TerminalViewerRequest,
@@ -24,6 +24,11 @@ const CLEANUP: Duration = Duration::from_secs(2);
 pub(crate) const SCHEMA: &str = "orchbee.terminal.stream";
 
 pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::TerminalStream)
+    {
+        return crate::cli::failure_output(failure, None, locale);
+    }
     let started = Instant::now();
     let total = command
         .timeout_ms
@@ -34,7 +39,7 @@ pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
         stderr: locale.terminal_stream_failure(&failure),
         finalization: None,
     };
-    let signal = match ControlInterrupt::arm() {
+    let signal = match Interrupt::arm_interrupts() {
         Ok(signal) => signal,
         Err(_) => return failure_output(Failure::new(FailureKind::InternalFailure)),
     };
@@ -44,7 +49,7 @@ pub(crate) fn run(command: &TerminalObserveCommand, locale: Locale) -> Output {
     };
     let gate = Gate {
         cancelled: &|| signal.requested(),
-        wake: Some(signal.wake()),
+        wake: signal.poll_fd(),
         total,
     };
     let mut connection = Connection {

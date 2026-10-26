@@ -36,7 +36,6 @@ impl Locale {
             },
         )
     }
-    #[cfg(windows)]
     pub(crate) const fn pane_graphics_status(self, status: u8) -> &'static str {
         match (self, status) {
             (Self::EnUs, 0) => "Graphics operation completed.\n",

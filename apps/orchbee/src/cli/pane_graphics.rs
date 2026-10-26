@@ -1,7 +1,8 @@
 //! Native visual writes and reads with exact receipts, no uncertain replay and no PTY input.
 use super::{
-    Failure, FailureKind, Output, failure_output, output, query, results,
-    source::{ArmedSignals as Signals, Finish, SignalWatch},
+    Failure, FailureKind, Output,
+    console_interrupt::{ArmedSignals as Signals, Finish, SignalWatch},
+    failure_output, output, query, results,
 };
 use crate::{
     invocation::{
@@ -25,6 +26,9 @@ mod stream;
 mod upload;
 
 pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Output {
+    if let Err(failure) = super::execution::admit(super::execution::Capability::PaneGraphics) {
+        return failure_output(failure, Some(format), locale);
+    }
     let mut signals = match Signals::arm_interrupts() {
         Ok(signals) => signals,
         Err(_) => {

@@ -4,9 +4,9 @@
 
 use super::display::Display;
 use super::{
-    Action, Connection, ControlInterrupt, Duration, Failure, FailureKind, Gate, Instant,
-    LocalClient, Locale, Outcome, Output, STEP, TerminalProjection, Value, ViewerId, classify,
-    emit, exchange, history, input, json, query, relay,
+    Action, Connection, Duration, Failure, FailureKind, Gate, Instant, Interrupt, LocalClient,
+    Locale, Outcome, Output, STEP, TerminalProjection, Value, ViewerId, classify, emit, exchange,
+    history, input, json, query, relay,
 };
 use crate::{
     client_view::Modifiers,
@@ -25,6 +25,11 @@ use orchbee_terminal_protocol::{MouseTracking, TerminalTextFrame};
 use std::num::NonZeroU64;
 
 pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::TerminalStream)
+    {
+        return crate::cli::failure_output(failure, None, locale);
+    }
     let started = Instant::now();
     let output = |failure: Option<Failure>| Output {
         status: failure.as_ref().map_or(0, |f| f.kind.exit_code()),
@@ -32,7 +37,7 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
         stderr: failure.map_or_else(String::new, |f| locale.terminal_stream_failure(&f)),
         finalization: None,
     };
-    let signal = match ControlInterrupt::arm() {
+    let signal = match Interrupt::arm_interrupts() {
         Ok(s) => s,
         Err(_) => return output(Some(Failure::new(FailureKind::InternalFailure))),
     };
@@ -42,7 +47,7 @@ pub(crate) fn run(command: &TerminalControlCommand, locale: Locale) -> Output {
     };
     let gate = Gate {
         cancelled: &|| signal.requested(),
-        wake: Some(signal.wake()),
+        wake: signal.poll_fd(),
         total: command
             .stream
             .timeout_ms

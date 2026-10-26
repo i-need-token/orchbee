@@ -15,6 +15,7 @@ mod platform;
 
 trait NativeSignals {
     fn wake(&self) -> Option<LocalIo<'_>>;
+    fn requested(&self) -> bool;
     fn take(&mut self) -> io::Result<Option<i32>>;
     fn finish(self: Box<Self>) -> io::Result<Option<SourceFinalization>>;
     fn into_finalization(self: Box<Self>) -> SourceFinalization;
@@ -71,6 +72,10 @@ impl ArmedSignals {
 
     pub(super) fn poll_fd(&self) -> Option<LocalIo<'_>> {
         self.0.wake()
+    }
+
+    pub(super) fn requested(&self) -> bool {
+        self.0.requested()
     }
 
     pub(super) fn take(&mut self) -> io::Result<Option<i32>> {

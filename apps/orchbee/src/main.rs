@@ -165,7 +165,6 @@ fn main() -> ExitCode {
             #[cfg(not(windows))]
             Ok(
                 invocation::Request::TerminalClear { format, .. }
-                | invocation::Request::PaneGraphics { format, .. }
                 | invocation::Request::Events { format, .. }
                 | invocation::Request::ChannelShow { format, .. }
                 | invocation::Request::Update { format, .. }
@@ -249,7 +248,6 @@ fn main() -> ExitCode {
             Ok(invocation::Request::ConfiguredCommand { command, format }) => {
                 cli::configured_commands::run(&command, format, locale)
             }
-            #[cfg(windows)]
             Ok(invocation::Request::PaneGraphics { command, format }) => {
                 cli::pane_graphics::run(&command, format, locale)
             }

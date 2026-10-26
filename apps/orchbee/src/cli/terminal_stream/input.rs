@@ -1,5 +1,5 @@
-//! Bounded NDJSON commands and an invocation-owned cancellable Windows stdin reader.
-use crate::cli::windows_stdin::{Poll as BytePoll, Reader as ByteReader};
+//! Bounded NDJSON commands and an invocation-owned cancellable native stdin reader.
+use crate::cli::stdin_bytes::{Poll as BytePoll, Reader as ByteReader};
 use base64::Engine;
 use orchbee_client_server_protocol::Geometry;
 use serde_core::{

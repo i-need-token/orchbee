@@ -6,9 +6,9 @@ use super::{
 };
 use crate::{
     cli::{
-        source::SignalWatch,
+        console_interrupt::SignalWatch,
+        stdin_bytes::{Poll, Reader},
         terminal_stream::relay::Relay,
-        windows_stdin::{Poll, Reader},
     },
     invocation::pane_graphics::LayerSpec,
     localization::Locale,

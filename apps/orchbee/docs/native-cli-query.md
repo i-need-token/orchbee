@@ -24,6 +24,8 @@ Plugin catalog/runtime commands, configured commands and named-Session commands 
 
 Terminal selection, copy and link workflows share bounded buffer validation and exact link-activation receipts. Client scrollback-editor requests share passive selection and retained command observation. Their execution capabilities are checked before signal registration or Session discovery; link activation still detaches its viewer before submitting its one effect.
 
+Terminal observation, control, attachment and Pane graphics share protocol, framing, acknowledgement and cleanup workflows. Windows adapters own the stdin helper and stdout relay processes; shared polling interprets their actual byte, EOF and exit observations. Unsupported hosts refuse before terminal admission, signal registration or helper creation. Native interrupt observation delegates to the existing Windows guard without replacing Unix cancellation ownership.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,

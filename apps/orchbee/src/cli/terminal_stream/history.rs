@@ -10,8 +10,6 @@ use crate::workbench_client::terminal_viewport::{
 };
 use orchbee_client_server_protocol::{HistoryDemand, ProjectionDemand};
 use orchbee_terminal_protocol::TerminalTextFrame;
-#[cfg(test)]
-use serde_json::Value;
 
 #[derive(Default)]
 pub(super) struct History {
@@ -240,13 +238,6 @@ impl History {
             output.event(json!({"kind":"reset","reason":"history-recovering"}), gate)
         }
     }
-    #[cfg(test)]
-    pub(super) fn record(&self) -> Result<Value, Failure> {
-        self.core.as_ref().map_or_else(
-            || Ok(json!({"kind":"reset","reason":"history-recovering"})),
-            surface,
-        )
-    }
 }
 fn feedback(client: &mut LocalClient, action: Action, gate: &Gate<'_>) -> Result<(), Failure> {
     match exchange(client, action, gate)? {
@@ -264,14 +255,6 @@ fn present(
     };
     let (columns, rows) = core.geometry();
     output.history(window, columns, rows, gate)
-}
-#[cfg(test)]
-fn surface(core: &TerminalViewport) -> Result<Value, Failure> {
-    let ViewportSurface::Window(window) = core.surface() else {
-        return Ok(json!({"kind":"reset","reason":"history-pending"}));
-    };
-    let (columns, rows) = core.geometry();
-    super::frame::history(window, columns, rows)
 }
 
 #[cfg(test)]

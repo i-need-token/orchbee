@@ -1,7 +1,7 @@
 //! Acquire one complete input before any Session discovery or graphics submission.
 use super::{Failure, FailureKind, Signals};
 use crate::{
-    cli::source::{self, SourceFailure},
+    cli::console_interrupt::{self as source, SourceFailure},
     invocation::pane_graphics::{Input, MAXIMUM_SET_DOCUMENT_BYTES, SetSpec},
 };
 use base64::Engine;

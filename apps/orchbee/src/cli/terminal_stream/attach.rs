@@ -1,7 +1,7 @@
-//! Direct Windows interface over the same exact controller and viewport owners.
+//! Admitted interactive interface over the same exact controller and viewport owners.
 use super::{
-    Connection, ControlInterrupt, Duration, Failure, FailureKind, Gate, Instant, Locale, Output,
-    STEP, Value, frame, query,
+    Connection, Duration, Failure, FailureKind, Gate, Instant, Interrupt, Locale, Output, STEP,
+    Value, frame, query,
 };
 use super::{
     control::{Controller, classify_control, submit},
@@ -23,6 +23,11 @@ mod input;
 mod tests;
 
 pub(crate) fn run(command: &TerminalAttachCommand, locale: Locale) -> Output {
+    if let Err(failure) =
+        crate::cli::execution::admit(crate::cli::execution::Capability::TerminalStream)
+    {
+        return crate::cli::failure_output(failure, None, locale);
+    }
     let finish = |failure: Option<Failure>| Output {
         status: failure.as_ref().map_or(0, |f| f.kind.exit_code()),
         stdout: Vec::new(),
@@ -42,13 +47,13 @@ pub(crate) fn run(command: &TerminalAttachCommand, locale: Locale) -> Output {
         Err(_) => return finish(Some(Failure::new(FailureKind::InternalFailure))),
     };
     let started = Instant::now();
-    let signal = match ControlInterrupt::arm() {
+    let signal = match Interrupt::arm_interrupts() {
         Ok(signal) => signal,
         Err(_) => return finish(Some(Failure::new(FailureKind::InternalFailure))),
     };
     let gate = Gate {
         cancelled: &|| signal.requested(),
-        wake: Some(signal.wake()),
+        wake: signal.poll_fd(),
         total: command
             .timeout_ms
             .map(|ms| started + Duration::from_millis(u64::from(ms))),

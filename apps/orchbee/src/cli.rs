@@ -27,10 +27,8 @@ mod client_control;
 pub(crate) mod configured_commands;
 #[cfg(windows)]
 pub(crate) mod events;
-#[cfg(windows)]
 pub(crate) mod pane_graphics;
-#[cfg(windows)]
-mod windows_stdin;
+mod stdin_bytes;
 pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
 mod agent_projection;
@@ -116,76 +114,25 @@ mod terminal_output;
 pub(crate) use query::terminal_copy::run as copy_terminal;
 pub(crate) use query::terminal_links::run as resolve_terminal_link;
 pub(crate) use query::terminal_selection::run as read_terminal_selection;
-#[cfg(windows)]
 pub(crate) mod terminal_stream;
 
 pub(crate) fn terminal_attach(
     command: &crate::invocation::TerminalAttachCommand,
     locale: Locale,
 ) -> Output {
-    #[cfg(windows)]
-    {
-        terminal_stream::run_attach(command, locale)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        let failure = Failure::new(FailureKind::ServiceUnavailable).details(
-            crate::cli::stage_reason_details("platform", "unsupported-platform"),
-        );
-        Output {
-            status: failure.kind.exit_code(),
-            stdout: Vec::new(),
-            stderr: locale.cli_failure(&failure),
-            finalization: None,
-        }
-    }
+    terminal_stream::run_attach(command, locale)
 }
-
 pub(crate) fn terminal_observe(
     command: &crate::invocation::TerminalObserveCommand,
     locale: Locale,
 ) -> Output {
-    #[cfg(windows)]
-    {
-        terminal_stream::run(command, locale)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        let failure = Failure::new(FailureKind::ServiceUnavailable).details(
-            crate::cli::stage_reason_details("platform", "unsupported-platform"),
-        );
-        Output {
-            status: failure.kind.exit_code(),
-            stdout: Vec::new(),
-            stderr: locale.cli_failure(&failure),
-            finalization: None,
-        }
-    }
+    terminal_stream::run(command, locale)
 }
-
 pub(crate) fn terminal_control(
     command: &crate::invocation::TerminalControlCommand,
     locale: Locale,
 ) -> Output {
-    #[cfg(windows)]
-    {
-        terminal_stream::run_control(command, locale)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = command;
-        let failure = Failure::new(FailureKind::ServiceUnavailable).details(
-            crate::cli::stage_reason_details("platform", "unsupported-platform"),
-        );
-        Output {
-            status: failure.kind.exit_code(),
-            stdout: Vec::new(),
-            stderr: locale.cli_failure(&failure),
-            finalization: None,
-        }
-    }
+    terminal_stream::run_control(command, locale)
 }
 
 mod text;
