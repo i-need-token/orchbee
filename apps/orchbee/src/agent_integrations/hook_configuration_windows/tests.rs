@@ -1,4 +1,9 @@
 use super::*;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use serde_json::Value;
+
+const PREFIX: &str = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ";
+
 #[test]
 fn letta_owns_a_silent_millisecond_hook_and_preserves_policy_and_foreign_values() {
     let root = Path::new(r"C:\owned\0.4.17");

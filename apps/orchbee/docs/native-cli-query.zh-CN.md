@@ -1056,6 +1056,9 @@ connect、绝不创建锁或标记、绝不修复——共享一个在有界文�
 命令专用失败。Windows 与 Linux 保留各自原生读取、路径和可执行文件观察。
 配置 hook 候选保持声明顺序：仅文件缺失时尝试下一候选，首个文件字节或其他读取结果
 立即结束查找。扫描事实进入共享分类和根目录折叠，不另建预算。
+有序文档类型及 JSON／Kimi／事件集扫描器共用一个纯集成 owner，doctor 直接消费其六态结果。
+Windows 提供集成 owner 原有的 Disk／VerbatimDisk 根准入和路径相等策略，包括拒绝 UNC；
+扫描器不改用宿主路径解释，也不替换为 doctor 更宽的文件系统路径准入。
 Linux 继续在既有 home 目录检查之后拒绝配置 hook 检查。
 Windows 端点提示和文本保留未检查事实，仅 JSON 渲染将该端点映射为
 `{kind:"unsupported"}`。这一边界不新增平台检查能力。
@@ -2535,4 +2538,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=6e228068b6a9ce3072935df4d84fecece1b9d3d6c9d1f4ddab49578be1a76b5a zh-cn-sha256=133d24281ce0e491745720c0e069b6184b7454f4a200428853a6044bcf841d92 -->
+<!-- documentation-pairing: english-sha256=578960442ddd664220b658f318e1c123d05472dc12fbe6e4be01b1f2219aecdc zh-cn-sha256=f19b4f8bcba44e6b1b05095f6cfa17cb851538b3407b50e297565b34da51f6d4 -->

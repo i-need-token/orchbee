@@ -216,6 +216,11 @@ a syntax-preserving editor. Newline spelling can normalize. The existing bounded
 Windows publication, metadata preservation, recovery and residual rules apply to
 both JSON and TOML; path selection is shared with offline doctor.
 
+The pure JSON, Kimi and event-set scanners share the original six ownership states with doctor.
+They preserve the raw parsed document for Windows mutation and use explicit Windows root-admission
+and equality policies. Candidate location, bounded reads, resource-root observation and publication
+remain Windows-owned; common parsing does not enable configuration observation on unsupported hosts.
+
 Only valid `session_id` from exact `SessionStart`/`SessionEnd` inputs is forwarded,
 as identity-only/session-ended respectively. No prompt, path or response is sent.
 Node remains required; the fixed PowerShell command returns `{}` and is exercised
@@ -225,13 +230,14 @@ hooks can continue the turn, and asynchronous lifecycle events do not supply one
 ordered, uniformly correlated stream. Those status gaps remain open. Local setup
 also does not prove effective policy or authenticated task completion.
 
-Windows-only `toml_edit` 0.25.15+spec-1.1.0 enables only parse/display, with defaults
+The common `toml_edit` 0.25.15+spec-1.1.0 dependency enables only parse/display, with defaults
 disabled. It has no unsafe source, build script or proc macro, is MIT OR Apache-2.0,
 and reuses the existing indexmap, toml_datetime, toml_parser and winnow versions.
 Previously locked toml_writer 1.1.2 now supplies display. Winnow enables its standard
 ASCII/binary parser features; SIMD remains disabled. Its optional memchr edge appears
 in the lockfile without enabling that feature. No duplicate version or new runtime is required. Existing transitive unsafe code stays dependency-owned.
-Remove this dependency when its last configuration-editing consumer disappears.
+Shared Kimi inspection and existing configuration witnesses use the same dependency as Windows
+editing. Remove it when the last inspection, editing and fixture consumer disappears.
 
 Evidence includes lossless foreign-rule fixtures, both TOML representations,
 partial repair and refusal, isolated public lifecycle/doctor/override checks,

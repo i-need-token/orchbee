@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 mod observation;
-pub(crate) use observation::{ConfigurationScan, Observation, Unsupported};
+pub(crate) use observation::{Observation, Unsupported};
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(unix)]

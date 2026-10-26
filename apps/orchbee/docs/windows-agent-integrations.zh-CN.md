@@ -201,6 +201,10 @@ Kimi 使用当前原生 Windows `kimi` 命令，配置路径为非空绝对路�
 换行符写法可能规范化。JSON 与 TOML 共用既有有界 Windows 发布、
 元数据保留、恢复和残留规则；路径选择与离线 doctor 共享。
 
+纯 JSON、Kimi 和事件集扫描器与 doctor 共用原有六种所有权状态。
+它们向 Windows 变更保留原始解析文档，并显式使用 Windows 根准入和相等策略。
+候选定位、有界读取、资源根观察与发布仍归 Windows 所有；共同解析不会在不支持的宿主上启用配置观察。
+
 只转发精确 `SessionStart`/`SessionEnd` 输入中的有效 `session_id`，
 分别作为仅身份识别或会话结束。不会发送提示词、路径或响应。
 仍需 Node；固定 PowerShell 命令返回 `{}`，通过提供方 Windows cmd shell 验证。
@@ -208,13 +212,14 @@ Kimi 使用当前原生 Windows `kimi` 命令，配置路径为非空绝对路�
 先于可能继续轮次的阻塞 hook 执行，异步生命周期事件也没有提供统一关联的有序流。
 这些状态缺口仍未关闭。本地配置也不证明有效策略或认证任务完成。
 
-Windows 专用 `toml_edit` 0.25.15+spec-1.1.0 关闭默认特性，仅启用 parse/display。
+公共 `toml_edit` 0.25.15+spec-1.1.0 依赖关闭默认特性，仅启用 parse/display。
 它没有 unsafe 源码、构建脚本或过程宏，许可证为 MIT OR Apache-2.0，
 复用现有 indexmap、toml_datetime、toml_parser 和 winnow 版本。
 之前已锁定的 toml_writer 1.1.2 现用于格式输出。Winnow 启用标准
 ASCII/binary 解析特性，SIMD 仍关闭；锁文件出现其可选 memchr 边不代表启用该特性。
 不需要重复版本或新运行时。
-既有传递依赖的 unsafe 仍归依赖所有。当最后一个配置编辑消费者消失时移除此依赖。
+既有传递依赖的 unsafe 仍归依赖所有。共享 Kimi 检查、既有配置见证与 Windows 编辑使用同一依赖。
+当最后一个检查、编辑及夹具消费者消失时移除此依赖。
 
 证据包括保留外来规则的夹具、两种 TOML 表示、部分修复与拒绝、隔离的公开生命周期／
 doctor／根目录覆盖检查、已安装命令的 PowerShell 5.1/7 与 cmd 投递，以及共享 JSON 回归。
@@ -325,4 +330,4 @@ Windows 公开 doctor 用例将可执行文件、当前 sidecar 和安装树复�
 通过 Desktop 的摘要实现更新来源清单，核对更新状态、本地化重装命令及安装树保持不变。
 Unicode 摘要向量区分 UTF-16 路径顺序与 UTF-8 字节顺序。
 
-<!-- documentation-pairing: english-sha256=133b5f8fdc9a2b0b004b25045067948362b75b4553682114baa9a12c570b9d6a zh-cn-sha256=f4ca62e721cd3eb2e561198205456c2895dddabb8e6a0e6534e15d5ce58eab40 -->
+<!-- documentation-pairing: english-sha256=9cdaa879f30df209bd6f2f15f8be30f701a0cc631940338d521e11d9fe716b9f zh-cn-sha256=39a4c7d58b8374262ba3385d2ff48f9f58330e79bd944c4181c108c9525d0bd6 -->

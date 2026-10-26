@@ -541,7 +541,7 @@ fn probe_hook_configuration(
     recorded: &mut Vec<RootCandidate>,
     budget: &mut Budget,
 ) -> HookProbe {
-    use fs::ConfigurationScan as HookConfigurationScan;
+    use crate::agent_integrations::HookConfigurationScan;
     let candidates = match budget.observation.configuration_targets(provider, home) {
         Ok(Some(candidates)) => candidates,
         Ok(None) => return final_verdict(HookState::Unknown, HookReason::NotInspected),

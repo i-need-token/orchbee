@@ -1,7 +1,18 @@
 mod grouped;
 
+use super::super::{HookConfigurationKind, HookConfigurationScan, scan_hook_configuration};
 use super::*;
+use crate::agent_integrations::hook_configuration::Object;
 use serde_json::{Value, json};
+
+fn scan(set: EventSet, bytes: &[u8]) -> HookConfigurationScan {
+    let kind = match set {
+        EventSet::Mastracode => HookConfigurationKind::Mastracode,
+        EventSet::Devin => HookConfigurationKind::Devin,
+    };
+    scan_hook_configuration(kind, bytes)
+}
+
 #[test]
 fn complete_partial_conflicting_and_foreign_flat_hooks() {
     let root = Path::new(r"C:\owned\0.4.17");

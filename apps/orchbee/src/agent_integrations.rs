@@ -22,12 +22,17 @@ mod exec_budget;
 mod files;
 #[cfg(windows)]
 mod hermes_windows;
+mod hook_configuration;
 #[cfg(windows)]
 mod hook_configuration_windows;
 #[cfg(any(unix, windows))]
 mod inspect;
+pub(crate) use hook_configuration::{
+    HookConfigurationKind, HookConfigurationScan, RootPolicy, configuration_kinds,
+    scan_hook_configuration,
+};
 #[cfg(windows)]
-pub(crate) use hook_configuration_windows::{HookConfigurationScan, scan_hook_configuration};
+pub(crate) use hook_configuration_windows::ROOT_POLICY as CONFIGURATION_ROOT_POLICY;
 /// The closed result vocabularies stay available on every platform — the
 /// parser names them — while platform adapters own filesystem and process effects.
 pub(crate) mod model;

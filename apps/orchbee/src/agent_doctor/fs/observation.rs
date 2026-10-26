@@ -1,6 +1,10 @@
 //! An admitted native observation capability. Unsupported hosts cannot construct a probe port.
 use super::{Budget, EnvValue, FileRead, Lstat, PathScan};
 use crate::agent_doctor::probes::Provider;
+use crate::agent_integrations::{
+    HookConfigurationKind, HookConfigurationScan, RootPolicy, configuration_kinds,
+    scan_hook_configuration,
+};
 use std::{
     ffi::{OsStr, OsString},
     fs::{DirEntry, ReadDir},
@@ -11,27 +15,17 @@ use std::{
 #[derive(Debug)]
 pub(crate) struct Unsupported;
 
-/// The scanner's declaration facts, before doctor classification or recorded-root folding.
-pub(crate) enum ConfigurationScan {
-    Absent,
-    Conflict,
-    Malformed,
-    Owned(PathBuf),
-    Disabled(PathBuf),
-    Incomplete(PathBuf),
-}
-
-type ConfigurationScanner = dyn Fn(&[u8]) -> ConfigurationScan;
 type ConfigurationTargetFactory =
-    fn(&Provider, &Path) -> Result<Option<Vec<ConfigurationTarget>>, Unsupported>;
+    fn(&Provider, &Path, &'static [HookConfigurationKind]) -> Option<Vec<ConfigurationTarget>>;
 
 pub(crate) struct ConfigurationTarget {
     pub(crate) path: PathBuf,
-    pub(super) scan: Box<ConfigurationScanner>,
+    pub(super) kind: HookConfigurationKind,
+    pub(super) root_policy: RootPolicy,
 }
 impl ConfigurationTarget {
-    pub(crate) fn scan(&self, bytes: &[u8]) -> ConfigurationScan {
-        (self.scan)(bytes)
+    pub(crate) fn scan(&self, bytes: &[u8]) -> HookConfigurationScan {
+        scan_hook_configuration(self.kind, bytes, self.root_policy)
     }
 }
 
@@ -50,7 +44,7 @@ pub(super) struct Native {
     pub(super) codex_target: fn(&Provider, &Path) -> Option<PathBuf>,
     pub(super) guarded_target: fn(&Provider, &Path) -> Option<PathBuf>,
     pub(super) bootstrap_target: fn(&Provider, &Path) -> Option<PathBuf>,
-    pub(super) configuration_targets: ConfigurationTargetFactory,
+    pub(super) configuration_targets: Option<ConfigurationTargetFactory>,
 }
 
 #[derive(Clone, Copy)]
@@ -116,6 +110,10 @@ impl Observation {
         provider: &Provider,
         home: &Path,
     ) -> Result<Option<Vec<ConfigurationTarget>>, Unsupported> {
-        (self.0.configuration_targets)(provider, home)
+        let factory = self.0.configuration_targets.ok_or(Unsupported)?;
+        let Some(kinds) = configuration_kinds(provider.id) else {
+            return Ok(None);
+        };
+        Ok(factory(provider, home, kinds))
     }
 }

@@ -1282,6 +1282,10 @@ with the command-specific failure above. Windows and Linux retain their native r
 executable observations. Configuration-hook candidates keep their declared order: only an absent
 file permits the next candidate, and the first bytes or other read outcome ends the search.
 Their scan facts enter the shared classification and root fold without a separate budget.
+The ordered document kinds and JSON/Kimi/event-set scanners share one pure integration owner;
+doctor consumes its six-state result directly. Windows supplies the integration owner's exact
+Disk/VerbatimDisk root-admission and path-equality policies, including UNC refusal; the scanner
+never substitutes host path interpretation or the doctor's broader filesystem path admission.
 Linux continues to decline configuration-hook inspection after the existing home-directory
 check. Windows endpoint hints and text retain the uninspected fact; only JSON rendering maps
 that endpoint to `{kind:"unsupported"}`. This boundary adds no platform inspection capability.

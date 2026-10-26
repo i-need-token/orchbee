@@ -2,34 +2,9 @@
 //! offline diagnostics. Callers retain their own filesystem admission guards.
 use std::path::{Path, PathBuf};
 
-/// The actual provider document shape; both Droid origins share one adapter identity.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HookConfigurationKind {
-    Cursor,
-    Qoder,
-    Antigravity,
-    Mastracode,
-    DroidStandalone,
-    DroidSettings,
-    Kimi,
-    Letta,
-    Devin,
-}
-impl HookConfigurationKind {
-    /// Canonical observation and integration identity independent of file representation.
-    pub(crate) const fn id(self) -> &'static str {
-        match self {
-            Self::Kimi => "kimi",
-            Self::Letta => "letta",
-            Self::Devin => "devin",
-            Self::Cursor => "cursor",
-            Self::Qoder => "qodercli",
-            Self::Antigravity => "antigravity-cli",
-            Self::Mastracode => "mastracode",
-            Self::DroidStandalone | Self::DroidSettings => "droid",
-        }
-    }
-}
+pub(crate) use crate::agent_integrations::HookConfigurationKind;
+use crate::agent_integrations::configuration_kinds;
+
 /// One candidate configuration. Callers own reads, budgets and failure handling.
 #[derive(Clone)]
 pub(crate) struct HookConfigurationTarget {
@@ -42,38 +17,43 @@ pub(crate) fn hook_configuration_candidates(
     id: &str,
     home: &Path,
 ) -> Option<Vec<HookConfigurationTarget>> {
+    hook_configuration_candidates_for(id, home, configuration_kinds(id)?)
+}
+
+/// Resolves the shared ordered syntax plan with the existing Windows location rules.
+pub(crate) fn hook_configuration_candidates_for(
+    id: &str,
+    home: &Path,
+    kinds: &[HookConfigurationKind],
+) -> Option<Vec<HookConfigurationTarget>> {
     if id == "droid" {
         if !home.is_absolute() {
             return None;
         }
+        let [first, second, third] = kinds else {
+            return None;
+        };
         return Some(vec![
             HookConfigurationTarget {
                 path: home.join(".factory/hooks.json"),
-                kind: HookConfigurationKind::DroidStandalone,
+                kind: *first,
             },
             HookConfigurationTarget {
                 path: home.join(".factory/hooks/hooks.json"),
-                kind: HookConfigurationKind::DroidStandalone,
+                kind: *second,
             },
             HookConfigurationTarget {
                 path: home.join(".factory/settings.json"),
-                kind: HookConfigurationKind::DroidSettings,
+                kind: *third,
             },
         ]);
     }
-    let kind = match id {
-        "kimi" => HookConfigurationKind::Kimi,
-        "letta" => HookConfigurationKind::Letta,
-        "devin" => HookConfigurationKind::Devin,
-        "cursor" => HookConfigurationKind::Cursor,
-        "qodercli" => HookConfigurationKind::Qoder,
-        "antigravity-cli" => HookConfigurationKind::Antigravity,
-        "mastracode" => HookConfigurationKind::Mastracode,
-        _ => return None,
+    let [kind] = kinds else {
+        return None;
     };
     Some(vec![HookConfigurationTarget {
         path: single_hook_configuration(id, home)?,
-        kind,
+        kind: *kind,
     }])
 }
 

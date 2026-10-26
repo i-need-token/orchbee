@@ -1,8 +1,7 @@
 //! Linux no-follow descriptors, native ownership, environment and executable observations.
 use super::{
     Budget, EntryKind, EnvValue, FileRead, Lstat, MAX_PATH_BYTES, Ownership, PathScan,
-    observation::{Native, Unsupported},
-    path_from_bytes,
+    observation::Native, path_from_bytes,
 };
 use nix::{
     errno::Errno,
@@ -32,7 +31,7 @@ pub(super) static NATIVE: Native = Native {
     codex_target: |provider, home| Some(home.join(provider.home_target)),
     guarded_target: |provider, home| Some(home.join(provider.home_target)),
     bootstrap_target: |provider, home| Some(home.join(provider.home_target)),
-    configuration_targets: |_, _| Err(Unsupported),
+    configuration_targets: None,
 };
 pub(crate) fn lstat(path: &Path) -> Lstat {
     use std::os::unix::fs::{FileTypeExt, MetadataExt};

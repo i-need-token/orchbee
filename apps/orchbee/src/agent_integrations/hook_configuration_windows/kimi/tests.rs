@@ -1,4 +1,11 @@
+use super::super::{HookConfigurationKind, HookConfigurationScan, scan_hook_configuration};
 use super::*;
+use toml_edit::DocumentMut;
+
+fn scan(bytes: &[u8]) -> HookConfigurationScan {
+    scan_hook_configuration(HookConfigurationKind::Kimi, bytes)
+}
+
 #[test]
 fn both_representations_preserve_foreign_values_and_repair_partial_sets() {
     let root = Path::new(r"C:\owned\0.4.17");

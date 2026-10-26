@@ -1,138 +1,19 @@
-//! Closed provider event sets: flat Mastracode and grouped Devin hooks. Own only exact generated entries;
-//! foreign values remain raw and publication belongs to the parent workflow.
-use super::{HookConfigurationScan, LIMIT, Object, declaration, entry_root, item_root};
-use serde_json::value::RawValue;
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+//! Windows event-set byte mutation; parsing and ownership proofs are shared.
+use super::{LIMIT, ROOT_POLICY, declaration, grammar};
+pub(super) use grammar::event_sets::EventSet;
+use std::path::Path;
 
-const MASTRACODE_EVENTS: &[&str] = &[
-    "SessionStart",
-    "SessionEnd",
-    "AgentStart",
-    "AgentEnd",
-    "PreToolUse",
-    "PostToolUse",
-    "PermissionRequest",
-    "PermissionResult",
-    "SubagentStart",
-    "SubagentEnd",
-];
-const DEVIN_EVENTS: &[&str] = &[
-    "SessionStart",
-    "UserPromptSubmit",
-    "PreToolUse",
-    "PostToolUse",
-    "PermissionRequest",
-    "Stop",
-];
-#[derive(Clone, Copy)]
-pub(super) enum EventSet {
-    Mastracode,
-    Devin,
-}
-impl EventSet {
-    fn id(self) -> &'static str {
-        match self {
-            Self::Mastracode => "mastracode",
-            Self::Devin => "devin",
-        }
-    }
-    fn events(self) -> &'static [&'static str] {
-        match self {
-            Self::Mastracode => MASTRACODE_EVENTS,
-            Self::Devin => DEVIN_EVENTS,
-        }
-    }
-    fn extra_events(self) -> &'static [&'static str] {
-        match self {
-            Self::Mastracode => &["Stop", "Interrupt", "Notification", "UserPromptSubmit"],
-            Self::Devin => &["SessionEnd", "PostCompaction"],
-        }
-    }
-}
-struct Document {
-    parent: Option<Object>,
-    object: Object,
-    entries: BTreeMap<String, Vec<Box<RawValue>>>,
-    owned: BTreeMap<String, usize>,
-    root: Option<PathBuf>,
-}
-fn parse(set: EventSet, bytes: &[u8]) -> Result<Document, HookConfigurationScan> {
-    let object: Object =
-        serde_json::from_slice(bytes).map_err(|_| HookConfigurationScan::Malformed)?;
-    let (parent, object) = match set {
-        EventSet::Mastracode => (None, object),
-        EventSet::Devin => {
-            let hooks = object
-                .0
-                .get("hooks")
-                .map(|raw| serde_json::from_str(raw.get()))
-                .transpose()
-                .map_err(|_| HookConfigurationScan::Malformed)?
-                .unwrap_or_default();
-            (Some(object), hooks)
-        }
-    };
-    let mut entries = BTreeMap::new();
-    let mut owned = BTreeMap::new();
-    let mut root = None;
-    for (event, raw) in &object.0 {
-        if !set.events().contains(&event.as_str()) && !set.extra_events().contains(&event.as_str())
-        {
-            continue;
-        }
-        let values: Vec<Box<RawValue>> =
-            serde_json::from_str(raw.get()).map_err(|_| HookConfigurationScan::Malformed)?;
-        for (index, value) in values.iter().enumerate() {
-            let found = match set {
-                EventSet::Mastracode => entry_root(set.id(), value),
-                EventSet::Devin => item_root(set.id(), value),
-            }
-            .map_err(|_| HookConfigurationScan::Conflict)?;
-            if let Some(found) = found {
-                if !set.events().contains(&event.as_str())
-                    || owned.insert(event.clone(), index).is_some()
-                    || root.as_ref().is_some_and(|previous| previous != &found)
-                {
-                    return Err(HookConfigurationScan::Conflict);
-                }
-                root = Some(found);
-            }
-        }
-        entries.insert(event.clone(), values);
-    }
-    Ok(Document {
-        parent,
-        object,
-        entries,
-        owned,
-        root,
-    })
-}
-pub(super) fn scan(set: EventSet, bytes: &[u8]) -> HookConfigurationScan {
-    match parse(set, bytes) {
-        Ok(doc) => match doc.root {
-            None => HookConfigurationScan::Absent,
-            Some(root) if doc.owned.len() == set.events().len() => {
-                HookConfigurationScan::Owned(root)
-            }
-            Some(root) => HookConfigurationScan::Incomplete(root),
-        },
-        Err(state) => state,
-    }
-}
 pub(super) fn patch(
     set: EventSet,
     bytes: Option<&[u8]>,
     root: &Path,
     enable: bool,
 ) -> Option<Vec<u8>> {
-    let mut doc = parse(set, bytes.unwrap_or(b"{}")).ok()?;
+    let (parent, mut object, mut entries_by_event, owned, _) =
+        grammar::event_sets::parse(set, bytes.unwrap_or(b"{}"), ROOT_POLICY).ok()?;
     for event in set.events() {
-        let mut entries = doc.entries.remove(*event).unwrap_or_default();
-        if let Some(index) = doc.owned.get(*event) {
+        let mut entries = entries_by_event.remove(*event).unwrap_or_default();
+        if let Some(index) = owned.get(*event) {
             entries.remove(*index);
         }
         if enable {
@@ -144,16 +25,16 @@ pub(super) fn patch(
             entries.push(serde_json::value::to_raw_value(&entry).ok()?);
         }
         if entries.is_empty() {
-            doc.object.0.remove(*event);
+            object.0.remove(*event);
         } else {
-            doc.object.set(event, entries)?;
+            object.set(event, entries)?;
         }
     }
-    let bytes = if let Some(mut parent) = doc.parent {
-        parent.set("hooks", doc.object.0)?;
+    let bytes = if let Some(mut parent) = parent {
+        parent.set("hooks", object.0)?;
         parent.bytes()?
     } else {
-        doc.object.bytes()?
+        object.bytes()?
     };
     (bytes.len() as u64 <= LIMIT).then_some(bytes)
 }

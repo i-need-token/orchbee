@@ -7,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf, Prefix},
 };
 
-use super::observation::{ConfigurationScan, ConfigurationTarget, Native};
+use super::observation::{ConfigurationTarget, Native};
 use super::{Budget, EntryKind, EnvValue, FileRead, Lstat, MAX_PATH_BYTES, PathScan};
 
 pub(super) static NATIVE: Native = Native {
@@ -34,37 +34,23 @@ pub(super) static NATIVE: Native = Native {
             Some(home.join(provider.home_target))
         }
     },
-    configuration_targets: |provider, home| {
-        Ok(
-            crate::agent_configuration_windows::hook_configuration_candidates(provider.id, home)
-                .map(|targets| {
-                    targets
-                        .into_iter()
-                        .map(|target| {
-                            let kind = target.kind;
-                            ConfigurationTarget {
-                                path: target.path,
-                                scan: Box::new(move |bytes| {
-                                    use crate::agent_integrations::HookConfigurationScan as Scan;
-                                    match crate::agent_integrations::scan_hook_configuration(
-                                        kind, bytes,
-                                    ) {
-                                        Scan::Absent => ConfigurationScan::Absent,
-                                        Scan::Conflict => ConfigurationScan::Conflict,
-                                        Scan::Malformed => ConfigurationScan::Malformed,
-                                        Scan::Owned(root) => ConfigurationScan::Owned(root),
-                                        Scan::Disabled(root) => ConfigurationScan::Disabled(root),
-                                        Scan::Incomplete(root) => {
-                                            ConfigurationScan::Incomplete(root)
-                                        }
-                                    }
-                                }),
-                            }
-                        })
-                        .collect()
-                }),
+    configuration_targets: Some(|provider, home, kinds| {
+        crate::agent_configuration_windows::hook_configuration_candidates_for(
+            provider.id,
+            home,
+            kinds,
         )
-    },
+        .map(|targets| {
+            targets
+                .into_iter()
+                .map(|target| ConfigurationTarget {
+                    path: target.path,
+                    kind: target.kind,
+                    root_policy: crate::agent_integrations::CONFIGURATION_ROOT_POLICY,
+                })
+                .collect()
+        })
+    }),
 };
 
 const REPARSE_POINT: u32 = 0x400;
