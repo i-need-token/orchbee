@@ -102,9 +102,9 @@ mod worktree_query;
 pub(crate) use worktree_query::run as run_worktree_query;
 mod worktree_source;
 pub(crate) use worktree_operation::run as run_worktree;
-#[cfg(any(target_os = "linux", windows))]
-#[cfg_attr(windows, path = "cli/source_windows.rs")]
 pub(crate) mod source;
+mod source_finalization;
+pub(crate) use source_finalization::SourceFinalization;
 mod terminal_output;
 pub(crate) use query::terminal_copy::run as copy_terminal;
 pub(crate) use query::terminal_links::run as resolve_terminal_link;
@@ -156,66 +156,6 @@ pub(crate) struct Output {
     pub(crate) stdout: Vec<u8>,
     pub(crate) stderr: String,
     pub(crate) finalization: Option<SourceFinalization>,
-}
-
-/// A noncloneable finalization owed by `emit` after the last output attempt.
-/// Only the Linux `terminal send` source guard creates one: the inherited
-/// thread mask stays blocked while the process answer is written, and
-/// `release` restores it exactly — a signal arriving after the final drain
-/// still reaches its original disposition. It is never constructed on other
-/// platforms, and no path may drop it without releasing it.
-#[must_use = "the owed finalization must be released by the common emit finalizer"]
-pub(crate) struct SourceFinalization {
-    #[cfg(windows)]
-    interrupt: crate::windows_signal::ControlInterrupt,
-    /// The thread mask captured before the source guard armed.
-    #[cfg(target_os = "linux")]
-    old_mask: nix::sys::signal::SigSet,
-    /// Test-only mock seam: `release` reports a kernel failure so the emit
-    /// finalizer's error routing is provable without a real mask fault.
-    #[cfg(all(test, target_os = "linux"))]
-    fail_release: bool,
-}
-
-#[cfg(target_os = "linux")]
-impl SourceFinalization {
-    pub(crate) fn new(old_mask: nix::sys::signal::SigSet) -> Self {
-        Self {
-            old_mask,
-            #[cfg(test)]
-            fail_release: false,
-        }
-    }
-
-    /// A token whose `release` always reports a kernel failure — mock
-    /// evidence for the emit finalizer's restore-failure routing.
-    #[cfg(test)]
-    pub(crate) fn failing() -> Self {
-        Self {
-            old_mask: nix::sys::signal::SigSet::empty(),
-            fail_release: true,
-        }
-    }
-
-    /// Restore the captured thread mask exactly; a failure is a terminal
-    /// internal failure — reported by the caller, never retried.
-    pub(crate) fn release(self) -> Result<(), nix::errno::Errno> {
-        #[cfg(test)]
-        if self.fail_release {
-            return Err(nix::errno::Errno::EIO);
-        }
-        self.old_mask
-            .thread_swap_mask(nix::sys::signal::SigmaskHow::SIG_SETMASK)
-            .map(drop)
-    }
-}
-
-#[cfg(not(any(target_os = "linux", windows)))]
-impl SourceFinalization {
-    /// Unreachable on non-Linux: the token is never constructed there.
-    pub(crate) fn release(self) -> Result<(), std::convert::Infallible> {
-        Ok(())
-    }
 }
 
 /// Process results for TUI launch and version also finish
@@ -952,17 +892,6 @@ fn success_output(
                 Err(output::TooLarge) => too_large(&source),
             }
         }
-    }
-}
-
-#[cfg(windows)]
-impl SourceFinalization {
-    fn new(interrupt: crate::windows_signal::ControlInterrupt) -> Self {
-        Self { interrupt }
-    }
-    pub(crate) fn release(self) -> std::io::Result<()> {
-        drop(self.interrupt);
-        Ok(())
     }
 }
 

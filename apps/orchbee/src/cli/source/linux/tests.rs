@@ -873,7 +873,7 @@ fn late_signal_in_finish_window_dies_by_os_disposition() {
     let output = Command::new(env::current_exe().expect("test binary"))
         .args([
             "--exact",
-            "cli::source::tests::late_signal_in_finish_window_dies_by_os_disposition",
+            "cli::source::linux::tests::late_signal_in_finish_window_dies_by_os_disposition",
             "--test-threads=1",
             "--nocapture",
         ])

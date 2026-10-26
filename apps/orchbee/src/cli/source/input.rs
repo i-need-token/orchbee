@@ -56,7 +56,7 @@ pub(crate) fn materialize<'a>(
         }
     };
     if paste {
-        if bytes.len() > crate::invocation::MAXIMUM_SEND_PASTE_BYTES {
+        if bytes.len() > limit_for(true) {
             return Err(usage(
                 option,
                 value,
@@ -79,7 +79,7 @@ pub(crate) fn materialize<'a>(
             Err(error) => bytes = error.into_bytes(),
         }
     }
-    if bytes.len() + usize::from(enter) > crate::invocation::MAXIMUM_SEND_BYTES_BYTES {
+    if bytes.len() + usize::from(enter) > limit_for(false) {
         return Err(usage(
             option,
             value,

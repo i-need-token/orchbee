@@ -1147,6 +1147,8 @@ CLI 在现有期限和中断守卫下轮询，并在成功及已处理的失败�
 沿用锁定版本，不引入自编写的不安全代码。状态为已接纳 -> 读取中 ->
 完成/失败/超时/取消 -> 子进程已回收，仅完成可进入提交。
 `source/input.rs` 拥有原始字节/paste 路由，文件/stdin 不限定为 UTF-8。
+此算法与 finish 投影通过共用 source 门面编译；具名 Linux/Windows 端口保留输入获取与信号所有权，
+`source_finalization/` 保留原有输出完成时的释放。
 Windows 测试用真实读取子进程验证 EOF、上限和超时，并注入信号观察验证取消；
 这些测试不模拟物理 Ctrl+C。此流程采用实现测试。
 
@@ -2059,7 +2061,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 文件/stdin 物化：非阻塞 open + `fstat` 类型闸、regular 文件共享 offset、私有 FIFO 重开、cap+1、不透明字节、空/非 regular/不支持类型的拒绝                                | 有界记录或类型化源 `invalid-usage`；零运行时副作用                               | `src/cli/source` 单元测试 + `tests/cli_send.rs`                     |
 | 源 deadline/取消：停滞管道在共享 deadline 退出 7、被捕获合格信号按 `128+signo` 携带 `orchbee.cli.failure.source`、继承 IGN/BLK 原样保留、恢复失败即 internal             | 源 envelope 事实、无 wire 请求、精确 mask 恢复                                   | `src/cli/source` 测试 + 标注的 OS/进程证据                          |
 | 脚本化 OBCS send peer + 声明型源：物化后的文件/stdin 以一条 `terminal.send` 文本请求到达                                                                                 | 与 `--text` 完全相同的 envelope；恰好一条请求                                    | `tests/cli_send.rs`                                                 |
-| Windows 自有管道读取器：原始字节、EOF、空输入、字节/粘贴上限、期限、注入取消、子进程回收                                                                                 | 精确载荷或类型化拒绝；无残留管道读取器                                           | `src/cli/source_windows/pipe.rs` 测试                               |
+| Windows 自有管道读取器：原始字节、EOF、空输入、字节/粘贴上限、期限、注入取消、子进程回收                                                                                 | 精确载荷或类型化拒绝；无残留管道读取器                                           | `src/cli/source/windows/pipe.rs` 测试                               |
 | Windows 公开进程与 PowerShell 5.1/7 管道源校验                                                                                                                           | 源完成后抵达与文本对照相同的源后拒绝；非法源先失败                               | `tests/cli_windows_input.rs`                                        |
 | PowerShell 5.1/7 补全与离线本地化 skill                                                                                                                                  | 限定候选、重复键、粘贴互斥、根独占 skill 且不访问运行时                          | `src/cli/completion/powershell/tests.rs` + `tests/process.rs`       |
 | 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败                                         | `tests/cli_query.rs`                                                |
@@ -2505,4 +2507,4 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 
 `terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。
 
-<!-- documentation-pairing: english-sha256=d8a397776ac0385317f56d94d17a5b0f3b4fa5d2d70d56bbb04869005386c9c1 zh-cn-sha256=5524180b5768939b216cab72e3d22699cba457ec4138abb89e73ed966c2405dc -->
+<!-- documentation-pairing: english-sha256=88b0029eee379d491de96fe7455581cf17b9e0ae61204f9ab9dfb95bcf12773c zh-cn-sha256=3e4da7eb193c65c3f592666b0ad092f4700eac6f1c489040bb8da0ecd8d816b2 -->

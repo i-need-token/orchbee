@@ -1,8 +1,9 @@
 //! Windows source admission: bounded files and inherited pipes with console
 //! cancellation. A pipe's owned reader process is reaped before source handoff;
 //! the caller's pipe mode is never changed and no blocking thread escapes.
-#[path = "source_windows/pipe.rs"]
 mod pipe;
+use super::input::{limit_for, usage};
+use crate::cli::input_source::{InputSource, SourceFailure};
 use crate::{
     cli::{Failure, FailureKind, SourceFinalization},
     invocation::SendSourceCause,
@@ -14,10 +15,8 @@ use std::{
     os::windows::io::AsHandle,
     time::Instant,
 };
-#[path = "source/input.rs"]
-mod input;
-pub(crate) use input::{InputSource, SourceFailure, materialize, source_details};
-use input::{limit_for, usage};
+pub(super) type ArmError = io::Error;
+pub(super) type SignalError = io::Error;
 
 pub(crate) trait SignalWatch {
     fn poll_fd(&self) -> Option<orchbee_local_ipc::LocalIo<'_>>;
@@ -90,7 +89,7 @@ pub(in crate::cli) fn acquire_document(
     }
 }
 
-fn acquire_file(
+pub(super) fn acquire_file(
     path: &str,
     paste: bool,
     deadline: Instant,
@@ -118,7 +117,7 @@ fn acquire_file_limit(
         signals,
     )
 }
-fn acquire_stdin(
+pub(super) fn acquire_stdin(
     paste: bool,
     deadline: Instant,
     signals: &mut dyn SignalWatch,
@@ -190,4 +189,35 @@ fn read_regular(
         return Err(failure(SendSourceCause::Empty));
     }
     Ok(output)
+}
+
+/// Preserve the native finish result while the facade constructs the shared stage outcome.
+pub(super) fn finish(
+    signals: ArmedSignals,
+) -> Result<Option<(i32, SourceFinalization)>, SignalError> {
+    signals.finish().map(|finish| match finish {
+        Finish::Clear => None,
+        Finish::Cancelled {
+            signo,
+            finalization,
+        } => Some((signo, finalization)),
+    })
+}
+
+impl SignalWatch for super::ArmedSignals {
+    fn poll_fd(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
+        SignalWatch::poll_fd(&self.0)
+    }
+    fn take(&mut self) -> io::Result<Option<i32>> {
+        SignalWatch::take(&mut self.0)
+    }
+}
+
+impl super::ArmedSignals {
+    pub(in crate::cli) fn requested(&self) -> bool {
+        self.0.requested()
+    }
+    pub(in crate::cli) fn check_before(&mut self, deadline: Instant) -> Result<(), Failure> {
+        self.0.check_before(deadline)
+    }
 }
